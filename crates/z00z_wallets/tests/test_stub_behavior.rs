@@ -9,7 +9,6 @@ use z00z_utils::time::MockTimeProvider;
 
 use z00z_utils::codec::{BincodeCodec, Codec};
 use z00z_wallets::services::{AppService, WalletService};
-use z00z_wallets::wallet::stub_defaults::StubDefault;
 use z00z_wallets::{
     domains::AeadEnvelopeDomain,
     key::Z00ZKeyBranch,
@@ -116,8 +115,7 @@ async fn test_stub_wallet_unlock_stub() {
     assert!(!token.token.is_empty());
     assert_eq!(token.wallet_id, wallet_id);
 
-    let stub_expected = z00z_wallets::rpc::types::security::SessionToken::stub_default();
-    assert_ne!(token.token, stub_expected.token);
+    assert_ne!(token.token, "stub-session-token");
 
     // Subsequent secret ops require a valid session token.
     let shown = service

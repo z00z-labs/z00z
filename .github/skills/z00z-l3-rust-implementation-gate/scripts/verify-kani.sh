@@ -12,7 +12,7 @@ STRICT="${Z00Z_L3_STRICT:-0}"
 WALL_TIMEOUT_SECS="${Z00Z_KANI_TIMEOUT_SECS:-0}"
 DISABLE_TIME_LIMITS="${Z00Z_DISABLE_TIME_LIMITS:-1}"
 PROFILE_ARGS_TEXT="${Z00Z_CARGO_PROFILE_ARGS:---release}"
-FEATURE_FLAG="${Z00Z_ALL_FEATURES_FLAG---all-features}"
+FEATURE_FLAG_TEXT="${Z00Z_ALL_FEATURES_FLAG-}"
 
 source "$PROFILE_LIB"
 z00z_profile_activate_tool_env "$ROOT_DIR"
@@ -84,11 +84,70 @@ elif [[ "${#profile_args[@]}" -gt 0 ]]; then
 fi
 
 feature_args=()
-if [[ -n "$FEATURE_FLAG" ]]; then
-  feature_args+=("$FEATURE_FLAG")
+if [[ -n "$FEATURE_FLAG_TEXT" ]]; then
+  read -r -a feature_args <<<"$FEATURE_FLAG_TEXT"
 fi
 
-workspace_json="$(cargo metadata --format-version 1 --no-deps)"
+caller_controls_features=0
+for arg in "${feature_args[@]}"; do
+  case "$arg" in
+    --all-features|--no-default-features|--features)
+      caller_controls_features=1
+      ;;
+  esac
+done
+
+derive_package_feature_args() {
+  local package="$1"
+  local feature_csv
+  feature_csv="$(
+    python3 - "$workspace_json_file" "$package" <<'PY'
+import json
+import sys
+
+metadata_path = sys.argv[1]
+package_name = sys.argv[2]
+with open(metadata_path, encoding="utf-8") as fh:
+    data = json.load(fh)
+package = next((pkg for pkg in data["packages"] if pkg["name"] == package_name), None)
+if package is None:
+    raise SystemExit(0)
+
+feature_map = package.get("features", {})
+
+def expand(enabled):
+    resolved = set()
+    stack = list(enabled)
+    while stack:
+        feature = stack.pop()
+        if feature in resolved:
+            continue
+        resolved.add(feature)
+        for child in feature_map.get(feature, []):
+            if child.startswith("dep:"):
+                continue
+            stack.append(child.split("/", 1)[0])
+    return resolved
+
+default_features = expand(feature_map.get("default", []))
+required = set()
+for target in package.get("targets", []):
+    required.update(target.get("required-features") or [])
+
+missing = sorted(required - default_features)
+if missing:
+    print(",".join(missing))
+PY
+  )"
+
+  if [[ -n "$feature_csv" ]]; then
+    printf '%s\n' "--features" "$feature_csv"
+  fi
+}
+
+workspace_json_file="$(mktemp)"
+trap 'rm -f "$workspace_json_file"' EXIT
+cargo metadata --format-version 1 --no-deps >"$workspace_json_file"
 ran=0
 
 run_kani_cmd() {
@@ -109,12 +168,16 @@ run_kani_cmd() {
 }
 
 for package in $PACKAGES; do
-  manifest="$(printf '%s' "$workspace_json" | python3 -c 'import json,sys; pkg=sys.argv[1]; data=json.load(sys.stdin); print(next((p["manifest_path"] for p in data["packages"] if p["name"] == pkg), ""))' "$package")"
+  manifest="$(python3 -c 'import json,sys; path,pkg=sys.argv[1:3]; data=json.load(open(path, encoding="utf-8")); print(next((p["manifest_path"] for p in data["packages"] if p["name"] == pkg), ""))' "$workspace_json_file" "$package")"
   if [[ -z "$manifest" ]]; then
     log "UNKNOWN: package $package not in workspace"
     continue
   fi
   crate_dir="$(dirname "$manifest")"
+  package_feature_args=()
+  if [[ "$caller_controls_features" == "0" ]]; then
+    mapfile -t package_feature_args < <(derive_package_feature_args "$package")
+  fi
 
   mapfile -t generated_harnesses < <(
     python3 - "$crate_dir" <<'PY'
@@ -133,15 +196,17 @@ for path in sorted(crate_dir.glob("tests/generated_kani_*.rs")):
     if "kani::proof" not in text:
         continue
     for match in proof_pattern.finditer(text):
-        print(match.group(1))
+        print(f"{path.stem}\t{match.group(1)}")
 PY
   )
 
   if [[ "${#generated_harnesses[@]}" -gt 0 ]]; then
-    for harness in "${generated_harnesses[@]}"; do
-      log "cargo kani ${kani_profile_args[*]:-} -p $package --tests ${FEATURE_FLAG:-} --exact --harness $harness --output-format terse"
+    for harness_spec in "${generated_harnesses[@]}"; do
+      IFS=$'\t' read -r target_name harness <<<"$harness_spec"
+      qualified_harness="${target_name}::${harness}"
+      log "cargo kani ${kani_profile_args[*]:-} -p $package ${feature_args[*]:-} ${package_feature_args[*]:-} --exact --harness $qualified_harness --output-format terse"
       set +e
-      run_kani_cmd "kani:$package::$harness" "$WALL_TIMEOUT_SECS" cargo kani "${kani_profile_args[@]}" -p "$package" --tests "${feature_args[@]}" --exact --harness "$harness" --output-format terse
+      run_kani_cmd "kani:$package:$qualified_harness" "$WALL_TIMEOUT_SECS" cargo kani "${kani_profile_args[@]}" -p "$package" "${feature_args[@]}" "${package_feature_args[@]}" --exact --harness "$qualified_harness" --output-format terse
       status=$?
       set -e
       if [[ "$status" -eq 0 ]]; then
@@ -149,15 +214,15 @@ PY
         continue
       fi
       if [[ "$status" -eq 124 ]]; then
-        log "UNKNOWN: timeout after ${WALL_TIMEOUT_SECS}s for Kani harness $package::$harness"
+        log "UNKNOWN: timeout after ${WALL_TIMEOUT_SECS}s for Kani harness $package:$qualified_harness"
         continue
       fi
       exit "$status"
     done
   elif rg -q "kani::|proof_for_contract|kani::proof" "$crate_dir" 2>/dev/null; then
-    log "cargo kani ${kani_profile_args[*]:-} -p $package --tests ${FEATURE_FLAG:-} --output-format terse"
+    log "cargo kani ${kani_profile_args[*]:-} -p $package ${feature_args[*]:-} ${package_feature_args[*]:-} --output-format terse"
     set +e
-    run_kani_cmd "kani:$package" "$WALL_TIMEOUT_SECS" cargo kani "${kani_profile_args[@]}" -p "$package" --tests "${feature_args[@]}" --output-format terse
+    run_kani_cmd "kani:$package" "$WALL_TIMEOUT_SECS" cargo kani "${kani_profile_args[@]}" -p "$package" "${feature_args[@]}" "${package_feature_args[@]}" --output-format terse
     status=$?
     set -e
     if [[ "$status" -eq 0 ]]; then

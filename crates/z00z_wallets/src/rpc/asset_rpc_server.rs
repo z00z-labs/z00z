@@ -11,7 +11,7 @@ use super::{
     RuntimeOperationStatus, RuntimeRateLimitError, RuntimeReceiveAssetResponse,
     RuntimeSendAssetResponse, RuntimeSplitAssetResponse, RuntimeStakeAssetsResponse,
     RuntimeSwapAssetsResponse, RuntimeUnstakeAssetsResponse, ScanResult, SecurityErrorCode,
-    SelectionStrategy, SendTarget, SenderWallet, SessionToken, StealthOutputScanner, StubDefault,
+    SelectionStrategy, SendTarget, SenderWallet, SessionToken, StealthOutputScanner,
     SystemRngProvider, TracingLogger, WalletService, ASSET_LIST_DEFAULT_LIMIT,
     ASSET_LIST_MAX_LIMIT, ASSET_SEND_RATE_LIMIT_WINDOW,
 };

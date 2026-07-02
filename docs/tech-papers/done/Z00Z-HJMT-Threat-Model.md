@@ -52,5 +52,6 @@ cargo test -p z00z_storage --release --features test-params-fast --test test_hjm
 cargo test -p z00z_storage --release --features test-params-fast --test test_occupancy_privacy -- --nocapture
 cargo test -p z00z_rollup_node --release --features test-params-fast --test test_hjmt_preflight -- --nocapture
 cargo test -p z00z_aggregators --release --features test-params-fast --test test_hjmt_failover_same_lineage -- --nocapture
-cargo test -p z00z_simulator --release --features test-params-fast --test test_scenario_settlement -- --nocapture
+cargo test -p z00z_simulator --release --test test_scenario_settlement -- --nocapture
+bash scripts/audit/audit_release_feature_guards.sh
 ```

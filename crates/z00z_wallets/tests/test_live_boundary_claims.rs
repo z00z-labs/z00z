@@ -1,6 +1,8 @@
 const WHITEPAPER_DOC: &str = include_str!("../../../docs/Z00Z-Main-Whitepaper.md");
 const ROADMAP_DOC: &str = include_str!("../../../docs/tech-papers/Z00Z-Roadmap-Blueprint.md");
 const ONIONNET_DOC: &str = include_str!("../../z00z_networks/onionnet/README.md");
+const WALLET_LIB_SRC: &str = include_str!("../src/lib.rs");
+const APP_MOD_SRC: &str = include_str!("../src/app/mod.rs");
 const APP_KERNEL_SRC: &str = include_str!("../src/app/app_kernel.rs");
 const CHAIN_CLIENT_SRC: &str = include_str!("../src/chain/chain_client_impl.rs");
 const REVIEW_EXECUTION_PROMPT: &str =
@@ -8,9 +10,19 @@ const REVIEW_EXECUTION_PROMPT: &str =
 const FULL_VERIFY_SKILL: &str =
     include_str!("../../../.github/skills/z00z-full-verify-gate/SKILL.md");
 const STORAGE_BENCHES_DOC: &str = include_str!("../../z00z_storage/benches/settlement_benches.md");
+const SETTLEMENT_README_DOC: &str = include_str!("../../z00z_storage/src/settlement/README.md");
+const HJMT_THREAT_DOC: &str =
+    include_str!("../../../docs/tech-papers/done/Z00Z-HJMT-Threat-Model.md");
 
 fn assert_present(label: &str, source: &str, needle: &str) {
     assert!(source.contains(needle), "{label} missing {needle:?}");
+}
+
+fn assert_absent(label: &str, source: &str, needle: &str) {
+    assert!(
+        !source.contains(needle),
+        "{label} still contains {needle:?}"
+    );
 }
 
 #[test]
@@ -49,9 +61,18 @@ fn onionnet_and_remote_chain_surfaces_stay_deferred() {
     assert_present(
         "app kernel",
         APP_KERNEL_SRC,
-        "Phase 1: OnionNet transport is not represented by `ChainType`",
+        "OnionNet transport is not represented by `ChainType`",
     );
-    assert_present("app kernel", APP_KERNEL_SRC, "deterministic placeholder");
+    assert_present(
+        "app kernel",
+        APP_KERNEL_SRC,
+        "local fallback chain selection.",
+    );
+    assert_absent("app kernel", APP_KERNEL_SRC, "deterministic placeholder");
+    assert_absent("app kernel", APP_KERNEL_SRC, "Core app stub:");
+    assert_absent("app kernel", APP_KERNEL_SRC, "Phase 1 stub");
+    assert_absent("wallet lib", WALLET_LIB_SRC, "stub-heavy");
+    assert_absent("app mod", APP_MOD_SRC, "RPC stubs only");
     assert_present(
         "chain client",
         CHAIN_CLIENT_SRC,
@@ -138,5 +159,39 @@ fn release_authority_docs_do_not_normalize_debug_release_features() {
             "cargo test -p z00z_simulator --release --features test-params-fast --features wallet_debug_tools",
         ),
         "bench closeout doc must not normalize release simulator debug features",
+    );
+    assert!(
+        !STORAGE_BENCHES_DOC.contains(
+            "cargo run --release -p z00z_simulator --bin scenario_1 --features test-params-fast --features wallet_debug_tools",
+        ),
+        "bench closeout doc must not normalize release simulator debug runs",
+    );
+    assert!(
+        !SETTLEMENT_README_DOC.contains(
+            "cargo test -p z00z_wallets --release --features test-params-fast --features wallet_debug_tools",
+        ),
+        "settlement readme must not normalize release wallet debug features",
+    );
+    assert!(
+        !SETTLEMENT_README_DOC.contains(
+            "cargo test -p z00z_simulator --test test_stage4_digest --release --features test-params-fast --features wallet_debug_tools",
+        ),
+        "settlement readme must not normalize release simulator debug tests",
+    );
+    assert!(
+        !HJMT_THREAT_DOC.contains(
+            "cargo test -p z00z_simulator --release --features test-params-fast --test test_scenario_settlement",
+        ),
+        "threat model doc must not normalize release simulator fast-test features",
+    );
+    assert_present(
+        "settlement readme",
+        SETTLEMENT_README_DOC,
+        "bash scripts/audit/audit_release_feature_guards.sh",
+    );
+    assert_present(
+        "threat model doc",
+        HJMT_THREAT_DOC,
+        "bash scripts/audit/audit_release_feature_guards.sh",
     );
 }

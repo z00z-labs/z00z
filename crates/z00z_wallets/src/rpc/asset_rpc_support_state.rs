@@ -55,7 +55,7 @@ impl<'a> LocalMutationExec<'a> {
 
     fn build_package(&self) -> RpcResult<TxPackage> {
         let chain_id = wallet_chain_id()?;
-        let (chain_type, chain_name) = AssetRpcImpl::local_chain_labels(chain_id);
+        let (_, chain_type, chain_name) = AssetRpcImpl::chain_meta_from_id(chain_id);
         let digest = blake3::hash(&self.digest_seed());
         let mut nonce_bytes = [0u8; 8];
         nonce_bytes.copy_from_slice(&digest.as_bytes()[..8]);
@@ -274,14 +274,6 @@ impl AssetRpcImpl {
                     None::<()>,
                 )
             })
-    }
-
-    fn local_chain_labels(chain_id: u32) -> (&'static str, &'static str) {
-        match chain_id {
-            1 => ("mainnet", "mainnet"),
-            2 => ("testnet", "testnet"),
-            _ => ("devnet", "devnet"),
-        }
     }
 
     fn tx_input_from_asset(asset: &Asset) -> TxInputWire {

@@ -44,6 +44,8 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+declare -a TAMARIN_CMD=()
+
 resolve_repo_path() {
   local path="$1"
   case "$path" in
@@ -61,16 +63,16 @@ tamarin_available() {
   have tamarin-prover
 }
 
-run_tamarin_cmd() {
-  local model="$1"
+resolve_tamarin_cmd() {
+  TAMARIN_CMD=()
   if [[ -n "$TAMARIN_CMD_OVERRIDE" ]]; then
-    "$TAMARIN_CMD_OVERRIDE" --prove "$model"
+    TAMARIN_CMD=("$TAMARIN_CMD_OVERRIDE")
   elif [[ -x "$TOOLS_DIR/tamarin/bin/tamarin-prover-z00z" ]]; then
-    "$TOOLS_DIR/tamarin/bin/tamarin-prover-z00z" --prove "$model"
+    TAMARIN_CMD=("$TOOLS_DIR/tamarin/bin/tamarin-prover-z00z")
   elif [[ -x "$TOOLS_DIR/tamarin/bin/tamarin-prover" ]]; then
-    "$TOOLS_DIR/tamarin/bin/tamarin-prover" --prove "$model"
+    TAMARIN_CMD=("$TOOLS_DIR/tamarin/bin/tamarin-prover")
   else
-    tamarin-prover --prove "$model"
+    TAMARIN_CMD=("tamarin-prover")
   fi
 }
 
@@ -86,12 +88,13 @@ if ! tamarin_available; then
 fi
 
 mkdir -p "$TAMARIN_TMPDIR"
+resolve_tamarin_cmd
 
 for model in "${models[@]}"; do
   log "Tamarin $model"
   log_file="$(mktemp "$TAMARIN_TMPDIR/z00z-tamarin-run.XXXXXX")"
   set +e
-  z00z_profile_run_command command "tamarin:$(basename "$model")" run_tamarin_cmd "$model" >"$log_file" 2>&1
+  z00z_profile_run_command command "tamarin:$(basename "$model")" "${TAMARIN_CMD[@]}" --prove "$model" >"$log_file" 2>&1
   status=$?
   set -e
   cat "$log_file"

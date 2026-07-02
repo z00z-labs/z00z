@@ -8,13 +8,13 @@ Status: current-code-only scenario backlog.
 
 Scope: independent scenarios that can be implemented against the repository as it exists now, using local fixtures, unit/integration harnesses, and the current `z00z_simulator`, wallet, storage, runtime, validator, watcher, rollup-node, core, and crypto surfaces. This document deliberately excludes scenarios that require a live testnet, Celestia DA, live external chains, a real OnionNet transport, production DAO machinery, or post-quantum suite registry.
 
-## 🎯 Corrected Task Understanding
+## 🎯 1. Corrected Task Understanding
 
 The goal is not to generate many speculative scenarios. The goal is to converge the whitepaper use cases into a small set of scenario families that can be built now and that demonstrate different aspects of Z00Z as a system.
 
 `scenario_1` remains reference-only. New scenarios below must be independent targets such as `scenario_2`, `scenario_3`, and so on. They may reuse current crates and current fixture patterns, but they must not append new stages to `scenario_1`.
 
-## 🔑 Current-Code Feasibility Rule
+## 🔑 2. Current-Code Feasibility Rule
 
 A scenario stays in this backlog only if it can be implemented with current local code surfaces:
 
@@ -36,7 +36,58 @@ A scenario is removed from this backlog if it requires:
 - live DAO/treasury/AI governance machinery;
 - production useful-work coordination layer.
 
-## 🧱 Existing-Crate Work Required Outside Simulator
+## 📚 3. Glossary
+
+Reader: an internal engineer selecting or implementing one backlog scenario.
+Post-read action: pick the correct scenario, understand its boundaries, and add
+tests without turning external-blocked architecture into current-code claims.
+
+| Term | Meaning in this document |
+| --- | --- |
+| Accepted verdict | Validator result that local artifacts, policy, checkpoint, and publication inputs satisfy the current implemented rules. |
+| Anti-drift rule | Rule that prevents a plan from copying obsolete architecture, retired paths, or external-blocked claims into active implementation. |
+| Anti-placeholder gate | Test requirement that fails if a scenario emits reports without real live computation behind them. |
+| Artifact | Deterministic file or record emitted by a scenario and checked by tests. |
+| Backlog scenario | Independent implementable simulator or integration target, such as `scenario_2` through `scenario_11`. |
+| Celestia DA | External data-availability integration blocked until adapter/devnet work exists. It is excluded from this current-code backlog. |
+| Checkpoint authority | Storage-owned rule set that builds, verifies, seals, and reloads checkpoint artifacts. |
+| Claim source authority | Storage-owned source of truth for claim-source contracts and replay-related settlement rows. |
+| Completion criteria | Minimum observable behavior required before a scenario can be marked complete. |
+| Current-code confidence | Estimate of how much required behavior already exists in local code surfaces. |
+| Current-code-only | Scenario boundary that uses local repository code and deterministic fixtures, not external services or non-implemented systems. |
+| DA adapter | Interface for local or external data-availability publication and resolution. |
+| Deterministic fixture | Local repeatable input set whose outputs are stable enough for tests and reports. |
+| E2E test | End-to-end local test that crosses multiple crates and proves integration behavior, not just one helper function. |
+| Evidence record | Structured record explaining accepted behavior, rejection, tamper, watcher alert, or replay outcome. |
+| Existing-crate work | Required change in production crates before a simulator scenario can honestly claim closure. |
+| Fault matrix | Table of injected failures, injection point, expected boundary, and expected result. |
+| External-blocked feature | Whitepaper or architecture target that is not implemented enough to be claimed by current scenarios because it needs external network, provider, devnet, or deployment work. |
+| HJMT | Storage settlement proof family used by current local storage and scenario evidence. |
+| Independent scenario | New scenario target that does not append stages to `scenario_1`. |
+| Integration test | Test that joins crate boundaries, for example aggregator plus local DA or validator plus checkpoint flow. |
+| Local DA | Local deterministic data-availability adapter used for tests and simulator evidence. |
+| Local finality boundary | Honest statement that local artifacts are accepted by local rules but are not public network finality. |
+| Local mock DA | Deterministic mock DA mode used only as local publication evidence. |
+| Local publication | Runtime-owned publication binding plus local DA and validation evidence, not live DA finality. |
+| Local whole-system scenario | Scenario that composes stable local surfaces after lower-level scenarios are proven. |
+| Nullifier bridge | Wallet-to-storage transition that preserves spend/nullifier state when storage accepts final spent state. |
+| Placeholder | Stubbed, hard-coded, or report-only behavior that pretends a scenario ran without executing the required live path. |
+| Publication binding | Digest binding publication inputs so validators and watchers see the same checkpoint and route context. |
+| Receiver taxonomy | Wallet receive classifications that distinguish ownership, unsupported versions, and reject causes. |
+| Report honesty | Requirement that scenario summaries state exactly what local code proved and what remains external-blocked or not-current-code. |
+| Scenario home | Approved source/test directory or binary target where an independent scenario should live. |
+| Scenario source shape | Named origin of evidence, such as local publication trace, wallet tx RPC evidence, or HJMT examples. |
+| Scenario target | Runnable test, binary, or harness that owns one scenario's artifacts. |
+| Shard quorum certificate | Local CFT certificate over one shard commit subject, built from primary and secondary-aggregator votes. |
+| Simulator closure | Final scenario evidence after lower-level crate rules already exist and are tested. |
+| Soft confirmation | Pre-final publication signal that must not mark wallet transactions confirmed by itself. |
+| Source-shape contract | Rule that reports must name the actual current source shape that produced evidence. |
+| Trace envelope | Narrow persisted scalar record derived from canonical DTOs; it must not replace canonical runtime types. |
+| Unit test | Focused test for one type, digest, validator, or rule. |
+| Verification anchor | Command or test home that must be used to prove an implementation slice. |
+| Wallet confirmation evidence | Typed evidence that lets wallet history move from pending/admitted to confirmed. |
+
+## 🧱 4. Existing-Crate Work Required Outside Simulator
 
 The scenarios below are not simulator-only work. These existing crate seams must
 be extended before the corresponding scenario can honestly close.
@@ -50,6 +101,7 @@ be extended before the corresponding scenario can honestly close.
 | Wallet scan evidence and runtime scan status | If remote scan evidence is used, implement `RemoteScanWorkerImpl` as a fetch-only worker that returns `RemoteScanEvidence` for `WalletService::recv_range(...)`. Derive `ChainService` and `ChainScanRpcImpl` status from real scan state instead of process-local placeholder jobs when a scenario exposes runtime scan progress. Do not wire the excluded duplicate `wallet_service_actions_runtime.rs` as receive authority. | `crates/z00z_wallets/src/chain/scan_engine.rs`, `crates/z00z_wallets/src/chain/scan_engine_impl.rs`, `crates/z00z_wallets/src/services/chain_service.rs`, `crates/z00z_wallets/src/adapters/rpc/methods/chain_impl.rs`, `crates/z00z_wallets/src/adapters/rpc/types/chain.rs`, `crates/z00z_wallets/src/services/wallet/actions/wallet_service_actions_receive.rs`, `crates/z00z_wallets/src/services/wallet_service_actions.rs` | `scenario_3`, `scenario_8`, `scenario_10` |
 | Wallet nullifier bridge | Make the wallet reserved-to-spent transition explicit and preserve nullifier bytes, `chain_id`, and `tx_digest` when storage accepts the final spent state. | `crates/z00z_wallets/src/claim/nullifier.rs`, `crates/z00z_wallets/src/claim/nullifier_store.rs`, `crates/z00z_storage/src/backend/types.rs`, `crates/z00z_storage/src/backend/rows.rs`, `crates/z00z_simulator/src/scenario_1/claim_pkg_consumer.rs` | `scenario_5`, `scenario_8`, `scenario_10` |
 | Local publication contracts | Reuse crate-root facades for publication types, DA adapter, validator verdicts, watcher evidence, and wallet confirmation evidence. Add persisted envelopes only as trace/store records, not replacement DTOs. | `crates/z00z_runtime/aggregators/src/types.rs`, `crates/z00z_runtime/aggregators/src/service.rs`, `crates/z00z_rollup_node/src/da.rs`, `crates/z00z_runtime/validators/src/verdict.rs`, `crates/z00z_runtime/watchers/src/evidence_export.rs`, `crates/z00z_wallets/src/persistence/tx/tx_storage.rs` | `scenario_9`, `scenario_10` |
+| Shard quorum certificate and secondary replay | Add first-class local `CommitSubject`, `ShardVote`, `ShardQuorumCertificate`, and `SecondaryReplayVerifier` artifacts under the existing aggregator seam. Bind the certificate digest through local DA and validator acceptance. Do not introduce network BFT, Celestia, or duplicate runtime DTOs for this local scenario. | `crates/z00z_runtime/aggregators/src/consensus_adapter.rs`, `crates/z00z_runtime/aggregators/src/batch_planner.rs`, `crates/z00z_runtime/aggregators/src/placement.rs`, `crates/z00z_runtime/aggregators/src/ingress.rs`, `crates/z00z_runtime/aggregators/src/recovery.rs`, `crates/z00z_runtime/aggregators/src/dist_sim.rs`, `crates/z00z_rollup_node/src/da.rs`, `crates/z00z_runtime/validators/src/checkpoint.rs`, `crates/z00z_runtime/validators/src/engine.rs` | `scenario_11`, `scenario_10` |
 
 Required targeted tests for these crate additions:
 
@@ -57,11 +109,12 @@ Required targeted tests for these crate additions:
 - wallet: source-local tests under `crates/z00z_wallets/src/receiver/scan/`, `crates/z00z_wallets/src/claim/nullifier_store/test_mod.rs`, plus `crates/z00z_wallets/tests/test_claim_import_reason_codes.rs`;
 - runtime and node: `crates/z00z_runtime/aggregators/tests/`, `crates/z00z_runtime/validators/tests/test_hjmt_publication_contract.rs`, `crates/z00z_runtime/watchers/tests/test_hjmt_publication_contract.rs`, and `crates/z00z_rollup_node/tests/`;
 - simulator: current Scenario 1 homes under `crates/z00z_simulator/tests/scenario_1/`, especially `claim_pkg_crypto.rs`, `test_claim_pkg_runtime.rs`, `test_checkpoint_acceptance.rs`, `test_stage6_checkpoint.rs`, `test_stage6_checkpoint_final_gate.rs`, `test_stage6_checkpoint_storage_bridge.rs`, and `test_stage4_tamper.rs`.
+- shard quorum certificate: new aggregator tests for subject digest, vote validation, quorum certificate formation, secondary replay rejection, membership drift, and same-term conflicts; new rollup-node and validator tests for certificate digest binding through local DA and resolved-batch validation; a new independent simulator scenario target for full E2E package-to-certificate evidence.
 
 If storage needs a new checkpoint verifier module, add it under
 `crates/z00z_storage/src/checkpoint/` and keep it crate-owned.
 
-### 🔗 Existing-Crate Dependency Order
+### 🔗 4.1. Existing-Crate Dependency Order
 
 1. Recheck claim-source baseline first and close it as no-op cleanup unless a
    real rebinding gap is reproduced against
@@ -85,7 +138,7 @@ If storage needs a new checkpoint verifier module, add it under
 8. Run simulator closure last; simulator scenarios prove landed storage,
    validator, receive, scan, and nullifier seams instead of discovering them.
 
-### 🚫 Existing-Crate Anti-Drift Rules
+### 🚫 4.2. Existing-Crate Anti-Drift Rules
 
 - Do not add a parallel `claim_source_root_hex` carrier, second claim-source
   proof object, second replay registry, or generic spend-replay flattening.
@@ -93,7 +146,7 @@ If storage needs a new checkpoint verifier module, add it under
   helper is needed, keep it under `crates/z00z_storage/src/checkpoint/`.
 - Do not change checkpoint ID semantics to hash arbitrary proof bytes unless
   IDs, codecs, persisted data rules, and tests are migrated in one explicit
-  future decision.
+  later decision.
 - Do not describe current attested `cp_proof` bytes as a finished trustless or
   recursive proof backend.
 - Do not let validators invent a checkpoint artifact schema or duplicate
@@ -108,7 +161,7 @@ If storage needs a new checkpoint verifier module, add it under
 - Do not use simulator closure as a substitute for the earlier storage,
   validator, receive, scan, or nullifier crate work.
 
-### 🧪 Existing-Crate Verification Anchors
+### 🧪 4.3. Existing-Crate Verification Anchors
 
 Use current package and feature names only. The workspace has no package named
 `z00z_runtime`; runtime code is split into `z00z_aggregators`,
@@ -132,7 +185,7 @@ Replace these with narrower commands only when an implementation PLAN proves the
 nearest current test home is different. Do not leave unsupported feature names
 or nonexistent package names in an active PLAN.
 
-## 📌 Consolidated Scenario Map
+## 📌 5. Consolidated Scenario Map
 
 | Scenario | Name | Why It Exists | Current-code confidence |
 | --- | --- | --- | --- |
@@ -144,24 +197,25 @@ or nonexistent package names in an active PLAN.
 | `scenario_7` | Validator And Watcher Evidence Drill | Prove verdict projection, watcher alerts, evidence export, and status snapshots | High |
 | `scenario_8` | Offline Package And Local Reconciliation Drill | Prove portable tx package, pending/admitted/confirmed states, and replay-like local failures | Medium |
 | `scenario_9` | Local Publication, Evidence, Restart, And Tamper Drill | Prove mock DA publication, evidence persistence, wallet confirmation gate, restart, replay, and tamper handling | Medium |
+| `scenario_11` | Shard Quorum Certificate And Secondary Replay Drill | Prove local shard quorum certificate, secondary replay, DA binding, and validator acceptance without changing `scenario_1` | Medium |
 | `scenario_10` | Local Whole-System Scenario | Compose the stable local surfaces into one end-to-end organism without external DA/testnet | Medium |
 
-## ✅ scenario_2 Genesis, Crypto, And Domain Integrity Drill
+## ✅ 6. scenario_2 Genesis, Crypto, And Domain Integrity Drill
 
-### 🎯 Purpose
+### 🎯 6.1. Purpose
 
 Demonstrate the cryptographic maturity that is already represented in the repository: genesis proof verification, deterministic genesis state hashing, ZkPack wire rejection, asset-pack version rejection, domain separation stability, and public-artifact settlement theorem checks.
 
 This scenario is intentionally local. It does not claim network finality, DA availability, or post-quantum migration.
 
-### 🔎 Whitepaper Basis
+### 🔎 6.2. Whitepaper Basis
 
 - Cryptographic integrity and proof discipline: `docs/Z00Z-Main-Whitepaper.md:276-326`.
 - Cryptography detail boundary: `docs/Z00Z-Main-Whitepaper.md:1323-1363`.
 - Implementation status and evidence boundaries: `docs/Z00Z-Main-Whitepaper.md:1150-1288`.
-- PQ migration is future/design work and must not be claimed here: `docs/Z00Z-PQ-Migration-Whitepaper.md:149-225`.
+- PQ migration is design work outside this current-code scenario and must not be claimed here: `docs/Z00Z-PQ-Migration-Whitepaper.md:149-225`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 6.3. Current Code To Study First
 
 - Genesis range-proof batch verification: `crates/z00z_core/src/genesis/genesis_verification.rs:1-41`.
 - Genesis state hash over assets, rights, and vouchers: `crates/z00z_core/src/genesis/genesis_verification.rs:99-205`.
@@ -172,7 +226,7 @@ This scenario is intentionally local. It does not claim network finality, DA ava
 - Settlement theorem public-artifact verifier: `crates/z00z_rollup_node/src/lib.rs:97-139`.
 - Output proof range-proof requirement: `crates/z00z_rollup_node/src/lib.rs:274-290`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 6.4. Scenario Flow
 
 1. Build a deterministic local genesis corpus.
 2. Verify genesis asset range proofs.
@@ -185,7 +239,7 @@ This scenario is intentionally local. It does not claim network finality, DA ava
 9. Run settlement theorem verification on a local public-artifact fixture.
 10. Inject wrong proof payload, wrong root, and missing range proof.
 
-### 🔑 Invariants
+### 🔑 6.5. Invariants
 
 - Missing range proof rejects.
 - Unsupported ZkPack version rejects.
@@ -195,7 +249,7 @@ This scenario is intentionally local. It does not claim network finality, DA ava
 - Genesis hash commits rights and vouchers, not only cash assets.
 - Settlement theorem verifier uses public artifacts and does not rebuild private witnesses.
 
-### 📦 Required Artifacts
+### 📦 6.6. Required Artifacts
 
 - `scenario_2/genesis_proof_report.json`
 - `scenario_2/genesis_state_hash.json`
@@ -205,7 +259,7 @@ This scenario is intentionally local. It does not claim network finality, DA ava
 - `scenario_2/domain_snapshot_report.json`
 - `scenario_2/settlement_theorem_report.json`
 
-### ✅ Tests
+### ✅ 6.7. Tests
 
 - valid genesis corpus verifies;
 - asset with missing range proof rejects;
@@ -216,24 +270,24 @@ This scenario is intentionally local. It does not claim network finality, DA ava
 - domain strings are stable;
 - settlement theorem rejects wrong checkpoint proof/root/replay binding.
 
-### ✅ Completion Criteria
+### ✅ 6.8. Completion Criteria
 
 `scenario_2` is complete when it proves the current local crypto/integrity surfaces with one positive path and deterministic negative cases, without making post-quantum or network-finality claims.
 
-## ✅ scenario_3 Wallet Receive, Recovery, And Privacy Drill
+## ✅ 7. scenario_3 Wallet Receive, Recovery, And Privacy Drill
 
-### 🎯 Purpose
+### 🎯 7.1. Purpose
 
 Demonstrate wallet-local authority and privacy hygiene that can be tested now: payment request validation, receiver scan behavior, request-bound KDF order, tx history states, backup/export/restore, typed object persistence, logging redaction, and metadata redaction.
 
-### 🔎 Whitepaper Basis
+### 🔎 7.2. Whitepaper Basis
 
 - Wallet responsibilities, request-bound receive, light sync, recovery, and untrusted receiver inputs: `docs/Z00Z-Main-Whitepaper.md:533-559`.
 - Stealth ownership and receiver privacy: `docs/Z00Z-Main-Whitepaper.md:574-592`.
 - Wallet UX/defaults and QA hooks: `docs/Z00Z-Privacy-Threat-Model-Whitepaper.md:681-748`.
 - Wallet and interface boundary: `docs/Z00Z-Legal-Architecture-Whitepaper.md:661-745`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 7.3. Current Code To Study First
 
 - Payment request validation: `crates/z00z_wallets/src/receiver/request/mod.rs:92-125`.
 - Receiver scan types and persist decision: `crates/z00z_wallets/src/receiver/scan/types_receive.rs:305-390`.
@@ -244,7 +298,7 @@ Demonstrate wallet-local authority and privacy hygiene that can be tested now: p
 - RPC log redaction tests: `crates/z00z_wallets/tests/test_rpc_logging_risk_policy.rs:251-325`.
 - Backup metadata redaction: `crates/z00z_wallets/tests/test_backup_metadata_policy.rs:80-111`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 7.4. Scenario Flow
 
 1. Create local wallets and receiver material.
 2. Build a valid payment request and validate it.
@@ -256,7 +310,7 @@ Demonstrate wallet-local authority and privacy hygiene that can be tested now: p
 8. Verify assets, objects, tx sidecar, scan state, and quarantine state round-trip.
 9. Capture logs and verify no password, seed, token, memo, or full wallet id leaks.
 
-### 🔑 Invariants
+### 🔑 7.5. Invariants
 
 - Receiver validation rejects wrong chain and expired requests.
 - Request-bound scan candidates are tried before generic fallback.
@@ -265,7 +319,7 @@ Demonstrate wallet-local authority and privacy hygiene that can be tested now: p
 - Tx history is explicit sidecar behavior, not hidden consensus state.
 - Public artifacts do not leak secrets.
 
-### 📦 Required Artifacts
+### 📦 7.6. Required Artifacts
 
 - `scenario_3/payment_request_matrix.json`
 - `scenario_3/receiver_scan_order.json`
@@ -275,7 +329,7 @@ Demonstrate wallet-local authority and privacy hygiene that can be tested now: p
 - `scenario_3/object_projection_after_restore.json`
 - `scenario_3/redaction_report.json`
 
-### ✅ Tests
+### ✅ 7.7. Tests
 
 - valid request approves;
 - wrong-chain request rejects;
@@ -286,17 +340,17 @@ Demonstrate wallet-local authority and privacy hygiene that can be tested now: p
 - tx sidecar behavior is explicit;
 - logs and artifacts redact secrets and full wallet ids.
 
-### ✅ Completion Criteria
+### ✅ 7.8. Completion Criteria
 
 `scenario_3` is complete when wallet-local receive/recovery/privacy behavior is covered by deterministic local artifacts and redaction tests.
 
-## ✅ scenario_4 Typed Object Policy Matrix
+## ✅ 8. scenario_4 Typed Object Policy Matrix
 
-### 🎯 Purpose
+### 🎯 8.1. Purpose
 
 Consolidate voucher, rights, fee-credit, service entitlement, machine capability, and one-time-use ideas into one implementable typed-object scenario. This avoids a garden of similar scenarios and demonstrates the object model that already exists in storage, validators, watcher alerts, wallet guide, and genesis fixtures.
 
-### 🔎 Whitepaper Basis
+### 🔎 8.2. Whitepaper Basis
 
 - Asset/voucher/right triad: `docs/Assets-Rights-Vauchers-Whitepaper.md:158-240`.
 - Voucher lifecycle and conditional value: `docs/Assets-Rights-Vauchers-Whitepaper.md:330-446`.
@@ -305,7 +359,7 @@ Consolidate voucher, rights, fee-credit, service entitlement, machine capability
 - Service, machine, and agent rights: `docs/Z00Z-UseCases-Whitepaper.md:611-730`.
 - Agentic and offline economy rights primitives: `docs/Z00Z-Agentic-Offline-Economy-Whitepaper.md:143-462`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 8.3. Current Code To Study First
 
 - `RightClass` variants: `crates/z00z_storage/src/settlement/record.rs:156-164`.
 - `RightLeaf`, `VoucherLeaf`, and `FeeEnvelope`: `crates/z00z_storage/src/settlement/record.rs:258-317`, `crates/z00z_storage/src/settlement/record.rs:511-527`.
@@ -317,7 +371,7 @@ Consolidate voucher, rights, fee-credit, service entitlement, machine capability
 - Rights fixtures: `crates/z00z_core/configs/devnet_rights_config.yaml:1-106`.
 - Wallet typed object catalog: `crates/z00z_wallets/src/wallet/WALLET-GUIDE.md:13-74`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 8.4. Scenario Flow
 
 1. Build a local object corpus with assets, vouchers, and rights.
 2. Create a valid voucher action package.
@@ -328,7 +382,7 @@ Consolidate voucher, rights, fee-credit, service entitlement, machine capability
 7. Project object rows through wallet object inventory rules.
 8. Emit watcher-style reject families for invalid verdicts.
 
-### 🔑 Invariants
+### 🔑 8.5. Invariants
 
 - Assets are final spendable value.
 - Vouchers are conditional claims and do not appear as ordinary cash before valid redeem.
@@ -337,7 +391,7 @@ Consolidate voucher, rights, fee-credit, service entitlement, machine capability
 - Unknown-policy objects stay quarantined.
 - Every invalid object package maps to a stable reject code.
 
-### 📦 Required Artifacts
+### 📦 8.6. Required Artifacts
 
 - `scenario_4/object_corpus_manifest.json`
 - `scenario_4/valid_object_actions.json`
@@ -346,7 +400,7 @@ Consolidate voucher, rights, fee-credit, service entitlement, machine capability
 - `scenario_4/wallet_object_projection.json`
 - `scenario_4/watch_object_alerts.json`
 
-### ✅ Tests
+### ✅ 8.7. Tests
 
 - valid object package accepted;
 - unknown policy rejects;
@@ -357,24 +411,24 @@ Consolidate voucher, rights, fee-credit, service entitlement, machine capability
 - double redeem rejects;
 - unknown-policy object remains outside spendable balance.
 
-### ✅ Completion Criteria
+### ✅ 8.8. Completion Criteria
 
 `scenario_4` is complete when one consolidated object-policy matrix demonstrates the current asset/voucher/right/fee model with both accepted and rejected behavior.
 
-## ✅ scenario_5 Settlement, Checkpoint, HJMT, And Fee Replay Drill
+## ✅ 9. scenario_5 Settlement, Checkpoint, HJMT, And Fee Replay Drill
 
-### 🎯 Purpose
+### 🎯 9.1. Purpose
 
 Demonstrate local storage maturity: settlement root authority, checkpoint draft/artifact/link/exec-input boundaries, HJMT proof families, batch proof route checks, privacy-safe occupancy evidence, and fee replay metadata.
 
-### 🔎 Whitepaper Basis
+### 🔎 9.2. Whitepaper Basis
 
 - Canonical state objects and cryptographic integrity: `docs/Z00Z-Main-Whitepaper.md:173-326`.
 - Checkpoints as validation boundary: `docs/Z00Z-Main-Whitepaper.md:300-326`.
 - Scalability, publication, and proof evidence boundary: `docs/Z00Z-Main-Whitepaper.md:770-862`.
 - Privacy metrics and exact-count leakage risk: `docs/Z00Z-Privacy-Threat-Model-Whitepaper.md:464-604`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 9.3. Current Code To Study First
 
 - Settlement root public contract: `crates/z00z_storage/src/settlement/root_types.md:8-37`.
 - Development hard cutover and live HJMT backend: `crates/z00z_storage/src/settlement/root_types.md:73-130`.
@@ -388,7 +442,7 @@ Demonstrate local storage maturity: settlement root authority, checkpoint draft/
 - HJMT privacy regression tests: `crates/z00z_storage/tests/test_hjmt_privacy_regression.rs:14-111`.
 - Fee replay metadata and fixture: `crates/z00z_storage/tests/test_fee_replay.rs:41-55`, `crates/z00z_storage/tests/test_fee_replay.rs:137-154`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 9.4. Scenario Flow
 
 1. Create local settlement store with generalized assets, vouchers, and rights.
 2. Apply put/delete settlement operations.
@@ -405,7 +459,7 @@ Demonstrate local storage maturity: settlement root authority, checkpoint draft/
 13. Restart memory-backed and redb-backed storage fixtures where available and verify pending, sealed, resolved, and tampered artifacts.
 14. Keep optional recursive proof artifacts as non-authoritative sidecar evidence only.
 
-### 🔑 Invariants
+### 🔑 9.5. Invariants
 
 - `SettlementStateRoot` is the public semantic root.
 - No old asset-root plane is accepted as authority.
@@ -417,7 +471,7 @@ Demonstrate local storage maturity: settlement root authority, checkpoint draft/
 - Fee replay metadata survives persistence/recovery.
 - Local theorem checks are evidence about current storage artifacts, not production theorem rollout or recursive proof replacement.
 
-### 📦 Required Artifacts
+### 📦 9.6. Required Artifacts
 
 - `scenario_5/settlement_root_report.json`
 - `scenario_5/hjmt_proof_family_matrix.json`
@@ -430,7 +484,7 @@ Demonstrate local storage maturity: settlement root authority, checkpoint draft/
 - `scenario_5/fee_replay_report.json`
 - `scenario_5/proof_privacy_report.json`
 
-### ✅ Tests
+### ✅ 9.7. Tests
 
 - inclusion proof validates;
 - deletion/non-existence proof validates;
@@ -446,23 +500,23 @@ Demonstrate local storage maturity: settlement root authority, checkpoint draft/
 - restart matrix reloads pending, sealed, resolved, and tampered artifacts with deterministic outcomes;
 - fee replay rejects duplicate/tampered replay.
 
-### ✅ Completion Criteria
+### ✅ 9.8. Completion Criteria
 
 `scenario_5` is complete when storage/checkpoint/HJMT/fee replay behavior is proven locally with positive and negative artifacts, one storage-owned checkpoint proof rule, honest `claim_root` handling, and restart/tamper evidence that makes no node, DA, testnet, or recursive-proof rollout claim.
 
-## ✅ scenario_6 Runtime Route, Aggregator Churn, And Recovery Drill
+## ✅ 10. scenario_6 Runtime Route, Aggregator Churn, And Recovery Drill
 
-### 🎯 Purpose
+### 🎯 10.1. Purpose
 
 Demonstrate the runtime layer that exists now without requiring a live network: aggregator ingress digest rebinding, route table validation, batch planning, placement, recovery capture/resume, standby takeover, and split-brain/stale recovery rejection.
 
-### 🔎 Whitepaper Basis
+### 🔎 10.2. Whitepaper Basis
 
 - Rollup ordering, publication, and verification roles: `docs/Z00Z-Main-Whitepaper.md:326-442`.
 - Malicious aggregators and operational failure handling: `docs/Z00Z-Main-Whitepaper.md:868-977`.
 - Operator and recovery boundary: `docs/Z00Z-Main-Whitepaper.md:1405-1433`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 10.3. Current Code To Study First
 
 - Aggregator README boundaries: `crates/z00z_runtime/aggregators/README.md:14-30`.
 - Ingress digest rebinding: `crates/z00z_runtime/aggregators/src/ingress.rs:9-75`.
@@ -471,7 +525,7 @@ Demonstrate the runtime layer that exists now without requiring a live network: 
 - Aggregator service boundary and publication binding helper: `crates/z00z_runtime/aggregators/src/service.rs:13-48`.
 - Recovery capture/resume rules: `crates/z00z_runtime/aggregators/src/recovery.rs:12-213`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 10.4. Scenario Flow
 
 1. Admit valid tx and claim payloads through ingress.
 2. Reject forged tx digest and forged claim digest.
@@ -482,7 +536,7 @@ Demonstrate the runtime layer that exists now without requiring a live network: 
 7. Resume lawful standby takeover.
 8. Inject split-brain, wrong lineage, wrong route digest, stale replay, stale local root, stale restart, and standby-down states.
 
-### 🔑 Invariants
+### 🔑 10.5. Invariants
 
 - Caller-supplied digest is never planner authority.
 - Route table must be sorted, complete, non-overlapping, and generation-linked.
@@ -490,7 +544,7 @@ Demonstrate the runtime layer that exists now without requiring a live network: 
 - Same-lineage standby takeover is lawful only under current recovery checks.
 - Split-brain and stale recovery reject fail-closed.
 
-### 📦 Required Artifacts
+### 📦 10.6. Required Artifacts
 
 - `scenario_6/ingress_digest_report.json`
 - `scenario_6/route_table_validation_matrix.json`
@@ -499,7 +553,7 @@ Demonstrate the runtime layer that exists now without requiring a live network: 
 - `scenario_6/recovery_resume_matrix.json`
 - `scenario_6/split_brain_rejects.json`
 
-### ✅ Tests
+### ✅ 10.7. Tests
 
 - forged tx digest rejects;
 - forged claim digest rejects;
@@ -510,25 +564,25 @@ Demonstrate the runtime layer that exists now without requiring a live network: 
 - non-standby takeover rejects;
 - wrong lineage/route/stale root/stale replay rejects.
 
-### ✅ Completion Criteria
+### ✅ 10.8. Completion Criteria
 
 `scenario_6` is complete when runtime planning and recovery behavior can be demonstrated locally without testnet or real aggregator processes.
 
-## ✅ scenario_7 Validator And Watcher Evidence Drill
+## ✅ 11. scenario_7 Validator And Watcher Evidence Drill
 
-### 🎯 Purpose
+### 🎯 11.1. Purpose
 
 Demonstrate validator and watcher behavior that is already implemented locally: resolved batch verdicts, object verdict projection, publication binding checks, watcher checked snapshots, watcher alerts, evidence records, provider signal projection, and rollup-node status projection.
 
 This scenario replaces speculative DA/Celestia scenarios. It does not require a live DA provider.
 
-### 🔎 Whitepaper Basis
+### 🔎 11.2. Whitepaper Basis
 
 - Stateless validator and watcher paths: `docs/Z00Z-Main-Whitepaper.md:424-436`.
 - Failure handling, fraud-proof/slashing direction, recovery/publication ledger: `docs/Z00Z-Main-Whitepaper.md:912-977`.
 - Observation and disclosure boundaries: `docs/Z00Z-Privacy-Threat-Model-Whitepaper.md:791-862`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 11.3. Current Code To Study First
 
 - Validator boundary and verdict construction: `crates/z00z_runtime/validators/src/engine.rs:13-80`.
 - Verdict, reject classes, and object reject mapping: `crates/z00z_runtime/validators/src/verdict.rs:69-133`.
@@ -539,7 +593,7 @@ This scenario replaces speculative DA/Celestia scenarios. It does not require a 
 - Publication watch route/binding checks: `crates/z00z_runtime/watchers/src/publication.rs:30-82`.
 - Rollup node status projection: `crates/z00z_rollup_node/src/status.rs:10-39`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 11.4. Scenario Flow
 
 1. Build local `ResolvedBatch` fixture with accepted checkpoint flow.
 2. Build local `ResolvedBatch` fixture with object rejects.
@@ -550,7 +604,7 @@ This scenario replaces speculative DA/Celestia scenarios. It does not require a 
 7. Project node status object reject codes.
 8. Inject missing verdict, missing binding, batch mismatch, checkpoint mismatch, binding mismatch, route mismatch, and exec mismatch.
 
-### 🔑 Invariants
+### 🔑 11.5. Invariants
 
 - Validator owns verdict construction.
 - Watcher observes already-published runtime state.
@@ -558,7 +612,7 @@ This scenario replaces speculative DA/Celestia scenarios. It does not require a 
 - Evidence records preserve binding digest and object reject codes.
 - Status projection exposes object reject codes without changing verdict meaning.
 
-### 📦 Required Artifacts
+### 📦 11.6. Required Artifacts
 
 - `scenario_7/validator_verdicts.json`
 - `scenario_7/object_reject_projection.json`
@@ -567,7 +621,7 @@ This scenario replaces speculative DA/Celestia scenarios. It does not require a 
 - `scenario_7/evidence_records.json`
 - `scenario_7/status_projection.json`
 
-### ✅ Tests
+### ✅ 11.7. Tests
 
 - accepted resolved batch produces accepted verdict;
 - rejected object package maps to expected reject class;
@@ -578,25 +632,25 @@ This scenario replaces speculative DA/Celestia scenarios. It does not require a 
 - evidence record exposes object reject codes;
 - status projection returns object reject codes.
 
-### ✅ Completion Criteria
+### ✅ 11.8. Completion Criteria
 
 `scenario_7` is complete when validator/watcher/status behavior is covered locally with deterministic positive and negative evidence.
 
-## ✅ scenario_8 Offline Package And Local Reconciliation Drill
+## ✅ 12. scenario_8 Offline Package And Local Reconciliation Drill
 
-### 🎯 Purpose
+### 🎯 12.1. Purpose
 
 Demonstrate the offline-first story only to the extent current code supports it: portable tx packages, wallet tx states, local admission/confirmation receipts, import-ready verification shape, and replay-like duplicate handling in local harnesses.
 
 This scenario must not claim full offline double-spend arbitration or network reconciliation beyond current code.
 
-### 🔎 Whitepaper Basis
+### 🔎 12.2. Whitepaper Basis
 
 - Offline-first private cash: `docs/Z00Z-UseCases-Whitepaper.md:197-266`.
 - Wallet-local ownership and spend-then-reconcile model: `docs/Z00Z-Main-Whitepaper.md:442-559`.
-- Linked liability direction is future/partial and should not be overclaimed: `docs/Z00Z-Linked-Liability-Whitepaper.md:22-64`.
+- Linked liability direction is partial and outside this current-code scenario; it should not be overclaimed: `docs/Z00Z-Linked-Liability-Whitepaper.md:22-64`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 12.3. Current Code To Study First
 
 - Runtime admission and confirmation receipts: `crates/z00z_wallets/src/adapters/rpc/types/tx.rs:69-94`.
 - Verify tx package response shape: `crates/z00z_wallets/src/adapters/rpc/types/tx.rs:190-220`.
@@ -605,7 +659,7 @@ This scenario must not claim full offline double-spend arbitration or network re
 - Tx storage trait lifecycle methods: `crates/z00z_wallets/src/persistence/tx/tx_storage.rs:97-153`.
 - Receiver request validation: `crates/z00z_wallets/src/receiver/request/mod.rs:92-125`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 12.4. Scenario Flow
 
 1. Build portable wallet tx package locally.
 2. Verify package shape and import readiness.
@@ -616,7 +670,7 @@ This scenario must not claim full offline double-spend arbitration or network re
 7. Attempt wrong-chain/expired receiver request.
 8. Attempt malformed metadata hash or tx bytes.
 
-### 🔑 Invariants
+### 🔑 12.5. Invariants
 
 - Offline package is not final settlement.
 - Pending tx becomes confirmed only with typed confirmation evidence.
@@ -624,7 +678,7 @@ This scenario must not claim full offline double-spend arbitration or network re
 - Duplicate package handling is explicit.
 - Scenario summary must state this is local reconciliation, not full offline fraud arbitration.
 
-### 📦 Required Artifacts
+### 📦 12.6. Required Artifacts
 
 - `scenario_8/portable_tx_package.json`
 - `scenario_8/package_verify_report.json`
@@ -633,7 +687,7 @@ This scenario must not claim full offline double-spend arbitration or network re
 - `scenario_8/duplicate_package_report.json`
 - `scenario_8/offline_claim_boundary.md`
 
-### ✅ Tests
+### ✅ 12.7. Tests
 
 - package can be stored as pending;
 - admission receipt moves tx to admitted state;
@@ -642,13 +696,13 @@ This scenario must not claim full offline double-spend arbitration or network re
 - duplicate import/submission is deterministic;
 - wrong-chain/expired request rejects.
 
-### ✅ Completion Criteria
+### ✅ 12.8. Completion Criteria
 
 `scenario_8` is complete when local portable package and tx-state reconciliation behavior is shown honestly without claiming unavailable network-level arbitration.
 
-## ✅ scenario_9 Local Publication, Evidence, Restart, And Tamper Drill
+## ✅ 13. scenario_9 Local Publication, Evidence, Restart, And Tamper Drill
 
-### 🎯 Purpose
+### 🎯 13.1. Purpose
 
 Demonstrate the local publication and evidence story that can be built now:
 wallet transaction packages, ordered batches, local mock DA publication refs,
@@ -659,7 +713,7 @@ honesty.
 This scenario is local-only. It must not claim live DA, public finality, node
 deployment, operator recovery, or production incident closure.
 
-### 🔎 Whitepaper Basis
+### 🔎 13.2. Whitepaper Basis
 
 - Rollup ordering, publication, verification, and role split:
   `docs/Z00Z-Main-Whitepaper.md`.
@@ -670,7 +724,7 @@ deployment, operator recovery, or production incident closure.
 - Checkpoint, DA commitment, watcher evidence, and recovery-record separation:
   `docs/tech-papers/Z00Z-Multi-DA-and-Checkpoint-Architecture.md`.
 
-### ⚙️ Current Code To Study First
+### ⚙️ 13.3. Current Code To Study First
 
 - Aggregator publication types: `crates/z00z_runtime/aggregators/src/types.rs`.
 - Aggregator service traits and publication binding:
@@ -704,13 +758,13 @@ deployment, operator recovery, or production incident closure.
   `crates/z00z_wallets/src/adapters/rpc/methods/tx_rpc_admission.rs`,
   `crates/z00z_wallets/src/adapters/rpc/methods/tx_rpc_storage.rs`.
 
-### 🧭 Workspace And Stage Guards
+### 🧭 13.4. Workspace And Stage Guards
 
 - The workspace has no package named `z00z_runtime`; use package-level crates
   `z00z_aggregators`, `z00z_validators`, and `z00z_watchers` in commands and
   tests.
 - `scenario_9` should be an independent target or test harness. Do not append
-  runner stage 14 to `scenario_1` unless a future PLAN explicitly chooses that
+  runner stage 14 to `scenario_1` unless a later PLAN explicitly chooses that
   older integration style and updates the current runner contract.
 - Current Scenario 1 runner stage 8 is `transfer_claim` at
   `crates/z00z_simulator/src/scenario_1/stage_8/`.
@@ -724,7 +778,7 @@ deployment, operator recovery, or production incident closure.
   `crates/z00z_simulator/src/scenario_1/stage_13/`; it is not a wallet tx RPC
   lifecycle stage.
 
-### 🧭 Source-Shape Contract
+### 🧭 13.5. Source-Shape Contract
 
 Persisted local evidence records must state the current source shape that
 actually produced them. Tests must fail if a report claims a source shape that
@@ -749,7 +803,7 @@ the run did not execute.
 - `local_publication_store`: restart, reload, replay, and persisted trace
   evidence.
 
-### 📦 Trace Envelope Fields
+### 📦 13.6. Trace Envelope Fields
 
 Do not duplicate canonical runtime DTOs. If persistence needs a stable local
 envelope, add a narrow trace shape such as `LocalPublicationTrace` or
@@ -786,7 +840,7 @@ The envelope is a persisted trace and must not replace `WorkItem`,
 `OrderedBatch`, `PublicationRequest`, `PublishedBatch`, `SoftConfirmation`,
 `ResolvedBatch`, `Verdict`, `WatcherInput`, or `EvidenceRecord`.
 
-### ⚙️ Scenario Flow
+### ⚙️ 13.7. Scenario Flow
 
 1. Add an independent `scenario_9` simulator target or test harness; do not
    append runner stage 14 to `scenario_1`.
@@ -814,7 +868,7 @@ The envelope is a persisted trace and must not replace `WorkItem`,
     local_checkpoint_artifact`, and `wallet_finality_source:
     tx_confirmation_evidence`.
 
-### 🔑 Invariants
+### 🔑 13.8. Invariants
 
 - `SoftConfirmation` is pre-final and never marks a wallet tx confirmed.
 - `PublicationState::Posted`, `PublicationState::Seen`, and provider success
@@ -828,7 +882,7 @@ The envelope is a persisted trace and must not replace `WorkItem`,
 - Scenario reports must not mention live DA closure, deployed node closure,
   production finality, public testnet closure, or operator recovery closure.
 
-### 📦 Required Artifacts
+### 📦 13.9. Required Artifacts
 
 - `scenario_9/publication/local_publication_trace.jsonl`
 - `scenario_9/publication/local_publication_report.json`
@@ -839,7 +893,7 @@ The envelope is a persisted trace and must not replace `WorkItem`,
 - `scenario_9/publication/wallet_confirmation_report.json`
 - `scenario_9/publication/report_honesty.json`
 
-### ✅ Tests
+### ✅ 13.10. Tests
 
 - canonical runtime publication types are imported through crate-root facades;
 - no duplicate canonical `WorkItem`, `OrderedBatch`, `PublishedBatch`,
@@ -862,7 +916,7 @@ The envelope is a persisted trace and must not replace `WorkItem`,
   confirmation;
 - golden report tests reject forbidden overclaim phrases.
 
-### 🚩 Fault Matrix
+### 🚩 13.11. Fault Matrix
 
 | Fault | Injection Point | Expected Boundary | Expected Result |
 | --- | --- | --- | --- |
@@ -879,7 +933,7 @@ The envelope is a persisted trace and must not replace `WorkItem`,
 | Provider failure | Mock provider signal | watcher | retry-pending or failed provider evidence |
 | Corrupt persisted JSON | Local trace reload | store codec | typed load error, no partial state adoption |
 
-### 💯 Scenario 9 PLAN Handoff Checklist
+### 💯 13.12. Scenario 9 PLAN Handoff Checklist
 
 Every implementation PLAN for `scenario_9` must include:
 
@@ -895,7 +949,7 @@ Every implementation PLAN for `scenario_9` must include:
 - targeted verification commands with current package and feature names;
 - explicit statement that live DA and public finality remain out of scope.
 
-### 🧪 Verification Anchors
+### 🧪 13.13. Verification Anchors
 
 Use targeted gates first:
 
@@ -913,7 +967,7 @@ If an implementation adds a new `scenario_9` binary or test target, add the
 corresponding `Cargo.toml` target and replace the Scenario 1 command with the
 new local publication runner command in the PLAN.
 
-### ✅ Completion Criteria
+### ✅ 13.14. Completion Criteria
 
 `scenario_9` is complete when local publication emits trace, mock DA, resolved
 batch, verdict, provider signal, watcher evidence, and wallet confirmation
@@ -921,20 +975,20 @@ evidence where source artifacts support them; restart and tamper matrices fail
 closed; reports name only local evidence truth; and no canonical runtime DTO or
 checkpoint verifier has been duplicated in simulator code.
 
-## ✅ scenario_10 Local Whole-System Scenario
+## ✅ 14. scenario_10 Local Whole-System Scenario
 
-### 🎯 Purpose
+### 🎯 14.1. Purpose
 
 Demonstrate Z00Z as a local integrated organism using only implemented surfaces. This is the capstone for the current codebase, not a testnet or Celestia scenario.
 
-### 🔎 Whitepaper Basis
+### 🔎 14.2. Whitepaper Basis
 
 - Z00Z as private digital cash and asynchronous rights layer: `docs/Z00Z-Main-Whitepaper.md:75-173`.
 - Use-case family selection: `docs/Z00Z-UseCases-Whitepaper.md:106-164`.
 - Unique features: spendable capability objects, fee envelopes, offline machine/agent rights direction: `docs/Z00Z-Uniqueness-Whitepaper.md:194-291`.
 - Implementation status and expansion path: `docs/Z00Z-Main-Whitepaper.md:1150-1288`.
 
-### ⚙️ Required Scenario Dependencies
+### ⚙️ 14.3. Required Scenario Dependencies
 
 `scenario_10` should be implemented only after these are stable:
 
@@ -946,8 +1000,10 @@ Demonstrate Z00Z as a local integrated organism using only implemented surfaces.
 - `scenario_7`: validator/watcher evidence;
 - `scenario_8`: local offline package/reconciliation boundary;
 - `scenario_9`: local publication/evidence/restart/tamper boundary.
+- `scenario_11`: shard quorum certificate, secondary replay, local DA binding,
+  and validator certificate acceptance.
 
-### ⚙️ Scenario Flow
+### ⚙️ 14.4. Scenario Flow
 
 1. Create local genesis corpus.
 2. Create wallets and restore one wallet from backup.
@@ -961,15 +1017,15 @@ Demonstrate Z00Z as a local integrated organism using only implemented surfaces.
 10. Produce watcher checked snapshot and evidence record.
 11. Emit one public summary that states exactly which implemented surfaces were demonstrated.
 
-### 🔑 Invariants
+### 🔑 14.5. Invariants
 
 - Every subsystem contributes at least one artifact.
 - No external DA/testnet/bridge claim is made.
-- No future-only feature is treated as implemented.
+- No external-blocked or not-current-code feature is treated as implemented.
 - Every negative injection has a typed local reject.
 - Public summary distinguishes implemented behavior from whitepaper target architecture.
 
-### 📦 Required Artifacts
+### 📦 14.6. Required Artifacts
 
 - `scenario_10/system_timeline.json`
 - `scenario_10/subsystem_artifact_manifest.json`
@@ -978,7 +1034,7 @@ Demonstrate Z00Z as a local integrated organism using only implemented surfaces.
 - `scenario_10/watch_status_summary.json`
 - `scenario_10/current_code_claims.md`
 
-### ✅ Tests
+### ✅ 14.7. Tests
 
 - dependency artifacts exist and match expected schema;
 - local genesis/wallet/object/storage/runtime/validator/watcher path completes;
@@ -987,11 +1043,252 @@ Demonstrate Z00Z as a local integrated organism using only implemented surfaces.
 - injected checkpoint/proof defect rejects;
 - summary contains no external DA/testnet/bridge/PQ/DAO/OnionNet claims.
 
-### ✅ Completion Criteria
+### ✅ 14.8. Completion Criteria
 
 `scenario_10` is complete when current implemented Z00Z surfaces operate together locally and the resulting summary is accurate about what is implemented now.
 
-## 🧭 Source Consolidation And Retirement Coverage
+## ✅ 15. scenario_11 Shard Quorum Certificate And Secondary Replay Drill
+
+### 🎯 15.1. Purpose
+
+Demonstrate the aggregator consensus review as a new independent local scenario,
+not as a new stage in `scenario_1`. The goal is to prove that a wallet-created
+package can become a shard-routed commit subject, be independently replayed by
+secondary aggregators, form a local 2-of-3 quorum certificate in
+`sim_5a7s`, bind
+that certificate through local DA publication, and be accepted or rejected by
+the validator boundary using the same subject digest.
+
+This scenario is local CFT quorum evidence. It must not claim network BFT,
+Celestia finality, production signatures, slashing, or public settlement
+finality.
+
+### 🔎 15.2. Review Basis
+
+- Aggregator consensus spec:
+  `.planning/phases/067-Sharded-Concensus/Agg-Concensus-Spec.md`.
+- Runtime route and recovery drill baseline: `scenario_6`.
+- Local publication and tamper baseline: `scenario_9`.
+- Current `sim_5a7s` topology: `config/hjmt_runtime/sim_5a7s`.
+
+### ⚙️ 15.3. Current Code To Study First
+
+- Aggregator quorum seam:
+  `crates/z00z_runtime/aggregators/src/consensus_adapter.rs`.
+- Route planning and shard routing:
+  `crates/z00z_runtime/aggregators/src/batch_planner.rs`.
+- Placement and current `standby` naming debt:
+  `crates/z00z_runtime/aggregators/src/placement.rs`.
+- Ingress normalization:
+  `crates/z00z_runtime/aggregators/src/ingress.rs`.
+- Recovery and secondary catch-up behavior:
+  `crates/z00z_runtime/aggregators/src/recovery.rs`,
+  `crates/z00z_runtime/aggregators/src/dist_sim.rs`.
+- Local DA publication and resolve:
+  `crates/z00z_rollup_node/src/da.rs`.
+- Validator checkpoint and verdict boundary:
+  `crates/z00z_runtime/validators/src/checkpoint.rs`,
+  `crates/z00z_runtime/validators/src/engine.rs`,
+  `crates/z00z_runtime/validators/src/verdict.rs`.
+
+### 🧭 15.4. Scenario Home
+
+Do not modify `crates/z00z_simulator/src/scenario_1/` for this scenario. Add one
+of these independent homes in the implementation PLAN:
+
+- preferred: `crates/z00z_simulator/src/scenario_11/` with a dedicated
+  `scenario_11` binary or integration test target;
+- acceptable first slice: `crates/z00z_simulator/tests/scenario_11/` if the
+  implementation is still a test-only harness;
+- not allowed: `scenario_1` stage 14, `scenario_1` runner contract changes, or
+  new `scenario_1` runtime-observability fields that imply quorum-certificate
+  closure.
+
+### ⚙️ 15.5. Required Existing-Crate Additions
+
+- Add `CommitSubject` under `z00z_aggregators` with canonical encode and digest.
+- Add `ShardVote` with voter id, role, shard id, term or epoch, membership
+  digest, subject digest, and deterministic simulator signature.
+- Add `ShardQuorumCertificate` with canonical sorted votes, quorum rule,
+  membership digest, subject digest, and certificate digest.
+- Add `SecondaryReplayVerifier` that recomputes the subject from live route,
+  placement, recovery, publication, and theorem inputs before voting.
+- Extend the current `ConsensusAdapter` path or add a sibling certificate path
+  so `ConsensusCommit` cannot be treated as complete quorum proof by itself.
+- Bind the quorum certificate digest or reference into local DA publication
+  records without replacing `PublicationRequest`, `PublishedBatch`, or
+  `ResolvedBatch`.
+- Extend validator acceptance so a resolved batch can require and verify the
+  certificate binding when the scenario enables the certificate gate.
+
+### ⚙️ 15.6. Scenario Flow
+
+1. Build a wallet-style package fixture that can be normalized by aggregator
+   ingress.
+2. Recompute the package digest at ingress and reject caller-provided digest
+   drift.
+3. Convert the package into a route-keyed work item.
+4. Route it through the live shard route table.
+5. Plan the batch with `BatchPlanner`.
+6. Resolve placement from the real `sim_5a7s` table.
+7. Build a primary `CommitSubject` from route, plan, placement, recovery,
+   execution, publication, and theorem inputs.
+8. Run `SecondaryReplayVerifier` for every secondary aggregator in
+   that shard's quorum group.
+9. Produce `ShardVote` only for aggregator voters that recompute the exact
+   subject digest.
+10. Form a 2-of-3 `ShardQuorumCertificate`.
+11. Publish through `LocalDaAdapter` with certificate digest binding.
+12. Resolve local DA and pass the resolved artifact to `ValidatorBoundary`.
+13. Emit scenario evidence proving package digest, route digest, subject digest,
+   vote set, certificate digest, DA digest, publication binding, and validator
+   verdict all refer to the same commit subject.
+
+### 🔑 15.7. Invariants
+
+- Routing chooses the shard; the primary does not choose the shard.
+- The quorum group is exactly primary plus secondary aggregators for
+  one shard and one placement generation.
+- A secondary vote means independent deterministic replay, not byte copying.
+- A 2-of-3 local quorum is CFT evidence only and must not be called BFT.
+- A certificate is invalid if any vote uses a different route digest, placement
+  digest, subject digest, term, epoch, or membership digest.
+- Local DA availability does not prove execution correctness; it only carries
+  bytes and certificate-bound publication evidence.
+- Validator acceptance must fail if the certificate is missing, detached,
+  mismatched, stale, or formed from inactive members.
+
+### 📦 15.8. Required Artifacts
+
+- `scenario_11/quorum/package_ingress_report.json`
+- `scenario_11/quorum/route_plan_report.json`
+- `scenario_11/quorum/placement_membership.json`
+- `scenario_11/quorum/commit_subject.json`
+- `scenario_11/quorum/secondary_replay_votes.json`
+- `scenario_11/quorum/quorum_certificate.json`
+- `scenario_11/quorum/local_da_binding.json`
+- `scenario_11/quorum/validator_verdict_report.json`
+- `scenario_11/quorum/fault_matrix.json`
+- `scenario_11/quorum/report_honesty.json`
+
+### ✅ 15.9. Unit Tests
+
+- `CommitSubject` canonical digest is stable across repeated encoding.
+- `CommitSubject` digest changes when route table digest changes.
+- `CommitSubject` digest changes when routing generation changes.
+- `CommitSubject` digest changes when placement membership digest changes.
+- `CommitSubject` digest changes when plan digest changes.
+- `CommitSubject` digest changes when previous or new state root changes.
+- `CommitSubject` digest changes when journal lineage or proof version changes.
+- `ShardVote` rejects inactive voter ids.
+- `ShardVote` rejects duplicate voter ids.
+- `ShardVote` rejects wrong voter role for the placement generation.
+- `ShardVote` rejects mismatched subject digest.
+- `ShardQuorumCertificate` sorts votes canonically.
+- `ShardQuorumCertificate` rejects duplicate signers.
+- `ShardQuorumCertificate` rejects below-quorum vote sets.
+- `ShardQuorumCertificate` rejects mixed term or mixed membership digest.
+- `SecondaryReplayVerifier` accepts the exact primary subject.
+- `SecondaryReplayVerifier` rejects wrong route, plan, root, lineage, proof,
+  publication binding, and theorem digest.
+
+### ✅ 15.10. Integration Tests
+
+- `ConsensusAdapter` still preserves same-term split-brain freeze.
+- Certificate-producing commit path returns the same CFT quorum decision as the
+  existing local majority path for honest inputs.
+- Certificate-producing commit path rejects removed aggregator votes.
+- Certificate-producing commit path rejects newly joined but not-ready
+  secondary votes.
+- Stale secondary recovery state prevents vote creation.
+- Secondary takeover after primary crash requires matching lineage and subject
+  digest.
+- Local DA publish stores the certificate digest or reference with the
+  publication record.
+- Local DA resolve rejects detached or mismatched certificate digest.
+- `ValidatorBoundary` accepts a resolved batch only when certificate,
+  publication binding, theorem bundle, and ordered batch share the same subject.
+- `ValidatorBoundary` rejects missing certificate once certificate gate is
+  enabled.
+
+### ✅ 15.11. E2E Tests
+
+- `scenario_11` happy path runs one shard with one primary and two
+  secondary aggregators, then forms a 2-of-3 certificate and accepted
+  validator verdict.
+- `scenario_11` dual-primary owner path covers an aggregator that owns two
+  shards in `sim_5a7s`, proving per-shard quorum isolation.
+- `scenario_11` all-shard sweep proves each of the seven shards can resolve its
+  primary plus secondary-aggregator membership and local quorum count.
+- `scenario_11` primary-crash-before-quorum path produces no certificate and no
+  DA publication.
+- `scenario_11` primary-crash-after-quorum-before-DA path resumes publication
+  only from the same subject and certificate.
+- `scenario_11` one-secondary-offline path still forms 2-of-3 quorum.
+- `scenario_11` one-secondary-stale path rejects the stale vote and either
+  commits with the other secondary or fails closed if quorum is unavailable.
+- `scenario_11` wrong route digest, placement generation, plan digest, state
+  root, proof version, publication binding, theorem digest, and certificate
+  digest each fail closed.
+- `scenario_11` report-honesty test rejects phrases that claim network BFT,
+  Celestia finality, production signatures, slashing, or public finality.
+
+### 🚩 15.12. Fault Matrix
+
+| Fault | Injection Point | Expected Boundary | Expected Result |
+| --- | --- | --- | --- |
+| Caller digest drift | Ingress package fixture | ingress normalization | recomputed digest wins or input rejects |
+| Wrong route digest | `CommitSubject` builder | secondary replay | no secondary vote |
+| Wrong placement generation | placement membership | vote validation | vote and certificate reject |
+| Duplicate voter | certificate builder | quorum validation | certificate reject |
+| Removed voter | active membership check | vote validation | vote reject |
+| New unready voter | placement readiness | vote validation | vote reject |
+| Stale secondary root | recovery state | secondary replay | no vote |
+| Same-term conflicting subject | consensus commit | split-brain guard | freeze or reject |
+| Primary crash before quorum | primary execution | certificate builder | no certificate, no publication |
+| Primary crash after quorum before DA | publication resume | local DA binding | resume only exact certificate |
+| Certificate digest drift | local DA record | resolve or validator | reject |
+| Theorem digest drift | validator boundary | validator verdict | reject |
+| Missing certificate | validator gate | validator verdict | incomplete or rejected |
+
+### 🛑 15.13. Anti-Placeholder Gates
+
+Every implementation PLAN for `scenario_11` must include tests that fail if:
+
+- a certificate can be created without recomputing the secondary subject;
+- secondary votes are hard-coded from expected fixtures;
+- quorum is counted globally across five aggregators instead of per shard;
+- DA binding uses a constant or zero certificate digest;
+- validator acceptance ignores the certificate digest;
+- report artifacts are emitted without corresponding live vote, certificate,
+  DA, and validator evidence;
+- any scenario summary claims BFT, Celestia, slashing, or production finality.
+
+### 🧪 15.14. Verification Anchors
+
+Use current package names only. These commands become mandatory after the listed
+tests or targets are added by implementation:
+
+```bash
+cargo test -p z00z_aggregators --features test-params-fast --test test_shard_quorum_certificate -- --nocapture
+cargo test -p z00z_aggregators --features test-params-fast --test test_secondary_replay_verifier -- --nocapture
+cargo test -p z00z_rollup_node --features test-params-fast --test test_da_local_quorum_binding -- --nocapture
+cargo test -p z00z_validators --test test_hjmt_publication_contract -- --nocapture
+cargo test -p z00z_simulator --release --features test-params-fast --features wallet_debug_tools --test scenario_11 -- --nocapture
+```
+
+Until `scenario_11` exists as a target, do not replace current `scenario_1`
+runner commands with it in release gates.
+
+### ✅ 15.15. Completion Criteria
+
+`scenario_11` is complete when a local package-to-validator path forms a real
+per-shard quorum certificate from independently replayed primary and secondary
+aggregator subjects, binds that certificate through local DA, rejects every drift
+case above, emits evidence artifacts with no placeholder-only rows, and reports
+only local CFT quorum claims.
+
+## 🧭 16. Source Consolidation And Retirement Coverage
 
 This file is the self-contained implementation backlog for the new scenarios.
 Implementation PLAN files should not pre-read the retired 045, 053, or 054
@@ -1045,7 +1342,7 @@ Current-code path replacements for drifted legacy references:
 - use current feature names `test-params-fast` and `wallet_debug_tools`
   instead of retired `test-fast` and `wallet_debug_dump`.
 
-## 🧹 Deletion Readiness Gate
+## 🧹 17. Deletion Readiness Gate
 
 The other consolidation inputs can be deleted without damaging implementation
 completeness or understandability if this file remains available.
@@ -1069,7 +1366,7 @@ handoff file that still points implementers at the retired paths as execution
 sources. Historical references are acceptable only when they clearly point back
 to this `063-TODO.md` as the maintained source of truth.
 
-## 🚫 Removed Or Deferred From Current-Code Backlog
+## 🚫 18. Removed Or Deferred From Current-Code Backlog
 
 These ideas are intentionally not scenario targets right now:
 
@@ -1086,11 +1383,12 @@ These ideas are intentionally not scenario targets right now:
 
 Reason: these may be whitepaper-valid, but they require new product surfaces, external services, or design contracts that are not present enough in the current codebase for an executable scenario.
 
-Local mock DA is not deferred. It is in scope only for `scenario_9` when it
-stays behind the current `DaAdapter` trait and reports itself as local mock
-publication evidence, not as live DA finality.
+Local mock DA is not deferred. It is in scope for `scenario_9` publication
+evidence and `scenario_11` quorum-certificate binding when it stays behind the
+current `DaAdapter` trait and reports itself as local mock publication evidence,
+not as live DA finality.
 
-## 🧭 Recommended Build Order
+## 🧭 19. Recommended Build Order
 
 1. `scenario_2 Genesis, Crypto, And Domain Integrity Drill`
 2. `scenario_5 Settlement, Checkpoint, HJMT, And Fee Replay Drill`
@@ -1100,11 +1398,12 @@ publication evidence, not as live DA finality.
 6. `scenario_7 Validator And Watcher Evidence Drill`
 7. `scenario_8 Offline Package And Local Reconciliation Drill`
 8. `scenario_9 Local Publication, Evidence, Restart, And Tamper Drill`
-9. `scenario_10 Local Whole-System Scenario`
+9. `scenario_11 Shard Quorum Certificate And Secondary Replay Drill`
+10. `scenario_10 Local Whole-System Scenario`
 
-This order builds the base proof and state machinery first, then object/wallet behavior, then runtime/watcher behavior, then local publication evidence, then local integration.
+This order builds the base proof and state machinery first, then object/wallet behavior, then runtime/watcher behavior, then local publication evidence, then shard quorum-certificate evidence, then local integration.
 
-## 💯 Coverage Summary
+## 💯 20. Coverage Summary
 
 The reduced backlog still demonstrates the main current capabilities:
 
@@ -1116,6 +1415,7 @@ The reduced backlog still demonstrates the main current capabilities:
 - validator/watcher evidence: `scenario_7`;
 - offline package boundary: `scenario_8`;
 - local publication/restart/tamper evidence: `scenario_9`;
+- local shard quorum certificate and secondary replay evidence: `scenario_11`;
 - whole local system behavior: `scenario_10`.
 
 The removed scenarios are not rejected as product ideas. They are deferred until the codebase has the required local implementation surfaces.
@@ -1128,7 +1428,7 @@ The removed scenarios are not rejected as product ideas. They are deferred until
 
 
 
-## 19. Local Publication, Simulator Evidence, And Restart/Tamper Harness
+## 21. Legacy Closeout 19: Local Publication, Simulator Evidence, And Restart/Tamper Harness
 
 **Goal:**
 
@@ -1155,9 +1455,7 @@ The removed scenarios are not rejected as product ideas. They are deferred until
 | watcher and publication route binding reuse runtime and storage primitives | `crates/z00z_runtime/watchers/src/publication.rs`; `crates/z00z_runtime/aggregators/README.md`; `crates/z00z_simulator/tests/scenario_1/test_hjmt_e2e.rs` | `Closed` |
 | restart and tamper evidence does not invent a second publication truth plane | `crates/z00z_runtime/watchers/src/publication.rs`; `crates/z00z_simulator/tests/scenario_1/test_hjmt_e2e.rs`; `crates/z00z_simulator/tests/scenario_1/test_scenario1_stage_surface.rs` | `Closed` |
 
-## 
-
-## 20. Simulator Checkpoint, Theorem, Tamper, And Restart Evidence Pack
+## 22. Legacy Closeout 20: Simulator Checkpoint, Theorem, Tamper, And Restart Evidence Pack
 
 **Goal:**
 
@@ -1174,7 +1472,7 @@ The removed scenarios are not rejected as product ideas. They are deferred until
 | stable artifact and report names | `crates/z00z_simulator/tests/scenario_1/test_scenario1_stage_surface.rs` with `transactions/checkpoint_s7.json`, `transactions/checkpoint_s8.json`, `pub_flow.json`, and `watch_flow.json` | `Closed` |
 | typed error redaction            | `crates/z00z_storage/src/error.rs`; `crates/z00z_simulator/tests/scenario_1/test_checkpoint_acceptance.rs`; `crates/z00z_simulator/tests/scenario_1/test_scenario1_stage_surface.rs` | `Closed` |
 
-## 21. Simulator Receive, Import, And History Evidence Pack
+## 23. Legacy Closeout 21: Simulator Receive, Import, And History Evidence Pack
 
 **Goal:**
 
@@ -1221,5 +1519,3 @@ The removed scenarios are not rejected as product ideas. They are deferred until
 | `wrong_chain`                 | `Failed`           | `rejected`             | `WrongChain`                | `crates/z00z_simulator/src/scenario_1/runtime_observability.rs`; `crates/z00z_wallets/src/rpc/tx_rpc_server_finalize.rs`; `crates/z00z_wallets/src/rpc/test_tx_pending_suite.rs` | `Closed` |
 | `invalid_digest`              | `Failed`           | `rejected`             | `InvalidDigest`             | `crates/z00z_simulator/src/scenario_1/runtime_observability.rs`; `crates/z00z_wallets/src/rpc/tx_rpc_server_finalize.rs`; `crates/z00z_wallets/src/rpc/test_tx_pending_suite.rs` | `Closed` |
 | `unsupported_package_version` | `Failed`           | `rejected`             | `UnsupportedPackageVersion` | `crates/z00z_simulator/src/scenario_1/runtime_observability.rs`; `crates/z00z_wallets/src/rpc/tx_rpc_server_finalize.rs`; `crates/z00z_wallets/src/rpc/test_tx_pending_suite.rs` | `Closed` |
-
-## 

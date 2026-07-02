@@ -30,6 +30,8 @@ Invoke this skill when the user asks to:
 6. Respect existing user deletions in the worktree.
 7. Keep `versions.yaml` internally consistent at all times: if `total_version.version` is `X.Y.Z`, then `total_version.last_git_tag` must be exactly `vX.Y.Z`.
 8. Do not create a repository release tag from the `crate` command. Crate-only version updates must not mutate `total_version.version` or `total_version.last_git_tag`.
+9. Do not put files larger than `50 MiB` into git by default.
+10. To allow a large file intentionally, pass an explicit per-run override flag with the maximum allowed single-file size: `--allow-large-files-up-to-mb <MB>`.
 
 ## Core Workflow
 
@@ -76,6 +78,7 @@ CURRENT_BRANCH="$(git branch --show-current)"
 5. If deleted files are present, leave them deleted. Never restore them automatically.
 6. If `versions.yaml` is inconsistent, fix or block the workflow before creating a release commit or sync.
 7. For `crate` updates, commit and push the branch only; do not create a repository release tag unless the user separately requests a repo release bump.
+8. If staged or to-be-pushed git content contains a file larger than `50 MiB`, block the workflow unless the run explicitly supplies `--allow-large-files-up-to-mb <MB>`.
 
 ## Verification
 
@@ -86,6 +89,7 @@ Before reporting success:
 - confirm deleted files were not restored
 - confirm the workflow used the repository-owned script path under `.github/skills/z00z-git-versioning/scripts/`
 - confirm `versions.yaml` ended with `total_version.version == X.Y.Z` and `total_version.last_git_tag == vX.Y.Z`
+- confirm no file above the default `50 MiB` limit entered git without an explicit `--allow-large-files-up-to-mb <MB>` override
 
 ## Examples
 

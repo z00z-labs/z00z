@@ -177,8 +177,20 @@ fn test_future_terms_stay_bounded() {
         "wallet guide must keep linked-liability and live cross-chain claims excluded"
     );
     assert!(
-        APP_KERNEL.contains("Phase 1: OnionNet transport is not represented by `ChainType`"),
-        "app kernel must keep OnionNet on a deterministic placeholder path"
+        APP_KERNEL.contains("OnionNet transport is not represented by `ChainType`"),
+        "app kernel must keep OnionNet outside the ChainType transport model"
+    );
+    assert!(
+        APP_KERNEL.contains("local fallback chain selection."),
+        "app kernel must keep OnionNet bounded to the current local fallback path"
+    );
+    assert!(
+        !APP_KERNEL.contains("deterministic placeholder"),
+        "app kernel must not describe OnionNet as a placeholder contract anymore"
+    );
+    assert!(
+        !APP_KERNEL.contains("Core app stub:"),
+        "app kernel must not advertise core app controls as stubs"
     );
     assert!(
         APP_CHAIN_NETWORK.contains("Phase 1: deterministic placeholder that reaches the core app."),

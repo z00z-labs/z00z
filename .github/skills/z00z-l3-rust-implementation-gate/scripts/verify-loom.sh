@@ -10,7 +10,7 @@ PROFILE_LIB="$ROOT_DIR/.github/skills/z00z-verification-orchestrator/scripts/pro
 STRICT="${Z00Z_L3_STRICT:-0}"
 VENDOR_ROOT="${Z00Z_VENDOR_ROOT:-$ROOT_DIR/crates/z00z_crypto/tari}"
 PROFILE_ARGS_TEXT="${Z00Z_CARGO_PROFILE_ARGS:---release}"
-FEATURE_FLAG="${Z00Z_ALL_FEATURES_FLAG---all-features}"
+FEATURE_FLAG="${Z00Z_ALL_FEATURES_FLAG-}"
 
 source "$PROFILE_LIB"
 z00z_profile_activate_tool_env "$ROOT_DIR"

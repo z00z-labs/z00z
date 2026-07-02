@@ -14,6 +14,9 @@ fi
 CARGO_TOML="$PROJECT_ROOT/Cargo.toml"
 VERSION_FILE="$PROJECT_ROOT/.version"
 VERSIONS_YAML="$PROJECT_ROOT/versions.yaml"
+DEFAULT_MAX_GIT_FILE_SIZE_MB=50
+MAX_GIT_FILE_SIZE_MB=$DEFAULT_MAX_GIT_FILE_SIZE_MB
+LARGE_FILE_OVERRIDE=false
 
 # Colors for output
 RED=$'\033[0;31m'
@@ -51,6 +54,23 @@ log_error() {
     echo "${RED}[ERROR]${NC} $1"
 }
 
+format_size_mib() {
+    local bytes="$1"
+    awk -v value="$bytes" 'BEGIN { printf "%.2f MiB", value / 1048576 }'
+}
+
+validate_positive_integer() {
+    local value="$1"
+    local label="$2"
+
+    if [[ ! "$value" =~ ^[0-9]+$ ]] || [[ "$value" -le 0 ]]; then
+        log_error "$label must be a positive integer, got: $value"
+        return 1
+    fi
+
+    return 0
+}
+
 # Get current version from versions.yaml
 get_current_version() {
     awk '
@@ -82,6 +102,101 @@ get_last_git_tag() {
 expected_tag_for_version() {
     local version="$1"
     echo "v${version}"
+}
+
+print_large_file_limit_error() {
+    local limit_mb="$1"
+    local offenders_file="$2"
+
+    if [[ "$LARGE_FILE_OVERRIDE" == "true" ]]; then
+        log_error "Some files exceed the explicit per-file allowance of ${limit_mb} MiB for this run."
+    else
+        log_error "Git versioning blocks files larger than ${DEFAULT_MAX_GIT_FILE_SIZE_MB} MiB by default."
+        log_error "To allow a large file intentionally, re-run with --allow-large-files-up-to-mb <MB>."
+        log_error "That flag must explicitly state the maximum allowed size for a single file in this run."
+    fi
+
+    while IFS=$'\t' read -r size path; do
+        log_error "Oversized git file: ${path} ($(format_size_mib "$size"))"
+    done < "$offenders_file"
+}
+
+enforce_staged_file_size_limit() {
+    local limit_mb="${1:-$MAX_GIT_FILE_SIZE_MB}"
+    local limit_bytes=$((limit_mb * 1024 * 1024))
+    local offenders_file
+    local found="false"
+
+    offenders_file="$(mktemp)"
+
+    while IFS= read -r -d '' path; do
+        [[ -n "$path" ]] || continue
+
+        local size
+        size="$(git cat-file -s ":$path" 2>/dev/null || true)"
+        [[ -n "$size" ]] || continue
+
+        if (( size > limit_bytes )); then
+            printf '%s\t%s\n' "$size" "$path" >> "$offenders_file"
+            found="true"
+        fi
+    done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+    if [[ "$found" == "true" ]]; then
+        sort -u "$offenders_file" -o "$offenders_file"
+        print_large_file_limit_error "$limit_mb" "$offenders_file"
+        rm -f "$offenders_file"
+        return 1
+    fi
+
+    rm -f "$offenders_file"
+    return 0
+}
+
+enforce_push_file_size_limit() {
+    local branch="$1"
+    local limit_mb="${2:-$MAX_GIT_FILE_SIZE_MB}"
+    local limit_bytes=$((limit_mb * 1024 * 1024))
+    local offenders_file
+    local found="false"
+    local object_range="HEAD"
+
+    if git show-ref --verify --quiet "refs/remotes/origin/${branch}"; then
+        object_range="origin/${branch}..HEAD"
+    fi
+
+    offenders_file="$(mktemp)"
+
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        [[ "$line" == *" "* ]] || continue
+
+        local object_id="${line%% *}"
+        local path="${line#* }"
+        local object_type
+        local size
+
+        object_type="$(git cat-file -t "$object_id" 2>/dev/null || true)"
+        [[ "$object_type" == "blob" ]] || continue
+
+        size="$(git cat-file -s "$object_id" 2>/dev/null || true)"
+        [[ -n "$size" ]] || continue
+
+        if (( size > limit_bytes )); then
+            printf '%s\t%s\n' "$size" "$path" >> "$offenders_file"
+            found="true"
+        fi
+    done < <(git rev-list --objects "$object_range")
+
+    if [[ "$found" == "true" ]]; then
+        sort -u "$offenders_file" -o "$offenders_file"
+        print_large_file_limit_error "$limit_mb" "$offenders_file"
+        rm -f "$offenders_file"
+        return 1
+    fi
+
+    rm -f "$offenders_file"
+    return 0
 }
 
 # Parse version components
@@ -154,17 +269,9 @@ create_git_commit() {
     local new_version="$2"
     local change_type="${3:-patch}"
     local description="${4:-Automated version update}"
-    local stage_all="${5:-false}"
-    local create_release_tag="${6:-true}"
+    local create_release_tag="${5:-true}"
     
     log_info "Creating git commit for version $new_version"
-
-    # Safer default: commit only what is already staged.
-    # Opt-in to staging everything via --stage-all.
-    if [[ "$stage_all" == "true" ]]; then
-        log_warning "Staging all changes (including untracked and deletions)"
-        git add -A
-    fi
 
     # Detect empty tracked files (do NOT delete them automatically).
     while IFS= read -r -d '' file; do
@@ -352,6 +459,7 @@ OPTIONS:
     -b, --branch <BRANCH>  Target branch (default: current branch)
     -f, --force            Force push to GitHub
     --stage-all            Stage all changes before committing (unsafe; includes deletions)
+    --allow-large-files-up-to-mb <MB> Explicitly allow a larger single git file for this run up to the stated MiB limit
     --allow-branch-mismatch Allow pushing when target branch differs from current branch
     -d, --dry-run          Show what would be done without executing
     -h, --help             Show this help message
@@ -365,6 +473,7 @@ EXAMPLES:
     $0 status
     $0 branch
     $0 sync
+    $0 minor --stage-all --allow-large-files-up-to-mb 250 -m "Intentional large artifact update"
 
 EOF
 }
@@ -402,6 +511,11 @@ main() {
                 stage_all=true
                 shift
                 ;;
+            --allow-large-files-up-to-mb)
+                MAX_GIT_FILE_SIZE_MB="$2"
+                LARGE_FILE_OVERRIDE=true
+                shift 2
+                ;;
             --allow-branch-mismatch)
                 allow_branch_mismatch=true
                 shift
@@ -437,6 +551,8 @@ main() {
     
     # Change to project root
     cd "$PROJECT_ROOT"
+
+    validate_positive_integer "$MAX_GIT_FILE_SIZE_MB" "--allow-large-files-up-to-mb"
 
     # Default branch to the current checked-out branch (safer than defaulting to main)
     if [[ -z "$branch" ]]; then
@@ -514,6 +630,8 @@ main() {
                 log_warning "No changes to sync"
                 exit 0
             fi
+
+            enforce_push_file_size_limit "$branch" "$MAX_GIT_FILE_SIZE_MB"
             
             if [[ "$dry_run" == "true" ]]; then
                 log_info "[DRY RUN] Would sync changes to GitHub"
@@ -534,7 +652,12 @@ main() {
                     log_warning "No changes to commit"
                     exit 0
                 fi
+
+                log_warning "Staging all changes (including untracked and deletions)"
+                git add -A
             fi
+
+            enforce_staged_file_size_limit "$MAX_GIT_FILE_SIZE_MB"
             
             local new_version
             new_version=$(increment_version "$current_version" "$command")
@@ -554,7 +677,7 @@ main() {
             update_versions_yaml "$new_version"
             
             # Create commit and tag
-            create_git_commit "$current_version" "$new_version" "$command" "$message" "$stage_all"
+            create_git_commit "$current_version" "$new_version" "$command" "$message"
             
             # Sync to GitHub
             sync_to_github "$new_version" "$branch" "$force_push"
@@ -574,12 +697,19 @@ main() {
                 log_info "[DRY RUN] Would not create a repository release tag or mutate total_version release metadata"
                 exit 0
             fi
+
+            if [[ "$stage_all" == "true" ]]; then
+                log_warning "Staging all changes (including untracked and deletions)"
+                git add -A
+            fi
+
+            enforce_staged_file_size_limit "$MAX_GIT_FILE_SIZE_MB"
             
             # Update crate version
             update_crate_version "$crate_name" "$crate_version"
             
             # Create commit only. Crate-specific updates must not create a repository release tag.
-            create_git_commit "$current_version" "$crate_version" "crate-$crate_name" "$message" "$stage_all" "false"
+            create_git_commit "$current_version" "$crate_version" "crate-$crate_name" "$message" "false"
             
             # Sync branch only; no repository release tag is pushed for crate-only updates.
             sync_to_github "" "$branch" "$force_push"

@@ -85,9 +85,9 @@ impl CreateWalletRequest {
     }
 }
 
-/// App-kernel state (Phase 1 stub).
+/// App-kernel state for app-owned control selection.
 ///
-/// This is intentionally app-scoped (not wallet-scoped).
+/// This type is intentionally app-scoped (not wallet-scoped).
 #[derive(Debug, Default, Clone)]
 pub struct AppKernel;
 
@@ -97,57 +97,59 @@ impl AppKernel {
         Self
     }
 
-    /// Core app stub: switch to mainnet.
+    /// Select mainnet as the active app-level chain.
     pub fn switch_to_mainnet(&self) -> ChainType {
         ChainType::Mainnet
     }
 
-    /// Core app stub: switch to testnet.
+    /// Select testnet as the active app-level chain.
     pub fn switch_to_testnet(&self) -> ChainType {
         ChainType::Testnet
     }
 
-    /// Core app stub: switch to devnet.
+    /// Select devnet as the active app-level chain.
     pub fn switch_to_devnet(&self) -> ChainType {
         ChainType::Devnet
     }
 
-    /// Core app stub: enable OnionNet transport.
+    /// Resolve the current chain selection used when OnionNet is requested.
     ///
-    /// Phase 1: OnionNet transport is not represented by `ChainType`, so this returns a
-    /// deterministic placeholder.
+    /// OnionNet transport is not represented by `ChainType`. Until transport
+    /// selection has its own runtime representation, this returns the current
+    /// local fallback chain selection.
     pub fn configure_onionet(&self) -> ChainType {
         ChainType::Devnet
     }
 
-    /// Core app stub: enable or disable Tor transport.
+    /// Apply the app-level Tor enablement preference.
     ///
-    /// Phase 1: deterministic placeholder.
+    /// Transport execution lives in the dedicated network services; this
+    /// control hook preserves the requested local preference.
     pub fn configure_tor(&self, enable: bool) -> bool {
         enable
     }
 
-    /// Core app stub: start wallet-local scan orchestration.
+    /// App-layer control hook for wallet-local scan start.
     pub fn start_local_scan(&self) -> bool {
         true
     }
 
-    /// Core app stub: stop wallet-local scan orchestration.
+    /// App-layer control hook for wallet-local scan stop.
     pub fn stop_local_scan(&self) -> bool {
         true
     }
 
-    /// Core app stub: read wallet-local scan status.
+    /// App-layer control hook for wallet-local scan status reads.
     pub fn get_local_scan_status(&self) -> bool {
         true
     }
 
-    /// Core app stub: read wallet-local chain-tip height.
+    /// App-layer control hook for wallet-local chain-tip reads.
     pub fn get_local_scan_tip_height(&self) -> u64 {
         0
     }
 
-    /// Core app stub: list wallets.
+    /// App-layer control hook for wallet listing.
     pub fn list_wallets(&self) -> bool {
         true
     }
@@ -165,17 +167,17 @@ impl AppKernel {
         CreateWalletRequest::new(name, network, chain)
     }
 
-    /// Core app stub: delete wallet.
+    /// App-layer control hook for wallet deletion.
     pub fn delete_wallet(&self) -> bool {
         true
     }
 
-    /// Core app stub: export wallet.
+    /// App-layer control hook for wallet export.
     pub fn export_wallet(&self) -> bool {
         true
     }
 
-    /// Core app stub: import wallet.
+    /// App-layer control hook for wallet import.
     pub fn import_wallet(&self) -> bool {
         true
     }
@@ -219,52 +221,52 @@ impl<App, Network, Chain, Time, Rng> Z00ZApp<App, Network, Chain, Time, Rng> {
 }
 
 impl<Network, Chain, Time, Rng> Z00ZApp<AppKernel, Network, Chain, Time, Rng> {
-    /// Core app stub: switch to mainnet.
+    /// Select mainnet as the active app-level chain.
     pub fn switch_to_mainnet(&self) -> ChainType {
         self.app.switch_to_mainnet()
     }
 
-    /// Core app stub: switch to testnet.
+    /// Select testnet as the active app-level chain.
     pub fn switch_to_testnet(&self) -> ChainType {
         self.app.switch_to_testnet()
     }
 
-    /// Core app stub: switch to devnet.
+    /// Select devnet as the active app-level chain.
     pub fn switch_to_devnet(&self) -> ChainType {
         self.app.switch_to_devnet()
     }
 
-    /// Core app stub: enable OnionNet transport.
+    /// Resolve the current chain selection used when OnionNet is requested.
     pub fn configure_onionet(&self) -> ChainType {
         self.app.configure_onionet()
     }
 
-    /// Core app stub: enable or disable Tor transport.
+    /// Apply the app-level Tor enablement preference.
     pub fn configure_tor(&self, enable: bool) -> bool {
         self.app.configure_tor(enable)
     }
 
-    /// Core app stub: start wallet-local scan orchestration.
+    /// App-layer control hook for wallet-local scan start.
     pub fn start_local_scan(&self) -> bool {
         self.app.start_local_scan()
     }
 
-    /// Core app stub: stop wallet-local scan orchestration.
+    /// App-layer control hook for wallet-local scan stop.
     pub fn stop_local_scan(&self) -> bool {
         self.app.stop_local_scan()
     }
 
-    /// Core app stub: read wallet-local scan status.
+    /// App-layer control hook for wallet-local scan status reads.
     pub fn get_local_scan_status(&self) -> bool {
         self.app.get_local_scan_status()
     }
 
-    /// Core app stub: read wallet-local chain-tip height.
+    /// App-layer control hook for wallet-local chain-tip reads.
     pub fn get_local_scan_tip_height(&self) -> u64 {
         self.app.get_local_scan_tip_height()
     }
 
-    /// Core app stub: list wallets.
+    /// App-layer control hook for wallet listing.
     pub fn list_wallets(&self) -> bool {
         self.app.list_wallets()
     }
@@ -279,17 +281,17 @@ impl<Network, Chain, Time, Rng> Z00ZApp<AppKernel, Network, Chain, Time, Rng> {
         self.app.create_wallet(name, network, chain)
     }
 
-    /// Core app stub: delete wallet.
+    /// App-layer control hook for wallet deletion.
     pub fn delete_wallet(&self) -> bool {
         self.app.delete_wallet()
     }
 
-    /// Core app stub: export wallet.
+    /// App-layer control hook for wallet export.
     pub fn export_wallet(&self) -> bool {
         self.app.export_wallet()
     }
 
-    /// Core app stub: import wallet.
+    /// App-layer control hook for wallet import.
     pub fn import_wallet(&self) -> bool {
         self.app.import_wallet()
     }

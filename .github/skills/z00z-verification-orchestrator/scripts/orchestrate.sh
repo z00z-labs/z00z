@@ -15,7 +15,7 @@ HJMT_SUMMARY_SCRIPT="$SCRIPT_DIR/summarize-hjmt-artifacts.py"
 REPORT_VALIDATOR_SCRIPT="$SCRIPT_DIR/validate-report-format.py"
 REPORT_FORMAT_PATH="$ROOT_DIR/.github/skills/z00z-verification-orchestrator/FORMAT.md"
 VENDOR_ROOT_REL="${Z00Z_VENDOR_ROOT:-crates/z00z_crypto/tari}"
-FEATURE_FLAG="${Z00Z_ALL_FEATURES_FLAG---all-features}"
+FEATURE_FLAG="${Z00Z_ALL_FEATURES_FLAG-}"
 ARTIFACT_BUILDER_SCRIPT="$ROOT_DIR/.github/skills/z00z-verification-artifact-builder/scripts/bootstrap-artifacts.py"
 CODE_TO_LOGIC_SKILL_DIR="$ROOT_DIR/.github/skills/z00z-code-to-logic-gate"
 
@@ -1160,11 +1160,16 @@ run_gate() {
   fi
 
   gate_cwd="$(gate_runtime_cwd "$gate_id")"
-  mkdir -p "$gate_cwd"
+  mkdir -p \
+    "$RUN_ROOT" \
+    "$gate_cwd" \
+    "$REPORT_LOG_DIR" \
+    "$RUN_ROOT/profiling" \
+    "$PROFILE_RESOURCE_DIR" \
+    "$TMP_ROOT"
   resource_time_bin="${Z00Z_RESOURCE_TIME_BIN:-/usr/bin/time}"
   resource_profile_path=""
   if [[ -x "$resource_time_bin" ]]; then
-    mkdir -p "$PROFILE_RESOURCE_DIR"
     resource_profile_path="$PROFILE_RESOURCE_DIR/$gate_id.time"
   fi
   sanitize_preexisting_root_runtime_leaks
@@ -1549,10 +1554,14 @@ execute_selected_gates() {
         run_gate l2-transcript "L2 transcript binding gate" env Z00Z_SPECS_ROOT="$(resolved_specs_root)" python3 "$ROOT_DIR/.github/skills/z00z-l2-crypto-protocol-gate/scripts/check-transcript-binding.py" || failed=1
         run_gate l2-proverif "L2 ProVerif gate" env Z00Z_SPECS_ROOT="$(resolved_specs_root)" "$ROOT_DIR/.github/skills/z00z-l2-crypto-protocol-gate/scripts/run-proverif.sh" || failed=1
         run_gate l2-tamarin "L2 Tamarin gate" env Z00Z_SPECS_ROOT="$(resolved_specs_root)" Z00Z_REPORT_TIMESTAMP="$RUN_TIMESTAMP" Z00Z_TAMARIN_TMPDIR="$TMP_ROOT/tamarin" "$ROOT_DIR/.github/skills/z00z-l2-crypto-protocol-gate/scripts/run-tamarin.sh" || failed=1
+        if scope_needs_hax || scope_needs_code_to_logic; then
+          refresh_runtime_artifacts || true
+        fi
         if has_hax_targets && scope_needs_hax; then
-          run_gate l2-hax "L2 HAX/EasyCrypt extraction gate" env Z00Z_SPECS_ROOT="$(resolved_specs_root)" Z00Z_REPORT_TIMESTAMP="$RUN_TIMESTAMP" Z00Z_HAX_TARGETS="$(resolved_hax_targets)" Z00Z_HAX_OUTPUT_ROOT="$VERIFICATION_RUNTIME_ROOT/l2/hax" "$ROOT_DIR/.github/skills/z00z-l2-crypto-protocol-gate/scripts/run-hax.sh" || failed=1
+          run_gate l2-hax "L2 HAX/EasyCrypt extraction gate" env Z00Z_SPECS_ROOT="$(resolved_specs_root)" Z00Z_REPORT_TIMESTAMP="$RUN_TIMESTAMP" Z00Z_HAX_TARGETS="$(resolved_hax_targets)" Z00Z_HAX_OUTPUT_ROOT="$VERIFICATION_RUNTIME_ROOT/l2/hax" Z00Z_HAX_TMPDIR="$VERIFICATION_RUNTIME_ROOT/hax/tmp" "$ROOT_DIR/.github/skills/z00z-l2-crypto-protocol-gate/scripts/run-hax.sh" || failed=1
         fi
         if scope_needs_code_to_logic; then
+          refresh_runtime_artifacts || true
           run_gate l2-refinement-map "L2 code-to-logic refinement map gate" \
             env Z00Z_VERIFICATION_RUNTIME_ROOT="$VERIFICATION_RUNTIME_ROOT" \
             python3 "$CODE_TO_LOGIC_SKILL_DIR/scripts/check-refinement-map.py" --targets "$(resolved_code_to_logic_targets)" || failed=1
@@ -1669,6 +1678,37 @@ prepare_runtime_artifacts() {
     --fuzz-runtime-root "$FUZZ_RUNTIME_ROOT"
     --runtime-only
     --summary-out "$RUNTIME_BOOTSTRAP_SUMMARY_PATH"
+  )
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf 'DRY'
+    printf ' %q' "${args[@]}"
+    printf '\n'
+    return 0
+  fi
+
+  "${args[@]}" >/dev/null
+}
+
+refresh_runtime_artifacts() {
+  [[ -f "$ARTIFACT_BUILDER_SCRIPT" ]] || return 0
+
+  local summary_path="$RUNTIME_BOOTSTRAP_SUMMARY_PATH"
+  if [[ "$MODE" != "report" ]]; then
+    summary_path="$BOOTSTRAP_SUMMARY_PATH"
+  fi
+
+  local args=(
+    python3
+    "$ARTIFACT_BUILDER_SCRIPT"
+    --root "$ROOT_DIR"
+    --scope-kind "$SCOPE_KIND"
+    --target-root-rel "${TARGET_ROOT_REL:-}"
+    --specs-runtime-root "$SPECS_RUNTIME_ROOT"
+    --verification-runtime-root "$VERIFICATION_RUNTIME_ROOT"
+    --fuzz-runtime-root "$FUZZ_RUNTIME_ROOT"
+    --runtime-only
+    --summary-out "$summary_path"
   )
 
   if [[ "$DRY_RUN" -eq 1 ]]; then

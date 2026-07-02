@@ -469,15 +469,16 @@ runtime lane.
 ✅ Useful commands for this module and its immediate downstream checks:
 
 ```bash
-cargo test -p z00z_storage --release --features test-params-fast --lib
-cargo test -p z00z_storage --release --features test-params-fast --test test_live_guardrails
-cargo test -p z00z_storage --release --features test-params-fast --test test_settlement_root
-cargo test -p z00z_storage --release --features test-params-fast --test test_fee_replay
-cargo test -p z00z_wallets --release --features test-params-fast --features wallet_debug_tools --test test_tx_spent_gate
-cargo test -p z00z_wallets --release --features test-params-fast --features wallet_debug_tools --test test_tx_wrong_root
-cargo test -p z00z_wallets --release --features test-params-fast --features wallet_debug_tools --test test_tx_gate
-cargo test -p z00z_simulator --test test_stage4_digest --release --features test-params-fast --features wallet_debug_tools
-cargo test -p z00z_simulator --test test_stage6_checkpoint --release --features test-params-fast --features wallet_debug_tools
+cargo test -p z00z_storage --release --lib
+cargo test -p z00z_storage --release --test test_live_guardrails
+cargo test -p z00z_storage --release --test test_settlement_root
+cargo test -p z00z_storage --release --test test_fee_replay
+cargo test -p z00z_wallets --release --test test_tx_spent_gate
+cargo test -p z00z_wallets --release --test test_tx_wrong_root
+cargo test -p z00z_wallets --release --test test_tx_gate
+cargo test -p z00z_simulator --release --test test_stage4_digest
+cargo test -p z00z_simulator --release --test test_stage6_checkpoint
+bash scripts/audit/audit_release_feature_guards.sh
 ```
 
 ✅ Full workspace verification, including runnable targets and the max-safe sweep, is driven by:

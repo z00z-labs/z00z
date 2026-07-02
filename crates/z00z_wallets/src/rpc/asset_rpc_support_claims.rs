@@ -161,12 +161,25 @@ impl AssetRpcImpl {
                 format!("signer init failed: {e}"),
             )
         })?;
+        let chain_type = self
+            .service
+            .resolve_persisted_wallet_chain_type(wallet_id)
+            .await
+            .map_err(|e| {
+                self.import_err(
+                    ImportRejectReason::ClaimConflict,
+                    wallet_id,
+                    Some(asset_id),
+                    format!("wallet chain resolve failed: {e}"),
+                )
+            })?;
+        let (_, chain_label, _) = Self::chain_meta(chain_type);
 
         let receipt = ClaimReceipt {
             schema_ver: 1,
             asset_id,
             wallet_id: wallet_id.0.as_bytes().to_vec(),
-            claim_scope: claim_scope_hash("dev-chain"),
+            claim_scope: claim_scope_hash(chain_label),
             identity_pk: keys.identity_pk.to_bytes(),
         };
 

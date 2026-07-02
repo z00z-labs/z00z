@@ -735,6 +735,38 @@ async fn create_unlocked_session(rpc: &AssetRpcImpl) -> (PersistWalletId, Sessio
     (wallet_id, session)
 }
 
+async fn create_unlocked_session_chain(
+    rpc: &AssetRpcImpl,
+    chain: &str,
+) -> (PersistWalletId, SessionToken) {
+    let _lock = crate::rpc::logging::RpcLoggingConfig::__lock_wallet_config_env_async().await;
+    let _restore = WalletConfigEnvRestore::capture();
+    std::env::remove_var("Z00Z_WALLET_CONFIG_PATH");
+    std::env::set_var("Z00Z_WALLET_NETWORK", "p2p");
+    std::env::set_var("Z00Z_WALLET_CHAIN", chain);
+
+    let password = "test-password".to_string();
+    let wallet_name = next_test_wallet_name();
+    let wallet_id = rpc
+        .service
+        .create_wallet_in_memory(
+            &wallet_name,
+            SafePassword::from(password.clone()),
+            TEST_SEED_PHRASE_24,
+        )
+        .await
+        .expect("create_wallet_in_memory must succeed");
+
+    let safe_password = SafePassword::from(password);
+    let session = rpc
+        .service
+        .unlock_wallet_in_memory(&wallet_id, &safe_password)
+        .await
+        .expect("unlock_wallet_in_memory must succeed");
+
+    (wallet_id, session)
+}
+
 fn object_test_root(seed: u8) -> SettlementStateRoot {
     SettlementStateRoot::settlement_v1([seed; 32])
 }
@@ -2206,6 +2238,20 @@ async fn test_asset_claim_reserve_conflict() {
 
     assert_eq!(err.code(), -32603);
     assert_eq!(err.message(), "IMPORT_CLAIM_CONFLICT");
+}
+
+#[tokio::test]
+async fn test_claim_scope_chain() {
+    reset_claims();
+    let rpc = AssetRpcImpl::new();
+    let (wallet_id, _session) = create_unlocked_session_chain(&rpc, "testnet").await;
+
+    std::env::set_var("Z00Z_WALLET_NETWORK", "p2p");
+    std::env::set_var("Z00Z_WALLET_CHAIN", "mainnet");
+
+    let (receipt, sig) = rpc.sign_claim(&wallet_id, [0xAB; 32]).await.expect("sign");
+    verify_claim_receipt(&receipt, &sig).expect("verify");
+    assert_eq!(receipt.claim_scope, claim_scope_hash("testnet"));
 }
 
 #[tokio::test]

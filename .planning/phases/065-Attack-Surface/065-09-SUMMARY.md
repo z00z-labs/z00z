@@ -32,7 +32,7 @@ the existing `.planning/phases/065-Attack-Surface/` folder only.
 - `.planning/codebase/STRUCTURE.md`
 - `.planning/codebase/ARCHITECTURE.md`
 - `.planning/phases/profiling-comprehensive.md`
-- `.planning/phases/067-New-Scenarios/066-TODO.md`
+- `.planning/phases/069-New-Scenarios/066-TODO.md`
 - `crates/z00z_core/tests/test_live_guardrails.rs`
 - `crates/z00z_storage/src/settlement/root_types.md`
 - `scripts/audit_phase065_narrowed_wording.sh`
@@ -57,7 +57,7 @@ the existing `.planning/phases/065-Attack-Surface/` folder only.
     `configs/devnet_assets_config.yaml` path instead of the loose
     `assets_config.yaml` shorthand.
   - the future planning anchor in
-    `.planning/phases/067-New-Scenarios/066-TODO.md` no longer points at the
+    `.planning/phases/069-New-Scenarios/066-TODO.md` no longer points at the
     retired asset-path fixture; it now points at
     `crates/z00z_core/configs/devnet_rights_config.yaml`.
 - Executable wording gate

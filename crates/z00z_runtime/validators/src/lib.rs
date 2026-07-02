@@ -1,6 +1,15 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
+#[allow(unexpected_cfgs)]
+#[cfg(kani)]
+extern crate self as z00z_validators;
+
+#[allow(unexpected_cfgs)]
+#[cfg(kani)]
+#[path = "../tests/generated_kani_validator_checkpoint_flow.rs"]
+mod generated_kani_validator_checkpoint_flow;
+
 mod artifact;
 mod checkpoint;
 mod claim_verify;

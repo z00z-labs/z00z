@@ -62,10 +62,16 @@ fn update_policy_digest(
     hasher.update(record.policy_id.bytes());
     hasher.update(record.action_pool_id.bytes());
     let action_pool_bytes = record.action_pool.canonical_bytes().unwrap_or_else(|err| {
-        unreachable!("validated policy action pool must stay canonical during digest: {err}")
+        unreachable!(
+            "validated policy action pool must stay canonical during digest: {}",
+            err
+        )
     });
     let descriptor_bytes = record.descriptor.canonical_bytes().unwrap_or_else(|err| {
-        unreachable!("validated policy descriptor must stay canonical during digest: {err}")
+        unreachable!(
+            "validated policy descriptor must stay canonical during digest: {}",
+            err
+        )
     });
     hasher.update(action_pool_bytes);
     hasher.update(descriptor_bytes);

@@ -2115,21 +2115,25 @@ wallet:
 
     #[tokio::test]
     async fn test_derivation_deterministic_restart() {
+        let _lock = RpcLoggingConfig::__lock_wallet_config_env_async().await;
+        let _restore = WalletConfigEnvRestore::capture();
+        std::env::remove_var("Z00Z_WALLET_CONFIG_PATH");
+        std::env::remove_var("Z00Z_WALLET_NETWORK");
+        std::env::remove_var("Z00Z_WALLET_CHAIN");
+
         let password = SafePassword::from(TEST_PASSWORD);
         let seed_phrase = test_seed_phrase_24();
 
         // Device A: derive keys once.
-        let (service_a, dir_a) = test_service_with_tempdir();
+        let (service_a, dir_a) = test_service_tempdir_raw();
         let wallet_id_a = service_a
             .create_wallet_in_memory("test-wallet", password.clone(), seed_phrase)
             .await
             .unwrap();
-
         let _token = service_a
             .unlock_wallet_in_memory(&wallet_id_a, &password)
             .await
             .unwrap();
-
         let pk_a_payment0 = service_a
             .derive_public_key_for_path(&wallet_id_a, Bip44Path::payment(0).unwrap())
             .await
@@ -2159,7 +2163,6 @@ wallet:
             .unlock_wallet_in_memory(&wallet_id_a, &password)
             .await
             .unwrap();
-
         let pk_restart_payment0 = service_a_restart
             .derive_public_key_for_path(&wallet_id_a, Bip44Path::payment(0).unwrap())
             .await
@@ -2173,7 +2176,7 @@ wallet:
         assert_eq!(pk_a_change0, pk_restart_change0);
 
         // Device B: new data directory, same entropy/seed phrase.
-        let (service_b, _dir_b) = test_service_with_tempdir();
+        let (service_b, _dir_b) = test_service_tempdir_raw();
         let wallet_id_b = service_b
             .create_wallet_in_memory("test-wallet", password.clone(), seed_phrase)
             .await
@@ -2182,7 +2185,6 @@ wallet:
             .unlock_wallet_in_memory(&wallet_id_b, &password)
             .await
             .unwrap();
-
         let pk_b_payment0 = service_b
             .derive_public_key_for_path(&wallet_id_b, Bip44Path::payment(0).unwrap())
             .await

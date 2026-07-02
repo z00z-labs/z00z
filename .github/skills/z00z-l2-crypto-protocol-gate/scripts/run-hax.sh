@@ -16,6 +16,8 @@ TARGETS_FILE="${Z00Z_HAX_TARGETS:-$DEFAULT_TARGETS_FILE}"
 DEFAULT_HAX_OUTPUT_ROOT="$RUN_ROOT/verification$REPORT_STAMP/l2/hax"
 DEFAULT_HAX_OUTPUT_ROOT="$VERIFICATION_RUNTIME_ROOT/l2/hax"
 HAX_OUTPUT_ROOT="${Z00Z_HAX_OUTPUT_ROOT:-$DEFAULT_HAX_OUTPUT_ROOT}"
+DEFAULT_HAX_TMPDIR="$VERIFICATION_RUNTIME_ROOT/hax/tmp"
+HAX_TMPDIR="${Z00Z_HAX_TMPDIR:-$DEFAULT_HAX_TMPDIR}"
 RUNTIME_CWD="${Z00Z_RUNTIME_CWD:-$ROOT_DIR}"
 PROFILE_ARGS_TEXT="${Z00Z_CARGO_PROFILE_ARGS:---release}"
 DISABLE_TIME_LIMITS="${Z00Z_DISABLE_TIME_LIMITS:-1}"
@@ -92,6 +94,7 @@ resolve_output_abs() {
 }
 
 TARGETS_FILE="$(resolve_repo_path "$TARGETS_FILE")"
+HAX_TMPDIR="$(resolve_repo_path "$HAX_TMPDIR")"
 
 profile_args=()
 if [[ -n "$PROFILE_ARGS_TEXT" ]]; then
@@ -108,6 +111,7 @@ if ! cargo hax --help >/dev/null 2>&1; then
   exit 0
 fi
 
+mkdir -p "$HAX_TMPDIR"
 ensure_hax_engine_path
 
 mapfile -t targets < <(
@@ -145,11 +149,11 @@ run_hax_cmd() {
   shift 2
 
   if [[ "$DISABLE_TIME_LIMITS" == "1" || "$timeout_secs" -le 0 ]]; then
-    z00z_profile_run_command command "$label" "$@"
+    z00z_profile_run_command command "$label" env TMPDIR="$HAX_TMPDIR" TMP="$HAX_TMPDIR" TEMP="$HAX_TMPDIR" "$@"
     return "$?"
   fi
 
-  z00z_profile_run_command command "$label" timeout --foreground "${timeout_secs}s" "$@"
+  z00z_profile_run_command command "$label" env TMPDIR="$HAX_TMPDIR" TMP="$HAX_TMPDIR" TEMP="$HAX_TMPDIR" timeout --foreground "${timeout_secs}s" "$@"
   return "$?"
 }
 

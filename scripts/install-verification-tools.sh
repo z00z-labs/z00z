@@ -883,6 +883,15 @@ ensure_rustup() {
   rustup +nightly component add miri rust-src llvm-tools-preview
 }
 
+ensure_nightly_miri_component() {
+  if nightly_has_component miri; then
+    return 0
+  fi
+  log "Installing nightly Miri component"
+  rustup toolchain install nightly
+  rustup +nightly component add miri rust-src llvm-tools-preview
+}
+
 ensure_miri_sysroot() {
   nightly_has_component miri || return 0
   if miri_sysroot_ready && [[ "$FORCE_UPGRADE" -eq 0 ]]; then
@@ -3031,6 +3040,7 @@ self_test_warn_or_fail() {
 }
 
 self_test_versions() {
+  local first_line
   if [[ -f "$ROOT_DIR/scripts/verify-env.sh" ]]; then
     bash -lc "source '$ROOT_DIR/scripts/verify-env.sh' && command -v rg >/dev/null && command -v cargo >/dev/null"
   fi
@@ -3047,7 +3057,8 @@ self_test_versions() {
     javac -version
   fi
   if have rg; then
-    rg --version | head -n 1
+    first_line="$(rg --version)"
+    printf '%s\n' "${first_line%%$'\n'*}"
   fi
   if have ruff; then
     ruff --version
@@ -3056,10 +3067,12 @@ self_test_versions() {
     uv --version
   fi
   if have make; then
-    make --version | head -n 1
+    first_line="$(make --version)"
+    printf '%s\n' "${first_line%%$'\n'*}"
   fi
   if have g++; then
-    g++ --version | head -n 1
+    first_line="$(g++ --version)"
+    printf '%s\n' "${first_line%%$'\n'*}"
   fi
   if have cargo-nextest; then
     cargo-nextest --version
@@ -3508,6 +3521,10 @@ case "$ACTION" in
     check_status
     ;;
   self-test)
+    if have rustup; then
+      ensure_nightly_miri_component
+      ensure_miri_sysroot
+    fi
     check_status
     self_test_versions
     self_test_formal_tools

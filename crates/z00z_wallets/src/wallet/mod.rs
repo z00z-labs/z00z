@@ -1,7 +1,7 @@
 //! Wallet components and core entity.
 //!
 //! This module contains the Z00ZWallet core entity, system components
-//! (backup/restore, policy), and supporting types (rollback, stub defaults).
+//! (backup/restore, policy), and supporting types (rollback, test-only stub defaults).
 
 // Core entity
 #[path = "core.rs"]
@@ -25,6 +25,7 @@ pub mod policy;
 
 // Supporting types
 pub mod rollback;
+#[cfg(test)]
 #[path = "stub_defaults.rs"]
 pub mod stub_defaults;
 

@@ -525,8 +525,8 @@ as authority.
   fail-closed; keep anti-regression tests while the real open work stays in
   `WS-03` and `WS-04`.
 - Current persisted `rotate_master_key` flow. Keep wording and receipt-truth
-  tests honest, but do not treat the old "in-memory placeholder only" wording
-  as a live bug.
+  tests honest, but do not treat the retired rotate-master-key placeholder
+  wording as a live bug.
 
 ## Historical Or Narrowed Findings
 
@@ -540,7 +540,7 @@ as authority.
 
 ### Exact Historical Bullet Mirror
 
-- Legacy `CF-006` wording about "still carries no nullifier semantics" is
+- Legacy `CF-006` wording about missing nullifier semantics is
   obsolete. Current spend verification explicitly documents a delivered
   deterministic nullifier surface. The remaining live gap is validator
   theorem-input closure in `WS-01`.
@@ -679,15 +679,15 @@ Every `PLAN-065-GNN` `<verify>` block must preserve this exact contract:
 
 | Workstream | Current-tree evidence |
 | --- | --- |
-| `WS-01` | `verify_settlement_theorem()` already checks digest, statement, proof bytes, exec-input id, snapshot id, root, link, and tx inclusion in `crates/z00z_rollup_node/src/lib.rs`, while `ResolvedBatch` and `verdict_for_batch()` still admit an accepted path without carrying the same theorem bundle. |
-| `WS-02` | `CheckpointStore` still exposes `save_artifact()` beside `seal_artifact()`, `save_link()` still exists as a peer write lane, and link-codec integrity is stronger than store-time evidence binding. |
-| `WS-03` | public or feature-reachable debug/test surfaces remain in storage cache/scheduler helpers, wallet debug re-exports, simulator debug features, and `test-params-fast`-reachable release-capable build paths. |
-| `WS-04` | `Stage6ProofMode::DraftOnly` remains live, stage 12 early-returns on it, and runtime observability still synthesizes publication binding evidence from a synthetic checkpoint id. |
-| `WS-05` | privileged wallet RPCs still guard with `verify_session*()` by handler convention, and public stealth helper names still expose a compatibility/raw builder shape. |
-| `WS-06` | local asset mutation submission still invents `PersistTxId` from `tx_hash`, and restore still spans staged history, `.wlt`, and publish without one explicit durable restore journal marker. |
-| `WS-07` | `SettlementStore::new()` still panics on open failure, transport logging still emits raw params/responses on wasm logger paths, and the broader panic/redaction classes still need CI enforcement. |
-| `WS-08` | chain scan and tip state remain process-local and synthetic, while receipt DTOs still overload `merkle_proof` with root-like values instead of a dedicated proof contract. |
-| `WS-09` | most old bootstrap-authority wording is already corrected, but generated docs and a few human-readable artifacts still mention `assets_config.yaml` or historical closure language loosely enough to deserve one final sweep. |
+| `WS-01` | `ResolvedBatch` now carries `SettlementTheoremBundle`, DA resolution constructs that bundle before validator admission, and `CheckpointFlow::try_from_resolved()` plus validator regression tests reject theorem, route, `pub_in`, link, and checkpoint drift on the accepted path. |
+| `WS-02` | Canonical checkpoint birth is now `seal_artifact()`-only, raw final export is isolated behind `export_noncanonical_final_bundle()`, canonical loads reject the noncanonical lane, and checkpoint-link writes fail closed when snapshot or exec-input evidence rows drift. |
+| `WS-03` | Release-capable build policy is enforced by `test_production_hardening`, `test_live_boundary_claims`, and `scripts/audit/audit_release_feature_guards.sh`; forbidden `wallet_debug_tools` or `test-params-fast` combinations no longer normalize as acceptable release commands. |
+| `WS-04` | `Stage6ProofMode::DraftOnly` remains only as an explicitly noncanonical simulator mode; stage-finalization and public packet tests prove draft/debug output cannot masquerade as finalized public checkpoint or publication evidence. |
+| `WS-05` | Privileged wallet paths now consume typed `VerifiedSession` or `VerifiedSessionNoTouch` capabilities, route-audit tests enumerate the guarded RPC set, and the raw stealth-output builder is kept visibly noncanonical relative to the validated public path. |
+| `WS-06` | Asset mutation RPCs route through shared submission and tx-journal helpers, restore and retry semantics are exercised through journal-backed rollback tests, and rotate-master-key wording plus receipt checks now track the persisted lifecycle contract instead of the retired placeholder claim. |
+| `WS-07` | `SettlementStore::new()` is now a managed local non-panicking constructor, `try_new()` or `load()` own the fallible operator boundary, wasm transport logging emits redacted shape summaries only, and panic or redaction meta-gates are enforced by executable audit scripts. |
+| `WS-08` | Public chain RPCs are narrowed to explicitly wallet-local `start_local_scan` / `stop_local_scan` / `get_local_scan_status` / `get_local_scan_tip` surfaces, route and doc tests keep the old production-looking names retired, and receipt serialization omits placeholder proof fields from production DTO defaults. |
+| `WS-09` | Narrowed historical wording is fenced to explicit planning references only, stale compatibility-bootstrap claims are rejected by `scripts/audit_phase065_narrowed_wording.sh`, and human-readable docs no longer re-promote the retired Phase 065 leftovers as live current-tree truth. |
 
 </normative_mirror>
 

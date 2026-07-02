@@ -258,7 +258,7 @@ fn resolved_batch(
 }
 
 fn published_batch(batch_id: BatchId, artifact: &CheckpointArtifact) -> PublishedBatch {
-    let checkpoint_id = derive_checkpoint_id(&artifact).expect("checkpoint id");
+    let checkpoint_id = derive_checkpoint_id(artifact).expect("checkpoint id");
     PublishedBatch {
         batch_id,
         checkpoint_id,

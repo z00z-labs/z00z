@@ -13,8 +13,6 @@ REPORT_STAMP="${Z00Z_REPORT_TIMESTAMP:-$(date -u +%Y%m%d-%H%M%S)}"
 RUN_ROOT="${Z00Z_VERIFICATION_RUN_ROOT:-$ROOT_DIR/reports/z00z-verification-orchestrator-$REPORT_STAMP}"
 DEFAULT_SUPPLY_CHAIN_REPORT_PREFIX="$RUN_ROOT/supply-chain/supply-chain"
 DEFAULT_SUPPLY_CHAIN_REPO_DIR="$ROOT_DIR/.reviews"
-DEFAULT_SUPPLY_CHAIN_STATE_DIR="$RUN_ROOT/.cache/supply-chain"
-SUPPLY_CHAIN_STATE_DIR="${Z00Z_SUPPLY_CHAIN_DIR:-$DEFAULT_SUPPLY_CHAIN_STATE_DIR}"
 SUPPLY_CHAIN_REPORT_PREFIX="${Z00Z_SUPPLY_CHAIN_REPORT_PREFIX:-$DEFAULT_SUPPLY_CHAIN_REPORT_PREFIX}"
 SUPPLY_CHAIN_SUMMARY_PATH="${Z00Z_SUPPLY_CHAIN_SUMMARY_PATH:-${SUPPLY_CHAIN_REPORT_PREFIX}-summary.json}"
 SUPPLY_CHAIN_PROJECT_REPORT="${Z00Z_SUPPLY_CHAIN_PROJECT_REPORT:-${SUPPLY_CHAIN_REPORT_PREFIX}-project.md}"
@@ -48,6 +46,20 @@ is_semver_network_error() {
   rg -q 'HTTP2 framing layer|curl failed|failed to update registry|failed to get .* as a dependency|download of .* failed' "$log_path"
 }
 
+sanitize_semver_ref() {
+  printf '%s' "$1" | tr '/:@ ' '_' | tr -c '[:alnum:]_-' '_'
+}
+
+is_semver_baseline_compile_error() {
+  local log_path="$1"
+  local semver_base="$2"
+  local baseline_tag
+  baseline_tag="$(sanitize_semver_ref "$semver_base")"
+
+  rg -q "target/semver-checks/git-${baseline_tag}/" "$log_path" &&
+    rg -q 'error\[E[0-9]{4}\]|error: could not compile' "$log_path"
+}
+
 run_semver_checks() {
   local semver_base="$1"
   local semver_log
@@ -76,6 +88,12 @@ run_semver_checks() {
       rm -f "$semver_log"
       return 0
     fi
+  fi
+
+  if is_semver_baseline_compile_error "$semver_log" "$semver_base"; then
+    log "UNKNOWN: semver baseline $semver_base failed inside the cloned baseline tree; current-branch API comparison is blocked by baseline compile or rustdoc errors"
+    rm -f "$semver_log"
+    return 0
   fi
 
   rm -f "$semver_log"

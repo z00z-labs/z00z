@@ -63,6 +63,14 @@ resolve_repo_path() {
   esac
 }
 
+is_generated_reports_path() {
+  local path="$1"
+  case "$path" in
+    "$ROOT_DIR"/reports/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 find_latest_generated_specs_root() {
   find "$ROOT_DIR/reports" -maxdepth 3 -type d -name 'specs20*' 2>/dev/null \
     | sort \
@@ -131,8 +139,12 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
     "README.md"
     "docs/*.md"
     "docs/tech-papers/**/*.md"
-    "$SPECS_ROOT/**/*.md"
   )
+  if is_generated_reports_path "$SPECS_ROOT"; then
+    log "NOTE: skipping markdownlint on generated specs root ${SPECS_ROOT#"$ROOT_DIR"/}"
+  else
+    markdownlint_args+=("$SPECS_ROOT/**/*.md")
+  fi
   if [[ -n "$MARKDOWNLINT_DISABLE" ]]; then
     python3 - "$MARKDOWNLINT_DISABLE" >"$markdownlint_config" <<'PY'
 import json

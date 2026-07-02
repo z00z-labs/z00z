@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 PROFILE_LIB="$ROOT_DIR/.github/skills/z00z-verification-orchestrator/scripts/profile-lib.sh"
-FEATURE_FLAG="${Z00Z_ALL_FEATURES_FLAG---all-features}"
+FEATURE_FLAG="${Z00Z_ALL_FEATURES_FLAG-}"
 PROFILE_ARGS_TEXT="${Z00Z_CARGO_PROFILE_ARGS:---release}"
 VENDOR_ROOT="${Z00Z_VENDOR_ROOT:-$ROOT_DIR/crates/z00z_crypto/tari}"
 NEXTEST_MODE="${Z00Z_L3_USE_NEXTEST:-auto}"
@@ -25,7 +25,8 @@ Options:
   -h, --help         Show this help.
 
 Environment:
-  Z00Z_ALL_FEATURES_FLAG   Cargo feature flag. Default: --all-features; set empty to disable.
+  Z00Z_ALL_FEATURES_FLAG   Cargo feature flag. Default: disabled; set to --all-features only for
+                           explicit non-production feature sweeps.
   Z00Z_CARGO_PROFILE_ARGS  Cargo profile args for heavy runs. Default: --release.
   Z00Z_VENDOR_ROOT         Vendor root excluded from workspace package selection.
   Z00Z_INCLUDE_VENDOR=1    Do not exclude vendored workspace packages.
@@ -172,17 +173,34 @@ collect_vendor_excludes
 
 run_workspace_test_lane() {
   local workspace_label="$1"
-  local simulator_label="$2"
-  shift 2
+  local wallet_label="$2"
+  local simulator_label="$3"
+  shift 3
   local -a test_args=("$@")
+  local -a serial_test_args=()
 
-  if ! run_cmd "$workspace_label" cargo test --workspace --exclude z00z_simulator \
+  if [[ "${#test_args[@]}" -gt 0 ]]; then
+    serial_test_args=("${test_args[@]}")
+    if [[ "${serial_test_args[0]}" != "--" ]]; then
+      serial_test_args+=(--)
+    fi
+  else
+    serial_test_args=(--)
+  fi
+  serial_test_args+=(--test-threads 1)
+
+  if ! run_cmd "$workspace_label" cargo test --workspace --exclude z00z_simulator --exclude z00z_wallets \
     "${vendor_excludes[@]}" "${profile_args[@]}" "${feature_args[@]}" "${test_args[@]}"; then
     gate_failed=1
   fi
 
+  if ! run_cmd "$wallet_label" cargo test -p z00z_wallets \
+    "${profile_args[@]}" "${feature_args[@]}" "${serial_test_args[@]}"; then
+    gate_failed=1
+  fi
+
   if ! run_cmd "$simulator_label" cargo test -p z00z_simulator \
-    "${profile_args[@]}" "${feature_args[@]}" "${test_args[@]}" -- --test-threads 1; then
+    "${profile_args[@]}" "${feature_args[@]}" "${serial_test_args[@]}"; then
     gate_failed=1
   fi
 }
@@ -240,10 +258,14 @@ else
   else
     log "cargo test fallback"
   fi
-  run_workspace_test_lane "test:workspace:no-sim" "test:z00z_simulator:serial"
+  run_workspace_test_lane \
+    "test:workspace:no-wallet-sim" \
+    "test:z00z_wallets:serial" \
+    "test:z00z_simulator:serial"
   log "cargo test ignored-only"
   run_workspace_test_lane \
-    "test:workspace:ignored:no-sim" \
+    "test:workspace:ignored:no-wallet-sim" \
+    "test:z00z_wallets:ignored:serial" \
     "test:z00z_simulator:ignored:serial" \
     -- --ignored
 fi

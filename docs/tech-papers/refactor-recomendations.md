@@ -82,7 +82,7 @@ non-transferability.
 | crates/z00z_rollup_node/examples/empty_file              | none                        | delete placeholder or replace with `.gitkeep` | `.gitkeep`                               |
 | crates/z00z_rollup_node/benches/empty_file               | none                        | delete placeholder or replace with `.gitkeep` | `.gitkeep`                               |
 | crates/z00z_rollup_node/tests/empty_file                 | none                        | delete placeholder or replace with `.gitkeep` | `.gitkeep`                               |
-| crates/z00z_rollup_node/tests/test_rollup_theorem_guard.rs | `z00z_rollup_node::tests`   | keep here                                     | no                                       |
+| tests/test_rollup_theorem_guard.rs                       | `z00z_rollup_node::tests`   | keep here                                     | no                                       |
 
 ## 2) `z00z_runtime` `aggregators`
 

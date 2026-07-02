@@ -39,11 +39,11 @@ now fail through checked scripts and CI rather than memory.
 - `crates/z00z_wallets/src/services/wallet_session_manager.rs`
 - `crates/z00z_wallets/src/tx/spend_verification.rs`
 - `docs/tech-papers/benchmarks.md`
-- `scripts/audit_boundary_panic_hygiene.sh`
-- `scripts/audit_crypto_rng_hygiene.sh`
-- `scripts/audit_log_redaction_hygiene.sh`
-- `scripts/audit_secret_eq_hygiene.sh`
-- `scripts/audit_secret_type_hygiene.sh`
+- `scripts/audit/audit_boundary_panic_hygiene.sh`
+- `scripts/audit/audit_crypto_rng_hygiene.sh`
+- `scripts/audit/audit_log_redaction_hygiene.sh`
+- `scripts/audit/audit_secret_eq_hygiene.sh`
+- `scripts/audit/audit_secret_type_hygiene.sh`
 
 ## 🔧 Landed Changes
 
@@ -76,11 +76,11 @@ now fail through checked scripts and CI rather than memory.
 Commands green during the final `065-07` closeout:
 
 - `./.github/skills/smart-tests-bootstrap/scripts/bootstrap_tests.sh`
-- `bash scripts/audit_secret_type_hygiene.sh`
-- `bash scripts/audit_secret_eq_hygiene.sh`
-- `bash scripts/audit_crypto_rng_hygiene.sh`
-- `bash scripts/audit_boundary_panic_hygiene.sh`
-- `bash scripts/audit_log_redaction_hygiene.sh`
+- `bash scripts/audit/audit_secret_type_hygiene.sh`
+- `bash scripts/audit/audit_secret_eq_hygiene.sh`
+- `bash scripts/audit/audit_crypto_rng_hygiene.sh`
+- `bash scripts/audit/audit_boundary_panic_hygiene.sh`
+- `bash scripts/audit/audit_log_redaction_hygiene.sh`
 - `cargo test --release -p z00z_networks_rpc -- --nocapture`
 - `cargo test --release -p z00z_wallets --test test_rpc_logging_acceptance -- --nocapture`
 - `cargo test --release -p z00z_wallets --test test_rpc_logging_risk_policy -- --nocapture`

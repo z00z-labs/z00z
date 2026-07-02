@@ -7,9 +7,9 @@ mod debug_export;
 mod debug_types;
 
 #[cfg(feature = "wallet_debug_tools")]
-pub use self::debug_export::debug_export_wallet;
+pub(crate) use self::debug_export::debug_export_wallet;
 #[cfg(feature = "wallet_debug_tools")]
-pub use self::debug_types::{
+pub(crate) use self::debug_types::{
     DebugIndexKey, DebugMetaEntry, DebugObjectEntry, DebugSecretEntry, DebugTableRow,
     DebugWalletDump,
 };

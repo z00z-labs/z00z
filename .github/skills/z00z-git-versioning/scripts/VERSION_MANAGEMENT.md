@@ -10,6 +10,9 @@
 > [!IMPORTANT]
 > `versions.yaml` must stay internally consistent: if `total_version.version` is `X.Y.Z`, then `total_version.last_git_tag` must be exactly `vX.Y.Z`. A mismatch is a release-state error, not a cosmetic issue.
 >
+> [!IMPORTANT]
+> Files larger than `50 MiB` must not enter git through this workflow by default. To permit a larger single file intentionally, the exact run must pass `--allow-large-files-up-to-mb <MB>` and state the maximum allowed size for that file.
+>
 > [!NOTE]
 > Any historical references in this document to `release.sh` are legacy only. This repository's supported workflow is `version-manager.sh`.
 
@@ -49,6 +52,7 @@ The main script that handles all version management operations.
 #### Options:
 - `-m, --message <MSG>` - Commit message (default: "Automated version update")
 - `-b, --branch <BRANCH>` - Target branch (default: main)
+- `--allow-large-files-up-to-mb <MB>` - Explicitly allow a larger single git file for this run up to the stated MiB limit
 - `-d, --dry-run` - Show what would be done without executing
 
 #### Examples:
@@ -70,6 +74,9 @@ The main script that handles all version management operations.
 
 # Sync changes without version bump
 ./.github/skills/z00z-git-versioning/scripts/version-manager.sh sync
+
+# Intentionally allow a single file up to 250 MiB for this run
+./.github/skills/z00z-git-versioning/scripts/version-manager.sh minor --stage-all --allow-large-files-up-to-mb 250 -m "Intentional large artifact update"
 
 #### Same-Branch Minor Commit And Sync
 
@@ -122,6 +129,19 @@ For `crate` updates:
 - do not create a repository release tag
 - do not mutate `total_version.version`
 - do not mutate `total_version.last_git_tag`
+
+### 6. Large File Gate
+
+The workflow enforces a default per-file git size limit:
+- default maximum single-file size entering git: `50 MiB`
+- applies to versioned commit flows and sync flows
+- blocks staged files above the limit before commit
+- blocks outgoing blob objects above the limit before push
+
+To override intentionally for a single run:
+- pass `--allow-large-files-up-to-mb <MB>`
+- the `<MB>` value is the maximum allowed size for one file in that run
+- if any file still exceeds that explicit limit, the workflow fails
 
 ## Workflow
 

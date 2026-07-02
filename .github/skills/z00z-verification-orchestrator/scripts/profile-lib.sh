@@ -302,7 +302,7 @@ z00z_profile_prune_stale_roots() {
   local run_root reports_dir path info
   local start_ns end_ns elapsed_ms
   local scanned_roots=0 trimmed_roots=0 trimmed_paths=0 reclaimed_bytes=0
-  local trimmed_count trimmed_bytes trimmed_names
+  local trimmed_count trimmed_bytes
 
   run_root="$(z00z_profile_run_root)"
   [[ -n "$run_root" ]] || return 0
@@ -321,7 +321,7 @@ z00z_profile_prune_stale_roots() {
       continue
     fi
     if info="$(z00z_profile_trash_run_root "$path" 2>/dev/null)"; then
-      IFS=$'\t' read -r trimmed_count trimmed_bytes trimmed_names <<<"$info"
+      IFS=$'\t' read -r trimmed_count trimmed_bytes _ <<<"$info"
       trimmed_roots=$((trimmed_roots + 1))
       trimmed_paths=$((trimmed_paths + trimmed_count))
       reclaimed_bytes=$((reclaimed_bytes + trimmed_bytes))
@@ -641,7 +641,9 @@ z00z_profile_activate_tool_env() {
     mkdir -p "$cache_root" "$CARGO_TARGET_DIR" "$RUFF_CACHE_DIR" "$UV_CACHE_DIR"
     mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$PYTHONPYCACHEPREFIX"
     mkdir -p "$PIP_CACHE_DIR" "$NPM_CONFIG_CACHE" "$MYPY_CACHE_DIR"
-    z00z_profile_mark_run_root "$run_root"
+    if ! z00z_profile_live_root_owner "$run_root"; then
+      z00z_profile_mark_run_root "$run_root"
+    fi
   fi
 
   if [[ -n "${Z00Z_SYSTEM_TMPDIR:-}" ]]; then

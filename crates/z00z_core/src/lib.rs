@@ -79,6 +79,15 @@
 #![warn(rust_2018_idioms, unused_qualifications, unreachable_pub)]
 #![recursion_limit = "2048"]
 
+#[allow(unexpected_cfgs)]
+#[cfg(kani)]
+extern crate self as z00z_core;
+
+#[allow(unexpected_cfgs)]
+#[cfg(kani)]
+#[path = "../tests/generated_kani_asset_pkg_json.rs"]
+mod generated_kani_asset_pkg_json;
+
 pub mod actions;
 pub mod assets;
 mod config_name;

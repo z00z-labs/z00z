@@ -1,4 +1,4 @@
-//! Core application logic (Phase 1 - RPC stubs only)
+//! Core application logic and app-owned control boundaries.
 
 pub mod app_kernel;
 

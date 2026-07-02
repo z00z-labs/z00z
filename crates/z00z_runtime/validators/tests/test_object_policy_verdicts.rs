@@ -376,7 +376,7 @@ fn resolved_batch(
 fn published_artifact() -> (z00z_aggregators::PublishedBatch, SettlementTheoremBundle) {
     let theorem = theorem_support::theorem_bundle();
     let artifact = theorem.artifact();
-    let checkpoint_id = derive_checkpoint_id(&artifact).expect("checkpoint id");
+    let checkpoint_id = derive_checkpoint_id(artifact).expect("checkpoint id");
     let batch_id = BatchId::from_bytes([0x29; 32]);
     (
         z00z_aggregators::PublishedBatch {

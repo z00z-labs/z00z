@@ -48,7 +48,7 @@ enable weakened KDF or secret-export features.
 - `crates/z00z_wallets/src/wallet/mod.rs`
 - `crates/z00z_wallets/tests/test_live_boundary_claims.rs`
 - `crates/z00z_wallets/tests/test_production_hardening.rs`
-- `scripts/audit_release_feature_guards.sh`
+- `scripts/audit/audit_release_feature_guards.sh`
 
 ## Landed Changes
 
@@ -84,7 +84,7 @@ enable weakened KDF or secret-export features.
   `crates/z00z_storage/tests/test_forest_cache.rs`
   - restricted the tests that depend on debug-only hooks so broad release
     validation stays honest about the production surface
-- `scripts/audit_release_feature_guards.sh`
+- `scripts/audit/audit_release_feature_guards.sh`
   - added a fail-closed release matrix for:
     `z00z_wallets --release --features test-params-fast`,
     `z00z_wallets --release --features wallet_debug_tools`,
@@ -114,9 +114,9 @@ Commands green on the current tree:
 - `./.github/skills/smart-tests-bootstrap/scripts/bootstrap_tests.sh`
 - `cargo test --release -p z00z_wallets --test test_production_hardening -- --nocapture`
 - `cargo test --release -p z00z_wallets --test test_live_boundary_claims -- --nocapture`
-- `bash scripts/audit_release_feature_guards.sh`
+- `bash scripts/audit/audit_release_feature_guards.sh`
 - `cargo test --release`
-- `git diff --check -- .github/prompts/gsd-review-tasks-execution.prompt.md .github/skills/z00z-full-verify-gate/SKILL.md .github/workflows/release-safety-guards.yml crates/z00z_simulator/src/lib.rs crates/z00z_simulator/src/scenario_1/stage_3/post_claim.rs crates/z00z_storage/benches/settlement_benches.md crates/z00z_storage/src/fixture_support/settlement_corpus.rs crates/z00z_storage/src/settlement/hjmt_cache.rs crates/z00z_storage/src/settlement/hjmt_scheduler.rs crates/z00z_storage/tests/test_async_scheduler.rs crates/z00z_storage/tests/test_cache_recompute.rs crates/z00z_storage/tests/test_forest_cache.rs crates/z00z_wallets/src/db/mod.rs crates/z00z_wallets/src/lib.rs crates/z00z_wallets/src/redb_store/mod.rs crates/z00z_wallets/src/wallet/mod.rs crates/z00z_wallets/tests/test_live_boundary_claims.rs crates/z00z_wallets/tests/test_production_hardening.rs scripts/audit_release_feature_guards.sh`
+- `git diff --check -- .github/prompts/gsd-review-tasks-execution.prompt.md .github/skills/z00z-full-verify-gate/SKILL.md .github/workflows/release-safety-guards.yml crates/z00z_simulator/src/lib.rs crates/z00z_simulator/src/scenario_1/stage_3/post_claim.rs crates/z00z_storage/benches/settlement_benches.md crates/z00z_storage/src/fixture_support/settlement_corpus.rs crates/z00z_storage/src/settlement/hjmt_cache.rs crates/z00z_storage/src/settlement/hjmt_scheduler.rs crates/z00z_storage/tests/test_async_scheduler.rs crates/z00z_storage/tests/test_cache_recompute.rs crates/z00z_storage/tests/test_forest_cache.rs crates/z00z_wallets/src/db/mod.rs crates/z00z_wallets/src/lib.rs crates/z00z_wallets/src/redb_store/mod.rs crates/z00z_wallets/src/wallet/mod.rs crates/z00z_wallets/tests/test_live_boundary_claims.rs crates/z00z_wallets/tests/test_production_hardening.rs scripts/audit/audit_release_feature_guards.sh`
 
 ## Manual Review Passes
 

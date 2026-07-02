@@ -169,13 +169,13 @@ impl AssetRpcImpl {
             })
         })?;
 
-        let mut resp = RuntimeAssetBalanceResponse::stub_default();
-        resp.asset = Self::runtime_asset_ref(first);
-        resp.decimals = first.definition.decimals;
-        resp.total = total;
-        resp.pending = pending_reserved;
-        resp.available = total.saturating_sub(resp.pending);
-        Ok(resp)
+        Ok(RuntimeAssetBalanceResponse {
+            asset: Self::runtime_asset_ref(first),
+            total,
+            available: total.saturating_sub(pending_reserved),
+            pending: pending_reserved,
+            decimals: first.definition.decimals,
+        })
     }
 
     async fn get_asset_details_impl(

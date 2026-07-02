@@ -4,12 +4,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
 use redb::{Database, ReadableTable};
+#[cfg(not(test))]
+use z00z_utils::io::path_exists;
 use z00z_utils::io::prepare_managed_root;
 #[cfg(not(test))]
 use z00z_utils::time::{SystemTimeProvider, TimeProvider};
 use z00z_utils::{
     codec::{BincodeCodec, Codec},
-    io::{create_dir_all, hash_root_inputs, path_exists},
+    io::{create_dir_all, hash_root_inputs},
 };
 
 use super::{

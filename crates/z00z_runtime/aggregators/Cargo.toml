@@ -26,5 +26,4 @@ z00z_rollup_node = { path = "../../z00z_rollup_node" }
 test-params-fast = [
   "z00z_core/test-params-fast",
   "z00z_storage/test-params-fast",
-  "z00z_wallets/test-params-fast",
 ]

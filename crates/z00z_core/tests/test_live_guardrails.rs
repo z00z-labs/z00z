@@ -33,7 +33,7 @@ const ARCHITECTURE_DOC: &str = include_str!("../../../.planning/codebase/ARCHITE
 const PROFILING_DOC: &str = include_str!("../../../.planning/phases/profiling-comprehensive.md");
 const ROOT_TYPES_DOC: &str =
     include_str!("../../../crates/z00z_storage/src/settlement/root_types.md");
-const PHASE066_TODO: &str = include_str!("../../../.planning/phases/067-New-Scenarios/066-TODO.md");
+const PHASE066_TODO: &str = include_str!("../../../.planning/phases/069-New-Scenarios/066-TODO.md");
 const PHASE065_WORDING_AUDIT: &str =
     include_str!("../../../scripts/audit_phase065_narrowed_wording.sh");
 const UTILS_BOUNDARY_AUDIT: &str =
@@ -51,12 +51,14 @@ fn registry_path() -> PathBuf {
 fn assert_absent(label: &str, source: &str, needle: &str) {
     assert!(
         !source.contains(needle),
-        "{label} must not contain {needle:?}",
+        "{} must not contain {:?}",
+        label,
+        needle,
     );
 }
 
 fn assert_present(label: &str, source: &str, needle: &str) {
-    assert!(source.contains(needle), "{label} missing {needle:?}");
+    assert!(source.contains(needle), "{} missing {:?}", label, needle);
 }
 
 #[test]

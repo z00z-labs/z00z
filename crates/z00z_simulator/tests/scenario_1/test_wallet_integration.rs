@@ -370,8 +370,8 @@ fn test_public_lane_secret_free() {
         );
     }
 
-    let val_flow: Value = load_json(&out.join("val_flow.json")).expect("load val_flow");
-    let watch_flow: Value = load_json(&out.join("watch_flow.json")).expect("load watch_flow");
+    let val_flow: Value = load_json(out.join("val_flow.json")).expect("load val_flow");
+    let watch_flow: Value = load_json(out.join("watch_flow.json")).expect("load watch_flow");
     assert_eq!(
         val_flow["checkpoint_id_hex"].as_str().map(str::len),
         Some(64)

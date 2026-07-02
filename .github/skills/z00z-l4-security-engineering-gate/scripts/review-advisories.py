@@ -183,9 +183,20 @@ def main() -> int:
         for dep in node.get("deps", []):
             reverse_edges[dep["pkg"]].add(node["id"])
 
-    audit_items = list(audit.get("vulnerabilities", {}).get("list", []))
+    audit_items = []
+    for vulnerability in audit.get("vulnerabilities", {}).get("list", []):
+        tagged = dict(vulnerability)
+        tagged.setdefault("_z00z_kind", "vulnerability")
+        audit_items.append(tagged)
     for unmaintained in audit.get("warnings", {}).get("unmaintained", []):
-        audit_items.append(unmaintained)
+        tagged = dict(unmaintained)
+        tagged.setdefault(
+            "_z00z_kind",
+            tagged.get("kind")
+            or tagged.get("advisory", {}).get("informational")
+            or "unmaintained",
+        )
+        audit_items.append(tagged)
 
     findings = []
     counts = {
@@ -218,7 +229,10 @@ def main() -> int:
                 "id": advisory["id"],
                 "crate": crate,
                 "version": version,
-                "kind": item["kind"],
+                "kind": item.get("kind")
+                or item.get("_z00z_kind")
+                or advisory.get("informational")
+                or "unknown",
                 "title": advisory["title"],
                 "url": advisory.get("url") or "",
                 "scope": scope,

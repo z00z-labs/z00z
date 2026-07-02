@@ -40,6 +40,8 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+declare -a PROVERIF_CMD=()
+
 resolve_repo_path() {
   local path="$1"
   case "$path" in
@@ -59,16 +61,25 @@ proverif_available() {
   OPAMROOT="$LOCAL_OPAM_ROOT" opam exec --root "$LOCAL_OPAM_ROOT" --switch "$LOCAL_OPAM_SWITCH" -- proverif -help >/dev/null 2>&1
 }
 
-run_proverif_cmd() {
-  local model="$1"
+resolve_proverif_cmd() {
+  PROVERIF_CMD=()
   if [[ -n "$PROVERIF_CMD_OVERRIDE" ]]; then
-    "$PROVERIF_CMD_OVERRIDE" "$model"
+    PROVERIF_CMD=("$PROVERIF_CMD_OVERRIDE")
   elif [[ -x "$TOOLS_DIR/opam/bin/proverif" ]]; then
-    "$TOOLS_DIR/opam/bin/proverif" "$model"
+    PROVERIF_CMD=("$TOOLS_DIR/opam/bin/proverif")
   elif have proverif; then
-    proverif "$model"
+    PROVERIF_CMD=("proverif")
   else
-    OPAMROOT="$LOCAL_OPAM_ROOT" opam exec --root "$LOCAL_OPAM_ROOT" --switch "$LOCAL_OPAM_SWITCH" -- proverif "$model"
+    PROVERIF_CMD=(
+      "opam"
+      "exec"
+      "--root"
+      "$LOCAL_OPAM_ROOT"
+      "--switch"
+      "$LOCAL_OPAM_SWITCH"
+      "--"
+      "proverif"
+    )
   fi
 }
 
@@ -83,9 +94,11 @@ if ! proverif_available; then
   exit 0
 fi
 
+resolve_proverif_cmd
+
 for model in "${models[@]}"; do
   log "ProVerif $model"
-  z00z_profile_run_command command "proverif:$(basename "$model")" run_proverif_cmd "$model"
+  z00z_profile_run_command command "proverif:$(basename "$model")" "${PROVERIF_CMD[@]}" "$model"
 done
 
 log "SECURITY_PROTOCOL_PROVED: ProVerif models completed successfully"

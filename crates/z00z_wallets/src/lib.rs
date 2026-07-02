@@ -15,21 +15,21 @@
 //! ```text
 //! z00z_wallets/
 //! ├── wallet/                  # 🧩 Wallet entity + state + policy
-//! ├── services/                # 🧩 Orchestration boundary (Phase 1; stub-heavy)
-//! ├── rpc/                     # 🧩 RPC boundary + wiring (Phase 1; stub-heavy)
+//! ├── services/                # 🧩 Orchestration boundary with local wallet authority
+//! ├── rpc/                     # 🧩 RPC boundary over local wallet and chain state
 //! └── egui_views/              # 🧩 Desktop UI (feature-gated)
 //! ```
 //!
-//! ## Implemented vs Stubbed (Phase 1)
+//! ## Implemented Boundaries
 //!
 //! | Area | Status | Notes |
 //! |---|---|---|
-//! | `wallet` | Partial | Wallet identity, state, encryption, persisted state, auto-lock scaffolding |
-//! | `key` | Partial | Deterministic BIP-44 paths + stub key operations for wiring |
-//! | `tx` | Partial | Proof generation via `ProverImpl`; transaction building is mostly stubbed |
-//! | `chain` | Partial | Chain client has deterministic local simulation; real remote-node transport remains adapter-only |
-//! | `services` | Partial | Service boundaries exist; most methods return stub responses |
-//! | `rpc` | Partial | JSON-RPC surface is wired; methods are mostly Phase-1 stubs |
+//! | `wallet` | Live local authority | Wallet identity, state, encryption, persisted state, and auto-lock policy |
+//! | `key` | Live local authority | Deterministic BIP-44 paths and wallet-owned key operations |
+//! | `tx` | Live local authority | Proof generation plus local transaction package construction |
+//! | `chain` | Partial | Deterministic local simulation is live; real remote-node transport remains adapter-only |
+//! | `services` | Live local authority | Local orchestration, capability gating, and persistence-backed wallet flows |
+//! | `rpc` | Live local authority | JSON-RPC routes expose current local wallet, storage, and chain truth |
 //!
 //! ## Roadmap
 //!
@@ -149,7 +149,24 @@ pub mod db;
     not(target_arch = "wasm32")
 ))]
 pub mod internal_debug_tools {
-    pub use crate::db::redb_store::debug_export_wallet;
+    use std::path::Path;
+
+    use z00z_crypto::expert::encoding::SafePassword;
+
+    use crate::{db::WalletIdentity, rpc::types::common::PersistWalletId, WalletResult};
+
+    /// Debug-only wallet export helper for local inspection flows.
+    pub fn debug_export_wallet(
+        wlt_path: &Path,
+        wallet_id: &PersistWalletId,
+        password: &SafePassword,
+        identity: &WalletIdentity,
+        out_path: &Path,
+    ) -> WalletResult<()> {
+        crate::db::redb_store::debug_export_wallet(
+            wlt_path, wallet_id, password, identity, out_path,
+        )
+    }
 }
 
 // Desktop EGUI views (feature-gated)

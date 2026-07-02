@@ -325,11 +325,11 @@ async fn run_restore_retry_case(failpoint: &str) {
         "restore error must name failpoint, got: {err_text}"
     );
     assert!(
-        path_exists(&restore_mark_path(&wlt)).expect("mark path exists"),
+        path_exists(restore_mark_path(&wlt)).expect("mark path exists"),
         "restore mark must survive crash-style interruption"
     );
     assert!(
-        path_exists(&wlt_backup_path(&wlt)).expect("wlt backup path exists"),
+        path_exists(wlt_backup_path(&wlt)).expect("wlt backup path exists"),
         "wlt backup must survive crash-style interruption"
     );
 

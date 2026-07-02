@@ -72,7 +72,6 @@ use crate::{
         SenderWallet,
     },
     tx::{AssetSelector, AssetSelectorImpl, SelectionStrategy},
-    wallet::stub_defaults::StubDefault,
     wallet::WalletError,
     ChainType,
 };
@@ -105,14 +104,7 @@ mod test_asset_impl;
 fn wallet_chain_id() -> Result<u32, ErrorObjectOwned> {
     let chain = crate::services::wallet_runtime_config::resolve_wallet_chain_type_checked()
         .map_err(|e| ErrorObjectOwned::owned(-32603, e.to_string(), None::<()>))?;
-
-    let chain_id = match chain {
-        ChainType::Mainnet => 1,
-        ChainType::Testnet => 2,
-        ChainType::Devnet => 3,
-    };
-
-    Ok(chain_id)
+    Ok(AssetRpcImpl::chain_meta(chain).0)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,6 +193,22 @@ pub struct AssetRpcImpl {
 }
 
 impl AssetRpcImpl {
+    pub(super) fn chain_meta(chain: ChainType) -> (u32, &'static str, &'static str) {
+        match chain {
+            ChainType::Mainnet => (1, "mainnet", "mainnet"),
+            ChainType::Testnet => (2, "testnet", "testnet"),
+            ChainType::Devnet => (3, "devnet", "devnet"),
+        }
+    }
+
+    pub(super) fn chain_meta_from_id(chain_id: u32) -> (u32, &'static str, &'static str) {
+        match chain_id {
+            1 => Self::chain_meta(ChainType::Mainnet),
+            2 => Self::chain_meta(ChainType::Testnet),
+            _ => Self::chain_meta(ChainType::Devnet),
+        }
+    }
+
     pub(super) fn wallet_service(&self) -> &Arc<WalletService> {
         &self.service
     }

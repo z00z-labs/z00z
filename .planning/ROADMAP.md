@@ -176,18 +176,18 @@ This roadmap tracks the active GSD milestone and its executable phases.
   scope throughout execution, executable `z00z_utils` or `z00z_crypto` or
   `z00z_extensions` boundary audits plus local docs-link guards landed, and
   no active Phase 064 lane remaining)
-- [ ] **Phase 065: Attack Surface** (added 2026-06-30; directory pre-existing
+- [x] **Phase 065: Attack Surface** (added 2026-06-30; directory pre-existing
   `.planning/phases/065-Attack-Surface/`; reuse the existing folder only;
   `065-TODO.md` remains the normative human-readable authority; the legacy
   Phase 065 reports and inventories stay retired into the single TODO; future-only
   or target design wording in the Phase 065 corpus is live mandatory scope;
-  `065-01-SUMMARY.md` through `065-10-SUMMARY.md` remain complete; `065-10`
-  closed the canonical orchestrator dispatch repair for `l0-docs`,
-  `l3-verify-fast`, and `l4-supply-chain`; additive
-  verification-remediation packet `065-11-PLAN.md` through `065-13-PLAN.md`
-  remains queued from `065-CONTEXT.md` plus `z00z-verification-report-1.md`
-  through `z00z-verification-report-4.md`, and the next execution lane is
-  `065-11`)
+  `065-01-SUMMARY.md` through `065-13-SUMMARY.md` are complete; additive
+  verification-remediation packet `065-10` through `065-13` closed with
+  canonical verification-dispatch repair, managed-toolchain or offline gate
+  recovery, checkpoint-lineage or storage-determinism closure, persisted
+  wallet-chain claim binding, explicit request or receiver-card hash-policy
+  proofs, and a green broad `cargo test --release`; no active Phase 065 lane
+  remains)
 
 ### Phase 015: JMT Serialization And Visualization
 
@@ -2475,31 +2475,29 @@ sources.
 **Depends on:** Phase 064 closeout; Phase 046 remains paused separately and is
 not advanced by Phase 065 registration.
 **Plans:** `065-01-PLAN.md` through `065-13-PLAN.md` are the executable
-  packets. `065-01` through `065-10` are summary-backed complete on
-  `065-01-SUMMARY.md` through `065-10-SUMMARY.md`; `065-11` through `065-13`
-  are the queued additive verification-remediation packet.
+  packets, and all are summary-backed complete on
+  `065-01-SUMMARY.md` through `065-13-SUMMARY.md`.
 
 **Status**: Added 2026-06-30 on the existing
 `.planning/phases/065-Attack-Surface/` directory only. No new phase folder was
 created. `065-TODO.md` remains the normative human-readable Phase 065
 authority, its referenced design and whitepaper corpus stays live mandatory
-scope, and `065-CONTEXT.md` now pins additive residual units `VR-10` through
-`VR-13` to `065-10-PLAN.md` through `065-13-PLAN.md` without creating a
-  parallel backlog. `065-01-SUMMARY.md` through `065-10-SUMMARY.md` remain
-  complete. `065-09` closed `WS-09` by removing the final stale
-  `assets_config.yaml` path drift from live docs, demoting
-  `devnet_assets_config.yaml` to secondary registry data, restoring
-  `devnet_genesis_config.yaml` as the explicit canonical bootstrap manifest,
-  updating the future `066-TODO.md` rights-fixture anchor, and landing the
-  executable `scripts/audit_phase065_narrowed_wording.sh` guard plus the
-  `phase065_wording_guard` live test. Phase 065 was reopened on 2026-07-02 after
-  verification reports `1-4` left live residuals for path drift, managed
-  toolchain or offline gates, checkpoint or storage adversarial hypotheses, and
-  request or stealth or wallet adversarial hypotheses. `065-10` then repaired
-  the canonical orchestrator dispatch path for `l0-docs`, `l3-verify-fast`, and
-  `l4-supply-chain`, removing the false local-wrapper failure class and exposing
-  the real downstream residuals for the remaining packet. The next execution
-  lane is `065-11`.
+scope, and `065-CONTEXT.md` mapped additive residual units `VR-10` through
+`VR-13` without creating a parallel backlog. `065-10` repaired the canonical
+verification-dispatch path for `l0-docs`, `l3-verify-fast`, and
+`l4-supply-chain`. `065-11` closed managed toolchain and offline recovery with
+green install self-test plus green Miri or Kani or fuzz reruns and honest
+Verus or HAX or Tamarin outcomes. `065-12` removed the invalid
+aggregator-to-wallet release-test feature edge and restored the required
+checkpoint-lineage or storage-determinism release acceptance path. `065-13`
+then closed the repeated request or stealth or wallet branch by binding
+asset-import claim scope to persisted wallet chain state, centralizing asset
+RPC chain metadata, pinning explicit `z00z.payment.request.v1` and
+`z00z.receiver.card.v1` hash-policy proofs, preserving the existing public
+validated stealth path, and keeping `crates/z00z_crypto/tari/**` untouched.
+`bootstrap_tests.sh`, the targeted release suites, `cargo fmt --all --check`,
+and the broad `cargo test --release` gate are green. Phase 065 is complete and
+no active lane remains.
 **Added**: 2026-06-30
 **Directory**: `.planning/phases/065-Attack-Surface/`
 (pre-existing; do not create a duplicate phase folder)

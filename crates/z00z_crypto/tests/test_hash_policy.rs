@@ -111,3 +111,15 @@ fn test_hash_policy_unknown_fallback() {
         "unknown domains must use blake2b fallback"
     );
 }
+
+#[test]
+fn test_req_domain_policy() {
+    let f = hash_fn_for_domain(b"z00z.payment.request.v1");
+    assert!(matches!(f, HashFunction::Poseidon2));
+}
+
+#[test]
+fn test_card_domain_policy() {
+    let f = hash_fn_for_domain(b"z00z.receiver.card.v1");
+    assert!(matches!(f, HashFunction::Poseidon2));
+}
