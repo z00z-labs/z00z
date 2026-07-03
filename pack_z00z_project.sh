@@ -54,8 +54,9 @@
 #     including top-level logs/reports/target/.cache/.codeviz/
 #     .bg-shell/.reviews/.venv/.temp/.planning and recursively excluded directories such as outputs/,
 #     .cache/, .planning/, logs/, reports/, target/, node_modules/,
-#     tools/formal_verification/, __pycache__/, and other generated storage
-#     areas such as Python bytecode
+#     tools/formal_verification/, heavy `tools/penetration/` payload caches
+#     and local tool installs, __pycache__/, and other generated storage areas
+#     such as Python bytecode
 #
 # Path portability:
 #   Absolute paths that point at the current project root or current user home
@@ -276,6 +277,12 @@ TOP_LEVEL_EXCLUDES = {
 
 EXACT_DIR_EXCLUDES = {
     "tools/formal_verification",
+    "tools/penetration/cache",
+    "tools/penetration/cargo",
+    "tools/penetration/go",
+    "tools/penetration/python/bin",
+    "tools/penetration/python/pipx",
+    "tools/penetration/python/uv-tools",
     ".agents/.install-backups",
     "tools/formal_verification/.probe-saw-suite",
     "tools/formal_verification/creusot/cache",
@@ -668,6 +675,12 @@ manifest = {
         ],
         "exact_dirs": [
             "tools/formal_verification",
+            "tools/penetration/cache",
+            "tools/penetration/cargo",
+            "tools/penetration/go",
+            "tools/penetration/python/bin",
+            "tools/penetration/python/pipx",
+            "tools/penetration/python/uv-tools",
             ".agents/.install-backups",
             "tools/formal_verification/.probe-saw-suite",
             "tools/formal_verification/creusot/cache",

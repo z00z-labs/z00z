@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "id": "CONF-FAIL-002",
+      "title": "Confirmed without regression coverage",
+      "severity": "high",
+      "status": "confirmed",
+      "lane": "sast",
+      "tool": "semgrep",
+      "summary": "This record has evidence, but no regression test anchor.",
+      "scanner_artifact": "raw/semgrep/auth-bypass.json",
+      "source_evidence": "crates/z00z_wallets/src/rpc/auth.rs:44-61",
+      "proof": "manual-local-repro",
+      "confidence": "high",
+      "fix_recommendation": "Restore the missing regression test anchor."
+    }
+  ]
+}

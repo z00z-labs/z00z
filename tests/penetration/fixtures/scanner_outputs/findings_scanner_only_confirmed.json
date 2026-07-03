@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "id": "CONF-FAIL-001",
+      "title": "Scanner-only hit",
+      "severity": "high",
+      "status": "confirmed",
+      "lane": "sast",
+      "tool": "semgrep",
+      "summary": "This record does not include source evidence, proof, or regression coverage."
+    }
+  ]
+}

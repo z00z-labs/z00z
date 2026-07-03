@@ -1,0 +1,15 @@
+mode: local-only
+allowed_paths:
+  - crates
+excluded_paths:
+  - target
+allowed_hosts:
+  - 8.8.8.8
+allowed_urls: []
+forbidden:
+  - public-targets
+rate_limits:
+  requests_per_second: 2
+  max_concurrency: 2
+  timeout_seconds: 30
+evidence_required: true

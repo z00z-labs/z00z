@@ -1,0 +1,33 @@
+{
+  "required_fragments": {
+    "pentest-local.prompt.md": [
+      "./z00z_penetration_tests.sh",
+      "run_local_pentest.sh",
+      "validated before confirmation"
+    ],
+    "pentest-parallel-review.prompt.md": [
+      "wait for all requested lanes to finish before merging findings.",
+      "Deduplicate findings by `path`, `line`, `rule_id`, and `evidence_anchor`.",
+      "pentest-report-doublecheck"
+    ],
+    "pentest-report-doublecheck.prompt.md": [
+      ".security-artifacts/<timestamp>/report/report-metadata.json",
+      "reports/z00z-pentests_report-<timestamp>/report-metadata.json",
+      "Never upgrade a scanner-only hypothesis to confirmed without repository-backed",
+      "unconfirmed or false-positive"
+    ],
+    "pentest-local-z00z.prompt.md": [
+      "z00z-pentest-profile",
+      "attack-surfaces-create",
+      "z00z-crypto-auditor",
+      "gsd-audit-4.prompt.md",
+      "./z00z_penetration_tests.sh"
+    ]
+  },
+  "disallowed_fragments": [
+    "HexStrike server",
+    "Strix runtime",
+    "LLM_API_KEY",
+    "run tools directly by default"
+  ]
+}

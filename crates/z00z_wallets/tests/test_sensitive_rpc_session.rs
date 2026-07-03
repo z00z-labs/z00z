@@ -26,7 +26,7 @@ const KEY_RPC_REQUESTS: &str = include_str!("../src/rpc/key_rpc_server_requests.
 const KEY_RPC_ADMIN: &str = include_str!("../src/rpc/key_rpc_server_admin.rs");
 const BACKUP_RPC_IMPL: &str = include_str!("../src/rpc/backup_rpc_impl.rs");
 const ROUTE_SRC: &str = include_str!("../src/rpc/wallet_dispatcher_routes.rs");
-const TODO_DOC: &str = include_str!("../../../.planning/phases/065-Attack-Surface/065-TODO.md");
+const TODO_DOC: &str = include_str!("../../../.planning/phases/000/065-Attack-Surface/065-TODO.md");
 
 fn fn_body<'a>(src: &'a str, signature: &str) -> &'a str {
     let start = src

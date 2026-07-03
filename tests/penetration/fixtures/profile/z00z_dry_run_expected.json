@@ -1,0 +1,11 @@
+{
+  "lines": [
+    "crypto/proof -> attack-surfaces-create + z00z-crypto-auditor",
+    "wallet/keys -> attack-surfaces-create + z00z-crypto-auditor + pentest-source-aware-sast",
+    "storage/checkpoints -> attack-surfaces-create + z00z-crypto-auditor",
+    "rollup/DA -> attack-surfaces-create + z00z-crypto-auditor",
+    "RPC/network -> attack-surfaces-create + pentest-source-aware-sast + pentest-local-dast (only after local scope validation)",
+    "simulator/fixtures -> attack-surfaces-create + z00z-crypto-auditor + local deterministic simulation",
+    "dependencies/supply-chain -> pentest-rust-security + pentest-secrets-supply-chain"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "required_directories": [
+    "sast",
+    "rust",
+    "secrets",
+    "dast",
+    "report",
+    "logs",
+    "raw",
+    "normalized"
+  ],
+  "required_files": [
+    "manifest.json",
+    "scope.normalized.json",
+    "tool-status.json",
+    "report/report-metadata.json",
+    "report/security-report.md"
+  ],
+  "required_sections": [
+    "## Findings Summary",
+    "## Redaction Notes",
+    "## Doublecheck"
+  ],
+  "forbidden_strings": [
+    "sk_live_phase066_fixture_token",
+    "PASSWORD=phase066-secret"
+  ],
+  "expected_heading_order": [
+    "### CONF-001: Verified auth guard bypass",
+    "### UNC-001: Potential token-like string requires triage",
+    "### FP-001: Vendored fixture flagged by scanner",
+    "### SKIP-001: Bounded DAST lane intentionally skipped"
+  ]
+}

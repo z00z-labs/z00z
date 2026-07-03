@@ -1,0 +1,20 @@
+{
+  "findings": [
+    {
+      "lane": "pentest-rpc-dast-reviewer",
+      "path": "crates/z00z_wallets/src/rpc/api.rs",
+      "line": 48,
+      "rule_id": "rpc-auth-guard",
+      "evidence_anchor": "rpc-api-auth-48",
+      "summary": "The route accepts input before an auth guard is proven."
+    },
+    {
+      "lane": "pentest-supply-chain-reviewer",
+      "path": "Cargo.toml",
+      "line": 1,
+      "rule_id": "workspace-audit",
+      "evidence_anchor": "cargo-root-1",
+      "summary": "Workspace manifest must stay aligned with reviewed dependency policy."
+    }
+  ]
+}

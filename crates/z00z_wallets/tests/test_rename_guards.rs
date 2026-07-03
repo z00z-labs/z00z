@@ -69,8 +69,7 @@ fn test_curated_is_live() {
 
 #[test]
 fn test_no_original_spellings() {
-    let config_defaults =
-        read_workspace_file("crates/z00z_simulator/src/config/config_defaults.rs");
+    let config_defaults = read_workspace_file("crates/z00z_simulator/src/config_defaults.rs");
     let config = read_workspace_file("crates/z00z_simulator/src/config.rs");
     let argon2_kdf = read_workspace_file("crates/z00z_crypto/src/kdf/argon2_kdf.rs");
     let wallet_backup = read_workspace_file("crates/z00z_wallets/src/backup/wallet_backup.rs");
@@ -95,7 +94,7 @@ fn test_wave_terms_gone() {
         "crates/z00z_core/src/genesis/test_genesis.rs",
         "crates/z00z_core/src/genesis/test_validator.rs",
         "crates/z00z_crypto/src/aead/test_aead.rs",
-        "crates/z00z_simulator/src/config/config_defaults.rs",
+        "crates/z00z_simulator/src/config_defaults.rs",
         "crates/z00z_simulator/src/scenario_1/stage_6/tx_lane_runtime.rs",
         "crates/z00z_simulator/src/scenario_1/stage_6/test_tx_lane_runtime_suite.rs",
         "crates/z00z_simulator/src/scenario_1/stage_6/tx_lane_runtime_support.rs",

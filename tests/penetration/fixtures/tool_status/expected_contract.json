@@ -1,0 +1,82 @@
+{
+  "required_env_keys": [
+    "CARGO_HOME",
+    "GOBIN",
+    "GOMODCACHE",
+    "UV_TOOL_DIR",
+    "UV_TOOL_BIN_DIR",
+    "PIPX_HOME",
+    "PIPX_BIN_DIR",
+    "TRIVY_CACHE_DIR",
+    "NUCLEI_TEMPLATES_DIR"
+  ],
+  "required_tools": {
+    "semgrep": {
+      "required": true,
+      "payload_suffix": "python/bin/semgrep"
+    },
+    "sg": {
+      "required": false,
+      "payload_suffix": "cache/bin/sg"
+    },
+    "tree-sitter": {
+      "required": false,
+      "payload_suffix": "cache/bin/tree-sitter"
+    },
+    "gitleaks": {
+      "required": true,
+      "payload_suffix": "cache/bin/gitleaks"
+    },
+    "trufflehog": {
+      "required": true,
+      "payload_suffix": "cache/bin/trufflehog"
+    },
+    "trivy": {
+      "required": true,
+      "payload_suffix": "cache/bin/trivy"
+    },
+    "cargo-audit": {
+      "required": true,
+      "payload_suffix": "cargo/bin/cargo-audit"
+    },
+    "cargo-deny": {
+      "required": true,
+      "payload_suffix": "cargo/bin/cargo-deny"
+    },
+    "cargo-geiger": {
+      "required": false,
+      "payload_suffix": "cargo/bin/cargo-geiger"
+    },
+    "nmap": {
+      "required": true,
+      "payload_suffix": "cache/bin/nmap"
+    },
+    "nuclei": {
+      "required": true,
+      "payload_suffix": "go/bin/nuclei"
+    },
+    "httpx": {
+      "required": true,
+      "payload_suffix": "go/bin/httpx"
+    },
+    "katana": {
+      "required": false,
+      "payload_suffix": "go/bin/katana"
+    },
+    "ffuf": {
+      "required": true,
+      "payload_suffix": "go/bin/ffuf"
+    },
+    "gobuster": {
+      "required": false,
+      "payload_suffix": "go/bin/gobuster"
+    }
+  },
+  "forbidden_path_fragments": [
+    "tools/formal_verification",
+    "/.cargo/",
+    "/.cache/pip",
+    "/usr/local/share/nuclei-templates"
+  ],
+  "strict_missing_exit_code": 1
+}

@@ -1,0 +1,18 @@
+mode: local-only
+allowed_paths:
+  - scripts
+excluded_paths:
+  - target
+allowed_hosts:
+  - 127.0.0.1
+  - localhost
+allowed_urls:
+  - http://127.0.0.1:18080
+  - http://localhost:3000/health
+forbidden:
+  - public-targets
+rate_limits:
+  requests_per_second: 2
+  max_concurrency: 2
+  timeout_seconds: 30
+evidence_required: true

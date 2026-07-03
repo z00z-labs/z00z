@@ -188,12 +188,27 @@ This roadmap tracks the active GSD milestone and its executable phases.
   wallet-chain claim binding, explicit request or receiver-card hash-policy
   proofs, and a green broad `cargo test --release`; no active Phase 065 lane
   remains)
-- [ ] **Phase 066: Local Pentest Orchestration** (added 2026-07-02;
+- [x] **Phase 066: Local Pentest Orchestration** (added 2026-07-02;
   directory pre-existing `.planning/phases/066-Strix/`; reuse the existing
   folder only; `066-TODO.md` is the normative human-readable authority for
-  registration and future planning; no numbered execution packet exists yet;
-  Phase 066 is registered in roadmap and state without creating a duplicate
-  directory)
+  registration, planning, and execution scoping; future-only and target-design
+  wording in the Phase 066 corpus is live mandatory scope; `066-01-PLAN.md`
+  through `066-14-PLAN.md` are generated in the same folder; `066-01` and
+  `066-02` and `066-03` and `066-04` and `066-05` and `066-06` and `066-07`
+  and `066-08` and `066-09` and `066-10` and `066-11` and `066-12` and
+  `066-13` and `066-14` are summary-backed complete on
+  `066-01-SUMMARY.md`, `066-02-SUMMARY.md`, `066-03-SUMMARY.md`, and
+  `066-04-SUMMARY.md`, `066-05-SUMMARY.md`, `066-06-SUMMARY.md`,
+  `066-07-SUMMARY.md`, `066-08-SUMMARY.md`, `066-09-SUMMARY.md`,
+  `066-10-SUMMARY.md`, `066-11-SUMMARY.md`, `066-12-SUMMARY.md`, and
+  `066-13-SUMMARY.md`, and `066-14-SUMMARY.md`; completed 2026-07-03 after
+  repeated green mandatory `bootstrap_tests.sh` gates, bounded DAST scope or
+  artifact closure, codex-surface wiring closure, portable pack-unpack
+  closure, Docker isolation closure, regression or self-test closure,
+  execution-prompt closure, documentation or migration closure, and
+  consecutive clean manual review passes; security verified 2026-07-03 on
+  `066-SECURITY.md` with `threats_open: 0`; no active Phase 066 lane remains,
+  and no duplicate directory or parallel authority path is allowed)
 
 ### Phase 015: JMT Serialization And Visualization
 
@@ -2547,17 +2562,23 @@ agent, prompt, and tooling work without creating a duplicate phase directory.
 **Requirements**: `066-TODO.md` remains the normative human-readable Phase 066
 authority and defines the live requirements envelope for local-only pentest
 orchestration, safety boundaries, tooling placement, report paths, and
-portable Docker flow constraints until numbered plan packets are created in
-the same folder.
+portable Docker flow constraints. The generated numbered plans preserve the
+`WS-01` through `WS-14` workstreams as one required GSD plan group each.
 **Depends on:** Phase 065 closeout; Phase 046 remains paused separately and is
 not advanced by Phase 066 registration.
-**Plans:** 0 numbered plan packets yet. Run `/gsd-plan-phase 066` against the
-existing folder only.
+**Plans:** 14 planned packets: `.planning/phases/066-Strix/066-01-PLAN.md`
+through `.planning/phases/066-Strix/066-14-PLAN.md`; `066-01` through `066-14`
+are summary-backed complete.
 
 **Status**: Added 2026-07-02 on the existing `.planning/phases/066-Strix/`
-directory only. No new phase folder was created. `066-TODO.md` is now the
-normative human-readable Phase 066 authority for registration and planning,
-and no active numbered execution lane exists yet.
+directory only. No new phase folder was created. Phase 066 planning is
+complete with 14 executable GSD plan packets, coverage audit, and local context
+artifact in the same canonical folder. `066-01-SUMMARY.md` through
+`066-14-SUMMARY.md` close the scope or safety, tool-root, upstream-provenance,
+generic-skill, Z00Z-profile, local-runner, report-schema, bounded-local-DAST,
+codex-surface, portable pack-unpack, Docker-isolation, regression-self-test,
+execution-prompt, and documentation-or-migration lanes. Phase 066 completed on
+2026-07-03 and no active execution packet remains.
 **Added**: 2026-07-02
 **Directory**: `.planning/phases/066-Strix/`
 (pre-existing; do not create a duplicate phase folder)
@@ -2565,6 +2586,12 @@ and no active numbered execution lane exists yet.
 **Canonical refs:**
 
 - `.planning/phases/066-Strix/066-TODO.md`
+- `.planning/phases/066-Strix/066-CONTEXT.md`
+- `.planning/phases/066-Strix/066-COVERAGE.md`
+- `.planning/phases/066-Strix/066-01-SUMMARY.md` through
+  `.planning/phases/066-Strix/066-14-SUMMARY.md`
+- `.planning/phases/066-Strix/066-01-PLAN.md` through
+  `.planning/phases/066-Strix/066-14-PLAN.md`
 
 **Success Criteria**:
 
@@ -2576,5 +2603,13 @@ and no active numbered execution lane exists yet.
    duplicate folder or a parallel authority layer.
 
 3. `066-TODO.md` remains the sole canonical human-readable Phase 066
-   authority until numbered plan packets are created in the same folder
-   through the normal GSD planning flow.
+   authority, and `066-01-PLAN.md` through `066-14-PLAN.md` map each
+   `WS-01` through `WS-14` workstream to exactly one executable plan packet.
+
+4. `066-01-SUMMARY.md` proves that the local-only scope, denylist, safety
+   reference, validator, and deterministic CLI tests landed on one canonical
+   code path before broader pentest tooling execution continues.
+
+5. `066-02-SUMMARY.md` proves that `tools/penetration/` is now the only
+   canonical pentest tool root, with repository-local wrappers and truthful
+   status manifests that do not reuse `tools/formal_verification/`.

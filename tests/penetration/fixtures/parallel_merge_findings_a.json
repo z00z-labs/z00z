@@ -1,0 +1,20 @@
+{
+  "findings": [
+    {
+      "lane": "pentest-rust-reviewer",
+      "path": "crates/z00z_wallets/src/rpc/api.rs",
+      "line": 48,
+      "rule_id": "rpc-auth-guard",
+      "evidence_anchor": "rpc-api-auth-48",
+      "summary": "The route accepts input before an auth guard is proven."
+    },
+    {
+      "lane": "pentest-storage-reviewer",
+      "path": "crates/z00z_storage/src/checkpoint/store.rs",
+      "line": 211,
+      "rule_id": "checkpoint-lineage",
+      "evidence_anchor": "checkpoint-store-211",
+      "summary": "Checkpoint lineage must stay deterministic across reload."
+    }
+  ]
+}

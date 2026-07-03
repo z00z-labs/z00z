@@ -52,6 +52,10 @@
 #     Enable unattended mode. This suppresses the destination prompt and uses
 #     defaults whenever the script can decide safely on its own.
 #
+#   --skip-formal-verification
+#     Stop after extraction, placeholder replacement, planning-runtime restore,
+#     symlink verification, and the optional penetration-tool check hook.
+#
 #   --docker-sandbox
 #     Run the restore inside a disposable Docker container instead of directly
 #     on the host. This is the safest mode when you want a real end-to-end
@@ -135,6 +139,12 @@
 #   .github/skills/z00z-full-verify-gate/scripts/full_verify.sh --max-safe-run
 #   .github/skills/z00z-verification-orchestrator/scripts/orchestrate.sh report project
 #
+# Optional pentest-only restore hook:
+#   When --skip-formal-verification is used, the script skips the install and
+#   verification chain and instead runs scripts/penetration/check_pentest_tools.sh
+#   --json when that script exists, reporting missing tools without failing the
+#   restore.
+#
 # Authentication behavior:
 #   When sudo is available, the script opens one sudo keepalive session at the
 #   start so package installation can reuse a single authentication window
@@ -178,6 +188,7 @@ DOCKER_SANDBOX=0
 DOCKER_IMAGE="$DEFAULT_DOCKER_IMAGE"
 SANDBOX_EXPORT_DIR="$DEFAULT_SANDBOX_EXPORT_DIR"
 KEEP_TMP=0
+SKIP_FORMAL_VERIFICATION=0
 TMP_ROOT=""
 SANDBOX_ASSET_ROOT=""
 SUDO_KEEPALIVE_PID=""
@@ -189,7 +200,7 @@ FULL_VERIFY_GATE_STARTED_AT=""
 usage() {
   cat <<EOF
 Usage:
-  ./unpack_z00z_project.sh [--archive <archive.tar.gz>] [--dest <project-dir>] [--yes] [--docker-sandbox] [--docker-image <image>] [--sandbox-export-dir <host-dir>] [--keep-tmp]
+  ./unpack_z00z_project.sh [--archive <archive.tar.gz>] [--dest <project-dir>] [--yes] [--skip-formal-verification] [--docker-sandbox] [--docker-image <image>] [--sandbox-export-dir <host-dir>] [--keep-tmp]
 
 Unpacks a portable Z00Z archive, restores local toolchains, and runs the
 repository verification chain.
@@ -200,6 +211,9 @@ Options:
   --dest <path>     Destination project directory. If omitted, prompt or use
                     ./z00z when --yes is set.
   --yes             Non-interactive mode.
+  --skip-formal-verification
+                    Stop after extraction, symlink verification, and the
+                    optional penetration-tool check hook.
   --docker-sandbox  Run the full restore inside a disposable Docker container.
                     In this mode, --dest is interpreted inside the container.
                     If docker is missing, try to install it on the host first.
@@ -335,6 +349,10 @@ parse_args() {
         ;;
       --yes)
         AUTO_YES=1
+        shift
+        ;;
+      --skip-formal-verification)
+        SKIP_FORMAL_VERIFICATION=1
         shift
         ;;
       --docker-sandbox)
@@ -1648,6 +1666,21 @@ run_install_chain() {
   log "Milestone 1/2 completed in $(format_elapsed_since "$started_at")"
 }
 
+run_pentest_restore_hook() {
+  local started_at
+
+  started_at="$(now_epoch)"
+  if [[ ! -x "$PROJECT_ROOT/scripts/penetration/check_pentest_tools.sh" ]]; then
+    warn "Pentest tool check hook skipped because scripts/penetration/check_pentest_tools.sh is missing"
+    return 0
+  fi
+
+  run_repo_shell \
+    "Running pentest tool check hook" \
+    "set -euo pipefail; ./scripts/penetration/check_pentest_tools.sh --json >/tmp/z00z-pentest-tool-status.json; cat /tmp/z00z-pentest-tool-status.json"
+  log "Pentest tool check hook completed in $(format_elapsed_since "$started_at")"
+}
+
 run_final_verification() {
   FULL_VERIFY_GATE_STARTED_AT="$(now_epoch)"
   log "Milestone 2/2: end-to-end verification is starting after $(format_elapsed_since "$RUN_STARTED_AT") of setup"
@@ -1693,6 +1726,11 @@ main() {
   restore_planning_runtime_bundle
   verify_packed_symlink_manifest
   verify_symlinks
+  if [[ "$SKIP_FORMAL_VERIFICATION" -eq 1 ]]; then
+    run_pentest_restore_hook
+    log "Project restore completed without formal verification; total elapsed $(format_elapsed_since "$RUN_STARTED_AT")"
+    return 0
+  fi
   run_install_chain
   run_final_verification
   log "Project restore completed; total elapsed $(format_elapsed_since "$RUN_STARTED_AT")"

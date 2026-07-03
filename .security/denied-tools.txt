@@ -1,0 +1,16 @@
+# Canonical denylist for the default Phase 066 local-only workflow.
+# These names may appear in policy text and reference-only provenance notes,
+# but they must never appear in active execution commands.
+hydra
+john
+hashcat
+medusa
+patator
+metasploit
+msfvenom
+pacu
+responder
+netexec
+crackmapexec
+commix
+tplmap
