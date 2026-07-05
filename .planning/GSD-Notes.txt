@@ -53,6 +53,34 @@ gsd-ui-review
 /understand-diff — analyze impact of current changes
 /understand-explain — deep-dive into a file or function
 /understand-onboard — generate an onboarding guide
+
+🔵 Understand Anything: Understand
+Analyze a codebase to produce an interactive knowledge graph for understanding architecture
+argument-hint: "[path] [--full|--auto-update|--no-auto-update|--review|--language <lang>]"
+
+🔵 Understand Anything: Understand Chat
+Use when you need to ask questions about a codebase or understand code using a knowledge 
+argument-hint: "[query]"
+
+🔵 Understand Anything: Understand Domain
+Extract business domain knowledge from a codebase and generate an interactive domain
+argument-hint: "[--full]"
+
+🔵 Understand Anything: Understand Explain
+Use when you need a deep-dive explanation of a specific file, function, or module in the code
+argument-hint: "[file-path]"
+
+🔵 Understand Anything: Understand Onboard
+Use when you need to generate an onboarding guide for new team members joining a project
+
+🔵 Understand Anything: Understand Dashboard
+Launch the interactive web dashboard to visualize a codebase's knowledge graph
+argument-hint: "[project-path]"
+
+🔵 Understand Anything: Understand Knowledge
+Analyze a Karpathy-pattern LLM wiki knowledge base and generate an interactive knowledge
+argument-hint: "[wiki-directory]"
+
 -----------------------------------------
 ⭕️ profiles ubrat is genesis config -->wallets
 - Adding `wallet_profiles[]` or `policy_profiles[]` into live genesis YAML before parser and runtime use exist would create dead configuration fields.
@@ -64,79 +92,16 @@ z00z_runtime/aggregators
 Z00Z-Roadmap-Blueprint.md
 
 acceptance matrix 
-
----------------------------
-privesti v porjadok
-z00z_wallets/docs/bip44_derivation.md
-z00z_wallets/docs/domains_snapshot.txt
-z00z_wallets/docs/KEYS-Bip44-UserGuide.md
-z00z_wallets/docs/KEYS-DERIVATION.md
-z00z_wallets/docs/KEYS-EXPLANATION.md
-z00z_wallets/docs/KEYS-GUIDE.md
-z00z_wallets/docs/WALLET-GUIDE.md
-z00z_wallets/docs/WLT-BREAKDOWN.md
-z00z_wallets/docs/Z00Z-WALLET-PERSISTENCE.md
 -----------------------------------------
 
-Aggregator-Consensus-Spec.md 
-tests | full-implemtation | RAID-like scenarios | planer | rotation| etc, etc
+RAID-like scenarios | planer | rotation| etc, etc
 
- .reviews --> scripts/verification-tools
+/home/vadim/Projects/z00z/AGENTS.md   
+Order Of Operations
+`CodeGraph` -> direct file, test, and config reads -> `Deep Wiki` for codebase explanation or page generation -> `@wiki` only if the result should become durable knowledge.   
+- + graphify + understand anything
+- Docs-Freshness check update
 
-⭕️ **update skill .github/skills/create-specification/SKILL.md   ex: 068-TODO.md**
-nuzhno sozdat polnocennij spec na baze docs v: /.planning/phases/072-Offline-Transaction
-chast vozmozhno ustarelipo svoim signaturam, no ti beri concept, idei i napishi polnocennnij 072-Offline-Transaction-Spec.md
-
-doublecheck vse svoi reshenija i podtverzhdat na kazhdom etape архитектура.
-vse eto oformit v polnocennij Spec
-vkluchit polnie podrobnie opisanija; mermaid diagrammi [$mermaid-c4](/home/vadim/Projects/z00z/.github/skills/mermaid-c4/SKILL.md)  + [$mermaid-spectrum](/home/vadim/Projects/z00z/.github/skills/mermaid-spectrum/SKILL.md) 
-polnostju sdelat spec samosostatochnim; 
-vse raweti iz drugih dokumentov vkluchit v spec; spec budet single soutce of truth ;  
-vse relevntine kuski copirovat' vse poddrobno objasnijat;
-
-1. produmat strukturu  dokumenta
-2. produmat v kakih moduljah vs eto budet zhit c runtime / rollup / storage ili otdelnij crate
-3. vnutri dokumenta sozdat config yaml dlja vseh nastroek architekturi; i etim config aktivno polzovatsja ; ukazat chto eto relnij gate nastroek parametrov i putej
-4. produmaj ves flow a ne otdelnie tochchnie reshenija; mi soberaem vsu sitemu z00z i vse dolzhno integrirovatja s dannoj kodovoj bazoj
-5. produmat vse positive i negative tests, simulation scenarion, e2e tests
-6. produmat integraciju vseh sistem v z00z, v kodovoj baze
-7. produmat fallback mechanizmi, scans HJMT etc
-8. obratiti vniaie na security i cryptography
-9. daj tekomendacii kakie biblioteki crates.io ustanovit chtob maksimalno ispolzovat proverennuju kodovuju bazu i ne gorodit zoopark
-10. use MUST, SHOULD , MUST NOT words dlja uzhestochenija trebovanij
-
-
-
-
-
-doublecheck vse svoi reshenija i podtverzhdat na kazhdom etape архитектура.
-vse eto oformit v polnocennij Spec
-vkluchit polnie podrobnie opisanija; mermaid diagrammi [$mermaid-c4](.github/skills/mermaid-c4/SKILL.md)  + [$mermaid-spectrum](.github/skills/mermaid-spectrum/SKILL.md) 
-polnostju sdelat spec samosostatochnim; 
-vse raweti iz drugih dokumentov vkluchit v spec; spec budet single soutce of truth ;  
-vse relevntine kuski copirovat' vse poddrobno objasnijat;
-
-1. produmat strukturu  dokumenta
-2. produmat v kakih moduljah vs eto budet zhit c runtime / rollup / storage ili otdelnij crate
-3. vnutri dokumenta sozdat config yaml dlja vseh nastroek architekturi; i etim config aktivno polzovatsja ; ukazat chto eto relnij gate nastroek parametrov i putej
-4. produmaj ves flow a ne otdelnie tochchnie reshenija; mi soberaem vsu sitemu z00z i vse dolzhno integrirovatja s dannoj kodovoj bazoj
-5. produmat vse positive i negative tests, simulation scenarion, e2e tests
-6. produmat integraciju vseh sistem v z00z, v kodovoj baze
-7. produmat fallback mechanizmi, scans HJMT etc
-8. obratiti vniaie na security i cryptography
-9. daj tekomendacii kakie biblioteki crates.io ustanovit chtob maksimalno ispolzovat proverennuju kodovuju bazu i ne gorodit zoopark
-10. use MUST, SHOULD , MUST NOT words dlja uzhestochenija trebovanij
-
-
-
-situacija takaja: ja dal eto zadanie tak zhe drugomu agentu; seichas est:
-072-Offline-Transaction-Spec.md + 072-Offline-Transaction-Spec-1.md
-teper tvoja zadacha :
- - proanalizirovat oba dokumenta, i sdelat fusion v 072-Offline-Transaction-Spec-Fusion.md
-- vozmi iz kazhdogo dokumenta luchiie idei, luchshie diagrammmi , luchshie objasneija, luchshuju arhitekturu, luchshie objasnenija i argumentaciju; luchshij design
-- dlina fusion dokumenta ne imeet znachenija; glavnoe polnota, korrektnost, otsutstvie concept drifts i logicheskih oshibok
-- proanaliziruj seurity i risks oboih dokumentov, 
-- format Fusion.md dolzhen bit kak v 068-TODO.md: TOC, numbering, glossary, etc etc
 -----------------------------------------
 ./pack_z00z_project.sh
 ./unpack_z00z_project.sh --archive ./z00z-<timestamp>.tar.gz --docker-sandbox

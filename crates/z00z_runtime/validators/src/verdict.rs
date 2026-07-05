@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
 use z00z_aggregators::{
-    BatchId, OrderedBatch, PublicationBinding, PublishedBatch, RuntimeObjectPackageV1,
-    ShardExecTicket, ShardPlacementView,
+    BatchId, CommitSubject, OrderedBatch, PublicationBinding, PublishedBatch,
+    RuntimeObjectPackageV1, ShardExecTicket, ShardPlacementView, ShardQuorumCertificate,
 };
 use z00z_crypto::{expert::traits::DomainSeparation, DomainHasher256};
 use z00z_storage::settlement::{ClaimNullifier, ObjectRejectCode, ObjectValidatorVerdict};
@@ -74,6 +74,8 @@ pub struct ResolvedBatch {
     pub published: PublishedBatch,
     pub ordered: OrderedBatch,
     pub theorem: SettlementTheoremBundle,
+    pub subject: Option<CommitSubject>,
+    pub certificate: Option<ShardQuorumCertificate>,
     pub nullifiers: Vec<ClaimNullifier>,
     pub placement: Option<ShardPlacementView>,
     pub exec_ticket: Option<ShardExecTicket>,
@@ -169,6 +171,8 @@ impl ResolvedBatch {
         published: PublishedBatch,
         ordered: OrderedBatch,
         theorem: SettlementTheoremBundle,
+        subject: Option<CommitSubject>,
+        certificate: Option<ShardQuorumCertificate>,
         nullifiers: Vec<ClaimNullifier>,
         placement: Option<ShardPlacementView>,
         exec_ticket: Option<ShardExecTicket>,
@@ -177,6 +181,8 @@ impl ResolvedBatch {
             published,
             ordered,
             theorem,
+            subject,
+            certificate,
             nullifiers,
             placement,
             exec_ticket,
@@ -220,6 +226,13 @@ impl ResolvedBatch {
     #[must_use]
     pub fn theorem_digest(&self) -> [u8; 32] {
         self.theorem.theorem_digest()
+    }
+
+    #[must_use]
+    pub fn quorum_binding_enabled(&self) -> bool {
+        self.published.quorum_binding_enabled()
+            || self.subject.is_some()
+            || self.certificate.is_some()
     }
 }
 

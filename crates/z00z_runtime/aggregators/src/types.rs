@@ -16,6 +16,8 @@ use z00z_storage::{
 use z00z_utils::codec::{Codec, JsonCodec};
 use z00z_wallets::tx::{ClaimTxPackage, TxPackage};
 
+use crate::{CommitSubject, ShardQuorumCertificate};
+
 pub use z00z_storage::settlement::{
     ObjectWitnessBundleV1, RightWitnessRefV1, RightWitnessStateV1, RuntimeObjectPackageV1,
 };
@@ -54,6 +56,16 @@ pub struct IntakeId {
 pub enum PlannerMode {
     Central,
     PerAgg,
+}
+
+impl PlannerMode {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Central => "central",
+            Self::PerAgg => "per_agg",
+        }
+    }
 }
 
 impl IntakeId {
@@ -260,8 +272,11 @@ impl OrderedBatch {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PublicationRequest {
     pub batch_id: BatchId,
+    pub ordered_batch: OrderedBatch,
     pub publication_route: PublicationRouteSnapshotV1,
     pub draft: CheckpointDraft,
+    pub subject: CommitSubject,
+    pub certificate: ShardQuorumCertificate,
     pub tx_package: TxPackage,
     pub exec_input: CheckpointExecInput,
     pub link: CheckpointLink,
@@ -276,8 +291,20 @@ pub struct PublishedBatch {
     pub publication_checkpoint: u64,
     pub publication_route: PublicationRouteSnapshotV1,
     pub pub_in: CheckpointPubIn,
+    pub subject_digest: Option<[u8; 32]>,
+    pub certificate_digest: Option<[u8; 32]>,
+    pub theorem_digest: Option<[u8; 32]>,
     pub da_provider: String,
     pub blob_ref: String,
+}
+
+impl PublishedBatch {
+    #[must_use]
+    pub fn quorum_binding_enabled(&self) -> bool {
+        self.subject_digest.is_some()
+            || self.certificate_digest.is_some()
+            || self.theorem_digest.is_some()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

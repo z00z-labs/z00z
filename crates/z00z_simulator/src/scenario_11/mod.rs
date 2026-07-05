@@ -12,20 +12,25 @@ use std::{
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use z00z_aggregators::{
-    bind_publication_contract, membership_digest_for_voters, AggregatorId, BatchId, BatchPlanner,
-    BatchRoute, CommitSubject, ConsensusAdapter, DistDispatch, DistSim, DispatchStage,
-    JournalCandidate, OrderedBatch, PublicationBinding, PublicationRequest,
-    SecondaryReplayRejectCode, SecondaryReplayRequest, SecondaryReplayVerdict,
-    SecondaryReplayVerifier, SecondaryState, ShardExecState, ShardExecTicket, ShardExecutor,
-    ShardPlacement, ShardPlacementTable, ShardQuorumCertificate, ShardRecoveryRecord,
-    ShardRouteTable, ShardVote, ShardVoteKind, ShardVoteRole, WorkItem, WorkPayload,
+    bind_publication_contract, membership_digest_for_voters, persist_consensus_commit,
+    persist_consensus_publication, persist_validator_decision, publication_record_for_published,
+    validator_decision_snapshot, AggregatorId, BatchId, BatchPlanner, BatchRoute, CommitSubject,
+    ConsensusAdapter, ConsensusStore, DispatchStage, DistDispatch, DistSim, FrameStage,
+    InMemoryVoteTransport, JournalCandidate, JournalFrame, OrderedBatch, PlanDigest,
+    PlannerAuthority, PublicationBinding, PublicationRequest, PublicationState, RecoveryBoundary,
+    RecoveryIntent, ReplayVerifiedVoteService, SecondaryReplayRejectCode, SecondaryReplayRequest,
+    SecondaryState, ShardExecState, ShardExecTicket, ShardExecutor, ShardPlacement,
+    ShardPlacementTable, ShardQuorumCertificate, ShardRecoveryRecord, ShardRouteTable, ShardVote,
+    ShardVoteKind, ShardVoteRole, VoteExchangeContext, VoteExchangeOutcome, VoteTransport,
+    VoteTransportEnvelope, WorkItem, WorkPayload, CONSENSUS_STORE_BACKEND,
+    CONSENSUS_STORE_SCHEMA_VERSION,
 };
 use z00z_core::assets::{Asset, AssetClass, AssetDefinition, AssetPkgWire, AssetWire};
 use z00z_crypto::ZkPackEncrypted;
 use z00z_rollup_node::{DaAdapter, DaError, LocalDaAdapter, NodeCfgErr, NodeConfig};
 use z00z_storage::{
     checkpoint::{
-        derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointDraft,
+        derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointArtifact, CheckpointDraft,
         CheckpointExecInput, CheckpointExecInputId, CheckpointExecOut, CheckpointExecTx,
         CheckpointExecVersion, CheckpointInRef, CheckpointLink, CheckpointLinkVersion,
         CheckpointVersion, CreatedEnt, SpentEnt,
@@ -59,11 +64,14 @@ use z00z_wallets::{
 pub mod report;
 
 pub use report::{
-    CommitSubjectReport, DualPrimaryIsolationReport, FaultMatrixEntry, FaultMatrixReport,
-    LocalDaBindingReport, PackageIngressReport, PlacementMembershipCaseReport,
-    PlacementMembershipReport, QuorumCertificateCaseReport, QuorumCertificateReport,
-    ReportHonesty, RoutePlanCaseReport, RoutePlanReport, SecondaryReplayVoteReport,
-    SecondaryReplayVotesReport, ValidatorVerdictReport,
+    ClaimLevelReport, CommitSubjectReport, ConsensusStoreReport, DualPrimaryIsolationReport,
+    FaultMatrixEntry, FaultMatrixReport, LocalDaBindingReport, PackageIngressReport,
+    PlacementMembershipCaseReport, PlacementMembershipReport, PlannerAuthorityReplicaReport,
+    QuorumCertificateCaseReport, QuorumCertificateReport, ReportHonesty, RoutePlanCaseReport,
+    RoutePlanReport, SecondaryReplayVoteReport, SecondaryReplayVotesReport, ValidatorVerdictReport,
+    CLAIM_LEVEL_LIVE, CLAIM_LEVEL_LIVE_CLAIM_REMOVED,
+    PLANNER_AUTHORITY_MODEL_DETERMINISTIC_REPLICATED, TERM_DETERMINISTIC_REPLICATED_PLANNER,
+    TERM_PLANNER_HA,
 };
 
 const SIM_5A7S_HOME: &str = "config/hjmt_runtime/sim_5a7s";
@@ -103,10 +111,16 @@ pub fn run(output_root: &Path) -> Result<Scenario11Run, Scenario11Error> {
     create_dir_all(&artifact_root)?;
 
     let topology = LiveTopology::load()?;
-    let happy = run_happy_path(&topology)?;
+    let happy = run_happy_path(&topology, &artifact_root)?;
     let sweep = run_all_shard_sweep(&topology)?;
     let dual_primary = run_dual_primary_isolation(&topology, happy.theorem_digest)?;
     let faults = run_fault_matrix(&topology, &happy)?;
+    let planner_mode = topology.planner_mode()?;
+    let planner_cfg_digest = topology.planner_cfg_digest()?;
+    let planner_authority =
+        PlannerAuthority::bind(planner_mode, &topology.route_table, planner_cfg_digest);
+    let authority_replicas =
+        planner_authority_replicas(&topology, &happy.ordered, planner_authority)?;
 
     save_json(
         artifact_root.join("package_ingress_report.json"),
@@ -127,8 +141,13 @@ pub fn run(output_root: &Path) -> Result<Scenario11Run, Scenario11Error> {
     save_json(
         artifact_root.join("route_plan_report.json"),
         &RoutePlanReport {
-            planner_mode: "central".to_string(),
+            planner_mode: planner_mode.as_str().to_string(),
+            planner_authority_model: PLANNER_AUTHORITY_MODEL_DETERMINISTIC_REPLICATED.to_string(),
+            planner_config_digest_hex: hex::encode(planner_cfg_digest.as_bytes()),
+            planner_authority_digest_hex: hex::encode(planner_authority.digest().as_bytes()),
+            planner_ha_claim_level: CLAIM_LEVEL_LIVE_CLAIM_REMOVED.to_string(),
             route_table_digest_hex: hex::encode(topology.route_table.digest().as_bytes()),
+            authority_replicas,
             happy_path: RoutePlanCaseReport {
                 case_id: "happy_path".to_string(),
                 batch_id_hex: hex::encode(happy.batch_id.into_bytes()),
@@ -208,9 +227,7 @@ pub fn run(output_root: &Path) -> Result<Scenario11Run, Scenario11Error> {
             journal_lineage_hex: hex::encode(happy.subject.journal_lineage),
             proof_version: happy.subject.proof_version,
             theorem_digest_hex: hex::encode(happy.subject.theorem_or_settlement_digest),
-            publication_binding_digest_hex: hex::encode(
-                happy.subject.publication_binding_digest,
-            ),
+            publication_binding_digest_hex: hex::encode(happy.subject.publication_binding_digest),
         },
     )?;
 
@@ -286,6 +303,11 @@ pub fn run(output_root: &Path) -> Result<Scenario11Run, Scenario11Error> {
     )?;
 
     save_json(
+        artifact_root.join("consensus_store_report.json"),
+        &happy.consensus_store,
+    )?;
+
+    save_json(
         artifact_root.join("validator_verdict_report.json"),
         &ValidatorVerdictReport {
             verdict_kind: verdict_kind_name(&happy.verdict.kind).to_string(),
@@ -322,6 +344,7 @@ pub fn run(output_root: &Path) -> Result<Scenario11Run, Scenario11Error> {
         &ReportHonesty {
             supported_claims: vec![
                 "local per-shard 2-of-3 CFT quorum is proven".to_string(),
+                "planner truth is deterministic replicated local computation over canonical planner config and route-table digest".to_string(),
                 "secondary replay uses live ingress, planner, placement, recovery, and subject builders".to_string(),
                 "local DA publish and resolve preserve the live route snapshot carried by PublicationRequest".to_string(),
                 "validator verdict is produced from the live theorem and publication path".to_string(),
@@ -329,17 +352,34 @@ pub fn run(output_root: &Path) -> Result<Scenario11Run, Scenario11Error> {
             forbidden_claims: vec![
                 "network BFT".to_string(),
                 "Celestia finality".to_string(),
+                TERM_PLANNER_HA.to_string(),
                 "production signatures".to_string(),
                 "slashing".to_string(),
                 "public finality".to_string(),
             ],
             deferred_claims: vec![
-                "certificate-aware DA/validator enforcement stays planned for 067-07".to_string(),
+                "network, production-signature, and evidence expansion beyond deterministic local signers stays planned for 067-08 and later".to_string(),
+                "a separate planner primary/secondary HA service with durable plan state remains out of scope for 067-12".to_string(),
             ],
             simulated_markers: vec![
                 "external transport is simulated".to_string(),
                 "remote process crash or resume is simulated through DistSim and DistDispatch".to_string(),
                 "cryptography, theorem bundle, route table, placement, recovery state, and checkpoint artifacts are live project primitives".to_string(),
+            ],
+            claim_levels: vec![
+                ClaimLevelReport {
+                    term: TERM_DETERMINISTIC_REPLICATED_PLANNER.to_string(),
+                    claim_level: CLAIM_LEVEL_LIVE.to_string(),
+                    evidence_refs: vec!["route_plan_report.json".to_string()],
+                },
+                ClaimLevelReport {
+                    term: TERM_PLANNER_HA.to_string(),
+                    claim_level: CLAIM_LEVEL_LIVE_CLAIM_REMOVED.to_string(),
+                    evidence_refs: vec![
+                        "route_plan_report.json".to_string(),
+                        "report_honesty.json".to_string(),
+                    ],
+                },
             ],
         },
     )?;
@@ -365,9 +405,13 @@ impl LiveTopology {
             .hjmt
             .as_ref()
             .and_then(|hjmt| hjmt.planner.route.table_path.clone())
-            .ok_or_else(|| Scenario11Error::Message("missing sim_5a7s route-table path".to_string()))?;
-        let raw_hex = String::from_utf8(read_file(resolve_hjmt_path(&hjmt.home, &route_path)).map_err(Scenario11Error::Io)?)
-            .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+            .ok_or_else(|| {
+                Scenario11Error::Message("missing sim_5a7s route-table path".to_string())
+            })?;
+        let raw_hex = String::from_utf8(
+            read_file(resolve_hjmt_path(&hjmt.home, &route_path)).map_err(Scenario11Error::Io)?,
+        )
+        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
         let route_table = ShardRouteTable::from_canon(&hex::decode(raw_hex.trim())?)
             .map_err(|err| Scenario11Error::Message(err.to_string()))?;
         let placement_table = cfg
@@ -397,6 +441,44 @@ impl LiveTopology {
             .ok_or_else(|| Scenario11Error::Message("missing storage lock path".to_string()))?;
         Ok(format!("{base}.scenario11.shard-{shard_id}"))
     }
+
+    fn planner_mode(&self) -> Result<z00z_rollup_node::PlannerMode, Scenario11Error> {
+        self.cfg
+            .hjmt
+            .as_ref()
+            .map(|hjmt| hjmt.planner.mode)
+            .ok_or_else(|| Scenario11Error::Message("missing sim_5a7s planner mode".to_string()))
+    }
+
+    fn planner_cfg_digest(&self) -> Result<PlanDigest, Scenario11Error> {
+        let record = self
+            .cfg
+            .config_digests()?
+            .into_iter()
+            .find(|record| record.label == "planner-config")
+            .ok_or_else(|| {
+                Scenario11Error::Message("missing planner-config digest evidence".to_string())
+            })?;
+        parse_plan_digest(&record.digest_hex)
+    }
+
+    fn aggregator_ids(&self) -> Result<Vec<AggregatorId>, Scenario11Error> {
+        let mut ids = self
+            .cfg
+            .hjmt
+            .as_ref()
+            .map(|hjmt| {
+                hjmt.aggs
+                    .iter()
+                    .map(|agg| agg.aggregator_id)
+                    .collect::<Vec<_>>()
+            })
+            .ok_or_else(|| {
+                Scenario11Error::Message("missing sim_5a7s aggregator roster".to_string())
+            })?;
+        ids.sort_by_key(|id| id.as_u16());
+        Ok(ids)
+    }
 }
 
 fn sim_5a7s_home() -> PathBuf {
@@ -413,6 +495,48 @@ fn resolve_hjmt_path(home: &Path, raw: &Path) -> PathBuf {
     }
 }
 
+fn parse_plan_digest(raw: &str) -> Result<PlanDigest, Scenario11Error> {
+    let bytes = hex::decode(raw.trim())?;
+    if bytes.len() != 32 {
+        return Err(Scenario11Error::Message(format!(
+            "planner digest must decode to 32 bytes, got {}",
+            bytes.len()
+        )));
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(PlanDigest::new(out))
+}
+
+fn planner_authority_replicas(
+    topology: &LiveTopology,
+    ordered: &OrderedBatch,
+    authority: PlannerAuthority,
+) -> Result<Vec<PlannerAuthorityReplicaReport>, Scenario11Error> {
+    let planner_mode = topology.planner_mode()?;
+    let planner_cfg_digest = topology.planner_cfg_digest()?;
+    topology
+        .aggregator_ids()?
+        .into_iter()
+        .map(|aggregator_id| {
+            let planned = authority
+                .verify_batch(
+                    planner_mode,
+                    &topology.route_table,
+                    planner_cfg_digest,
+                    ordered.batch_id,
+                    &ordered.items,
+                    &ordered.planned,
+                )
+                .map_err(reject_record_to_error)?;
+            Ok(PlannerAuthorityReplicaReport {
+                aggregator_id: aggregator_id.as_u16(),
+                recomputed_plan_digest_hex: hex::encode(planned.plan_digest.as_bytes()),
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 struct HappyPathOutcome {
     package_digest_hex: String,
@@ -427,6 +551,7 @@ struct HappyPathOutcome {
     verdict: Verdict,
     dispatch_owner_id: AggregatorId,
     dispatch_stage: DispatchStage,
+    consensus_store: ConsensusStoreReport,
     resumed_by_secondary_id: AggregatorId,
     resumed_same_certificate: bool,
     happy_votes: Vec<SecondaryReplayVoteReport>,
@@ -469,12 +594,21 @@ struct DualPrimaryOutcome {
 }
 
 #[derive(Debug, Clone)]
+struct VoteReplayBatchOutcome {
+    reports: Vec<SecondaryReplayVoteReport>,
+    votes: Vec<ShardVote>,
+}
+
+#[derive(Debug, Clone)]
 struct DriftFault {
     entry: FaultMatrixEntry,
     vote: Option<SecondaryReplayVoteReport>,
 }
 
-fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario11Error> {
+fn run_happy_path(
+    topology: &LiveTopology,
+    artifact_root: &Path,
+) -> Result<HappyPathOutcome, Scenario11Error> {
     let (package, prev_root) = valid_tx_package("scenario11-happy")?;
     let batch_id = batch_id("scenario11-happy");
     let item = z00z_aggregators::IngressBoundary
@@ -499,24 +633,22 @@ fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario1
         placement.secondaries.clone(),
         recovery.clone(),
     );
-    let candidate =
-        JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
+    let candidate = JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
     let publication_route = PublicationRouteSnapshotV1::new(
         ordered.planned.route.routing_generation,
         ordered.planned.route_table_digest.into_bytes(),
         topology.route_table.activation_checkpoint,
         vec![u32::from(ordered.planned.route.shard_id.as_u16())],
     );
-    let request = publication_request_for_package(
+    let prepared_publication = prepare_publication_for_package(
         batch_id,
         package.clone(),
         prev_root,
         recovery.state_root,
-        publication_route,
-        "scenario11-happy-replay",
+        publication_route.clone(),
     )?;
-    let theorem_digest = theorem_digest(&request)?;
-    let publication_binding = publication_binding_for_request(&request)?;
+    let theorem_digest = theorem_digest(&prepared_publication)?;
+    let publication_binding = publication_binding_for_prepared(&prepared_publication)?;
     let subject = CommitSubject::from_runtime(
         7,
         membership_digest_for_voters(
@@ -536,7 +668,7 @@ fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario1
     )
     .map_err(reject_record_to_error)?;
 
-    let happy_votes = replay_votes_for_subject(
+    let happy_vote_outcome = replay_votes_for_subject(
         "happy_path",
         &subject,
         &planner,
@@ -548,6 +680,13 @@ fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario1
         &placement,
         std::slice::from_ref(&item),
     )?;
+    let takeover_id = placement
+        .secondaries
+        .iter()
+        .find(|secondary| secondary.is_ready)
+        .map(|secondary| secondary.aggregator_id)
+        .ok_or_else(|| Scenario11Error::Message("missing ready secondary".to_string()))?;
+    let happy_votes = happy_vote_outcome.reports;
     let primary_vote = ShardVote::new_local(
         placement.primary_id,
         ShardVoteRole::Primary,
@@ -557,58 +696,164 @@ fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario1
         subject.digest(),
         ShardVoteKind::LocalCommit,
     );
-    let quorum_vote = happy_votes
-        .iter()
-        .find_map(|report| {
-            if report.verdict == "accept" {
-                Some(ShardVote::new_local(
-                    AggregatorId::new(report.voter_id),
-                    ShardVoteRole::Secondary,
-                    subject.shard_id,
-                    subject.term,
-                    subject.membership_digest,
-                    subject.digest(),
-                    ShardVoteKind::LocalCommit,
-                ))
-            } else {
-                None
-            }
-        })
+    let quorum_vote = happy_vote_outcome
+        .votes
+        .into_iter()
+        .find(|vote| vote.voter_id == takeover_id)
         .ok_or_else(|| Scenario11Error::Message("missing accepting secondary vote".to_string()))?;
     let mut adapter =
         ConsensusAdapter::from_placement(&placement).map_err(reject_record_to_error)?;
     let commit = adapter
         .commit(&subject, &[primary_vote, quorum_vote])
         .map_err(reject_record_to_error)?;
+    let request = publication_request_for_package(
+        prepared_publication,
+        ordered.clone(),
+        commit.subject.clone(),
+        commit.certificate.clone(),
+        "scenario11-happy-replay",
+    );
 
-    let mut dispatch = DistDispatch::new(topology.route_table.clone(), topology.placement_table.clone())
-        .map_err(reject_record_to_error)?;
+    let mut dispatch = DistDispatch::new(
+        topology.route_table.clone(),
+        topology.placement_table.clone(),
+    )
+    .map_err(reject_record_to_error)?;
     let lock_path = topology.lock_path_for(ordered.planned.route.shard_id.as_u16())?;
     let dispatch_verdict = dispatch
-        .dispatch_batch(batch_id, std::slice::from_ref(&item), placement.primary_id, 1, 1, lock_path)
+        .dispatch_batch(
+            batch_id,
+            std::slice::from_ref(&item),
+            placement.primary_id,
+            1,
+            1,
+            lock_path,
+        )
         .map_err(reject_record_to_error)?;
 
     let mut da = LocalDaAdapter::new("scenario_11_local_da");
     let published = da.publish(request.clone())?;
     let resolved = da.resolve(&published)?;
     let executor = ShardExecutor::new(topology.placement_table.clone());
-    let ticket = executor
-        .mark_running(&executor.route(&ordered.planned).map_err(reject_record_to_error)?);
+    let ticket = executor.mark_running(
+        &executor
+            .route(&ordered.planned)
+            .map_err(reject_record_to_error)?,
+    );
     let resolved_batch = ResolvedBatch::new(
         published.clone(),
         ordered.clone(),
         resolved.theorem.clone(),
+        resolved.subject.clone(),
+        resolved.certificate.clone(),
         resolved.nullifiers.clone(),
         Some(placement.view()),
         Some(ticket),
     );
-    let verdict = ValidatorBoundary.verdict_for_batch(&resolved_batch, &ObjectPolicyRegistryV1::default());
+    let verdict =
+        ValidatorBoundary.verdict_for_batch(&resolved_batch, &ObjectPolicyRegistryV1::default());
     if verdict.kind != VerdictKind::Accepted {
         return Err(Scenario11Error::Message(format!(
             "happy-path validator verdict was not accepted: {:?}",
             verdict.kind
         )));
     }
+
+    let store_root = artifact_root.join("consensus_store");
+    let store = ConsensusStore::open(&store_root).map_err(consensus_store_error_to_error)?;
+    persist_consensus_commit(
+        &store,
+        &record,
+        &subject,
+        &commit.certificate.votes,
+        &commit.certificate,
+    )
+    .map_err(reject_record_to_error)?;
+    let publication_record = publication_record_for_published(&published, PublicationState::Posted);
+    persist_consensus_publication(
+        &store,
+        batch_id,
+        publication_record,
+        &publication_binding,
+        &published,
+    )
+    .map_err(reject_record_to_error)?;
+    let validator_decision = validator_decision_snapshot(
+        verdict_kind_name(&verdict.kind),
+        verdict.reject.as_ref().map(|reject| format!("{reject:?}")),
+        batch_id,
+        &subject,
+        &commit.certificate,
+        theorem_digest,
+        verdict.checkpoint_id,
+        verdict.publication.as_ref(),
+    );
+    persist_validator_decision(&store, batch_id, validator_decision)
+        .map_err(reject_record_to_error)?;
+    let reloaded_store =
+        ConsensusStore::open(&store_root).map_err(consensus_store_error_to_error)?;
+    let resumed = RecoveryBoundary
+        .resume_from_store(
+            takeover_id,
+            &topology.placement_table,
+            &recovery,
+            &reloaded_store,
+            ordered.planned.route,
+            RecoveryIntent::TakeoverSecondary,
+        )
+        .map_err(reject_record_to_error)?;
+    let resumed_same_certificate = resumed.ticket.batch_id == batch_id
+        && resumed.ticket.placement.route == placement.view().route
+        && resumed.ticket.placement.primary_id == takeover_id
+        && resumed.record.header.digest() == subject.digest()
+        && resumed.record.certificate.digest() == commit.certificate.digest()
+        && resumed
+            .record
+            .votes
+            .iter()
+            .any(|vote| vote.voter_id == takeover_id);
+    let consensus_store = ConsensusStoreReport {
+        backend: CONSENSUS_STORE_BACKEND.to_string(),
+        schema_version: CONSENSUS_STORE_SCHEMA_VERSION,
+        route_key_hex: resumed.record.route_key_hex.clone(),
+        batch_id_hex: hex::encode(batch_id.into_bytes()),
+        subject_digest_hex: hex::encode(resumed.record.header.digest()),
+        certificate_digest_hex: hex::encode(resumed.record.certificate.digest()),
+        vote_digests_hex: resumed
+            .record
+            .votes
+            .iter()
+            .map(|vote| hex::encode(vote.digest()))
+            .collect(),
+        publication_binding_digest_hex: hex::encode(
+            resumed
+                .record
+                .publication
+                .as_ref()
+                .expect("persisted publication")
+                .binding
+                .binding_digest,
+        ),
+        validator_verdict_kind: resumed
+            .record
+            .validator_decision
+            .as_ref()
+            .expect("persisted validator decision")
+            .verdict_kind
+            .clone(),
+        checkpoint_id_hex: hex::encode(
+            resumed
+                .record
+                .validator_decision
+                .as_ref()
+                .expect("persisted validator decision")
+                .checkpoint_id
+                .expect("persisted checkpoint")
+                .into_bytes(),
+        ),
+        resumed_by_secondary_id: takeover_id.as_u16(),
+        resume_source: "reloaded_from_store".to_string(),
+    };
 
     let offline_votes = offline_secondary_case(
         &subject,
@@ -632,47 +877,6 @@ fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario1
         std::slice::from_ref(&item),
     )?;
 
-    let mut dist_sim = DistSim::new(
-        ordered.planned.route,
-        std::iter::once(placement.primary_id).chain(
-            placement.secondaries.iter().map(|secondary| secondary.aggregator_id),
-        ),
-    )
-    .map_err(reject_record_to_error)?;
-    dist_sim
-        .seed(placement.primary_id, record.clone())
-        .map_err(reject_record_to_error)?;
-    for secondary in &placement.secondaries {
-        if secondary.is_ready {
-            dist_sim
-                .seed(secondary.aggregator_id, record.clone())
-                .map_err(reject_record_to_error)?;
-        }
-    }
-    let takeover_id = placement
-        .secondaries
-        .iter()
-        .find(|secondary| secondary.is_ready)
-        .map(|secondary| secondary.aggregator_id)
-        .ok_or_else(|| Scenario11Error::Message("missing ready secondary".to_string()))?;
-    let resume_ticket = dist_sim
-        .resume(
-            takeover_id,
-            &topology.placement_table,
-            &record,
-            z00z_aggregators::RecoveryIntent::TakeoverSecondary,
-        )
-        .map_err(reject_record_to_error)?;
-    let resumed_same_certificate = resume_ticket.batch_id == batch_id
-        && resume_ticket.placement.route == placement.view().route
-        && resume_ticket.placement.primary_id == takeover_id
-        && commit.certificate.subject_digest == subject.digest()
-        && commit
-            .certificate
-            .votes
-            .iter()
-            .any(|vote| vote.voter_id == takeover_id);
-
     Ok(HappyPathOutcome {
         package_digest_hex: package.tx_digest_hex,
         batch_id,
@@ -686,6 +890,7 @@ fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario1
         verdict,
         dispatch_owner_id: dispatch_verdict.owner_id,
         dispatch_stage: dispatch_verdict.stage,
+        consensus_store,
         resumed_by_secondary_id: takeover_id,
         resumed_same_certificate,
         happy_votes,
@@ -695,11 +900,19 @@ fn run_happy_path(topology: &LiveTopology) -> Result<HappyPathOutcome, Scenario1
 }
 
 fn run_all_shard_sweep(topology: &LiveTopology) -> Result<Vec<SweepRow>, Scenario11Error> {
-    let mut dispatch = DistDispatch::new(topology.route_table.clone(), topology.placement_table.clone())
-        .map_err(reject_record_to_error)?;
+    let mut dispatch = DistDispatch::new(
+        topology.route_table.clone(),
+        topology.placement_table.clone(),
+    )
+    .map_err(reject_record_to_error)?;
     let mut owner_seq = BTreeMap::<AggregatorId, u64>::new();
     let mut rows = Vec::new();
-    for shard_id in topology.route_table.shard_set.iter().map(|shard| shard.as_u16()) {
+    for shard_id in topology
+        .route_table
+        .shard_set
+        .iter()
+        .map(|shard| shard.as_u16())
+    {
         let item = find_simple_item_for_shard(&topology.route_table, shard_id, "scenario11-sweep");
         let batch_id = batch_id(&format!("scenario11-sweep-{shard_id}"));
         let planner = BatchPlanner::new(topology.route_table.clone());
@@ -835,6 +1048,7 @@ fn run_fault_matrix(
         happy.placement.secondaries.clone(),
         recovery.clone(),
     );
+    let candidate = JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
     let items = happy.ordered.items.clone();
     let request = SecondaryReplayRequest {
         voter_id: ready_secondary,
@@ -848,12 +1062,14 @@ fn run_fault_matrix(
         theorem_or_settlement_digest: happy.theorem_digest,
         da_availability_digest: None,
     };
-    let verifier = SecondaryReplayVerifier;
 
     let mut faults = Vec::new();
 
-    let mut dispatch = DistDispatch::new(topology.route_table.clone(), topology.placement_table.clone())
-        .map_err(reject_record_to_error)?;
+    let mut dispatch = DistDispatch::new(
+        topology.route_table.clone(),
+        topology.placement_table.clone(),
+    )
+    .map_err(reject_record_to_error)?;
     dispatch
         .partition(happy.placement.primary_id)
         .map_err(reject_record_to_error)?;
@@ -883,6 +1099,496 @@ fn run_fault_matrix(
             evidence_refs: vec!["fault_matrix.json".to_string()],
             detail: "dispatch deferred while the shard owner stayed offline before execution began"
                 .to_string(),
+            degraded_mode: true,
+        },
+        vote: None,
+    });
+
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "one_secondary_offline".to_string(),
+            expected_status: "degraded_without_synthetic_vote".to_string(),
+            observed_status: if happy
+                .offline_votes
+                .iter()
+                .any(|vote| vote.case_id == "one_secondary_offline" && vote.verdict == "offline")
+            {
+                "degraded_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec![
+                "secondary_replay_votes.json".to_string(),
+                "fault_matrix.json".to_string(),
+            ],
+            detail: "one ready secondary stayed offline, quorum preserved with no synthetic vote"
+                .to_string(),
+            degraded_mode: true,
+        },
+        vote: None,
+    });
+
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "one_secondary_stale".to_string(),
+            expected_status: "stale_secondary_rejects".to_string(),
+            observed_status: if happy.stale_votes.iter().any(|vote| {
+                vote.case_id == "stale_secondary"
+                    && vote.reject_code.as_deref() == Some("StaleSecondaryState")
+            }) {
+                "rejected_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: Some("StaleSecondaryState".to_string()),
+            evidence_refs: vec![
+                "secondary_replay_votes.json".to_string(),
+                "fault_matrix.json".to_string(),
+            ],
+            detail: "stale secondary replay failed closed before any vote was created".to_string(),
+            degraded_mode: false,
+        },
+        vote: None,
+    });
+
+    let observer_id = AggregatorId::new(610);
+    let mut observer_pending = happy.placement.clone();
+    observer_pending
+        .secondaries
+        .push(SecondaryState::pending(observer_id));
+    let observer_pending_subject = subject_for_placement(
+        happy.subject.term + 1,
+        &happy.ordered,
+        &observer_pending,
+        &candidate,
+        &happy.publication_binding,
+        happy.theorem_digest,
+    )?;
+    let observer_pending_err = ConsensusAdapter::from_placement(&observer_pending)
+        .map_err(reject_record_to_error)?
+        .commit(
+            &observer_pending_subject,
+            &[
+                vote_for_subject(
+                    &observer_pending_subject,
+                    observer_pending.primary_id,
+                    ShardVoteRole::Primary,
+                ),
+                vote_for_subject(
+                    &observer_pending_subject,
+                    observer_id,
+                    ShardVoteRole::Secondary,
+                ),
+            ],
+        )
+        .expect_err("observer must not vote before readiness");
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "observer_not_ready_before_readiness".to_string(),
+            expected_status: "pending_observer_rejects".to_string(),
+            observed_status: if observer_pending_err.detail.contains("inactive voter ids") {
+                "rejected_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec!["fault_matrix.json".to_string()],
+            detail: "observer stayed pending and could not contribute before readiness".to_string(),
+            degraded_mode: false,
+        },
+        vote: None,
+    });
+
+    let mut observer_ready = observer_pending.clone();
+    if let Some(observer) = observer_ready
+        .secondaries
+        .iter_mut()
+        .find(|secondary| secondary.aggregator_id == observer_id)
+    {
+        observer.is_ready = true;
+    }
+    let observer_ready_subject = subject_for_placement(
+        happy.subject.term + 2,
+        &happy.ordered,
+        &observer_ready,
+        &candidate,
+        &happy.publication_binding,
+        happy.theorem_digest,
+    )?;
+    let observer_ready_commit = ConsensusAdapter::from_placement(&observer_ready)
+        .map_err(reject_record_to_error)?
+        .commit(
+            &observer_ready_subject,
+            &[
+                vote_for_subject(
+                    &observer_ready_subject,
+                    observer_ready.primary_id,
+                    ShardVoteRole::Primary,
+                ),
+                vote_for_subject(
+                    &observer_ready_subject,
+                    ready_secondary,
+                    ShardVoteRole::Secondary,
+                ),
+                vote_for_subject(
+                    &observer_ready_subject,
+                    observer_id,
+                    ShardVoteRole::Secondary,
+                ),
+            ],
+        )
+        .map_err(reject_record_to_error)?;
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "observer_ready_after_catchup".to_string(),
+            expected_status: "ready_observer_commits_lawfully".to_string(),
+            observed_status: if observer_ready_commit
+                .certificate
+                .votes
+                .iter()
+                .any(|vote| vote.voter_id == observer_id)
+            {
+                "accepted_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec!["fault_matrix.json".to_string()],
+            detail:
+                "observer became ready, joined the active membership digest, and voted lawfully"
+                    .to_string(),
+            degraded_mode: false,
+        },
+        vote: None,
+    });
+
+    let removed_secondary = happy
+        .placement
+        .secondaries
+        .iter()
+        .find(|secondary| secondary.is_ready && secondary.aggregator_id != ready_secondary)
+        .copied()
+        .unwrap_or_else(|| {
+            happy
+                .placement
+                .secondaries
+                .iter()
+                .find(|secondary| secondary.is_ready)
+                .copied()
+                .expect("missing removable secondary")
+        });
+    let mut removed_member_placement = happy.placement.clone();
+    removed_member_placement
+        .secondaries
+        .retain(|secondary| secondary.aggregator_id != removed_secondary.aggregator_id);
+    let removed_member_subject = subject_for_placement(
+        happy.subject.term + 3,
+        &happy.ordered,
+        &removed_member_placement,
+        &candidate,
+        &happy.publication_binding,
+        happy.theorem_digest,
+    )?;
+    let removed_member_err = ConsensusAdapter::from_placement(&removed_member_placement)
+        .map_err(reject_record_to_error)?
+        .commit(
+            &removed_member_subject,
+            &[
+                vote_for_subject(
+                    &removed_member_subject,
+                    removed_member_placement.primary_id,
+                    ShardVoteRole::Primary,
+                ),
+                vote_for_subject(
+                    &removed_member_subject,
+                    removed_secondary.aggregator_id,
+                    ShardVoteRole::Secondary,
+                ),
+            ],
+        )
+        .expect_err("removed member must not vote");
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "removed_member_vote".to_string(),
+            expected_status: "removed_member_rejects".to_string(),
+            observed_status: if removed_member_err.detail.contains("inactive voter ids") {
+                "rejected_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec!["fault_matrix.json".to_string()],
+            detail: "removed committee member could not reappear in the next shard commit"
+                .to_string(),
+            degraded_mode: false,
+        },
+        vote: None,
+    });
+
+    let mut mixed_generation_subject = happy.subject.clone();
+    mixed_generation_subject.routing_generation = mixed_generation_subject
+        .routing_generation
+        .saturating_add(1);
+    mixed_generation_subject.membership_digest = membership_digest_for_voters(
+        mixed_generation_subject.route(),
+        happy.placement.primary_id,
+        happy
+            .placement
+            .secondaries
+            .iter()
+            .filter(|secondary| secondary.is_ready)
+            .map(|secondary| secondary.aggregator_id),
+    );
+    let mixed_generation_err = ConsensusAdapter::from_placement(&happy.placement)
+        .map_err(reject_record_to_error)?
+        .commit(
+            &mixed_generation_subject,
+            &[
+                vote_for_subject(
+                    &mixed_generation_subject,
+                    happy.placement.primary_id,
+                    ShardVoteRole::Primary,
+                ),
+                vote_for_subject(
+                    &mixed_generation_subject,
+                    ready_secondary,
+                    ShardVoteRole::Secondary,
+                ),
+            ],
+        )
+        .expect_err("mixed generation certificate must reject");
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "mixed_generation_certificate".to_string(),
+            expected_status: "mixed_generation_rejects".to_string(),
+            observed_status: if mixed_generation_err.detail.contains("wrong generation") {
+                "rejected_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec!["fault_matrix.json".to_string()],
+            detail: "certificate formation rejected when the subject generation drifted"
+                .to_string(),
+            degraded_mode: false,
+        },
+        vote: None,
+    });
+
+    let mut divergent_adapter =
+        ConsensusAdapter::from_placement(&happy.placement).map_err(reject_record_to_error)?;
+    divergent_adapter
+        .commit(
+            &happy.subject,
+            &[
+                vote_for_subject(
+                    &happy.subject,
+                    happy.placement.primary_id,
+                    ShardVoteRole::Primary,
+                ),
+                vote_for_subject(&happy.subject, ready_secondary, ShardVoteRole::Secondary),
+            ],
+        )
+        .map_err(reject_record_to_error)?;
+    let mut divergent_subject = happy.subject.clone();
+    mutate_state_root(&mut divergent_subject);
+    let divergent_err = divergent_adapter
+        .commit(
+            &divergent_subject,
+            &[
+                vote_for_subject(
+                    &divergent_subject,
+                    happy.placement.primary_id,
+                    ShardVoteRole::Primary,
+                ),
+                vote_for_subject(
+                    &divergent_subject,
+                    ready_secondary,
+                    ShardVoteRole::Secondary,
+                ),
+            ],
+        )
+        .expect_err("same-term divergent root must freeze");
+    let frozen_err = divergent_adapter
+        .commit(
+            &happy.subject,
+            &[
+                vote_for_subject(
+                    &happy.subject,
+                    happy.placement.primary_id,
+                    ShardVoteRole::Primary,
+                ),
+                vote_for_subject(&happy.subject, ready_secondary, ShardVoteRole::Secondary),
+            ],
+        )
+        .expect_err("same term must stay frozen after divergence");
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "same_term_divergent_root_freeze".to_string(),
+            expected_status: "divergence_freezes_term".to_string(),
+            observed_status: if divergent_err.detail.contains("split-brain")
+                && frozen_err.detail.contains("frozen")
+            {
+                "frozen_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec!["fault_matrix.json".to_string()],
+            detail:
+                "same-term divergent root froze the quorum term before any conflicting certificate"
+                    .to_string(),
+            degraded_mode: true,
+        },
+        vote: None,
+    });
+
+    let mut lifecycle_sim = DistSim::new(
+        happy.ordered.planned.route,
+        std::iter::once(happy.placement.primary_id).chain(
+            happy
+                .placement
+                .secondaries
+                .iter()
+                .map(|secondary| secondary.aggregator_id),
+        ),
+    )
+    .map_err(reject_record_to_error)?;
+    lifecycle_sim
+        .seed(happy.placement.primary_id, record.clone())
+        .map_err(reject_record_to_error)?;
+    lifecycle_sim
+        .partition(ready_secondary)
+        .map_err(reject_record_to_error)?;
+    let lifecycle_frame = JournalFrame::new(
+        happy.placement.primary_id,
+        ready_secondary,
+        happy.subject.term,
+        record.clone(),
+    );
+    lifecycle_sim.enqueue(lifecycle_frame.clone());
+    let deferred = lifecycle_sim.step();
+    lifecycle_sim
+        .heal(ready_secondary)
+        .map_err(reject_record_to_error)?;
+    let applied = lifecycle_sim.step();
+    lifecycle_sim.enqueue(lifecycle_frame);
+    let replay_ignored = lifecycle_sim.step();
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "partition_and_heal".to_string(),
+            expected_status: "defer_then_apply_without_conflict".to_string(),
+            observed_status: if deferred
+                .iter()
+                .any(|verdict| verdict.stage == FrameStage::Deferred)
+                && applied
+                    .iter()
+                    .any(|verdict| verdict.stage == FrameStage::Applied)
+                && replay_ignored
+                    .iter()
+                    .any(|verdict| verdict.stage == FrameStage::ReplayIgnored)
+            {
+                "healed_without_conflict".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec!["fault_matrix.json".to_string()],
+            detail:
+                "partitioned replication deferred, healed cleanly, and ignored replay instead of forking"
+                    .to_string(),
+            degraded_mode: true,
+        },
+        vote: None,
+    });
+
+    let mut takeover_sim = DistSim::new(
+        happy.ordered.planned.route,
+        std::iter::once(happy.placement.primary_id).chain(
+            happy
+                .placement
+                .secondaries
+                .iter()
+                .map(|secondary| secondary.aggregator_id),
+        ),
+    )
+    .map_err(reject_record_to_error)?;
+    takeover_sim
+        .seed(happy.placement.primary_id, record.clone())
+        .map_err(reject_record_to_error)?;
+    for secondary in &happy.placement.secondaries {
+        if secondary.is_ready {
+            takeover_sim
+                .seed(secondary.aggregator_id, record.clone())
+                .map_err(reject_record_to_error)?;
+        }
+    }
+    let takeover_ticket = takeover_sim
+        .resume(
+            ready_secondary,
+            &topology.placement_table,
+            &record,
+            z00z_aggregators::RecoveryIntent::TakeoverSecondary,
+        )
+        .map_err(reject_record_to_error)?;
+    let unrelated_shard_id = topology
+        .route_table
+        .shard_set
+        .iter()
+        .map(|shard| shard.as_u16())
+        .find(|shard_id| *shard_id != happy.subject.shard_id.as_u16())
+        .ok_or_else(|| Scenario11Error::Message("missing unrelated shard".to_string()))?;
+    let unrelated_item = find_simple_item_for_shard(
+        &topology.route_table,
+        unrelated_shard_id,
+        "scenario11-takeover-continuity",
+    );
+    let unrelated_planner = BatchPlanner::new(topology.route_table.clone());
+    let unrelated_ordered = unrelated_planner
+        .make_batch(
+            batch_id(&format!(
+                "scenario11-takeover-continuity-{unrelated_shard_id}"
+            )),
+            std::slice::from_ref(&unrelated_item),
+        )
+        .map_err(reject_record_to_error)?;
+    let unrelated_placement = topology.placement(unrelated_ordered.planned.route)?;
+    let unrelated_case = build_quorum_only_case(
+        &unrelated_ordered,
+        &unrelated_placement,
+        happy.theorem_digest,
+        0xC4,
+    )?;
+    faults.push(DriftFault {
+        entry: FaultMatrixEntry {
+            scenario_id: "scenario_11".to_string(),
+            fault_id: "rolling_primary_takeover_continuity".to_string(),
+            expected_status: "affected_and_unrelated_shards_continue_lawfully".to_string(),
+            observed_status: if takeover_ticket.placement.primary_id == ready_secondary
+                && unrelated_case.subject.shard_id.as_u16() != happy.subject.shard_id.as_u16()
+                && unrelated_case.certificate.votes.len() >= 2
+            {
+                "continued_as_expected".to_string()
+            } else {
+                "unexpected_result".to_string()
+            },
+            reject_code: None,
+            evidence_refs: vec![
+                "quorum_certificate.json".to_string(),
+                "fault_matrix.json".to_string(),
+            ],
+            detail:
+                "one shard failed over to a lawful new primary while an unrelated shard kept producing a lawful certificate"
+                    .to_string(),
             degraded_mode: true,
         },
         vote: None,
@@ -934,10 +1640,23 @@ fn run_fault_matrix(
     ] {
         let mut claimed = happy.subject.clone();
         mutate(&mut claimed);
-        let vote = replay_vote_report(
+        let envelope = VoteTransportEnvelope::available(
+            happy.placement.primary_id,
+            ready_secondary,
+            claimed,
+            ShardVoteKind::LocalCommit,
+        );
+        let mut service = ReplayVerifiedVoteService::local();
+        let (vote, _) = replay_vote_report(
             fault_id,
             ready_secondary,
-            verifier.verify(&claimed, &request),
+            service.process_envelope(
+                &envelope,
+                VoteExchangeContext {
+                    voter_role: ShardVoteRole::Secondary,
+                    replay_request: request,
+                },
+            ),
         );
         let observed = vote
             .reject_code
@@ -1014,13 +1733,58 @@ fn run_fault_matrix(
                 "quorum_certificate.json".to_string(),
                 "local_da_binding.json".to_string(),
             ],
-            detail: "ready secondary resumed publication using the same certificate digest".to_string(),
+            detail: "ready secondary resumed publication using the same certificate digest"
+                .to_string(),
             degraded_mode: true,
         },
         vote: None,
     });
 
     Ok(faults)
+}
+
+fn subject_for_placement(
+    term: u64,
+    ordered: &OrderedBatch,
+    placement: &ShardPlacement,
+    candidate: &JournalCandidate,
+    publication_binding: &PublicationBinding,
+    theorem_digest: [u8; 32],
+) -> Result<CommitSubject, Scenario11Error> {
+    CommitSubject::from_runtime(
+        term,
+        membership_digest_for_voters(
+            ordered.planned.route,
+            placement.primary_id,
+            placement
+                .secondaries
+                .iter()
+                .filter(|secondary| secondary.is_ready)
+                .map(|secondary| secondary.aggregator_id),
+        ),
+        ordered,
+        candidate,
+        publication_binding,
+        theorem_digest,
+        None,
+    )
+    .map_err(reject_record_to_error)
+}
+
+fn vote_for_subject(
+    subject: &CommitSubject,
+    voter_id: AggregatorId,
+    voter_role: ShardVoteRole,
+) -> ShardVote {
+    ShardVote::new_local(
+        voter_id,
+        voter_role,
+        subject.shard_id,
+        subject.term,
+        subject.membership_digest,
+        subject.digest(),
+        ShardVoteKind::LocalCommit,
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -1049,8 +1813,7 @@ fn build_quorum_only_case(
         placement.secondaries.clone(),
         recovery.clone(),
     );
-    let candidate =
-        JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
+    let candidate = JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
     let binding = publication_binding_from_roots(
         ordered.batch_id,
         ordered.planned.route_table_digest.into_bytes(),
@@ -1121,29 +1884,54 @@ fn replay_votes_for_subject(
     theorem_digest: [u8; 32],
     placement: &ShardPlacement,
     items: &[WorkItem],
-) -> Result<Vec<SecondaryReplayVoteReport>, Scenario11Error> {
-    let verifier = SecondaryReplayVerifier;
-    let mut votes = Vec::new();
-    for secondary in placement.secondaries.iter().filter(|secondary| secondary.is_ready) {
-        let request = SecondaryReplayRequest {
-            voter_id: secondary.aggregator_id,
-            term: subject.term,
-            items,
-            planner,
-            placement_table: &topology.placement_table,
-            recovery_record: record,
-            local_recovery: recovery,
-            publication_binding,
-            theorem_or_settlement_digest: theorem_digest,
-            da_availability_digest: None,
-        };
-        votes.push(replay_vote_report(
-            case_id,
+) -> Result<VoteReplayBatchOutcome, Scenario11Error> {
+    let ready_secondaries = placement
+        .secondaries
+        .iter()
+        .filter(|secondary| secondary.is_ready)
+        .copied()
+        .collect::<Vec<_>>();
+    let mut transport = InMemoryVoteTransport::default();
+    for (index, secondary) in ready_secondaries.iter().enumerate() {
+        let envelope = VoteTransportEnvelope::available(
+            placement.primary_id,
             secondary.aggregator_id,
-            verifier.verify(subject, &request),
-        ));
+            subject.clone(),
+            ShardVoteKind::LocalCommit,
+        );
+        if index == 0 {
+            transport.enqueue_delayed(envelope, 1);
+        } else {
+            transport.enqueue_front(envelope);
+        }
     }
-    Ok(votes)
+
+    let mut service = ReplayVerifiedVoteService::local();
+    let mut reports = Vec::new();
+    let mut votes = Vec::new();
+    while reports.len() < ready_secondaries.len() {
+        for envelope in transport.step() {
+            let context = vote_exchange_context(
+                envelope.to_id,
+                subject,
+                planner,
+                topology,
+                record,
+                recovery,
+                publication_binding,
+                theorem_digest,
+                items,
+            );
+            let result = service.process_envelope(&envelope, context);
+            let (report, vote) = replay_vote_report(case_id, envelope.to_id, result);
+            if let Some(vote) = vote {
+                votes.push(vote);
+            }
+            reports.push(report);
+        }
+    }
+
+    Ok(VoteReplayBatchOutcome { reports, votes })
 }
 
 fn offline_secondary_case(
@@ -1157,36 +1945,52 @@ fn offline_secondary_case(
     placement: &ShardPlacement,
     items: &[WorkItem],
 ) -> Result<Vec<SecondaryReplayVoteReport>, Scenario11Error> {
-    let verifier = SecondaryReplayVerifier;
+    let mut transport = InMemoryVoteTransport::default();
+    let mut service = ReplayVerifiedVoteService::local();
     let online = placement
         .secondaries
         .iter()
         .find(|secondary| secondary.is_ready)
         .ok_or_else(|| Scenario11Error::Message("missing online secondary".to_string()))?;
-    let request = SecondaryReplayRequest {
-        voter_id: online.aggregator_id,
-        term: subject.term,
-        items,
+    transport.enqueue(VoteTransportEnvelope::available(
+        placement.primary_id,
+        online.aggregator_id,
+        subject.clone(),
+        ShardVoteKind::LocalCommit,
+    ));
+    let envelope = transport.step().into_iter().next().ok_or_else(|| {
+        Scenario11Error::Message("missing in-memory transport delivery".to_string())
+    })?;
+    let context = vote_exchange_context(
+        online.aggregator_id,
+        subject,
         planner,
-        placement_table: &topology.placement_table,
-        recovery_record: record,
-        local_recovery: recovery,
+        topology,
+        record,
+        recovery,
         publication_binding,
-        theorem_or_settlement_digest: theorem_digest,
-        da_availability_digest: None,
-    };
-    let mut reports = vec![replay_vote_report(
+        theorem_digest,
+        items,
+    );
+    let (online_report, _) = replay_vote_report(
         "one_secondary_offline",
         online.aggregator_id,
-        verifier.verify(subject, &request),
-    )];
-    if let Some(offline) = placement.secondaries.iter().filter(|secondary| secondary.is_ready).nth(1)
+        service.process_envelope(&envelope, context),
+    );
+    let mut reports = vec![online_report];
+    if let Some(offline) = placement
+        .secondaries
+        .iter()
+        .filter(|secondary| secondary.is_ready)
+        .nth(1)
     {
         reports.push(SecondaryReplayVoteReport {
             case_id: "one_secondary_offline".to_string(),
             voter_id: offline.aggregator_id.as_u16(),
             voter_role: "secondary".to_string(),
             verdict: "offline".to_string(),
+            transport_verdict: "offline_no_delivery".to_string(),
+            signature_scheme: None,
             vote_digest_hex: None,
             reject_code: None,
             detail: "secondary remained offline and produced no synthetic vote".to_string(),
@@ -1217,60 +2021,133 @@ fn stale_secondary_case(
         record.recovery.route.expect("route").route_table_digest(),
         placement.expected_journal_lineage,
     )?;
-    let verifier = SecondaryReplayVerifier;
-    let request = SecondaryReplayRequest {
-        voter_id: stale_secondary.aggregator_id,
-        term: subject.term,
-        items,
+    let mut transport = InMemoryVoteTransport::default();
+    transport.enqueue(VoteTransportEnvelope::available(
+        placement.primary_id,
+        stale_secondary.aggregator_id,
+        subject.clone(),
+        ShardVoteKind::LocalCommit,
+    ));
+    let envelope =
+        transport.step().into_iter().next().ok_or_else(|| {
+            Scenario11Error::Message("missing stale transport delivery".to_string())
+        })?;
+    let context = vote_exchange_context(
+        stale_secondary.aggregator_id,
+        subject,
         planner,
-        placement_table: &topology.placement_table,
-        recovery_record: record,
-        local_recovery: &stale_recovery,
+        topology,
+        record,
+        &stale_recovery,
         publication_binding,
-        theorem_or_settlement_digest: theorem_digest,
-        da_availability_digest: None,
-    };
-    Ok(vec![replay_vote_report(
+        theorem_digest,
+        items,
+    );
+    let mut service = ReplayVerifiedVoteService::local();
+    let (report, _) = replay_vote_report(
         "stale_secondary",
         stale_secondary.aggregator_id,
-        verifier.verify(subject, &request),
-    )])
+        service.process_envelope(&envelope, context),
+    );
+    Ok(vec![report])
 }
 
 fn replay_vote_report(
     case_id: &str,
     voter_id: AggregatorId,
-    verdict: SecondaryReplayVerdict,
-) -> SecondaryReplayVoteReport {
-    match verdict {
-        SecondaryReplayVerdict::Accept(accept) => {
-            let vote = ShardVote::new_local(
-                voter_id,
-                ShardVoteRole::Secondary,
-                accept.subject.shard_id,
-                accept.subject.term,
-                accept.subject.membership_digest,
-                accept.subject.digest(),
-                ShardVoteKind::LocalCommit,
-            );
+    result: z00z_aggregators::VoteExchangeResult,
+) -> (SecondaryReplayVoteReport, Option<ShardVote>) {
+    match result.outcome {
+        VoteExchangeOutcome::Vote(vote) => (
             SecondaryReplayVoteReport {
                 case_id: case_id.to_string(),
                 voter_id: voter_id.as_u16(),
                 voter_role: "secondary".to_string(),
                 verdict: "accept".to_string(),
+                transport_verdict: "delivered_in_memory".to_string(),
+                signature_scheme: Some(vote.signature_scheme().as_str().to_string()),
                 vote_digest_hex: Some(hex::encode(vote.digest())),
                 reject_code: None,
-                detail: "secondary replay recomputed the exact primary subject".to_string(),
-            }
-        }
-        SecondaryReplayVerdict::Reject(reject) => SecondaryReplayVoteReport {
-            case_id: case_id.to_string(),
-            voter_id: voter_id.as_u16(),
-            voter_role: "secondary".to_string(),
-            verdict: "reject".to_string(),
-            vote_digest_hex: None,
-            reject_code: Some(format!("{:?}", reject.code)),
-            detail: reject.detail,
+                detail: "secondary replay recomputed the exact primary subject through in-memory transport".to_string(),
+            },
+            Some(vote),
+        ),
+        VoteExchangeOutcome::ReplayRejected(reject) => (
+            SecondaryReplayVoteReport {
+                case_id: case_id.to_string(),
+                voter_id: voter_id.as_u16(),
+                voter_role: "secondary".to_string(),
+                verdict: "reject".to_string(),
+                transport_verdict: if reject.class == z00z_aggregators::RejectClass::DeferredRetry {
+                    "deferred_retry".to_string()
+                } else {
+                    "replay_rejected".to_string()
+                },
+                signature_scheme: None,
+                vote_digest_hex: None,
+                reject_code: Some(format!("{:?}", reject.code)),
+                detail: reject.detail,
+            },
+            None,
+        ),
+        VoteExchangeOutcome::Evidence(evidence) => (
+            SecondaryReplayVoteReport {
+                case_id: case_id.to_string(),
+                voter_id: voter_id.as_u16(),
+                voter_role: "secondary".to_string(),
+                verdict: "degraded".to_string(),
+                transport_verdict: "evidence_emitted".to_string(),
+                signature_scheme: None,
+                vote_digest_hex: None,
+                reject_code: None,
+                detail: format!(
+                    "structured evidence emitted instead of vote: {}",
+                    evidence_kind_name(&evidence)
+                ),
+            },
+            None,
+        ),
+        VoteExchangeOutcome::DuplicateMessage => (
+            SecondaryReplayVoteReport {
+                case_id: case_id.to_string(),
+                voter_id: voter_id.as_u16(),
+                voter_role: "secondary".to_string(),
+                verdict: "duplicate".to_string(),
+                transport_verdict: "duplicate_message".to_string(),
+                signature_scheme: None,
+                vote_digest_hex: None,
+                reject_code: None,
+                detail: "in-memory transport replayed an already-processed envelope".to_string(),
+            },
+            None,
+        ),
+    }
+}
+
+fn vote_exchange_context<'a>(
+    voter_id: AggregatorId,
+    subject: &'a CommitSubject,
+    planner: &'a BatchPlanner,
+    topology: &'a LiveTopology,
+    record: &'a ShardRecoveryRecord,
+    recovery: &'a SettlementRecoveryState,
+    publication_binding: &'a PublicationBinding,
+    theorem_digest: [u8; 32],
+    items: &'a [WorkItem],
+) -> VoteExchangeContext<'a> {
+    VoteExchangeContext {
+        voter_role: ShardVoteRole::Secondary,
+        replay_request: SecondaryReplayRequest {
+            voter_id,
+            term: subject.term,
+            items,
+            planner,
+            placement_table: &topology.placement_table,
+            recovery_record: record,
+            local_recovery: recovery,
+            publication_binding,
+            theorem_or_settlement_digest: theorem_digest,
+            da_availability_digest: None,
         },
     }
 }
@@ -1331,9 +2208,11 @@ fn valid_tx_package(tag: &str) -> Result<(TxPackage, CheckRoot), Scenario11Error
         SpendProofWitness {
             receiver_secret: ReceiverSecret::from_bytes(RECEIVER_SECRET)
                 .map_err(|err| Scenario11Error::Message(err.to_string()))?,
-            input_s_in: vec![resolve_input_pack(RECEIVER_SECRET, &input_wire)
-                .map_err(|err| Scenario11Error::Message(err.to_string()))?
-                .s_out],
+            input_s_in: vec![
+                resolve_input_pack(RECEIVER_SECRET, &input_wire)
+                    .map_err(|err| Scenario11Error::Message(err.to_string()))?
+                    .s_out,
+            ],
             membership,
         },
     )
@@ -1368,14 +2247,24 @@ fn valid_tx_package(tag: &str) -> Result<(TxPackage, CheckRoot), Scenario11Error
     Ok((package, prev_root))
 }
 
-fn publication_request_for_package(
+#[derive(Debug, Clone)]
+struct PreparedPublication {
+    batch_id: BatchId,
+    publication_route: PublicationRouteSnapshotV1,
+    draft: CheckpointDraft,
+    artifact: CheckpointArtifact,
+    tx_package: TxPackage,
+    exec_input: CheckpointExecInput,
+    link: CheckpointLink,
+}
+
+fn prepare_publication_for_package(
     batch_id: BatchId,
     tx_package: TxPackage,
     prev_root: CheckRoot,
     new_root: SettlementStateRoot,
     publication_route: PublicationRouteSnapshotV1,
-    replay_id: &str,
-) -> Result<PublicationRequest, Scenario11Error> {
+) -> Result<PreparedPublication, Scenario11Error> {
     let exec_input = exec_input_from_package(&tx_package, prev_root)?;
     let exec_bytes =
         encode_exec_bin(&exec_input).map_err(|err| Scenario11Error::Message(err.to_string()))?;
@@ -1404,40 +2293,51 @@ fn publication_request_for_package(
         exec_id,
     )
     .map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    Ok(PublicationRequest {
+    Ok(PreparedPublication {
         batch_id,
         publication_route,
         draft,
+        artifact,
         tx_package,
         exec_input,
         link,
-        nullifiers: vec![ClaimNullifier::new([batch_id.into_bytes()[0].wrapping_add(0x40); 32])],
-        idempotency_key: replay_id.to_string(),
     })
 }
 
-fn publication_binding_for_request(
-    request: &PublicationRequest,
+fn publication_request_for_package(
+    prepared: PreparedPublication,
+    ordered_batch: OrderedBatch,
+    subject: CommitSubject,
+    certificate: ShardQuorumCertificate,
+    replay_id: &str,
+) -> PublicationRequest {
+    PublicationRequest {
+        batch_id: prepared.batch_id,
+        ordered_batch,
+        publication_route: prepared.publication_route,
+        draft: prepared.draft,
+        subject,
+        certificate,
+        tx_package: prepared.tx_package,
+        exec_input: prepared.exec_input,
+        link: prepared.link,
+        nullifiers: vec![ClaimNullifier::new(
+            [prepared.batch_id.into_bytes()[0].wrapping_add(0x40); 32],
+        )],
+        idempotency_key: replay_id.to_string(),
+    }
+}
+
+fn publication_binding_for_prepared(
+    prepared: &PreparedPublication,
 ) -> Result<PublicationBinding, Scenario11Error> {
-    let exec_bytes =
-        encode_exec_bin(&request.exec_input).map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    let exec_id = derive_exec_id(&exec_bytes);
-    let proof = request
-        .draft
-        .attest_proof(request.exec_input.prep_snapshot_id(), exec_id)
+    let checkpoint_id = derive_checkpoint_id(&prepared.artifact)
         .map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    let artifact = request
-        .draft
-        .clone()
-        .finalize(proof)
-        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    let checkpoint_id =
-        derive_checkpoint_id(&artifact).map_err(|err| Scenario11Error::Message(err.to_string()))?;
     Ok(bind_publication_contract(
-        request.batch_id,
+        prepared.batch_id,
         checkpoint_id,
-        request.publication_route.route_table_digest,
-        &artifact.pub_in(),
+        prepared.publication_route.route_table_digest,
+        &prepared.artifact.pub_in(),
     ))
 }
 
@@ -1471,24 +2371,12 @@ fn publication_binding_from_roots(
     ))
 }
 
-fn theorem_digest(request: &PublicationRequest) -> Result<[u8; 32], Scenario11Error> {
-    let exec_bytes =
-        encode_exec_bin(&request.exec_input).map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    let exec_id = derive_exec_id(&exec_bytes);
-    let proof = request
-        .draft
-        .attest_proof(request.exec_input.prep_snapshot_id(), exec_id)
-        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    let artifact = request
-        .draft
-        .clone()
-        .finalize(proof)
-        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+fn theorem_digest(prepared: &PreparedPublication) -> Result<[u8; 32], Scenario11Error> {
     let theorem = SettlementTheoremBundle::new(
-        request.tx_package.clone(),
-        artifact,
-        request.exec_input.clone(),
-        request.link.clone(),
+        prepared.tx_package.clone(),
+        prepared.artifact.clone(),
+        prepared.exec_input.clone(),
+        prepared.link.clone(),
     )?;
     Ok(theorem.theorem_digest())
 }
@@ -1550,7 +2438,10 @@ fn exec_input_from_package(
                 .expect("asset id hex")
                 .try_into()
                 .expect("asset id bytes");
-            CheckpointInRef::new(asset_id, z00z_storage::settlement::SerialId::new(input.serial_id))
+            CheckpointInRef::new(
+                asset_id,
+                z00z_storage::settlement::SerialId::new(input.serial_id),
+            )
         })
         .collect::<Vec<_>>();
     let outputs = package
@@ -1560,8 +2451,11 @@ fn exec_input_from_package(
         .map(|output| {
             let wire = output.asset_wire.clone().to_wire().expect("output wire");
             let leaf = asset_wire_to_leaf(&wire).expect("output leaf");
-            CheckpointExecOut::new(z00z_storage::settlement::DefinitionId::new(wire.definition.id), leaf)
-                .expect("exec output")
+            CheckpointExecOut::new(
+                z00z_storage::settlement::DefinitionId::new(wire.definition.id),
+                leaf,
+            )
+            .expect("exec output")
         })
         .collect::<Vec<_>>();
     let tx_proof = z00z_utils::codec::JsonCodec
@@ -1594,7 +2488,10 @@ impl Drop for RangeProofGuard {
 
 fn range_proof_guard() -> RangeProofGuard {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    let guard = LOCK.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|err| err.into_inner());
+    let guard = LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
     let prev = std::env::var_os("Z00Z_ALLOW_DEBUG_RANGE_PROOF");
     if prev.as_deref() != Some(std::ffi::OsStr::new("1")) {
         std::env::set_var("Z00Z_ALLOW_DEBUG_RANGE_PROOF", "1");
@@ -1783,13 +2680,9 @@ impl ScratchDir {
     fn new(prefix: &str) -> Result<Self, Scenario11Error> {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let seq = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "{prefix}-{}-{seq}",
-            std::process::id()
-        ));
+        let path = std::env::temp_dir().join(format!("{prefix}-{}-{seq}", std::process::id()));
         let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir_all(&path)
-            .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+        std::fs::create_dir_all(&path).map_err(|err| Scenario11Error::Message(err.to_string()))?;
         Ok(Self { path })
     }
 
@@ -1812,10 +2705,7 @@ fn settlement_path(seed: u8) -> z00z_storage::settlement::SettlementPath {
     )
 }
 
-fn settlement_item(
-    path: z00z_storage::settlement::SettlementPath,
-    value: u64,
-) -> StoreItem {
+fn settlement_item(path: z00z_storage::settlement::SettlementPath, value: u64) -> StoreItem {
     let payload = z00z_core::assets::AssetPackPlain {
         value,
         blinding: [3u8; 32],
@@ -1868,7 +2758,11 @@ fn ready_secondary_ids(secondaries: &[SecondaryState]) -> Vec<u16> {
 }
 
 fn quorum_threshold(placement: &ShardPlacement) -> usize {
-    let members = 1 + placement.secondaries.iter().filter(|secondary| secondary.is_ready).count();
+    let members = 1 + placement
+        .secondaries
+        .iter()
+        .filter(|secondary| secondary.is_ready)
+        .count();
     (members / 2) + 1
 }
 
@@ -1877,6 +2771,13 @@ fn dispatch_stage_name(stage: DispatchStage) -> &'static str {
         DispatchStage::Delivered => "delivered",
         DispatchStage::Deferred => "deferred",
         DispatchStage::Duplicate => "duplicate",
+    }
+}
+
+fn evidence_kind_name(evidence: &z00z_aggregators::VoteEvidence) -> &'static str {
+    match evidence.kind() {
+        z00z_aggregators::VoteEvidenceKind::Equivocation => "equivocation",
+        z00z_aggregators::VoteEvidenceKind::PayloadWithholding => "payload_withholding",
     }
 }
 
@@ -1918,4 +2819,8 @@ fn mutate_theorem_digest(subject: &mut CommitSubject) {
 
 fn reject_record_to_error(err: z00z_aggregators::RejectRecord) -> Scenario11Error {
     Scenario11Error::Message(format!("{:?}: {}", err.class, err.detail))
+}
+
+fn consensus_store_error_to_error(err: z00z_aggregators::ConsensusStoreError) -> Scenario11Error {
+    Scenario11Error::Message(err.to_string())
 }

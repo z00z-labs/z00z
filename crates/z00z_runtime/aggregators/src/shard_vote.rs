@@ -1,13 +1,18 @@
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
-use z00z_crypto::domains::{ShardVoteDomain, ShardVoteLocalSignatureDomain};
+use z00z_crypto::domains::ShardVoteDomain;
 
 use crate::{
     commit_subject::{
-        digest_bytes, push_bytes32, push_shard_id, push_u64, push_u8, COMMIT_SUBJECT_VERSION,
+        digest_bytes, push_bytes32, push_len_prefixed, push_shard_id, push_u64, push_u8,
+        COMMIT_SUBJECT_VERSION,
     },
     placement::AggregatorId,
+    signature::{
+        verify_vote_signature, DeterministicLocalVoteSigner, VoteSignature, VoteSignatureScheme,
+        VoteSigner,
+    },
     types::ShardId,
 };
 
@@ -38,12 +43,12 @@ pub struct ShardVote {
     pub membership_digest: [u8; 32],
     pub subject_digest: [u8; 32],
     pub vote_kind: ShardVoteKind,
-    pub simulator_signature: [u8; 32],
+    pub signature: VoteSignature,
 }
 
 impl ShardVote {
     #[must_use]
-    pub fn new_local(
+    pub fn new(
         voter_id: AggregatorId,
         voter_role: ShardVoteRole,
         shard_id: ShardId,
@@ -51,6 +56,7 @@ impl ShardVote {
         membership_digest: [u8; 32],
         subject_digest: [u8; 32],
         vote_kind: ShardVoteKind,
+        signer: &impl VoteSigner,
     ) -> Self {
         let unsigned = encode_unsigned(
             voter_id,
@@ -61,8 +67,7 @@ impl ShardVote {
             subject_digest,
             vote_kind,
         );
-        let simulator_signature =
-            digest_bytes::<ShardVoteLocalSignatureDomain>("sim_signature", &unsigned);
+        let signature = signer.sign_vote(&unsigned);
         Self {
             version: COMMIT_SUBJECT_VERSION,
             voter_id,
@@ -72,14 +77,37 @@ impl ShardVote {
             membership_digest,
             subject_digest,
             vote_kind,
-            simulator_signature,
+            signature,
         }
+    }
+
+    #[must_use]
+    pub fn new_local(
+        voter_id: AggregatorId,
+        voter_role: ShardVoteRole,
+        shard_id: ShardId,
+        term: u64,
+        membership_digest: [u8; 32],
+        subject_digest: [u8; 32],
+        vote_kind: ShardVoteKind,
+    ) -> Self {
+        Self::new(
+            voter_id,
+            voter_role,
+            shard_id,
+            term,
+            membership_digest,
+            subject_digest,
+            vote_kind,
+            &DeterministicLocalVoteSigner,
+        )
     }
 
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let mut out = self.unsigned_bytes();
-        push_bytes32(&mut out, self.simulator_signature);
+        push_u8(&mut out, self.signature.scheme.code());
+        push_len_prefixed(&mut out, &self.signature.bytes);
         out
     }
 
@@ -89,12 +117,13 @@ impl ShardVote {
     }
 
     #[must_use]
-    pub fn has_valid_local_signature(&self) -> bool {
-        self.simulator_signature
-            == digest_bytes::<ShardVoteLocalSignatureDomain>(
-                "sim_signature",
-                &self.unsigned_bytes(),
-            )
+    pub fn has_valid_signature(&self) -> bool {
+        verify_vote_signature(&self.unsigned_bytes(), &self.signature)
+    }
+
+    #[must_use]
+    pub const fn signature_scheme(&self) -> VoteSignatureScheme {
+        self.signature.scheme
     }
 
     fn unsigned_bytes(&self) -> Vec<u8> {

@@ -18,20 +18,53 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
  * bin/install.js so Runtime Artifact Layout no longer reaches through the
  * Installer Module for conversion behavior.
  */
-const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
+const node_os_1 = __importDefault(require("node:os"));
+const node_fs_1 = __importDefault(require("node:fs"));
 const commandRoster = require("./command-roster.cjs");
 const { readGsdCommandNames, transformContentToHyphen } = commandRoster;
-const runtimeVersion = (() => {
+const runtimeNamePolicy = require("./runtime-name-policy.cjs");
+const { getDirName } = runtimeNamePolicy;
+// #1383: resolve GSD's version WITHOUT a top-level
+// `require('../../../package.json')`. That require ran at module load on every
+// gsd-tools invocation (this module sits in the gsd-tools loader chain) and
+// threw `Cannot find module '../../../package.json'` on runtimes whose root has
+// no package.json — notably Codex, where the installer omits the synthetic root
+// package.json — taking the entire CLI down before it did anything. And even
+// where it resolved (the agent's synthetic `{"type":"commonjs"}`), there is no
+// `version` field, so the single consumer below already emitted
+// `version: undefined`. Resolve lazily and defensively instead:
+//   1. Installed trees carry <root>/gsd-core/VERSION (written by the installer);
+//      this module lives at <root>/gsd-core/bin/lib, so VERSION is two dirs up.
+//   2. The source / npm-package tree has no gsd-core/VERSION but carries a real
+//      package.json three dirs up — read it lazily, never at module-load time.
+// A failed/invalid lookup degrades to '' (the caller omits the field) rather
+// than crashing or emitting `version: undefined`. Both sources are validated
+// against the same semver shape the repo's other VERSION reader enforces
+// (src/update-context.cts) so a garbled VERSION file is never emitted verbatim.
+// Exported for the #1383 regression.
+const SEMVER_PREFIX = /^\d+\.\d+\.\d+/; // mirrors src/update-context.cts SEMVER_PREFIX
+function resolveVersionFrom(libDir) {
     try {
-        return node_fs_1.default
-            .readFileSync(node_path_1.default.resolve(__dirname, '../../VERSION'), 'utf8')
-            .trim();
+        const v = node_fs_1.default.readFileSync(node_path_1.default.join(libDir, '..', '..', 'VERSION'), 'utf8').trim();
+        if (SEMVER_PREFIX.test(v))
+            return v;
     }
-    catch {
-        return '0.0.0';
+    catch { /* not an installed tree (no gsd-core/VERSION) */ }
+    try {
+        const pkg = require(node_path_1.default.join(libDir, '..', '..', '..', 'package.json'));
+        if (pkg && typeof pkg.version === 'string' && SEMVER_PREFIX.test(pkg.version))
+            return pkg.version;
     }
-})();
+    catch { /* runtime root has no package.json (e.g. Codex) */ }
+    return '';
+}
+let cachedVersion;
+function gsdVersion() {
+    if (cachedVersion === undefined)
+        cachedVersion = resolveVersionFrom(__dirname);
+    return cachedVersion;
+}
 const colorNameToHex = {
     cyan: '#00FFFF',
     red: '#FF0000',
@@ -373,8 +406,11 @@ function convertClaudeCommandToClaudeSkill(content, skillName, runtime = null, c
     // Hermes' SKILL.md spec lists `version` as a required frontmatter field.
     // Track GSD's package version so Hermes' skill_view() reports a stable
     // identifier per install.
-    if (runtime === 'hermes')
-        fm += `version: ${yamlQuote(runtimeVersion)}\n`;
+    if (runtime === 'hermes') {
+        const version = gsdVersion();
+        if (version)
+            fm += `version: ${yamlQuote(version)}\n`;
+    }
     // #778 (b) — Qwen-only numeric priority for /skills ordering. Scoped to qwen
     // so the agent/Hermes skill frontmatter is unchanged (they ignore the field, but
     // we keep their output byte-stable). skillName is the `gsd-<stem>` dir name.
@@ -819,20 +855,18 @@ function convertClaudeToWindsurfMarkdown(content) {
     // Replace subagent_type from the agent to Windsurf format
     converted = converted.replace(/subagent_type="general-purpose"/g, 'subagent_type="generalPurpose"');
     converted = converted.replace(/\$ARGUMENTS\b/g, '{{GSD_ARGS}}');
-    // Replace project-level the agent conventions with Windsurf/Devin equivalents
-    // Workspace skills install to .devin/ (Devin Desktop preferred dir, #1085).
-    // Legacy .windsurf/ is still recognized on read but new installs use .devin/.
-    converted = converted.replace(/`\.\/CLAUDE\.md`/g, '`.devin/rules`');
-    converted = converted.replace(/\.\/CLAUDE\.md/g, '.devin/rules');
-    converted = converted.replace(/`CLAUDE\.md`/g, '`.devin/rules`');
-    converted = converted.replace(/\bCLAUDE\.md\b/g, '.devin/rules');
-    converted = converted.replace(/\.claude\/skills\//g, '.devin/skills/');
-    converted = converted.replace(/\.\/\.claude\//g, './.devin/');
-    converted = converted.replace(/\.claude\//g, '.devin/');
+    // Replace project-level the agent conventions with Windsurf equivalents.
+    converted = converted.replace(/`\.\/CLAUDE\.md`/g, '`.windsurf/rules`');
+    converted = converted.replace(/\.\/CLAUDE\.md/g, '.windsurf/rules');
+    converted = converted.replace(/`CLAUDE\.md`/g, '`.windsurf/rules`');
+    converted = converted.replace(/\bCLAUDE\.md\b/g, '.windsurf/rules');
+    converted = converted.replace(/\.claude\/skills\//g, '.windsurf/skills/');
+    converted = converted.replace(/\.\/\.claude\//g, './.windsurf/');
+    converted = converted.replace(/\.claude\//g, '.windsurf/');
     // Bare forms (no trailing slash) — after slash forms to avoid double-rewrite.
     // Use negative lookahead (?![\w-]) to preserve .claude-plugin and .claudeignore.
-    converted = converted.replace(/~\/\.claude(?![\w-])/g, '~/.devin');
-    converted = converted.replace(/\$HOME\/\.claude(?![\w-])/g, '$HOME/.devin');
+    converted = converted.replace(/~\/\.claude(?![\w-])/g, '~/.windsurf');
+    converted = converted.replace(/\$HOME\/\.claude(?![\w-])/g, '$HOME/.windsurf');
     // Environment variable name rewrite
     converted = converted.replace(/\bCLAUDE_CONFIG_DIR\b/g, 'WINDSURF_CONFIG_DIR');
     // Remove Claude Code-specific bug workarounds before brand replacement
@@ -881,6 +915,30 @@ function convertClaudeCommandToWindsurfSkill(content, skillName) {
     const shortDescription = description.length > 180 ? `${description.slice(0, 177)}...` : description;
     const adapter = getWindsurfSkillAdapterHeader(skillName);
     return `---\nname: ${yamlIdentifier(skillName)}\ndescription: ${yamlQuote(shortDescription)}\n---\n\n${adapter}\n\n${body.trimStart()}`;
+}
+function convertClaudeCommandToWindsurfWorkflow(content, commandName) {
+    // #1615 security: commandName flows unsanitized into a markdown body that
+    // Windsurf loads as an LLM-readable workflow. Validate at entry to prevent
+    // (a) prompt injection via newlines / markdown structure in the filename,
+    // (b) path-component injection via .., /, \ in stem → @-reference target.
+    // Pattern: optional gsd- prefix + lowercase alphanumeric + dashes; rejects
+    // everything else. See DEFECT.PROMPT-INJECTION-SCAN-COLLISION and the
+    // PR #1622 security review.
+    if (typeof commandName !== 'string' || !/^(?:gsd-)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(commandName)) {
+        const preview = typeof commandName === 'string' ? JSON.stringify(commandName.slice(0, 60)) : String(commandName);
+        throw new Error(`convertClaudeCommandToWindsurfWorkflow: rejected commandName ${preview}; ` +
+            'must match /^(?:gsd-)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/ (no slashes, backslashes, spaces, dots, trailing dash, or control chars — prevents prompt injection and path-component injection into the workflow body)');
+    }
+    const converted = convertClaudeToWindsurfMarkdown(content);
+    const { frontmatter } = extractFrontmatterAndBody(converted);
+    const description = frontmatter ? extractFrontmatterField(frontmatter, 'description') : '';
+    const stem = commandName.startsWith('gsd-') ? commandName.slice(4) : commandName;
+    const workflow = `# ${commandName}\n\n${toSingleLine(description || `Run ${commandName}.`)}\n\nRead and execute the GSD command at @.github/gsd-core/commands/gsd/${stem}.md end-to-end. Treat the user's message after /${commandName} as the command arguments.`;
+    const byteLength = Buffer.byteLength(workflow, 'utf8');
+    if (byteLength > 12000) {
+        throw new Error(`Windsurf workflow ${commandName} exceeds 12000 bytes (${byteLength}); extract references before installing`);
+    }
+    return workflow;
 }
 // --- Augment converters ---
 // Augment uses a tool set similar to Cursor/Windsurf.
@@ -1670,10 +1728,16 @@ function convertGeminiToolName(claudeTool) {
     // Task/Agent: exclude — agents are auto-registered as callable tools.
     // AskUserQuestion: exclude — Gemini CLI does not expose an ask_user tool;
     // emitting it causes frontmatter validation errors (#3362).
+    // Skill/SlashCommand: exclude — Gemini CLI has no 'skill' built-in tool;
+    // the lowercase fallback would emit an invalid 'skill'/'slashcommand' name
+    // that fails frontmatter validation (tools.N: Invalid tool name) and aborts
+    // the entire agent load (#1394).
     if (claudeTool === 'Task' ||
         claudeTool === 'Agent' ||
         claudeTool === 'AskUserQuestion' ||
-        claudeTool === 'ask_user') {
+        claudeTool === 'ask_user' ||
+        claudeTool === 'Skill' ||
+        claudeTool === 'SlashCommand') {
         return null;
     }
     // Check for explicit mapping
@@ -1905,7 +1969,374 @@ function convertClaudeCommandToOpencodeSkill(content, skillName) {
 function convertClaudeCommandToKiloSkill(content, skillName) {
     return convertClaudeCommandToOpencodeFamilySkill(content, skillName, (c) => convertClaudeToKiloFrontmatter(c));
 }
+// ── Rewrite engine — ADR-1508 Phase 2 ───────────────────────────────────────
+// Relocated from bin/install.js (#1511). Behavior is byte-for-behavior identical
+// to the originals; the only change is the injected `attribution` 5th param in
+// _applyRuntimeRewrites (replacing the internal getCommitAttribution() call).
+/**
+ * Compute the path prefix for a runtime install.
+ * Global installs under $HOME use $HOME/... form; others use the resolved target.
+ * isOpencode excludes OpenCode (uses ~/.config/opencode which breaks $HOME shorthand).
+ * isWindowsHost is not used today but reserved for future Windows-specific logic.
+ *
+ * @private — exported as `_computePathPrefix` for tests.
+ */
+function computePathPrefix({ isGlobal, isOpencode, isWindowsHost: _isWindowsHost, resolvedTarget, homeDir }) {
+    // #1615: normalize Windows backslashes to forward slashes. This prefix is
+    // substituted into markdown @-references (e.g. Windsurf workflow files),
+    // which use POSIX paths universally. Idempotent on POSIX (no backslashes).
+    // Without this, path.join on Windows produces a backslash prefix that
+    // leaks into markdown content and breaks cross-platform substring checks.
+    // See DEFECT.WINDOWS-PATH-LEAK-IN-MARKDOWN-CONTENT in CONTEXT.md.
+    const posixTarget = String(resolvedTarget).replace(/\\/g, '/');
+    const posixHome = homeDir ? String(homeDir).replace(/\\/g, '/') : homeDir;
+    if (isGlobal && posixTarget.startsWith(posixHome) && !isOpencode) {
+        return '$HOME' + posixTarget.slice(posixHome.length) + '/';
+    }
+    return `${posixTarget}/`;
+}
+/**
+ * Canonical list of every non-the agent runtime that gsd-core emits artifacts for.
+ * Exported so test files can import this single source of truth rather than
+ * maintaining divergent hand-rolled arrays (#1521).
+ *
+ * Keep in sync with the runtime flags in bin/install.js and getDirName().
+ */
+const NON_CLAUDE_RUNTIMES = [
+    'codex', 'opencode', 'kilo', 'gemini', 'copilot', 'antigravity',
+    'cursor', 'windsurf', 'augment', 'trae', 'qwen', 'hermes', 'kimi',
+    'codebuddy', 'cline',
+];
+/**
+ * #1521: Every non-the agent runtime resolves its own runtime identity from a
+ * runtime-neutral config, and defaults workflow.use_worktrees to false —
+ * GSD's worktree isolation uses Claude Code's isolation="worktree" spawn
+ * parameter, which no other runtime honors. Stamped into the emitted
+ * workflow runtime-resolution blocks. (Generalizes the Codex-only #1515 fix.)
+ *
+ * @private — exported as `_stampNonClaudeRuntimeDefaults` for tests.
+ */
+function _stampNonClaudeRuntimeDefaults(content, runtime) {
+    content = content.replace(/config-get workflow\.use_worktrees --raw 2>\/dev\/null \|\| echo "true"/g, 'config-get workflow.use_worktrees --default false --raw 2>/dev/null || echo "false"');
+    content = content.replace(/config-get runtime --default claude --raw 2>\/dev\/null \|\| echo "claude"/g, `config-get runtime --default ${runtime} --raw 2>/dev/null || echo "${runtime}"`);
+    return content;
+}
+/**
+ * Apply the per-runtime rewrite table to a single content string.
+ * Relocated from bin/install.js `_applyRuntimeRewrites`.
+ *
+ * The 5th `attribution` param replaces the internal getCommitAttribution() call
+ * so the function is pure (no config I/O). Pass the resolved attribution value
+ * from the installer; pass `undefined` to leave Co-Authored-By lines untouched.
+ *
+ * @private — exported as `_applyRuntimeRewrites` for tests.
+ */
+function _applyRuntimeRewrites(content, runtime, pathPrefix, isGlobal = false, attribution = undefined) {
+    const dirName = getDirName(runtime);
+    const normalizedPathPrefix = pathPrefix.replace(/\/$/, '');
+    // #1521: stamp runtime identity + use_worktrees=false for every non-the agent runtime
+    // before brand-specific path rewrites, so the replace operates on the pristine
+    // source line and is idempotent regardless of subsequent path substitutions.
+    if (runtime !== 'claude') {
+        content = _stampNonClaudeRuntimeDefaults(content, runtime);
+    }
+    switch (runtime) {
+        case 'codex':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.codex\//g, pathPrefix);
+            // #1515 stamp moved to _stampNonClaudeRuntimeDefaults (#1521 generalisation).
+            content = processAttribution(content, attribution);
+            break;
+        case 'cline':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.cline\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.cline\//g, pathPrefix);
+            content = content.replace(/~\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/~\/\.cline\b/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.cline\b/g, normalizedPathPrefix);
+            content = processAttribution(content, attribution);
+            break;
+        case 'cursor':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\.\/\.claude(?![\w-])/g, `./${dirName}`);
+            content = content.replace(/~\/\.cursor\//g, pathPrefix);
+            content = processAttribution(content, attribution);
+            break;
+        case 'windsurf': {
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/~\/\.codeium\/windsurf\//g, pathPrefix);
+            if (isGlobal) {
+                content = content.replace(/\.devin\/skills\//g, `${pathPrefix}skills/`);
+                content = content.replace(/\.\/\.devin\//g, pathPrefix);
+                content = content.replace(/~\/\.devin(?![\w-])/g, normalizedPathPrefix);
+                content = content.replace(/\$HOME\/\.devin(?![\w-])/g, normalizedPathPrefix);
+            }
+            content = processAttribution(content, attribution);
+            break;
+        }
+        case 'augment':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\.\/\.claude(?![\w-])/g, `./${dirName}`);
+            content = content.replace(/~\/\.augment\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.augment\//g, pathPrefix);
+            content = content.replace(/~\/\.augment(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.augment(?![\w-])/g, normalizedPathPrefix);
+            content = processAttribution(content, attribution);
+            break;
+        case 'trae':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/\.\/\.claude\b/g, `./${dirName}`);
+            content = content.replace(/~\/\.trae\//g, pathPrefix);
+            content = processAttribution(content, attribution);
+            break;
+        case 'codebuddy':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/\.\/\.claude\b/g, `./${dirName}`);
+            content = content.replace(/~\/\.codebuddy\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.codebuddy\//g, pathPrefix);
+            content = content.replace(/~\/\.codebuddy\b/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.codebuddy\b/g, normalizedPathPrefix);
+            content = processAttribution(content, attribution);
+            break;
+        case 'copilot':
+            content = processAttribution(content, attribution);
+            break;
+        case 'antigravity':
+            content = processAttribution(content, attribution);
+            break;
+        case 'claude':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = processAttribution(content, attribution);
+            break;
+        case 'qwen':
+            content = content.replace(/CLAUDE\.md/g, 'QWEN.md');
+            content = content.replace(/\bClaude Code\b/g, 'Qwen Code');
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/~\/\.qwen\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.qwen\//g, pathPrefix);
+            content = content.replace(/~\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/~\/\.qwen(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.qwen(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\.claude\//g, '.qwen/');
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/\.\/\.qwen\//g, `./${dirName}/`);
+            content = processAttribution(content, attribution);
+            break;
+        case 'hermes':
+            content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
+            content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/~\/\.hermes\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.hermes\//g, pathPrefix);
+            content = content.replace(/~\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/~\/\.hermes(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.hermes(?![\w-])/g, normalizedPathPrefix);
+            content = content.replace(/\.claude\//g, '.hermes/');
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/\.\/\.hermes\//g, `./${dirName}/`);
+            content = processAttribution(content, attribution);
+            break;
+        case 'kimi':
+            content = content.replace(/~\/\.claude\//g, pathPrefix);
+            content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
+            content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
+            content = content.replace(/~\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/\$HOME\/\.claude\b/g, normalizedPathPrefix);
+            content = content.replace(/\.\/\.claude\b/g, `./${dirName}`);
+            content = processAttribution(content, attribution);
+            break;
+        default:
+            // Unknown runtime — no rewrites (OpenCode/Kilo handled by their own install path).
+            break;
+    }
+    return content;
+}
+/**
+ * LOW-LEVEL: In-place fs walk: rewrite all .md files under stagedDir.
+ *
+ * pathPrefix and attribution are passed in (already resolved by the caller).
+ * Single owner of the walk loop — both the high-level rewriteStagedSkillBodies
+ * and the install.js compat wrapper delegate here.
+ *
+ * @param stagedDir    directory of staged skill/agent files
+ * @param runtime      canonical runtime ID
+ * @param pathPrefix   trailing-slash path prefix (e.g. '$HOME/.cursor/')
+ * @param isGlobal     true for global scope installs
+ * @param attribution  Co-Authored-By value (string | null | undefined)
+ */
+function applyRuntimeContentRewritesInPlace(stagedDir, runtime, pathPrefix, isGlobal = false, attribution = undefined) {
+    if (!node_fs_1.default.existsSync(stagedDir))
+        return;
+    const walkAndRewrite = (dir) => {
+        for (const entry of node_fs_1.default.readdirSync(dir, { withFileTypes: true })) {
+            const fullPath = node_path_1.default.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walkAndRewrite(fullPath);
+            }
+            else if (entry.name.endsWith('.md')) {
+                let content = node_fs_1.default.readFileSync(fullPath, 'utf8');
+                content = _applyRuntimeRewrites(content, runtime, pathPrefix, isGlobal, attribution);
+                node_fs_1.default.writeFileSync(fullPath, content);
+            }
+        }
+    };
+    walkAndRewrite(stagedDir);
+}
+/**
+ * LOW-LEVEL: Copy-to-temp then rewrite all .md files.
+ *
+ * pathPrefix and attribution are passed in (already resolved by the caller).
+ * Single owner of the copy+rewrite loop — both the high-level
+ * rewriteStagedCommandBodies and the install.js compat wrapper delegate here.
+ *
+ * IMPORTANT: always copies to a fresh mkdtemp dir — never mutates the source dir
+ * (stageSkillsForProfile returns the source dir on full profile; mutation would
+ * corrupt the package source).
+ *
+ * @param stagedDir    directory of staged flat .md command files
+ * @param runtime      canonical runtime ID
+ * @param pathPrefix   trailing-slash path prefix
+ * @param isGlobal     true for global scope installs
+ * @param attribution  Co-Authored-By value (string | null | undefined)
+ * @returns {string} path to the temp dir (caller is responsible for cleanup)
+ */
+function applyRuntimeContentRewritesForCommandsInPlace(stagedDir, runtime, pathPrefix, isGlobal = false, attribution = undefined) {
+    if (!node_fs_1.default.existsSync(stagedDir))
+        return stagedDir;
+    const tempDir = node_fs_1.default.mkdtempSync(node_path_1.default.join(node_os_1.default.tmpdir(), 'gsd-cmd-rewrites-'));
+    try {
+        for (const entry of node_fs_1.default.readdirSync(stagedDir, { withFileTypes: true })) {
+            if (!entry.isFile() || !entry.name.endsWith('.md'))
+                continue;
+            let content = node_fs_1.default.readFileSync(node_path_1.default.join(stagedDir, entry.name), 'utf8');
+            content = _applyRuntimeRewrites(content, runtime, pathPrefix, isGlobal, attribution);
+            if (runtime === 'augment') {
+                content = convertClaudeToAugmentMarkdown(content);
+            }
+            node_fs_1.default.writeFileSync(node_path_1.default.join(tempDir, entry.name), content);
+        }
+    }
+    catch (err) {
+        try {
+            node_fs_1.default.rmSync(tempDir, { recursive: true, force: true });
+        }
+        catch { /* best-effort */ }
+        throw err;
+    }
+    return tempDir;
+}
+/**
+ * HIGH-LEVEL: In-place fs walk: rewrite all .md files under stagedDir for the given runtime.
+ *
+ * Deep public seam (ADR-1508 Phase 2). Derives resolvedTarget/homeDir/isGlobal/pathPrefix/
+ * attribution from opts, then delegates to applyRuntimeContentRewritesInPlace (single walk owner).
+ *
+ * @param stagedDir   directory of staged skill/agent files
+ * @param opts.runtime          canonical runtime ID
+ * @param opts.configDir        runtime config directory (absolute path)
+ * @param opts.scope            'global' | 'local'
+ * @param opts.homedir          optional homedir resolver (injectable for tests; defaults to os.homedir)
+ * @param opts.platform         optional platform string (injectable for tests; defaults to process.platform)
+ * @param opts.resolveAttribution  optional fn(runtime)→string|null|undefined; called once per invocation
+ */
+function rewriteStagedSkillBodies(stagedDir, opts) {
+    const { runtime, configDir, scope = 'global', homedir = () => node_os_1.default.homedir(), platform = process.platform, resolveAttribution, } = opts;
+    if (!node_fs_1.default.existsSync(stagedDir))
+        return;
+    const resolvedTarget = node_path_1.default.resolve(configDir).replace(/\\/g, '/');
+    const homeDir = homedir().replace(/\\/g, '/');
+    const isGlobal = scope === 'global';
+    const isOpencode = runtime === 'opencode';
+    const isWindowsHost = platform === 'win32';
+    const pathPrefix = computePathPrefix({ isGlobal, isOpencode, isWindowsHost, resolvedTarget, homeDir });
+    const attribution = resolveAttribution ? resolveAttribution(runtime) : undefined;
+    applyRuntimeContentRewritesInPlace(stagedDir, runtime, pathPrefix, isGlobal, attribution);
+}
+/**
+ * HIGH-LEVEL: Copy-to-temp then rewrite all .md files for the given runtime.
+ *
+ * Deep public seam (ADR-1508 Phase 2). Derives resolvedTarget/homeDir/isGlobal/pathPrefix/
+ * attribution from opts, then delegates to applyRuntimeContentRewritesForCommandsInPlace
+ * (single copy+rewrite owner).
+ *
+ * @internal — symmetric companion to rewriteStagedSkillBodies; retained as the deep-seam
+ * API for command bodies. No production caller today (install rewrites commands via
+ * copyWithPathReplacement → applyRuntimeContentRewritesForCommandsInPlace). Kept for
+ * API symmetry + test coverage.
+ *
+ * @returns {string} path to the temp dir (caller is responsible for cleanup)
+ */
+function rewriteStagedCommandBodies(stagedDir, opts) {
+    const { runtime, configDir, scope = 'global', homedir = () => node_os_1.default.homedir(), platform = process.platform, resolveAttribution, } = opts;
+    if (!node_fs_1.default.existsSync(stagedDir))
+        return stagedDir;
+    const resolvedTarget = node_path_1.default.resolve(configDir).replace(/\\/g, '/');
+    const homeDir = homedir().replace(/\\/g, '/');
+    const isGlobal = scope === 'global';
+    const isOpencode = runtime === 'opencode';
+    const isWindowsHost = platform === 'win32';
+    const pathPrefix = computePathPrefix({ isGlobal, isOpencode, isWindowsHost, resolvedTarget, homeDir });
+    const attribution = resolveAttribution ? resolveAttribution(runtime) : undefined;
+    return applyRuntimeContentRewritesForCommandsInPlace(stagedDir, runtime, pathPrefix, isGlobal, attribution);
+}
+// ── End rewrite engine ────────────────────────────────────────────────────────
+/**
+ * Apply Co-Authored-By attribution policy to file content.
+ *   - null      -> remove the Co-Authored-By line and its preceding blank line
+ *   - undefined -> leave content unchanged
+ *   - string    -> replace the value ($ escaped to block backreference injection)
+ *
+ * Pure content transform, relocated from bin/install.js per ADR-1508
+ * (epic #1507, #1510 Phase 1). NOTE: getCommitAttribution stays in the
+ * installer — it is impure install-time config I/O (reads runtime
+ * settings.json, uses the install-time config-dir + cache), not a content
+ * transform, so it does not belong behind this content-conversion seam.
+ */
+function processAttribution(content, attribution) {
+    if (attribution === null) {
+        // Remove Co-Authored-By lines and the preceding blank line
+        return content.replace(/(\r?\n){2}Co-Authored-By:.*$/gim, '');
+    }
+    if (attribution === undefined) {
+        return content;
+    }
+    // Replace with custom attribution (escape $ to prevent backreference injection)
+    const safeAttribution = attribution.replace(/\$/g, '$$$$');
+    return content.replace(/Co-Authored-By:.*$/gim, `Co-Authored-By: ${safeAttribution}`);
+}
 module.exports = {
+    processAttribution,
     yamlIdentifier,
     yamlQuote,
     toSingleLine,
@@ -1924,6 +2355,7 @@ module.exports = {
     convertClaudeCommandToCursorCommand,
     convertClaudeToWindsurfMarkdown,
     convertClaudeCommandToWindsurfSkill,
+    convertClaudeCommandToWindsurfWorkflow,
     convertClaudeToAugmentMarkdown,
     convertClaudeCommandToAugmentSkill,
     convertClaudeToTraeMarkdown,
@@ -1942,6 +2374,9 @@ module.exports = {
     convertClaudeCommandToKiloSkill,
     readGsdCommandNames,
     transformContentToHyphen,
+    // #1383: version resolver (exported for regression test of the Codex
+    // missing-package.json crash + the VERSION-file source of truth).
+    resolveVersionFrom,
     // #1182: agent converters + tool-name table dependency closure
     claudeToCopilotTools,
     convertCopilotToolName,
@@ -1956,4 +2391,16 @@ module.exports = {
     convertClaudeAgentToCodebuddyAgent,
     convertClaudeAgentToClineAgent,
     convertClaudeAgentToCodexAgent,
+    // #1511 ADR-1508 Phase 2: rewrite engine deep seam
+    // Low-level walkers (pathPrefix + attribution pre-resolved by caller):
+    applyRuntimeContentRewritesInPlace,
+    applyRuntimeContentRewritesForCommandsInPlace,
+    // High-level wrappers (derive pathPrefix + attribution from opts):
+    rewriteStagedSkillBodies,
+    rewriteStagedCommandBodies,
+    _computePathPrefix: computePathPrefix,
+    _applyRuntimeRewrites,
+    _stampNonClaudeRuntimeDefaults,
+    // #1521: canonical non-the agent runtime list for test files and tooling
+    NON_CLAUDE_RUNTIMES,
 };

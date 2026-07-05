@@ -16,7 +16,6 @@ DEFAULT_TOP_LEVEL_EXCLUDES = {
     ".git",
     ".cache",
     ".codeviz",
-    ".reviews",
     ".venv",
     ".temp",
     ".planning",
@@ -47,6 +46,7 @@ DEFAULT_RECURSIVE_DIR_EXCLUDES = {
 }
 DEFAULT_EXACT_DIR_EXCLUDES = {
     ".agents/.install-backups",
+    "scripts/verification-tools/.reviews",
     "tools/formal_verification/.probe-saw-suite",
     "tools/formal_verification/aeneas/bin",
     "tools/formal_verification/aeneas/src/bin",

@@ -18,6 +18,8 @@ Spawned by `discuss-phase` via `Task()`. You do NOT present output directly to t
 - Return structured markdown output for the main agent to synthesize
 </role>
 
+@.github/gsd-core/references/untrusted-input-boundary.md
+
 <documentation_lookup>
 @.github/gsd-core/references/research-documentation-lookup.md
 </documentation_lookup>

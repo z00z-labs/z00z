@@ -617,22 +617,22 @@ Prove that the orchestration layer behaves safely before it is used for real aud
 
 Required tests:
 
-- `tests/penetration/test_scope_validation.py`
-- `tests/penetration/test_artifact_schema.py`
-- `tests/penetration/test_report_builder.py`
-- `tests/penetration/test_tool_manifest.py`
+- `scripts/penetration/tests/test_scope_validation.py`
+- `scripts/penetration/tests/test_artifact_schema.py`
+- `scripts/penetration/tests/test_report_builder.py`
+- `scripts/penetration/tests/test_tool_manifest.py`
 - optional shell tests for `scripts/penetration/*.sh`
 
 Implementation requirements:
 
 - Tests must cover local scope accepted, public scope rejected, denied tool rejected, missing tools recorded, skipped DAST recorded, report redaction, and symlink presence.
 - Tests must not require internet access or installed third-party security tools.
-- Tests must use fixtures under `tests/penetration/fixtures/`.
+- Tests must use fixtures under `scripts/penetration/tests/fixtures/`.
 
 Acceptance checks:
 
-- `python3 -m pytest tests/penetration` passes when pytest is available.
-- If pytest is unavailable, `python3 -m unittest discover tests/penetration` or a documented fallback runs the core validation tests.
+- `python3 -m pytest scripts/penetration/tests` passes when pytest is available.
+- If pytest is unavailable, `python3 -m unittest discover scripts/penetration/tests` or a documented fallback runs the core validation tests.
 - `bash -n scripts/penetration/*.sh` and `python3 -m py_compile scripts/penetration/*.py` pass.
 
 ### 🔑 WS-13: Z00Z Security Execution Prompts

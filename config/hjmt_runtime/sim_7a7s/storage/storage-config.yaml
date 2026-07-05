@@ -1,0 +1,14 @@
+backend: hjmt
+generation: 1
+paths:
+  data_dir: "var/hjmt_runtime/sim_7a7s/storage/data"
+  journal_dir: "var/hjmt_runtime/sim_7a7s/storage/journal"
+  export_dir: "var/hjmt_runtime/sim_7a7s/storage/export"
+  import_dir: "var/hjmt_runtime/sim_7a7s/storage/import"
+  lock_path: "var/hjmt_runtime/sim_7a7s/storage/storage.lock"
+settings:
+  flush_each_batch: true
+  sync_mode: full
+  compression: none
+  cache_capacity: 1024
+  lock_timeout_ms: 1000

@@ -1,6 +1,6 @@
 # Z00Z Wallet Persistence Overview
 
-Date: 2026-06-24
+Date: 2026-07-04
 Scope: `crates/z00z_wallets`
 
 This document summarizes the current wallet persistence model.
@@ -14,6 +14,10 @@ The live wallet has two canonical local persistence planes:
 - `wallet_<wallet_stem>.wlt`: the encrypted RedB-backed wallet container
 - `wallet_<wallet_stem>_tx_history.jsonl`: the canonical append-only tx-history
   sidecar
+
+`wallet_stem` is derived by hashing the wallet id with
+`compute_wallet_file_id(...)` and taking the first 8 bytes as hex. It is not
+the raw wallet id string.
 
 The legacy JSON metadata helper may still exist for narrow compatibility flows,
 but it is not the primary live authority for wallet state.
@@ -35,10 +39,14 @@ The live `.wlt` model stores:
   scan state, keys, and backup manifest data
 - index tables and `index_manifest` for canonical lookup/update support
 
+`owned_assets` remains the cash-only asset plane. Voucher and right rows are
+stored as typed object inventory and exported through `owned_objects`.
+
 ### `wallet_<stem>_tx_history.jsonl`
 
 The tx-history sidecar is the canonical live transaction history plane.
-It is append-only JSONL and stores replayable rows with hash chaining.
+It is append-only JSONL and stores replayable rows with sequence numbers and
+hash chaining.
 
 The existence of tx indexes inside `.wlt` does not make `.wlt` the canonical
 history journal.
@@ -117,6 +125,8 @@ The live export pack includes these planes:
 
 The restore path must treat that shape as canonical.
 It must not invent a second bundle contract or a second wallet-state authority.
+Assets stay on `owned_assets`; Voucher and Right inventory rows stay on
+`owned_objects`.
 
 ## ⚙️ Receive-to-persist path
 
@@ -150,10 +160,13 @@ The current code does **not** justify these shortcuts:
 - [wallet_store_create_unlock.rs](../src/services/wallet_store_create_unlock.rs)
 - [wallet_store_restore.rs](../src/services/wallet_store_restore.rs)
 - [wallet_store_export_pack.rs](../src/services/wallet_store_export_pack.rs)
+- [wallet_store_persistence_pack.rs](../src/services/wallet_store_persistence_pack.rs)
 - [wallet_actions_backup.rs](../src/services/wallet_actions_backup.rs)
+- [schema_keys.rs](../src/db/schema_keys.rs)
 - [open_discovery.rs](../src/redb_store/open_discovery.rs)
 - [open_wallet.rs](../src/redb_store/open_wallet.rs)
 - [tables.rs](../src/redb_store/tables.rs)
+- [record_codecs.rs](../src/redb_store/record_codecs.rs)
 - [tx_storage_impl.rs](../src/persistence/tx_storage_impl.rs)
 - [backup_exporter_impl.rs](../src/backup/backup_exporter_impl.rs)
 - [backup_importer_impl.rs](../src/backup/backup_importer_impl.rs)

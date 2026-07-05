@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+BOOTSTRAP_SCRIPT=".github/skills/smart-tests-bootstrap/scripts/bootstrap_tests.sh"
+remote_name="${1:-origin}"
+release_subject_regex='^feat\(v[0-9]+\.[0-9]+\.[0-9]+\):[[:space:]]'
+crate_subject_regex='^feat\(crate-[^)]+\):[[:space:]]'
+
+fail() {
+    printf '[pre-push] %s\n' "$1" >&2
+    exit 1
+}
+
+declare -A changed_files=()
+declare -A version_commits=()
+needs_bootstrap=0
+
+collect_range() {
+    local local_sha="$1"
+    local remote_sha="$2"
+    local fallback_ref
+    local merge_base
+
+    if [[ "$remote_sha" =~ ^0+$ ]]; then
+        fallback_ref="refs/remotes/${remote_name}/main"
+        if git show-ref --quiet "$fallback_ref"; then
+            merge_base="$(git merge-base "$local_sha" "$fallback_ref")"
+            printf '%s..%s\n' "$merge_base" "$local_sha"
+        else
+            printf '%s^!\n' "$local_sha"
+        fi
+        return 0
+    fi
+
+    printf '%s..%s\n' "$remote_sha" "$local_sha"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [[ -n "$local_sha" ]] || continue
+    [[ "$local_sha" =~ ^0+$ ]] && continue
+
+    range="$(collect_range "$local_sha" "${remote_sha:-0}")"
+
+    while IFS= read -r file_path; do
+        [[ -n "$file_path" ]] || continue
+        changed_files["$file_path"]=1
+    done < <(git diff --name-only "$range")
+
+    while IFS= read -r commit_id; do
+        [[ -n "$commit_id" ]] || continue
+        version_commits["$commit_id"]=1
+    done < <(git rev-list "$range" -- versions.yaml)
+done
+
+if [[ "${#changed_files[@]}" -eq 0 ]]; then
+    exit 0
+fi
+
+for file_path in "${!changed_files[@]}"; do
+    case "$file_path" in
+        crates/z00z_crypto/tari/*)
+            fail 'Push blocked because the vendor subtree crates/z00z_crypto/tari/ changed.'
+            ;;
+        Cargo.toml|crates/*/Cargo.toml|*.rs)
+            needs_bootstrap=1
+            ;;
+    esac
+done
+
+if [[ "${#version_commits[@]}" -gt 0 ]]; then
+    for commit_id in "${!version_commits[@]}"; do
+        subject_line="$(git log -1 --format=%s "$commit_id")"
+        if [[ ! "$subject_line" =~ $release_subject_regex ]] \
+            && [[ ! "$subject_line" =~ $crate_subject_regex ]]; then
+            fail "Commit $commit_id changes versions.yaml without the version-manager commit format."
+        fi
+
+        if ! git tag --points-at "$commit_id" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            fail "Commit $commit_id changes versions.yaml but has no release tag attached. Use version-manager.sh so commit and tag stay coupled."
+        fi
+    done
+fi
+
+if [[ "$needs_bootstrap" -eq 1 ]]; then
+    printf '[pre-push] Running %s\n' "$BOOTSTRAP_SCRIPT"
+    "$ROOT_DIR/$BOOTSTRAP_SCRIPT"
+fi
+
+exit 0

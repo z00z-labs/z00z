@@ -1,0 +1,126 @@
+# Code Refactoring Skill - Local Files
+# These files are generated during local usage and should not be committed
+
+# ============================================
+# Generated Runtime Files
+# ============================================
+
+# File watcher logs and alerts
+scripts/watcher.log
+scripts/watcher-alerts.json
+scripts/watcher-alerts.log
+scripts/*.pid
+
+# Generated scan reports
+code-size-report-*.txt
+**/code-size-report-*.txt
+
+# ============================================
+# Node.js Dependencies
+# ============================================
+
+# Users should run npm install in scripts/ directory
+scripts/node_modules/
+
+# Note: package.json and package-lock.json ARE committed
+# This ensures users get the exact tested dependency versions
+
+# ============================================
+# Backup Files
+# ============================================
+
+*.backup
+*.bak
+*~
+
+# ============================================
+# OS-Specific Files
+# ============================================
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# ============================================
+# Editor/IDE Files
+# ============================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+
+# ============================================
+# Temporary Files
+# ============================================
+
+*.tmp
+*.temp
+tmp/
+temp/
+
+# ============================================
+# User-Specific Data
+# ============================================
+
+# Users will generate these locally when running the watcher
+local-data/
+user-reports/
+
+# ============================================
+# Development/Internal Documentation
+# ============================================
+
+# Session notes and development tracking (not for sharing)
+docs/implementation-sessions/
+*_ANALYSIS.md
+*_ASSESSMENT.md
+*_REPORT.md
+*_TODO.md
+*_SUMMARY.md
+*_FIX.md
+*_NOTES.md
+
+# Keep project documentation, exclude internal dev docs
+!PROJECT_ANALYSIS.md
+!REQUIREMENTS.md
+
+# ============================================
+# Node.js Debug & Logs
+# ============================================
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.yarn-integrity
+
+# ============================================
+# Test Coverage & Reports
+# ============================================
+
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+
+# ============================================
+# Git & Version Control
+# ============================================
+
+*.orig
+*.rej
+.git/
+.svn/
+.hg/

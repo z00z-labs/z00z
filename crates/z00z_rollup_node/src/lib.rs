@@ -5,9 +5,11 @@
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
+mod celestia_local;
 mod config;
 mod da;
 mod mode;
+mod process_devnet;
 mod rpc;
 mod runtime;
 mod status;
@@ -17,15 +19,26 @@ use z00z_crypto::{
     MIN_VALUE_PROMISE, RANGE_PROOF_BITS,
 };
 
+pub use celestia_local::{CelestiaLocalAdapter, CelestiaLocalRecord};
 pub use config::{
-    AggExecutionCfg, AggLimits, AggPaths, AggProc, ConfigDigestRecord, EvidenceCfg, HjmtCfg,
-    LifeCfg, NetCfg, NodeCfgErr, NodeConfig, NodeStat, PlanCfg, PlanLimits, PlanPaths, PlanPolicy,
-    PlannerMode, PreflightCheck, ProcModel, PublicationHandoffMeta, RouteRef, ShardMapping,
-    ShardOwn, StartupCheckCfg, StartupPreflightInput, StartupPreflightReport, StoreCfg, StorePaths,
-    StoreSet,
+    canonical_run_cmd, AggExecutionCfg, AggLaunch, AggLimits, AggPaths, AggProc, AggRunArgs,
+    ConfigDigestRecord, EvidenceCfg, HjmtCfg, LifeCfg, NetCfg, NodeCfgErr, NodeConfig, NodeStat,
+    PlanCfg, PlanLimits, PlanPaths, PlanPolicy, PlannerMode, PreflightCheck, ProcModel,
+    PublicationHandoffMeta, RouteRef, ShardMapping, ShardOwn, StartupCheckCfg,
+    StartupPreflightInput, StartupPreflightReport, StoreCfg, StorePaths, StoreSet,
 };
 pub use da::{DaAdapter, DaError, LocalAdapterRecord, LocalDaAdapter, LocalResolveState};
 pub use mode::NodeMode;
+pub use process_devnet::{
+    hjmt_process_event_path, hjmt_process_heartbeat_path, hjmt_process_ready_path,
+    hjmt_process_root, hjmt_process_stale_marker_path, hjmt_process_state_path,
+    hjmt_process_stop_path, maybe_run_hjmt_process_devnet, HjmtProcessPersistedState,
+    HjmtProcessReadyEvidence, HJMT_PROCESS_EVENTS_FILE, HJMT_PROCESS_HEARTBEAT_FILE,
+    HJMT_PROCESS_HEARTBEAT_MS_ENV, HJMT_PROCESS_HOLD_SECS_ENV, HJMT_PROCESS_MODE_ENV,
+    HJMT_PROCESS_MODE_HOLD, HJMT_PROCESS_READY_FILE, HJMT_PROCESS_REJECT_STALE_ENV,
+    HJMT_PROCESS_RUN_DIR_ENV, HJMT_PROCESS_RUN_ID_ENV, HJMT_PROCESS_STALE_MARKER_FILE,
+    HJMT_PROCESS_STATE_FILE, HJMT_PROCESS_STOP_ALL_FILE, HJMT_PROCESS_STOP_FILE,
+};
 pub use rpc::RpcState;
 pub use runtime::NodeRuntime;
 pub use status::{ServiceBinding, ServiceBindings, StatusSnapshot};

@@ -30,6 +30,13 @@ Separate key-space branch:
 m/44'/1337'/2'/0/10
 ```
 
+Spend/view companion paths:
+
+```text
+spend: m/44'/1337'/0'/0/5
+view:  m/44'/1337'/100000'/0/5
+```
+
 ## Canonical invariants
 
 - `purpose` is fixed to `44'`
@@ -38,7 +45,14 @@ m/44'/1337'/2'/0/10
 - `change` must be `0` or `1` and must stay non-hardened
 - `address_index` must stay non-hardened
 
-The crate rejects non-canonical paths at parse and service boundaries.
+The parser and service path reject invalid hardening, the wrong coin type,
+invalid `change`, and hardened leaf indices. Helper APIs add a paired
+spend/view namespace on top:
+
+- normal spend helper accounts are `0..100000`
+- view-key companion accounts are `100000..200000`
+- accounts `>= 200000` can parse when the BIP-44 shape is otherwise valid, but
+  they are outside the current spend/view companion helpers
 
 ## Security notes
 

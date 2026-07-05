@@ -1,0 +1,81 @@
+description: token-discipline-eval
+
+prompts:
+  - |
+    Apply token-discipline mode COMPACT.
+    Return only the final answer.
+    Keep it short, structured when useful, and correct.
+
+    Task: {{task}}
+
+providers:
+  - file://./scripts/promptfoo_local_provider.mjs
+
+tests:
+  - description: docs-setup-answer-stays-brief
+    vars:
+      task: "Explain how to add AGENTS.md and SKILL.md to a repository in a short answer."
+    assert:
+      - type: contains
+        value: "AGENTS.md"
+      - type: contains
+        value: "SKILL.md"
+      - type: javascript
+        value: "output.length < 220"
+      - type: javascript
+        value: "!/\\b(sure|certainly|comprehensive|detailed explanation)\\b/i.test(output)"
+
+  - description: failing-test-next-step-is-specific
+    vars:
+      task: "Review a failing test and suggest the next debugging step."
+    assert:
+      - type: contains-any
+        value:
+          - "Re-run"
+          - "first mismatch"
+          - "exact test"
+      - type: javascript
+        value: "output.length < 220"
+
+  - description: architecture-answer-picks-one-option
+    vars:
+      task: "Recommend one architecture for reusable agent instructions with tradeoffs and a next step."
+    assert:
+      - type: contains
+        value: "recommendation:"
+      - type: contains
+        value: "tradeoffs:"
+      - type: contains
+        value: "next_step:"
+      - type: javascript
+        value: "output.length < 320"
+
+  - description: review-output-stays-findings-first
+    vars:
+      task: "Review this change for bugs and provide one fix."
+    assert:
+      - type: contains
+        value: "findings:"
+      - type: contains
+        value: "fix:"
+      - type: javascript
+        value: "output.length < 260"
+
+  - description: compression-answer-stays-dense
+    vars:
+      task: "Compress a long repository setup prompt while preserving AGENTS.md, skill validation, offline evals, and first-failing-check guidance."
+    assert:
+      - type: contains
+        value: "AGENTS.md"
+      - type: contains-any
+        value:
+          - "validate"
+          - "validation"
+      - type: contains-any
+        value:
+          - "offline eval"
+          - "local eval"
+      - type: javascript
+        value: "output.length < 240"
+      - type: javascript
+        value: "!output.toLowerCase().includes('comprehensive explanation')"

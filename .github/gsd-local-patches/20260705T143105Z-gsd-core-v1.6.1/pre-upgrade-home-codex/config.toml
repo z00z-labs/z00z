@@ -1,0 +1,55 @@
+model = "gpt-5.4"
+model_reasoning_effort = "xhigh"
+personality = "pragmatic"
+service_tier = "default"
+
+[projects."/home/vadim/Projects/z00z"]
+trust_level = "trusted"
+
+[projects."/home/vadim/Projects/OneDatai"]
+trust_level = "trusted"
+
+[projects."/home/vadim"]
+trust_level = "trusted"
+
+[tui.model_availability_nux]
+"gpt-5.5" = 2
+
+[notice.model_migrations]
+"gpt-5.4" = "gpt-5.5"
+
+[plugins."wiki@llm-wiki"]
+enabled = true
+
+[plugins."deep-wiki@z00z-local"]
+enabled = true
+
+[marketplaces.llm-wiki]
+last_updated = "2026-06-26T15:09:02Z"
+source_type = "local"
+source = "/home/vadim/.cache/z00z/llm-wiki"
+
+[marketplaces.z00z-local]
+last_updated = "2026-06-26T21:32:28Z"
+source_type = "local"
+source = "/home/vadim/Projects/z00z"
+
+[hooks.state]
+
+[hooks.state."wiki@llm-wiki:hooks/hooks.json:post_tool_use:0:0"]
+trusted_hash = "sha256:3f3403eab6a28655cffa6bf2463fa074a17596284f4fa1d036632c7f804b3594"
+
+[hooks.state."wiki@llm-wiki:hooks/hooks.json:pre_compact:0:0"]
+trusted_hash = "sha256:2d655fedfcfffad55e43bc380d2657d800adf798f42c33f388f7974b7dfe09fd"
+
+[hooks.state."wiki@llm-wiki:hooks/hooks.json:post_compact:0:0"]
+trusted_hash = "sha256:0d4cb6e86aba87eab4eb816d9b0b2cbf83382151b8eea542863ba90b39049ff2"
+
+[hooks.state."wiki@llm-wiki:hooks/hooks.json:session_start:0:0"]
+trusted_hash = "sha256:3983a7296a08aebb9324f7c51b7938f77e9ee782ff7c2dbbf5eb6bb64eee410f"
+
+[hooks.state."wiki@llm-wiki:hooks/hooks.json:user_prompt_submit:0:0"]
+trusted_hash = "sha256:43ba8179b83fc5d0052c70009dd2b2cd51c5ad9cb5927b8f987fb8c3fb4a8f20"
+
+[hooks.state."wiki@llm-wiki:hooks/hooks.json:stop:0:0"]
+trusted_hash = "sha256:654eee552246cec8e114019bcafdbf709a97b7dd6b2c06f50b562e34769ec464"

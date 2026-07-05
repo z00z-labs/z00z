@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use z00z_crypto::domains::{ShardMembershipDomain, ShardQuorumCertificateDomain};
 
 use crate::{
+    bft_committee::BftThresholds,
     commit_subject::{
         digest_bytes, push_batch_route, push_bytes32, push_len_prefixed, push_shard_id, push_u64,
         push_u8, push_usize, CommitSubject, COMMIT_SUBJECT_VERSION,
@@ -22,6 +23,17 @@ const SHARD_MEMBERSHIP_TAG: &[u8] = b"z00z.shard_membership";
 #[serde(rename_all = "snake_case")]
 pub enum QuorumRule {
     MajorityCft,
+    BftTwoFPlusOne,
+}
+
+impl QuorumRule {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::MajorityCft => "majority_cft",
+            Self::BftTwoFPlusOne => "bft_two_f_plus_one",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +57,37 @@ impl ShardQuorumCertificate {
         primary_id: AggregatorId,
         active_secondaries: impl IntoIterator<Item = AggregatorId>,
         votes: &[ShardVote],
+    ) -> Result<Self, RejectRecord> {
+        Self::new_with_rule(
+            subject,
+            primary_id,
+            active_secondaries,
+            votes,
+            QuorumRule::MajorityCft,
+        )
+    }
+
+    pub fn new_bft(
+        subject: &CommitSubject,
+        primary_id: AggregatorId,
+        active_secondaries: impl IntoIterator<Item = AggregatorId>,
+        votes: &[ShardVote],
+    ) -> Result<Self, RejectRecord> {
+        Self::new_with_rule(
+            subject,
+            primary_id,
+            active_secondaries,
+            votes,
+            QuorumRule::BftTwoFPlusOne,
+        )
+    }
+
+    fn new_with_rule(
+        subject: &CommitSubject,
+        primary_id: AggregatorId,
+        active_secondaries: impl IntoIterator<Item = AggregatorId>,
+        votes: &[ShardVote],
+        quorum_rule: QuorumRule,
     ) -> Result<Self, RejectRecord> {
         let active_secondaries = active_secondaries.into_iter().collect::<BTreeSet<_>>();
         let expected_membership = membership_digest_for_voters(
@@ -88,10 +131,10 @@ impl ShardQuorumCertificate {
                     "mixed subject digests: quorum vote set drifted from the committed subject",
                 ));
             }
-            if !vote.has_valid_local_signature() {
+            if !vote.has_valid_signature() {
                 return Err(reject(
                     RejectClass::PolicyReject,
-                    "invalid vote signature seam: deterministic simulator signature does not match vote content",
+                    "invalid vote signature seam: vote signature bytes do not match vote content",
                 ));
             }
             if !unique_ids.insert(vote.voter_id) {
@@ -130,11 +173,21 @@ impl ShardQuorumCertificate {
         }
 
         let member_count = active_secondaries.len() + 1;
-        let quorum_threshold = (member_count / 2) + 1;
+        let quorum_threshold = match quorum_rule {
+            QuorumRule::MajorityCft => (member_count / 2) + 1,
+            QuorumRule::BftTwoFPlusOne => BftThresholds::new(member_count)?.quorum_threshold,
+        };
         if canonical_votes.len() < quorum_threshold {
             return Err(reject(
                 RejectClass::DeferredRetry,
-                "below quorum: quorum vote set does not meet the majority threshold",
+                match quorum_rule {
+                    QuorumRule::MajorityCft => {
+                        "below quorum: quorum vote set does not meet the majority threshold"
+                    }
+                    QuorumRule::BftTwoFPlusOne => {
+                        "below quorum: quorum vote set does not meet the 2f+1 threshold"
+                    }
+                },
             ));
         }
 
@@ -146,7 +199,7 @@ impl ShardQuorumCertificate {
             routing_generation: subject.routing_generation,
             route_table_digest: subject.route_table_digest,
             term: subject.term,
-            quorum_rule: QuorumRule::MajorityCft,
+            quorum_rule,
             membership_digest: subject.membership_digest,
             subject_digest,
             votes: canonical_votes,
@@ -172,6 +225,84 @@ impl ShardQuorumCertificate {
         self.aggregate_digest
     }
 
+    pub fn verify_subject(&self, subject: &CommitSubject) -> Result<(), RejectRecord> {
+        if self.version != COMMIT_SUBJECT_VERSION {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "quorum certificate version drifted from the live contract",
+            ));
+        }
+        if self.shard_id != subject.shard_id
+            || self.routing_generation != subject.routing_generation
+            || self.route_table_digest != subject.route_table_digest
+            || self.term != subject.term
+            || self.membership_digest != subject.membership_digest
+        {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "quorum certificate metadata drifted from the committed subject",
+            ));
+        }
+
+        let subject_digest = subject.digest();
+        if self.subject_digest != subject_digest {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "quorum certificate subject digest drifted from the committed subject",
+            ));
+        }
+
+        let mut unique_ids = BTreeSet::new();
+        let mut vote_kind = None;
+        for vote in &self.votes {
+            if vote.shard_id != subject.shard_id
+                || vote.term != subject.term
+                || vote.membership_digest != subject.membership_digest
+                || vote.subject_digest != subject_digest
+            {
+                return Err(reject(
+                    RejectClass::PolicyReject,
+                    "quorum certificate vote set drifted from the committed subject",
+                ));
+            }
+            if !vote.has_valid_signature() {
+                return Err(reject(
+                    RejectClass::PolicyReject,
+                    "invalid vote signature seam: vote signature bytes do not match vote content",
+                ));
+            }
+            if !unique_ids.insert(vote.voter_id) {
+                return Err(reject(
+                    RejectClass::PolicyReject,
+                    "duplicate voter ids: quorum vote set must contain each voter once",
+                ));
+            }
+            if let Some(kind) = vote_kind {
+                if kind != vote.vote_kind {
+                    return Err(reject(
+                        RejectClass::PolicyReject,
+                        "mixed vote kinds: quorum vote set must use one canonical vote kind",
+                    ));
+                }
+            } else {
+                vote_kind = Some(vote.vote_kind);
+            }
+        }
+
+        let expected_digest = digest_bytes::<ShardQuorumCertificateDomain>(
+            "aggregate_digest",
+            &self.encode_without_aggregate(),
+        );
+        if self.aggregate_digest != expected_digest {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "quorum certificate aggregate digest drifted from its canonical encoding",
+            ));
+        }
+
+        Ok(())
+    }
+
     fn encode_without_aggregate(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(512);
         out.extend_from_slice(SHARD_QC_TAG);
@@ -184,6 +315,7 @@ impl ShardQuorumCertificate {
             &mut out,
             match self.quorum_rule {
                 QuorumRule::MajorityCft => 1,
+                QuorumRule::BftTwoFPlusOne => 2,
             },
         );
         push_bytes32(&mut out, self.membership_digest);

@@ -261,6 +261,117 @@ impl CommitSubject {
     pub fn digest(&self) -> [u8; 32] {
         digest_bytes::<CommitSubjectDomain>("digest", &self.encode())
     }
+
+    pub fn verify_binding(
+        &self,
+        batch: &OrderedBatch,
+        publication_binding: &PublicationBinding,
+        theorem_or_settlement_digest: [u8; 32],
+    ) -> Result<(), RejectRecord> {
+        if self.version != COMMIT_SUBJECT_VERSION {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject version drifted from the live contract",
+            ));
+        }
+        if batch.items.is_empty() {
+            return Err(reject(
+                RejectClass::ShapeInvalid,
+                "commit subject cannot bind an empty ordered batch",
+            ));
+        }
+        if batch.batch_id != batch.planned.batch_id || self.batch_id != batch.batch_id {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject batch id drifted from the ordered batch",
+            ));
+        }
+        if self.route() != batch.planned.route {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject route drifted from the ordered batch",
+            ));
+        }
+        if self.route_table_digest != batch.planned.route_table_digest.into_bytes() {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject route-table digest drifted from the ordered batch",
+            ));
+        }
+        if self.plan_digest != batch.planned.plan_digest.into_bytes() {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject plan digest drifted from the ordered batch",
+            ));
+        }
+        if batch.planned.op_count != batch.items.len() {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject op_count drifted from the ordered batch items",
+            ));
+        }
+        if batch.planned.intake_ids.len() != batch.items.len() {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject intake ids drifted from the ordered batch items",
+            ));
+        }
+        if publication_binding.batch_id() != batch.batch_id {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject publication binding batch id drifted from the ordered batch",
+            ));
+        }
+        if !publication_binding
+            .matches_route_table_digest(batch.planned.route_table_digest.into_bytes())
+        {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject publication route-table digest drifted from the ordered batch",
+            ));
+        }
+        if self.previous_state_root != publication_binding.prev_settlement_root() {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject previous settlement root drifted from publication binding",
+            ));
+        }
+        if self.new_state_root != publication_binding.new_settlement_root() {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject new settlement root drifted from publication binding",
+            ));
+        }
+        if self.publication_binding_digest != publication_binding.binding_digest() {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject publication binding digest drifted from publication binding",
+            ));
+        }
+        if self.theorem_or_settlement_digest != theorem_or_settlement_digest {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject theorem digest drifted from the theorem bundle",
+            ));
+        }
+
+        let payload_digest = payload_digest(batch)?;
+        if self.payload_digest != payload_digest {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject payload digest drifted from the ordered batch",
+            ));
+        }
+        let ordered_batch_digest = ordered_batch_digest(batch, payload_digest)?;
+        if self.ordered_batch_digest != ordered_batch_digest {
+            return Err(reject(
+                RejectClass::PolicyReject,
+                "commit subject ordered-batch digest drifted from the ordered batch",
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 pub(crate) fn digest_bytes<D: DomainSeparation>(label: &'static str, bytes: &[u8]) -> [u8; 32] {

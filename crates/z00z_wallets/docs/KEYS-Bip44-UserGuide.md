@@ -48,7 +48,8 @@ m / purpose' / coin_type' / account' / change / address_index
 
 📌 Z00Z treats `account'` as a **Key Space ID** to separate key material by asset policy/UX grouping.
 
-📌 This is a **convention**, not a protocol requirement.
+📌 This is a **convention**, not a protocol requirement, and it is separate from
+the spend/view helper namespace described below.
 
 📌 Recommended mapping (reserved accounts):
 
@@ -66,6 +67,31 @@ m / purpose' / coin_type' / account' / change / address_index
 
 ---
 
+## 👁️ Spend/View Account Namespace
+
+📌 Current helper APIs reserve an account offset for paired spend/view paths:
+
+| Namespace | Account range | Meaning |
+|---|---:|---|
+| Spend helper accounts | `0..100000` | Ordinary spend/receive paths. |
+| View helper accounts | `100000..200000` | Companion view-key paths derived by adding `100000`. |
+| Out-of-band accounts | `>= 200000` | BIP-44-valid if the index fits, but outside the current paired helper namespace. |
+
+📌 Example companion pair:
+
+```text
+spend: m/44'/1337'/0'/0/5
+view:  m/44'/1337'/100000'/0/5
+```
+
+📌 `Bip44Path::new_z00z(...)` rejects direct construction inside
+`100000..200000`, because that range is reserved for view-key companions.
+
+📌 `to_view_key_path()` maps a spend helper account to the companion view
+account. `to_spend_key_path()` maps it back.
+
+---
+
 ## ✅ Valid Ranges and Allowed Values
 
 📌 Z00Z enforces strict validation rules:
@@ -76,11 +102,13 @@ m / purpose' / coin_type' / account' / change / address_index
 
 📌 Practical ranges you can use:
 
-- `account` (Key Space ID): any integer $0 \le account < 2^{31}$.
+- `account` (BIP-44 parser range): any integer `0 <= account < 2^31`.
+- `account` (current spend helper namespace): prefer `0..100000`.
 - `address_index`: any integer $0 \le address\_index < 2^{31}$.
 - `change`: `0` or `1` only.
 
-📌 Use small contiguous ranges (`0..N`) for UX simplicity and predictable backups.
+📌 Use small contiguous ranges (`0..N`) for UX simplicity and predictable
+backups, and do not allocate product key spaces inside `100000..200000`.
 
 ---
 
@@ -193,4 +221,4 @@ m/44'/1337'/3'/0/0
 
 ---
 
-📌 Last updated: 2026-01-20
+📌 Last updated: 2026-07-04

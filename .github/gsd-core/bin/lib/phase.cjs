@@ -32,7 +32,7 @@ const coreUtilsMod = require("./core-utils.cjs");
 const { toPosixPath, generateSlugInternal, readSubdirectories } = coreUtilsMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- phase-id.cjs is an export= CommonJS module
 const phaseIdMod = require("./phase-id.cjs");
-const { escapeRegex, normalizePhaseName, phaseMarkdownRegexSource, comparePhaseNum, phaseTokenMatches } = phaseIdMod;
+const { escapeRegex, normalizePhaseName, phaseMarkdownRegexSource, comparePhaseNum, phaseTokenMatches, OPTIONAL_PROJECT_CODE_PREFIX_SOURCE, } = phaseIdMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- phase-locator.cjs is an export= CommonJS module
 const phaseLocatorMod = require("./phase-locator.cjs");
 const { findPhaseInternal, getArchivedPhaseDirs } = phaseLocatorMod;
@@ -52,6 +52,9 @@ const clock_cjs_1 = require("./clock.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- uat-predicate.cjs is an export= CommonJS module
 const uatPredicate = require("./uat-predicate.cjs");
 const { evaluateUatPassed } = uatPredicate;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- verification.cjs is an export= CommonJS module
+const verificationMod = require("./verification.cjs");
+const { readVerificationStatus } = verificationMod;
 const { planningDir, withPlanningLock } = planningWorkspace;
 const { extractFrontmatter } = frontmatterMod;
 const { readModifyWriteStateMd, stateExtractField, stateReplaceField, stateReplaceFieldWithFallback, syncStateFrontmatter, withStateLock, updatePerformanceMetricsSection, } = stateMod;
@@ -167,7 +170,7 @@ function cmdPhaseNextDecimal(cwd, basePhase, raw) {
             const entries = node_fs_1.default.readdirSync(phasesDir, { withFileTypes: true });
             const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
             baseExists = dirs.some((d) => phaseTokenMatches(d, normalized));
-            const dirPattern = new RegExp(`^(?:[A-Z]{1,6}-)?${escapeRegex(normalized)}\\.(\\d+)`);
+            const dirPattern = new RegExp(`^${OPTIONAL_PROJECT_CODE_PREFIX_SOURCE}${escapeRegex(normalized)}\\.(\\d+)`);
             for (const dir of dirs) {
                 const match = dir.match(dirPattern);
                 if (match)
@@ -310,7 +313,7 @@ function cmdFindPhase(cwd, phase, raw) {
             const match = dirs.find((d) => phaseTokenMatches(d, normalized));
             if (!match)
                 continue;
-            const dirMatch = match.match(/^(?:[A-Z]{1,6}-)(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i) ||
+            const dirMatch = match.match(new RegExp(`^${OPTIONAL_PROJECT_CODE_PREFIX_SOURCE}(\\d+[A-Z]?(?:\\.\\d+)*)-?(.*)`, 'i')) ||
                 match.match(/^(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i);
             const phaseNumber = dirMatch ? dirMatch[1] : normalized;
             const phaseName = dirMatch && dirMatch[2] ? dirMatch[2] : null;
@@ -756,7 +759,7 @@ function cmdPhaseInsert(cwd, afterPhase, description, raw) {
         try {
             const entries = node_fs_1.default.readdirSync(phasesDir, { withFileTypes: true });
             const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-            const decimalPattern = new RegExp(`^(?:[A-Z]{1,6}-)?${escapeRegex(normalizedBase)}\\.(\\d+)`);
+            const decimalPattern = new RegExp(`^${OPTIONAL_PROJECT_CODE_PREFIX_SOURCE}${escapeRegex(normalizedBase)}\\.(\\d+)`);
             for (const dir of dirs) {
                 const dm = dir.match(decimalPattern);
                 if (dm)
@@ -1077,8 +1080,8 @@ function cmdPhaseComplete(cwd, phaseNum, raw) {
         : 0;
     let requirementsUpdated = false;
     const warnings = [];
+    const phaseFullDir = node_path_1.default.join(cwd, phaseInfo['directory']);
     try {
-        const phaseFullDir = node_path_1.default.join(cwd, phaseInfo['directory']);
         const phaseFiles = node_fs_1.default.readdirSync(phaseFullDir);
         for (const file of phaseFiles.filter((f) => f.includes('-UAT') && f.endsWith('.md'))) {
             const content = node_fs_1.default.readFileSync(node_path_1.default.join(phaseFullDir, file), 'utf-8');
@@ -1113,7 +1116,11 @@ function cmdPhaseComplete(cwd, phaseNum, raw) {
     let nextPhaseNum = null;
     let nextPhaseName = null;
     let isLastPhase = true;
-    withPlanningLock(cwd, () => {
+    const verificationBlocked = withPlanningLock(cwd, () => {
+        const verificationStatus = readVerificationStatus(phaseFullDir);
+        if (verificationStatus.status !== 'passed') {
+            return verificationStatus;
+        }
         const runPhaseCompleteTransaction = () => {
             const writes = [];
             let roadmapContent = null;
@@ -1280,7 +1287,19 @@ function cmdPhaseComplete(cwd, phaseNum, raw) {
             if (isLastPhase && roadmapContent !== null) {
                 try {
                     const roadmapForPhases = extractCurrentMilestone(roadmapContent, cwd);
-                    const phasePattern = /#{2,4}\s*Phase\s+(\d+[A-Z]?(?:\.\d+)*)\s*:\s*([^\n]+)/gi;
+                    // #1591: match BOTH heading-style phases (`### Phase N:`) AND
+                    // checkbox-list items, INCLUDING the canonical bold form the roadmap
+                    // template emits (`- [ ] **Phase N: Name**`). When the active
+                    // milestone's checklist is `- [ ]` items inside a <details> block
+                    // (and the next phase has no directory yet, so the disk-based
+                    // resolver finds nothing), this roadmap-enumeration fallback is the
+                    // only path that can find the next phase. The prior heading-only
+                    // pattern missed checkbox items, and a checkbox-only broadening still
+                    // missed the bold template rows → is_last_phase=true on a mid-milestone
+                    // phase. Allow optional `**`/`__` emphasis after the marker and stop
+                    // the name capture at emphasis so bold names slug cleanly; the number
+                    // capture is unchanged.
+                    const phasePattern = /(?:#{2,4}|-\s*\[[ xX]\])\s*(?:\*\*|__)?\s*Phase\s+(\d+[A-Z]?(?:\.\d+)*)\s*:\s*([^\n*]+)/gi;
                     let pm;
                     while ((pm = phasePattern.exec(roadmapForPhases)) !== null) {
                         if (comparePhaseNum(pm[1], phaseNum) > 0) {
@@ -1381,7 +1400,14 @@ function cmdPhaseComplete(cwd, phaseNum, raw) {
         else {
             runPhaseCompleteTransaction();
         }
+        return null;
     });
+    if (verificationBlocked) {
+        const nextStep = verificationBlocked.next_command
+            ? ` Next: ${verificationBlocked.next_command}`
+            : '';
+        error(`Phase ${phaseNum} verification is incomplete: ${verificationBlocked.next_action}${nextStep}`, ERROR_REASON.PHASE_VERIFICATION_INCOMPLETE);
+    }
     let autoPruned = false;
     try {
         const configPath = node_path_1.default.join(planningDir(cwd), 'config.json');
@@ -1430,6 +1456,34 @@ function cmdPhaseUatPassed(cwd, phaseNum, raw, opts = {}) {
     const report = evaluateUatPassed(phaseFullDir, { policy: opts.policy });
     output({ phase: phaseNum, ...report }, raw);
 }
+// #1437 — phase.list-plans: list plan files for a given phase number.
+// Returns the full scan result from scanPhasePlans so callers can read plan
+// paths without re-discovering the phase directory themselves.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- plan-scan.cjs is an export= CommonJS module
+const planScanMod = require("./plan-scan.cjs");
+const { scanPhasePlans } = planScanMod;
+function cmdPhaseListPlans(cwd, phaseNum, raw) {
+    if (!phaseNum) {
+        error('phase number required for phase list-plans');
+    }
+    const phaseInfo = findPhaseInternal(cwd, phaseNum);
+    if (!phaseInfo) {
+        output({ phase: phaseNum, plan_count: 0, has_plans: false, plans: [], phase_dir: null }, raw);
+        return;
+    }
+    const phaseDir = node_path_1.default.join(cwd, phaseInfo['directory']);
+    const scan = scanPhasePlans(phaseDir);
+    const phaseRel = phaseInfo['directory'];
+    // Build absolute-usable relative paths for each plan file.
+    const plans = scan.planFiles.map((f) => toPosixPath(node_path_1.default.join(phaseRel, f)));
+    output({
+        phase: phaseNum,
+        phase_dir: phaseRel,
+        plan_count: scan.planCount,
+        has_plans: scan.planCount > 0,
+        plans,
+    }, raw);
+}
 module.exports = {
     cmdPhasesList,
     cmdPhaseNextDecimal,
@@ -1442,5 +1496,6 @@ module.exports = {
     cmdPhaseRemove,
     cmdPhaseComplete,
     cmdPhaseUatPassed,
+    cmdPhaseListPlans,
     computeDependencyLevels,
 };

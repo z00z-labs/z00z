@@ -1,0 +1,15 @@
+mode: central
+routing_generation: 1
+route:
+  table_path: "shard_route_tables/route-table-v1.canon.hex"
+  expected_digest: "000c78634c31e624c5e194378e6c7613e916e1975ca901e5d6416325c1d617e1"
+policy:
+  shard_local_only: true
+  reject_cross_shard: true
+  cadence_ms: 250
+limits:
+  max_batch_ops: 128
+  max_batch_bytes: 1048576
+paths:
+  plan_dir: "var/hjmt_runtime/sim_7a7s/planner/runtime"
+  evidence_dir: "var/hjmt_runtime/sim_7a7s/planner/evidence"

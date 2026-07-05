@@ -1,8 +1,0 @@
-{
-  "backed_up_at": "20260503T085004Z",
-  "from_version": "1.38.3",
-  "source_repo": "https://github.com/gsd-build/get-shit-done",
-  "target_ref": "v1.40.0",
-  "runtime": "--copilot",
-  "live_root": ".github/get-shit-done"
-}

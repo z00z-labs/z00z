@@ -1,6 +1,0 @@
-get-shit-done/bin/lib/graphify.cjs
-get-shit-done/workflows/execute-phase.md
-get-shit-done/workflows/execute-plan.md
-get-shit-done/workflows/update.md
-skills/gsd-add-tests/SKILL.md
-skills/gsd-graphify/SKILL.md

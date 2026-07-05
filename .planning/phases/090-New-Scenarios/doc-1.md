@@ -13,11 +13,11 @@
 067-Sharded-Concensus  RAID LIKE scenario
 
 
-
 /home/vadim/Projects/z00z/.planning/phases/067-Sharded-Concensus
 /home/vadim/Projects/z00z/.planning/phases/068-Checkpoint-Contract
-/home/vadim/Projects/z00z/.planning/phases/69-Recursive-Proof
-/home/vadim/Projects/z00z/.planning/phases/70-Rollup_Node
+/home/vadim/Projects/z00z/.planning/phases/069-Recursive-Proof
+/home/vadim/Projects/z00z/.planning/phases/70-Rollup-Node
 /home/vadim/Projects/z00z/.planning/phases/071-Request-Bound-Inbox
 /home/vadim/Projects/z00z/.planning/phases/072-Offline-Transaction
 /home/vadim/Projects/z00z/.planning/phases/075-Linked Liability
+/home/vadim/Projects/z00z/.planning/phases/076-Privacy-Threat

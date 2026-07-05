@@ -51,9 +51,9 @@
 #
 # What this script does not pack:
 #   - Runtime outputs and helper directories that must not be transferred,
-#     including top-level logs/reports/target/.cache/.codeviz/
-#     .bg-shell/.reviews/.venv/.temp/.planning and recursively excluded directories such as outputs/,
-#     .cache/, .planning/, logs/, reports/, target/, node_modules/,
+#     including top-level logs/reports/target/.cache/.codeviz/.bg-shell/.venv/.temp/.planning,
+#     the nested verification review store at scripts/verification-tools/.reviews,
+#     and recursively excluded directories such as outputs/, .cache/, .planning/, logs/, reports/, target/, node_modules/,
 #     tools/formal_verification/, heavy `tools/penetration/` payload caches
 #     and local tool installs, __pycache__/, and other generated storage areas
 #     such as Python bytecode
@@ -269,13 +269,13 @@ TOP_LEVEL_EXCLUDES = {
     ".cache",
     ".bg-shell",
     ".codeviz",
-    ".reviews",
     ".venv",
     ".temp",
     ".planning",
 }
 
 EXACT_DIR_EXCLUDES = {
+    "scripts/verification-tools/.reviews",
     "tools/formal_verification",
     "tools/penetration/cache",
     "tools/penetration/cargo",
@@ -645,7 +645,6 @@ manifest = {
             ".cache",
             ".bg-shell",
             ".codeviz",
-            ".reviews",
             ".venv",
             ".temp",
             ".planning",
@@ -674,6 +673,7 @@ manifest = {
             ".pyo",
         ],
         "exact_dirs": [
+            "scripts/verification-tools/.reviews",
             "tools/formal_verification",
             "tools/penetration/cache",
             "tools/penetration/cargo",

@@ -22,11 +22,12 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const phaseIdModule = require("./phase-id.cjs");
-const { escapeRegex, phaseMarkdownRegexSource } = phaseIdModule;
+const { escapeRegex, phaseMarkdownRegexSource, phaseMarkdownRegexSourceExact, stripProjectCodePrefix, OPTIONAL_PROJECT_CODE_PREFIX_SOURCE, } = phaseIdModule;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const planningWorkspace = require("./planning-workspace.cjs");
 const { planningDir } = planningWorkspace;
 const shell_command_projection_cjs_1 = require("./shell-command-projection.cjs");
+const markdown_sectionizer_cjs_1 = require("./markdown-sectionizer.cjs");
 // ─── Roadmap milestone scoping ───────────────────────────────────────────────
 /**
  * Strip shipped milestone content wrapped in <details> blocks.
@@ -97,34 +98,25 @@ function extractCurrentMilestone(content, cwd) {
     const sectionStart = selected.index;
     const computeSectionEnd = (headingText, headingStart) => {
         const level = (headingText.match(/^(#{1,3})\s/) ?? ['', '#'])[1].length;
-        const rest = content.slice(headingStart + headingText.length);
-        const stopPattern = new RegExp(`^#{1,${level}}\\s+(?!Phase\\s+\\S)(?:.*v\\d+\\.\\d+|✅|📋|🚧)`, 'i');
-        let end = content.length;
-        let fc = null;
-        let fl = 0;
-        let off = 0;
-        for (const line of rest.split('\n')) {
-            const fm = line.match(/^\s{0,3}((?:`{3,}|~{3,}))(.*)/);
-            if (fm) {
-                const ch = fm[1][0];
-                const ln = fm[1].length;
-                const trailing = fm[2] || '';
-                if (!fc) {
-                    fc = ch;
-                    fl = ln;
-                }
-                else if (ch === fc && ln >= fl && /^\s*$/.test(trailing)) {
-                    fc = null;
-                    fl = 0;
-                }
-            }
-            else if (!fc && stopPattern.test(line)) {
-                end = headingStart + headingText.length + off;
-                break;
-            }
-            off += line.length + 1;
+        const afterHeading = headingStart + headingText.length;
+        // Use tokenizeHeadings (fence-aware, offsets into original content) to find
+        // the next stop boundary without re-implementing fence detection. T4 seam migration.
+        const headings = (0, markdown_sectionizer_cjs_1.tokenizeHeadings)(content);
+        for (const h of headings) {
+            if (h.offset <= headingStart)
+                continue;
+            if (h.offset < afterHeading)
+                continue;
+            if (h.level > level)
+                continue;
+            // Mirrors old stopPattern: level-bounded, not a Phase heading, milestone marker
+            if (/^Phase\s+\S/i.test(h.text))
+                continue;
+            if (!/v\d+\.\d+|✅|📋|🚧/i.test(h.text))
+                continue;
+            return h.offset;
         }
-        return end;
+        return content.length;
     };
     const sectionEnd = computeSectionEnd(selected[0], sectionStart);
     const anyMilestonePattern = /^#{1,3}\s+(?!Phase\s+\S)(?:.*v\d+\.\d+|✅|📋|🚧)/im;
@@ -178,8 +170,8 @@ function replaceInCurrentMilestone(content, pattern, replacement) {
     const after = content.slice(offset);
     return before + after.replace(pattern, replacement);
 }
-function findRoadmapPhaseInContent(content, phaseNum) {
-    const phasePattern = new RegExp(`#{2,4}\\s*(?:\\[[^\\]]+\\]\\s*)?Phase\\s+${phaseMarkdownRegexSource(phaseNum)}:\\s*([^\\n]+)`, 'i');
+function findRoadmapPhaseInContent(content, phaseNum, phaseSource) {
+    const phasePattern = new RegExp(`#{2,4}\\s*(?:\\[[^\\]]+\\]\\s*)?Phase\\s+${phaseSource ?? phaseMarkdownRegexSource(phaseNum)}:\\s*([^\\n]+)`, 'i');
     const headerMatch = content.match(phasePattern);
     if (!headerMatch)
         return null;
@@ -199,6 +191,21 @@ function findRoadmapPhaseInContent(content, phaseNum) {
         section,
     };
 }
+function roadmapPhaseLookupSources(phaseNum) {
+    const sources = [];
+    const exactSource = phaseMarkdownRegexSourceExact(phaseNum);
+    if (exactSource)
+        sources.push(exactSource);
+    const numericSource = phaseMarkdownRegexSource(phaseNum);
+    // Source order matters: the bare numeric source is tried before the
+    // prefix-tolerant form so that a canonical bare heading ("Phase 117:") is
+    // preferred over a drifted prefixed heading ("Phase MANIFOLD-117:") when
+    // both exist in the same ROADMAP.  The prefix-tolerant form is the fallback
+    // that handles the drifted-only case.
+    sources.push(numericSource);
+    sources.push(`${OPTIONAL_PROJECT_CODE_PREFIX_SOURCE}${numericSource}`);
+    return [...new Set(sources)];
+}
 function getRoadmapPhaseInternal(cwd, phaseNum) {
     if (!phaseNum)
         return null;
@@ -210,10 +217,16 @@ function getRoadmapPhaseInternal(cwd, phaseNum) {
         if (roadmapRaw === null)
             throw new Error('missing');
         const content = extractCurrentMilestone(roadmapRaw, cwd);
-        const scopedResult = findRoadmapPhaseInContent(content, phaseNum);
-        if (scopedResult)
-            return scopedResult;
-        return findRoadmapPhaseInContent(stripShippedMilestones(roadmapRaw), phaseNum);
+        const fullContent = stripShippedMilestones(roadmapRaw);
+        for (const source of roadmapPhaseLookupSources(phaseNum)) {
+            const scopedResult = findRoadmapPhaseInContent(content, phaseNum, source);
+            if (scopedResult)
+                return scopedResult;
+            const fullResult = findRoadmapPhaseInContent(fullContent, phaseNum, source);
+            if (fullResult)
+                return fullResult;
+        }
+        return null;
     }
     catch {
         return null;
@@ -278,47 +291,6 @@ function getMilestoneInfo(cwd) {
         return { version: 'v1.0', name: 'milestone' };
     }
 }
-// ─── Fence-aware text helper ──────────────────────────────────────────────────
-/**
- * Return a copy of `text` with every line that lies inside a fenced code block
- * replaced by an empty string, using the same fence semantics as
- * `computeSectionEnd` (backtick/tilde, ≥3 chars, indent ≤3 spaces, toggle;
- * an unclosed fence treats remaining content as fenced).
- */
-function stripFencedLines(text) {
-    let fenceChar = null;
-    let fenceLen = 0;
-    const lines = text.split('\n');
-    const result = [];
-    for (const line of lines) {
-        const fm = line.match(/^\s{0,3}((?:`{3,}|~{3,}))(.*)/);
-        if (fm) {
-            const ch = fm[1][0];
-            const ln = fm[1].length;
-            const trailing = fm[2] || '';
-            if (!fenceChar) {
-                fenceChar = ch;
-                fenceLen = ln;
-                // The fence-open line itself is not a content line — blank it.
-                result.push('');
-            }
-            else if (ch === fenceChar && ln >= fenceLen && /^\s*$/.test(trailing)) {
-                fenceChar = null;
-                fenceLen = 0;
-                // The fence-close line — blank it.
-                result.push('');
-            }
-            else {
-                // A fence marker that doesn't close the current fence (different char or shorter) — keep treating as fenced content.
-                result.push(fenceChar ? '' : line);
-            }
-        }
-        else {
-            result.push(fenceChar ? '' : line);
-        }
-    }
-    return result.join('\n');
-}
 /**
  * Returns a filter function that checks whether a phase directory belongs
  * to the current milestone based on ROADMAP.md phase headings.
@@ -374,42 +346,37 @@ function getMilestonePhaseFilter(cwd, versionOverride, phaseIdConvention) {
             else {
                 const sectionStart = sectionMatch.index;
                 const headingLevel = (sectionMatch[1].match(/^(#{1,3})\s/) ?? ['', '#'])[1].length;
-                const restContent = roadmapContent.slice(sectionStart + sectionMatch[0].length);
-                const nextMilestonePattern = new RegExp(`^#{1,${headingLevel}}\\s+(?!Phase\\s+\\S)(?:.*v\\d+\\.\\d+|✅|📋|🚧)`, 'i');
+                const afterHeading = sectionStart + sectionMatch[0].length;
+                // Use tokenizeHeadings (fence-aware, offsets into original content) to find
+                // the next milestone-boundary heading. T4 seam migration.
+                const allHeadings = (0, markdown_sectionizer_cjs_1.tokenizeHeadings)(roadmapContent);
                 let sectionEnd = roadmapContent.length;
-                let fenceChar = null;
-                let fenceLen = 0;
-                let charOffset = 0;
-                for (const line of restContent.split('\n')) {
-                    const fenceMatch = line.match(/^\s{0,3}((?:`{3,}|~{3,}))(.*)/);
-                    if (fenceMatch) {
-                        const char = fenceMatch[1][0];
-                        const len = fenceMatch[1].length;
-                        const trailing = fenceMatch[2] || '';
-                        if (!fenceChar) {
-                            fenceChar = char;
-                            fenceLen = len;
-                        }
-                        else if (char === fenceChar && len >= fenceLen && /^\s*$/.test(trailing)) {
-                            fenceChar = null;
-                            fenceLen = 0;
-                        }
-                    }
-                    else if (!fenceChar && nextMilestonePattern.test(line)) {
-                        sectionEnd = sectionStart + sectionMatch[0].length + charOffset;
-                        break;
-                    }
-                    charOffset += line.length + 1;
+                for (const h of allHeadings) {
+                    if (h.offset < afterHeading)
+                        continue;
+                    if (h.level > headingLevel)
+                        continue;
+                    if (/^Phase\s+\S/i.test(h.text))
+                        continue;
+                    if (!/v\d+\.\d+|✅|📋|🚧/i.test(h.text))
+                        continue;
+                    sectionEnd = h.offset;
+                    break;
                 }
                 const currentSection = roadmapContent.slice(sectionStart, sectionEnd);
                 roadmap = currentSection;
             }
         }
-        const phasePattern = /#{2,4}\s*(?:\[[^\]]+\]\s*)?Phase\s+([\w][\w.-]*)\s*:/gi;
-        const roadmapUnfenced = stripFencedLines(roadmap);
-        let m;
-        while ((m = phasePattern.exec(roadmapUnfenced)) !== null) {
-            milestonePhaseNums.add(m[1]);
+        // Use tokenizeHeadings (fence-aware) instead of stripFencedLines + regex.
+        // T4 seam migration: phase headings inside fences are excluded automatically.
+        const phaseHeadingPattern = /^(?:\[[^\]]+\]\s*)?Phase\s+([\w][\w.-]*)\s*:/i;
+        for (const h of (0, markdown_sectionizer_cjs_1.tokenizeHeadings)(roadmap)) {
+            if (h.level < 2 || h.level > 4)
+                continue;
+            const pm = phaseHeadingPattern.exec(h.text);
+            // Exclude 999.x backlog phases from milestone phase set. Mirrors init.cts filter.
+            if (pm && !/^999\b/.test(pm[1]))
+                milestonePhaseNums.add(pm[1]);
         }
     }
     catch { /* intentionally empty */ }
@@ -434,7 +401,7 @@ function getMilestonePhaseFilter(cwd, versionOverride, phaseIdConvention) {
         const customMatch = dirName.match(/^([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*)/);
         if (customMatch && normalized.has(customMatch[1].toLowerCase()))
             return true;
-        const stripped = dirName.replace(/^[A-Z]{1,6}-(?=\d)/i, '');
+        const stripped = stripProjectCodePrefix(dirName);
         if (stripped !== dirName) {
             const sm = stripped.match(numericRe);
             if (sm && normalized.has(normalizePhaseIdSegments(sm[1]).toLowerCase()))

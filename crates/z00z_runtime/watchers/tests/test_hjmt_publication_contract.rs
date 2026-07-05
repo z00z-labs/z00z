@@ -656,6 +656,9 @@ fn published_batch(
             vec![u32::from(shard_id)],
         ),
         pub_in: artifact.pub_in(),
+        subject_digest: None,
+        certificate_digest: None,
+        theorem_digest: None,
         da_provider: "local-da".to_string(),
         blob_ref: "blob://hjmt-publication".to_string(),
     }

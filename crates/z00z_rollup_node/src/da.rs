@@ -5,15 +5,14 @@ use std::collections::{HashMap, HashSet};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use z00z_aggregators::{
-    bind_publication_contract, BatchId, BatchPlanned, BatchRoute, OrderedBatch, PlanDigest,
-    PublicationRequest, PublishedBatch, ShardId,
+    bind_publication_contract, BatchId, PublicationBinding, PublicationRequest, PublishedBatch,
 };
 use z00z_storage::{
     checkpoint::{
         derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointArtifact, CheckpointDraft,
         CheckpointExecInput,
     },
-    settlement::ClaimNullifier,
+    settlement::{check_route_binding_v1, ClaimNullifier},
 };
 use z00z_utils::codec::{Codec, JsonCodec};
 use z00z_validators::{ResolvedBatch, SettlementTheoremBundle};
@@ -32,6 +31,18 @@ pub enum DaError {
     MissingResolveResult,
     #[error("data-availability replayed the same external input id")]
     ReplayDetected,
+    #[error("data-availability blob namespace drifted from the published checkpoint contract")]
+    NamespaceMismatch,
+    #[error("data-availability blob commitment drifted from the published checkpoint contract")]
+    BlobCommitmentMismatch,
+    #[error("data-availability payload is missing during the local challenge window")]
+    MissingPayload,
+    #[error("data-availability blob anchor drifted behind the published local height")]
+    StaleAnchor,
+    #[error("data-availability certificate digest drifted from the published checkpoint contract")]
+    CertificateMismatch,
+    #[error("data-availability unanchored height exceeded the local safety limit")]
+    UnanchoredHeightExceeded,
 }
 
 pub trait DaAdapter {
@@ -52,6 +63,9 @@ pub struct LocalAdapterRecord {
     pub source_label: String,
     pub payload_digest: [u8; 32],
     pub publication_digest: [u8; 32],
+    pub subject_digest: [u8; 32],
+    pub certificate_digest: [u8; 32],
+    pub theorem_digest: [u8; 32],
     pub resolve_result: LocalResolveState,
     pub replay_id: String,
 }
@@ -126,19 +140,48 @@ impl LocalDaAdapter {
         true
     }
 
+    pub fn forge_subject_digest(&mut self, batch_id: BatchId, subject_digest: [u8; 32]) -> bool {
+        let Some(item) = self.batches.get_mut(&batch_id) else {
+            return false;
+        };
+        item.record.subject_digest = subject_digest;
+        true
+    }
+
+    pub fn forge_certificate_digest(
+        &mut self,
+        batch_id: BatchId,
+        certificate_digest: [u8; 32],
+    ) -> bool {
+        let Some(item) = self.batches.get_mut(&batch_id) else {
+            return false;
+        };
+        item.record.certificate_digest = certificate_digest;
+        true
+    }
+
+    pub fn forge_theorem_digest(&mut self, batch_id: BatchId, theorem_digest: [u8; 32]) -> bool {
+        let Some(item) = self.batches.get_mut(&batch_id) else {
+            return false;
+        };
+        item.record.theorem_digest = theorem_digest;
+        true
+    }
+
     fn publish_checkpoint(
         &self,
         request: &PublicationRequest,
         payload_digest: [u8; 32],
     ) -> Result<(CheckpointArtifact, PublishedBatch, LocalAdapterRecord), DaError> {
         let artifact = artifact_for_request(&request.draft, &request.exec_input)?;
-        SettlementTheoremBundle::new(
+        let theorem = SettlementTheoremBundle::new(
             request.tx_package.clone(),
             artifact.clone(),
             request.exec_input.clone(),
             request.link.clone(),
         )
         .map_err(|_| DaError::PublishFailed)?;
+        let theorem_digest = theorem.theorem_digest();
         let checkpoint_id = derive_checkpoint_id(&artifact).map_err(|_| DaError::PublishFailed)?;
         let publication_route = request.publication_route.clone();
         let route_table_digest = publication_route.route_table_digest;
@@ -150,12 +193,16 @@ impl LocalDaAdapter {
         let pub_in = artifact.pub_in();
         let binding =
             bind_publication_contract(request.batch_id, checkpoint_id, route_table_digest, &pub_in);
+        verify_request_quorum_binding(request, &binding, theorem_digest)?;
         let published = PublishedBatch {
             batch_id: request.batch_id,
             checkpoint_id,
             publication_checkpoint,
             publication_route,
             pub_in,
+            subject_digest: Some(request.subject.digest()),
+            certificate_digest: Some(request.certificate.digest()),
+            theorem_digest: Some(theorem_digest),
             da_provider: self.source_label.clone(),
             blob_ref: format!(
                 "local-da://{}/{}",
@@ -168,6 +215,9 @@ impl LocalDaAdapter {
             source_label: self.source_label.clone(),
             payload_digest,
             publication_digest: binding.binding_digest(),
+            subject_digest: request.subject.digest(),
+            certificate_digest: request.certificate.digest(),
+            theorem_digest,
             resolve_result: LocalResolveState::Ready,
             replay_id: request.idempotency_key.clone(),
         };
@@ -221,6 +271,18 @@ impl DaAdapter for LocalDaAdapter {
                 &item.published.pub_in,
             )
             .binding_digest(),
+            subject_digest: item
+                .published
+                .subject_digest
+                .ok_or(DaError::ResolveFailed)?,
+            certificate_digest: item
+                .published
+                .certificate_digest
+                .ok_or(DaError::ResolveFailed)?,
+            theorem_digest: item
+                .published
+                .theorem_digest
+                .ok_or(DaError::ResolveFailed)?,
             resolve_result: LocalResolveState::Ready,
             replay_id: item.request.idempotency_key.clone(),
         };
@@ -235,11 +297,21 @@ impl DaAdapter for LocalDaAdapter {
             item.request.link.clone(),
         )
         .map_err(|_| DaError::ResolveFailed)?;
+        let binding = bind_publication_contract(
+            item.published.batch_id,
+            item.published.checkpoint_id,
+            item.published.publication_route.route_table_digest,
+            &item.published.pub_in,
+        );
+        verify_request_quorum_binding(&item.request, &binding, theorem.theorem_digest())
+            .map_err(|_| DaError::ResolveFailed)?;
 
         Ok(ResolvedBatch::new(
             item.published.clone(),
-            ordered_batch(&item.published, expected_payload),
+            item.request.ordered_batch.clone(),
             theorem,
+            Some(item.request.subject.clone()),
+            Some(item.request.certificate.clone()),
             item.request.nullifiers.clone(),
             None,
             None,
@@ -247,33 +319,7 @@ impl DaAdapter for LocalDaAdapter {
     }
 }
 
-fn ordered_batch(published: &PublishedBatch, payload_digest: [u8; 32]) -> OrderedBatch {
-    let shard_id = published
-        .publication_route
-        .shard_ids
-        .first()
-        .copied()
-        .unwrap_or(1);
-    let route = BatchRoute {
-        shard_id: ShardId::new(shard_id as u16),
-        routing_generation: published.publication_route.routing_generation,
-    };
-    OrderedBatch {
-        batch_id: published.batch_id,
-        items: Vec::new(),
-        created_leaves: Vec::new(),
-        planned: BatchPlanned {
-            batch_id: published.batch_id,
-            route,
-            route_table_digest: PlanDigest::new(published.publication_route.route_table_digest),
-            intake_ids: Vec::new(),
-            op_count: 0,
-            plan_digest: PlanDigest::new(payload_digest),
-        },
-    }
-}
-
-fn artifact_for_request(
+pub(crate) fn artifact_for_request(
     draft: &CheckpointDraft,
     exec_input: &CheckpointExecInput,
 ) -> Result<CheckpointArtifact, DaError> {
@@ -285,7 +331,7 @@ fn artifact_for_request(
     draft.finalize(proof).map_err(|_| DaError::PublishFailed)
 }
 
-fn request_payload_digest(request: &PublicationRequest) -> Result<[u8; 32], DaError> {
+pub(crate) fn request_payload_digest(request: &PublicationRequest) -> Result<[u8; 32], DaError> {
     let pub_in = request.draft.pub_in();
     let pub_in_bytes = JsonCodec
         .serialize(&pub_in)
@@ -302,6 +348,8 @@ fn request_payload_digest(request: &PublicationRequest) -> Result<[u8; 32], DaEr
     let link_bytes = JsonCodec
         .serialize(&request.link)
         .map_err(|_| DaError::PublishFailed)?;
+    let subject_bytes = request.subject.encode();
+    let certificate_bytes = request.certificate.encode();
     Ok(hash_parts(
         b"z00z.rollup.local-da.payload.v1",
         &[
@@ -313,8 +361,45 @@ fn request_payload_digest(request: &PublicationRequest) -> Result<[u8; 32], DaEr
             &exec_input_bytes,
             &link_bytes,
             &nullifier_bytes,
+            &subject_bytes,
+            &certificate_bytes,
         ],
     ))
+}
+
+pub(crate) fn verify_request_quorum_binding(
+    request: &PublicationRequest,
+    binding: &PublicationBinding,
+    theorem_digest: [u8; 32],
+) -> Result<(), DaError> {
+    let publication_checkpoint = request
+        .draft
+        .height()
+        .max(request.publication_route.activation_checkpoint)
+        .max(1);
+    check_route_binding_v1(
+        &request.publication_route,
+        request
+            .ordered_batch
+            .planned
+            .route_table_digest
+            .into_bytes(),
+        Some(publication_checkpoint),
+        Some((
+            request.ordered_batch.planned.route.shard_id.as_u32(),
+            request.ordered_batch.planned.route.routing_generation,
+        )),
+    )
+    .map_err(|_| DaError::PublishFailed)?;
+    request
+        .subject
+        .verify_binding(&request.ordered_batch, binding, theorem_digest)
+        .map_err(|_| DaError::PublishFailed)?;
+    request
+        .certificate
+        .verify_subject(&request.subject)
+        .map_err(|_| DaError::PublishFailed)?;
+    Ok(())
 }
 
 fn nullifier_bytes(nullifiers: &[ClaimNullifier]) -> Vec<u8> {
@@ -325,7 +410,7 @@ fn nullifier_bytes(nullifiers: &[ClaimNullifier]) -> Vec<u8> {
     out
 }
 
-fn hash_parts(label: &[u8], parts: &[&[u8]]) -> [u8; 32] {
+pub(crate) fn hash_parts(label: &[u8], parts: &[&[u8]]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(label);
     for part in parts {

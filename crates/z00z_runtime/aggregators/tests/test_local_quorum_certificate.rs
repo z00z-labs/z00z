@@ -70,12 +70,14 @@ fn test_local_commit_returns_live_certificate() -> Result<(), Box<dyn std::error
         commit.certificate.route_table_digest,
         fixture.batch.planned.route_table_digest.into_bytes()
     );
-    assert_eq!(commit.certificate.membership_digest, adapter.membership_digest());
+    assert_eq!(
+        commit.certificate.membership_digest,
+        adapter.membership_digest()
+    );
     assert_eq!(commit.certificate.subject_digest, commit.subject.digest());
     assert_eq!(commit.certificate.votes.len(), 2);
     assert_eq!(
-        commit.certificate.votes[0].voter_id,
-        fixture.primary,
+        commit.certificate.votes[0].voter_id, fixture.primary,
         "votes must be canonically sorted by voter id",
     );
     assert_eq!(
@@ -88,8 +90,8 @@ fn test_local_commit_returns_live_certificate() -> Result<(), Box<dyn std::error
 }
 
 #[test]
-fn test_local_commit_rejects_unready_and_removed_voters(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn test_local_commit_rejects_unready_and_removed_voters() -> Result<(), Box<dyn std::error::Error>>
+{
     let fixture = local_commit_fixture()?;
     let mut adapter =
         ConsensusAdapter::from_placement(&fixture.placement).expect("consensus adapter");
@@ -110,12 +112,13 @@ fn test_local_commit_rejects_unready_and_removed_voters(
         .expect_err("pending secondary must not count toward local quorum");
     assert!(err.detail.contains("inactive voter ids"));
 
-    adapter.apply_change(
-        MembershipChange::Leave,
-        fixture.ready_secondaries[1].aggregator_id,
-        fixture.route.routing_generation,
-    )
-    .expect("leave must update active membership");
+    adapter
+        .apply_change(
+            MembershipChange::Leave,
+            fixture.ready_secondaries[1].aggregator_id,
+            fixture.route.routing_generation,
+        )
+        .expect("leave must update active membership");
 
     let subject_after_leave = subject_for_members(18, &fixture, &fixture.ready_secondaries[..1])
         .expect("subject must rebind after member leave");
@@ -138,8 +141,7 @@ fn test_local_commit_rejects_unready_and_removed_voters(
 }
 
 #[test]
-fn test_local_commit_rejects_duplicate_and_mixed_votes(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn test_local_commit_rejects_duplicate_and_mixed_votes() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = local_commit_fixture()?;
     let subject = subject_for_members(17, &fixture, &fixture.ready_secondaries)
         .expect("subject must bind ready-membership route");
@@ -193,9 +195,10 @@ fn test_local_commit_rejects_duplicate_and_mixed_votes(
         subject.digest(),
         ShardVoteKind::LocalCommit,
     );
-    let mixed_membership_err =
-        commit_err(&fixture, &subject, &[secondary_vote, mixed_membership])?;
-    assert!(mixed_membership_err.detail.contains("mixed membership digests"));
+    let mixed_membership_err = commit_err(&fixture, &subject, &[secondary_vote, mixed_membership])?;
+    assert!(mixed_membership_err
+        .detail
+        .contains("mixed membership digests"));
 
     Ok(())
 }

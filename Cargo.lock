@@ -7705,6 +7705,7 @@ dependencies = [
  "serde",
  "sha2",
  "tempfile",
+ "thiserror 2.0.18",
  "z00z_core",
  "z00z_crypto",
  "z00z_rollup_node",

@@ -265,10 +265,16 @@ pub struct ConfigDigestRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct CmdCfgRefs {
-    agg: PathBuf,
-    plan: PathBuf,
-    store: PathBuf,
+pub struct AggRunArgs {
+    pub aggregator_cfg: PathBuf,
+    pub planner_cfg: PathBuf,
+    pub storage_cfg: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AggLaunch {
+    pub config: NodeConfig,
+    pub aggregator_id: AggregatorId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -535,6 +541,46 @@ impl NodeConfig {
             detail: "hjmt config is not loaded".to_string(),
         })
     }
+
+    pub fn from_agg_run_args(args: &AggRunArgs) -> Result<AggLaunch, NodeCfgErr> {
+        let home = agg_home_from_cfg(&args.aggregator_cfg)?;
+        let config = Self::from_hjmt_home(&home)?;
+        let hjmt = config.hjmt_cfg()?;
+        let agg = hjmt
+            .aggs
+            .iter()
+            .find(|item| cmd_path_eq(&hjmt.home, &args.aggregator_cfg, &item.cfg_path))
+            .ok_or_else(|| NodeCfgErr::Invalid {
+                path: args.aggregator_cfg.clone(),
+                detail: format!(
+                    "aggregator config path is not owned by runtime home {}",
+                    hjmt.home.display()
+                ),
+            })?;
+        if !cmd_path_eq(&hjmt.home, &args.planner_cfg, &hjmt.planner.cfg_path) {
+            return invalid(
+                args.planner_cfg.clone(),
+                format!(
+                    "planner config path must stay {}",
+                    hjmt.planner.cfg_path.display()
+                ),
+            );
+        }
+        if !cmd_path_eq(&hjmt.home, &args.storage_cfg, &hjmt.storage.cfg_path) {
+            return invalid(
+                args.storage_cfg.clone(),
+                format!(
+                    "storage config path must stay {}",
+                    hjmt.storage.cfg_path.display()
+                ),
+            );
+        }
+        let aggregator_id = agg.aggregator_id;
+        Ok(AggLaunch {
+            config,
+            aggregator_id,
+        })
+    }
 }
 
 impl HjmtCfg {
@@ -632,35 +678,117 @@ impl HjmtCfg {
                 path: self.home.clone(),
                 detail: format!("unknown aggregator id {}", aggregator_id.as_u16()),
             })?;
-        let got = parse_cmd_cfg_refs(cmd).map_err(|detail| NodeCfgErr::Invalid {
+        let got = AggRunArgs::parse_life_cmd(cmd).map_err(|detail| NodeCfgErr::Invalid {
             path: agg.cfg_path.clone(),
             detail,
         })?;
-        let want = CmdCfgRefs {
-            agg: norm_path(&agg.cfg_path),
-            plan: norm_path(&self.planner.cfg_path),
-            store: norm_path(&self.storage.cfg_path),
-        };
-        let agg_ok = cmd_path_eq(&self.home, &got.agg, &want.agg);
-        let plan_ok = cmd_path_eq(&self.home, &got.plan, &want.plan);
-        let store_ok = cmd_path_eq(&self.home, &got.store, &want.store);
+        let want_agg = norm_path(&agg.cfg_path);
+        let want_plan = norm_path(&self.planner.cfg_path);
+        let want_store = norm_path(&self.storage.cfg_path);
+        let agg_ok = cmd_path_eq(&self.home, &got.aggregator_cfg, &want_agg);
+        let plan_ok = cmd_path_eq(&self.home, &got.planner_cfg, &want_plan);
+        let store_ok = cmd_path_eq(&self.home, &got.storage_cfg, &want_store);
         if !agg_ok || !plan_ok || !store_ok {
             return invalid(
                 agg.cfg_path.clone(),
                 format!(
                     "{kind} command must reference canonical aggregator/planner/storage config paths for aggregator {}: got agg={}, planner={}, storage={}; want agg={}, planner={}, storage={}",
                     aggregator_id.as_u16(),
-                    got.agg.display(),
-                    got.plan.display(),
-                    got.store.display(),
-                    want.agg.display(),
-                    want.plan.display(),
-                    want.store.display(),
+                    got.aggregator_cfg.display(),
+                    got.planner_cfg.display(),
+                    got.storage_cfg.display(),
+                    want_agg.display(),
+                    want_plan.display(),
+                    want_store.display(),
                 ),
             );
         }
         Ok(())
     }
+}
+
+impl AggRunArgs {
+    pub fn parse_cli_argv(argv: &[String]) -> Result<Self, String> {
+        let mut mode = None;
+        let mut aggregator_cfg = None;
+        let mut planner_cfg = None;
+        let mut storage_cfg = None;
+        let mut idx = 0usize;
+        while idx < argv.len() {
+            let arg = &argv[idx];
+            if let Some(value) = arg.strip_prefix("--mode=") {
+                take_cli_value(&mut mode, value, "--mode")?;
+            } else if let Some(value) = arg.strip_prefix("--aggregator-config=") {
+                take_path_arg(&mut aggregator_cfg, value, "--aggregator-config")?;
+            } else if let Some(value) = arg.strip_prefix("--planner-config=") {
+                take_path_arg(&mut planner_cfg, value, "--planner-config")?;
+            } else if let Some(value) = arg.strip_prefix("--storage-config=") {
+                take_path_arg(&mut storage_cfg, value, "--storage-config")?;
+            } else if arg == "--mode"
+                || arg == "--aggregator-config"
+                || arg == "--planner-config"
+                || arg == "--storage-config"
+            {
+                let flag = arg.as_str();
+                let value = argv
+                    .get(idx + 1)
+                    .ok_or_else(|| format!("{flag} must include one value"))?;
+                match flag {
+                    "--mode" => take_cli_value(&mut mode, value, flag)?,
+                    "--aggregator-config" => {
+                        take_path_arg(&mut aggregator_cfg, value, flag)?;
+                    }
+                    "--planner-config" => {
+                        take_path_arg(&mut planner_cfg, value, flag)?;
+                    }
+                    "--storage-config" => {
+                        take_path_arg(&mut storage_cfg, value, flag)?;
+                    }
+                    _ => unreachable!("flag filtered above"),
+                }
+                idx += 1;
+            } else {
+                return Err(format!("unsupported rollup-node argument `{arg}`"));
+            }
+            idx += 1;
+        }
+
+        let mode = mode.ok_or_else(|| "--mode must be present".to_string())?;
+        if mode != "aggregator" {
+            return Err(format!(
+                "--mode must stay aggregator for the live process contract; got `{mode}`"
+            ));
+        }
+
+        Ok(Self {
+            aggregator_cfg: aggregator_cfg
+                .ok_or_else(|| "--aggregator-config must be present".to_string())?,
+            planner_cfg: planner_cfg
+                .ok_or_else(|| "--planner-config must be present".to_string())?,
+            storage_cfg: storage_cfg
+                .ok_or_else(|| "--storage-config must be present".to_string())?,
+        })
+    }
+
+    pub fn parse_life_cmd(cmd: &str) -> Result<Self, String> {
+        let argv = shell_words::split(cmd)
+            .map_err(|err| format!("lifecycle command parse failed: {err}"))?;
+        let sep = argv.iter().position(|arg| arg == "--").ok_or_else(|| {
+            "lifecycle command must separate cargo arguments from rollup-node arguments with `--`"
+                .to_string()
+        })?;
+        check_cargo_run_argv(&argv[..sep])?;
+        Self::parse_cli_argv(&argv[sep + 1..])
+    }
+}
+
+pub fn canonical_run_cmd(agg_cfg: &Path, plan_cfg: &Path, store_cfg: &Path) -> String {
+    format!(
+        "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config {} --planner-config {} --storage-config {}",
+        cmd_render_path(agg_cfg).display(),
+        cmd_render_path(plan_cfg).display(),
+        cmd_render_path(store_cfg).display(),
+    )
 }
 
 fn load_plan_cfg(root: &Path) -> Result<PlanCfg, NodeCfgErr> {
@@ -1046,6 +1174,45 @@ fn validate_hjmt(cfg: &HjmtCfg) -> Result<(), NodeCfgErr> {
                 path,
                 "SIM-5A7S must include at least one dual-primary owner",
             );
+        }
+    } else if cfg.profile == "SIM-7A7S" {
+        let expect_aggs = (0..7).map(AggregatorId::new).collect::<BTreeSet<_>>();
+        if agg_ids != expect_aggs {
+            return invalid(
+                path.clone(),
+                "SIM-7A7S must declare AggregatorId(0)..AggregatorId(6)",
+            );
+        }
+        let expect_shards = (0..7).map(ShardId::new).collect::<BTreeSet<_>>();
+        if shard_ids != expect_shards {
+            return invalid(path.clone(), "SIM-7A7S must declare ShardId(0)..ShardId(6)");
+        }
+        if cfg.agg_count() != 7 {
+            return invalid(path.clone(), "SIM-7A7S must declare seven aggregators");
+        }
+        if cfg.shard_count() != 7 {
+            return invalid(path.clone(), "SIM-7A7S must declare seven shards");
+        }
+        for agg in &cfg.aggs {
+            if agg.shards.len() != 1 {
+                return invalid(
+                    agg.cfg_path.clone(),
+                    "SIM-7A7S must assign exactly one primary shard per aggregator",
+                );
+            }
+            let shard = &agg.shards[0];
+            let expected_secondaries = expect_aggs
+                .iter()
+                .copied()
+                .filter(|candidate| *candidate != agg.aggregator_id)
+                .collect::<BTreeSet<_>>();
+            let actual_secondaries = shard.secondary_ids.iter().copied().collect::<BTreeSet<_>>();
+            if actual_secondaries != expected_secondaries {
+                return invalid(
+                    agg.cfg_path.clone(),
+                    "SIM-7A7S secondaries must cover every non-owner aggregator",
+                );
+            }
         }
     }
 
@@ -1475,54 +1642,7 @@ fn is_blank_path(path: &Path) -> bool {
     path.as_os_str().is_empty()
 }
 
-fn parse_cmd_cfg_refs(cmd: &str) -> Result<CmdCfgRefs, String> {
-    let argv =
-        shell_words::split(cmd).map_err(|err| format!("lifecycle command parse failed: {err}"))?;
-    let mut agg = None;
-    let mut plan = None;
-    let mut store = None;
-    let mut idx = 0usize;
-    while idx < argv.len() {
-        let arg = &argv[idx];
-        if let Some(path) = arg.strip_prefix("--aggregator-config=") {
-            take_cmd_cfg_ref(&mut agg, path, "--aggregator-config")?;
-        } else if let Some(path) = arg.strip_prefix("--planner-config=") {
-            take_cmd_cfg_ref(&mut plan, path, "--planner-config")?;
-        } else if let Some(path) = arg.strip_prefix("--storage-config=") {
-            take_cmd_cfg_ref(&mut store, path, "--storage-config")?;
-        } else if arg == "--aggregator-config"
-            || arg == "--planner-config"
-            || arg == "--storage-config"
-        {
-            let flag = arg.as_str();
-            let path = argv
-                .get(idx + 1)
-                .ok_or_else(|| format!("{flag} must include one path value"))?;
-            match flag {
-                "--aggregator-config" => {
-                    take_cmd_cfg_ref(&mut agg, path, flag)?;
-                }
-                "--planner-config" => {
-                    take_cmd_cfg_ref(&mut plan, path, flag)?;
-                }
-                "--storage-config" => {
-                    take_cmd_cfg_ref(&mut store, path, flag)?;
-                }
-                _ => unreachable!("flag filtered above"),
-            }
-            idx += 1;
-        }
-        idx += 1;
-    }
-
-    Ok(CmdCfgRefs {
-        agg: agg.ok_or_else(|| "--aggregator-config must be present".to_string())?,
-        plan: plan.ok_or_else(|| "--planner-config must be present".to_string())?,
-        store: store.ok_or_else(|| "--storage-config must be present".to_string())?,
-    })
-}
-
-fn take_cmd_cfg_ref(slot: &mut Option<PathBuf>, raw: &str, flag: &str) -> Result<(), String> {
+fn take_path_arg(slot: &mut Option<PathBuf>, raw: &str, flag: &str) -> Result<(), String> {
     if raw.trim().is_empty() {
         return Err(format!("{flag} must not be blank"));
     }
@@ -1531,6 +1651,94 @@ fn take_cmd_cfg_ref(slot: &mut Option<PathBuf>, raw: &str, flag: &str) -> Result
     }
     *slot = Some(PathBuf::from(raw));
     Ok(())
+}
+
+fn take_cli_value(slot: &mut Option<String>, raw: &str, flag: &str) -> Result<(), String> {
+    if raw.trim().is_empty() {
+        return Err(format!("{flag} must not be blank"));
+    }
+    if slot.is_some() {
+        return Err(format!("{flag} must appear exactly once"));
+    }
+    *slot = Some(raw.to_string());
+    Ok(())
+}
+
+fn check_cargo_run_argv(argv: &[String]) -> Result<(), String> {
+    let want = ["cargo", "run", "--release", "-p", "z00z_rollup_node"];
+    if argv.len() != want.len() || !argv.iter().zip(want.iter()).all(|(got, want)| got == want) {
+        return Err(format!(
+            "lifecycle command must stay `{}` before `--`; got `{}`",
+            want.join(" "),
+            argv.join(" "),
+        ));
+    }
+    Ok(())
+}
+
+fn agg_home_from_cfg(path: &Path) -> Result<PathBuf, NodeCfgErr> {
+    let path = resolve_run_path(path);
+    if !is_named_file(&path, AGG_CFG_FILE) {
+        return invalid(
+            path.clone(),
+            format!("aggregator config path must end with {AGG_CFG_FILE}"),
+        );
+    }
+    let agg_dir = path.parent().ok_or_else(|| NodeCfgErr::Invalid {
+        path: path.clone(),
+        detail: "aggregator config path must have one parent directory".to_string(),
+    })?;
+    let agg_root = agg_dir.parent().ok_or_else(|| NodeCfgErr::Invalid {
+        path: path.clone(),
+        detail: "aggregator config path must stay under aggregators/<agg-id>/".to_string(),
+    })?;
+    let home = agg_root.parent().ok_or_else(|| NodeCfgErr::Invalid {
+        path: path.clone(),
+        detail: "aggregator config path must stay under one HJMT runtime home".to_string(),
+    })?;
+    if agg_root.file_name().and_then(|item| item.to_str()) != Some("aggregators") {
+        return invalid(
+            path,
+            "aggregator config path must stay under aggregators/<agg-id>/".to_string(),
+        );
+    }
+    Ok(norm_path(home))
+}
+
+fn resolve_run_path(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return norm_path(path);
+    }
+    let path = norm_path(path);
+    if path.starts_with("config/hjmt_runtime") {
+        return norm_path(&workspace_root().join(path));
+    }
+    path
+}
+
+fn cmd_render_path(path: &Path) -> PathBuf {
+    let path = norm_path(path);
+    repo_root_from_runtime_path(&path)
+        .and_then(|root| path.strip_prefix(&root).ok().map(Path::to_path_buf))
+        .unwrap_or(path)
+}
+
+fn workspace_root() -> PathBuf {
+    norm_path(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."))
+}
+
+fn repo_root_from_runtime_path(path: &Path) -> Option<PathBuf> {
+    let parts = path.components().collect::<Vec<_>>();
+    for idx in 0..parts.len().saturating_sub(1) {
+        if parts[idx].as_os_str() == "config" && parts[idx + 1].as_os_str() == "hjmt_runtime" {
+            let mut root = PathBuf::new();
+            for part in &parts[..idx] {
+                root.push(part.as_os_str());
+            }
+            return Some(root);
+        }
+    }
+    None
 }
 
 fn cmd_path_eq(home: &Path, raw: &Path, want: &Path) -> bool {

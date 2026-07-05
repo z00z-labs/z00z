@@ -15,6 +15,10 @@ const REGEN_CMD: &str = "Z00Z_REGEN_DUMP=1 cargo test -p z00z_rollup_node --rele
 const TEST_CMD: &str = "cargo test -p z00z_rollup_node --release --features test-params-fast --test test_hjmt_topology test_grid57_matches_contract -- --nocapture";
 const EVIDENCE_PTR: &str =
     "crates/z00z_rollup_node/tests/test_hjmt_topology.rs::test_grid57_matches_contract";
+const REGEN_CMD_77: &str = "Z00Z_REGEN_DUMP=1 cargo test -p z00z_rollup_node --release --features test-params-fast --test test_hjmt_topology test_grid77_matches_contract -- --exact --nocapture";
+const TEST_CMD_77: &str = "cargo test -p z00z_rollup_node --release --features test-params-fast --test test_hjmt_topology test_grid77_matches_contract -- --nocapture";
+const EVIDENCE_PTR_77: &str =
+    "crates/z00z_rollup_node/tests/test_hjmt_topology.rs::test_grid77_matches_contract";
 
 #[test]
 fn test_grid57_loads_topology() {
@@ -58,7 +62,66 @@ fn test_grid57_matches_contract() {
     let expected: SimFixtureManifest = JsonCodec
         .deserialize(&io::read_file(repo_hjmt_home().join("manifest.json")).expect("manifest"))
         .expect("manifest json");
-    let live = live_manifest();
+    let live = live_manifest(
+        &repo_hjmt_home(),
+        "quorum, term, membership, split-brain stay simulator-proven locally",
+        "SIM-5A7S-PUB",
+        REGEN_CMD,
+        TEST_CMD,
+        EVIDENCE_PTR,
+    );
+    if std::env::var_os("Z00Z_REGEN_DUMP").is_some() {
+        let json = JsonCodec.serialize_pretty(&live).expect("manifest json");
+        println!("{}", String::from_utf8(json).expect("manifest utf8"));
+    }
+    assert_eq!(expected, live);
+}
+
+#[test]
+fn test_grid77_loads_topology() {
+    let home = repo_hjmt_home_77();
+    let cfg = NodeConfig::from_hjmt_home(&home).expect("load repo SIM-7A7S home");
+    let hjmt = cfg.hjmt.as_ref().expect("hjmt config");
+
+    assert_eq!(hjmt.profile, "SIM-7A7S");
+    assert_eq!(hjmt.agg_count(), 7);
+    assert_eq!(hjmt.shard_count(), 7);
+    assert_eq!(hjmt.shard_mapping(), ShardMapping::AggregatorOwned);
+
+    let table = cfg.placement_table().expect("placement table");
+    for shard in 0..7 {
+        let route = BatchRoute {
+            shard_id: ShardId::new(shard),
+            routing_generation: 1,
+        };
+        let placement = table.placement(route).expect("placement row");
+        assert_eq!(placement.primary_id.as_u16(), shard);
+        assert_eq!(placement.secondaries.len(), 6);
+        assert!(placement
+            .secondaries
+            .iter()
+            .all(|secondary| secondary.is_ready));
+    }
+
+    for aggregator in 0..7 {
+        assert!(hjmt.proc(AggregatorId::new(aggregator)).is_some());
+    }
+}
+
+#[test]
+fn test_grid77_matches_contract() {
+    let home = repo_hjmt_home_77();
+    let expected: SimFixtureManifest = JsonCodec
+        .deserialize(&io::read_file(home.join("manifest.json")).expect("manifest"))
+        .expect("manifest json");
+    let live = live_manifest(
+        &home,
+        "3f+1 membership and 2f+1 quorum stay simulator-proven locally",
+        "SIM-7A7S-BFT",
+        REGEN_CMD_77,
+        TEST_CMD_77,
+        EVIDENCE_PTR_77,
+    );
     if std::env::var_os("Z00Z_REGEN_DUMP").is_some() {
         let json = JsonCodec.serialize_pretty(&live).expect("manifest json");
         println!("{}", String::from_utf8(json).expect("manifest utf8"));
@@ -311,8 +374,15 @@ struct SimPublicationRow {
     digest_trace_file: String,
 }
 
-fn live_manifest() -> SimFixtureManifest {
-    let cfg = NodeConfig::from_hjmt_home(repo_hjmt_home()).expect("load repo SIM-5A7S home");
+fn live_manifest(
+    home: &std::path::Path,
+    consensus_truth: &str,
+    acceptance_profile: &str,
+    regen_cmd: &str,
+    test_cmd: &str,
+    evidence_ptr: &str,
+) -> SimFixtureManifest {
+    let cfg = NodeConfig::from_hjmt_home(home).expect("load repo HJMT home");
     let hjmt = cfg.hjmt.as_ref().expect("hjmt config");
 
     let mut shard_ids = hjmt
@@ -389,8 +459,7 @@ fn live_manifest() -> SimFixtureManifest {
         scope_authority: "storage-created scopes stay storage-owned semantic truth".to_string(),
         dist_sim_mode: "deterministic local-network simulator".to_string(),
         dist_sim_truth: "real planner/storage/journal/proof primitives".to_string(),
-        consensus_truth:
-            "quorum, term, membership, split-brain stay simulator-proven locally".to_string(),
+        consensus_truth: consensus_truth.to_string(),
         route_rollout_truth:
             "checkpoint and process acks, mixed-generation drift, stale digest, and late joiners stay simulator-proven locally".to_string(),
         scheduler_truth:
@@ -412,7 +481,7 @@ fn live_manifest() -> SimFixtureManifest {
         placement_rows,
         aggregators,
         publication: SimPublicationRow {
-            acceptance_profile: "SIM-5A7S-PUB".to_string(),
+            acceptance_profile: acceptance_profile.to_string(),
             inherits_profile: hjmt.profile.clone(),
             topology_status: "canonical_acceptance_fixture".to_string(),
             public_leaf_count: 7,
@@ -420,10 +489,14 @@ fn live_manifest() -> SimFixtureManifest {
             proof_trace_file: "proof_flow.json".to_string(),
             digest_trace_file: "pub_flow.json".to_string(),
         },
-        regen_command: REGEN_CMD.to_string(),
-        test_command: TEST_CMD.to_string(),
-        evidence_pointer: EVIDENCE_PTR.to_string(),
+        regen_command: regen_cmd.to_string(),
+        test_command: test_cmd.to_string(),
+        evidence_pointer: evidence_ptr.to_string(),
     }
+}
+
+fn repo_hjmt_home_77() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/hjmt_runtime/sim_7a7s")
 }
 
 fn repo_rel(path: &std::path::Path) -> String {

@@ -1250,7 +1250,7 @@ pub(super) fn emit(
         &spec.traces.plan_flow_file,
         &PlanFlow {
             common: common.clone_with("plan_flow", RUNTIME_CONTRACT),
-            planner_mode: format!("{:?}", planner.mode).to_lowercase(),
+            planner_mode: planner.mode.as_str().to_string(),
             planner_config_path: planner.cfg_path,
             planner_policy: PlannerPolicyView {
                 shard_local_only: planner.policy.shard_local_only,
@@ -1753,7 +1753,7 @@ fn expected_trace_payload(
         }),
         "plan_flow" => json_value(&PlanFlow {
             common,
-            planner_mode: format!("{:?}", planner.mode).to_lowercase(),
+            planner_mode: planner.mode.as_str().to_string(),
             planner_config_path: planner.cfg_path.clone(),
             planner_policy: PlannerPolicyView {
                 shard_local_only: planner.policy.shard_local_only,
@@ -6419,7 +6419,7 @@ mod tests {
         let home = super::repo_root().join("config/hjmt_runtime/sim_5a7s");
         let cfg = NodeConfig::from_hjmt_home(home).expect("load repo SIM-5A7S home");
         let mut hjmt = cfg.hjmt.expect("hjmt config");
-        hjmt.aggs[0].lifecycle.start_cmd = "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config shadow/agg-0/aggregator-config.yaml --planner-config shadow/planner/planner-config.yaml --storage-config shadow/storage/storage-config.yaml".to_string();
+        hjmt.aggs[0].lifecycle.start_cmd = "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config shadow/agg-0/aggregator-config.yaml --planner-config shadow/planner/planner-config.yaml --storage-config shadow/storage/storage-config.yaml".to_string();
 
         match build_process_view(&hjmt) {
             Ok(_) => panic!("shadow lifecycle path must reject"),

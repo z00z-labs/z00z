@@ -219,7 +219,7 @@ The specification must explicitly address all of the following when relevant:
 ## 🟦 7.2 create-tests ==x3 times==
 
 ```
-/create-tests 066
+/create-tests 067
 ```
 
 ---
@@ -362,14 +362,14 @@ create 066-CONCEPT-DRIFT-REPORT.md
 
 ```markdown
 /phase-exam-create
-phase_dir = 066-Strix-spec
+phase_dir = 067-Sharded-Concensus
 ```
 
 ## ✔️ 19. phase-exam-solve
 
 ```markdown
 /phase-exam-solve
-phase_dir = 066-Strix-spec
+phase_dir = 067-Sharded-Concensus
 ```
 
 ---

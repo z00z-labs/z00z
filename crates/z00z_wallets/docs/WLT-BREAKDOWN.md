@@ -44,6 +44,17 @@ The open path is intentionally strict:
 | `index_pending_by_status_expiry` | `&[u8]` | `&[u8]` | Pending items indexed by status and expiry | Used for pending queue management |
 | `index_receipt_by_txhash` | `&[u8]` | `&[u8]` | Receipts indexed by transaction hash | Receipt lookup by hash |
 | `index_wallet_by_wallet_id` | `&[u8]` | `&[u8]` | Wallet rows indexed by wallet id | Wallet discovery index |
+| `index_owned_asset_by_id` | `&[u8]` | `&[u8]` | Owned assets indexed by asset id | Cash-asset lookup |
+| `index_owned_asset_by_def_status` | `&[u8]` | `&[u8]` | Owned assets indexed by definition id and status | Spendability and balance queries |
+| `index_owned_asset_by_status` | `&[u8]` | `&[u8]` | Owned assets indexed by wallet status | Status-filtered asset queries |
+| `index_owned_asset_by_tx` | `&[u8]` | `&[u8]` | Owned assets indexed by pending or confirmed tx id | Tx-to-asset lookup |
+| `index_owned_asset_by_scan` | `&[u8]` | `&[u8]` | Owned assets indexed by scan reference | Receive/scan recovery lookup |
+| `index_owned_object_by_family` | `&[u8]` | `&[u8]` | Non-asset inventory indexed by family | Voucher/right projection |
+| `index_owned_object_by_status` | `&[u8]` | `&[u8]` | Non-asset inventory indexed by family and status | Lifecycle queries |
+| `index_owned_object_by_policy` | `&[u8]` | `&[u8]` | Non-asset inventory indexed by policy availability | Quarantine and policy queries |
+| `index_owned_object_by_holder` | `&[u8]` | `&[u8]` | Non-asset inventory indexed by holder commitment | Holder lookup |
+| `index_owned_voucher_by_id` | `&[u8]` | `&[u8]` | Vouchers indexed by terminal id | Voucher lookup |
+| `index_owned_right_by_id` | `&[u8]` | `&[u8]` | Rights indexed by terminal id | Right lookup |
 | `index_manifest` | `&[u8]` | `&[u8]` | Previous index entries per object ID | Used to remove stale index rows on overwrite |
 
 ## 🗝️ Meta Table
@@ -77,14 +88,14 @@ The `meta` table stores plain string keys with binary values. Most values are bi
 | Key | Stored type | Purpose | Notes |
 | --- | --- | --- | --- |
 | `wallet.integrity.v1` | raw 32 bytes | Integrity digest derived from `save_seq` | Updated on each write |
-| `wallet.derivation_state_object_id` | raw 16-byte big-endian object ID | Pointer to the derivation-state object | Required on open |
+| `wallet.derivation_state_object_id` | raw 16-byte big-endian object ID | Pointer to the derivation-state object | Written during create; used by higher-level derivation state paths |
 | `wallet.scan_state_object_id` | raw 16-byte big-endian object ID | Pointer to the scan-state object | Required on open |
 | `wallet.app_object_id` | raw 16-byte big-endian object ID | Pointer to the app-state object | Required on open |
 | `wallet.chain_object_id` | raw 16-byte big-endian object ID | Pointer to the chain-state object | Required on open |
 | `wallet.keys_object_id` | raw 16-byte big-endian object ID | Pointer to the keys object | Required on open |
 | `wallet.stealth_meta_object_id` | raw 16-byte big-endian object ID | Pointer to stealth metadata | Written during create; used by higher-level features |
 | `wallet.tofu_pins_object_id` | raw 16-byte big-endian object ID | Pointer to TOFU pins | Written during create; used by higher-level features |
-| `wallet.wallet_profile_object_id` | raw 16-byte big-endian object ID | Pointer to the wallet-profile object | Written by the canonical profile-first persistence path |
+| `wallet.profile_object_id` | raw 16-byte big-endian object ID | Pointer to the wallet-profile object | Written by the canonical profile-first persistence path |
 
 ## 🗝️ Secrets Table
 
@@ -128,10 +139,12 @@ The `objects` table is the encrypted object store. It is keyed by canonical 16-b
 | `StealthMeta` | `18` | `StealthMetaPayload { view_key_version, receiver_mode, stealth_activated_at, mode_audit }` | Stealth-receiver metadata |
 | `TofuPins` | `19` | `TofuPinsPayload { pins, updated_at }` | TOFU pin store |
 | `WalletProfile` | `20` | `WalletProfilePayload` bytes | Canonical profile metadata and verifier state |
-| `OwnedAsset` | `21` | `OwnedAssetPayload` bytes | Canonical claimed-asset rows |
+| `OwnedAsset` | `21` | `OwnedAssetPayload` bytes | Canonical wallet-owned cash-asset rows |
 | `WalletTx` | `22` | `WalletTxPayload` bytes | Canonical tx record rows |
 | `WalletTxEvent` | `23` | `WalletTxEventPayload` bytes | Canonical tx event rows |
 | `BackupManifest` | `24` | `BackupManifestPayload` bytes | Canonical export/restore manifest row |
+| `OwnedVoucher` | `25` | `OwnedVoucherPayload` bytes | Canonical wallet-owned voucher rows |
+| `OwnedRight` | `26` | `OwnedRightPayload` bytes | Canonical wallet-owned right rows |
 
 ### What is actually created on wallet bootstrap
 
@@ -148,6 +161,8 @@ The create path seeds the following object records and stores their IDs in `meta
 - `TofuPins`
 
 No legacy snapshot object is created. The live wallet state is stored through the explicit payload kinds listed above.
+`WalletProfile` is written by the profile persistence path rather than by this
+bootstrap object seed list.
 
 ## 🧭 Index Manifest
 
@@ -186,6 +201,17 @@ For privacy-default mode, the semantic portion is HMACed with the derived `INDEX
 | `index_pending_by_status_expiry` | Pending queue lookup | Query pending items by state and expiry |
 | `index_receipt_by_txhash` | Receipt lookup | Find receipts by transaction hash |
 | `index_wallet_by_wallet_id` | Wallet lookup | Find wallet rows by wallet id |
+| `index_owned_asset_by_id` | Owned asset lookup | Find a cash-asset row by asset id |
+| `index_owned_asset_by_def_status` | Owned asset definition/status lookup | Query asset rows by definition and lifecycle status |
+| `index_owned_asset_by_status` | Owned asset status lookup | Query asset rows by wallet-local status |
+| `index_owned_asset_by_tx` | Owned asset transaction lookup | Find rows linked to a pending or confirmed tx id |
+| `index_owned_asset_by_scan` | Owned asset scan lookup | Find rows linked to scan progress |
+| `index_owned_object_by_family` | Non-asset family lookup | Split typed inventory into voucher/right families |
+| `index_owned_object_by_status` | Non-asset lifecycle lookup | Query voucher/right rows by status |
+| `index_owned_object_by_policy` | Non-asset policy lookup | Find unavailable or quarantined policy rows |
+| `index_owned_object_by_holder` | Non-asset holder lookup | Find voucher/right rows by holder commitment |
+| `index_owned_voucher_by_id` | Voucher terminal lookup | Find a voucher by canonical terminal id |
+| `index_owned_right_by_id` | Right terminal lookup | Find a right by canonical terminal id |
 
 ### Value bytes
 
@@ -196,7 +222,11 @@ The `value` column is a bounded opaque byte buffer (`IndexValueBytes`, max 1024 
 The wallet does not open on trust alone. It fails closed on the common corruption and mismatch cases:
 
 1. `discover_wallet_store` checks the zstd header and requires `/dev/shm` for the work file.
-2. `read_wallet_meta_header` enforces required meta keys, pointer keys, wallet ID, chain, network, schema version, KDF validity, and initialization state.
+2. `read_wallet_meta_header` enforces required meta keys, wallet ID, chain,
+   network, schema version, KDF validity, initialization state, write-time
+   timestamps/save sequence, and the required open pointers:
+   `wallet.scan_state_object_id`, `wallet.app_object_id`,
+   `wallet.chain_object_id`, and `wallet.keys_object_id`.
 3. `open_session` checks `wallet.index_format_version`, `wallet.aad_secret_version`, and `wallet.hkdf_info_version`.
 4. The master key record must be present and decryptable.
 5. The main seed secret must be present, valid, and decryptable.
@@ -250,8 +280,6 @@ The canonical live tx-history is outside the RedB wallet file:
   `wallet_<stem>_tx_history.jsonl` boundary.
 - [test_wlt_validator.rs](../tests/test_wlt_validator.rs) - validator semantics
   for wallet files.
-- [STATE.md](../../../.planning/STATE.md) - repo policy that `.wlt` is
-  wallet-state-only and tx-history lives in JSONL.
 
 ## ✅ Final Takeaway
 

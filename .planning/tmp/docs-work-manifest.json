@@ -1,0 +1,67 @@
+{
+  "primary_type": "generic",
+  "flags": {
+    "force": true,
+    "verify_only": false
+  },
+  "canonical_queue": [
+    {
+      "type": "readme",
+      "resolved_path": "README.md",
+      "mode": "update",
+      "preservation_mode": "regenerate",
+      "wave": 1,
+      "status": "completed"
+    },
+    {
+      "type": "architecture",
+      "resolved_path": "docs/architecture/overview.md",
+      "mode": "create",
+      "preservation_mode": null,
+      "wave": 1,
+      "status": "completed"
+    },
+    {
+      "type": "configuration",
+      "resolved_path": "docs/configuration/overview.md",
+      "mode": "create",
+      "preservation_mode": null,
+      "wave": 1,
+      "status": "completed"
+    },
+    {
+      "type": "getting_started",
+      "resolved_path": "docs/guides/getting-started.md",
+      "mode": "create",
+      "preservation_mode": null,
+      "wave": 2,
+      "status": "completed"
+    },
+    {
+      "type": "development",
+      "resolved_path": "docs/guides/development.md",
+      "mode": "create",
+      "preservation_mode": null,
+      "wave": 2,
+      "status": "completed"
+    },
+    {
+      "type": "testing",
+      "resolved_path": "docs/testing/overview.md",
+      "mode": "create",
+      "preservation_mode": null,
+      "wave": 2,
+      "status": "completed"
+    }
+  ],
+  "review_queue": [],
+  "review_queue_note": "Inline fallback run generated canonical docs only. Non-canonical doc verification was deferred because gsd-doc-verifier subagents were not available in this runtime.",
+  "generated_files": [
+    "README.md",
+    "docs/architecture/overview.md",
+    "docs/guides/getting-started.md",
+    "docs/guides/development.md",
+    "docs/testing/overview.md",
+    "docs/configuration/overview.md"
+  ]
+}

@@ -210,6 +210,12 @@ hash_domain!(
     "z00z.consensus.shard_qc.v1",
     1
 ); // Canonical shard quorum certificate digest
+hash_domain!(ShardEvidenceDomain, "z00z.consensus.shard_evidence.v1", 1); // Structured shard safety evidence digest
+hash_domain!(
+    ShardTransportEnvelopeDomain,
+    "z00z.consensus.shard_transport_envelope.v1",
+    1
+); // In-memory shard transport envelope identity digest
 
 // Identity & Requests
 hash_domain!(PaymentRequestDomain, "z00z.payment.request.v1", 1); // PaymentRequest signature domain
@@ -305,7 +311,7 @@ mod tests {
     fn test_spec_domain_strings() {
         use crate::domains::*;
 
-        let checks: [(&str, &str, &str); 29] = [
+        let checks: [(&str, &str, &str); 31] = [
             (
                 EphemeralScalarDomain::domain(),
                 "z00z.consensus.ephemeral_scalar.v1",
@@ -440,6 +446,16 @@ mod tests {
                 ShardQuorumCertificateDomain::domain(),
                 "z00z.consensus.shard_qc.v1",
                 "ShardQuorumCertificateDomain mismatch",
+            ),
+            (
+                ShardEvidenceDomain::domain(),
+                "z00z.consensus.shard_evidence.v1",
+                "ShardEvidenceDomain mismatch",
+            ),
+            (
+                ShardTransportEnvelopeDomain::domain(),
+                "z00z.consensus.shard_transport_envelope.v1",
+                "ShardTransportEnvelopeDomain mismatch",
             ),
             (
                 PaymentRequestDomain::domain(),

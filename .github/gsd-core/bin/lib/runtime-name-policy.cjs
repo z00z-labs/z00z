@@ -17,6 +17,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.canonicalizeRuntimeName = canonicalizeRuntimeName;
 exports.resolveRuntimeNameFromCandidates = resolveRuntimeNameFromCandidates;
+exports.getProjectInstructionFile = getProjectInstructionFile;
+exports.getDirName = getDirName;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const FALLBACK_ALIASES = {
@@ -94,4 +96,91 @@ function resolveRuntimeNameFromCandidates(...candidates) {
         return canonicalizeRuntimeName(normalized) || normalized;
     }
     return null;
+}
+/**
+ * Map a runtime id to its project instruction file path (relative to project
+ * root). Bug #1529: this is the SINGLE source of truth shared by both
+ * consumption surfaces —
+ *   (A) the Node surface: profile-output.cjs (generate-claude-md handler)
+ *   (B) the bash surface: `gsd-tools query project-instruction-file --runtime <r>`,
+ *       consumed by gsd-core/workflows/new-project.md to set $INSTRUCTION_FILE
+ *
+ * Mapping table (per the #1529 issue contract):
+ *
+ *   claude                      → .github/copilot-instructions.md
+ *   codex, opencode, kilo, kimi → AGENTS.md
+ *   copilot                     → .github/copilot-instructions.md
+ *   antigravity, gemini         → GEMINI.md
+ *   unknown / future runtimes   → AGENTS.md (safe cross-agent default)
+ *
+ * Source-of-truth references for each runtime's read path:
+ *   - copilot: GitHub Docs — repository-wide custom instructions are read ONLY
+ *     from `.github/copilot-instructions.md`; a root `copilot-instructions.md`
+ *     is not a read path. `AGENTS.md` is also read (agent instructions).
+ *     https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions
+ *     (Installer parity: runtime-config-adapter-registry.cts installSurface
+ *     'copilot-instructions' writes the same `.github/copilot-instructions.md`.)
+ *   - codex/opencode/kilo/kimi: AGENTS.md is the documented cross-agent
+ *     instruction file (agentsmd/agents.md convention).
+ *   - antigravity/gemini: GEMINI.md is Gemini CLI's contextFileName.
+ *
+ * Aliases are normalized via `canonicalizeRuntimeName` first, so inputs like
+ * `codex-cli` resolve to `codex` → `AGENTS.md`. Replaces the prior codex-only
+ * override in profile-output.cjs (#3163) which left AGENTS-native runtimes
+ * (opencode/kilo/kimi) incorrectly emitting `.github/copilot-instructions.md`. Pure: no I/O.
+ */
+function getProjectInstructionFile(runtime) {
+    const canonical = canonicalizeRuntimeName(runtime);
+    if (canonical === 'claude')
+        return '.github/copilot-instructions.md';
+    if (canonical === 'copilot')
+        return '.github/copilot-instructions.md';
+    if (canonical === 'antigravity' || canonical === 'gemini')
+        return 'GEMINI.md';
+    // codex, opencode, kilo, kimi, AND unknown/future runtimes all default to
+    // root AGENTS.md (the safe cross-agent instruction file).
+    return 'AGENTS.md';
+}
+/**
+ * Map a canonical runtime id to its on-disk local config directory name
+ * (e.g. `cursor` -> `.cursor`, `windsurf` -> `.windsurf`). Unknown/empty inputs
+ * fall back to `.claude`.
+ *
+ * Pure runtime-identity projection. Relocated from `bin/install.js` per
+ * ADR-1508 (epic #1507, #1510 Phase 1) so the Runtime Artifact Conversion
+ * Module's rewrite engine can consume it without importing the installer.
+ * `bin/install.js` re-exports this same function for back-compat.
+ */
+function getDirName(runtime) {
+    if (runtime === 'copilot')
+        return '.github';
+    if (runtime === 'opencode')
+        return '.opencode';
+    if (runtime === 'gemini')
+        return '.gemini';
+    if (runtime === 'kilo')
+        return '.kilo';
+    if (runtime === 'codex')
+        return '.codex';
+    if (runtime === 'antigravity')
+        return '.agents';
+    if (runtime === 'cursor')
+        return '.cursor';
+    if (runtime === 'windsurf')
+        return '.windsurf';
+    if (runtime === 'augment')
+        return '.augment';
+    if (runtime === 'trae')
+        return '.trae';
+    if (runtime === 'qwen')
+        return '.qwen';
+    if (runtime === 'hermes')
+        return '.hermes';
+    if (runtime === 'kimi')
+        return '.kimi-code';
+    if (runtime === 'codebuddy')
+        return '.codebuddy';
+    if (runtime === 'cline')
+        return '.cline';
+    return '.claude';
 }

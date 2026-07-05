@@ -1,7 +1,7 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, process::Command};
 
 use tempfile::tempdir;
-use z00z_rollup_node::{NodeConfig, ShardMapping};
+use z00z_rollup_node::{canonical_run_cmd, AggRunArgs, NodeConfig, ShardMapping};
 use z00z_utils::io;
 
 #[path = "support/test_hjmt_home.rs"]
@@ -42,20 +42,16 @@ fn test_keeps_explicit_paths() {
             .preflight_report_file
             .to_string_lossy()
             .contains("preflight-report.json"));
-        assert!(agg.lifecycle.start_cmd.contains("--mode aggregator"));
-        assert!(agg.lifecycle.start_cmd.contains("--aggregator-config"));
-        assert!(agg.lifecycle.start_cmd.contains("--planner-config"));
-        assert!(agg.lifecycle.start_cmd.contains("--storage-config"));
-        assert!(agg.lifecycle.restart_cmd.contains("--mode aggregator"));
-        assert!(agg.lifecycle.restart_cmd.contains("--aggregator-config"));
-        assert!(agg
-            .lifecycle
-            .start_cmd
-            .contains(&format!("agg-{}", agg.aggregator_id.as_u16())));
-        assert!(agg
-            .lifecycle
-            .restart_cmd
-            .contains(&format!("agg-{}", agg.aggregator_id.as_u16())));
+        let expect_cmd = canonical_run_cmd(
+            &agg.cfg_path,
+            &hjmt.planner.cfg_path,
+            &hjmt.storage.cfg_path,
+        );
+        assert_eq!(agg.lifecycle.start_cmd, expect_cmd);
+        assert_eq!(agg.lifecycle.restart_cmd, expect_cmd);
+        let parsed = AggRunArgs::parse_life_cmd(&agg.lifecycle.start_cmd).expect("parse start cmd");
+        let launch = NodeConfig::from_agg_run_args(&parsed).expect("launch args");
+        assert_eq!(launch.aggregator_id, agg.aggregator_id);
     }
 
     assert_eq!(cfg_paths.len(), hjmt.agg_count());
@@ -152,8 +148,8 @@ fn test_requires_all_refs() {
     let home = temp.path().join("sim_1a1s");
     write_home(
         &home,
-        "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config agg-0/aggregator-config.yaml --storage-config storage/storage-config.yaml",
-        "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config agg-0/aggregator-config.yaml --planner-config planner/planner-config.yaml",
+        "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config agg-0/aggregator-config.yaml --storage-config storage/storage-config.yaml",
+        "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config agg-0/aggregator-config.yaml --planner-config planner/planner-config.yaml",
     );
 
     let err = NodeConfig::from_hjmt_home(&home).expect_err("missing config refs must reject");
@@ -170,8 +166,8 @@ fn test_rejects_shadow_paths() {
     let home = temp.path().join("sim_1a1s_shadow");
     write_home(
         &home,
-        "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config shadow/agg-0/aggregator-config.yaml --planner-config shadow/planner/planner-config.yaml --storage-config shadow/storage/storage-config.yaml",
-        "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config shadow/agg-0/aggregator-config.yaml --planner-config shadow/planner/planner-config.yaml --storage-config shadow/storage/storage-config.yaml",
+        "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config shadow/agg-0/aggregator-config.yaml --planner-config shadow/planner/planner-config.yaml --storage-config shadow/storage/storage-config.yaml",
+        "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config shadow/agg-0/aggregator-config.yaml --planner-config shadow/planner/planner-config.yaml --storage-config shadow/storage/storage-config.yaml",
     );
 
     let err = NodeConfig::from_hjmt_home(&home).expect_err("shadow cfg paths must reject");
@@ -185,11 +181,37 @@ fn test_accepts_canonical_paths() {
     let home = temp.path().join("sim_1a1s_norm");
     write_home(
         &home,
-        "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config aggregators/agg-0/../agg-0/./aggregator-config.yaml --planner-config planner/./planner-config.yaml --storage-config storage/../storage/storage-config.yaml",
-        "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config aggregators/agg-0/./aggregator-config.yaml --planner-config planner/plan/../planner-config.yaml --storage-config ./storage/storage-config.yaml",
+        "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config aggregators/agg-0/../agg-0/./aggregator-config.yaml --planner-config planner/./planner-config.yaml --storage-config storage/../storage/storage-config.yaml",
+        "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config aggregators/agg-0/./aggregator-config.yaml --planner-config planner/plan/../planner-config.yaml --storage-config ./storage/storage-config.yaml",
     );
 
     NodeConfig::from_hjmt_home(&home).expect("normalized canonical cfg paths must load");
+}
+
+#[test]
+fn test_binary_help_runs() {
+    let out = Command::new(env!("CARGO_BIN_EXE_z00z_rollup_node"))
+        .arg("--help")
+        .output()
+        .expect("run help");
+
+    assert!(out.status.success());
+    let stdout = String::from_utf8(out.stdout).expect("help utf8");
+    assert!(stdout.contains("--mode"));
+    assert!(stdout.contains("--aggregator-config"));
+    assert!(stdout.contains("--planner-config"));
+    assert!(stdout.contains("--storage-config"));
+}
+
+#[test]
+fn test_repo_manifest_commands_run_binary_contract() {
+    let cfg = NodeConfig::from_hjmt_home(repo_hjmt_home()).expect("load repo SIM-5A7S home");
+    let hjmt = cfg.hjmt.as_ref().expect("hjmt config");
+
+    for agg in &hjmt.aggs {
+        assert_manifest_cmd_runs(&agg.lifecycle.start_cmd);
+        assert_manifest_cmd_runs(&agg.lifecycle.restart_cmd);
+    }
 }
 
 fn write_home(home: &std::path::Path, start_cmd: &str, restart_cmd: &str) {
@@ -211,4 +233,27 @@ fn write_home(home: &std::path::Path, start_cmd: &str, restart_cmd: &str) {
         .join("\n")
         + "\n";
     io::write_file(&agg_cfg, body.as_bytes()).expect("agg cfg");
+}
+
+fn assert_manifest_cmd_runs(cmd: &str) {
+    let argv = shell_words::split(cmd).expect("split manifest cmd");
+    let sep = argv
+        .iter()
+        .position(|item| item == "--")
+        .expect("cargo delimiter");
+    let out = Command::new(env!("CARGO_BIN_EXE_z00z_rollup_node"))
+        .current_dir(repo_root())
+        .args(argv.iter().skip(sep + 1))
+        .output()
+        .expect("run binary contract");
+
+    assert!(
+        out.status.success(),
+        "binary contract failed for `{cmd}`: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn repo_root() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }

@@ -8,6 +8,9 @@ use z00z_rollup_node::{DaAdapter, DaError, LocalDaAdapter, LocalResolveState};
 fn local_adapter_publish_resolve_contract() {
     let request = request_fixture([0x21; 32], "external-input-1");
     let expected_nullifiers = request.nullifiers.clone();
+    let expected_subject_digest = request.subject.digest();
+    let expected_certificate_digest = request.certificate.digest();
+    let expected_ordered = request.ordered_batch.clone();
     let mut adapter = LocalDaAdapter::new("local-bridge");
 
     let published = adapter.publish(request.clone()).expect("publish");
@@ -19,17 +22,26 @@ fn local_adapter_publish_resolve_contract() {
     assert_eq!(record.replay_id, request.idempotency_key);
     assert_ne!(record.payload_digest, [0u8; 32]);
     assert_ne!(record.publication_digest, [0u8; 32]);
+    assert_eq!(record.subject_digest, expected_subject_digest);
+    assert_eq!(record.certificate_digest, expected_certificate_digest);
+    assert_eq!(published.subject_digest, Some(expected_subject_digest));
+    assert_eq!(
+        published.certificate_digest,
+        Some(expected_certificate_digest)
+    );
+    assert_eq!(published.theorem_digest, Some(record.theorem_digest));
     assert_eq!(published.batch_id, request.batch_id);
     assert_eq!(published.da_provider, "local-bridge");
     assert!(published.blob_ref.starts_with("local-da://local-bridge/"));
     assert_eq!(published.publication_route, request.publication_route);
-    assert!(
-        published.publication_checkpoint >= request.publication_route.activation_checkpoint
-    );
+    assert!(published.publication_checkpoint >= request.publication_route.activation_checkpoint);
 
     let resolved = adapter.resolve(&published).expect("resolve");
 
     assert_eq!(resolved.published, published);
+    assert_eq!(resolved.ordered, expected_ordered);
+    assert_eq!(resolved.subject.as_ref(), Some(&request.subject));
+    assert_eq!(resolved.certificate.as_ref(), Some(&request.certificate));
     assert_eq!(resolved.nullifiers, expected_nullifiers);
     assert_eq!(resolved.link(), &request.link);
     assert_eq!(resolved.exec_input(), &request.exec_input);
@@ -80,6 +92,21 @@ fn local_adapter_rejects_payload_drift() {
     let err = adapter
         .resolve(&published)
         .expect_err("forged payload digest must reject");
+
+    assert_eq!(err, DaError::MetadataMismatch);
+}
+
+#[test]
+fn local_adapter_rejects_subject_digest_drift() {
+    let mut adapter = LocalDaAdapter::new("local-bridge");
+    let published = adapter
+        .publish(request_fixture([0x2A; 32], "external-input-4b"))
+        .expect("publish");
+    assert!(adapter.forge_subject_digest(published.batch_id, [0xBC; 32]));
+
+    let err = adapter
+        .resolve(&published)
+        .expect_err("forged subject digest must reject");
 
     assert_eq!(err, DaError::MetadataMismatch);
 }

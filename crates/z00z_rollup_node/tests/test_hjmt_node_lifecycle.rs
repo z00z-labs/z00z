@@ -20,7 +20,15 @@ fn test_projects_topology() {
     assert!(cfg.placement_table().is_some());
 
     for agg in &hjmt.aggs {
+        assert!(agg
+            .lifecycle
+            .start_cmd
+            .contains("cargo run --release -p z00z_rollup_node"));
         assert!(agg.lifecycle.start_cmd.contains("aggregator-config.yaml"));
+        assert!(agg
+            .lifecycle
+            .restart_cmd
+            .contains("cargo run --release -p z00z_rollup_node"));
         assert!(agg.lifecycle.restart_cmd.contains("aggregator-config.yaml"));
     }
 }

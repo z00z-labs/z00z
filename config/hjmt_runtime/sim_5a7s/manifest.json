@@ -110,8 +110,8 @@
       "data_dir": "var/hjmt_runtime/sim_5a7s/agg-0/data",
       "journal_path": "var/hjmt_runtime/sim_5a7s/agg-0/journal.redb",
       "log_path": "var/hjmt_runtime/sim_5a7s/agg-0/aggregator.log",
-      "start_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
-      "restart_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "start_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "restart_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
       "shard_ids": [
         0,
         5
@@ -125,8 +125,8 @@
       "data_dir": "var/hjmt_runtime/sim_5a7s/agg-1/data",
       "journal_path": "var/hjmt_runtime/sim_5a7s/agg-1/journal.redb",
       "log_path": "var/hjmt_runtime/sim_5a7s/agg-1/aggregator.log",
-      "start_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
-      "restart_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "start_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "restart_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
       "shard_ids": [
         1
       ]
@@ -139,8 +139,8 @@
       "data_dir": "var/hjmt_runtime/sim_5a7s/agg-2/data",
       "journal_path": "var/hjmt_runtime/sim_5a7s/agg-2/journal.redb",
       "log_path": "var/hjmt_runtime/sim_5a7s/agg-2/aggregator.log",
-      "start_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-2/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
-      "restart_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-2/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "start_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-2/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "restart_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-2/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
       "shard_ids": [
         2
       ]
@@ -153,8 +153,8 @@
       "data_dir": "var/hjmt_runtime/sim_5a7s/agg-3/data",
       "journal_path": "var/hjmt_runtime/sim_5a7s/agg-3/journal.redb",
       "log_path": "var/hjmt_runtime/sim_5a7s/agg-3/aggregator.log",
-      "start_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-3/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
-      "restart_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-3/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "start_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-3/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "restart_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-3/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
       "shard_ids": [
         3
       ]
@@ -167,8 +167,8 @@
       "data_dir": "var/hjmt_runtime/sim_5a7s/agg-4/data",
       "journal_path": "var/hjmt_runtime/sim_5a7s/agg-4/journal.redb",
       "log_path": "var/hjmt_runtime/sim_5a7s/agg-4/aggregator.log",
-      "start_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-4/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
-      "restart_cmd": "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-4/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "start_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-4/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
+      "restart_cmd": "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-4/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml",
       "shard_ids": [
         4,
         6

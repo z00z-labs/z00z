@@ -2,6 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
+pub const CLAIM_LEVEL_LIVE: &str = "live";
+pub const CLAIM_LEVEL_LIVE_CLAIM_REMOVED: &str = "live-claim-removed";
+pub const PLANNER_AUTHORITY_MODEL_DETERMINISTIC_REPLICATED: &str = "deterministic_replicated";
+pub const TERM_DETERMINISTIC_REPLICATED_PLANNER: &str = "deterministic replicated planner";
+pub const TERM_PLANNER_HA: &str = "planner HA";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageIngressReport {
     pub package_kind: String,
@@ -35,9 +41,20 @@ pub struct DualPrimaryIsolationReport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlannerAuthorityReplicaReport {
+    pub aggregator_id: u16,
+    pub recomputed_plan_digest_hex: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutePlanReport {
     pub planner_mode: String,
+    pub planner_authority_model: String,
+    pub planner_config_digest_hex: String,
+    pub planner_authority_digest_hex: String,
+    pub planner_ha_claim_level: String,
     pub route_table_digest_hex: String,
+    pub authority_replicas: Vec<PlannerAuthorityReplicaReport>,
     pub happy_path: RoutePlanCaseReport,
     pub all_shard_sweep: Vec<RoutePlanCaseReport>,
     pub dual_primary_owner: DualPrimaryIsolationReport,
@@ -85,6 +102,8 @@ pub struct SecondaryReplayVoteReport {
     pub voter_id: u16,
     pub voter_role: String,
     pub verdict: String,
+    pub transport_verdict: String,
+    pub signature_scheme: Option<String>,
     pub vote_digest_hex: Option<String>,
     pub reject_code: Option<String>,
     pub detail: String,
@@ -132,6 +151,22 @@ pub struct LocalDaBindingReport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConsensusStoreReport {
+    pub backend: String,
+    pub schema_version: u32,
+    pub route_key_hex: String,
+    pub batch_id_hex: String,
+    pub subject_digest_hex: String,
+    pub certificate_digest_hex: String,
+    pub vote_digests_hex: Vec<String>,
+    pub publication_binding_digest_hex: String,
+    pub validator_verdict_kind: String,
+    pub checkpoint_id_hex: String,
+    pub resumed_by_secondary_id: u16,
+    pub resume_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidatorVerdictReport {
     pub verdict_kind: String,
     pub reject_class: Option<String>,
@@ -161,9 +196,17 @@ pub struct FaultMatrixReport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClaimLevelReport {
+    pub term: String,
+    pub claim_level: String,
+    pub evidence_refs: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReportHonesty {
     pub supported_claims: Vec<String>,
     pub forbidden_claims: Vec<String>,
     pub deferred_claims: Vec<String>,
     pub simulated_markers: Vec<String>,
+    pub claim_levels: Vec<ClaimLevelReport>,
 }

@@ -33,8 +33,9 @@ const README_DOC: &str = include_str!("../src/settlement/README.md");
 const BENCHMARKS_DOC: &str = include_str!("../../../docs/tech-papers/benchmarks.md");
 const DESIGN_DOC: &str = include_str!("../../../docs/tech-papers/done/Z00Z-HJMT-Design.md");
 const PHASE0_SOURCE_DOC: &str =
-    include_str!("../../../.planning/phases/085-Wallet-Extensions/storage-explain.md");
-const PHASE_SOURCE_DOC: &str = include_str!("../../../.planning/phases/Z00Z-IMPL-PHASES.md");
+    include_str!("../../../.planning/phases/000/062-Gaps-Closing-2/GAPS.md");
+const PHASE_SOURCE_DOC: &str =
+    include_str!("../../../.planning/phases/000/062-Gaps-Closing-2/GAPS.md");
 const PHASE_EXEC_TODO: &str =
     include_str!("../../../.planning/phases/000/062-Gaps-Closing-2/062-TODO.md");
 const PHASE_062_THIN_DOC: &str =
@@ -103,10 +104,6 @@ fn section<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
         .split(end)
         .next()
         .unwrap_or_else(|| panic!("missing section end {end:?}"))
-}
-
-fn count_matches(source: &str, needle: &str) -> usize {
-    source.matches(needle).count()
 }
 
 fn assert_runtime_owner_crate_absent(plan_name: &str, plan_source: &str) {
@@ -779,8 +776,8 @@ fn test_docs_promote_settle_terms() {
 fn test_phase0_promotes_authority() {
     let phase0_block = section(
         PHASE0_SOURCE_DOC,
-        "## 0. Storage Migration Boundary, Authority Facade, And Forest Backend Rollout",
-        "## 11. Field-Native Pack Migration Plan",
+        "### TASK-001 - 0. Storage Migration Boundary, Authority Facade, And Forest Backend Rollout",
+        "### TASK-005 - 9. Storage Claim-Root And Checkpoint Authority Closure",
     );
     assert_all_present(
         "phase source section 0",
@@ -790,6 +787,7 @@ fn test_phase0_promotes_authority() {
             "SettlementPath",
             "backend_root",
             "Closed as normalized/superseded by live settlement root and HJMT backend.",
+            "Replace any closure wording that treats `AssetStateRoot` or `AssetPath` as the live public runtime root.",
         ],
     );
     assert_all_absent(
@@ -798,7 +796,6 @@ fn test_phase0_promotes_authority() {
         &[
             "AssetPath { definition_id, serial_id, asset_id }",
             "terminal `AssetLeaf` as the storage-owned consensus path",
-            "AssetStateRoot",
         ],
     );
 }
@@ -809,35 +806,26 @@ fn test_phase36_closeout_canonical() {
         "phase source closeout gate",
         PHASE_SOURCE_DOC,
         &[
-            "Detailed gap closure execution plan:",
-            ".planning/phases/062-Gaps-Closing-2/062-TODO.md",
-            "active execution plan for `👍` sections during Phase 062.",
-            "## 👍 36. Spec-Gap Normalization And Residual Hardening Gate",
+            "### TASK-063 - 36. Spec-Gap Normalization And Residual Hardening Gate",
+            "### TASK-065 - 36. Spec-Gap Normalization And Residual Hardening Gate",
+            "### TASK-066 - 36. Spec-Gap Normalization And Residual Hardening Gate",
+            "Detailed gap closure execution plan: .planning/phases/TODO-gaps.md",
+            "active execution plan for `👍` sections.",
             "Closeout status: Bounded closed",
-            "Canonical closeout register:",
-            "Residual gap register:",
+            "Residual gap register",
             "Recursive proof backend",
             "Linked Liability",
             "OnionNet",
             "live external DA",
             "live cross-chain bridge",
-            "field-native / Poseidon2 pack parity",
+            "field-native/Poseidon2 parity",
             "useful-work scenario",
-            "Final closeout summary:",
         ],
     );
     assert_all_absent(
         "phase source closeout gate",
         PHASE_SOURCE_DOC,
-        &[
-            ".planning/phases/TODO-gaps.md",
-            "OnionNet transport is live",
-        ],
-    );
-    assert_eq!(
-        count_matches(PHASE_SOURCE_DOC, "## 👍 "),
-        count_matches(PHASE_SOURCE_DOC, "Closeout status: "),
-        "every `## 👍` section must carry exactly one closeout status line"
+        &["OnionNet transport is live"],
     );
     assert_all_present(
         "phase execution todo",

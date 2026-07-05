@@ -1,0 +1,57 @@
+version = 1
+
+[defaults]
+release = true
+all_features = false
+features = ["test-params-fast"]
+timeout_sec = 60
+allowed_exit_codes = [0]
+
+[[target]]
+id = "core_assets_analyzer_help"
+package = "z00z_core"
+kind = "bin"
+name = "assets_analyzer_cli"
+enabled = true
+args = ["--help"]
+note = "Smoke-check the analyzer CLI help path only."
+
+[[target]]
+id = "core_assets_extractor_help"
+package = "z00z_core"
+kind = "bin"
+name = "assets_extractor_cli"
+enabled = true
+args = ["--help"]
+note = "Smoke-check the extractor CLI help path only."
+
+[[target]]
+id = "core_assets_generation_help"
+package = "z00z_core"
+kind = "bin"
+name = "assets_generation_cli"
+enabled = true
+args = ["--help"]
+note = "Smoke-check the clap-based asset generation CLI help path only."
+
+[[target]]
+id = "z00z_wallet_validate_help"
+package = "z00z_wallets"
+kind = "bin"
+name = "z00z-wallet-validate"
+enabled = true
+all_features = true
+args = ["--help"]
+note = "Smoke-check the wallet validation CLI help path only."
+
+[[target]]
+id = "z00z_wallet_egui"
+package = "z00z_wallets"
+kind = "bin"
+name = "z00z_wallet_egui"
+enabled = true
+features = ["test-params-fast", "egui"]
+timeout_sec = 300
+stop_after_sec = 5
+headless_fallback = true
+note = "Enabled for smoke verification; it launches the desktop GUI when a display is available and falls back to a headless smoke path otherwise."

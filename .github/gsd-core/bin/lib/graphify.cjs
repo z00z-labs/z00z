@@ -16,6 +16,14 @@ const shell_command_projection_cjs_1 = require("./shell-command-projection.cjs")
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const capabilityStateMod = require("./capability-state.cjs");
 const { isCapabilityActive } = capabilityStateMod;
+const GRAPHIFY_TARGET_SUBDIR = 'crates';
+const GRAPHIFY_OUT_DIR = '.graphify-out';
+function resolveGraphifyTargetDir(cwd) {
+    return node_path_1.default.join(cwd, GRAPHIFY_TARGET_SUBDIR);
+}
+function resolveGraphifyOutDir(cwd) {
+    return node_path_1.default.join(resolveGraphifyTargetDir(cwd), GRAPHIFY_OUT_DIR);
+}
 /**
  * Return the standard disabled response object.
  */
@@ -137,6 +145,14 @@ function safeReadJson(filePath) {
     catch {
         return null;
     }
+}
+function isGraphifyEnabled(cwd) {
+    const configPath = node_path_1.default.join(cwd, '.planning', 'config.json');
+    const config = safeReadJson(configPath);
+    if (config && config.graphify && config.graphify.enabled === true) {
+        return true;
+    }
+    return isCapabilityActive('graphify', cwd);
 }
 /**
  * Build a bidirectional adjacency map from graph nodes and edges.
@@ -267,7 +283,7 @@ function countCommitsBetween(cwd, from, to) {
  */
 function graphifyQuery(cwd, term, options = {}) {
     const planningDir = node_path_1.default.join(cwd, '.planning');
-    if (!isCapabilityActive('graphify', cwd))
+    if (!isGraphifyEnabled(cwd))
         return disabledResponse();
     const graphPath = node_path_1.default.join(planningDir, 'graphs', 'graph.json');
     if (!node_fs_1.default.existsSync(graphPath)) {
@@ -301,7 +317,7 @@ function graphifyQuery(cwd, term, options = {}) {
  */
 function graphifyStatus(cwd) {
     const planningDir = node_path_1.default.join(cwd, '.planning');
-    if (!isCapabilityActive('graphify', cwd))
+    if (!isGraphifyEnabled(cwd))
         return disabledResponse();
     const graphPath = node_path_1.default.join(planningDir, 'graphs', 'graph.json');
     if (!node_fs_1.default.existsSync(graphPath)) {
@@ -358,7 +374,7 @@ function graphifyStatus(cwd) {
  */
 function graphifyDiff(cwd) {
     const planningDir = node_path_1.default.join(cwd, '.planning');
-    if (!isCapabilityActive('graphify', cwd))
+    if (!isGraphifyEnabled(cwd))
         return disabledResponse();
     const snapshotPath = node_path_1.default.join(planningDir, 'graphs', '.last-build-snapshot.json');
     const graphPath = node_path_1.default.join(planningDir, 'graphs', 'graph.json');
@@ -399,7 +415,7 @@ function graphifyDiff(cwd) {
  */
 function graphifyBuild(cwd) {
     const planningDir = node_path_1.default.join(cwd, '.planning');
-    if (!isCapabilityActive('graphify', cwd))
+    if (!isGraphifyEnabled(cwd))
         return disabledResponse();
     const installed = checkGraphifyInstalled();
     if (!installed.installed)
@@ -415,7 +431,8 @@ function graphifyBuild(cwd) {
     return {
         action: 'spawn_agent',
         graphs_dir: graphsDir,
-        graphify_out: node_path_1.default.join(cwd, 'graphify-out'),
+        graphify_target: resolveGraphifyTargetDir(cwd),
+        graphify_out: resolveGraphifyOutDir(cwd),
         timeout_seconds: timeoutSec,
         version: version.version,
         version_warning: version.warning,

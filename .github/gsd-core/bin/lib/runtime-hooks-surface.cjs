@@ -238,6 +238,21 @@ function normalizeNodePath(execPath, opts) {
     if (/^\/opt\/homebrew\/Cellar\/node(@\d+)?\/[^/]+\/bin\/node(\.exe)?$/.test(execPath)) {
         return '/opt/homebrew/bin/node';
     }
+    // mise pins a concrete node version at <data>/installs/node/<ver>/bin/node
+    // (Windows: <data>/installs/node/<ver>/node.exe). Node realpaths
+    // process.execPath to that versioned path, and `mise up` prunes old versions,
+    // so a baked hook command 404s after any node bump — the same ephemeral-path
+    // failure #977 fixed for fnm. The stable alias is the sibling shim
+    // (<data>/shims/node), which always resolves to the active version, like the
+    // Homebrew symlink survives `brew upgrade node`. Derive <data> from execPath
+    // so a custom MISE_DATA_DIR layout still works, and only rewrite when the shim
+    // exists — otherwise fall back to the raw execPath unchanged.
+    const miseMatch = normalizedForMatch.match(/^(.*)\/installs\/node\/[^/]+\/(?:bin\/)?node(\.exe)?$/);
+    if (miseMatch) {
+        const shim = `${miseMatch[1]}/shims/node${miseMatch[2] || ''}`;
+        if (existsSync(shim))
+            return shim;
+    }
     return execPath;
 }
 function resolveNodeRunner(opts) {
@@ -1179,7 +1194,8 @@ function applySettingsJsonHooks(settings, opts) {
         }
         // Configure graphify auto-update hook (opt-in via graphify.auto_update; default false, #3347).
         // PostToolUse Bash matcher — fires after git commit/merge/pull/rebase --continue/cherry-pick
-        // on the default branch, dispatches `graphify update .` in a detached subprocess. No-op unless
+        // on the default branch, dispatches the repo-local crates graph rebuild
+        // (`cd crates && GRAPHIFY_OUT=.graphify-out graphify update .`) in a detached subprocess. No-op unless
         // .planning/config.json has BOTH graphify.enabled=true AND graphify.auto_update=true.
         const graphifyUpdateCommand = isGlobal
             ? buildHookCommand(targetDir, 'gsd-graphify-update.sh', hookOpts)

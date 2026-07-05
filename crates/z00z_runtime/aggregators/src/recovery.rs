@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 use z00z_storage::settlement::SettlementRecoveryState;
 
 use crate::{
+    consensus_store::{ConsensusStore, ConsensusStoreRecord},
     placement::{AggregatorId, ShardPlacementTable, ShardPlacementView},
     shard_exec::{ShardExecState, ShardExecTicket},
-    types::{BatchId, PublicationRecord, PublicationState, RejectClass, RejectRecord},
+    types::{BatchId, BatchRoute, PublicationRecord, PublicationState, RejectClass, RejectRecord},
 };
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -27,6 +28,12 @@ pub struct ShardRecoveryRecord {
     pub checkpoint_id: Option<z00z_storage::checkpoint::CheckpointId>,
     pub publication_state: PublicationState,
     pub recovery: SettlementRecoveryState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PersistedConsensusRestart {
+    pub ticket: ShardExecTicket,
+    pub record: ConsensusStoreRecord,
 }
 
 impl RecoveryBoundary {
@@ -209,6 +216,26 @@ impl RecoveryBoundary {
             placement,
             state: ShardExecState::RecoveryPending,
         })
+    }
+
+    pub fn resume_from_store(
+        &self,
+        requester: AggregatorId,
+        placement_table: &ShardPlacementTable,
+        current: &SettlementRecoveryState,
+        store: &ConsensusStore,
+        route: BatchRoute,
+        intent: RecoveryIntent,
+    ) -> Result<PersistedConsensusRestart, RejectRecord> {
+        let record = store.load_route(route).map_err(|err| err.to_reject())?;
+        let ticket = self.resume(
+            requester,
+            placement_table,
+            &record.recovery_record,
+            current,
+            intent,
+        )?;
+        Ok(PersistedConsensusRestart { ticket, record })
     }
 }
 

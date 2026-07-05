@@ -28,6 +28,12 @@ Interpret `target_ref` as either:
 - the upstream moving branch, such as `main`; or
 - a concrete release tag, such as `v1.38.3`.
 
+Also normalize free-form invocations:
+
+- `to version vX.Y.Z`, `to vX.Y.Z`, `version=vX.Y.Z`, and release-tag links ending in `/tag/vX.Y.Z` all mean `target_ref=vX.Y.Z`;
+- `source_repo=<owner/repo>` means `https://github.com/<owner>/<repo>`;
+- when the invoking session is Codex, keep the requested repo runtime upgrade (`--copilot` for `.github`) but also audit the Codex runtime surface under `$CODEX_HOME` or `$HOME/.codex`.
+
 ## Source And Layout Rules
 
 Normalize the upstream repository tree to the local Copilot install layout before comparing or restoring files.
@@ -126,6 +132,27 @@ Also inspect related support files when needed for preserving those behaviors:
 16. Re-check that the restored version still contains the intended local behavior without removing unrelated upstream additions.
 17. Surface any installer warnings that materially affect Copilot usage, including unreplaced `.claude` path references and any remaining active `.github/get-shit-done` dependencies outside explicit legacy archives/backups.
 
+## Runtime Installation Audit
+
+After the repo-local Copilot upgrade, independently audit the runtime that will execute the current session.
+
+For Codex:
+
+- verify `codex --version` is at least `0.137.0` before expecting hook events to fire;
+- verify `$CODEX_HOME` or `$HOME/.codex/gsd-core/VERSION` matches the requested target version, or install the same exact tag with `npx -y --package=@opengsd/gsd-core@<target> -- gsd-core --codex --global --config-dir "$CODEX_HOME_OR_HOME_CODEX"`;
+- verify `$CODEX_HOME/hooks.json` exists and registers `SessionStart`, `SubagentStart`, `Stop`, and `PostToolUse`;
+- verify `$CODEX_HOME/hooks/gsd-check-update.js` and `$CODEX_HOME/hooks/gsd-context-monitor.js` exist;
+- verify `$CODEX_HOME/config.toml` has `[features] hooks = true` and `agents.gsd-*` entries;
+- do not treat a missing repo-local `.github/hooks/gsd-*.js` set as a Codex install failure. Codex reads its runtime hooks from `$CODEX_HOME/hooks.json` and `$CODEX_HOME/hooks/`, not from `.github/hooks`.
+
+For Copilot:
+
+- verify `.github/gsd-core/VERSION` and `.github/gsd-file-manifest.json` match the target version;
+- verify `.github/skills/gsd-*`, `.github/agents/gsd-*.agent.md`, and `.github/hooks/gsd-session.json` exist;
+- preserve repo-specific Git hooks such as `.github/hooks/pre-commit`, `.github/hooks/pre-push`, and `.github/hooks/commit-msg`; these are repository hooks and are not the same surface as Codex runtime hooks.
+
+Report repo install status and runtime install status separately. A repo-local `.github` install can be healthy while Codex runtime hooks are missing, and the fix is a Codex runtime install, not inventing `.github/hooks/gsd-*.js`.
+
 ## Required User Choice Step
 
 Do not blindly restore all local patches.
@@ -177,6 +204,7 @@ Verify these conditions directly in workspace files after the restore step:
 - `.github/copilot-instructions.md` is still the repository's local file and was not replaced by the upstream template;
 - `code-review.md` and any required supporting agent surface still preserve the planning-artifact allowance when that local behavior was part of the saved patch set;
 - the live `./.github/gsd-core/VERSION` file matches the requested installed version when `target_ref` is a concrete release tag;
+- if Codex is the current runtime, `$CODEX_HOME` or `$HOME/.codex` has GSD runtime hooks and agent TOML entries matching the target version;
 - no active GSD skill, agent, or workflow surface still depends on `.github/get-shit-done` except explicitly retained legacy archives/backups;
 - the restored local behavior was inserted into the current upgraded structures instead of replacing unrelated upstream content wholesale;
 - the preserved local changes are visible in the upgraded tree, not only in the backup folder.

@@ -11,6 +11,7 @@ doctest = false
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 sha2 = "0.10"
+thiserror = { workspace = true }
 z00z_core = { path = "../../z00z_core" }
 z00z_crypto = { path = "../../z00z_crypto" }
 z00z_storage = { path = "../../z00z_storage" }

@@ -94,6 +94,10 @@ fn binding_has_one_entry() {
 #[test]
 fn binding_reuses_downstream() {
     assert!(VALIDATOR_FLOW_SRC.contains("publication: bind_publication_contract("));
+    assert!(TYPES_SRC.contains("pub fn quorum_binding_enabled(&self) -> bool"));
+    assert!(TYPES_SRC.contains("pub subject_digest: Option<[u8; 32]>"));
+    assert!(TYPES_SRC.contains("pub certificate_digest: Option<[u8; 32]>"));
+    assert!(TYPES_SRC.contains("pub theorem_digest: Option<[u8; 32]>"));
     assert!(WATCHER_PUBLICATION_SRC.contains("if !binding.matches_pub_in(&published.pub_in)"));
     assert!(WATCHER_EVIDENCE_SRC.contains(".map(PublicationBinding::binding_digest)"));
     assert!(WATCHER_ENGINE_SRC.contains("publication.publication.binding_digest()"));

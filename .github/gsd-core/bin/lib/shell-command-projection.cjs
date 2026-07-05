@@ -260,6 +260,14 @@ function isManagedHookCommand(commandText, opts = {}) {
     return false;
 }
 /**
+ * Detect a `"$VAR"/rest` anchored hook-script token — a path whose leading
+ * shell variable is already double-quoted with the remainder left bare (the
+ * shape `projectLocalHookPrefix` emits for local installs, e.g.
+ * `"$CLAUDE_PROJECT_DIR"/.github/hooks/gsd-x.js`). Such a token is ALREADY a
+ * valid, correctly-quoted shell argument and must never be re-quoted.
+ */
+const ANCHORED_HOOK_SCRIPT_TOKEN = /^"\$[A-Za-z_][A-Za-z0-9_]*"\//;
+/**
  * Projection helper for legacy settings.json hook rewrites.
  *
  * Non-Windows keeps the original script token shape when provided (single
@@ -270,8 +278,20 @@ function projectLegacySettingsHookCommand({ absoluteRunner, scriptPath, scriptTo
     if (!absoluteRunner || !scriptPath)
         return null;
     const normalizedScriptPath = platform === 'win32' ? scriptPath.replace(/\\/g, '/') : scriptPath;
+    // #1693: a script path already carrying a `"$CLAUDE_PROJECT_DIR"`-anchored
+    // quoted prefix (local installs) is already a valid shell token — only the
+    // variable is quoted, the rest is bare. JSON.stringify-ing it on Windows
+    // yields `"\"$CLAUDE_PROJECT_DIR\"/..."` (escaped quotes inside an outer
+    // quote); node then receives an argument that *starts* with a `"`, treats it
+    // as relative, and dies with MODULE_NOT_FOUND. Emit anchored tokens verbatim;
+    // only bare absolute paths (which may contain spaces, e.g. "Program Files")
+    // need the JSON.stringify quoting. Scoped to win32: the non-Windows branch
+    // already preserves the caller's `scriptToken` (which is the bare anchored
+    // token for these inputs), so it never had the double-quote bug.
     const commandScriptToken = platform === 'win32'
-        ? JSON.stringify(normalizedScriptPath)
+        ? (ANCHORED_HOOK_SCRIPT_TOKEN.test(normalizedScriptPath)
+            ? normalizedScriptPath
+            : JSON.stringify(normalizedScriptPath))
         : (scriptToken || JSON.stringify(normalizedScriptPath));
     return projectShellCommandText({
         runnerToken: absoluteRunner,
@@ -346,6 +366,16 @@ function projectPathActionProjection({ mode = 'repair', targetDir, platform = pr
                 label: 'bash',
                 shell: 'bash',
                 command: `echo 'export PATH="${bashTargetDir}:$PATH"' >> ~/.bashrc`,
+            },
+            // #323: fish has no `export`/`$PATH`-list syntax. `fish_add_path` is the
+            // fish-native API (>= fish 3.2, 2021) that persists to the universal
+            // variable store and de-duplicates. The directory is single-quoted with
+            // the same POSIX literal escaping as the zsh/bash siblings — `'\''` is
+            // also a valid escaped single quote in fish between quote spans.
+            {
+                label: 'fish',
+                shell: 'fish',
+                command: `fish_add_path '${bashTargetDir}'`,
             },
         ];
     }
@@ -510,13 +540,49 @@ function normalizeContent(filePath, content, opts = {}) {
     }
     return { content: normalized, encoding };
 }
+// Rename errnos that are transient on Windows: a concurrent reader (or an AV
+// scanner / indexer) holding the target open makes renameSync fail briefly.
+// Same idiom as capability-ledger.cts / capability-consent.cts.
+const RENAME_RETRY_ERRNOS = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const RENAME_MAX_ATTEMPTS = 3;
+const RENAME_RETRY_BACKOFF_MS = 50;
+/** Synchronous best-effort backoff sleep (Atomics.wait — same idiom as io.cts). */
+let _renameSleepBuf = null;
+function renameBackoff() {
+    if (_renameSleepBuf === null)
+        _renameSleepBuf = new Int32Array(new SharedArrayBuffer(4));
+    Atomics.wait(_renameSleepBuf, 0, 0, RENAME_RETRY_BACKOFF_MS);
+}
+/**
+ * Atomic publish with bounded retry on transient Windows lock errnos.
+ * Returns null on success, or the final error if every attempt failed.
+ */
+function atomicRenameWithRetry(tmpPath, filePath) {
+    let renameErr = null;
+    for (let attempt = 1; attempt <= RENAME_MAX_ATTEMPTS; attempt++) {
+        try {
+            node_fs_1.default.renameSync(tmpPath, filePath);
+            return null;
+        }
+        catch (err) {
+            renameErr = err;
+            if (attempt < RENAME_MAX_ATTEMPTS && RENAME_RETRY_ERRNOS.has(renameErr.code ?? '')) {
+                renameBackoff();
+                continue;
+            }
+            break;
+        }
+    }
+    return renameErr;
+}
 function platformWriteSync(filePath, content, opts = {}) {
     const { content: normalized, encoding } = normalizeContent(filePath, content, opts);
     node_fs_1.default.mkdirSync(node_path_1.default.dirname(filePath), { recursive: true });
     const tmpPath = filePath + '.tmp.' + process.pid;
+    // Step 1: write the sibling tmp file. If THIS fails, nothing was published, so a
+    // direct fallback write cannot truncate a concurrent reader of an existing file.
     try {
         node_fs_1.default.writeFileSync(tmpPath, normalized, encoding);
-        node_fs_1.default.renameSync(tmpPath, filePath);
     }
     catch {
         try {
@@ -524,7 +590,25 @@ function platformWriteSync(filePath, content, opts = {}) {
         }
         catch { /* already gone */ }
         node_fs_1.default.writeFileSync(filePath, normalized, encoding);
+        return;
     }
+    // Step 2: atomic publish, retrying transient Windows locks.
+    const renameErr = atomicRenameWithRetry(tmpPath, filePath);
+    if (renameErr === null)
+        return;
+    try {
+        node_fs_1.default.unlinkSync(tmpPath);
+    }
+    catch { /* already gone */ }
+    if (RENAME_RETRY_ERRNOS.has(renameErr.code ?? '')) {
+        // A live reader still holds the target open after every retry. A non-atomic
+        // direct write here would truncate that reader (the exact corruption this seam
+        // exists to prevent), so surface the error instead of falling back.
+        throw renameErr;
+    }
+    // Atomic publish is genuinely impossible here (e.g. EXDEV cross-device move):
+    // fall back to a direct write to preserve write availability.
+    node_fs_1.default.writeFileSync(filePath, normalized, encoding);
 }
 function platformReadSync(filePath, opts = {}) {
     const encoding = opts.encoding ?? 'utf-8';

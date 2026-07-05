@@ -1,6 +1,6 @@
 <purpose>
 
-Interactive command center for managing a milestone from a single terminal. Shows a dashboard of all phases with visual status, dispatches discuss inline and plan/execute as background agents, and loops back to the dashboard after each action. Enables parallel phase work from one terminal.
+Interactive command center for managing a milestone from a single terminal. Shows a dashboard of all phases with visual status, dispatches discuss inline and runs plan/execute inline (backgrounded only on Codex), and loops back to the dashboard after each action. Enables parallel phase work from one terminal.
 
 </purpose>
 
@@ -45,7 +45,7 @@ Display startup banner:
  {milestone_version} — {milestone_name}
  {phase_count} phases · {completed_count} complete
 
- ✓ Discuss → inline    ◆ Plan/Execute → background
+ ✓ Discuss → inline    ◆ Plan/Execute → inline (background on Codex)
  Dashboard auto-refreshes when background work is active.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
@@ -72,6 +72,7 @@ Build dashboard from JSON. Symbols: `✓` done, `◆` active, `○` pending, `·
 **Status mapping** (disk_status → D P E Status):
 
 - `complete` → `✓ ✓ ✓` `✓ Complete`
+- `executed` → `✓ ✓ ◆` `◆ Verification required`
 - `partial` → `✓ ✓ ◆` `◆ Executing...`
 - `planned` → `✓ ✓ ○` `○ Ready to execute`
 - `discussed` → `✓ ○ ·` `○ Ready to plan`
@@ -135,7 +136,7 @@ If `all_complete` is true:
 ║  MILESTONE COMPLETE                                          ║
 ╚══════════════════════════════════════════════════════════════╝
 
-All {phase_count} phases done. Ready for final steps:
+All {phase_count} phases verified complete. Ready for final steps:
   → /gsd-verify-work — run acceptance testing
   → /gsd-complete-milestone — archive and wrap up
 ```
@@ -158,8 +159,9 @@ Handle responses:
 **Building options:**
 
 1. Collect all background actions (execute and plan recommendations) — there can be multiple of each.
-2. Collect the inline action (discuss recommendation, if any — there will be at most one since discuss is sequential).
-3. Build compound options:
+2. Collect verification actions (`verify`) for implementation-complete phases whose canonical verification has not passed.
+3. Collect the inline action (discuss recommendation, if any — there will be at most one since discuss is sequential).
+4. Build compound options:
 
    **If there are ANY recommended actions (background, inline, or both):**
    Create ONE primary "Continue" option that dispatches ALL of them together:
@@ -169,10 +171,11 @@ Handle responses:
      Continue:
        → Execute Phase 32 (background)
        → Plan Phase 34 (background)
+       → Verify Phase 33
        → Discuss Phase 35 (inline)
      ```
-   - This dispatches all background agents first, then runs the inline discuss (if any).
-   - If there is no inline discuss, the dashboard refreshes after spawning background agents.
+   - This dispatches all background agents first, runs verification actions inline, then runs the inline discuss (if any).
+   - If there is no inline discuss, the dashboard refreshes after spawning background agents and inline verification.
 
    **Important:** The Continue option must include EVERY action from `recommended_actions` — not just 2. If there are 3 actions, list 3. If there are 5, list 5.
 
@@ -221,8 +224,15 @@ Go to exit step.
 
 When the user selects a compound option, behavior depends on the runtime — the Plan Phase N / Execute Phase N handlers below resolve it via `gsd_run query config-get runtime`:
 
-- **On Claude Code:** a backgrounded agent cannot nest the pipeline's subagents, so run the chosen plan/execute step(s) **inline** via their handlers below (in order), then run the inline discuss. There is no overlap.
-- **On other runtimes:** **Spawn all background agents first** (plan/execute) — dispatch them in parallel using the Plan Phase N / Execute Phase N handlers below — then run the inline discuss; the background agents continue while you discuss.
+- **On Codex:** **Spawn all background agents first** (plan/execute) — dispatch them in parallel using the Plan Phase N / Execute Phase N handlers below — then run verification actions, then run the inline discuss; the background agents continue while you verify/discuss.
+- **On Claude Code or any other non-Codex runtime:** run the chosen plan/execute step(s) **inline** via their handlers below (in order), then run verification actions, then run the inline discuss. There is no overlap.
+
+Inline verification:
+
+For each verification recommendation, dispatch by the recommended action's `command`:
+- If `command` contains `execute-phase`, run `Skill(skill="gsd-execute-phase", args="{PHASE_NUM} {manager_flags.execute}")`.
+- If `command` contains `verify-work`, run `Skill(skill="gsd-verify-work", args="{PHASE_NUM}")`.
+- If `command` is missing or unrecognized, stop and show the recommendation row instead of guessing.
 
 Inline discuss:
 
@@ -244,27 +254,13 @@ After discuss completes, loop back to dashboard step.
 
 ### Plan Phase N
 
-Planning runs autonomously. **First resolve the runtime.** On Claude Code a backgrounded agent has no `Agent`/`Task` tool, so it cannot spawn the plan-checker the pipeline relies on — backgrounding it there silently turns `workflow.plan_check` into a self-check. So run plan **inline** on Claude Code, and **background** it only on runtimes where a backgrounded agent can still nest subagents.
+Planning runs autonomously. **First resolve the runtime.** Background dispatch is only safe on a runtime where a backgrounded agent can still nest the pipeline's subagents (plan-checker / worktree executors / verifier). Among supported runtimes only **Codex** (`spawn_agent`) can do this; Claude Code's backgrounded agents have no `Agent`/`Task` tool, and every other runtime either prohibits nested subagents or disables them by default. So run **inline** everywhere except Codex, which is dispatched in the background.
 
 ```bash
-RUNTIME=$(gsd_run query config-get runtime --default claude 2>/dev/null || echo "claude")
+RUNTIME=$(gsd_run query config-get runtime --default copilot --raw 2>/dev/null || echo "copilot")
 ```
 
-**If `RUNTIME` is `claude` (Claude Code):** Run plan inline so the plan-checker and quality gates actually run — do NOT wrap it in `Agent(run_in_background=true, …)`:
-
-```
-Skill(skill="gsd-plan-phase", args="{N} --auto {manager_flags.plan}")
-```
-
-Display while it runs:
-
-```
-◆ Planning Phase {N}: {phase_name}... (runs inline so the plan-checker runs — the dashboard resumes when it returns, ~1–5 min; expected, not a freeze)
-```
-
-Then loop back to dashboard step.
-
-**If `RUNTIME` is not `claude` (e.g. Codex):** Spawn a background agent that delegates to the Skill pipeline with any configured flags:
+**If `RUNTIME` is `codex`:** Spawn a background agent that delegates to the Skill pipeline with any configured flags:
 
 ```
 Agent(
@@ -286,7 +282,7 @@ Important: You are running in the background. Do NOT use AskUserQuestion — mak
 )
 ```
 
-> **ORCHESTRATOR RULE — NON-CLAUDE RUNTIME**: After calling Agent() above with `run_in_background=true`, do NOT do any planning work for this phase independently. Return to the dashboard immediately and wait for the background agent to report back. Only resume planning-related work when the subagent result is available.
+> **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above with `run_in_background=true`, do NOT do any planning work for this phase independently. Return to the dashboard immediately and wait for the background agent to report back. Only resume planning-related work when the subagent result is available.
 
 Display:
 
@@ -296,29 +292,29 @@ Display:
 
 Loop back to dashboard step.
 
-### Execute Phase N
-
-Execution runs autonomously. **First resolve the runtime.** On Claude Code a backgrounded agent has no `Agent`/`Task` tool, so it cannot spawn the per-plan worktree-isolated executors or the verifier — backgrounding it there silently disables `workflow.use_worktrees` isolation and `workflow.verifier`. So run execute **inline** on Claude Code, and **background** it only on runtimes where a backgrounded agent can still nest subagents.
-
-```bash
-RUNTIME=$(gsd_run query config-get runtime --default claude 2>/dev/null || echo "claude")
-```
-
-**If `RUNTIME` is `claude` (Claude Code):** Run execute inline so worktree isolation and the verifier actually run — do NOT wrap it in `Agent(run_in_background=true, …)`:
+**Otherwise (Claude Code or any other non-Codex runtime):** Run plan inline so the plan-checker and quality gates actually run — do NOT wrap it in `Agent(run_in_background=true, …)`:
 
 ```
-Skill(skill="gsd-execute-phase", args="{N} {manager_flags.execute}")
+Skill(skill="gsd-plan-phase", args="{N} --auto {manager_flags.plan}")
 ```
 
 Display while it runs:
 
 ```
-◆ Executing Phase {N}: {phase_name}... (runs inline so worktree isolation and verification run — the dashboard resumes when it returns; expected, not a freeze)
+◆ Planning Phase {N}: {phase_name}... (runs inline so the plan-checker runs — the dashboard resumes when it returns, ~1–5 min; expected, not a freeze)
 ```
 
 Then loop back to dashboard step.
 
-**If `RUNTIME` is not `claude` (e.g. Codex):** Spawn a background agent that delegates to the Skill pipeline with any configured flags:
+### Execute Phase N
+
+Execution runs autonomously. **First resolve the runtime.** Background dispatch is only safe on a runtime where a backgrounded agent can still nest the pipeline's subagents (plan-checker / worktree executors / verifier). Among supported runtimes only **Codex** (`spawn_agent`) can do this; Claude Code's backgrounded agents have no `Agent`/`Task` tool, and every other runtime either prohibits nested subagents or disables them by default. So run **inline** everywhere except Codex, which is dispatched in the background.
+
+```bash
+RUNTIME=$(gsd_run query config-get runtime --default copilot --raw 2>/dev/null || echo "copilot")
+```
+
+**If `RUNTIME` is `codex`:** Spawn a background agent that delegates to the Skill pipeline with any configured flags:
 
 ```
 Agent(
@@ -340,7 +336,7 @@ Important: You are running in the background. Do NOT use AskUserQuestion — mak
 )
 ```
 
-> **ORCHESTRATOR RULE — NON-CLAUDE RUNTIME**: After calling Agent() above with `run_in_background=true`, do NOT do any execution work for this phase independently. Return to the dashboard immediately and wait for the background agent to report back. Only resume execution-related work when the subagent result is available.
+> **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above with `run_in_background=true`, do NOT do any execution work for this phase independently. Return to the dashboard immediately and wait for the background agent to report back. Only resume execution-related work when the subagent result is available.
 
 Display:
 
@@ -349,6 +345,20 @@ Display:
 ```
 
 Loop back to dashboard step.
+
+**Otherwise (Claude Code or any other non-Codex runtime):** Run execute inline so worktree isolation and the verifier actually run — do NOT wrap it in `Agent(run_in_background=true, …)`:
+
+```
+Skill(skill="gsd-execute-phase", args="{N} {manager_flags.execute}")
+```
+
+Display while it runs:
+
+```
+◆ Executing Phase {N}: {phase_name}... (runs inline so worktree isolation and verification run — the dashboard resumes when it returns; expected, not a freeze)
+```
+
+Then loop back to dashboard step.
 
 </step>
 
@@ -422,8 +432,8 @@ Display final status with progress bar:
 - [ ] Dependency resolution: blocked phases show which deps are missing
 - [ ] Recommendations prioritize: execute > plan > discuss
 - [ ] Discuss phases run inline via Skill() — interactive questions work
-- [ ] Plan phases spawn background Task agents — return to dashboard immediately
-- [ ] Execute phases spawn background Task agents — return to dashboard immediately
+- [ ] Plan phases run inline (or as background Task agents on Codex) — dashboard resumes when complete
+- [ ] Execute phases run inline (or as background Task agents on Codex) — dashboard resumes when complete
 - [ ] Dashboard refreshes pick up changes from background agents via disk state
 - [ ] Background agent completion triggers notification and dashboard refresh
 - [ ] Background agent errors present retry/skip options

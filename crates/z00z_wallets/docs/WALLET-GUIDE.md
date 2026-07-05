@@ -2,109 +2,98 @@
 
 # Z00Z Wallet Guide
 
-Date: 2026-06-20
+Date: 2026-07-04
 Scope: `crates/z00z_wallets`
 
-This guide documents the canonical wallet model that is live through Phase 060.
-It describes the normal `.wlt` reopen, save, export, restore, and typed-object
-projection path only. Historical snapshot terminology is compatibility-only and
-must not be treated as normal wallet authority.
+This guide documents the canonical wallet model that is live in code: `.wlt`
+reopen, save, export, restore, tx-history sidecar handling, typed object
+inventory, and the guarded profile/catalog anchors that tests keep aligned with
+repo configs. Historical snapshot terminology is compatibility-only and must
+not be treated as normal wallet authority.
 
-## 📦 Phase 059 Object Inventory
+## 📦 Typed Object Inventory
 
-Phase 059 extends the live wallet model with typed settlement objects:
+The live wallet inventory has three families:
 
-- Assets: final spendable value.
-- Vouchers: conditional claims that stay non-cash until a validator-checked
-  redeem path succeeds.
-- Rights: zero-value authority inventory.
+| Family | Live payload | Store path | Spendability |
+| --- | --- | --- | --- |
+| Asset | `OwnedAssetPayload` | `wallet_asset_store()` / `OwnedAsset` object rows | Ordinary cash value when status and policy checks allow it. |
+| Voucher | `OwnedVoucherPayload` | `object_inventory_store()` / `OwnedVoucher` object rows | Conditional claim; never ordinary cash until a valid redeem path finalizes. |
+| Right | `OwnedRightPayload` | `object_inventory_store()` / `OwnedRight` object rows | Zero-value authority inventory; never ordinary cash. |
 
-The wallet therefore exposes three projections on one inventory plane:
-
-- spendable cash assets;
-- voucher claims and voucher lifecycle state;
-- right authority inventory and right lifecycle state.
+`WalletInventoryPayload` can project assets, vouchers, and rights together for
+typed inventory views. `OwnedNonAssetPayload` is intentionally voucher/right
+only, so non-asset writes stay off the ordinary cash asset path.
 
 Unknown-policy objects remain in durable quarantine and are excluded from
 spendable balance.
 
-## 🧾 Phase 060 MVP Profile Catalog
+## 🧾 Phase 060 Catalog Anchors
 
-Phase 060 publishes one repository-owned wallet profile catalog on top of the
-live Phase 059 object model. The rows below are semantic contracts, not a claim
-that every profile id is already a live code identifier. Unless a row says
-otherwise, the profile id is a proposed Phase 060 catalog id layered on an
-existing live repository anchor.
+The wallet does not expose a generic runtime profile registry. The code-backed
+anchors are:
 
-| Profile id | Phase 060 status | Family | Live anchor | `wallet.object.*` projection | `wallet.asset.*` effect | Lifecycle and spendability | MVP actions and policy surfaces | Required fail-closed rules |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `fee_credit_v1` | Proposed Phase 060 catalog id | Voucher | Existing voucher object model; product anchor: `FeeCredit` in `docs/Z00Z-Tokenomics-Incentives-Whitepaper.md` | Voucher claim row with terminal id, policy state, and backing metadata | Never appears as ordinary balance; fee capacity may be realized only through the voucher or fee-support path | `Offered -> Accepted -> Redeemable -> Redeemed/Expired/Refunded`; any non-`Available` row stays quarantined | issue, accept, transfer if policy allows, redeem for fee lane, expire, refund; backing source, sponsor scope, transferability, expiry, disclosure/retention as needed | Reject voucher-as-cash, missing backing, replay, stale root, expired use, and unknown policy |
-| `service_entitlement_v1` | Proposed Phase 060 catalog id layered on a live right class | Right | Live `service_entitlement` in `crates/z00z_core/configs/devnet_rights_config.yaml` | Right inventory row with policy state, beneficiary scope, and lifecycle metadata | No cash visibility | `Granted -> Delegated/Consumed/Revoked/Expired`; only `Available` rows are usable | grant, delegate, consume, revoke, expire; disclosure policy, retention policy, provider scope, beneficiary scope | Reject right-as-value, out-of-scope use, revoked/expired right, and unknown policy |
-| `data_access_v1` | Proposed Phase 060 catalog id layered on a live right class | Right | Live `data_access` in `crates/z00z_core/configs/devnet_rights_config.yaml` | Right inventory row with beneficiary-specific access state | No cash visibility | `Granted -> Challenged/Consumed/Revoked/Expired`; only `Available` rows are usable | grant, consume, challenge, revoke, expire; disclosure policy, retention policy, audit trail, challenge window | Reject expired access, challenge-window misuse, wrong beneficiary, and unknown policy |
-| `agent_budget_v1` | Proposed Phase 060 catalog id layered on live right classes | Right | Live `machine_compute_capability` plus `one_time_agent_action` in `crates/z00z_core/configs/devnet_rights_config.yaml`; product anchor: `Agent spending envelope` in `docs/Z00Z-Litepaper.md` | Right inventory row describing bounded action or quota scope | No cash visibility; never becomes free balance | `Granted -> Delegated/Consumed/Revoked/Expired`; consumed or non-`Available` rows stay non-spendable | delegate, consume quota, revoke, expire; quota or amount bound, action whitelist, service scope, expiry | Reject over-budget action, unauthorized action family, consumed-right reuse, and unknown policy |
-| `validator_mandate_lock_v1` | Proposed Phase 060 catalog id layered on a live right class and a wallet rule | Right plus asset-state rule | Live `validator_mandate` in `crates/z00z_core/configs/devnet_rights_config.yaml`; lock grammar source: `docs/tech-papers/TODO-Wallet-idea.md`; wallet-local profile tag: `validator_mandate_lock_v1` | Right inventory row plus lock metadata bound through `payload_commitment` | `wallet.asset.*` stays cash-only, but assets bound by an active lock are excluded from ordinary spend selection once the lock profile is present and bound | `Granted -> Locked -> Unlockable/Redelegatable/Revoked/Expired`; ordinary spend of the locked asset is forbidden until an approved unlock or redelegate transition consumes the lock | lock, unlock, redelegate, reward-claim, challenge-bounded revoke; holder, control, beneficiary, payload, time-window, transition, revocation, disclosure, and retention policy surfaces | Reject soft-lock-only behavior, ordinary spend of a locked asset, replay, stale right, and wrong-family proof |
-| `transferable_claim_v1` | Proposed Phase 060 catalog id | Voucher | Existing Phase 059 voucher object model | Voucher claim row with transfer and residual state | No cash visibility until a valid redeem path finalizes | `Offered -> Accepted -> Redeemable -> Partial/Full Redeemed/Rejected/Expired`; any non-`Available` row stays quarantined | offer, accept, transfer if policy allows, partial redeem, redeem, reject, expire; backing/reserve source, accept policy, transferability, residual handling | Reject wrong-family proof, double redeem, expired use, residual mismatch, and unknown policy |
+- `crates/z00z_core/configs/devnet_genesis_config.yaml` contains
+  `wallet_profiles` rows for the catalog ids below.
+- `crates/z00z_core/configs/devnet_rights_config.yaml` contains live right
+  anchors such as `service_entitlement`, `data_access`, `validator_mandate`,
+  `machine_compute_capability`, and `one_time_agent_action`.
+- `crates/z00z_wallets/src/tx/spend_rules.rs` contains the wallet-local
+  `validator_mandate_lock_v1` tag, payload commitment rule, and lock checks
+  that remove locked rows from ordinary spend selection.
+
+The phrase "Proposed Phase 060 catalog id" is retained below because tests use
+it as a documentation/config alignment marker. It does not mean every row is a
+standalone runtime wallet profile registry entry.
+
+| Profile id | Phase 060 status | Code/config anchor | Live wallet effect |
+| --- | --- | --- | --- |
+| `fee_credit_v1` | Proposed Phase 060 catalog id | `devnet_genesis_config.yaml` wallet profile row; voucher inventory model | Voucher-family catalog row; must not appear as ordinary asset balance. |
+| `service_entitlement_v1` | Proposed Phase 060 catalog id | `service_entitlement` right in `devnet_rights_config.yaml` | Right-family inventory row gated by policy availability. |
+| `data_access_v1` | Proposed Phase 060 catalog id | `data_access` right in `devnet_rights_config.yaml` | Right-family inventory row for access-like authority; no cash visibility. |
+| `agent_budget_v1` | Proposed Phase 060 catalog id | `machine_compute_capability` and `one_time_agent_action` rights in `devnet_rights_config.yaml` | Right-family bounded-action inventory; no ordinary balance effect. |
+| `validator_mandate_lock_v1` | Proposed Phase 060 catalog id | `validator_mandate` right plus wallet-local spend rule in `spend_rules.rs` | Active matching rights exclude bound assets from ordinary spend selection. |
+| `transferable_claim_v1` | Proposed Phase 060 catalog id | `devnet_genesis_config.yaml` wallet profile row; voucher inventory model | Voucher-family transfer/redeem catalog row; no cash visibility before redeem. |
 
 ## 🗂️ Projection Grammar
 
-The catalog above is implemented on one wallet authority plane with these
-mandatory rules:
+The catalog anchors above are projected through one wallet authority model:
 
 - `wallet.object.*` is the typed inventory and package-authority namespace for
-  vouchers, rights, and any wallet-visible profile semantics.
+  voucher/right rows and wallet-visible object package flows.
 - `wallet.asset.*` remains cash-only. It must not present vouchers or rights as
   spendable value and must not invent a second typed-object persistence story.
-- `wallet_asset_store()` remains the only ordinary cash-persistence authority for asset rows. Non-asset profile rows remain on `WalletInventoryPayload`, while voucher/right writes stay on the explicit `OwnedNonAssetPayload` lanes.
+- `wallet_asset_store()` remains the only ordinary cash-persistence authority
+  for asset rows. Non-asset rows stay on `WalletInventoryPayload` and the
+  explicit `OwnedNonAssetPayload` voucher/right lanes.
 - Any object whose policy availability is not `Available`, or that still
   requires manual review, remains in durable quarantine and is excluded from
   ordinary spendable balance.
-- Unknown-policy objects remain visible only through typed inventory and stay in
-  durable quarantine until an explicit known-`Available` policy verdict exists.
-- Lock profiles are not UI-only suggestions. The catalog contract for
-  `validator_mandate_lock_v1` requires ordinary asset selection to treat active
-  locked assets as unavailable. This enforcement uses the live
-  `RightClass::ValidatorMandate` leaf plus the wallet-local profile tag
-  `validator_mandate_lock_v1`; it does not create a second wallet authority
-  plane.
-- `.wlt` and `WalletExportPack` remain the only wallet-local authority surfaces. Backup and restore must round-trip `owned_assets` and
-  `owned_objects` together through the same canonical encrypted bundle plus the
-  explicit JSONL tx-history sidecar.
-- Debug, preview, or forensic tooling may inspect the same state, but it must
+- `.wlt` and `WalletExportPack` remain the only wallet-local authority surfaces.
+  Backup and restore must round-trip `owned_assets` and `owned_objects` through
+  the canonical encrypted bundle plus the explicit JSONL tx-history sidecar.
+- Debug, preview, and forensic tooling may inspect the same state, but it must
   not create a second wallet database, a second export bundle, or a second
   spendability truth path.
 
-## 🔒 `validator_mandate_lock_v1` v1 grammar
+## 🔒 `validator_mandate_lock_v1` Runtime Rule
 
-- Profile identification:
-  the wallet recognizes this proposed profile only when a right row keeps live
-  `RightClass::ValidatorMandate`, policy availability `Available`, and the
-  wallet-local profile tag `validator_mandate_lock_v1`.
-- Mandatory leaf fields in v1:
-  `holder_commitment`, `control_commitment`, `beneficiary_commitment`,
-  `payload_commitment`, `valid_from`, `valid_until`, `challenge_from`,
-  `challenge_until`, `use_nonce`, `transition_policy_id`,
-  `revocation_policy_id`, `disclosure_policy_id`, and `retention_policy_id`.
-- Mandatory payload binding in v1:
-  `payload_commitment` binds the locked asset id, locked amount, validity
-  window, challenge window, `use_nonce`, and the transition, revocation,
-  disclosure, and retention policy ids.
-- Optional or reserved in v1:
-  `issuer_scope` and `provider_scope` may scope validator or pool lineage, but
-  they do not replace payload binding; `challenge_policy_id` remains a
-  challenge-bounded control surface and does not widen v1 into slashable bond
-  logic.
+- Identification: a right row must be `RightClass::ValidatorMandate`, policy
+  availability `Available`, and carry the wallet-local
+  `validator_mandate_lock_v1` label.
+- Payload binding:
+  `validator_mandate_lock_payload_commitment(...)` binds the locked asset id,
+  locked amount, validity window, challenge window, `use_nonce`, transition,
+  revocation, disclosure, and retention policy ids.
 - Spend rule:
-  any `Granted`, `Held`, or `Delegated` row that matches the payload binding
-  blocks ordinary asset selection. Passing `valid_until` makes the lock
-  unlockable, not automatically cash-spendable.
-- Approved transitions:
-  ordinary unlock after expiry must consume or update the right through the
-  approved unlock grammar; redelegate stays on the same right-family authority
-  lane; reward claim remains tied to the same active lock lineage and may not
-  materialize as free wallet cash without the right-gated transition.
-- v1 non-goals:
-  no new primitive leaf, no second wallet database, no second export contract,
-  no UI-only soft lock, and no full slashable bond semantics.
+  an active matching right removes the bound asset row from ordinary spend
+  selection. Tests cover both build and send rejection.
+- Unlock readiness:
+  `validator_mandate_lock_unlock_ready(...)` checks the right class and
+  `valid_until`; expiry alone is not documented here as an automatic cash spend.
+- Non-goals:
+  no second wallet database, no second export contract, and no UI-only soft
+  lock path.
 
 ## 🎯 Canonical Model
 
@@ -187,8 +176,7 @@ replay the explicit JSONL tx-history sidecar.
   version, digests, counts, lifecycle, and status. They must not expose raw
   package bytes, session tokens, seed phrases, memo plaintext, receiver
   secrets, or encrypted payload internals.
-- Stealth pack privacy is a wallet and crypto receive property. It is not an
-  OnionNet claim, and Phase 062 does not claim live transport anonymity.
+- Stealth pack privacy is a wallet and crypto receive property. It is not an OnionNet claim and does not claim live transport anonymity. Phase 062 does not claim live transport anonymity.
 
 ## 🛰️ Typed RPC And Package Boundary
 
@@ -202,9 +190,7 @@ replay the explicit JSONL tx-history sidecar.
   rights, expired rights, revoked rights, consumed rights, and unknown-policy
   spend attempts.
 
-## ✅ Phase 062 Bounded Closeout
-
-Phase 062 closes the bounded internal object-family lane only.
+## ✅ Bounded Object-Family Scope
 
 - Included live scope: `RightLeaf`, `VoucherLeaf`, `RightClass`,
   `FeeEnvelope`, the object policy registry, wallet object inventory, validator

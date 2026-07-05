@@ -131,6 +131,7 @@
 #
 # Main verification/install chain executed after extraction:
 #   scripts/verification-tools/install-verification-tools.sh --install --profile research --strict
+#   scripts/penetration/install_pentest_tools.sh
 #   scripts/install_py_venv.sh
 #   scripts/install_deep_wiki.sh
 #   scripts/install_nvk_llm_wiki.sh
@@ -1639,6 +1640,10 @@ run_install_chain() {
   run_repo_script \
     "Installing verification toolchain" \
     ./scripts/verification-tools/install-verification-tools.sh --install --profile research --strict
+
+  run_repo_script \
+    "Installing pentest tool root" \
+    ./scripts/penetration/install_pentest_tools.sh
 
   source_verify_env
 

@@ -22,6 +22,7 @@ may fork a second authority path.
 
 - Planner authority lives here, not in storage, validators, watchers, or the rollup node.
 - `PlannerMode` vocabulary is runtime-owned here and reused by config loaders instead of being redefined downstream.
+- `PlannerAuthority` plus `BatchPlanner` are the only live planner-authority path; planner primary or secondary HA remains `live-claim-removed` until a separate durable service exists and is tested.
 - Caller-supplied digest strings are never planner authority; runtime ingress must rebind them to payload bytes before route lookup, intake ids, or `plan_digest` construction.
 - Placement data may flow downstream, but it must not become checkpoint authority or semantic state.
 - Local distributed HJMT evidence must run through `dist_scheduler`, `dist_dispatch`, `dist_sim`, and `consensus_adapter`; external transport, network membership, or chain-facing replicated-log bindings must stay adapter-only exclusions until they satisfy the same local contract.

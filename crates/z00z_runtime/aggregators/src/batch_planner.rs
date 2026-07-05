@@ -5,11 +5,12 @@ use std::{collections::BTreeSet, fmt};
 use sha2::{Digest, Sha256};
 
 use crate::types::{
-    BatchId, BatchPlanned, BatchRoute, OrderedBatch, PlanDigest, RejectClass, RejectRecord,
-    ShardId, WorkItem,
+    BatchId, BatchPlanned, BatchRoute, OrderedBatch, PlanDigest, PlannerMode, RejectClass,
+    RejectRecord, ShardId, WorkItem,
 };
 
 const PLAN_DIGEST_LABEL: &[u8] = b"z00z.runtime.batch_planned.v1";
+const PLANNER_AUTHORITY_DIGEST_LABEL: &[u8] = b"z00z.runtime.planner_authority.v1";
 const ROUTE_TABLE_DIGEST_LABEL: &[u8] = b"z00z.hjmt.route-table.v1";
 const HASH_MIN: [u8; 32] = [0u8; 32];
 const HASH_MAX: [u8; 32] = [0xffu8; 32];
@@ -379,6 +380,91 @@ impl BatchPlanner {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlannerAuthority {
+    pub mode: PlannerMode,
+    pub routing_generation: u64,
+    pub route_table_digest: PlanDigest,
+    pub planner_cfg_digest: PlanDigest,
+}
+
+impl PlannerAuthority {
+    #[must_use]
+    pub fn bind(
+        mode: PlannerMode,
+        route_table: &ShardRouteTable,
+        planner_cfg_digest: PlanDigest,
+    ) -> Self {
+        Self {
+            mode,
+            routing_generation: route_table.routing_generation,
+            route_table_digest: route_table.digest(),
+            planner_cfg_digest,
+        }
+    }
+
+    #[must_use]
+    pub fn digest(&self) -> PlanDigest {
+        let mut hasher = Sha256::new();
+        hasher.update(PLANNER_AUTHORITY_DIGEST_LABEL);
+        hasher.update(self.mode.as_str().as_bytes());
+        hasher.update(self.routing_generation.to_be_bytes());
+        hasher.update(self.route_table_digest.as_bytes());
+        hasher.update(self.planner_cfg_digest.as_bytes());
+        PlanDigest::new(hasher.finalize().into())
+    }
+
+    pub fn verify_inputs(
+        &self,
+        mode: PlannerMode,
+        route_table: &ShardRouteTable,
+        planner_cfg_digest: PlanDigest,
+    ) -> Result<(), RejectRecord> {
+        route_table.validate().map_err(route_invalid)?;
+        if self.mode != mode {
+            return Err(planner_reject(
+                "planner config drift: planner mode drifted from the canonical authority",
+            ));
+        }
+        if self.planner_cfg_digest != planner_cfg_digest {
+            return Err(planner_reject(
+                "planner config drift: planner config digest drifted from the canonical authority",
+            ));
+        }
+        if self.routing_generation != route_table.routing_generation {
+            return Err(planner_reject(
+                "mixed planner generation: live route table generation drifted from the canonical authority",
+            ));
+        }
+        if self.route_table_digest != route_table.digest() {
+            return Err(planner_reject(
+                "stale route-table digest: live route table digest drifted from the canonical authority",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn verify_batch(
+        &self,
+        mode: PlannerMode,
+        route_table: &ShardRouteTable,
+        planner_cfg_digest: PlanDigest,
+        batch_id: BatchId,
+        items: &[WorkItem],
+        claimed: &BatchPlanned,
+    ) -> Result<BatchPlanned, RejectRecord> {
+        self.verify_inputs(mode, route_table, planner_cfg_digest)?;
+
+        let planned = BatchPlanner::new(route_table.clone()).plan_batch(batch_id, items)?;
+        if planned != *claimed {
+            return Err(planner_reject(
+                "planner digest drift: local recomputation drifted from the claimed planned batch",
+            ));
+        }
+        Ok(planned)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct PlanEntry {
     item: WorkItem,
@@ -420,6 +506,14 @@ fn route_lookup_reject(item: &WorkItem, err: RouteErr) -> RejectRecord {
         intake_id: Some(item.intake_id().clone()),
         class: RejectClass::PolicyReject,
         detail: err.to_string(),
+    }
+}
+
+fn planner_reject(detail: impl Into<String>) -> RejectRecord {
+    RejectRecord {
+        intake_id: None,
+        class: RejectClass::PolicyReject,
+        detail: detail.into(),
     }
 }
 

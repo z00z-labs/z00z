@@ -3,11 +3,17 @@ use std::{
     sync::{Arc, Mutex, OnceLock},
 };
 
-use z00z_aggregators::{BatchId, PublicationRequest};
+use z00z_aggregators::{
+    bind_publication_contract, membership_digest_for_voters, AggregatorId, BatchId, BatchPlanned,
+    BatchRoute, CommitSubject, IngressBoundary, JournalCandidate, PlanDigest, PublicationRequest,
+    SecondaryState, ShardId, ShardPlacementView, ShardQuorumCertificate, ShardVote, ShardVoteKind,
+    ShardVoteRole, WorkPayload,
+};
 use z00z_core::assets::{Asset, AssetClass, AssetDefinition, AssetPkgWire, AssetWire};
+use z00z_crypto::{expert::traits::DomainSeparation, DomainHasher256};
 use z00z_storage::{
     checkpoint::{
-        derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointDraft,
+        derive_checkpoint_id, derive_exec_id, encode_exec_bin, encode_link_bin, CheckpointDraft,
         CheckpointExecInput, CheckpointExecOut, CheckpointExecTx, CheckpointExecVersion,
         CheckpointInRef, CheckpointLink, CheckpointLinkVersion, CheckpointVersion,
     },
@@ -32,6 +38,19 @@ const CHAIN_TYPE: &str = "rollup_settlement";
 const CHAIN_NAME: &str = "rollup-settlement";
 const RECEIVER_SECRET: [u8; 32] = [0x11; 32];
 const SNAP_ID: PrepSnapshotId = PrepSnapshotId::new([0x44; 32]);
+const SETTLEMENT_THEOREM_DIGEST_TAG: &[u8] = b"z00z.settlement_theorem.bundle";
+
+struct SettlementTheoremDigestDomain;
+
+impl DomainSeparation for SettlementTheoremDigestDomain {
+    fn version() -> u8 {
+        1
+    }
+
+    fn domain() -> &'static str {
+        "z00z.settlement_theorem.digest"
+    }
+}
 
 struct RangeProofEnvGuard {
     _guard: std::sync::MutexGuard<'static, ()>,
@@ -266,14 +285,178 @@ pub fn publication_request_with_route(
         exec_id,
     )
     .expect("checkpoint link");
+    let ordered_batch = ordered_batch_fixture(
+        BatchId::from_bytes(batch_bytes),
+        &publication_route,
+        &tx_package,
+    );
+    let placement = placement_view(ordered_batch.planned.route);
+    let candidate = JournalCandidate {
+        batch_id: ordered_batch.batch_id,
+        route: ordered_batch.planned.route,
+        state_root: artifact.pub_in().new_settlement_root(),
+        journal_lineage: placement.expected_journal_lineage,
+        version: 0,
+        root_generation: 0,
+        proof_version: 0,
+        bucket_policy_generation: 0,
+        bucket_policy_id: [0x63; 32],
+    };
+    let publication_binding = bind_publication_contract(
+        ordered_batch.batch_id,
+        checkpoint_id,
+        ordered_batch.planned.route_table_digest.into_bytes(),
+        &artifact.pub_in(),
+    );
+    let subject = CommitSubject::from_runtime(
+        7,
+        membership_digest_for_voters(
+            ordered_batch.planned.route,
+            placement.primary_id,
+            placement
+                .secondaries
+                .iter()
+                .filter(|secondary| secondary.is_ready)
+                .map(|secondary| secondary.aggregator_id),
+        ),
+        &ordered_batch,
+        &candidate,
+        &publication_binding,
+        theorem_digest(&tx_package, &artifact, &exec_input, &link),
+        None,
+    )
+    .expect("commit subject");
+    let votes = quorum_votes(&subject);
+    let certificate = ShardQuorumCertificate::new(
+        &subject,
+        placement.primary_id,
+        placement
+            .secondaries
+            .iter()
+            .filter(|secondary| secondary.is_ready)
+            .map(|secondary| secondary.aggregator_id),
+        &votes[..2],
+    )
+    .expect("quorum certificate");
     PublicationRequest {
         batch_id: BatchId::from_bytes(batch_bytes),
+        ordered_batch,
         publication_route,
         draft,
+        subject,
+        certificate,
         tx_package,
         exec_input,
         link,
         nullifiers: vec![ClaimNullifier::new([batch_bytes[0].wrapping_add(0x40); 32])],
         idempotency_key: replay_id.to_string(),
     }
+}
+
+fn ordered_batch_fixture(
+    batch_id: BatchId,
+    publication_route: &PublicationRouteSnapshotV1,
+    tx_package: &TxPackage,
+) -> z00z_aggregators::OrderedBatch {
+    let item = IngressBoundary
+        .normalize(WorkPayload::Tx(Box::new(tx_package.clone())))
+        .expect("ingress normalize");
+    z00z_aggregators::OrderedBatch {
+        batch_id,
+        items: vec![item.clone()],
+        created_leaves: Vec::new(),
+        planned: BatchPlanned {
+            batch_id,
+            route: BatchRoute {
+                shard_id: ShardId::new(
+                    publication_route.shard_ids.first().copied().unwrap_or(1) as u16
+                ),
+                routing_generation: publication_route.routing_generation,
+            },
+            route_table_digest: PlanDigest::new(publication_route.route_table_digest),
+            intake_ids: vec![item.intake_id().clone()],
+            op_count: 1,
+            plan_digest: PlanDigest::new([0x72; 32]),
+        },
+    }
+}
+
+fn placement_view(route: BatchRoute) -> ShardPlacementView {
+    ShardPlacementView {
+        route,
+        primary_id: AggregatorId::new(3),
+        secondaries: vec![
+            SecondaryState::ready(AggregatorId::new(4)),
+            SecondaryState::ready(AggregatorId::new(5)),
+        ],
+        expected_journal_lineage: [0x62; 32],
+    }
+}
+
+pub fn quorum_votes(subject: &CommitSubject) -> Vec<ShardVote> {
+    vec![
+        ShardVote::new_local(
+            AggregatorId::new(3),
+            ShardVoteRole::Primary,
+            subject.shard_id,
+            subject.term,
+            subject.membership_digest,
+            subject.digest(),
+            ShardVoteKind::LocalCommit,
+        ),
+        ShardVote::new_local(
+            AggregatorId::new(4),
+            ShardVoteRole::Secondary,
+            subject.shard_id,
+            subject.term,
+            subject.membership_digest,
+            subject.digest(),
+            ShardVoteKind::LocalCommit,
+        ),
+        ShardVote::new_local(
+            AggregatorId::new(5),
+            ShardVoteRole::Secondary,
+            subject.shard_id,
+            subject.term,
+            subject.membership_digest,
+            subject.digest(),
+            ShardVoteKind::LocalCommit,
+        ),
+    ]
+}
+
+fn theorem_digest(
+    tx_package: &TxPackage,
+    artifact: &z00z_storage::checkpoint::CheckpointArtifact,
+    exec_input: &CheckpointExecInput,
+    link: &CheckpointLink,
+) -> [u8; 32] {
+    let tx_digest: [u8; 32] = hex::decode(&tx_package.tx_digest_hex)
+        .expect("fixture tx digest must decode")
+        .try_into()
+        .expect("fixture tx digest must stay 32 bytes");
+    let checkpoint_id = derive_checkpoint_id(artifact).expect("fixture checkpoint id");
+    let exec_bytes = encode_exec_bin(exec_input).expect("fixture exec input encode");
+    let exec_id = derive_exec_id(&exec_bytes);
+    let link_bytes = encode_link_bin(link).expect("fixture link encode");
+
+    let mut bytes = Vec::with_capacity(192 + link_bytes.len());
+    bytes.extend_from_slice(SETTLEMENT_THEOREM_DIGEST_TAG);
+    bytes.push(1);
+    push_len_prefixed(&mut bytes, &tx_digest);
+    bytes.extend_from_slice(checkpoint_id.as_bytes());
+    bytes.extend_from_slice(exec_id.as_bytes());
+    push_len_prefixed(&mut bytes, &link_bytes);
+
+    let digest = DomainHasher256::<SettlementTheoremDigestDomain>::new_with_label("digest")
+        .chain(bytes)
+        .finalize();
+    let mut out = [0u8; 32];
+    out.copy_from_slice(digest.as_ref());
+    out
+}
+
+fn push_len_prefixed(out: &mut Vec<u8>, bytes: &[u8]) {
+    out.extend_from_slice(&(bytes.len() as u64).to_be_bytes());
+    out.extend_from_slice(bytes);
 }

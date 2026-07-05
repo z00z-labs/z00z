@@ -8,11 +8,18 @@ It is intentionally service-first and omits legacy path aliases.
 ```text
 RPC request: wallet.key.derive_receiver
     ↓
-rpc/key_rpc_server_derive.rs::derive_receiver_impl()
+rpc/key_rpc_server.rs::KeyRpcServer::derive_receiver()
     ↓
-WalletService::verify_session()
+rpc/key_rpc_impl.rs::KeyRpcImpl::verify_no_touch_cap()
+    ↓
+WalletService::verify_session_no_touch()
+    ↓
+rpc/key_rpc_server_derive.rs::KeyRpcImpl::derive_receiver_checked()
     ↓
 WalletService::key_derive_rate_limit_precheck()
+    limit: 20
+    ↓
+String::parse::<Bip44Path>()
     ↓
 WalletService::derive_public_key_for_path()
       implemented in services/wallet_session_derivation.rs
@@ -39,7 +46,10 @@ RuntimeDeriveReceiverResponse { public_key, path }
 ## 🧭 What this flow guarantees
 
 - The path string is parsed and validated before derivation.
-- Session and wallet-state checks happen before key exposure.
+- No-touch session validation and wallet-state checks happen before key
+  exposure.
+- The RPC method applies the current key-derive precheck limit before it asks
+  the receiver manager for a key.
 - The service returns public bytes plus a canonical path string, not a secret.
 - The receiver-manager layer is the current cache-aware boundary above the key
   manager.

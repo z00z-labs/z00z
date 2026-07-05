@@ -14,8 +14,8 @@ paths:
   journal_path: "var/hjmt_runtime/sim_5a7s/agg-1/journal.redb"
   log_path: "var/hjmt_runtime/sim_5a7s/agg-1/aggregator.log"
 lifecycle:
-  start_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml"
-  restart_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml"
+  start_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml"
+  restart_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml"
 route:
   table_path: "shard_route_tables/route-table-v1.canon.hex"
   expected_digest: "000c78634c31e624c5e194378e6c7613e916e1975ca901e5d6416325c1d617e1"

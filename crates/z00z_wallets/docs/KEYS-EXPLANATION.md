@@ -25,26 +25,30 @@ It is explanation-only and should stay aligned with current code.
 The current high-level RPC call graph is:
 
 1. test transport calls `wallet.key.derive_receiver`
-2. `rpc/key_rpc_server_derive.rs::derive_receiver_impl()` parses the path and
-   resolves the wallet id from the session
-3. `WalletService::verify_session(...)` validates session state
-4. `WalletService::key_derive_rate_limit_precheck(...)` enforces the current
-   derive limit
-5. `WalletService::derive_public_key_for_path(...)` enters the service
+2. `rpc/key_rpc_server.rs::KeyRpcServer::derive_receiver(...)` receives the
+   session token and path string
+3. `KeyRpcImpl::verify_no_touch_cap(...)` calls
+   `WalletService::verify_session_no_touch(...)` and resolves the wallet id
+   without refreshing session activity
+4. `KeyRpcImpl::derive_receiver_checked(...)` applies
+   `WalletService::key_derive_rate_limit_precheck(..., 20)` before derivation
+5. the path string is parsed as `Bip44Path`; invalid paths return JSON-RPC
+   `-32602`
+6. `WalletService::derive_public_key_for_path(...)` enters the service
    derivation path
-6. `WalletService::get_create_wallet_receiver_deriver(...)` resolves or creates
+7. `WalletService::get_create_wallet_receiver_deriver(...)` resolves or creates
    the per-wallet receiver-deriver handle
-7. `WalletService::create_receiver_deriver_state(...)` initializes
+8. `WalletService::create_receiver_deriver_state(...)` initializes
    `KeyManagerImpl` from the wallet seed when needed
-8. `ReceiverManagerImpl::derive_spend_key(...)` requests the public key for the
+9. `ReceiverManagerImpl::derive_spend_key(...)` requests the public key for the
    path
-9. `KeyManagerImpl::derive_key(...)` derives the public key through the key
+10. `KeyManagerImpl::derive_key(...)` derives the public key through the key
    stack
-10. `Bip44KeyManager::derive_address_key_for_path(...)` derives the leaf BIP-32
+11. `Bip44KeyManager::derive_address_key_for_path(...)` derives the leaf BIP-32
     private key
-11. `RistrettoBridge::to_ristretto_key(...)` maps leaf material into the Z00Z
+12. `RistrettoBridge::to_ristretto_key(...)` maps leaf material into the Z00Z
     Ristretto domain
-12. the RPC layer returns
+13. the RPC layer returns
     `RuntimeDeriveReceiverResponse { public_key, path }`
 
 The important output rule is unchanged: the RPC path returns public material and
@@ -82,7 +86,8 @@ Both paths converge on the same cryptographic rules:
 
 The difference is system responsibility, not cryptographic core:
 
-- the RPC path adds session validation and rate limiting
+- the RPC path adds no-touch session validation, wallet-state checks, and key
+  derivation rate limiting
 - the direct path is useful for unit/integration tests and low-level reasoning
 
 ---

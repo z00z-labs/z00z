@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use z00z_aggregators::{RouteRangeRule, ShardId, ShardRouteTable};
+use z00z_rollup_node::canonical_run_cmd;
 use z00z_utils::io;
 
 const ZERO_LINEAGE: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -114,7 +115,7 @@ pub fn write_hjmt_home_with_mapping(
         io::write_file(
             &agg_cfg,
             format!(
-                "aggregator_id: {}\nrole: \"aggregator\"\nrouting_generation: {routing_generation}\n{}shards:\n{}network:\n  listen_addr: \"127.0.0.1:{}\"\npaths:\n  data_dir: \"{}\"\n  journal_path: \"{}\"\n  log_path: \"{}\"\nlifecycle:\n  start_cmd: \"cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config {} --planner-config {} --storage-config {}\"\n  restart_cmd: \"cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config {} --planner-config {} --storage-config {}\"\nroute:\n  table_path: \"{ROUTE_FILE}\"\n  expected_digest: \"{route_digest}\"\nstartup:\n  route_codec: true\n  placement: true\n  journal_lineage: true\n  backend_generation: true\n  proof_codec: true\n  handoff_ready: true\n  crypto_tags: true\nevidence:\n  config_digest_file: \"{}\"\n  preflight_report_file: \"{}\"\nlimits:\n  max_batch_ops: 128\n  max_inflight: 16\n",
+                "aggregator_id: {}\nrole: \"aggregator\"\nrouting_generation: {routing_generation}\n{}shards:\n{}network:\n  listen_addr: \"127.0.0.1:{}\"\npaths:\n  data_dir: \"{}\"\n  journal_path: \"{}\"\n  log_path: \"{}\"\nlifecycle:\n  start_cmd: \"{}\"\n  restart_cmd: \"{}\"\nroute:\n  table_path: \"{ROUTE_FILE}\"\n  expected_digest: \"{route_digest}\"\nstartup:\n  route_codec: true\n  placement: true\n  journal_lineage: true\n  backend_generation: true\n  proof_codec: true\n  handoff_ready: true\n  crypto_tags: true\nevidence:\n  config_digest_file: \"{}\"\n  preflight_report_file: \"{}\"\nlimits:\n  max_batch_ops: 128\n  max_inflight: 16\n",
                 agg.id,
                 execution_block,
                 shards,
@@ -122,12 +123,8 @@ pub fn write_hjmt_home_with_mapping(
                 home.join(format!("var/agg-{}/data", agg.id)).display(),
                 home.join(format!("var/agg-{}/journal.redb", agg.id)).display(),
                 home.join(format!("var/agg-{}/aggregator.log", agg.id)).display(),
-                agg_cfg.display(),
-                planner_cfg.display(),
-                storage_cfg.display(),
-                agg_cfg.display(),
-                planner_cfg.display(),
-                storage_cfg.display(),
+                canonical_run_cmd(&agg_cfg, &planner_cfg, &storage_cfg),
+                canonical_run_cmd(&agg_cfg, &planner_cfg, &storage_cfg),
                 home.join(format!("var/agg-{}/evidence/config-digests.json", agg.id))
                     .display(),
                 home.join(format!("var/agg-{}/evidence/preflight-report.json", agg.id))

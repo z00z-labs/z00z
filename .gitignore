@@ -63,6 +63,10 @@ z00z-*.tar.gz
 **/.codacy/
 **/.cache/
 **/cache/
+/graphify-out/
+crates/graphify-out/
+crates/.graphify-out/
+.planning/graphs
 .codex/
 .bg-shell/
 **/.z00z-storage-redb/

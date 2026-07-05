@@ -2,7 +2,7 @@ mod test_common;
 
 use tempfile::tempdir;
 use z00z_aggregators::{
-    AggregatorId, DispatchStage, DistDispatch, DistNoteKind, DistScheduler, ShardId,
+    AggregatorId, BatchPlanner, DispatchStage, DistDispatch, DistNoteKind, DistScheduler, ShardId,
     ShardRouteTable, WorkItem,
 };
 
@@ -98,6 +98,20 @@ fn test_rejects_dispatch_drift() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(unavailable.stage, DispatchStage::Deferred);
     assert!(unavailable.detail.contains("owner unavailable"));
     runtime(dispatch.heal(AggregatorId::new(0)))?;
+
+    let mut stale_table = table.clone();
+    stale_table.activation_checkpoint += 1;
+    stale_table.validate().expect("stale table stays valid");
+    let stale_planned = BatchPlanner::new(stale_table)
+        .plan_batch(
+            batch_id("stale-route-digest"),
+            std::slice::from_ref(&shard0_a),
+        )
+        .expect("stale planned batch");
+    let stale_route = dispatch
+        .dispatch_planned(stale_planned, AggregatorId::new(0), 1, 1, lock_path.clone())
+        .expect_err("stale route digest must reject");
+    assert!(stale_route.detail.contains("wrong route digest"));
 
     let delivered = runtime(dispatch.dispatch_batch(
         batch_id("deliver-1"),

@@ -1,20 +1,70 @@
 # Phase 067 Source Audit
 
-**Generated:** 2026-07-03
+**Generated:** 2026-07-05
 **Purpose:** prove that the Phase 067 packet covers the full normative
-`067-TODO.md` authority, its exact Markdown corpus references, the mandatory
-`scenario_11` carry-forward from `090-New-Scenarios/066-TODO.md`, and the
-anti-duplication or anti-parallel-layer rules before implementation starts.
+`067-TODO.md` authority, the exact `067-verdict.md` Local-Conformance-Simulation
+authority, their exact Markdown corpus references, the mandatory `scenario_11`
+carry-forward from `090-New-Scenarios/90-TODO.md`, and the anti-duplication or
+anti-parallel-layer rules before implementation starts.
 
 ## Markdown Corpus Lock
 
 | Source | Status | Packet owner | Notes |
 | --- | --- | --- | --- |
-| `.planning/phases/067-Sharded-Concensus/067-TODO.md` | COVERED | `067-CONTEXT.md`, `067-COVERAGE.md`, `067-01` through `067-09` | Sole normative human-readable Phase 067 authority for planning and execution scoping. |
-| `.planning/phases/090-New-Scenarios/066-TODO.md` | COVERED | `067-CONTEXT.md`, `067-COVERAGE.md`, `067-01` through `067-09` | Mandatory `scenario_11` owner, artifact, test, and verification-anchor source. |
+| `.planning/phases/067-Sharded-Concensus/067-TODO.md` | COVERED | `067-CONTEXT.md`, `067-COVERAGE.md`, `067-01` through `067-09` | Base normative human-readable Phase 067 authority for planning and execution scoping. |
+| `.planning/phases/067-Sharded-Concensus/067-verdict.md` | COVERED | `067-CONTEXT.md`, `067-COVERAGE.md`, `067-10` through `067-19` | Normative Local-Conformance-Simulation expansion source for the strong acceptance gate. |
+| `.planning/phases/067-Sharded-Concensus/067-CONTEXT.md` | COVERED | `067-01` through `067-19`, `067-PLAN-REVIEW.md` | Context packet referenced by verdict and plans; evidence only, not a second authority layer. |
+| `.planning/phases/067-Sharded-Concensus/067-COVERAGE.md` | COVERED | `067-CONTEXT.md`, `067-01` through `067-19`, `067-PLAN-REVIEW.md` | Coverage packet referenced by verdict; evidence only, not a replacement for plan execution. |
+| `.planning/phases/067-Sharded-Concensus/067-VERDICT-ITEM-AUDIT.md` | COVERED | `067-CONTEXT.md`, `067-19`, `067-PLAN-REVIEW.md` | Item-level traceability for all `253` dash or numbered items from `067-verdict.md`; evidence only, not a second task ledger. |
+| `.planning/STATE.md` | COVERED | `067-CONTEXT.md`, `067-19`, `067-PLAN-REVIEW.md` | Status snapshot referenced by verdict; status evidence only. |
+| `.planning/phases/067-Sharded-Concensus/067-10-PLAN.md` through `.planning/phases/067-Sharded-Concensus/067-19-PLAN.md` | COVERED | `067-CONTEXT.md`, `067-COVERAGE.md`, `067-19`, `067-PLAN-REVIEW.md` | Exact verdict expansion plan files; plan ids are file ids, not wave ids. |
+| `.planning/phases/090-New-Scenarios/90-TODO.md` | COVERED | `067-CONTEXT.md`, `067-COVERAGE.md`, `067-01` through `067-19` | Mandatory `scenario_11` owner, artifact, test, and verification-anchor source. |
 | `crates/z00z_runtime/aggregators/README.md` | COVERED | `067-CONTEXT.md`, `067-01-PLAN.md` | Explicitly named in the rename matrix and kept on the live doc path, not a copied doc lane. |
-| `.planning/phases/067-Sharded-Concensus/Agg-Concensus-Spec.md` | COVERED AS STALE DRIFT | `067-CONTEXT.md`, `067-09-PLAN.md`, `067-PLAN-REVIEW.md` | Missing in the live worktree; tracked only as a stale reference and never recreated as a second authority file. |
+| Legacy non-canonical aggregator-consensus references | COVERED AS STALE DRIFT | `067-CONTEXT.md`, `067-09-PLAN.md`, `067-PLAN-REVIEW.md` | Older internal references point outside the live authority chain; they are tracked only as stale drift and never recreated as a second authority file. |
 | `.planning/phases/067-Sharded-Concensus/wiki -results.md` | COVERED AS SUPPORTING ONLY | `067-CONTEXT.md` | Supporting non-canonical context only; not an authority source for claims, coverage, or acceptance. |
+
+## Referenced Corpus Detailed Lock
+
+| Source slice | Range | Inventory | Packet owner(s) | Status | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `.planning/phases/090-New-Scenarios/90-TODO.md` `## 15. scenario_11 Shard Quorum Certificate And Secondary Replay Drill` | `1050-1290` | `h3=15`, `dash=81`, `num=13` | `067-CONTEXT.md`, `067-02`, `067-05`, `067-06`, `067-07`, `067-08`, `067-09`, `067-11`, `067-13` through `067-19` | COVERED | Scenario purpose, current-code anchors, independent home, required existing-crate additions, flow, invariants, artifact list, unit/integration/E2E tests, fault matrix, anti-placeholder gates, verification anchors, and completion criteria are carried into plans. Exact rows `Duplicate voter` and `one-secondary-stale` are explicitly preserved. |
+| `crates/z00z_runtime/aggregators/README.md` rename target | `README phrase` | `secondary-aggregator takeover` | `067-CONTEXT.md`, `067-01` | COVERED | README wording remains a live doc target for the `standby` to `secondary aggregator` cleanup without creating a duplicate documentation lane. |
+
+## Verdict Expansion Addendum
+
+This source audit locks the original `067-TODO.md` Markdown inventory. The
+expanded verdict work is tracked by `067-verdict.md`, `067-COVERAGE.md`, and
+`067-10-PLAN.md` through `067-19-PLAN.md`; it does not renumber or reinterpret
+the original `PHASE-0` through `PHASE-8` rows.
+
+## Exact Verdict Inventory Lock
+
+`067-verdict.md` is normative for the Local-Conformance-Simulation expansion.
+This lock covers all verdict Markdown items:
+
+- `9` H2 sections
+- `44` H3 sections
+- `227` dash-list bullets
+- `26` numbered-list items
+- `253` total dash or numbered verdict items
+- `253/253` item-level rows in
+  `.planning/phases/067-Sharded-Concensus/067-VERDICT-ITEM-AUDIT.md`
+
+Every verdict item is owned by the nearest source range below and by the
+corresponding numbered plan owners in `067-CONTEXT.md` and `067-10-PLAN.md`
+through `067-19-PLAN.md`. A missing owner in this table fails planning.
+
+| Section | Range | Bullet inventory | Packet owner(s) | Status | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `## 🔎 Ответы по твоим пунктам` | `9-24` | `dash=7`, `num=0` | `067-CONTEXT.md`, `067-06`, `067-12`, `067-19` | COVERED | Direct answers remain in context and final conformance owners. |
+| `## 🎯 Targeted Additions To Close The Missing Subquestions` | `25-308` | `dash=38`, `num=26` | `067-CONTEXT.md`, `067-05`, `067-06`, `067-08`, `067-09`, `067-10` through `067-19` | COVERED | Redistribution, config ownership, signature limits, process model, planner authority, additional questions, and local simulation requirements stay mapped. |
+| `## ✅ Pro-Con And Doublecheck Audit` | `309-359` | `dash=8`, `num=0` | `067-CONTEXT.md`, `067-10` through `067-19` | COVERED | Local simulation remains valid only for artifact/API-backed claims; production external-infra overclaim remains forbidden. |
+| `## 🧷 Strong Acceptance Gate For 067` | `360-594` | `dash=78`, `num=0` | `067-CONTEXT.md`, `067-07` through `067-19` | COVERED | All Strong Gates, hard blockers, and report-honesty constraints map to numbered plans. |
+| `## 📦 Conformance Simulation Libraries And Frameworks` | `595-665` | `dash=24`, `num=0` | `067-CONTEXT.md`, `067-10` through `067-19` | COVERED | Already-present, direct-addition, external-backend, and non-Rust tool guidance remains dependency-owned and non-parallel. |
+| `## 🧰 Concrete Add List To Implement The Whole Verdict` | `666-841` | `dash=56`, `num=0` | `067-CONTEXT.md`, `067-10` through `067-19` | COVERED | Concrete add anchors are either existing live files or proposed artifacts owned by exactly one plan. |
+| `## 🛑 MUST решить в 067, не переносить` | `842-872` | `dash=10`, `num=0` | `067-CONTEXT.md`, `067-10` through `067-19` | COVERED | MUST-solve items stay in Phase 067 unless explicitly closed as `live-claim-removed`. |
+| `## 🧭 Executable Plan Expansion Addendum` | `873-992` | `dash=6`, `num=0` | `067-CONTEXT.md`, `067-COVERAGE.md`, `067-10` through `067-19` | COVERED | Coverage audit, plan id lock, waves, inventory, installation sequence, and task-to-plan table remain exact. |
+| `## ✅ Проверка` | `993-1003` | `dash=0`, `num=0` | `067-CONTEXT.md`, `067-PLAN-REVIEW.md` | COVERED | Verification conclusion is tracked as review evidence only. |
 
 ## Exact TODO Section Traceability
 

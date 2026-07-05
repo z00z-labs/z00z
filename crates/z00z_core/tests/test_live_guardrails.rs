@@ -33,7 +33,8 @@ const ARCHITECTURE_DOC: &str = include_str!("../../../.planning/codebase/ARCHITE
 const PROFILING_DOC: &str = include_str!("../../../.planning/phases/profiling-comprehensive.md");
 const ROOT_TYPES_DOC: &str =
     include_str!("../../../crates/z00z_storage/src/settlement/root_types.md");
-const PHASE066_TODO: &str = include_str!("../../../.planning/phases/090-New-Scenarios/066-TODO.md");
+const SCENARIO11_TODO: &str =
+    include_str!("../../../.planning/phases/090-New-Scenarios/90-TODO.md");
 const PHASE065_WORDING_AUDIT: &str =
     include_str!("../../../scripts/audit/audit_narrowed_wording.sh");
 const UTILS_BOUNDARY_AUDIT: &str =
@@ -376,12 +377,12 @@ fn phase065_wording_guard() {
     );
     assert_absent(
         "phase 066 todo",
-        PHASE066_TODO,
+        SCENARIO11_TODO,
         "crates/z00z_core/src/assets/assets_config.yaml",
     );
     assert_present(
         "phase 066 todo",
-        PHASE066_TODO,
+        SCENARIO11_TODO,
         "crates/z00z_core/configs/devnet_rights_config.yaml",
     );
 }

@@ -407,8 +407,8 @@ def rewrite_shard_process_home(home: Path) -> None:
             f'  journal_path: "{journal_path}"\n'
             f'  log_path: "{log_path}"\n'
             "lifecycle:\n"
-            f'  start_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config {repo_rel(home / cfg_rel)} --planner-config {repo_rel(home / "planner" / "planner-config.yaml")} --storage-config {repo_rel(home / "storage" / "storage-config.yaml")}"\n'
-            f'  restart_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config {repo_rel(home / cfg_rel)} --planner-config {repo_rel(home / "planner" / "planner-config.yaml")} --storage-config {repo_rel(home / "storage" / "storage-config.yaml")}"\n'
+            f'  start_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config {repo_rel(home / cfg_rel)} --planner-config {repo_rel(home / "planner" / "planner-config.yaml")} --storage-config {repo_rel(home / "storage" / "storage-config.yaml")}"\n'
+            f'  restart_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config {repo_rel(home / cfg_rel)} --planner-config {repo_rel(home / "planner" / "planner-config.yaml")} --storage-config {repo_rel(home / "storage" / "storage-config.yaml")}"\n'
             "route:\n"
             f'  table_path: "{route_rel}"\n'
             f'  expected_digest: "{route_digest}"\n'
@@ -438,12 +438,12 @@ def rewrite_shard_process_home(home: Path) -> None:
                 "journal_path": journal_path,
                 "log_path": log_path,
                 "start_cmd": (
-                    f"cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config "
+                    f"cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config "
                     f"{repo_rel(home / cfg_rel)} --planner-config {repo_rel(home / 'planner' / 'planner-config.yaml')} "
                     f"--storage-config {repo_rel(home / 'storage' / 'storage-config.yaml')}"
                 ),
                 "restart_cmd": (
-                    f"cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config "
+                    f"cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config "
                     f"{repo_rel(home / cfg_rel)} --planner-config {repo_rel(home / 'planner' / 'planner-config.yaml')} "
                     f"--storage-config {repo_rel(home / 'storage' / 'storage-config.yaml')}"
                 ),
@@ -464,11 +464,11 @@ def rewrite_variant_home_paths(home: Path) -> None:
     for cfg_path in sorted(home.glob("aggregators/agg-*/aggregator-config.yaml")):
         body = cfg_path.read_text(encoding="utf-8")
         start_cmd = (
-            f'  start_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config {cfg_path} '
+            f'  start_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config {cfg_path} '
             f'--planner-config {planner_cfg} --storage-config {storage_cfg}"'
         )
         restart_cmd = (
-            f'  restart_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config {cfg_path} '
+            f'  restart_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config {cfg_path} '
             f'--planner-config {planner_cfg} --storage-config {storage_cfg}"'
         )
         lines = []
@@ -492,7 +492,7 @@ def rewrite_variant_home_paths(home: Path) -> None:
         cfg_path = home / "aggregators" / f"agg-{agg_id}" / "aggregator-config.yaml"
         agg["cfg_path"] = str(cfg_path)
         agg["start_cmd"] = (
-            f"cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config {cfg_path} "
+            f"cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config {cfg_path} "
             f"--planner-config {planner_cfg} --storage-config {storage_cfg}"
         )
         agg["restart_cmd"] = agg["start_cmd"]

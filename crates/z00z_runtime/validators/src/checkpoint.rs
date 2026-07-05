@@ -1,6 +1,9 @@
 #![forbid(unsafe_code)]
 
-use z00z_aggregators::{bind_publication_contract, BatchRoute, PublicationBinding};
+use z00z_aggregators::{
+    bind_publication_contract, membership_digest_for_voters, BatchRoute, PublicationBinding,
+    RejectClass as AggregatorRejectClass, ShardQuorumCertificate,
+};
 use z00z_storage::{
     checkpoint::derive_checkpoint_id,
     settlement::{check_route_binding_v1, PublicationRouteSnapshotV1},
@@ -60,7 +63,7 @@ impl CheckpointFlow {
         )
         .map_err(|_| RejectClass::ReconcileInvalid)?;
 
-        Ok(Self {
+        let flow = Self {
             publication: bind_publication_contract(
                 batch.published.batch_id,
                 batch.published.checkpoint_id,
@@ -70,11 +73,106 @@ impl CheckpointFlow {
             publication_route: batch.published.publication_route.clone(),
             ordered_route: batch.ordered.planned.route,
             runtime_route,
-        })
+        };
+        if batch.quorum_binding_enabled() {
+            flow.verify_quorum_binding(batch)?;
+        }
+        Ok(flow)
     }
 
     #[must_use]
     pub const fn binding_digest(&self) -> [u8; 32] {
         self.publication.binding_digest()
+    }
+
+    fn verify_quorum_binding(&self, batch: &ResolvedBatch) -> Result<(), RejectClass> {
+        let subject = batch.subject.as_ref().ok_or(RejectClass::AuthInvalid)?;
+        let certificate = batch.certificate.as_ref().ok_or(RejectClass::AuthInvalid)?;
+        let published_subject_digest = batch
+            .published
+            .subject_digest
+            .ok_or(RejectClass::AuthInvalid)?;
+        let published_certificate_digest = batch
+            .published
+            .certificate_digest
+            .ok_or(RejectClass::AuthInvalid)?;
+        let published_theorem_digest = batch
+            .published
+            .theorem_digest
+            .ok_or(RejectClass::ProofInvalid)?;
+
+        subject
+            .verify_binding(&batch.ordered, &self.publication, batch.theorem_digest())
+            .map_err(map_aggregator_reject)?;
+
+        if published_subject_digest != subject.digest()
+            || certificate.subject_digest != subject.digest()
+            || published_certificate_digest != certificate.digest()
+        {
+            return Err(RejectClass::ReconcileInvalid);
+        }
+        if published_theorem_digest != batch.theorem_digest()
+            || subject.theorem_or_settlement_digest != batch.theorem_digest()
+        {
+            return Err(RejectClass::ProofInvalid);
+        }
+        certificate
+            .verify_subject(subject)
+            .map_err(map_aggregator_reject)?;
+
+        let placement = batch.runtime_placement().ok_or(RejectClass::AuthInvalid)?;
+        if placement.route != subject.route()
+            || placement.expected_journal_lineage != subject.journal_lineage
+        {
+            return Err(RejectClass::ReconcileInvalid);
+        }
+
+        let ready_secondaries = placement
+            .secondaries
+            .iter()
+            .filter(|secondary| secondary.is_ready)
+            .map(|secondary| secondary.aggregator_id)
+            .collect::<Vec<_>>();
+        let expected_membership = membership_digest_for_voters(
+            placement.route,
+            placement.primary_id,
+            ready_secondaries.iter().copied(),
+        );
+        if expected_membership != subject.membership_digest {
+            return Err(RejectClass::ReconcileInvalid);
+        }
+
+        let rebuilt = match certificate.quorum_rule {
+            z00z_aggregators::QuorumRule::MajorityCft => ShardQuorumCertificate::new(
+                subject,
+                placement.primary_id,
+                ready_secondaries.clone(),
+                &certificate.votes,
+            ),
+            z00z_aggregators::QuorumRule::BftTwoFPlusOne => ShardQuorumCertificate::new_bft(
+                subject,
+                placement.primary_id,
+                ready_secondaries.clone(),
+                &certificate.votes,
+            ),
+        }
+        .map_err(map_aggregator_reject)?;
+        if rebuilt != *certificate {
+            return Err(RejectClass::ReconcileInvalid);
+        }
+
+        Ok(())
+    }
+}
+
+fn map_aggregator_reject(reject: z00z_aggregators::RejectRecord) -> RejectClass {
+    match reject.class {
+        AggregatorRejectClass::AuthInvalid => RejectClass::AuthInvalid,
+        AggregatorRejectClass::ShapeInvalid => RejectClass::ShapeInvalid,
+        AggregatorRejectClass::DeferredRetry => RejectClass::ReconcileInvalid,
+        AggregatorRejectClass::ReplayLocal | AggregatorRejectClass::PolicyReject => {
+            RejectClass::ReconcileInvalid
+        }
+        AggregatorRejectClass::ParseInvalid => RejectClass::ArtifactVersion,
     }
 }

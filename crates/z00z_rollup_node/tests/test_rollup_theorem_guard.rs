@@ -1,10 +1,15 @@
+#[path = "support/test_theorem_fixture.rs"]
+mod theorem_fixture;
+
 use std::{
     ffi::OsString,
     sync::{Arc, Mutex, OnceLock},
 };
 
 use z00z_core::assets::{Asset, AssetClass, AssetDefinition, AssetPkgWire, AssetWire};
-use z00z_rollup_node::{verify_settlement_theorem, SettlementError, SettlementTheorem};
+use z00z_rollup_node::{
+    verify_settlement_theorem, DaAdapter, LocalDaAdapter, SettlementError, SettlementTheorem,
+};
 use z00z_storage::{
     checkpoint::{
         derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointDraft,
@@ -15,6 +20,7 @@ use z00z_storage::{
     snapshot::PrepSnapshotId,
 };
 use z00z_utils::codec::{Codec, JsonCodec};
+use z00z_validators::{ObjectPolicyRegistryV1, RejectClass, ValidatorBoundary, VerdictKind};
 use z00z_wallets::{
     key::{ReceiverKeys, ReceiverSecret},
     stealth::{bind_stealth_output_wire, build_card_stealth_leaf},
@@ -267,6 +273,40 @@ fn settlement_fixture() -> (
     let exec_input = exec_input_from_package(&package, prev_root);
     let (artifact, link) = checkpoint_bundle(&exec_input);
     (package, exec_input, artifact, link)
+}
+
+#[test]
+fn validator_rejects_detached_certificate_binding() {
+    let request = theorem_fixture::publication_request([0x91; 32], "theorem-detached-cert");
+    let mut adapter = LocalDaAdapter::new("local-theorem");
+    let published = adapter.publish(request).expect("publish");
+    let mut resolved = adapter.resolve(&published).expect("resolve");
+    resolved.certificate = None;
+
+    let verdict =
+        ValidatorBoundary.verdict_for_batch(&resolved, &ObjectPolicyRegistryV1::default());
+
+    assert_eq!(verdict.kind, VerdictKind::Rejected);
+    assert_eq!(verdict.reject, Some(RejectClass::AuthInvalid));
+}
+
+#[test]
+fn validator_rejects_detached_publication_binding() {
+    let request = theorem_fixture::publication_request([0x92; 32], "theorem-detached-pub");
+    let mut adapter = LocalDaAdapter::new("local-theorem");
+    let published = adapter.publish(request).expect("publish");
+    let mut resolved = adapter.resolve(&published).expect("resolve");
+    resolved
+        .subject
+        .as_mut()
+        .expect("subject")
+        .publication_binding_digest = [0xA4; 32];
+
+    let verdict =
+        ValidatorBoundary.verdict_for_batch(&resolved, &ObjectPolicyRegistryV1::default());
+
+    assert_eq!(verdict.kind, VerdictKind::Rejected);
+    assert_eq!(verdict.reject, Some(RejectClass::ReconcileInvalid));
 }
 
 fn exec_input_with_prev_root(

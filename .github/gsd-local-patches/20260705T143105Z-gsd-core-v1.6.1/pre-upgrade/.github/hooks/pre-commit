@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+VERSION_MANAGER_REL=".github/skills/z00z-git-versioning/scripts/version-manager.sh"
+
+log() {
+    printf '[pre-commit] %s\n' "$1"
+}
+
+fail() {
+    printf '[pre-commit] %s\n' "$1" >&2
+    exit 1
+}
+
+is_zero_oid() {
+    [[ "$1" =~ ^0+$ ]]
+}
+
+has_ancestor_command() {
+    local needle="$1"
+    local current_pid="$PPID"
+    local cmd_line
+    local parent_pid
+
+    while [[ -n "$current_pid" ]] && [[ "$current_pid" =~ ^[0-9]+$ ]] && [[ "$current_pid" -gt 1 ]]; do
+        cmd_line="$(ps -o args= -p "$current_pid" 2>/dev/null || true)"
+        if [[ "$cmd_line" == *"$needle"* ]]; then
+            return 0
+        fi
+
+        parent_pid="$(ps -o ppid= -p "$current_pid" 2>/dev/null | tr -d ' ' || true)"
+        [[ -n "$parent_pid" ]] || break
+        current_pid="$parent_pid"
+    done
+
+    return 1
+}
+
+mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACMR)
+
+if [[ "${#STAGED_FILES[@]}" -eq 0 ]]; then
+    log 'No staged files to validate'
+    exit 0
+fi
+
+vendor_touched=0
+version_file_touched=0
+rust_related_touched=0
+strict_check_files=()
+
+for file_path in "${STAGED_FILES[@]}"; do
+    case "$file_path" in
+        crates/z00z_crypto/tari/*)
+            vendor_touched=1
+            ;;
+        versions.yaml)
+            version_file_touched=1
+            ;;
+        *.rs|Cargo.toml)
+            rust_related_touched=1
+            ;;
+    esac
+
+    case "$file_path" in
+        *.md|*.txt)
+            ;;
+        *)
+            strict_check_files+=("$file_path")
+            ;;
+    esac
+done
+
+if [[ "$vendor_touched" -eq 1 ]]; then
+    fail "Vendor subtree crates/z00z_crypto/tari/ is read-only. Move integration changes into z00z_crypto wrappers instead."
+fi
+
+if [[ "$version_file_touched" -eq 1 ]] && ! has_ancestor_command "$VERSION_MANAGER_REL"; then
+    fail "Direct commits that stage versions.yaml are blocked. Use ./$VERSION_MANAGER_REL ... so the version bump, commit, and tag stay consistent."
+fi
+
+if [[ "${#strict_check_files[@]}" -gt 0 ]]; then
+    if ! git diff --cached --check --color=never -- "${strict_check_files[@]}" >/tmp/z00z-pre-commit-check.$$ 2>&1; then
+        cat /tmp/z00z-pre-commit-check.$$ >&2
+        rm -f /tmp/z00z-pre-commit-check.$$
+        fail 'Staged non-markdown/non-text diff contains conflict markers or whitespace errors.'
+    fi
+fi
+rm -f /tmp/z00z-pre-commit-check.$$
+
+if [[ "$rust_related_touched" -eq 1 ]]; then
+    log 'Running cargo fmt --all --check'
+    cargo fmt --all --check
+fi
+
+log 'Hook checks passed'
+exit 0

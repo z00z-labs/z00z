@@ -1,0 +1,35 @@
+aggregator_id: 6
+role: "aggregator"
+routing_generation: 1
+execution:
+  shard_mapping: "aggregator_owned"
+shards:
+  - shard_id: 6
+    secondary_ids: [0, 1, 2, 3, 4, 5]
+    expected_journal_lineage: "0000000000000000000000000000000000000000000000000000000000000000"
+network:
+  listen_addr: "127.0.0.1:7206"
+paths:
+  data_dir: "var/hjmt_runtime/sim_7a7s/agg-6/data"
+  journal_path: "var/hjmt_runtime/sim_7a7s/agg-6/journal.redb"
+  log_path: "var/hjmt_runtime/sim_7a7s/agg-6/aggregator.log"
+lifecycle:
+  start_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_7a7s/aggregators/agg-6/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_7a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_7a7s/storage/storage-config.yaml"
+  restart_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_7a7s/aggregators/agg-6/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_7a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_7a7s/storage/storage-config.yaml"
+route:
+  table_path: "shard_route_tables/route-table-v1.canon.hex"
+  expected_digest: "000c78634c31e624c5e194378e6c7613e916e1975ca901e5d6416325c1d617e1"
+startup:
+  route_codec: true
+  placement: true
+  journal_lineage: true
+  backend_generation: true
+  proof_codec: true
+  handoff_ready: true
+  crypto_tags: true
+evidence:
+  config_digest_file: "var/hjmt_runtime/sim_7a7s/agg-6/evidence/config-digests.json"
+  preflight_report_file: "var/hjmt_runtime/sim_7a7s/agg-6/evidence/preflight-report.json"
+limits:
+  max_batch_ops: 128
+  max_inflight: 16

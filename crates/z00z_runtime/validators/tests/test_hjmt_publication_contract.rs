@@ -222,6 +222,61 @@ fn test_keeps_adapter_advisory() {
 }
 
 #[test]
+fn checkpoint_accepts_live_quorum_binding() {
+    let batch_id = BatchId::from_bytes([0x86; 32]);
+    let resolved = resolved_batch_with_quorum(batch_id);
+
+    let flow = CheckpointFlow::try_from_resolved(&resolved).expect("quorum-bound flow");
+
+    assert_eq!(
+        flow.binding_digest(),
+        resolved
+            .subject
+            .as_ref()
+            .expect("subject")
+            .publication_binding_digest
+    );
+}
+
+#[test]
+fn checkpoint_rejects_missing_certificate_when_gate_enabled() {
+    let batch_id = BatchId::from_bytes([0x87; 32]);
+    let mut resolved = resolved_batch_with_quorum(batch_id);
+    resolved.certificate = None;
+
+    let err = CheckpointFlow::try_from_resolved(&resolved)
+        .expect_err("missing certificate must reject when gate is enabled");
+
+    assert_eq!(err, RejectClass::AuthInvalid);
+}
+
+#[test]
+fn checkpoint_rejects_theorem_drift_when_gate_enabled() {
+    let batch_id = BatchId::from_bytes([0x88; 32]);
+    let mut resolved = resolved_batch_with_quorum(batch_id);
+    resolved.published.theorem_digest = Some([0xAA; 32]);
+
+    let err = CheckpointFlow::try_from_resolved(&resolved)
+        .expect_err("theorem drift must reject when gate is enabled");
+
+    assert_eq!(err, RejectClass::ProofInvalid);
+}
+
+#[test]
+fn checkpoint_rejects_stale_membership_when_gate_enabled() {
+    let batch_id = BatchId::from_bytes([0x89; 32]);
+    let mut resolved = resolved_batch_with_quorum(batch_id);
+    if let Some(placement) = resolved.placement.as_mut() {
+        placement.secondaries.truncate(1);
+    }
+
+    let err = CheckpointFlow::try_from_resolved(&resolved)
+        .expect_err("stale placement membership must reject");
+
+    assert_eq!(err, RejectClass::ReconcileInvalid);
+}
+
+#[test]
 fn resolved_batch_rejects_bad_theorem_link() {
     let (tx_package, exec_input, artifact, _link) = theorem_support::settlement_fixture();
     let bad_link = CheckpointLink::new(
@@ -251,9 +306,25 @@ fn resolved_batch(
         published,
         ordered_batch(batch_id),
         theorem,
+        None,
+        None,
         Vec::new(),
         placement,
         exec_ticket,
+    )
+}
+
+fn resolved_batch_with_quorum(batch_id: BatchId) -> ResolvedBatch {
+    let fixture = theorem_support::quorum_fixture(batch_id);
+    ResolvedBatch::new(
+        fixture.published,
+        fixture.ordered,
+        fixture.theorem,
+        Some(fixture.subject),
+        Some(fixture.certificate),
+        Vec::new(),
+        Some(fixture.placement),
+        None,
     )
 }
 
@@ -265,6 +336,9 @@ fn published_batch(batch_id: BatchId, artifact: &CheckpointArtifact) -> Publishe
         publication_checkpoint: 11,
         publication_route: publication_route(),
         pub_in: artifact.pub_in(),
+        subject_digest: None,
+        certificate_digest: None,
+        theorem_digest: None,
         da_provider: "local-da".to_string(),
         blob_ref: "blob://hjmt-publication".to_string(),
     }

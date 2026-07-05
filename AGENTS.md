@@ -52,3 +52,28 @@ Do not expand unless the user asks.
 
 At the start of every new session in this repository, run the `/z00z-chat-init`
 skill before any planning, editing, review, or test work.
+
+## CodeGraph
+
+- Prefer CodeGraph first for structural codebase questions when `.codegraph/` exists.
+- Use CodeGraph before manual `rg` or file reads for architecture, call-flow, dependency, blast-radius, and "where is X implemented?" questions.
+- Prefer `codegraph explore` first; use `node`, `query`, `callers`, `callees`, `impact`, and `status` only when the task is narrower or scriptable.
+- If CodeGraph reports stale or pending-sync files, read those files directly before relying on the graph result for edits.
+- Fall back to normal filesystem and code reads when CodeGraph does not cover the needed area or when exact live line-level context is still required.
+
+## Order Of Operations
+
+- For live implementation questions: `CodeGraph` -> direct file, test, and config reads -> `Deep Wiki` for codebase explanation or page generation -> `@wiki` only if the result should become durable knowledge.
+- For durable documentation or knowledge-base work: `@wiki` and the local `.wiki/` first -> ingested/raw docs -> `CodeGraph` only when implementation validation is needed -> `Deep Wiki` only when a codebase-specific research/page artifact is needed.
+- Do not treat `Deep Wiki` or `@wiki` as the primary evidence source for current implementation while live code, tests, and configs have not been checked.
+- After writing or updating local wiki content, prefer `@wiki compile --local` and `@wiki lint --local --fix`.
+
+<!-- GSD Configuration — managed by gsd-core installer -->
+# Instructions for GSD
+
+- Use the gsd-core skill when the user asks for GSD or uses a `gsd-*` command.
+- Treat `/gsd-...` or `gsd-...` as command invocations and load the matching file from `.github/skills/gsd-*`.
+- When a command says to spawn a subagent, prefer a matching custom agent from `.github/agents`.
+- Do not apply GSD workflows unless the user explicitly asks for them.
+- After completing any `gsd-*` command (or any deliverable it triggers: feature, bug fix, tests, docs, etc.), ALWAYS: (1) offer the user the next step by prompting via `ask_user`; repeat this feedback loop until the user explicitly indicates they are done.
+<!-- /GSD Configuration -->

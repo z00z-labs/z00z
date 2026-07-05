@@ -3,6 +3,12 @@ use std::{
     sync::{Arc, Mutex, OnceLock},
 };
 
+use z00z_aggregators::{
+    bind_publication_contract, membership_digest_for_voters, AggregatorId, BatchId, BatchPlanned,
+    BatchRoute, CommitSubject, IngressBoundary, JournalCandidate, OrderedBatch, PlanDigest,
+    PublishedBatch, SecondaryState, ShardId, ShardPlacementView, ShardQuorumCertificate, ShardVote,
+    ShardVoteKind, ShardVoteRole, WorkPayload,
+};
 use z00z_core::assets::{Asset, AssetClass, AssetDefinition, AssetPkgWire, AssetWire};
 use z00z_storage::{
     checkpoint::{
@@ -270,4 +276,141 @@ pub fn settlement_fixture() -> (
 pub fn theorem_bundle() -> SettlementTheoremBundle {
     let (tx_package, exec_input, artifact, link) = settlement_fixture();
     SettlementTheoremBundle::new(tx_package, artifact, exec_input, link).expect("theorem bundle")
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct QuorumFixture {
+    pub theorem: SettlementTheoremBundle,
+    pub ordered: OrderedBatch,
+    pub placement: ShardPlacementView,
+    pub subject: CommitSubject,
+    pub certificate: ShardQuorumCertificate,
+    pub published: PublishedBatch,
+}
+
+#[allow(dead_code)]
+pub fn quorum_fixture(batch_id: BatchId) -> QuorumFixture {
+    let theorem = theorem_bundle();
+    let item = IngressBoundary
+        .normalize(WorkPayload::Tx(Box::new(theorem.tx_package().clone())))
+        .expect("ingress normalize");
+    let ordered = OrderedBatch {
+        batch_id,
+        items: vec![item.clone()],
+        created_leaves: Vec::new(),
+        planned: BatchPlanned {
+            batch_id,
+            route: BatchRoute {
+                shard_id: ShardId::new(1),
+                routing_generation: 7,
+            },
+            route_table_digest: PlanDigest::new([0x51; 32]),
+            intake_ids: vec![item.intake_id().clone()],
+            op_count: 1,
+            plan_digest: PlanDigest::new([0x52; 32]),
+        },
+    };
+    let placement = ShardPlacementView {
+        route: ordered.planned.route,
+        primary_id: AggregatorId::new(3),
+        secondaries: vec![
+            SecondaryState::ready(AggregatorId::new(4)),
+            SecondaryState::ready(AggregatorId::new(5)),
+        ],
+        expected_journal_lineage: [0x61; 32],
+    };
+    let checkpoint_id = derive_checkpoint_id(theorem.artifact()).expect("checkpoint id");
+    let publication = bind_publication_contract(
+        batch_id,
+        checkpoint_id,
+        ordered.planned.route_table_digest.into_bytes(),
+        &theorem.artifact().pub_in(),
+    );
+    let candidate = JournalCandidate {
+        batch_id,
+        route: ordered.planned.route,
+        state_root: theorem.artifact().pub_in().new_settlement_root(),
+        journal_lineage: placement.expected_journal_lineage,
+        version: 0,
+        root_generation: 0,
+        proof_version: 0,
+        bucket_policy_generation: 0,
+        bucket_policy_id: [0x71; 32],
+    };
+    let subject = CommitSubject::from_runtime(
+        7,
+        membership_digest_for_voters(
+            ordered.planned.route,
+            placement.primary_id,
+            placement
+                .secondaries
+                .iter()
+                .filter(|secondary| secondary.is_ready)
+                .map(|secondary| secondary.aggregator_id),
+        ),
+        &ordered,
+        &candidate,
+        &publication,
+        theorem.theorem_digest(),
+        None,
+    )
+    .expect("commit subject");
+    let votes = [
+        ShardVote::new_local(
+            placement.primary_id,
+            ShardVoteRole::Primary,
+            subject.shard_id,
+            subject.term,
+            subject.membership_digest,
+            subject.digest(),
+            ShardVoteKind::LocalCommit,
+        ),
+        ShardVote::new_local(
+            AggregatorId::new(4),
+            ShardVoteRole::Secondary,
+            subject.shard_id,
+            subject.term,
+            subject.membership_digest,
+            subject.digest(),
+            ShardVoteKind::LocalCommit,
+        ),
+    ];
+    let certificate = ShardQuorumCertificate::new(
+        &subject,
+        placement.primary_id,
+        placement
+            .secondaries
+            .iter()
+            .filter(|secondary| secondary.is_ready)
+            .map(|secondary| secondary.aggregator_id),
+        &votes,
+    )
+    .expect("quorum certificate");
+    let published = PublishedBatch {
+        batch_id,
+        checkpoint_id,
+        publication_checkpoint: 11,
+        publication_route: z00z_storage::settlement::PublicationRouteSnapshotV1::new(
+            7,
+            [0x51; 32],
+            10,
+            vec![1],
+        ),
+        pub_in: theorem.artifact().pub_in(),
+        subject_digest: Some(subject.digest()),
+        certificate_digest: Some(certificate.digest()),
+        theorem_digest: Some(theorem.theorem_digest()),
+        da_provider: "local-da".to_string(),
+        blob_ref: "blob://hjmt-publication".to_string(),
+    };
+
+    QuorumFixture {
+        theorem,
+        ordered,
+        placement,
+        subject,
+        certificate,
+        published,
+    }
 }

@@ -1,0 +1,6 @@
+backed_up_at=20260705T143105Z-gsd-core-v1.6.1
+source_repo=https://github.com/open-gsd/gsd-core
+target_ref=v1.6.1
+from_version=1.5.0
+to_version=1.6.1
+runtime=--copilot --local

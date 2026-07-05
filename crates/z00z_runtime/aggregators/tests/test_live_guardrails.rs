@@ -71,7 +71,11 @@ fn planner_lane_starts_from_payload() {
 fn planner_routes_from_verified_key() {
     assert!(PLANNER_SRC.contains("let route_key = item.route_key();"));
     assert!(!PLANNER_SRC.contains("decode_hex32("));
+    assert!(PLANNER_SRC.contains("pub struct PlannerAuthority"));
     assert!(README_DOC.contains("Caller-supplied digest strings are never planner authority"));
+    assert!(README_DOC.contains(
+        "`PlannerAuthority` plus `BatchPlanner` are the only live planner-authority path"
+    ));
 }
 
 #[test]

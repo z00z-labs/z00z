@@ -2144,7 +2144,7 @@ Change:
   - `Research only`,
   - `Out of scope`.
 - Include at least:
-  - recursive proof,
+  - Recursive proof backend,
   - linked liability,
   - OnionNet,
   - live external DA,

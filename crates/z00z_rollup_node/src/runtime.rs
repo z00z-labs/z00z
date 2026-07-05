@@ -222,8 +222,8 @@ mod tests {
                                 ),
                             },
                             lifecycle: crate::config::LifeCfg {
-                                start_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
-                                restart_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
+                                start_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
+                                restart_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-0/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
                             },
                             route: route.clone(),
                             startup: crate::config::StartupCheckCfg {
@@ -271,8 +271,8 @@ mod tests {
                                 ),
                             },
                             lifecycle: crate::config::LifeCfg {
-                                start_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
-                                restart_cmd: "cargo run -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
+                                start_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
+                                restart_cmd: "cargo run --release -p z00z_rollup_node -- --mode aggregator --aggregator-config config/hjmt_runtime/sim_5a7s/aggregators/agg-1/aggregator-config.yaml --planner-config config/hjmt_runtime/sim_5a7s/planner/planner-config.yaml --storage-config config/hjmt_runtime/sim_5a7s/storage/storage-config.yaml".to_string(),
                             },
                             route,
                             startup: crate::config::StartupCheckCfg {

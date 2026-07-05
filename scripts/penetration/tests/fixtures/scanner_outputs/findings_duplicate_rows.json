@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "id": "DUP-001",
+      "title": "Duplicate semgrep candidate",
+      "severity": "high",
+      "status": "unconfirmed",
+      "lane": "sast",
+      "tool": "semgrep",
+      "summary": "The same candidate should collapse into one normalized row.",
+      "scanner_artifact": "raw/semgrep/auth-bypass.json",
+      "source_evidence": "scripts/penetration/run_source_sast.sh:1",
+      "confidence": "medium",
+      "rule_id": "fixture.semgrep.duplicate",
+      "path": "scripts/penetration/run_source_sast.sh",
+      "line": 1,
+      "evidence_anchor": "ast-target-derived"
+    },
+    {
+      "id": "DUP-002",
+      "title": "Duplicate semgrep candidate",
+      "severity": "critical",
+      "status": "confirmed",
+      "lane": "sast",
+      "tool": "semgrep",
+      "summary": "The same candidate should collapse into one normalized row.",
+      "scanner_artifact": "raw/semgrep/auth-bypass.json",
+      "source_evidence": "scripts/penetration/run_source_sast.sh:1",
+      "proof": "local-repro",
+      "confidence": "high",
+      "fix_recommendation": "Keep one deduplicated finding row.",
+      "regression_test": "scripts/penetration/tests/test_report_builder.py::test_builder_deduplicates_duplicate_finding_rows",
+      "rule_id": "fixture.semgrep.duplicate",
+      "path": "scripts/penetration/run_source_sast.sh",
+      "line": 1,
+      "evidence_anchor": "ast-target-derived"
+    }
+  ]
+}

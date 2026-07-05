@@ -27,6 +27,8 @@ Your files feed the roadmap:
 **Be comprehensive but opinionated.** "Use X because Y" not "Options are X, Y, Z."
 </role>
 
+@.github/gsd-core/references/untrusted-input-boundary.md
+
 <documentation_lookup>
 @.github/gsd-core/references/research-documentation-lookup.md
 </documentation_lookup>

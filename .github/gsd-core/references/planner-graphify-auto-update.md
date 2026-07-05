@@ -6,7 +6,7 @@
 
 The graph at `.planning/graphs/graph.json` is consumed automatically (every `gsd-planner` and `gsd-phase-researcher` step) but produced manually (`/gsd-graphify build` per session at best). Without auto-update, the producer-consumer gap silently widens with every commit. The existing `stale: true` annotation tells the consumer the mtime is old; it cannot tell the consumer whether the auto-build hook has been running, just failed, or is in flight.
 
-When `graphify.auto_update: true`, the bundled `hooks/gsd-graphify-update.sh` PostToolUse hook fires after HEAD-advancing git operations on the default branch and dispatches `graphify update .` in a detached subprocess. The hook writes a status file synchronously before detach; the detached process rewrites it on completion.
+When `graphify.auto_update: true`, the bundled `hooks/gsd-graphify-update.sh` PostToolUse hook fires after HEAD-advancing git operations on the default branch and dispatches the repo-local crates rebuild (`cd crates && GRAPHIFY_OUT=.graphify-out graphify update .`) in a detached subprocess. The hook writes a status file synchronously before detach; the detached process rewrites it on completion.
 
 ## The status file
 
@@ -23,7 +23,7 @@ When `graphify.auto_update: true`, the bundled `hooks/gsd-graphify-update.sh` Po
 }
 ```
 
-The hook writes `status: "running"` synchronously **before** detach, so the next planner invocation can see the in-flight signal even if `graphify update .` has not finished. The detached `hooks/lib/gsd-graphify-rebuild.sh` rewrites the file to `ok` or `failed` on completion (with `exit_code` and `duration_ms`).
+The hook writes `status: "running"` synchronously **before** detach, so the next planner invocation can see the in-flight signal even if the crates rebuild has not finished. The detached `hooks/lib/gsd-graphify-rebuild.sh` rewrites the file to `ok` or `failed` on completion (with `exit_code` and `duration_ms`).
 
 ## How the planner surfaces it (zero new prompt content)
 

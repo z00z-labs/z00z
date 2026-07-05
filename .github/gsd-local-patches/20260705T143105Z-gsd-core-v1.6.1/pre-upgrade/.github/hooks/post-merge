@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# agentplane-hook (do not edit)
+set -e
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+SHIM="$REPO_ROOT/.agentplane/bin/agentplane"
+if [ -x "$SHIM" ]; then
+  exec "$SHIM" hooks run post-merge "$@"
+fi
+echo "agentplane hooks: local shim not found or not executable: $SHIM" >&2
+echo "Run agentplane hooks install or agentplane init to restore repository-scoped hooks." >&2
+exit 127

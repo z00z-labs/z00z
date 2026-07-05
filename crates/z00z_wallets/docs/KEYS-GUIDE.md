@@ -2,7 +2,7 @@
 
 # Z00Z Keys User Guide
 
-Date: 2026-06-24
+Date: 2026-07-04
 Scope: `crates/z00z_wallets/src/key`
 
 This guide summarizes the live key subsystem used by `z00z_wallets`.
@@ -56,22 +56,35 @@ For code-backed examples, see:
 - [KEYS-Bip44-UserGuide.md](./KEYS-Bip44-UserGuide.md)
 - [bip44_derivation.md](./bip44_derivation.md)
 
+Current helper APIs also reserve account namespace `100000..200000` for paired
+view-key companion paths. Normal spend helper accounts are `0..100000`.
+Accounts `>= 200000` can still parse when the BIP-44 shape is valid, but they
+are outside the current spend/view companion helpers.
+
 ---
 
 ## 🧩 Main modules
 
 The live key implementation is split across these files:
 
-- `bip32.rs`: BIP-32 primitives, BIP-44 paths, validation, and the Ristretto
-  bridge entrypoint.
-- `bip44_manager.rs`: canonical leaf derivation for `(account, change, index)`.
-- `manager_core.rs`: `KeyManager` and `KeyManagerImpl`, including caching,
-  signing, and transient-secret rules.
-- `manager_redb.rs`: password-derived storage-key management for `.wlt`
-  persistence. This is storage crypto, not address derivation.
-- `seed.rs`: BIP-39 seed handling, mnemonic normalization, and seed-container
-  helpers.
-- `receiver_keys.rs`: receiver key material and receiver-card export support.
+- `bip32.rs`: facade for the BIP-32/BIP-44 implementation.
+- `bip32_constants.rs`: Z00Z constants such as purpose `44`, coin type `1337`,
+  and the view-key account offset.
+- `bip32_path*.rs`: path value types, parsing, builders, validation, serde, and
+  path errors.
+- `bip32_key_deriver.rs`: BIP-32 child-key derivation support.
+- `bip32_ristretto_bridge.rs`: chain- and path-separated mapping from BIP-32
+  leaf material into Z00Z Ristretto key material.
+- `bip44_manager.rs`: canonical leaf derivation for explicit `Bip44Path`
+  values.
+- `manager_core.rs` and `manager_impl*.rs`: `KeyManagerImpl`, public-key cache,
+  gap checks, signing, state handling, and transient-secret behavior.
+- `manager_redb*.rs`: password-derived RedB wallet storage keys. This is
+  storage crypto, not receiver-address derivation.
+- `seed*.rs`: BIP-39 seed handling, mnemonic normalization, entropy checks,
+  seed backup format, and seed cipher containers.
+- `receiver_keys*.rs`: receiver key material, identity helpers, bundle support,
+  and receiver-card export.
 
 The receiver-facing service flow continues outside `src/key/`:
 
@@ -117,10 +130,12 @@ Operationally unsafe to expose:
 
 The live service path for public derivation is:
 
-1. parse and validate `Bip44Path`
-2. resolve or build the per-wallet receiver deriver
-3. derive the spend-side public key through the receiver manager
-4. return the public key bytes plus the canonical path string
+1. validate the session through the no-touch capability path
+2. apply the current key-derive rate-limit precheck
+3. parse and validate `Bip44Path`
+4. resolve or build the per-wallet receiver deriver
+5. derive the spend-side public key through the receiver manager
+6. return the public key bytes plus the canonical path string
 
 See [KEYS-DERIVATION.md](./KEYS-DERIVATION.md) for the current call trace.
 
@@ -190,4 +205,3 @@ separate from the address/signing key tree.
 No.
 The live path returns a receiver-facing public key and a canonical BIP-44 path.
 Address encoding and receiver-card workflows live at higher layers.
-- RedB storage key management: `manager_redb.rs`

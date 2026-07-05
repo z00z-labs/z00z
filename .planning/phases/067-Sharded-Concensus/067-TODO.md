@@ -96,7 +96,7 @@ In the live code, quorum is per shard and is built from the shard placement:
 
 It is not all five aggregators in `sim_5a7s`. It is not a global committee. For the current `sim_5a7s` profile, every shard has one primary and two secondary aggregators, so each shard has a committee size of 3 and a local majority quorum of 2.
 
-The live code implements this in `ConsensusAdapter::bind_placement`, which builds `active_ids` from `placement.primary_id` plus `placement.standby[*].aggregator_id`. In review terminology, those `standby` entries are secondary aggregators. `ConsensusAdapter::quorum_count` then requires `floor(active_ids.len() / 2) + 1`.
+The live code implements this in `ConsensusAdapter::from_placement` and `ConsensusAdapter::bind_placement`, which build the active member set from `placement.primary_id` plus ready `placement.secondaries[*].aggregator_id` values. `ShardQuorumCertificate::new` then enforces the same active-membership digest and majority threshold.
 
 ### 3.2. Do secondary aggregators also need to recalculate everything?
 
@@ -139,9 +139,9 @@ The correct next model should prove more:
 
 ### 3.6. Protocol terminology
 
-This review uses `secondary aggregator` as the protocol role name. The live code and config currently use `standby` in names such as `StandbyState`, `placement.standby`, `standby_ids`, and `TakeoverStandby`.
+This review uses `secondary aggregator` as the protocol role name. The live code and config now use `secondary` naming such as `SecondaryState`, `placement.secondaries`, `secondary_ids`, and `TakeoverSecondary`.
 
-That code name is implementation naming debt. The role is not passive backup. A secondary aggregator is an active shard-committee member that must replay, verify, vote, and may later become primary through checkpoint-bound rotation or emergency takeover.
+The role is not passive backup. A secondary aggregator is an active shard-committee member that must replay, verify, vote, and may later become primary through checkpoint-bound rotation or emergency takeover.
 
 Namespace rule: `secondary aggregator` means an aggregator-side quorum role in this document. It is not the `z00z_validators` crate role. Runtime validators consume `ResolvedBatch` and emit `Verdict`; watchers consume publication, verdict, and provider-health signals and emit observations, alerts, and evidence. Neither downstream role votes in the aggregator quorum.
 
@@ -152,13 +152,13 @@ Recommended terminology:
 - `quorum group`: `{primary aggregator} + {secondary aggregators}` for one shard and one placement generation;
 - `primary rotation`: checkpoint-bound or generation-bound promotion of a secondary aggregator to primary, with the old primary demoted or removed explicitly.
 
-### 3.7. Concrete live-code rename recommendation
+### 3.7. Concrete live-code rename closure
 
-Recommendation: perform one repo-wide breaking rename with no aliases, no compatibility shims, and no dual field names. The term `standby` should disappear from live Rust APIs, YAML/JSON schemas, fixtures, tests, generated observability fields, docs, and error strings. Keeping aliases would preserve the semantic split and make later code reviews unreliable.
+The repo-wide breaking rename is already the live baseline. The term `standby` must stay absent from live Rust APIs, YAML/JSON schemas, fixtures, tests, generated observability fields, docs, and error strings. Reintroducing aliases would recreate the semantic split and make later code reviews unreliable.
 
 Use `secondary` for concise code identifiers and `secondary aggregator` for prose. Do not combine the `secondary` role with validator terminology: that conflates aggregator-side quorum members with the separate runtime validator role.
 
-| Current live name | Replace with | Scope |
+| Legacy name | Live name | Scope |
 | --- | --- | --- |
 | `StandbyState` | `SecondaryState` | `crates/z00z_runtime/aggregators/src/placement.rs`, public re-export in `lib.rs`, all tests and downstream imports. |
 | `ShardPlacement::standby` | `ShardPlacement::secondaries` | Runtime placement struct field and serde field. |
@@ -183,14 +183,14 @@ Implementation order:
 
 1. Rename core runtime types and fields in `crates/z00z_runtime/aggregators/src/placement.rs`.
 2. Update public re-export in `crates/z00z_runtime/aggregators/src/lib.rs`.
-3. Update `ConsensusAdapter::bind_placement` to read `placement.secondaries`.
-4. Rename `RecoveryIntent::TakeoverStandby` to `TakeoverSecondary` and update recovery error text.
-5. Update all aggregator tests and fixtures in the same commit.
-6. Rename rollup config structs and serde fields from `standby_ids` to `secondary_ids`.
-7. Update `config/hjmt_runtime/sim_5a7s` YAML/JSON and test-home generators.
-8. Update simulator config/observability fields and scenario YAML.
-9. Update docs and guardrail tests.
-10. Add a CI guard that fails if live code/config/tests introduce `standby` again outside archived historical planning material.
+3. Keep `ConsensusAdapter::bind_placement` and `ConsensusAdapter::from_placement` bound to `placement.secondaries`.
+4. Keep `RecoveryIntent::TakeoverSecondary` and the updated recovery error text as the only live recovery vocabulary.
+5. Keep aggregator tests and fixtures on the same renamed vocabulary.
+6. Keep rollup config structs and serde fields on `secondary_ids`.
+7. Keep `config/hjmt_runtime/sim_5a7s` YAML/JSON and test-home generators on the renamed keys only.
+8. Keep simulator config and observability fields on the renamed secondary vocabulary.
+9. Keep docs and guardrail tests aligned to the renamed live path.
+10. Keep the CI guard that fails if live code or config or tests introduce `standby` again outside archived historical planning material.
 
 Do not add:
 
@@ -228,7 +228,7 @@ This means a wallet-created package reaches a shard through deterministic digest
 `ShardPlacement` binds a route to:
 
 - one primary aggregator;
-- zero or more secondary aggregators, currently named `standby` in live structs;
+- zero or more secondary aggregators;
 - an expected journal lineage.
 
 `DistScheduler` groups planned work by `(primary_id, shard_id)`. `DistDispatch` then requires the owner process to match the placement primary before dispatching. If the primary is offline, work is deferred rather than rerouted silently.
@@ -270,7 +270,7 @@ This is useful and should be preserved. The gap is that `ConsensusCommit` is too
 - requester is not a secondary aggregator;
 - requester is the current primary.
 
-`TakeoverStandby` activates a ready secondary aggregator as the new primary only through placement state, not through ad hoc dispatch.
+`TakeoverSecondary` activates a ready secondary aggregator as the new primary only through placement state, not through ad hoc dispatch.
 
 This is the right primitive for emergency failover. It must be connected to quorum certificates and end-to-end simulation.
 
@@ -1354,7 +1354,7 @@ Adding a new aggregator should be a staged process:
 4. Ready secondary aggregator may become voting member only after membership digest changes.
 5. Ready secondary aggregator may become primary only through planned rotation or emergency takeover.
 
-The existing join tests already distinguish secondary-only join from owner join, using the current code's `standby` naming. The missing piece is certificate-level membership digest enforcement.
+The existing join tests already distinguish secondary-only join from owner join using the landed `secondary` naming. The missing piece is certificate-level membership digest enforcement.
 
 ### 10.6. Removing an aggregator
 
@@ -1422,7 +1422,7 @@ For the current 3-member committee, the theorem claim must be CFT-only. A BFT th
 The missing high-value harness is an end-to-end `sim_5a7s` quorum path.
 
 Implementation home: add this as independent `scenario_11` in
-`.planning/phases/090-New-Scenarios/066-TODO.md`. Do not append a new stage to
+`.planning/phases/090-New-Scenarios/90-TODO.md`. Do not append a new stage to
 `crates/z00z_simulator/src/scenario_1`; the current `scenario_1` runner contract
 should remain reference evidence, not the owner of this quorum-certificate
 scenario.
@@ -1702,7 +1702,7 @@ Mixing those two roles too early will make the simulation harder to prove.
 
 ## 16. Doublecheck Coverage Matrix
 
-Second-pass review found one terminology issue and no architectural reversal: the concept was correct, but `standby` was the wrong protocol-facing role name. This document now uses `secondary aggregator` for the aggregator-side protocol role and keeps `standby` only when referring to current live code names.
+Second-pass review found one terminology issue and no architectural reversal: the concept was correct, but `standby` was the wrong protocol-facing role name. This document now uses `secondary aggregator` for the aggregator-side protocol role and keeps `standby` only when referring to legacy rename drift.
 
 | Requested topic | Covered by | Doublecheck result |
 | --- | --- | --- |
@@ -1730,13 +1730,13 @@ Concept drift guard:
 Important local files used for this review:
 
 - `crates/z00z_runtime/aggregators/src/consensus_adapter.rs`: local quorum, term, membership, conflict freeze.
-- `crates/z00z_runtime/aggregators/src/placement.rs`: primary and secondary placement model, currently encoded with `standby` names.
+- `crates/z00z_runtime/aggregators/src/placement.rs`: primary and secondary placement model.
 - `crates/z00z_runtime/aggregators/src/batch_planner.rs`: route table and shard-local planning.
 - `crates/z00z_runtime/aggregators/src/ingress.rs`: package normalization boundary.
 - `crates/z00z_runtime/aggregators/src/dist_scheduler.rs`: grouping by placement primary and shard.
 - `crates/z00z_runtime/aggregators/src/dist_dispatch.rs`: owner, route rollout, deferred dispatch, storage lock checks.
 - `crates/z00z_runtime/aggregators/src/dist_sim.rs`: replicated journal simulation and secondary sync verdicts.
-- `crates/z00z_runtime/aggregators/src/recovery.rs`: resume and secondary takeover rules, currently encoded with `TakeoverStandby`.
+- `crates/z00z_runtime/aggregators/src/recovery.rs`: resume and secondary takeover rules, encoded with `TakeoverSecondary`.
 - `crates/z00z_runtime/aggregators/src/service.rs`: current service traits and handoff boundaries.
 - `crates/z00z_rollup_node/src/da.rs`: current local DA adapter.
 - `crates/z00z_runtime/validators/src/verdict.rs`: settlement theorem bundle and resolved batch checks.
@@ -1769,7 +1769,7 @@ Once that is complete, the BFT and Celestia design can be implemented as a secon
 
 This addendum is the short implementation contract for agents and reviewers. It resolves the remaining ambiguity in this spec without replacing the detailed sections above.
 
-1. Canonical authority is `.planning/phases/067-Sharded-Concensus/067-TODO.md`. Scenario execution scope is tracked in `.planning/phases/090-New-Scenarios/066-TODO.md` under `scenario_11`. Older review-named copies are derived references, not implementation authority.
+1. Canonical authority is `.planning/phases/067-Sharded-Concensus/067-TODO.md`. Scenario execution scope is tracked in `.planning/phases/090-New-Scenarios/90-TODO.md` under `scenario_11`. Older review-named copies are derived references, not implementation authority.
 2. Implementation starts inside `crates/z00z_runtime/aggregators`. Do not create a separate production consensus crate until `CommitSubject`, `ShardVote`, `ShardQuorumCertificate`, and `SecondaryReplayVerifier` are proven through local tests and `scenario_11`.
 3. Public Rust exports must be added through the `z00z_aggregators` crate root. Proposed module homes are `commit_subject.rs`, `shard_vote.rs`, `shard_quorum_certificate.rs`, and `secondary_replay.rs`, unless implementation discovers a tighter existing seam.
 4. Canonical digest inputs must be binary-encoded in stable field order with explicit domain/version bytes. Do not use JSON display text, debug output, map iteration order, or fixture filenames as digest material.
