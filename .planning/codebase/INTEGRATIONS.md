@@ -1,130 +1,93 @@
 # External Integrations
 
-**Analysis Date:** 2026-05-06
+**Analysis Date:** 2026-07-07
 
 ## APIs & External Services
 
-**Identity and auth providers:**
-- GitHub OAuth via `next-auth/providers/github` in `website/website_2025-09-30/src/configs/auth.config.ts`.
-  - SDK / client: `next-auth` 5 beta.
-  - Auth: `GITHUB_AUTH_CLIENT_ID`, `GITHUB_AUTH_CLIENT_SECRET`.
-- Google OAuth via `next-auth/providers/google` in the same config.
-  - SDK / client: `next-auth` 5 beta.
-  - Auth: `GOOGLE_AUTH_CLIENT_ID`, `GOOGLE_AUTH_CLIENT_SECRET`.
-- Credentials sign-in via `next-auth/providers/credentials` with backend validation in `website/website_2025-09-30/src/server/actions/user/validateCredential`.
-  - Auth: custom backend credential check rather than a third-party identity service.
+**Transport and RPC:**
+- Local JSON-RPC transport is implemented in `crates/z00z_networks/rpc/src/lib.rs`.
+  - SDK/Client: `jsonrpsee` in `crates/z00z_networks/rpc/Cargo.toml`.
+  - Auth: no external API key or hosted RPC provider contract detected in active workspace crates.
+- Wallet-facing RPC handlers live in `crates/z00z_wallets/src/rpc/`.
+  - SDK/Client: `jsonrpsee` in `crates/z00z_wallets/Cargo.toml`.
+  - Auth: wallet session and capability gating are crate-owned, not delegated to an external IdP.
 
-**Content and rendering services:**
-- Google Fonts Web Fonts API in `website/website_2025-09-30/src/server/actions/fonts.ts`.
-  - SDK / client: server-side `fetch` to `https://www.googleapis.com/webfonts/v1/webfonts`.
-  - Auth: `GOOGLE_FONTS_API_KEY`.
-- Kroki diagram rendering in `website/website_2025-09-30/src/app/(protected-pages)/(docs)/[...slug]/page.tsx`.
-  - SDK / client: `@kazumatu981/markdown-it-kroki`.
-  - Auth: none.
-  - Local dev service: `yuzutech/kroki` in `website/website_2025-09-30/docker-compose.yml`.
-  - Operator note: `website/USAGE.md` documents `NEXT_PUBLIC_KROKI_SERVER_URL` for local and hosted rendering.
+**Data availability and rollup adapters:**
+- Rollup data-availability integration is modeled through `crates/z00z_rollup_node/src/da.rs` and `crates/z00z_rollup_node/src/celestia_local.rs`.
+  - SDK/Client: project-owned adapter traits and local adapter types.
+  - Auth: no hosted DA credentials detected in the committed workspace.
 
-**Browser automation and test runtime:**
-- Headless Firefox WebDriver capabilities in `webdriver.json` and `crates/z00z_wallets/webdriver.json`.
-  - SDK / client: WebDriver-compatible browser test tooling.
-  - Auth: none.
-  - Purpose: browser automation and WASM test execution rather than production integration.
-
-**Internal service boundary:**
-- Wallet JSON-RPC via `jsonrpsee` in `crates/z00z_networks/rpc` and `crates/z00z_wallets/src/adapters/rpc/`.
-  - SDK / client: `jsonrpsee` 0.26.
-  - Role: internal transport and application boundary, not a third-party API.
-
-**Not detected in active source:**
-- Payment processors.
-- Email delivery providers.
-- Chat or notification SaaS providers.
-- External webhook receivers or webhook delivery platforms.
+**Privacy overlay seam:**
+- OnionNet remains a placeholder crate in `crates/z00z_networks/onionnet/`.
+  - SDK/Client: none.
+  - Auth: not applicable.
 
 ## Data Storage
 
 **Databases:**
-- RedB embedded wallet store in `crates/z00z_wallets/src/db/redb_wallet_store.rs` and `crates/z00z_wallets/Cargo.toml`.
-  - Client: `redb` 3.1.0.
-  - Purpose: native `.wlt` persistence for wallet identity, scan state, TOFU pins, stealth metadata, and encrypted records.
-- JMT-backed asset storage in `crates/z00z_storage/src/assets/store.rs` and `crates/z00z_storage/src/assets/store_internal/redb_backend.rs`.
-  - Client: `jmt` 0.12.0 plus `redb` in the storage backend.
-  - Purpose: canonical asset state, proofs, checkpoints, and snapshot artifacts.
-- IndexedDB in the browser wallet runtime via `rexie` in `crates/z00z_wallets/src/wasm/indexeddb_backend.rs`.
-  - Purpose: browser-side wallet persistence with the same logical KV/blob contracts as native RedB.
+- RedB-backed wallet storage in `crates/z00z_wallets/src/db/` and `crates/z00z_wallets/src/redb_store/`.
+  - Connection: local file-backed `.wlt` contract, no network DSN detected.
+  - Client: `redb` in `crates/z00z_wallets/Cargo.toml`.
+- RedB + JMT-backed settlement storage in `crates/z00z_storage/src/backend/` and `crates/z00z_storage/src/settlement/`.
+  - Connection: local storage root and backend config, not an external DB service.
+  - Client: `redb` and `jmt` in `crates/z00z_storage/Cargo.toml`.
 
-**File storage:**
-- Local filesystem storage is a first-class integration surface.
-  - `crates/z00z_core/src/genesis/genesis.rs` writes genesis archives and generated reports.
-  - `crates/z00z_storage/src/snapshot/store.rs` and `crates/z00z_storage/src/checkpoint/store.rs` persist snapshot and checkpoint artifacts.
-  - `crates/z00z_simulator/src/scenario_1/*.rs` materialize JSON, markdown, and XLSX outputs.
-  - `crates/z00z_wallets/src/db/redb_wallet_store.rs` and `crates/z00z_simulator/src/scenario_1/stage_2.rs` read and write wallet `.wlt` files.
+**File Storage:**
+- Local filesystem only through `z00z_utils::io` and crate-owned persistence helpers.
+- Snapshot/export/archive artifacts are written under crate-local or `target/` paths, for example `crates/z00z_simulator/src/scenario_1/` and `reports/`.
 
 **Caching:**
-- In-memory only in the inspected target subsystems.
-  - `z00z_storage` keeps tree and root state in memory in `crates/z00z_storage/src/assets/store.rs`.
-  - `z00z_wallets` exposes cache facades from `crates/z00z_wallets/src/lib.rs`.
-  - No Redis, Memcached, or other external cache service was detected.
+- In-memory LRU/cache layers in `crates/z00z_wallets/src/key/manager_impl_cache.rs`, `crates/z00z_wallets/src/receiver/asset_scan_ephemeral_cache.rs`, and `crates/z00z_storage/src/settlement/hjmt_cache.rs`.
+- No external cache service such as Redis or Memcached detected.
 
 ## Authentication & Identity
 
-**Auth provider:**
-- NextAuth in the website subtree.
-  - Implementation: `website/website_2025-09-30/src/configs/auth.config.ts`, `website/website_2025-09-30/src/middleware.ts`, `website/website_2025-09-30/src/_auth.ts`, and `website/website_2025-09-30/src/components/auth/AuthProvider/AuthProvider.tsx`.
-  - Providers: GitHub OAuth, Google OAuth, and credentials-based login.
-  - Environment-aware behavior: `website/website_2025-09-30/src/middleware.ts` reads `NEXT_PUBLIC_ENVIRONMENT` to alter sign-in behavior in test mode.
-- Wallet identity remains internal and cryptographic rather than third-party.
-  - Implementation: `crates/z00z_crypto/src/lib.rs`, `crates/z00z_wallets/src/core/key/`, and `crates/z00z_wallets/src/services/seed_phrase.rs`.
-  - No external SSO, OIDC, or hosted identity provider was detected in the Rust workspace.
+**Auth Provider:**
+- Custom wallet-owned authentication and session model.
+  - Implementation: password- and key-based flows in `crates/z00z_wallets/src/services/`, `crates/z00z_wallets/src/rpc/`, `crates/z00z_wallets/src/key/`, and `crates/z00z_wallets/src/security/`.
+- No external OAuth, OIDC, SAML, or hosted auth provider detected.
 
 ## Monitoring & Observability
 
-**Error tracking:**
-- None detected as an external service.
+**Error Tracking:**
+- No external SaaS error tracker detected.
 
-**Logs and metrics:**
-- `tracing` is present across the Rust workspace, including `crates/z00z_core`, `crates/z00z_utils`, `crates/z00z_networks/rpc`, and `crates/z00z_wallets`.
-- `crates/z00z_utils/src/metrics/traits.rs` defines a `MetricsSink` abstraction, and `crates/z00z_utils/Cargo.toml` exposes an optional `prometheus` feature.
-- Wallet RPC logging is wired through `crates/z00z_wallets/src/adapters/rpc/logging/` and consumed by simulator stage flows.
-- No external APM or hosted log service such as Sentry, Datadog, or New Relic was detected.
+**Logs:**
+- Project-owned logging abstractions in `crates/z00z_utils/src/logger/`.
+- RPC logging policy and middleware in `crates/z00z_wallets/src/rpc/logging*.rs`.
+- Runtime watcher evidence and alerts in `crates/z00z_runtime/watchers/src/`.
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- `website/website_2025-09-30/Dockerfile` builds the active Next.js app.
-- `website/website_2025-09-30/docker-compose.yml` runs the website together with a local `kroki` container.
-- Native Rust execution targets remain local binaries and libraries; no cloud deployment target is declared in the inspected files.
-- The root `docker/Dockerfile` is still present, but it targets a legacy `zuz-node` layout that does not match the current workspace tree.
+- Local binaries and local Docker/devnet orchestration are present.
+- Devnet compose assets live in `docker/compose.hjmt-local.yaml`.
 
-**CI pipeline:**
-- Repository-local build orchestration lives in `scripts/cargo_build.py` and `scripts/cargo_build.sh`.
-- The build helper reads `versions.yaml` and `scripts/cargo_build_config.yaml` to decide which crates to build.
+**CI Pipeline:**
+- GitHub Actions workflows in `.github/workflows/boundary-guards.yml`, `.github/workflows/release-safety-guards.yml`, and `.github/workflows/security-hygiene-guards.yml`.
+- Audit helpers are shell scripts under `scripts/audit/`.
 
 ## Environment Configuration
 
 **Required env vars:**
-- `GITHUB_AUTH_CLIENT_ID` and `GITHUB_AUTH_CLIENT_SECRET` - GitHub OAuth in `website/website_2025-09-30/src/configs/auth.config.ts`.
-- `GOOGLE_AUTH_CLIENT_ID` and `GOOGLE_AUTH_CLIENT_SECRET` - Google OAuth in the same config.
-- `GOOGLE_FONTS_API_KEY` - Google Fonts API access in `website/website_2025-09-30/src/server/actions/fonts.ts`.
-- `NEXT_PUBLIC_KROKI_SERVER_URL` - Kroki endpoint override in `website/website_2025-09-30/src/app/(protected-pages)/(docs)/[...slug]/page.tsx`.
-- `NEXT_PUBLIC_ENVIRONMENT` - Middleware behavior switch in `website/website_2025-09-30/src/middleware.ts`.
-- `Z00Z_BUILD_DEV_ONLY` - Build script gate for dev-only crates in `scripts/cargo_build.py`.
-- `Z00Z_WALLET_NETWORK` and `Z00Z_WALLET_CHAIN` - Simulator stage 2 wallet setup in `crates/z00z_simulator/src/scenario_1/stage_2.rs`.
+- No application-wide `.env` contract is committed as a primary integration surface.
+- Process-scoped HJMT and run-directory env contracts are defined in `crates/z00z_rollup_node/src/process_devnet.rs`.
+- Test toggles and debug logging toggles appear in test code such as `crates/z00z_wallets/tests/test_rpc_logging_acceptance.rs`.
 
 **Secrets location:**
-- No plaintext secret store was inspected.
-- Runtime secrets are expected to live in environment variables or external secret storage, not in repository files.
-- `config/z00z_blockchain_config.yaml` exists but currently contains only whitespace.
+- Secret values are not stored in the active codebase map and were not read from any `.env*` files.
+- Crypto materials and passwords are expected to stay in runtime inputs, encrypted wallet payloads, or CI/runtime environment, not in committed config files.
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- No active webhook endpoint was detected in production source.
+- None detected as HTTP webhook endpoints.
+- Local callback-style flows are internal trait/transport callbacks inside `crates/z00z_networks/rpc/`, `crates/z00z_runtime/aggregators/`, and `crates/z00z_runtime/watchers/`.
 
 **Outgoing:**
-- No active webhook delivery integration was detected in production source.
-- The only webhook-like references are documentation and reference material, such as `website/USAGE.md` and `crates/z00z_wallets/src/egui_views/ref-docs/tari/tari-EVENT_SYSTEM_ADOPTION_GUIDE.md`.
+- No external webhook emitters detected.
+- Outbound communication is modeled as local RPC/WebSocket transport and local file/report generation.
 
 ---
 
-*Integration audit: 2026-05-06*
+*Integration audit: 2026-07-07*

@@ -140,7 +140,9 @@ fn test_scenario1_canonical_chain_tamper() {
         "canonical chain-scope tamper must block authoritative checkpoint summary emission"
     );
     assert!(
-        !post_tx_store_root(&out).join("checkpoint/draft").exists(),
+        !post_tx_store_root(&out)
+            .join("artifacts/checkpoints/draft")
+            .exists(),
         "canonical chain-scope tamper must block post-tx checkpoint draft persistence"
     );
 }

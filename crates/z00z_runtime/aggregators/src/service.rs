@@ -70,6 +70,9 @@ pub fn publication_record_for_published(
         batch_id: published.batch_id,
         checkpoint_id: Some(published.checkpoint_id),
         state,
+        da_reference: None,
+        publication_evidence: None,
+        lifecycle: None,
     }
 }
 

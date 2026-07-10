@@ -2,6 +2,12 @@
 
 use super::traits::{Codec, CodecError};
 use serde::{de::DeserializeOwned, Serialize};
+use std::sync::Mutex;
+
+// `serde_yaml` sits on top of libyaml. In the workspace-wide release test run
+// we observed non-deterministic decode drift under parallel YAML-heavy tests,
+// so gate codec calls through one process-local lock.
+static YAML_CODEC_LOCK: Mutex<()> = Mutex::new(());
 
 /// YAML codec for human-readable configuration files
 ///
@@ -38,11 +44,17 @@ impl Codec for YamlCodec {
     type Error = CodecError;
 
     fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>, Self::Error> {
+        let _guard = YAML_CODEC_LOCK
+            .lock()
+            .expect("yaml codec lock must not be poisoned");
         let yaml_str = serde_yaml::to_string(value).map_err(|e| CodecError::Yaml(e.to_string()))?;
         Ok(yaml_str.into_bytes())
     }
 
     fn deserialize<T: DeserializeOwned>(&self, bytes: &[u8]) -> Result<T, Self::Error> {
+        let _guard = YAML_CODEC_LOCK
+            .lock()
+            .expect("yaml codec lock must not be poisoned");
         let yaml_str = std::str::from_utf8(bytes).map_err(|e| CodecError::Yaml(e.to_string()))?;
 
         // serde_yaml enforces a single-document input. We still explicitly reject

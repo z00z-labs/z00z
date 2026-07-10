@@ -7,8 +7,8 @@ use z00z_storage::{
     checkpoint::{
         build_cp_draft, derive_exec_id, encode_draft_bin, encode_exec_bin, CheckpointExecInput,
         CheckpointExecOut, CheckpointExecTx, CheckpointExecVersion, CheckpointInRef,
-        CheckpointLink, CheckpointLinkVersion, SpentIndex, SpentIndexError, StateError, TxPkgSum,
-        TxProofError, TxProofVerifier,
+        CheckpointLink, CheckpointLinkVersion, CheckpointTransitionStatementCoreV1, SpentIndex,
+        SpentIndexError, StateError, TxPkgSum, TxProofError, TxProofVerifier,
     },
     settlement::{DefinitionId, SerialId, TerminalLeaf},
     snapshot::PrepSnapshotStore,
@@ -176,4 +176,18 @@ fn test_build_proof_bytes_verifier() {
     .expect("draft");
 
     assert_eq!(capture.seen.into_inner(), vec![want_proof]);
+}
+
+#[test]
+fn test_statement_core_uses_exec_root() {
+    let exec = exec_with_proof(
+        z00z_storage::snapshot::PrepSnapshotId::new([2u8; 32]),
+        z00z_storage::settlement::CheckRoot::new([3u8; 32]),
+        b"verified-proof-v1".to_vec(),
+    );
+
+    let core =
+        CheckpointTransitionStatementCoreV1::from_exec(&exec, [0x11; 32], [0x22; 32], [0x33; 32]);
+
+    assert_eq!(core.tx_data_root(), exec.tx_data_root());
 }

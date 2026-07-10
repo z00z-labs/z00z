@@ -260,4 +260,29 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, WalletError::InvalidPassword));
     }
+
+    #[test]
+    fn test_wlt_create_restores_missing_parent_before_lock() {
+        let dir = TempDir::new().unwrap();
+        let wlt_path = dir.path().join("nested/wallets/wallet_missing_parent.wlt");
+
+        let wallet_id = PersistWalletId("wlt_missing_parent".to_string());
+        let identity = WalletIdentity {
+            network: "p2p".to_string(),
+            chain: "devnet".to_string(),
+        };
+
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockTimeProvider::default());
+        let io: Arc<dyn WalletIo> = Arc::new(Z00ZWalletIo);
+        let store = RedbWalletStore::new(Arc::clone(&time_provider), io);
+
+        let password = SafePassword::from("StrongPassw0rd!");
+        let seed_phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art";
+
+        store
+            .create_wallet_store(&wlt_path, &wallet_id, &password, seed_phrase, &identity)
+            .unwrap();
+
+        assert!(wlt_path.exists(), "wallet file should be created");
+    }
 }

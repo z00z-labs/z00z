@@ -42,6 +42,9 @@ impl RecoveryBoundary {
             batch_id,
             checkpoint_id: None,
             state: PublicationState::HandedOff,
+            da_reference: None,
+            publication_evidence: None,
+            lifecycle: None,
         }
     }
 

@@ -96,11 +96,17 @@ fn test_unified_gate_rs() {
     let diff = load_json(&out.join("transactions/wallets_state_diff.json"));
     let ledger = load_json(&out.join("storage/ledger_path.json"));
     let link = decode_link_bin(
-        &read_file(only_bin(&out.join("transactions/checkpoint/link"))).expect("read link"),
+        &read_file(only_bin(
+            &out.join("transactions/artifacts/checkpoints/links"),
+        ))
+        .expect("read link"),
     )
     .expect("decode link");
     let audit = decode_audit_bin(
-        &read_file(only_bin(&out.join("transactions/checkpoint/audit"))).expect("read audit"),
+        &read_file(only_bin(
+            &out.join("transactions/artifacts/checkpoints/audit"),
+        ))
+        .expect("read audit"),
     )
     .expect("decode audit");
 
@@ -115,15 +121,15 @@ fn test_unified_gate_rs() {
     assert_eq!(s8["checkpoint_id_hex"].as_str().map(str::len), Some(64));
     assert_eq!(
         s8["artifact_path"].as_str(),
-        Some("transactions/checkpoint/artifact")
+        Some("transactions/artifacts/checkpoints/final")
     );
     assert_eq!(
         s8["link_path"].as_str(),
-        Some("transactions/checkpoint/link")
+        Some("transactions/artifacts/checkpoints/links")
     );
     assert_eq!(
         s8["audit_path"].as_str(),
-        Some("transactions/checkpoint/audit")
+        Some("transactions/artifacts/checkpoints/audit")
     );
     assert_eq!(scan["actor"].as_str(), Some("charlie"));
     assert_eq!(scan["scan_path"].as_str(), Some("jmt_scan"));
@@ -199,19 +205,19 @@ fn test_unified_gate_rs() {
     assert!(Path::new(&out.join("transactions/checkpoint_s8.json")).exists());
     assert!(Path::new(&out.join("wallet_scan.json")).exists());
     assert!(Path::new(&out.join("transactions/wallets_state_diff.json")).exists());
-    assert!(Path::new(&out.join("transactions/checkpoint/artifact")).exists());
-    assert!(Path::new(&out.join("transactions/checkpoint/link")).exists());
-    assert!(Path::new(&out.join("transactions/checkpoint/audit")).exists());
+    assert!(Path::new(&out.join("transactions/artifacts/checkpoints/final")).exists());
+    assert!(Path::new(&out.join("transactions/artifacts/checkpoints/links")).exists());
+    assert!(Path::new(&out.join("transactions/artifacts/checkpoints/audit")).exists());
     assert!(Path::new(&out.join("genesis/genesis_rights.json")).exists());
     assert!(Path::new(&out.join("genesis/genesis_settlement_manifest.json")).exists());
     assert!(Path::new(&out.join("storage/claim_post/settlement_state.redb")).exists());
     assert!(Path::new(&out.join("storage/pre_tx/settlement_state.redb")).exists());
-    assert!(Path::new(&out.join("storage/pre_tx/prep_snapshot")).exists());
+    assert!(Path::new(&out.join("storage/pre_tx/artifacts/checkpoints/prep_snapshot")).exists());
     assert!(Path::new(&out.join("storage/post_tx/settlement_state.redb")).exists());
-    assert!(Path::new(&out.join("storage/post_tx/prep_snapshot")).exists());
-    assert!(Path::new(&out.join("storage/post_tx/checkpoint/draft")).exists());
-    assert!(Path::new(&out.join("storage/post_tx/checkpoint/exec_input")).exists());
-    assert!(Path::new(&out.join("storage/post_tx/checkpoint/artifact")).exists());
-    assert!(Path::new(&out.join("storage/post_tx/checkpoint/link")).exists());
-    assert!(Path::new(&out.join("storage/post_tx/checkpoint/audit")).exists());
+    assert!(Path::new(&out.join("storage/post_tx/artifacts/checkpoints/prep_snapshot")).exists());
+    assert!(Path::new(&out.join("storage/post_tx/artifacts/checkpoints/draft")).exists());
+    assert!(Path::new(&out.join("storage/post_tx/artifacts/checkpoints/exec_input")).exists());
+    assert!(Path::new(&out.join("storage/post_tx/artifacts/checkpoints/final")).exists());
+    assert!(Path::new(&out.join("storage/post_tx/artifacts/checkpoints/links")).exists());
+    assert!(Path::new(&out.join("storage/post_tx/artifacts/checkpoints/audit")).exists());
 }

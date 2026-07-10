@@ -20,22 +20,25 @@ use z00z_aggregators::{
     OrderedBatch, PlanDigest, PlannerAuthority, PublicationBinding, PublicationRequest,
     PublicationState, RecoveryBoundary, RecoveryIntent, ReplayVerifiedVoteService,
     SecondaryReplayRejectCode, SecondaryReplayRequest, SecondaryState, ShardExecState,
-    ShardExecTicket, ShardExecutor, ShardPlacement, ShardPlacementTable,
-    ShardQuorumCertificate, ShardRecoveryRecord, ShardRouteTable, ShardVote, ShardVoteKind,
-    ShardVoteRole, SplitBrainEvidence, StaleMemberEvidence, TransportDeliveryPlan,
-    VoteEvidenceTracker, VoteExchangeContext, VoteExchangeOutcome, VoteTransport,
-    VoteTransportEnvelope, WorkItem, WorkPayload, WrongRootEvidence, WrongRouteDigestEvidence,
-    CONSENSUS_STORE_BACKEND, CONSENSUS_STORE_SCHEMA_VERSION,
+    ShardExecTicket, ShardExecutor, ShardPlacement, ShardPlacementTable, ShardQuorumCertificate,
+    ShardRecoveryRecord, ShardRouteTable, ShardVote, ShardVoteKind, ShardVoteRole,
+    SplitBrainEvidence, StaleMemberEvidence, TransportDeliveryPlan, VoteEvidenceTracker,
+    VoteExchangeContext, VoteExchangeOutcome, VoteTransport, VoteTransportEnvelope, WorkItem,
+    WorkPayload, WrongRootEvidence, WrongRouteDigestEvidence, CONSENSUS_STORE_BACKEND,
+    CONSENSUS_STORE_SCHEMA_VERSION,
 };
 use z00z_core::assets::{Asset, AssetClass, AssetDefinition, AssetPkgWire, AssetWire};
 use z00z_crypto::ZkPackEncrypted;
-use z00z_rollup_node::{CelestiaLocalAdapter, DaAdapter, DaError, NodeCfgErr, NodeConfig};
+use z00z_rollup_node::{
+    preview_publication_contract_parts, CelestiaLocalAdapter, DaAdapter, DaError, NodeCfgErr,
+    NodeConfig,
+};
 use z00z_storage::{
     checkpoint::{
-        derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointArtifact, CheckpointDraft,
-        CheckpointExecInput, CheckpointExecInputId, CheckpointExecOut, CheckpointExecTx,
-        CheckpointExecVersion, CheckpointInRef, CheckpointLink, CheckpointLinkVersion,
-        CheckpointVersion, CreatedEnt, SpentEnt,
+        derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointArtifact,
+        CheckpointDaProviderFamily, CheckpointDraft, CheckpointExecInput, CheckpointExecInputId,
+        CheckpointExecOut, CheckpointExecTx, CheckpointExecVersion, CheckpointInRef,
+        CheckpointLink, CheckpointLinkVersion, CheckpointVersion, CreatedEnt, SpentEnt,
     },
     settlement::{
         CheckRoot, ClaimNullifier, PublicationRouteSnapshotV1, SettlementRecoveryState,
@@ -45,7 +48,7 @@ use z00z_storage::{
 };
 use z00z_utils::{
     codec::Codec,
-    io::{create_dir_all, read_file, save_json},
+    io::{create_dir_all, read_file, remove_dir_all, save_json},
 };
 use z00z_validators::{
     ObjectPolicyRegistryV1, ResolvedBatch, SettlementError, SettlementTheoremBundle,
@@ -113,7 +116,10 @@ fn claim_level(term: &str, claim_level: &str, evidence_refs: &[&str]) -> ClaimLe
     ClaimLevelReport {
         term: term.to_string(),
         claim_level: claim_level.to_string(),
-        evidence_refs: evidence_refs.iter().map(|item| (*item).to_string()).collect(),
+        evidence_refs: evidence_refs
+            .iter()
+            .map(|item| (*item).to_string())
+            .collect(),
     }
 }
 
@@ -451,7 +457,7 @@ pub fn run(output_root: &Path) -> Result<Scenario11Run, Scenario11Error> {
         &PackageIngressReport {
             package_kind: "TxPackage".to_string(),
             package_digest_hex: happy.package_digest_hex.clone(),
-            route_key_hex: hex::encode(route_key(&happy.ordered.items[0])),
+            route_key_hex: hex::encode(route_key(&happy.ordered.items[0])?),
             batch_id_hex: hex::encode(happy.batch_id.into_bytes()),
             shard_id: happy.ordered.planned.route.shard_id.as_u16(),
             routing_generation: happy.ordered.planned.route.routing_generation,
@@ -967,10 +973,7 @@ impl EvidenceRegistry {
         }
     }
 
-    fn insert_many(
-        &mut self,
-        records: impl IntoIterator<Item = EvidenceRecord>,
-    ) -> EvidenceRefs {
+    fn insert_many(&mut self, records: impl IntoIterator<Item = EvidenceRecord>) -> EvidenceRefs {
         let mut ids = Vec::new();
         let mut artifact_digests = BTreeSet::new();
         for record in records {
@@ -1012,7 +1015,10 @@ impl EvidenceRegistry {
                 evidence_id_hex: hex::encode(record.digest()),
                 evidence_kind: record.kind().as_str().to_string(),
                 artifact_digests_hex: artifact_digests_hex(record),
-                detail: record.detail().unwrap_or(record.kind().as_str()).to_string(),
+                detail: record
+                    .detail()
+                    .unwrap_or(record.kind().as_str())
+                    .to_string(),
             })
             .collect();
         EvidenceRegistryReport { entries }
@@ -1131,6 +1137,13 @@ fn decode_namespace_hex(raw: &str) -> Result<[u8; 8], Scenario11Error> {
     Ok(namespace)
 }
 
+fn require_error<T, E>(result: Result<T, E>, message: &str) -> Result<E, Scenario11Error> {
+    match result {
+        Ok(_) => Err(Scenario11Error::Message(message.to_string())),
+        Err(err) => Ok(err),
+    }
+}
+
 fn run_happy_path(
     topology: &LiveTopology,
     artifact_root: &Path,
@@ -1158,7 +1171,7 @@ fn run_happy_path(
         placement.primary_id,
         placement.secondaries.clone(),
         recovery.clone(),
-    );
+    )?;
     let candidate = JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
     let publication_route = PublicationRouteSnapshotV1::new(
         ordered.planned.route.routing_generation,
@@ -1166,12 +1179,14 @@ fn run_happy_path(
         topology.route_table.activation_checkpoint,
         vec![u32::from(ordered.planned.route.shard_id.as_u16())],
     );
+    let replay_id = "scenario11-happy-replay";
     let prepared_publication = prepare_publication_for_package(
         batch_id,
         package.clone(),
         prev_root,
         recovery.state_root,
         publication_route.clone(),
+        replay_id,
     )?;
     let theorem_digest = theorem_digest(&prepared_publication)?;
     let publication_binding = publication_binding_for_prepared(&prepared_publication)?;
@@ -1237,7 +1252,7 @@ fn run_happy_path(
         ordered.clone(),
         commit.subject.clone(),
         commit.certificate.clone(),
-        "scenario11-happy-replay",
+        replay_id,
     );
 
     let mut dispatch = DistDispatch::new(
@@ -1259,10 +1274,11 @@ fn run_happy_path(
 
     let mut da = CelestiaLocalAdapter::new("scenario_11_local_da");
     let published = da.publish(request.clone())?;
-    let celestia_record = da
-        .record(published.batch_id)
-        .cloned()
-        .expect("celestia local record");
+    let celestia_record = da.record(published.batch_id).cloned().ok_or_else(|| {
+        Scenario11Error::Message(
+            "missing Celestia-local publication record for happy-path batch".to_string(),
+        )
+    })?;
     let resolved = da.resolve(&published)?;
     let executor = ShardExecutor::new(topology.placement_table.clone());
     let ticket = executor.mark_running(
@@ -1272,6 +1288,10 @@ fn run_happy_path(
     );
     let resolved_batch = ResolvedBatch::new(
         published.clone(),
+        Some(publication_record_for_published(
+            &published,
+            PublicationState::Posted,
+        )),
         ordered.clone(),
         resolved.theorem.clone(),
         resolved.subject.clone(),
@@ -1342,6 +1362,23 @@ fn run_happy_path(
             .votes
             .iter()
             .any(|vote| vote.voter_id == takeover_id);
+    let resumed_publication = resumed.record.publication.as_ref().ok_or_else(|| {
+        Scenario11Error::Message(
+            "reloaded consensus store is missing publication evidence for happy-path batch"
+                .to_string(),
+        )
+    })?;
+    let resumed_validator = resumed.record.validator_decision.as_ref().ok_or_else(|| {
+        Scenario11Error::Message(
+            "reloaded consensus store is missing validator decision for happy-path batch"
+                .to_string(),
+        )
+    })?;
+    let resumed_checkpoint = resumed_validator.checkpoint_id.ok_or_else(|| {
+        Scenario11Error::Message(
+            "reloaded validator decision is missing checkpoint id for happy-path batch".to_string(),
+        )
+    })?;
     let consensus_store = ConsensusStoreReport {
         backend: CONSENSUS_STORE_BACKEND.to_string(),
         schema_version: CONSENSUS_STORE_SCHEMA_VERSION,
@@ -1355,32 +1392,9 @@ fn run_happy_path(
             .iter()
             .map(|vote| hex::encode(vote.digest()))
             .collect(),
-        publication_binding_digest_hex: hex::encode(
-            resumed
-                .record
-                .publication
-                .as_ref()
-                .expect("persisted publication")
-                .binding
-                .binding_digest,
-        ),
-        validator_verdict_kind: resumed
-            .record
-            .validator_decision
-            .as_ref()
-            .expect("persisted validator decision")
-            .verdict_kind
-            .clone(),
-        checkpoint_id_hex: hex::encode(
-            resumed
-                .record
-                .validator_decision
-                .as_ref()
-                .expect("persisted validator decision")
-                .checkpoint_id
-                .expect("persisted checkpoint")
-                .into_bytes(),
-        ),
+        publication_binding_digest_hex: hex::encode(resumed_publication.binding.binding_digest),
+        validator_verdict_kind: resumed_validator.verdict_kind.clone(),
+        checkpoint_id_hex: hex::encode(resumed_checkpoint.into_bytes()),
         resumed_by_secondary_id: takeover_id.as_u16(),
         resume_source: "reloaded_from_store".to_string(),
     };
@@ -1445,7 +1459,7 @@ fn run_all_shard_sweep(topology: &LiveTopology) -> Result<Vec<SweepRow>, Scenari
         .iter()
         .map(|shard| shard.as_u16())
     {
-        let item = find_simple_item_for_shard(&topology.route_table, shard_id, "scenario11-sweep");
+        let item = find_simple_item_for_shard(&topology.route_table, shard_id, "scenario11-sweep")?;
         let batch_id = batch_id(&format!("scenario11-sweep-{shard_id}"));
         let planner = BatchPlanner::new(topology.route_table.clone());
         let ordered = planner
@@ -1511,7 +1525,7 @@ fn run_dual_primary_isolation(
         .collect::<Vec<_>>();
     let mut cases = Vec::new();
     for (index, shard_id) in shard_ids.iter().copied().enumerate() {
-        let item = find_simple_item_for_shard(&topology.route_table, shard_id, "scenario11-dual");
+        let item = find_simple_item_for_shard(&topology.route_table, shard_id, "scenario11-dual")?;
         let batch_id = batch_id(&format!("scenario11-dual-{shard_id}"));
         let planner = BatchPlanner::new(topology.route_table.clone());
         let ordered = planner
@@ -1579,7 +1593,7 @@ fn run_fault_matrix(
         happy.placement.primary_id,
         happy.placement.secondaries.clone(),
         recovery.clone(),
-    );
+    )?;
     let candidate = JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
     let items = happy.ordered.items.clone();
     let request = SecondaryReplayRequest {
@@ -1697,24 +1711,26 @@ fn run_fault_matrix(
         &happy.publication_binding,
         happy.theorem_digest,
     )?;
-    let observer_pending_err = ConsensusAdapter::from_placement(&observer_pending)
-        .map_err(reject_record_to_error)?
-        .commit(
-            &observer_pending_subject,
-            &[
-                vote_for_subject(
-                    &observer_pending_subject,
-                    observer_pending.primary_id,
-                    ShardVoteRole::Primary,
-                ),
-                vote_for_subject(
-                    &observer_pending_subject,
-                    observer_id,
-                    ShardVoteRole::Secondary,
-                ),
-            ],
-        )
-        .expect_err("observer must not vote before readiness");
+    let observer_pending_err = require_error(
+        ConsensusAdapter::from_placement(&observer_pending)
+            .map_err(reject_record_to_error)?
+            .commit(
+                &observer_pending_subject,
+                &[
+                    vote_for_subject(
+                        &observer_pending_subject,
+                        observer_pending.primary_id,
+                        ShardVoteRole::Primary,
+                    ),
+                    vote_for_subject(
+                        &observer_pending_subject,
+                        observer_id,
+                        ShardVoteRole::Secondary,
+                    ),
+                ],
+            ),
+        "observer unexpectedly voted before readiness",
+    )?;
     faults.push(DriftFault {
         entry: FaultMatrixEntry {
             scenario_id: "scenario_11".to_string(),
@@ -1805,15 +1821,15 @@ fn run_fault_matrix(
         .iter()
         .find(|secondary| secondary.is_ready && secondary.aggregator_id != ready_secondary)
         .copied()
-        .unwrap_or_else(|| {
+        .or_else(|| {
             happy
                 .placement
                 .secondaries
                 .iter()
                 .find(|secondary| secondary.is_ready)
                 .copied()
-                .expect("missing removable secondary")
-        });
+        })
+        .ok_or_else(|| Scenario11Error::Message("missing removable secondary".to_string()))?;
     let mut removed_member_placement = happy.placement.clone();
     removed_member_placement
         .secondaries
@@ -1826,26 +1842,28 @@ fn run_fault_matrix(
         &happy.publication_binding,
         happy.theorem_digest,
     )?;
-    let removed_member_err = ConsensusAdapter::from_placement(&removed_member_placement)
-        .map_err(reject_record_to_error)?
-        .commit(
-            &removed_member_subject,
-            &[
-                vote_for_subject(
-                    &removed_member_subject,
-                    removed_member_placement.primary_id,
-                    ShardVoteRole::Primary,
-                ),
-                vote_for_subject(
-                    &removed_member_subject,
-                    removed_secondary.aggregator_id,
-                    ShardVoteRole::Secondary,
-                ),
-            ],
-        )
-        .expect_err("removed member must not vote");
-    let removed_member_refs =
-        evidence_registry.insert(EvidenceRecord::StaleMember(StaleMemberEvidence::new(
+    let removed_member_err = require_error(
+        ConsensusAdapter::from_placement(&removed_member_placement)
+            .map_err(reject_record_to_error)?
+            .commit(
+                &removed_member_subject,
+                &[
+                    vote_for_subject(
+                        &removed_member_subject,
+                        removed_member_placement.primary_id,
+                        ShardVoteRole::Primary,
+                    ),
+                    vote_for_subject(
+                        &removed_member_subject,
+                        removed_secondary.aggregator_id,
+                        ShardVoteRole::Secondary,
+                    ),
+                ],
+            ),
+        "removed member unexpectedly voted",
+    )?;
+    let removed_member_refs = evidence_registry.insert(EvidenceRecord::StaleMember(
+        StaleMemberEvidence::new(
             removed_secondary.aggregator_id,
             removed_member_subject.shard_id,
             removed_member_subject.term,
@@ -1853,7 +1871,8 @@ fn run_fault_matrix(
             happy.subject.membership_digest,
             removed_member_err.detail.clone(),
         )
-        .map_err(reject_record_to_error)?));
+        .map_err(reject_record_to_error)?,
+    ));
     faults.push(DriftFault {
         entry: FaultMatrixEntry {
             scenario_id: "scenario_11".to_string(),
@@ -1888,24 +1907,26 @@ fn run_fault_matrix(
             .filter(|secondary| secondary.is_ready)
             .map(|secondary| secondary.aggregator_id),
     );
-    let mixed_generation_err = ConsensusAdapter::from_placement(&happy.placement)
-        .map_err(reject_record_to_error)?
-        .commit(
-            &mixed_generation_subject,
-            &[
-                vote_for_subject(
-                    &mixed_generation_subject,
-                    happy.placement.primary_id,
-                    ShardVoteRole::Primary,
-                ),
-                vote_for_subject(
-                    &mixed_generation_subject,
-                    ready_secondary,
-                    ShardVoteRole::Secondary,
-                ),
-            ],
-        )
-        .expect_err("mixed generation certificate must reject");
+    let mixed_generation_err = require_error(
+        ConsensusAdapter::from_placement(&happy.placement)
+            .map_err(reject_record_to_error)?
+            .commit(
+                &mixed_generation_subject,
+                &[
+                    vote_for_subject(
+                        &mixed_generation_subject,
+                        happy.placement.primary_id,
+                        ShardVoteRole::Primary,
+                    ),
+                    vote_for_subject(
+                        &mixed_generation_subject,
+                        ready_secondary,
+                        ShardVoteRole::Secondary,
+                    ),
+                ],
+            ),
+        "mixed-generation certificate unexpectedly succeeded",
+    )?;
     faults.push(DriftFault {
         entry: FaultMatrixEntry {
             scenario_id: "scenario_11".to_string(),
@@ -1943,8 +1964,8 @@ fn run_fault_matrix(
         .map_err(reject_record_to_error)?;
     let mut divergent_subject = happy.subject.clone();
     mutate_state_root(&mut divergent_subject);
-    let divergent_err = divergent_adapter
-        .commit(
+    let divergent_err = require_error(
+        divergent_adapter.commit(
             &divergent_subject,
             &[
                 vote_for_subject(
@@ -1958,10 +1979,11 @@ fn run_fault_matrix(
                     ShardVoteRole::Secondary,
                 ),
             ],
-        )
-        .expect_err("same-term divergent root must freeze");
-    let frozen_err = divergent_adapter
-        .commit(
+        ),
+        "same-term divergent root unexpectedly committed",
+    )?;
+    let frozen_err = require_error(
+        divergent_adapter.commit(
             &happy.subject,
             &[
                 vote_for_subject(
@@ -1971,10 +1993,11 @@ fn run_fault_matrix(
                 ),
                 vote_for_subject(&happy.subject, ready_secondary, ShardVoteRole::Secondary),
             ],
-        )
-        .expect_err("same term must stay frozen after divergence");
-    let split_brain_refs =
-        evidence_registry.insert(EvidenceRecord::SplitBrain(SplitBrainEvidence::new(
+        ),
+        "frozen same-term branch unexpectedly accepted",
+    )?;
+    let split_brain_refs = evidence_registry.insert(EvidenceRecord::SplitBrain(
+        SplitBrainEvidence::new(
             happy.placement.primary_id,
             divergent_subject.shard_id,
             divergent_subject.term,
@@ -1983,7 +2006,8 @@ fn run_fault_matrix(
             divergent_subject.digest(),
             divergent_err.detail.clone(),
         )
-        .map_err(reject_record_to_error)?));
+        .map_err(reject_record_to_error)?,
+    ));
     faults.push(DriftFault {
         entry: FaultMatrixEntry {
             scenario_id: "scenario_11".to_string(),
@@ -2108,7 +2132,7 @@ fn run_fault_matrix(
         &topology.route_table,
         unrelated_shard_id,
         "scenario11-takeover-continuity",
-    );
+    )?;
     let unrelated_planner = BatchPlanner::new(topology.route_table.clone());
     let unrelated_ordered = unrelated_planner
         .make_batch(
@@ -2358,11 +2382,12 @@ fn run_fault_matrix(
             "failed to mark Celestia-local payload missing".to_string(),
         ));
     }
-    let missing_payload_err = missing_payload_da
-        .resolve(&missing_payload_publish)
-        .expect_err("missing Celestia-local payload must reject");
-    let missing_blob_refs =
-        evidence_registry.insert(EvidenceRecord::MissingBlob(MissingBlobEvidence::new(
+    let missing_payload_err = require_error(
+        missing_payload_da.resolve(&missing_payload_publish),
+        "missing Celestia-local payload unexpectedly resolved",
+    )?;
+    let missing_blob_refs = evidence_registry.insert(EvidenceRecord::MissingBlob(
+        MissingBlobEvidence::new(
             ready_secondary,
             happy.subject.shard_id,
             happy.subject.term,
@@ -2376,7 +2401,8 @@ fn run_fault_matrix(
                 missing_payload_err
             ),
         )
-        .map_err(reject_record_to_error)?));
+        .map_err(reject_record_to_error)?,
+    ));
     faults.push(DriftFault {
         entry: FaultMatrixEntry {
             scenario_id: "scenario_11".to_string(),
@@ -2597,21 +2623,23 @@ fn run_fault_matrix(
         });
     }
 
-    let below_quorum_err = ConsensusAdapter::from_placement(&happy.placement)
-        .map_err(reject_record_to_error)?
-        .commit(
-            &happy.subject,
-            &[ShardVote::new_local(
-                happy.placement.primary_id,
-                ShardVoteRole::Primary,
-                happy.subject.shard_id,
-                happy.subject.term,
-                happy.subject.membership_digest,
-                happy.subject.digest(),
-                ShardVoteKind::LocalCommit,
-            )],
-        )
-        .expect_err("below quorum must reject");
+    let below_quorum_err = require_error(
+        ConsensusAdapter::from_placement(&happy.placement)
+            .map_err(reject_record_to_error)?
+            .commit(
+                &happy.subject,
+                &[ShardVote::new_local(
+                    happy.placement.primary_id,
+                    ShardVoteRole::Primary,
+                    happy.subject.shard_id,
+                    happy.subject.term,
+                    happy.subject.membership_digest,
+                    happy.subject.digest(),
+                    ShardVoteKind::LocalCommit,
+                )],
+            ),
+        "below-quorum certificate unexpectedly formed",
+    )?;
     faults.push(DriftFault {
         entry: FaultMatrixEntry {
             scenario_id: "scenario_11".to_string(),
@@ -2667,15 +2695,16 @@ fn run_fault_matrix(
         takeover_secondaries,
         recovery.journal_lineage,
     ));
-    let old_primary_reject = RecoveryBoundary
-        .resume(
+    let old_primary_reject = require_error(
+        RecoveryBoundary.resume(
             happy.placement.primary_id,
             &taken_over,
             &record,
             &recovery,
             RecoveryIntent::RestartPrimary,
-        )
-        .expect_err("old primary restart must reject after lawful takeover");
+        ),
+        "old primary unexpectedly restarted after lawful takeover",
+    )?;
     faults.push(DriftFault {
         entry: FaultMatrixEntry {
             scenario_id: "scenario_11".to_string(),
@@ -2774,7 +2803,7 @@ fn build_quorum_only_case(
         placement.primary_id,
         placement.secondaries.clone(),
         recovery.clone(),
-    );
+    )?;
     let candidate = JournalCandidate::from_record(&record).map_err(reject_record_to_error)?;
     let binding = publication_binding_from_roots(
         ordered.batch_id,
@@ -2979,11 +3008,14 @@ fn stale_secondary_case(
         .iter()
         .find(|secondary| secondary.is_ready)
         .ok_or_else(|| Scenario11Error::Message("missing stale secondary".to_string()))?;
+    let recovery_route = record.recovery.route.as_ref().ok_or_else(|| {
+        Scenario11Error::Message("stale secondary case is missing recovery route".to_string())
+    })?;
     let stale_recovery = route_bound_recovery_state(
         0xE1,
         record.batch_id,
         record.placement.route,
-        record.recovery.route.expect("route").route_table_digest(),
+        recovery_route.route_table_digest(),
         placement.expected_journal_lineage,
     )?;
     let mut transport = InMemoryVoteTransport::default();
@@ -3147,7 +3179,7 @@ fn valid_tx_package(tag: &str) -> Result<(TxPackage, CheckRoot), Scenario11Error
     output_wire.nonce[0] ^= 0x55;
     output_wire.leaf_ad_id = Some([0x77; 32]);
 
-    let tx_input = tx_inputs_for_wires(std::slice::from_ref(&input_wire))
+    let tx_input = tx_inputs_for_wires(std::slice::from_ref(&input_wire))?
         .pop()
         .ok_or_else(|| Scenario11Error::Message("missing tx input".to_string()))?;
     let tx_output = TxOutputWire {
@@ -3244,6 +3276,7 @@ fn prepare_publication_for_package(
     prev_root: CheckRoot,
     new_root: SettlementStateRoot,
     publication_route: PublicationRouteSnapshotV1,
+    replay_id: &str,
 ) -> Result<PreparedPublication, Scenario11Error> {
     let exec_input = exec_input_from_package(&tx_package, prev_root)?;
     let exec_bytes =
@@ -3257,15 +3290,22 @@ fn prepare_publication_for_package(
         Vec::new(),
         Vec::new(),
     );
-    let proof = draft
-        .attest_proof(exec_input.prep_snapshot_id(), exec_id)
-        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    let artifact = draft
-        .clone()
-        .finalize(proof)
-        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
-    let checkpoint_id =
-        derive_checkpoint_id(&artifact).map_err(|err| Scenario11Error::Message(err.to_string()))?;
+    let nullifiers = vec![ClaimNullifier::new(
+        [batch_id.into_bytes()[0].wrapping_add(0x40); 32],
+    )];
+    let preview = preview_publication_contract_parts(
+        batch_id,
+        replay_id,
+        &publication_route,
+        &draft,
+        &tx_package,
+        &exec_input,
+        &nullifiers,
+        CheckpointDaProviderFamily::NamespaceBlob,
+    )
+    .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+    let artifact = preview.artifact;
+    let checkpoint_id = preview.checkpoint_id;
     let link = CheckpointLink::new(
         CheckpointLinkVersion::CURRENT,
         checkpoint_id,
@@ -3395,12 +3435,16 @@ fn asset_fixture(serial_id: u32, amount: u64) -> Result<Asset, Scenario11Error> 
     .0)
 }
 
-fn tx_inputs_for_wires(inputs: &[AssetWire]) -> Vec<TxInputWire> {
+fn tx_inputs_for_wires(inputs: &[AssetWire]) -> Result<Vec<TxInputWire>, Scenario11Error> {
     inputs
         .iter()
-        .map(|wire| TxInputWire {
-            asset_id_hex: hex::encode(asset_wire_to_leaf(wire).expect("input leaf").asset_id),
-            serial_id: wire.serial_id,
+        .map(|wire| {
+            let leaf = asset_wire_to_leaf(wire)
+                .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+            Ok(TxInputWire {
+                asset_id_hex: hex::encode(leaf.asset_id),
+                serial_id: wire.serial_id,
+            })
         })
         .collect()
 }
@@ -3414,30 +3458,39 @@ fn exec_input_from_package(
         .inputs
         .iter()
         .map(|input| {
-            let asset_id: [u8; 32] = hex::decode(&input.asset_id_hex)
-                .expect("asset id hex")
-                .try_into()
-                .expect("asset id bytes");
-            CheckpointInRef::new(
+            let asset_id_vec = hex::decode(&input.asset_id_hex)
+                .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+            let asset_id: [u8; 32] = asset_id_vec.try_into().map_err(|_| {
+                Scenario11Error::Message(format!(
+                    "asset id must decode to 32 bytes, got {}",
+                    input.asset_id_hex
+                ))
+            })?;
+            Ok(CheckpointInRef::new(
                 asset_id,
                 z00z_storage::settlement::SerialId::new(input.serial_id),
-            )
+            ))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, Scenario11Error>>()?;
     let outputs = package
         .tx
         .outputs
         .iter()
         .map(|output| {
-            let wire = output.asset_wire.clone().to_wire().expect("output wire");
-            let leaf = asset_wire_to_leaf(&wire).expect("output leaf");
+            let wire = output
+                .asset_wire
+                .clone()
+                .to_wire()
+                .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+            let leaf = asset_wire_to_leaf(&wire)
+                .map_err(|err| Scenario11Error::Message(err.to_string()))?;
             CheckpointExecOut::new(
                 z00z_storage::settlement::DefinitionId::new(wire.definition.id),
                 leaf,
             )
-            .expect("exec output")
+            .map_err(|err| Scenario11Error::Message(err.to_string()))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, Scenario11Error>>()?;
     let tx_proof = z00z_utils::codec::JsonCodec
         .serialize(&package.tx.proof)
         .map_err(|err| Scenario11Error::Message(err.to_string()))?;
@@ -3479,7 +3532,7 @@ fn range_proof_guard() -> RangeProofGuard {
     RangeProofGuard { prev, _lock: guard }
 }
 
-fn simple_tx_item(seed: &str) -> WorkItem {
+fn simple_tx_item(seed: &str) -> Result<WorkItem, Scenario11Error> {
     let mut pkg = TxPackage {
         kind: "TxPackage".to_string(),
         package_type: "regular_tx".to_string(),
@@ -3509,13 +3562,13 @@ fn simple_tx_item(seed: &str) -> WorkItem {
         &pkg.chain_name,
         &pkg.tx,
     )
-    .expect("tx digest");
+    .map_err(|err| Scenario11Error::Message(err.to_string()))?;
     z00z_aggregators::IngressBoundary
         .normalize(WorkPayload::Tx(Box::new(pkg)))
-        .expect("normalized tx")
+        .map_err(reject_record_to_error)
 }
 
-fn simple_claim_item(seed: &str) -> WorkItem {
+fn simple_claim_item(seed: &str) -> Result<WorkItem, Scenario11Error> {
     let mut pkg = ClaimTxPackage {
         kind: "ClaimTxPackage".to_string(),
         package_type: "claim_tx".to_string(),
@@ -3556,26 +3609,36 @@ fn simple_claim_item(seed: &str) -> WorkItem {
         &pkg.chain_name,
         &pkg.tx,
     )
-    .expect("claim digest");
+    .map_err(|err| Scenario11Error::Message(err.to_string()))?;
     z00z_aggregators::IngressBoundary
         .normalize(WorkPayload::Claim(Box::new(pkg)))
-        .expect("normalized claim")
+        .map_err(reject_record_to_error)
 }
 
-fn find_simple_item_for_shard(table: &ShardRouteTable, shard_id: u16, prefix: &str) -> WorkItem {
+fn find_simple_item_for_shard(
+    table: &ShardRouteTable,
+    shard_id: u16,
+    prefix: &str,
+) -> Result<WorkItem, Scenario11Error> {
     let wanted = z00z_aggregators::ShardId::new(shard_id);
     for index in 0..20_000u32 {
         let label = format!("{prefix}-{shard_id}-{index}");
         let item = if index % 2 == 0 {
-            simple_tx_item(&label)
+            simple_tx_item(&label)?
         } else {
-            simple_claim_item(&label)
+            simple_claim_item(&label)?
         };
-        if table.lookup(route_key(&item)).expect("route lookup") == wanted {
-            return item;
+        if table
+            .lookup(route_key(&item)?)
+            .map_err(|err| Scenario11Error::Message(err.to_string()))?
+            == wanted
+        {
+            return Ok(item);
         }
     }
-    panic!("missing route item for shard {shard_id}");
+    Err(Scenario11Error::Message(format!(
+        "failed to synthesize routeable work item for shard {shard_id}"
+    )))
 }
 
 fn route_bound_recovery_state(
@@ -3590,13 +3653,28 @@ fn route_bound_recovery_state(
         .map_err(|err| Scenario11Error::Message(err.to_string()))?;
     let spent_path = settlement_path(seed);
     let output_path = settlement_path(seed.wrapping_add(0x20));
-    let output = settlement_item(output_path, 9_100 + u64::from(seed));
+    let output = settlement_item(output_path, 9_100 + u64::from(seed))?;
     store
         .apply_settlement_ops(vec![StoreOp::Put(Box::new(settlement_item(
             spent_path,
             9_000 + u64::from(seed),
-        )))])
+        )?))])
         .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+    let terminal_output = output
+        .terminal_leaf()
+        .cloned()
+        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+    let exec_out = CheckpointExecOut::new(output.path().definition_id, terminal_output)
+        .map_err(|err| Scenario11Error::Message(err.to_string()))?;
+    let exec_tx = CheckpointExecTx::new(
+        vec![CheckpointInRef::new(
+            spent_path.terminal_id().into_bytes(),
+            spent_path.serial_id,
+        )],
+        vec![exec_out],
+        b"route-bound-durable-recovery".to_vec(),
+    )
+    .map_err(|err| Scenario11Error::Message(err.to_string()))?;
     store
         .apply_exec_handoff(z00z_storage::settlement::SettlementExecHandoff::new(
             SettlementRouteCtx::new(
@@ -3609,19 +3687,7 @@ fn route_bound_recovery_state(
                 StoreOp::Delete(spent_path),
                 StoreOp::Put(Box::new(output.clone())),
             ],
-            vec![CheckpointExecTx::new(
-                vec![CheckpointInRef::new(
-                    spent_path.terminal_id().into_bytes(),
-                    spent_path.serial_id,
-                )],
-                vec![CheckpointExecOut::new(
-                    output.path().definition_id,
-                    output.terminal_leaf().expect("terminal output").clone(),
-                )
-                .expect("exec out")],
-                b"route-bound-durable-recovery".to_vec(),
-            )
-            .expect("exec tx")],
+            vec![exec_tx],
         ))
         .map_err(|err| Scenario11Error::Message(err.to_string()))?;
     let mut recovery = store
@@ -3637,7 +3703,7 @@ fn recovery_record(
     primary: AggregatorId,
     secondaries: Vec<SecondaryState>,
     recovery: SettlementRecoveryState,
-) -> ShardRecoveryRecord {
+) -> Result<ShardRecoveryRecord, Scenario11Error> {
     let placement = ShardPlacement::new(route, primary, secondaries, recovery.journal_lineage);
     let ticket = ShardExecTicket {
         batch_id,
@@ -3648,7 +3714,7 @@ fn recovery_record(
     let publication = boundary.mark_handed_off(ticket.batch_id);
     boundary
         .capture(&ticket, &publication, recovery)
-        .expect("recovery record")
+        .map_err(reject_record_to_error)
 }
 
 #[derive(Debug)]
@@ -3661,8 +3727,10 @@ impl ScratchDir {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let seq = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!("{prefix}-{}-{seq}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir_all(&path).map_err(|err| Scenario11Error::Message(err.to_string()))?;
+        if path.exists() {
+            remove_dir_all(&path)?;
+        }
+        create_dir_all(&path)?;
         Ok(Self { path })
     }
 
@@ -3673,7 +3741,9 @@ impl ScratchDir {
 
 impl Drop for ScratchDir {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
+        if self.path.exists() {
+            let _ = remove_dir_all(&self.path);
+        }
     }
 }
 
@@ -3685,7 +3755,10 @@ fn settlement_path(seed: u8) -> z00z_storage::settlement::SettlementPath {
     )
 }
 
-fn settlement_item(path: z00z_storage::settlement::SettlementPath, value: u64) -> StoreItem {
+fn settlement_item(
+    path: z00z_storage::settlement::SettlementPath,
+    value: u64,
+) -> Result<StoreItem, Scenario11Error> {
     let payload = z00z_core::assets::AssetPackPlain {
         value,
         blinding: [3u8; 32],
@@ -3707,7 +3780,7 @@ fn settlement_item(path: z00z_storage::settlement::SettlementPath, value: u64) -
         tag16: 11,
     }
     .into();
-    StoreItem::new(path, leaf).expect("settlement item")
+    StoreItem::new(path, leaf).map_err(|err| Scenario11Error::Message(err.to_string()))
 }
 
 fn batch_id(label: &str) -> BatchId {
@@ -3715,11 +3788,15 @@ fn batch_id(label: &str) -> BatchId {
     BatchId::from_bytes(digest)
 }
 
-fn route_key(item: &WorkItem) -> [u8; 32] {
-    let raw = hex::decode(item.digest_hex()).expect("digest hex");
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&raw);
-    out
+fn route_key(item: &WorkItem) -> Result<[u8; 32], Scenario11Error> {
+    let raw =
+        hex::decode(item.digest_hex()).map_err(|err| Scenario11Error::Message(err.to_string()))?;
+    raw.try_into().map_err(|_| {
+        Scenario11Error::Message(format!(
+            "route key digest must decode to 32 bytes, got {}",
+            item.digest_hex()
+        ))
+    })
 }
 
 fn secondary_ids(secondaries: &[SecondaryState]) -> Vec<u16> {

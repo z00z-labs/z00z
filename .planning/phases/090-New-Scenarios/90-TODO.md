@@ -19,6 +19,7 @@ The goal is not to generate many speculative scenarios. The goal is to converge 
 A scenario stays in this backlog only if it can be implemented with current local code surfaces:
 
 - local genesis/corpus generation;
+- local typed core config catalog, including `crates/z00z_core/configs/devnet_rights_config.yaml`;
 - local wallet create/export/restore/receive/scan/tx-history surfaces;
 - local storage settlement, checkpoint, HJMT, fee replay, and proof surfaces;
 - local runtime aggregator ingress, route planning, placement, and recovery;
@@ -1066,7 +1067,7 @@ finality.
 ### 🔎 15.2. Review Basis
 
 - Aggregator consensus spec:
-  `.planning/phases/067-Sharded-Concensus/Agg-Concensus-Spec.md`.
+  `.planning/phases/000/067-Sharded-Concensus/Agg-Concensus-Spec.md`.
 - Runtime route and recovery drill baseline: `scenario_6`.
 - Local publication and tamper baseline: `scenario_9`.
 - Current `sim_5a7s` topology: `config/hjmt_runtime/sim_5a7s`.

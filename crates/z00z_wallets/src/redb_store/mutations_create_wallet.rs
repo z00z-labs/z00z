@@ -123,6 +123,14 @@ pub(crate) fn create_wlt_with_deps<R: SecureRngProvider + Clone>(
     time_provider: &dyn TimeProvider,
     io: Arc<dyn WalletIo>,
 ) -> WalletResult<()> {
+    // The wallet-file lock lives next to the target `.wlt`, so the parent
+    // directory must exist before we try to create `<wallet>.wlt.lock`.
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            io.create_dir_all(parent)?;
+        }
+    }
+
     // Creation is exclusive: ensure only one creator/opener exists per wallet path.
     let _create_lock = try_lock_wallet_file(path, time_provider, io.clone())?;
 
@@ -130,12 +138,6 @@ pub(crate) fn create_wlt_with_deps<R: SecureRngProvider + Clone>(
 
     if io.path_exists(path)? {
         return Err(WalletError::WalletAlreadyExists);
-    }
-
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            io.create_dir_all(parent)?;
-        }
     }
 
     // IMPORTANT: Use a single RNG stream for all random values created during wallet init.

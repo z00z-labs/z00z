@@ -29,6 +29,9 @@ pub enum CheckpointError {
     /// One checkpoint-link edge is inconsistent.
     #[error("checkpoint link mismatch")]
     LinkMix,
+    /// One checkpoint lifecycle transition is inconsistent.
+    #[error("checkpoint lifecycle mismatch")]
+    LifecycleMix,
     /// One execution-input binding is inconsistent.
     #[error("checkpoint replay-input mismatch")]
     ReplayMix,

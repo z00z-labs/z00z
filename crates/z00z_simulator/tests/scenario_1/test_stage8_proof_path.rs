@@ -7,7 +7,7 @@ use serde_json::Value;
 use z00z_simulator::config::Stage6ProofMode;
 use z00z_storage::checkpoint::{
     audit::decode_audit_bin, decode_art_bin, decode_draft_bin, decode_exec_bin, decode_link_bin,
-    derive_draft_id, derive_exec_id, CheckpointStmt,
+    derive_draft_id, derive_exec_id, CheckpointTransitionStatementV1,
 };
 use z00z_utils::{
     codec::{Codec, JsonCodec},
@@ -105,20 +105,33 @@ fn test_proof_path_draft_publication() {
 
     let tx = load_tx(&out.join("transactions/tx_alice_to_bob_pkg.json"));
     let want_tx_proof = JsonCodec.serialize(&tx.tx.proof).expect("encode tx proof");
-    let exec_bytes = read_file(only_bin(&out.join("transactions/checkpoint/exec_input")))
-        .expect("read exec bytes");
-    let draft_bytes =
-        read_file(only_bin(&out.join("transactions/checkpoint/draft"))).expect("read draft bytes");
+    let exec_bytes = read_file(only_bin(
+        &out.join("transactions/artifacts/checkpoints/exec_input"),
+    ))
+    .expect("read exec bytes");
+    let draft_bytes = read_file(only_bin(
+        &out.join("transactions/artifacts/checkpoints/draft"),
+    ))
+    .expect("read draft bytes");
     let art = decode_art_bin(
-        &read_file(only_bin(&out.join("transactions/checkpoint/artifact"))).expect("read artifact"),
+        &read_file(only_bin(
+            &out.join("transactions/artifacts/checkpoints/final"),
+        ))
+        .expect("read artifact"),
     )
     .expect("decode artifact");
     let link = decode_link_bin(
-        &read_file(only_bin(&out.join("transactions/checkpoint/link"))).expect("read link"),
+        &read_file(only_bin(
+            &out.join("transactions/artifacts/checkpoints/links"),
+        ))
+        .expect("read link"),
     )
     .expect("decode link");
     let audit = decode_audit_bin(
-        &read_file(only_bin(&out.join("transactions/checkpoint/audit"))).expect("read audit"),
+        &read_file(only_bin(
+            &out.join("transactions/artifacts/checkpoints/audit"),
+        ))
+        .expect("read audit"),
     )
     .expect("decode audit");
     let exec = decode_exec_bin(&exec_bytes).expect("decode exec");
@@ -146,7 +159,7 @@ fn test_proof_path_draft_publication() {
     assert_eq!(exec.txs()[0].tx_proof(), want_tx_proof.as_slice());
     assert_eq!(
         art.cp_proof(),
-        CheckpointStmt::new(
+        CheckpointTransitionStatementV1::new(
             art.version(),
             art.height(),
             art.pub_in(),
@@ -159,14 +172,14 @@ fn test_proof_path_draft_publication() {
     assert_eq!(audit.checkpoint_id(), link.checkpoint_id());
     assert_eq!(
         s8["artifact_path"].as_str(),
-        Some("transactions/checkpoint/artifact")
+        Some("transactions/artifacts/checkpoints/final")
     );
     assert_eq!(
         s8["link_path"].as_str(),
-        Some("transactions/checkpoint/link")
+        Some("transactions/artifacts/checkpoints/links")
     );
     assert_eq!(
         s8["audit_path"].as_str(),
-        Some("transactions/checkpoint/audit")
+        Some("transactions/artifacts/checkpoints/audit")
     );
 }

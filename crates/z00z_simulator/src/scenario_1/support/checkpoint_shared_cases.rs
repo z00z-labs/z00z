@@ -156,7 +156,7 @@ pub fn stage12_out() -> PathBuf {
                     "stage12 shared case missing checkpoint_s8"
                 );
                 assert!(
-                    out.join("storage/post_tx/checkpoint").exists(),
+                    out.join("storage/post_tx/artifacts/checkpoints").exists(),
                     "stage12 shared case missing post-tx checkpoint store"
                 );
             },
@@ -273,7 +273,8 @@ pub fn bridge_stage9_out() -> PathBuf {
             &[9_u32],
             |out| {
                 assert!(
-                    !out.join("transactions/checkpoint/draft").exists(),
+                    !out.join("transactions/artifacts/checkpoints/draft")
+                        .exists(),
                     "stage9-only bridge baseline must stop before draft output"
                 );
             },
@@ -321,7 +322,8 @@ pub fn opaque_stage11_out() -> PathBuf {
             &[9_u32, 11],
             |out| {
                 assert!(
-                    !out.join("transactions/checkpoint/artifact").exists(),
+                    !out.join("transactions/artifacts/checkpoints/final")
+                        .exists(),
                     "stage11 baseline must stop before stage12 final artifact emission"
                 );
             },

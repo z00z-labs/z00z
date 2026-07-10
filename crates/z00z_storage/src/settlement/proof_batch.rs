@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
-use z00z_crypto::{expert::hash_domain, hash_zk::hash_zk};
+use z00z_crypto::{expert::hash_domain, frame_bytes, hash_zk::hash_zk};
 use z00z_utils::codec::{BincodeCodec, Codec};
 
 use super::proof::{
@@ -28,6 +28,11 @@ const OPENING_VERSION_V1: u8 = 1;
 const PRIOR_CTX_VERSION_V1: u8 = 1;
 const DELETION_FACT_VERSION_V1: u8 = 1;
 const ROOT_BIND_VER: u8 = 1;
+const WITNESS_CHUNK_LABEL: &str = "checkpoint_witness_chunk_v1";
+const WITNESS_PAYLOAD_LABEL: &str = "checkpoint_witness_payload_v1";
+const WITNESS_ROOT_LABEL: &str = "checkpoint_witness_root_v1";
+const WITNESS_CHUNK_VER: u8 = 1;
+const WITNESS_CHUNK_BATCH: u8 = 1;
 static BATCH_PROOF_TRANSCRIPT_DOMAIN: OnceLock<[u8; 32]> = OnceLock::new();
 
 #[must_use]
@@ -1786,6 +1791,115 @@ impl BatchProofBlobV1 {
     pub fn check_contract_v1(&self) -> Result<(), ProofChkErr> {
         super::proof_batch_verify::check_batch_contract_v1(self)
     }
+}
+
+#[derive(Serialize)]
+struct CheckpointWitnessChunkV1 {
+    version: u8,
+    ordinal: u32,
+    chunk_kind: u8,
+    encoding_version: u8,
+    byte_length: u32,
+    content_digest: [u8; 32],
+    linked_terminal_ids: Vec<super::TerminalId>,
+}
+
+impl CheckpointWitnessChunkV1 {
+    fn canonical_bytes(&self) -> Result<Vec<u8>, ProofChkErr> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&frame_bytes(&[self.version]));
+        bytes.extend_from_slice(&frame_bytes(&self.ordinal.to_le_bytes()));
+        bytes.extend_from_slice(&frame_bytes(&[self.chunk_kind]));
+        bytes.extend_from_slice(&frame_bytes(&[self.encoding_version]));
+        bytes.extend_from_slice(&frame_bytes(&self.byte_length.to_le_bytes()));
+        bytes.extend_from_slice(&frame_bytes(&self.content_digest));
+        let linked_count = u32::try_from(self.linked_terminal_ids.len())
+            .map_err(|_| ProofChkErr::BatchLimitMix)?;
+        bytes.extend_from_slice(&frame_bytes(&linked_count.to_le_bytes()));
+        for terminal_id in &self.linked_terminal_ids {
+            bytes.extend_from_slice(&frame_bytes(terminal_id.as_bytes()));
+        }
+        Ok(bytes)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct BatchCtxV1 {
+    settlement_root: SettlementStateRoot,
+    backend_root: [u8; 32],
+    journal_checkpoint: u64,
+    journal_digest: [u8; 32],
+}
+
+fn batch_ctx_v1(batches: &[BatchProofBlobV1]) -> Result<BatchCtxV1, ProofChkErr> {
+    let mut ctx: Option<BatchCtxV1> = None;
+    for batch in batches {
+        batch.check_contract_v1()?;
+        let checkpoint = batch
+            .header
+            .journal_checkpoint
+            .ok_or(ProofChkErr::BatchCheckpointMix)?;
+        let candidate = BatchCtxV1 {
+            settlement_root: batch.header.settlement_root,
+            backend_root: batch.header.backend_root,
+            journal_checkpoint: checkpoint,
+            journal_digest: batch.header.journal_digest,
+        };
+        if let Some(expect) = ctx {
+            if candidate.settlement_root != expect.settlement_root
+                || candidate.backend_root != expect.backend_root
+            {
+                return Err(ProofChkErr::BatchRootMix);
+            }
+            if candidate.journal_checkpoint != expect.journal_checkpoint
+                || candidate.journal_digest != expect.journal_digest
+            {
+                return Err(ProofChkErr::BatchCheckpointMix);
+            }
+        } else {
+            ctx = Some(candidate);
+        }
+    }
+    ctx.ok_or(ProofChkErr::BatchLimitMix)
+}
+
+pub fn derive_journal_digest_v1(batches: &[BatchProofBlobV1]) -> Result<[u8; 32], ProofChkErr> {
+    Ok(batch_ctx_v1(batches)?.journal_digest)
+}
+
+pub fn derive_witness_root_v1(batches: &[BatchProofBlobV1]) -> Result<[u8; 32], ProofChkErr> {
+    batch_ctx_v1(batches)?;
+    let batch_count = u32::try_from(batches.len()).map_err(|_| ProofChkErr::BatchLimitMix)?;
+    let mut root_bytes = frame_bytes(&batch_count.to_le_bytes());
+    for (ordinal, batch) in batches.iter().enumerate() {
+        let ordinal = u32::try_from(ordinal).map_err(|_| ProofChkErr::BatchLimitMix)?;
+        let batch_bytes = batch.encode()?;
+        let byte_length =
+            u32::try_from(batch_bytes.len()).map_err(|_| ProofChkErr::BatchLimitMix)?;
+        let content_digest =
+            hash_zk::<StorBatchProofDom>(WITNESS_PAYLOAD_LABEL, &[batch_bytes.as_slice()]);
+        let chunk = CheckpointWitnessChunkV1 {
+            version: WITNESS_CHUNK_VER,
+            ordinal,
+            chunk_kind: WITNESS_CHUNK_BATCH,
+            encoding_version: batch.header.encoding_version,
+            byte_length,
+            content_digest,
+            linked_terminal_ids: batch
+                .path_table
+                .iter()
+                .map(|entry| entry.path.terminal_id())
+                .collect(),
+        };
+        let chunk_bytes = chunk.canonical_bytes()?;
+        let chunk_hash =
+            hash_zk::<StorBatchProofDom>(WITNESS_CHUNK_LABEL, &[chunk_bytes.as_slice()]);
+        root_bytes.extend_from_slice(&frame_bytes(&chunk_hash));
+    }
+    Ok(hash_zk::<StorBatchProofDom>(
+        WITNESS_ROOT_LABEL,
+        &[root_bytes.as_slice()],
+    ))
 }
 
 fn root_bind_v1(root: SettlementStateRoot, backend_root: [u8; 32]) -> [u8; 32] {

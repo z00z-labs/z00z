@@ -15,8 +15,8 @@ use z00z_aggregators::{
 use z00z_rollup_node::SettlementTheoremBundle;
 use z00z_storage::{
     checkpoint::{
-        derive_checkpoint_id, derive_exec_id, encode_exec_bin, CheckpointDraft,
-        CheckpointExecInputId, CheckpointVersion, CreatedEnt, SpentEnt,
+        derive_checkpoint_id, CheckpointDaProviderFamily, CheckpointDraft, CheckpointExecInputId,
+        CheckpointVersion, CreatedEnt, SpentEnt,
     },
     settlement::{CheckRoot, SettlementRecoveryState, SettlementStateRoot},
     snapshot::PrepSnapshotId,
@@ -561,12 +561,10 @@ fn publication_binding(
 fn theorem_digest(
     request: &z00z_aggregators::PublicationRequest,
 ) -> Result<[u8; 32], Box<dyn std::error::Error>> {
-    let exec_bytes = encode_exec_bin(&request.exec_input)?;
-    let exec_id = derive_exec_id(&exec_bytes);
-    let proof = request
-        .draft
-        .attest_proof(request.exec_input.prep_snapshot_id(), exec_id)?;
-    let artifact = request.draft.clone().finalize(proof)?;
+    let artifact = theorem_fixture::canonical_artifact_for_request(
+        request,
+        CheckpointDaProviderFamily::LocalArchive,
+    );
     let theorem = SettlementTheoremBundle::new(
         request.tx_package.clone(),
         artifact,

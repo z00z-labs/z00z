@@ -4,12 +4,13 @@ use z00z_aggregators::{
     AggregatorService, PublicationRecord, PublishedBatch, ShardExecTicket, ShardExecutor,
     ShardPlacementTable, ShardPlacementView,
 };
+use z00z_storage::checkpoint::{CheckpointFsStore, CheckpointLifecycleV1};
 use z00z_validators::ValidatorService;
 use z00z_watchers::{ObservationSnapshot, ProviderSignal, WatcherService};
 
 use crate::{
     config::NodeConfig,
-    da::DaAdapter,
+    da::{DaAdapter, DaError, PublicationReadyInput, PublicationReadyRecord},
     mode::NodeMode,
     status::{ServiceBinding, ServiceBindings, StatusSnapshot},
 };
@@ -33,6 +34,7 @@ where
     pub last_placement: Option<ShardPlacementView>,
     pub last_exec_ticket: Option<ShardExecTicket>,
     pub last_verdict: Option<z00z_validators::Verdict>,
+    pub last_lifecycle: Option<CheckpointLifecycleV1>,
     pub last_provider_signal: Option<ProviderSignal>,
     pub last_observation: Option<ObservationSnapshot>,
 }
@@ -77,9 +79,31 @@ where
             ),
             exec_ticket: self.last_exec_ticket.clone(),
             verdict: self.last_verdict.clone(),
+            lifecycle: self.last_lifecycle.clone(),
             provider_signal: self.last_provider_signal.clone(),
             observation: self.last_observation.clone(),
         }
+    }
+
+    pub fn record_publication_ready(
+        &mut self,
+        batch: &PublishedBatch,
+        input: &PublicationReadyInput,
+        store: &mut CheckpointFsStore,
+    ) -> Result<PublicationReadyRecord, DaError> {
+        let ready = self.da.publication_ready(batch, input, store)?;
+        self.last_published = Some(batch.clone());
+        if let Some(publication) = self.last_publication.as_mut() {
+            if publication.batch_id == batch.batch_id
+                && publication.checkpoint_id == Some(batch.checkpoint_id)
+            {
+                publication.da_reference = Some(ready.da_reference.clone());
+                publication.publication_evidence = Some(ready.publication_evidence.clone());
+                publication.lifecycle = Some(ready.lifecycle.clone());
+            }
+        }
+        self.last_lifecycle = Some(ready.lifecycle.clone());
+        Ok(ready)
     }
 }
 
@@ -308,6 +332,7 @@ mod tests {
             last_placement: None,
             last_exec_ticket: None,
             last_verdict: None,
+            last_lifecycle: None,
             last_provider_signal: None,
             last_observation: None,
         };
@@ -350,6 +375,7 @@ mod tests {
             last_placement: None,
             last_exec_ticket: None,
             last_verdict: None,
+            last_lifecycle: None,
             last_provider_signal: Some(signal.clone()),
             last_observation: None,
         };
@@ -442,6 +468,15 @@ mod tests {
             &mut self,
             _batch: &z00z_aggregators::PublishedBatch,
         ) -> Result<z00z_validators::ResolvedBatch, crate::da::DaError> {
+            unreachable!("not used in status projection")
+        }
+
+        fn publication_ready(
+            &mut self,
+            _batch: &z00z_aggregators::PublishedBatch,
+            _input: &crate::da::PublicationReadyInput,
+            _store: &mut z00z_storage::checkpoint::CheckpointFsStore,
+        ) -> Result<crate::da::PublicationReadyRecord, crate::da::DaError> {
             unreachable!("not used in status projection")
         }
     }

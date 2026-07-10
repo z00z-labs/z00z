@@ -161,11 +161,13 @@ fn test_truth_stays_noncanonical_artifacts() {
 fn test_draft_cannot_final_artifact() {
     let out = &full_draft_case().out;
     assert!(
-        !out.join("transactions/checkpoint/artifact").exists(),
+        !out.join("transactions/artifacts/checkpoints/final")
+            .exists(),
         "draft-only mode must block final artifact emission"
     );
     assert!(
-        !out.join("transactions/checkpoint/link").exists(),
+        !out.join("transactions/artifacts/checkpoints/links")
+            .exists(),
         "draft-only mode must block link emission"
     );
     let s8 = load_json(&s8_file(out));
@@ -192,19 +194,25 @@ fn test_opaque_mode_final_artifact() {
     assert_eq!(s8["checkpoint_id_hex"].as_str().map(str::len), Some(64));
     assert_eq!(
         s8["artifact_path"].as_str(),
-        Some("transactions/checkpoint/artifact")
+        Some("transactions/artifacts/checkpoints/final")
     );
     assert_eq!(
         s8["link_path"].as_str(),
-        Some("transactions/checkpoint/link")
+        Some("transactions/artifacts/checkpoints/links")
     );
     assert_eq!(
         s8["audit_path"].as_str(),
-        Some("transactions/checkpoint/audit")
+        Some("transactions/artifacts/checkpoints/audit")
     );
-    assert!(out.join("transactions/checkpoint/artifact").exists());
-    assert!(out.join("transactions/checkpoint/link").exists());
-    assert!(out.join("transactions/checkpoint/audit").exists());
+    assert!(out
+        .join("transactions/artifacts/checkpoints/final")
+        .exists());
+    assert!(out
+        .join("transactions/artifacts/checkpoints/links")
+        .exists());
+    assert!(out
+        .join("transactions/artifacts/checkpoints/audit")
+        .exists());
 }
 
 #[test]
@@ -275,15 +283,18 @@ fn test_stage8_rejects_exec_ref() {
 
     assert!(msg.contains("exec_input") || msg.contains("link binding") || msg.contains("refs"));
     assert!(
-        !out.join("transactions/checkpoint/artifact").exists(),
+        !out.join("transactions/artifacts/checkpoints/final")
+            .exists(),
         "tampered exec ref must block artifact emission"
     );
     assert!(
-        !out.join("transactions/checkpoint/link").exists(),
+        !out.join("transactions/artifacts/checkpoints/links")
+            .exists(),
         "tampered exec ref must block link emission"
     );
     assert!(
-        !out.join("transactions/checkpoint/audit").exists(),
+        !out.join("transactions/artifacts/checkpoints/audit")
+            .exists(),
         "tampered exec ref must block audit emission"
     );
 }
@@ -310,15 +321,18 @@ fn test_stage8_rejects_snapshot_ref() {
         msg.contains("snapshot_id mismatch") || msg.contains("exec_input snapshot_id mismatch")
     );
     assert!(
-        !out.join("transactions/checkpoint/artifact").exists(),
+        !out.join("transactions/artifacts/checkpoints/final")
+            .exists(),
         "tampered snapshot ref must block artifact emission"
     );
     assert!(
-        !out.join("transactions/checkpoint/link").exists(),
+        !out.join("transactions/artifacts/checkpoints/links")
+            .exists(),
         "tampered snapshot ref must block link emission"
     );
     assert!(
-        !out.join("transactions/checkpoint/audit").exists(),
+        !out.join("transactions/artifacts/checkpoints/audit")
+            .exists(),
         "tampered snapshot ref must block audit emission"
     );
 }
@@ -343,15 +357,18 @@ fn test_stage8_rejects_fragment_ids() {
 
     assert!(msg.contains("fragment_ids mismatch"));
     assert!(
-        !out.join("transactions/checkpoint/artifact").exists(),
+        !out.join("transactions/artifacts/checkpoints/final")
+            .exists(),
         "tampered fragment_ids must block artifact emission"
     );
     assert!(
-        !out.join("transactions/checkpoint/link").exists(),
+        !out.join("transactions/artifacts/checkpoints/links")
+            .exists(),
         "tampered fragment_ids must block link emission"
     );
     assert!(
-        !out.join("transactions/checkpoint/audit").exists(),
+        !out.join("transactions/artifacts/checkpoints/audit")
+            .exists(),
         "tampered fragment_ids must block audit emission"
     );
 }

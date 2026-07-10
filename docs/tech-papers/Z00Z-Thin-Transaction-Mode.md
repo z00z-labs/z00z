@@ -134,7 +134,6 @@ corpus.
 
 - [Z00Z Main Whitepaper](../Z00Z-Main-Whitepaper.md)
 - [Z00Z Smart Cash](../Z00Z-Smart-Cash-Whitepaper.md)
-- [Z00Z Compact Delta Log And Canonical Receipts](Z00Z-Compact-Delta-Log.md)
 - [Z00Z Multi-DA And Checkpoint Architecture Blueprint](Z00Z-Multi-DA-and-Checkpoint-Architecture.md)
 - [Z00Z Privacy Threat Model And Metrics](../Z00Z-Privacy-Threat-Model-Whitepaper.md)
 - [Z00Z Agentic Offline Economy Whitepaper](../Z00Z-Agentic-Offline-Economy-Whitepaper.md)
@@ -171,8 +170,7 @@ owners intact.
 | Main whitepaper | wallet-local possession, package vocabulary, checkpoint-bound settlement, protocol-versus-service separation | a thin helper path that stays below the same settlement theorem and does not rewrite package meaning |
 | JMT design | canonical `AssetPath`, proof-envelope discipline, path-index non-authority, storage-owned leaf presence and deletion | a helper-side index snapshot that points at canonical paths and proof envelopes without becoming semantic truth |
 | Smart-cash paper | client-side FSM posture, local action before publication, later checkpointed reconciliation | mode-selection logic that treats thin mode as optional service-lane optimization rather than as a new smart-contract family |
-| Compact Delta Log paper | compact evidence, receipts, wallet-history limits, anti-drift rules for support surfaces | a rule that thin-mode metadata and helper references stay support evidence rather than settled history |
-| Multi-DA blueprint | publication evidence, anchors, DA commitments, non-claim against second authority planes | helper signatures, snapshot digests, or anchors as evidence references only, not settlement substitutes |
+| Multi-DA blueprint | compact evidence, holder-retained receipts, publication evidence, anchors, DA commitments, and the non-claim against second authority planes | helper signatures, snapshot digests, receipts, or anchors as evidence references only, not settlement substitutes |
 | Privacy paper | operator leakage, timing linkage, service metadata, thin delayed-connectivity privacy pressure | an explicit privacy-cost section for helper-index use |
 | Roadmap blueprint | maturity labels and helper/runtime subsystem honesty | future-tense signed-index claims and explicit fallback to the live thick path |
 | Terminology reference | stable corpus nouns and scope rules | normalized thin-mode vocabulary that does not collide with checkpoint, receipt, or wallet terms |
@@ -192,11 +190,10 @@ This source-owner split keeps the document honest:
 - `Z00Z-Smart-Cash-Whitepaper.md` anchors the client-side, bounded-rights
   narrative in which local action may precede publication while authoritative
   settlement remains checkpoint-bound.
-- `Z00Z-Compact-Delta-Log.md` anchors the anti-drift rule that compact support
-  surfaces must not become canonical history or a second ledger of truth.
-- `Z00Z-Multi-DA-and-Checkpoint-Architecture.md` anchors the distinction
-  between settlement evidence and publication evidence, which signed indexes
-  must also respect.
+- `Z00Z-Multi-DA-and-Checkpoint-Architecture.md` anchors both the distinction
+  between settlement evidence and publication evidence and the anti-drift rule
+  that compact support surfaces must not become canonical history or a second
+  ledger of truth.
 - `Z00Z-Privacy-Threat-Model-Whitepaper.md` anchors the operator-metadata and
   repeated-query privacy costs of thin helper lanes.
 - `Z00Z-Roadmap-Blueprint.md` anchors the maturity claim that helper-assisted
@@ -761,9 +758,9 @@ Thin-mode indexing follows that same discipline.
 
 ### 8.2 History And Asset Views
 
-History and asset views remain support surfaces above settlement. The compact
-receipt paper already separates wallet-local history, holder-retained receipts,
-and checkpoint-bound settlement evidence. Thin mode should preserve that split.
+History and asset views remain support surfaces above settlement. The live
+corpus already separates wallet-local history, holder-retained receipts, and
+checkpoint-bound settlement evidence. Thin mode should preserve that split.
 
 An index-assisted send may improve local UX in several ways:
 

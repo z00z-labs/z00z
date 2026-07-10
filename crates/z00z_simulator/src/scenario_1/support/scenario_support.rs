@@ -6,6 +6,7 @@ use std::sync::{
     OnceLock,
 };
 
+use super::path_roots::{resolve_workspace_path, workspace_root};
 use crate::{config::ScenarioCfg, ScenarioResult, StageResult};
 use z00z_utils::{
     codec::{Codec, JsonCodec, Value, YamlCodec},
@@ -25,29 +26,30 @@ const SCENARIO_STORAGE_ROOT_ENV: &str = "Z00Z_SIMULATOR_STORAGE_ROOT";
 const VERIFICATION_RUN_ROOT_ENV: &str = "Z00Z_VERIFICATION_RUN_ROOT";
 
 pub fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    workspace_root()
 }
 
 fn runtime_cache_root_base() -> Option<PathBuf> {
     std::env::var_os(RUNTIME_CWD_ROOT_ENV)
         .map(PathBuf::from)
-        .map(|root| root.join("cache"))
+        .map(|root| resolve_workspace_path(&root).join("cache"))
         .or_else(|| {
             std::env::var_os(VERIFICATION_RUN_ROOT_ENV)
                 .map(PathBuf::from)
-                .map(|root| root.join("cache"))
+                .map(|root| resolve_workspace_path(&root).join("cache"))
         })
-        .or_else(|| current_exe_run_root().map(|root| root.join("cache")))
+        .or_else(|| current_exe_run_root().map(|root| resolve_workspace_path(&root).join("cache")))
         .or_else(|| {
             std::env::var_os(CARGO_TARGET_DIR_ENV)
                 .map(PathBuf::from)
-                .map(|target| target.join("z00z-simulator-cache"))
+                .map(|target| resolve_workspace_path(&target).join("z00z-simulator-cache"))
         })
 }
 
 fn scenario_cache_root() -> PathBuf {
     std::env::var_os(SCENARIO_CACHE_ROOT_ENV)
         .map(PathBuf::from)
+        .map(resolve_workspace_path)
         .or_else(|| runtime_cache_root_base().map(|root| root.join("scenario_1")))
         .unwrap_or_else(|| repo_root().join(".cache").join("scenario_1"))
 }
@@ -55,6 +57,7 @@ fn scenario_cache_root() -> PathBuf {
 fn scenario_storage_root() -> PathBuf {
     std::env::var_os(SCENARIO_STORAGE_ROOT_ENV)
         .map(PathBuf::from)
+        .map(resolve_workspace_path)
         .or_else(|| runtime_cache_root_base().map(|root| root.join("storage").join("scenario_1")))
         .unwrap_or_else(|| {
             repo_root()
@@ -78,6 +81,7 @@ pub fn make_cfg_in(
     std::env::set_var(ALLOW_DEBUG_RANGE_PROOF, "1");
     install_storage_override_once();
 
+    let base = resolve_workspace_path(base);
     let out = base.join("outputs/scenario_1");
 
     let mut cfg = ScenarioCfg::from_file(

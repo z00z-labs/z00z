@@ -6,7 +6,7 @@ use crate::error::CheckpointError;
 
 use super::{
     artifact_final::{check_proof_sys, check_ver},
-    artifact_stmt::{CheckpointStatement, CheckpointStmt},
+    artifact_stmt::{CheckpointStatement, CheckpointTransitionStatementV1},
     artifact_types::CheckpointProofSystem,
     codec::{check_artifact_contract, encode_draft_bin},
     CheckpointArtifact, CheckpointDraft,
@@ -23,9 +23,13 @@ const ID_CLASS_EXEC: &[u8] = b"exec_input";
 
 #[derive(serde::Serialize)]
 enum CheckpointIdInput {
-    Current {
+    V1Opaque {
         proof_sys: CheckpointProofSystem,
-        stmt: CheckpointStmt,
+        stmt: CheckpointTransitionStatementV1,
+    },
+    V1Canonical {
+        proof_sys: CheckpointProofSystem,
+        statement_digest: [u8; 32],
     },
 }
 
@@ -199,12 +203,19 @@ pub fn derive_exec_id(bytes: &[u8]) -> CheckpointExecInputId {
 
 fn checkpoint_id_input_bytes(artifact: &CheckpointArtifact) -> Result<Vec<u8>, CheckpointError> {
     let codec = BincodeCodec;
-    let input = match artifact.statement() {
-        CheckpointStatement::Detached => return Err(CheckpointError::ArtifactCompatMix),
-        CheckpointStatement::CURRENT(stmt) => CheckpointIdInput::Current {
+    let input = if let Some(statement_digest) = artifact.statement_digest_v1() {
+        CheckpointIdInput::V1Canonical {
             proof_sys: artifact.proof_sys(),
-            stmt: *stmt,
-        },
+            statement_digest,
+        }
+    } else {
+        match artifact.statement() {
+            CheckpointStatement::Detached => return Err(CheckpointError::ArtifactCompatMix),
+            CheckpointStatement::V1(stmt) => CheckpointIdInput::V1Opaque {
+                proof_sys: artifact.proof_sys(),
+                stmt: *stmt,
+            },
+        }
     };
     codec.serialize(&input).map_err(CheckpointError::from)
 }
@@ -221,7 +232,8 @@ mod tests {
     use crate::{
         checkpoint::{
             CheckpointArtifact, CheckpointDraft, CheckpointExecInputId, CheckpointProof,
-            CheckpointProofSystem, CheckpointStmt, CheckpointVersion, CreatedEnt, SpentEnt,
+            CheckpointProofSystem, CheckpointTransitionStatementCoreV1,
+            CheckpointTransitionStatementV1, CheckpointVersion, CreatedEnt, SpentEnt,
         },
         settlement::{CheckRoot, SettlementStateRoot},
         CheckpointError,
@@ -285,6 +297,8 @@ mod tests {
             created_delta: Vec<CreatedEnt>,
             prep_snapshot_id: Option<crate::snapshot::PrepSnapshotId>,
             exec_input_id: Option<CheckpointExecInputId>,
+            statement_core: Option<CheckpointTransitionStatementCoreV1>,
+            da_ref: Option<[u8; 32]>,
             proof_sys: CheckpointProofSystem,
             cp_proof: Vec<u8>,
         }
@@ -301,6 +315,8 @@ mod tests {
             created_delta: vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
             prep_snapshot_id: None,
             exec_input_id: None,
+            statement_core: None,
+            da_ref: None,
             proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
             cp_proof: vec![8u8],
         };
@@ -323,7 +339,7 @@ mod tests {
     #[test]
     fn test_art_id_proof_bytes() {
         let draft = draft();
-        let stmt = CheckpointStmt::from_draft(
+        let stmt = CheckpointTransitionStatementV1::from_draft(
             &draft,
             crate::snapshot::PrepSnapshotId::new([7u8; 32]),
             CheckpointExecInputId::new([8u8; 32]),

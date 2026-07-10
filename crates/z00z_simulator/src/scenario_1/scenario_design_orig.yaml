@@ -684,7 +684,7 @@ stages:
           - "File outputs/transactions/checkpoint_prep.json exists"
           - "Directory outputs/storage/pre_tx exists"
           - "File outputs/storage/pre_tx/settlement_state.redb exists"
-          - "Directory outputs/storage/pre_tx/prep_snapshot exists"
+          - "Directory outputs/storage/pre_tx/artifacts/checkpoints/prep_snapshot exists"
           - "Directory outputs/storage/pre_tx/jmt_artifact exists"
           - "tx package kind == TxPackage"
           - "tx package contains chain_id, chain_type, chain_name, package_type, and nested tx"
@@ -1035,7 +1035,7 @@ stages:
         post_conditions:
           - "File outputs/transactions/checkpoint_bridge_s6.json exists"
           - "bridge summary contains prev_root_hex, exec_input_id_hex, fragment_ids"
-          - "canonical exec-input bytes are persisted under outputs/transactions/checkpoint/exec_input"
+          - "canonical exec-input bytes are persisted under outputs/transactions/artifacts/checkpoints/exec_input"
 
       - id: "S6-5"
         action: "Record ordered pipeline marker"
@@ -1106,7 +1106,7 @@ stages:
         call: |
           let bridge = load_json("outputs/transactions/checkpoint_bridge_s6.json")?;
           let prep = load_snapshot_from_ref("outputs/transactions/checkpoint_prep.json")?;
-          let exec = load_single_exec_input("outputs/transactions/checkpoint/exec_input")?;
+          let exec = load_single_exec_input("outputs/transactions/artifacts/checkpoints/exec_input")?;
         post_conditions:
           - "bridge summary is readable"
           - "canonical prep snapshot reload succeeds"
@@ -1120,12 +1120,12 @@ stages:
           let draft_id = checkpoint_store.save_draft(&draft)?;
         post_conditions:
           - "storage-backed checkpoint draft is built from canonical prep replay"
-          - "draft is persisted under outputs/transactions/checkpoint/draft"
+          - "draft is persisted under outputs/transactions/artifacts/checkpoints/draft"
           - "Directory outputs/storage/post_tx exists"
           - "File outputs/storage/post_tx/settlement_state.redb exists"
-          - "Directory outputs/storage/post_tx/prep_snapshot exists"
-          - "Directory outputs/storage/post_tx/checkpoint/draft exists"
-          - "Directory outputs/storage/post_tx/checkpoint/exec_input exists"
+          - "Directory outputs/storage/post_tx/artifacts/checkpoints/prep_snapshot exists"
+          - "Directory outputs/storage/post_tx/artifacts/checkpoints/draft exists"
+          - "Directory outputs/storage/post_tx/artifacts/checkpoints/exec_input exists"
 
       - id: "S7-4"
         action: "Write executed checkpoint summary"
@@ -1159,7 +1159,7 @@ stages:
       result without publishing any final checkpoint surfaces.
 
       When finalization succeeds, Stage 8 also completes the observational
-      `outputs/storage/post_tx/checkpoint` publication mirror by exporting the
+      `outputs/storage/post_tx/artifacts/checkpoints` publication mirror by exporting the
       sealed artifact, link, and audit surfaces alongside the Stage 7 draft view.
     rust_entry: "stage_8::run_finalize(ctx)"
     steps:
@@ -1193,9 +1193,9 @@ stages:
         post_conditions:
           - "artifact/link/audit surfaces exist only when finalization succeeds"
           - "draft-only mode keeps final publication surfaces absent"
-          - "when finalized, outputs/storage/post_tx/checkpoint/artifact exists"
-          - "when finalized, outputs/storage/post_tx/checkpoint/link exists"
-          - "when finalized, outputs/storage/post_tx/checkpoint/audit exists"
+          - "when finalized, outputs/storage/post_tx/artifacts/checkpoints/final exists"
+          - "when finalized, outputs/storage/post_tx/artifacts/checkpoints/links exists"
+          - "when finalized, outputs/storage/post_tx/artifacts/checkpoints/audit exists"
 
       - id: "S8-4"
         action: "Write Stage 8 finalization summary"

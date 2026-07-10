@@ -26,6 +26,11 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
   the fallback for executor parallelization only. If `Agent` IS available (top-level the agent
   Code), you MUST spawn gsd-executor agents — inline execution is not authorized. Check for
   actual tool availability, not runtime name.
+- **Repo-local nested prompts:** In sequential inline runtimes such as Codex or Copilot, any
+  repository-local prompt named in a plan (for example
+  `/.github/prompts/gsd-review-tasks-execution.prompt.md`) must be executed by opening that
+  prompt file and following it in the current session. Never route that requirement through
+  `gsd`, external CLIs, or provider-backed model hops.
 
 **Fallback rule:** If a spawned agent completes its work (commits visible, SUMMARY.md exists) but
 the orchestrator never receives the completion signal, treat it as successful based on spot-checks
@@ -1025,6 +1030,9 @@ increases monotonically across waves. `{status}` is `complete` (success),
    ```
    One classifier branch handles sentinels across the agent/Copilot/Codex/Gemini. Reference: `docs/research/provider-rate-limit-signals.md`.
    **Step 7.1 — `class == "quota-exceeded"`:**
+   This branch applies only to real subagent or runtime failures. It does not justify marking a
+   repository-local nested prompt as blocked; those prompts must be retried on the canonical
+   inline local path.
    Do not offer "retry now". Run step-5 spot-check first; if SUMMARY.md is missing but commits exist, route to safe-resume (`state.verify-against-disk`) instead of immediate redispatch.
    ```text
    ⚠ Plan {plan_id} terminated by provider quota / rate limit

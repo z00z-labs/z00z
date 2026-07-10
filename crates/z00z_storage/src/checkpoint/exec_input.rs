@@ -1,3 +1,6 @@
+use z00z_crypto::{expert::hash_domain, frame_bytes, hash_zk::hash_zk};
+use z00z_utils::codec::{BincodeCodec, Codec};
+
 use crate::{
     settlement::{
         CheckRoot, DefinitionId, SerialId, SettlementStateRoot, StoreItem, TerminalId, TerminalLeaf,
@@ -5,6 +8,12 @@ use crate::{
     snapshot::PrepSnapshotId,
     CheckpointError,
 };
+
+hash_domain!(StorCheckpointExecDom, "z00z.storage.checkpoint.exec", 1);
+
+const EXEC_TX_ROW_LABEL: &str = "checkpoint_exec_tx_row_v1";
+const EXEC_TX_ROOT_LABEL: &str = "checkpoint_exec_tx_root_v1";
+const EXEC_TX_ROW_VER: u8 = 1;
 
 /// Canonical execution-input schema version.
 ///
@@ -190,6 +199,44 @@ impl CheckpointExecTx {
     }
 }
 
+#[derive(serde::Serialize)]
+struct ExecTxRowV1<'a> {
+    version: u8,
+    ordinal: u32,
+    input_refs: &'a [CheckpointInRef],
+    outputs: &'a [CheckpointExecOut],
+    tx_proof: &'a [u8],
+}
+
+/// Derive the canonical transaction-data commitment for ordered execution rows.
+pub fn derive_exec_tx_root(txs: &[CheckpointExecTx]) -> Result<[u8; 32], CheckpointError> {
+    if txs.is_empty() {
+        return Err(CheckpointError::ReplayMix);
+    }
+
+    let codec = BincodeCodec;
+    let tx_count = u32::try_from(txs.len()).map_err(|_| CheckpointError::ReplayMix)?;
+    let mut root_bytes = frame_bytes(&tx_count.to_le_bytes());
+    for (ordinal, tx) in txs.iter().enumerate() {
+        let ordinal = u32::try_from(ordinal).map_err(|_| CheckpointError::ReplayMix)?;
+        let row = ExecTxRowV1 {
+            version: EXEC_TX_ROW_VER,
+            ordinal,
+            input_refs: tx.input_refs(),
+            outputs: tx.outputs(),
+            tx_proof: tx.tx_proof(),
+        };
+        let row_bytes = codec.serialize(&row)?;
+        let row_hash = hash_zk::<StorCheckpointExecDom>(EXEC_TX_ROW_LABEL, &[row_bytes.as_slice()]);
+        root_bytes.extend_from_slice(&frame_bytes(&row_hash));
+    }
+
+    Ok(hash_zk::<StorCheckpointExecDom>(
+        EXEC_TX_ROOT_LABEL,
+        &[root_bytes.as_slice()],
+    ))
+}
+
 /// Canonical checkpoint execution-input artifact.
 ///
 /// # Examples
@@ -225,6 +272,7 @@ pub struct CheckpointExecInput {
     prep_snapshot_id: PrepSnapshotId,
     prev_root: CheckRoot,
     prev_settlement_root: SettlementStateRoot,
+    tx_data_root: [u8; 32],
     txs: Vec<CheckpointExecTx>,
 }
 
@@ -253,11 +301,13 @@ impl CheckpointExecInput {
         if txs.is_empty() {
             return Err(CheckpointError::ReplayMix);
         }
+        let tx_data_root = derive_exec_tx_root(&txs)?;
         Ok(Self {
             version,
             prep_snapshot_id,
             prev_root: CheckRoot::from(prev_settlement_root),
             prev_settlement_root,
+            tx_data_root,
             txs,
         })
     }
@@ -283,6 +333,11 @@ impl CheckpointExecInput {
     }
 
     #[must_use]
+    pub const fn tx_data_root(&self) -> [u8; 32] {
+        self.tx_data_root
+    }
+
+    #[must_use]
     pub fn txs(&self) -> &[CheckpointExecTx] {
         &self.txs
     }
@@ -294,6 +349,14 @@ pub(crate) fn check_exec_ver(version: CheckpointExecVersion) -> Result<(), Check
     }
 
     Err(CheckpointError::VersionMix)
+}
+
+pub(crate) fn check_tx_root(exec: &CheckpointExecInput) -> Result<(), CheckpointError> {
+    if exec.tx_data_root != derive_exec_tx_root(exec.txs())? {
+        return Err(CheckpointError::ReplayMix);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

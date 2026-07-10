@@ -350,6 +350,7 @@ fn resolved_batch(
     let batch_id = published.batch_id;
     ResolvedBatch::new(
         published,
+        None,
         OrderedBatch {
             batch_id,
             items: vec![item],

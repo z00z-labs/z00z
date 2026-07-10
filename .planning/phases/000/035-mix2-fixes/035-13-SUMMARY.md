@@ -25,9 +25,8 @@ acceptance was claimed.
 - `.planning/phases/035-mix2-fixes/035-13-SUMMARY.md` captures the closeout
   evidence and closure boundary for the sender validation and acceptance slice.
 - `.planning/STATE.md` now advances continuity to `035-14-PLAN.md`.
-- `.github/memory-bank/activeContext.md` and
-  `.github/memory-bank/progress.md` now reflect the verified Phase 035
-  baseline through Plan 13.
+- The verified Phase 035 baseline through Plan 13 remains recorded in the
+  planning continuity artifacts and closeout evidence chain.
 - No additional production-code edits were required for this closeout; the
   sender validation and acceptance gate closed on already-landed repository
   behavior plus fresh validation evidence.

@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use z00z_aggregators::{
-    BatchId, CommitSubject, OrderedBatch, PublicationBinding, PublishedBatch,
+    BatchId, CommitSubject, OrderedBatch, PublicationBinding, PublicationRecord, PublishedBatch,
     RuntimeObjectPackageV1, ShardExecTicket, ShardPlacementView, ShardQuorumCertificate,
 };
 use z00z_crypto::{expert::traits::DomainSeparation, DomainHasher256};
@@ -46,7 +46,7 @@ pub struct SettlementTheoremBundle {
 pub enum SettlementError {
     #[error("transaction package theorem check failed: {0}")]
     TxTheorem(String),
-    #[error("checkpoint artifact lacks current checkpoint statement")]
+    #[error("checkpoint artifact lacks canonical V1 checkpoint statement")]
     CheckpointStatement,
     #[error("checkpoint proof payload mismatch")]
     CheckpointProof,
@@ -72,6 +72,7 @@ pub struct SettlementTheorem<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedBatch {
     pub published: PublishedBatch,
+    pub publication_record: Option<PublicationRecord>,
     pub ordered: OrderedBatch,
     pub theorem: SettlementTheoremBundle,
     pub subject: Option<CommitSubject>,
@@ -169,6 +170,7 @@ impl ResolvedBatch {
     #[must_use]
     pub fn new(
         published: PublishedBatch,
+        publication_record: Option<PublicationRecord>,
         ordered: OrderedBatch,
         theorem: SettlementTheoremBundle,
         subject: Option<CommitSubject>,
@@ -179,6 +181,7 @@ impl ResolvedBatch {
     ) -> Self {
         Self {
             published,
+            publication_record,
             ordered,
             theorem,
             subject,
@@ -197,6 +200,11 @@ impl ResolvedBatch {
     #[must_use]
     pub fn runtime_exec(&self) -> Option<&ShardExecTicket> {
         runtime_exec_parts(self.exec_ticket.as_ref())
+    }
+
+    #[must_use]
+    pub fn publication_record(&self) -> Option<&PublicationRecord> {
+        self.publication_record.as_ref()
     }
 
     #[must_use]
@@ -239,7 +247,7 @@ impl ResolvedBatch {
 pub fn verify_settlement_theorem(theorem: &SettlementTheorem<'_>) -> Result<(), SettlementError> {
     verify_tx_package(theorem.tx_package)?;
     let stmt = match theorem.artifact.statement() {
-        CheckpointStatement::CURRENT(stmt) => stmt,
+        CheckpointStatement::V1(stmt) => stmt,
         CheckpointStatement::Detached => return Err(SettlementError::CheckpointStatement),
     };
 

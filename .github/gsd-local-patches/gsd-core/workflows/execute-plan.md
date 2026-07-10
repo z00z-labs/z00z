@@ -169,6 +169,8 @@ cat .planning/phases/XX-name/{phase}-{plan}-PLAN.md
 This IS the execution instructions. Follow exactly. If plan references CONTEXT.md: honor user's vision throughout.
 
 **If plan contains `<interfaces>` block:** These are pre-extracted type definitions and contracts. Use them directly — do NOT re-read the source files to discover types. The planner already extracted what you need.
+
+**Nested prompt execution contract:** If the plan references a repository-local prompt by canonical path or slash name, resolve it to the file under `.github/prompts/` and execute it inline in the current session against the live workspace. For `/.github/prompts/gsd-review-tasks-execution.prompt.md` (`/GSD-Review-Tasks-Execution`), "run it at least 3 times" means 3 distinct inline local review passes with fixes between passes as needed. Do NOT shell out to `gsd`, `codex`, `claude`, `gemini`, `opencode`, `openrouter`, `openai`, or any external CLI or API to satisfy a nested prompt requirement. If a non-canonical shell-out was attempted earlier, discard that attempt and continue with the inline local path.
 </step>
 
 <step name="previous_phase_check">
@@ -376,6 +378,11 @@ execute-phase.md step 5.5).
 Create `{phase}-{plan}-SUMMARY.md` at `.planning/phases/XX-name/`. Use `.github/gsd-core/templates/summary.md`.
 
 **Frontmatter:** phase, plan, subsystem, tags | requires/provides/affects | tech-stack.added/patterns | key-files.created/modified | key-decisions | requirements-completed (**MUST** copy `requirements` array from PLAN.md frontmatter verbatim) | duration ($DURATION), completed ($PLAN_END_TIME date).
+
+**Coverage block (#1602):** Populate the `coverage:` frontmatter block — one entry per shipped deliverable (the structured form of each `## Accomplishments` bullet). For each deliverable, aggregate the task-level `<verify>` results and tests:
+- A task whose `<verify>` command passed or whose matching test passed → a `verification` entry with `kind` + `ref` (`tests/path#name`, Playwright screenshot ref, or command) + `status: pass`, and `human_judgment: false`.
+- A judgment-dependent deliverable (UX adequacy, external/multi-session behavior, anything no test asserts) → `human_judgment: true` with a `rationale`.
+- **Every deliverable MUST be classified.** If you cannot determine coverage, default to `human_judgment: true` with `rationale: "Coverage not determined at authoring time — verifier must classify"`. Never set `human_judgment: false` without a non-empty all-`pass` `verification` — `verify-work` auto-passes (skips the human) ONLY on that proof, so an unproven `false` still routes to the human but loses the audit trail. Omit the whole block only for a genuinely prose-only SUMMARY (verify-work then uses the legacy `## Accomplishments` path). The block is validated downstream by `gsd-tools uat classify-coverage`.
 
 Title: `# Phase [X] Plan [Y]: [Name] Summary`
 

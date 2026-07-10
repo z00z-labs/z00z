@@ -387,7 +387,7 @@ fn test_load_rejects_key_mix() {
     let bytes = crate::snapshot::codec::encode_snap(&snapshot).expect("encode snapshot");
     let wrong_id = PrepSnapshotId::new([2u8; 32]);
 
-    z00z_utils::io::create_dir_all(store.snap_dir()).expect("create snapshot dir");
+    z00z_utils::io::create_dir_all(store.snapshot_dir()).expect("create snapshot dir");
     z00z_utils::io::write_file(store.snap_path(&wrong_id), &bytes)
         .expect("write wrong-key snapshot");
 

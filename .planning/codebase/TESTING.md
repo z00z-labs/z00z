@@ -1,272 +1,176 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-05-06
+**Analysis Date:** 2026-07-07
 
 ## Test Framework
 
 **Runner:**
-
-- Rust built-in test harness via `cargo test` across the workspace.
-- `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` is the canonical repo-wide gate.
-- Criterion benches are registered in `crates/z00z_core/Cargo.toml`, `crates/z00z_crypto/Cargo.toml`, `crates/z00z_storage/Cargo.toml`, and `crates/z00z_wallets/Cargo.toml`.
-- `.cargo/config.toml` defines `cargo t` and `cargo rt` aliases and enables the `test_fast` cfg for local runs.
+- Rust built-in test harness via `cargo test`.
+- Shared test aliases and defaults live in `.cargo/config.toml`.
+- Release guardrails run in `.github/workflows/boundary-guards.yml`, `.github/workflows/release-safety-guards.yml`, and `.github/workflows/security-hygiene-guards.yml`.
 
 **Assertion Library:**
-
-- Standard Rust assertions are the norm: `assert!`, `assert_eq!`, `assert_ne!`, `matches!`, `expect`, and `unwrap_err`.
-- Property assertions use Proptest macros such as `prop_assert_eq!` and `prop_assert_ne!` in `crates/z00z_core/tests/assets/test_property_based.rs` and `crates/z00z_core/tests/genesis/test_security_validation.rs`.
+- Standard Rust assertions such as `assert!`, `assert_eq!`, `assert_ne!`, `matches!`, `expect`, and `unwrap_err`.
+- Property assertions use Proptest macros in crates that enable `proptest`.
 
 **Run Commands:**
-
 ```bash
 cargo test --workspace
-cargo test --workspace --release --all-targets --all-features
-cargo test --workspace --release --all-features --doc
-cargo bench --workspace --all-features --no-run
-./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh
+cargo rt --workspace
+cargo test --release -p z00z_wallets --test test_rpc_logging_acceptance -- --nocapture
+cargo test --release -p z00z_storage --test test_live_guardrails -- --nocapture
 ```
 
 ## Test File Organization
 
 **Location:**
-
-- `z00z_core` mixes unit tests inside source files with integration suites under `crates/z00z_core/tests/assets/` and `crates/z00z_core/tests/genesis/`.
-- `z00z_crypto` primarily uses flat integration tests under `crates/z00z_crypto/tests/` plus Criterion benches under `crates/z00z_crypto/benches/`.
-- `z00z_simulator` relies heavily on integration tests under `crates/z00z_simulator/tests/` and uses fixture data in `crates/z00z_simulator/tests/fixtures/`.
-- `z00z_storage` uses both unit-style test modules in source files such as `crates/z00z_storage/src/assets/model_tests.rs` and integration suites under `crates/z00z_storage/tests/`.
-- `z00z_wallets` has the broadest integration surface under `crates/z00z_wallets/tests/`, plus targeted unit tests embedded inside source modules.
+- Integration-heavy crates use dedicated `tests/` trees, especially `crates/z00z_wallets/tests/`, `crates/z00z_storage/tests/`, and `crates/z00z_simulator/tests/scenario_1/`.
+- Unit-style checks also live alongside implementation files inside `src/`, for example many `test_*` modules under `crates/z00z_wallets/src/` and `crates/z00z_storage/src/`.
 
 **Naming:**
-
-- Flat integration tests are usually named `test_<behavior>.rs`, especially in `crates/z00z_simulator/tests/` and `crates/z00z_wallets/tests/`.
-- Suite entry points use functional names rather than `test_`, for example `crates/z00z_core/tests/assets/test_assets.rs`, `crates/z00z_storage/tests/test_assets_suite.rs`, and `crates/z00z_storage/tests/test_snapshot_suite.rs`.
-- Benchmark files describe the hot path they measure, for example `crates/z00z_wallets/benches/tx_perf_bench.rs` and `crates/z00z_core/benches/assets/metadata_validation_bench.rs`.
+- The repository strongly prefers `test_*.rs`: 424 of 439 Rust files under `crates/*/tests/` match that pattern.
+- Scenario suites also use one root test crate plus many `mod test_*;` declarations, for example `crates/z00z_simulator/tests/scenario_1/main.rs`.
 
 **Structure:**
-
 ```text
-crates/z00z_core/tests/
-├── assets/
-│   ├── mod.rs
-│   ├── test_assets.rs
-│   ├── test_fixtures.rs
-│   └── test_property_based.rs
-├── genesis/
-│   ├── mod.rs
-│   ├── test_genesis.rs
-│   └── test_security_validation.rs
+crates/z00z_wallets/tests/
+├── fixtures/
+├── test_inc/
+├── test_rpc_logging_acceptance.rs
+├── test_wallet_persist_nostd_fs.rs
+└── test_tx_*.rs
 
-crates/z00z_storage/tests/
-├── assets/
-│   ├── mod.rs
-│   └── test_store_api.rs
-├── checkpoint/
-│   └── test_fixtures.rs
-├── snapshot/
-│   ├── mod.rs
-│   └── test_versions.rs
-├── test_assets_suite.rs
-└── test_snapshot_suite.rs
+crates/z00z_simulator/tests/scenario_1/
+├── main.rs
+├── test_stage4_*.rs
+├── test_stage6_*.rs
+└── test_scenario1_*.rs
 ```
 
 ## Test Structure
 
 **Suite Organization:**
-
 ```rust
-// crates/z00z_core/tests/assets/test_assets.rs
-#[path = "mod.rs"]
-mod assets;
+// crates/z00z_simulator/tests/scenario_1/main.rs
+mod test_checkpoint_acceptance;
+mod test_claim_acceptance;
+mod test_hjmt_e2e;
+mod test_wallet_integration;
 ```
 
 ```rust
-// crates/z00z_storage/tests/test_assets_suite.rs
-mod assets;
-```
-
-```rust
-// crates/z00z_wallets/tests/test_common/mod.rs
-pub struct WalletEnvGuard {
-    _guard: std::sync::MutexGuard<'static, ()>,
-}
-
-impl Drop for WalletEnvGuard {
-    fn drop(&mut self) {
-        std::env::remove_var("Z00Z_WALLET_NETWORK");
-        std::env::remove_var("Z00Z_WALLET_CHAIN");
-    }
+// crates/z00z_wallets/tests/test_inc/test_mod.rs
+pub fn managed_test_output_root(case_name: &str) -> PathBuf {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("outputs/tests")
+        .join(exe_scope());
+    // ...
 }
 ```
 
 **Patterns:**
-
-- Integration suites frequently expose a single entry file that includes a sibling `mod.rs` and lets Cargo treat the file as the test crate.
-- Shared test helpers are factored into reusable support modules, for example `crates/z00z_wallets/tests/test_common/mod.rs`, `crates/z00z_simulator/tests/support/test_stage4_support.rs`, and `crates/z00z_storage/tests/checkpoint/test_fixtures.rs`.
-- Test functions are concrete and scenario-focused. Examples include `test_store_public_api_roundtrip` in `crates/z00z_storage/tests/assets/test_store_api.rs`, `test_h2scalar_golden_vectors` in `crates/z00z_crypto/tests/test_golden_vectors.rs`, and `stage2_wallet_ids_unique` in `crates/z00z_simulator/tests/test_wallet_integration.rs`.
-- Release-only integration gates are encoded in tests rather than external tooling. `crates/z00z_simulator/tests/test_scenario1_unified_gate.rs` exits early on debug builds and writes pass artifacts when running in release mode.
+- Large suites are split into many focused files and wired through a single root module.
+- Test output paths are deterministic and hashed from workspace inputs in `crates/z00z_wallets/tests/test_inc/test_mod.rs`.
+- Guardrail tests often `include_str!` source, workflow, and planning files to enforce architectural rules, as shown in `crates/z00z_storage/tests/test_live_guardrails.rs`.
 
 ## Mocking
 
-**Framework:**
-
-- No dedicated mocking framework is detected.
-- The codebase prefers real domain objects, temporary directories, helper constructors, and in-memory implementations.
+**Framework:** no dedicated mocking framework detected.
 
 **Patterns:**
-
-```rust
-// crates/z00z_wallets/tests/test_common/mod.rs
-pub struct WalletEnvGuard {
-    _guard: std::sync::MutexGuard<'static, ()>,
-}
-
-impl Drop for WalletEnvGuard {
-    fn drop(&mut self) {
-        std::env::remove_var("Z00Z_WALLET_NETWORK");
-        std::env::remove_var("Z00Z_WALLET_CHAIN");
-    }
-}
-```
-
 ```rust
 // crates/z00z_wallets/tests/test_rpc_dispatcher_roundtrip.rs
-let (logger, vec_logger) = common::rpc_test_tee_logger();
+let dispatcher = Arc::new(RpcDispatcher::new());
+let base = LocalRpcTransport::new(dispatcher);
 let transport = LoggedRpcTransport::new(base, config, logger, time, rng);
 ```
 
-**What to Mock:**
+```rust
+// crates/z00z_wallets/tests/test_rpc_logging_acceptance.rs
+let dir = tempfile::tempdir().unwrap();
+let service = Arc::new(WalletService::with_output_dir(dir.path().join("wallets")));
+```
 
-- Prefer fakeable environment and filesystem boundaries with temp directories, helper guards, or structured fixtures.
-- Prefer `z00z_utils` abstractions and deterministic inputs over external service mocks.
+**What to Mock:**
+- Prefer fakeable transport and filesystem seams through local transports, temp directories, and deterministic providers from `z00z_utils`.
+- Prefer test-owned service construction over patching internals.
 
 **What NOT to Mock:**
-
-- Cryptographic derivation, proof generation, and canonical encoding paths are usually exercised directly with golden vectors or parity tests.
-- Storage proofs and path validation are tested against real store operations, as shown in `crates/z00z_storage/tests/assets/test_store_api.rs`.
+- Crypto, proofs, settlement roots, and wallet/store serialization are often exercised through real code paths.
+- Storage and simulator tests frequently rebuild live state instead of replacing it with dummy objects.
 
 ## Fixtures and Factories
 
 **Test Data:**
-
 ```rust
-// crates/z00z_storage/tests/assets/test_store_api.rs
-fn test_item(path: AssetPath, value: u64) -> StoreItem {
-    StoreItem::new(path, test_leaf(path.asset_id, path.serial_id.get(), value)).expect("item")
-}
-```
-
-```rust
-// crates/z00z_simulator/tests/test_wallet_integration.rs
-fn patch_cfg_paths(cfg_path: &Path) -> PathBuf {
-    let mut cfg = ScenarioCfg::from_file(...).expect("load scenario_config.yaml");
-    cfg.stage1_genesis.get_or_insert_with(Default::default).genesis_config = ...;
-    ...
+// crates/z00z_storage/tests/test_store_api.rs
+fn asset_item(mark: u8) -> StoreItem {
+    let core = AssetLeaf::dummy_for_scan(u32::from(mark));
+    let leaf = TerminalLeaf::from(core.clone());
+    let path = SettlementPath::new(
+        DefinitionId::new(bytes(mark)),
+        SerialId::new(core.serial_id),
+        TerminalId::new(core.asset_id),
+    );
+    StoreItem::new(path, leaf).expect("asset item")
 }
 ```
 
 **Location:**
-
-- Simulator fixtures live under `crates/z00z_simulator/tests/fixtures/`.
-- Wallet fixtures live under `crates/z00z_wallets/tests/fixtures/` and `crates/z00z_wallets/tests/test_common/`.
-- Checkpoint-specific fixtures live under `crates/z00z_storage/tests/checkpoint/test_fixtures.rs`.
-- Some suites generate temporary patched configs or output artifacts under `target/tmp` or crate-local output directories instead of relying only on checked-in fixture files.
+- Wallet fixtures: `crates/z00z_wallets/tests/fixtures/`
+- Simulator fixtures: `crates/z00z_simulator/tests/scenario_1/fixtures/`
+- Storage fixtures: `crates/z00z_storage/tests/fixtures/`
+- Generated Kani artifacts: `crates/z00z_wallets/tests/generated_kani_*.rs` and `crates/z00z_storage/tests/generated_kani_checkpoint_artifact.rs`
 
 ## Coverage
 
-**Requirements:**
-
-- No explicit numeric coverage threshold is detected in the target crates.
-- Quality gates emphasize breadth of suites, deterministic vectors, property tests, performance checks, and full-workspace verification rather than a coverage percentage.
+**Requirements:** no explicit percentage gate detected in the active workspace.
 
 **View Coverage:**
-
 ```bash
-Not detected in the target crates.
+Not detected as a standard workspace command.
 ```
 
 ## Test Types
 
 **Unit Tests:**
-
-- Embedded module tests are common for validation-heavy code, for example `crates/z00z_core/src/genesis/validator.rs`, `crates/z00z_storage/src/assets/model_tests.rs`, `crates/z00z_simulator/src/claim_pkg_consumer.rs`, and many modules under `crates/z00z_wallets/src/core/`.
-- These tests target invariants, parser round-trips, internal state transitions, and small helper behavior.
+- Common inside source modules for storage, wallet, and runtime internals.
+- Often target typed invariants, serializers, path binding, and helper behavior.
 
 **Integration Tests:**
-
-- This is the dominant pattern for `z00z_simulator` and `z00z_wallets`.
-- Integration tests often cross crate boundaries, exercising `z00z_core`, `z00z_crypto`, `z00z_storage`, `z00z_utils`, and `z00z_wallets` together.
-- Security regression tests are first-class integration tests, for example `crates/z00z_wallets/tests/test_wallet_persist_nostd_fs.rs`, `crates/z00z_simulator/tests/test_claim_persist.rs`, and `crates/z00z_simulator/tests/test_stealth_scanner_cache.rs`.
+- Dominant pattern for `z00z_wallets`, `z00z_storage`, and `z00z_simulator`.
+- Integration tests span multiple crates and validate real end-to-end data flow rather than isolated mocks.
 
 **E2E Tests:**
-
-- E2E-style tests exist but remain inside the Rust test harness rather than a separate framework.
-- Examples include `crates/z00z_wallets/tests/test_e2e_req_flow.rs`, `crates/z00z_simulator/tests/test_claim_persist.rs`, and the artifact-producing unified gate in `crates/z00z_simulator/tests/test_scenario1_unified_gate.rs`.
+- E2E-style checks are still Rust tests, not a separate external framework.
+- Examples include `crates/z00z_wallets/tests/test_e2e_req_flow.rs`, `crates/z00z_wallets/tests/test_e2e_runtime_parity.rs`, and `crates/z00z_simulator/tests/scenario_1/test_scenario1_unified_gate.rs`.
 
 ## Common Patterns
 
 **Async Testing:**
-
 ```rust
-// Bench and service tests use a real Tokio runtime.
-let rt = Runtime::new().expect("tokio runtime");
-rt.block_on(async {
-    let wallets = service.list_wallets_in_memory().await.expect("list_wallets_in_memory must succeed");
-    criterion::black_box(wallets);
-})
+// crates/z00z_wallets/tests/test_rpc_logging_acceptance.rs
+#[tokio::test]
+async fn test_rpc_logging_prevents_double() {
+    // async RPC roundtrip with LocalRpcTransport
+}
 ```
-
-- Native-only async testing is common in `z00z_wallets`, which depends on Tokio in both implementation and dev dependencies.
-- Tests also use `#[tokio::test]` for async RPC and service flows when a dedicated runtime is enough.
 
 **Error Testing:**
-
 ```rust
-let err = chk_blob(bytes, root, path, wrong_def, proof.ser_leaf(), leaf)
-    .expect_err("wrong definition leaf must fail");
-assert_eq!(err, ProofChkErr::DefMix);
-```
-
-```rust
-let err = parse_params::<WalletIdParams>(json!({"id": "wallet-abc"})).unwrap_err();
-assert!(matches!(err, RpcError::InvalidParams(_)));
-```
-
-- Error-path assertions are strongly typed and often check exact enum variants rather than only checking `is_err()`.
-- Several tests validate negative security cases by mutating serialized JSON or proof bytes and asserting the correct reject class.
-
-**Property Testing:**
-
-```rust
-proptest! {
-    #[test]
-    fn test_rebuild_idx_keeps_root(
-        marks in proptest::collection::vec((1u8..4, 1u32..4, 1u8..8, 1u8..16), 1..8)
-    ) {
-        ...
-        prop_assert_eq!(root_many(&left), root_many(&right));
+// crates/z00z_storage/tests/test_store_api.rs
+fn assert_fee_required(err: SettlementStoreError) {
+    match err {
+        SettlementStoreError::Fee(FeeErr::SupportRequired) => {}
+        other => panic!("expected SupportRequired, got {other:?}"),
     }
 }
 ```
 
-- Proptest is actively used in `crates/z00z_core/tests/assets/test_property_based.rs`, `crates/z00z_core/tests/genesis/test_security_validation.rs`, `crates/z00z_storage/src/assets/model_tests.rs`, `crates/z00z_storage/src/assets/store_internal/whitebox_state.rs`, and `crates/z00z_wallets/src/core/key/bip32.rs`.
-
-**Performance Guards:**
-
-```rust
-const MAX_BATCH_VERIFY_MS: u128 = 500;
-assert!(elapsed.as_millis() < MAX_BATCH_VERIFY_MS);
-```
-
-- Hard performance thresholds appear inside tests, not only in benchmarks. `crates/z00z_crypto/tests/test_perf_guards.rs` is the clearest example.
-- Criterion benchmarks are present for hot paths in core, crypto, storage, and wallets, and `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` runs `cargo bench --workspace --all-features --no-run` as part of the global gate.
-
-## Quality Gates
-
-**Observed gates across the target crates:**
-
-- `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` enforces `cargo fmt --check`, workspace `clippy` with denied warnings, release builds for all targets, release test runs for all targets, doctests, benchmark compilation, runnable target sweeps, and slow-test reporting.
-- `crates/z00z_core/bin/run_fast_tests.sh` defines a curated fast lane for library, genesis, determinism, proof, snapshot, and security tests.
+**Property Testing:**
+- Proptest is enabled in `crates/z00z_core/Cargo.toml`, `crates/z00z_storage/Cargo.toml`, and `crates/z00z_wallets/Cargo.toml`.
+- Storage also keeps a Proptest regression corpus in `crates/z00z_storage/tests/test_property_corpus.proptest-regressions`.
 
 ---
 
-Testing analysis: 2026-05-06
+*Testing analysis: 2026-07-07*

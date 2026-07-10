@@ -4,6 +4,9 @@ use z00z_aggregators::{
     BatchId, PublicationBinding, PublicationRecord, PublishedBatch, ShardExecTicket,
     ShardPlacementView, SoftConfirmation,
 };
+use z00z_storage::checkpoint::{
+    CheckpointDaReferenceV1, CheckpointLifecycleV1, CheckpointPublicationEvidenceV1,
+};
 use z00z_validators::{ObjectRejectCode, Verdict};
 
 use crate::{
@@ -52,6 +55,27 @@ impl EvidenceRecord {
     pub fn binding_digest(&self) -> Option<[u8; 32]> {
         self.publication_binding()
             .map(PublicationBinding::binding_digest)
+    }
+
+    #[must_use]
+    pub fn da_reference(&self) -> Option<&CheckpointDaReferenceV1> {
+        self.publication
+            .as_ref()
+            .and_then(|publication| publication.da_reference.as_ref())
+    }
+
+    #[must_use]
+    pub fn publication_evidence(&self) -> Option<&CheckpointPublicationEvidenceV1> {
+        self.publication
+            .as_ref()
+            .and_then(|publication| publication.publication_evidence.as_ref())
+    }
+
+    #[must_use]
+    pub fn lifecycle(&self) -> Option<&CheckpointLifecycleV1> {
+        self.publication
+            .as_ref()
+            .and_then(|publication| publication.lifecycle.as_ref())
     }
 
     #[must_use]

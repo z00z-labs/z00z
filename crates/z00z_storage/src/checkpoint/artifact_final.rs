@@ -6,8 +6,9 @@ use crate::{
 };
 
 use super::{
-    CheckpointProofSystem, CheckpointPubIn, CheckpointStatement, CheckpointStmt, CheckpointVersion,
-    CreatedEnt, SpentEnt,
+    CheckpointProofSystem, CheckpointPubIn, CheckpointStatement,
+    CheckpointTransitionStatementCoreV1, CheckpointTransitionStatementFinalV1,
+    CheckpointTransitionStatementV1, CheckpointVersion, CreatedEnt, SpentEnt,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -26,13 +27,17 @@ pub struct CheckpointArtifact {
     prep_snapshot_id: Option<PrepSnapshotId>,
     #[serde(default)]
     exec_input_id: Option<CheckpointExecInputId>,
+    #[serde(default)]
+    statement_core: Option<CheckpointTransitionStatementCoreV1>,
+    #[serde(default)]
+    da_ref: Option<[u8; 32]>,
     proof_sys: CheckpointProofSystem,
     cp_proof: Vec<u8>,
 }
 
 impl CheckpointArtifact {
     pub(crate) fn new_attest(
-        stmt: CheckpointStmt,
+        stmt: CheckpointTransitionStatementV1,
         cp_proof: Vec<u8>,
     ) -> Result<Self, CheckpointError> {
         check_ver(stmt.checkpoint_version())?;
@@ -56,6 +61,8 @@ impl CheckpointArtifact {
             created_delta: stmt.created_delta().to_vec(),
             prep_snapshot_id: Some(stmt.prep_snapshot_id()),
             exec_input_id: Some(stmt.exec_input_id()),
+            statement_core: None,
+            da_ref: None,
             proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
             cp_proof,
         })
@@ -69,7 +76,7 @@ impl CheckpointArtifact {
     pub fn statement(&self) -> CheckpointStatement {
         match (self.prep_snapshot_id, self.exec_input_id) {
             (Some(prep_snapshot_id), Some(exec_input_id)) => {
-                CheckpointStatement::CURRENT(Box::new(CheckpointStmt::new(
+                CheckpointStatement::V1(Box::new(CheckpointTransitionStatementV1::new(
                     self.version,
                     self.height,
                     self.pub_in(),
@@ -83,6 +90,10 @@ impl CheckpointArtifact {
 
     pub(crate) const fn has_partial_stmt_ids(&self) -> bool {
         self.prep_snapshot_id.is_some() ^ self.exec_input_id.is_some()
+    }
+
+    pub(crate) const fn has_partial_canonical_binding(&self) -> bool {
+        self.statement_core.is_some() ^ self.da_ref.is_some()
     }
 
     #[must_use]
@@ -121,6 +132,16 @@ impl CheckpointArtifact {
     }
 
     #[must_use]
+    pub const fn statement_core(&self) -> Option<CheckpointTransitionStatementCoreV1> {
+        self.statement_core
+    }
+
+    #[must_use]
+    pub const fn da_ref(&self) -> Option<[u8; 32]> {
+        self.da_ref
+    }
+
+    #[must_use]
     pub fn spent_delta(&self) -> &[SpentEnt] {
         &self.spent_delta
     }
@@ -142,6 +163,32 @@ impl CheckpointArtifact {
     /// persisted replay evidence referenced by attested artifacts.
     pub fn cp_proof(&self) -> &[u8] {
         &self.cp_proof
+    }
+
+    pub fn bind_canonical_v1(
+        mut self,
+        statement_core: CheckpointTransitionStatementCoreV1,
+        final_bind: CheckpointTransitionStatementFinalV1,
+    ) -> Result<Self, CheckpointError> {
+        if final_bind.pq_anchor_root().is_some() || final_bind.da_ref() == [0u8; 32] {
+            return Err(CheckpointError::ArtifactCompatMix);
+        }
+        self.statement_core = Some(statement_core);
+        self.da_ref = Some(final_bind.da_ref());
+        Ok(self)
+    }
+
+    #[must_use]
+    pub fn statement_digest_v1(&self) -> Option<[u8; 32]> {
+        match (self.statement(), self.statement_core, self.da_ref) {
+            (CheckpointStatement::V1(stmt), Some(statement_core), Some(da_ref)) => {
+                Some(stmt.final_statement_digest_v1(
+                    &statement_core,
+                    &CheckpointTransitionStatementFinalV1::new(da_ref),
+                ))
+            }
+            _ => None,
+        }
     }
 
     #[must_use]
@@ -168,7 +215,7 @@ pub(crate) fn check_ver(version: CheckpointVersion) -> Result<(), CheckpointErro
 }
 
 pub(crate) fn check_proof_sys(proof_sys: CheckpointProofSystem) -> Result<(), CheckpointError> {
-    if proof_sys.is_opaque_attest() || proof_sys.claims_verified() {
+    if proof_sys.is_opaque_attest() {
         return Ok(());
     }
 

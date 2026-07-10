@@ -2,22 +2,205 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use z00z_crypto::{expert::hash_domain, frame_bytes, hash_zk::hash_zk};
 
 use crate::{
     checkpoint::{
         check_exec_root, check_link_ids, CheckpointDraft, CheckpointExecInput, CheckpointLink,
-        CheckpointVersion, CreatedEnt, SpentEnt,
+        CheckpointTransitionStatementCoreV1, CheckpointVersion, CreatedEnt, SpentEnt,
     },
     settlement::{
-        chk_blob_settlement_inclusion, CheckRoot, ClaimSourceRoot, ProofItem, SettlementPath,
+        chk_blob_settlement_inclusion, derive_journal_digest_v1, derive_witness_root_v1,
+        BatchProofBlobV1, CheckRoot, ClaimSourceRoot, ProofChkErr, ProofItem, SettlementPath,
         SettlementStateRoot, StoreItem, TerminalId, TerminalLeaf,
     },
     snapshot::{PrepReplayEntry, PrepSnapshot, PrepSnapshotId},
+    CheckpointError,
 };
 use z00z_crypto::CLAIM_ROOT_VERSION;
 
 use super::build_prepare::prepare_tx_sum;
 use super::build_state::{proof_root, BuildIdx, BuildState};
+
+hash_domain!(StorCheckpointReplayDom, "z00z.storage.checkpoint.replay", 1);
+
+const DELTA_RECORD_LABEL: &str = "checkpoint_delta_record_v1";
+const DELTA_ROOT_LABEL: &str = "checkpoint_delta_root_v1";
+const DELTA_SPENT_LABEL: &str = "checkpoint_delta_spent_v1";
+const DELTA_CREATED_LABEL: &str = "checkpoint_delta_created_v1";
+const DELTA_RECORD_VER: u8 = 1;
+const DELTA_KIND_SPENT: u8 = 1;
+const DELTA_KIND_CREATED: u8 = 2;
+
+#[derive(Serialize)]
+struct CheckpointDeltaRecordV1 {
+    version: u8,
+    tx_ordinal: u32,
+    item_ordinal: u32,
+    delta_kind: u8,
+    terminal_id: TerminalId,
+    payload_digest: [u8; 32],
+}
+
+impl CheckpointDeltaRecordV1 {
+    fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&frame_bytes(&[self.version]));
+        bytes.extend_from_slice(&frame_bytes(&self.tx_ordinal.to_le_bytes()));
+        bytes.extend_from_slice(&frame_bytes(&self.item_ordinal.to_le_bytes()));
+        bytes.extend_from_slice(&frame_bytes(&[self.delta_kind]));
+        bytes.extend_from_slice(&frame_bytes(self.terminal_id.as_bytes()));
+        bytes.extend_from_slice(&frame_bytes(&self.payload_digest));
+        bytes
+    }
+}
+
+fn spent_payload_bytes(spent: &SpentEnt) -> Vec<u8> {
+    frame_bytes(spent.terminal_id().as_bytes())
+}
+
+fn created_payload_bytes(created: &CreatedEnt) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&frame_bytes(created.terminal_id().as_bytes()));
+    bytes.extend_from_slice(&frame_bytes(created.leaf_hash()));
+    bytes
+}
+
+fn map_batch_err(err: ProofChkErr) -> CheckpointError {
+    match err {
+        ProofChkErr::BatchRootMix
+        | ProofChkErr::BatchRootGenerationMix
+        | ProofChkErr::RootMix
+        | ProofChkErr::RootGenerationMix => CheckpointError::RootMix,
+        _ => CheckpointError::ReplayMix,
+    }
+}
+
+pub fn derive_delta_root_v1(
+    exec: &CheckpointExecInput,
+    draft: &CheckpointDraft,
+) -> Result<[u8; 32], CheckpointError> {
+    if exec.txs().is_empty() {
+        return Err(CheckpointError::ReplayMix);
+    }
+
+    let spent_expected = exec
+        .txs()
+        .iter()
+        .try_fold(0usize, |sum, tx| sum.checked_add(tx.input_refs().len()))
+        .ok_or(CheckpointError::ReplayMix)?;
+    let created_expected = exec
+        .txs()
+        .iter()
+        .try_fold(0usize, |sum, tx| sum.checked_add(tx.outputs().len()))
+        .ok_or(CheckpointError::ReplayMix)?;
+    if spent_expected != draft.spent_delta().len()
+        || created_expected != draft.created_delta().len()
+    {
+        return Err(CheckpointError::ReplayMix);
+    }
+
+    let record_count = spent_expected
+        .checked_add(created_expected)
+        .ok_or(CheckpointError::ReplayMix)?;
+    let record_count = u32::try_from(record_count).map_err(|_| CheckpointError::ReplayMix)?;
+    let mut root_bytes = frame_bytes(&record_count.to_le_bytes());
+    let mut spent_idx = 0usize;
+    let mut created_idx = 0usize;
+
+    for (tx_ordinal, tx) in exec.txs().iter().enumerate() {
+        let tx_ordinal = u32::try_from(tx_ordinal).map_err(|_| CheckpointError::ReplayMix)?;
+        for (item_ordinal, input_ref) in tx.input_refs().iter().enumerate() {
+            let item_ordinal =
+                u32::try_from(item_ordinal).map_err(|_| CheckpointError::ReplayMix)?;
+            let spent = draft
+                .spent_delta()
+                .get(spent_idx)
+                .ok_or(CheckpointError::ReplayMix)?;
+            if spent.terminal_id() != input_ref.terminal_id() {
+                return Err(CheckpointError::ReplayMix);
+            }
+            let spent_bytes = spent_payload_bytes(spent);
+            let payload_digest =
+                hash_zk::<StorCheckpointReplayDom>(DELTA_SPENT_LABEL, &[spent_bytes.as_slice()]);
+            let record = CheckpointDeltaRecordV1 {
+                version: DELTA_RECORD_VER,
+                tx_ordinal,
+                item_ordinal,
+                delta_kind: DELTA_KIND_SPENT,
+                terminal_id: spent.terminal_id(),
+                payload_digest,
+            };
+            let record_bytes = record.canonical_bytes();
+            let record_hash =
+                hash_zk::<StorCheckpointReplayDom>(DELTA_RECORD_LABEL, &[record_bytes.as_slice()]);
+            root_bytes.extend_from_slice(&frame_bytes(&record_hash));
+            spent_idx += 1;
+        }
+
+        for (item_ordinal, output) in tx.outputs().iter().enumerate() {
+            let item_ordinal =
+                u32::try_from(item_ordinal).map_err(|_| CheckpointError::ReplayMix)?;
+            let created = draft
+                .created_delta()
+                .get(created_idx)
+                .ok_or(CheckpointError::ReplayMix)?;
+            let terminal_id = output.leaf().terminal_id();
+            if created.terminal_id() != terminal_id {
+                return Err(CheckpointError::ReplayMix);
+            }
+            let created_bytes = created_payload_bytes(created);
+            let payload_digest = hash_zk::<StorCheckpointReplayDom>(
+                DELTA_CREATED_LABEL,
+                &[created_bytes.as_slice()],
+            );
+            let record = CheckpointDeltaRecordV1 {
+                version: DELTA_RECORD_VER,
+                tx_ordinal,
+                item_ordinal,
+                delta_kind: DELTA_KIND_CREATED,
+                terminal_id,
+                payload_digest,
+            };
+            let record_bytes = record.canonical_bytes();
+            let record_hash =
+                hash_zk::<StorCheckpointReplayDom>(DELTA_RECORD_LABEL, &[record_bytes.as_slice()]);
+            root_bytes.extend_from_slice(&frame_bytes(&record_hash));
+            created_idx += 1;
+        }
+    }
+
+    if spent_idx != draft.spent_delta().len() || created_idx != draft.created_delta().len() {
+        return Err(CheckpointError::ReplayMix);
+    }
+
+    Ok(hash_zk::<StorCheckpointReplayDom>(
+        DELTA_ROOT_LABEL,
+        &[root_bytes.as_slice()],
+    ))
+}
+
+pub fn build_stmt_core_v1(
+    draft: &CheckpointDraft,
+    exec: &CheckpointExecInput,
+    batches: &[BatchProofBlobV1],
+) -> Result<CheckpointTransitionStatementCoreV1, CheckpointError> {
+    let first_batch = batches.first().ok_or(CheckpointError::ReplayMix)?;
+    if first_batch.header.settlement_root != draft.new_settlement_root() {
+        return Err(CheckpointError::RootMix);
+    }
+
+    let delta_root = derive_delta_root_v1(exec, draft)?;
+    let witness_root = derive_witness_root_v1(batches).map_err(map_batch_err)?;
+    let journal_digest = derive_journal_digest_v1(batches).map_err(map_batch_err)?;
+
+    Ok(CheckpointTransitionStatementCoreV1::from_exec(
+        exec,
+        delta_root,
+        witness_root,
+        journal_digest,
+    ))
+}
 
 /// Canonical membership witness captured during pre-state resolution.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

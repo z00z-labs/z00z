@@ -3,13 +3,17 @@ mod theorem_fixture;
 
 use z00z_aggregators::{AggregatorId, BatchRoute, SecondaryState, ShardPlacementView};
 use z00z_rollup_node::{CelestiaLocalAdapter, DaAdapter, DaError};
-use z00z_storage::checkpoint::CheckpointPubIn;
+use z00z_storage::checkpoint::{CheckpointDaProviderFamily, CheckpointPubIn};
 use z00z_storage::settlement::{ObjectPolicyRegistryV1, SettlementStateRoot};
 use z00z_validators::{CheckpointFlow, RejectClass, ResolvedBatch, ValidatorBoundary, VerdictKind};
 
 #[test]
 fn test_celestia_roundtrip() {
-    let request = theorem_fixture::publication_request([0x41; 32], "celestia-1");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x41; 32],
+        "celestia-1",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
 
     let published = adapter.publish(request.clone()).expect("publish");
@@ -46,7 +50,11 @@ fn test_celestia_roundtrip() {
 
 #[test]
 fn test_celestia_namespace_drift() {
-    let request = theorem_fixture::publication_request([0x42; 32], "celestia-2");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x42; 32],
+        "celestia-2",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     assert!(adapter.forge_namespace(published.batch_id, "deadbeefdeadbeef"));
@@ -60,7 +68,11 @@ fn test_celestia_namespace_drift() {
 
 #[test]
 fn test_celestia_commitment_drift() {
-    let request = theorem_fixture::publication_request([0x43; 32], "celestia-3");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x43; 32],
+        "celestia-3",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     assert!(adapter.forge_blob_commitment(published.batch_id, [0xCC; 32]));
@@ -74,7 +86,11 @@ fn test_celestia_commitment_drift() {
 
 #[test]
 fn test_celestia_blob_bytes_drift() {
-    let request = theorem_fixture::publication_request([0x4A; 32], "celestia-blob-drift");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x4A; 32],
+        "celestia-blob-drift",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     assert!(adapter.forge_blob_bytes(published.batch_id, vec![0xAA; 16]));
@@ -88,7 +104,11 @@ fn test_celestia_blob_bytes_drift() {
 
 #[test]
 fn test_celestia_inclusion_reference_drift() {
-    let request = theorem_fixture::publication_request([0x4B; 32], "celestia-inclusion-drift");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x4B; 32],
+        "celestia-inclusion-drift",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     assert!(adapter.forge_inclusion_reference(
@@ -105,7 +125,11 @@ fn test_celestia_inclusion_reference_drift() {
 
 #[test]
 fn test_celestia_missing_payload() {
-    let request = theorem_fixture::publication_request([0x44; 32], "celestia-4");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x44; 32],
+        "celestia-4",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     assert!(adapter.mark_payload_missing(published.batch_id));
@@ -119,7 +143,11 @@ fn test_celestia_missing_payload() {
 
 #[test]
 fn test_celestia_degraded_mode_before_unanchored_limit() {
-    let request = theorem_fixture::publication_request([0x4C; 32], "celestia-degraded");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x4C; 32],
+        "celestia-degraded",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     let record = adapter.record(published.batch_id).expect("record").clone();
@@ -138,7 +166,11 @@ fn test_celestia_degraded_mode_before_unanchored_limit() {
 
 #[test]
 fn test_celestia_stale_anchor() {
-    let request = theorem_fixture::publication_request([0x45; 32], "celestia-5");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x45; 32],
+        "celestia-5",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     let blob_height = adapter
@@ -156,7 +188,11 @@ fn test_celestia_stale_anchor() {
 
 #[test]
 fn test_celestia_cert_drift() {
-    let request = theorem_fixture::publication_request([0x46; 32], "celestia-6");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x46; 32],
+        "celestia-6",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     assert!(adapter.forge_certificate_digest(published.batch_id, [0xDD; 32]));
@@ -170,7 +206,11 @@ fn test_celestia_cert_drift() {
 
 #[test]
 fn test_celestia_unanchored_limit() {
-    let request = theorem_fixture::publication_request([0x47; 32], "celestia-7");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x47; 32],
+        "celestia-7",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     let record = adapter.record(published.batch_id).expect("record").clone();
@@ -186,7 +226,11 @@ fn test_celestia_unanchored_limit() {
 
 #[test]
 fn test_celestia_retention_expiry_rejects_retrieve() {
-    let request = theorem_fixture::publication_request([0x49; 32], "celestia-retention");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x49; 32],
+        "celestia-retention",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request).expect("publish");
     let record = adapter.record(published.batch_id).expect("record").clone();
@@ -207,7 +251,11 @@ fn test_celestia_retention_expiry_rejects_retrieve() {
 
 #[test]
 fn test_celestia_validator_rejects() {
-    let request = theorem_fixture::publication_request([0x48; 32], "celestia-8");
+    let request = theorem_fixture::publication_request_with_provider(
+        [0x48; 32],
+        "celestia-8",
+        CheckpointDaProviderFamily::NamespaceBlob,
+    );
     let mut adapter = CelestiaLocalAdapter::new("local-celestia");
     let published = adapter.publish(request.clone()).expect("publish");
     let resolved = adapter.resolve(&published).expect("resolve");
@@ -232,6 +280,7 @@ fn resolved_with_placement(
 ) -> ResolvedBatch {
     ResolvedBatch::new(
         resolved.published.clone(),
+        None,
         request.ordered_batch.clone(),
         resolved.theorem.clone(),
         resolved.subject.clone(),

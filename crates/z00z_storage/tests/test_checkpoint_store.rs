@@ -71,16 +71,30 @@ fn save_artifact_file(
     root: &std::path::Path,
     artifact: &z00z_storage::checkpoint::CheckpointArtifact,
 ) -> CheckpointId {
+    let store = CheckpointFsStore::new(root);
     let checkpoint_id =
         z00z_storage::checkpoint::derive_checkpoint_id(artifact).expect("derive checkpoint id");
-    let path = root
-        .join("checkpoint/artifact")
+    let path = store
+        .artifact_dir()
         .join(format!("{}.bin", hex_id(checkpoint_id.as_bytes())));
     if let Some(parent) = path.parent() {
         create_dir_all(parent).expect("mkdir");
     }
     write_file(&path, &encode_art_bin(artifact).expect("encode artifact")).expect("write artifact");
     checkpoint_id
+}
+
+fn stage_contract(
+    store: &mut CheckpointFsStore,
+    draft: &z00z_storage::checkpoint::CheckpointDraft,
+    exec: &CheckpointExecInput,
+    exec_id: CheckpointExecInputId,
+) {
+    let manifest = checkpoint_fixtures::archive_manifest(draft, exec, exec_id);
+    let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    store
+        .stage_publication_contract(exec_id, &manifest, &da_reference)
+        .expect("stage publication contract");
 }
 
 #[test]
@@ -95,10 +109,11 @@ fn test_store_keeps_surfaces_separate() {
     let exec_id = store.save_exec_input(&exec).expect("save exec");
     let exec_got = store.load_exec_input(&exec_id).expect("load exec");
     let proof = attest_proof(&draft_val, exec.prep_snapshot_id(), exec_id);
+    stage_contract(&mut store, &draft_val, &exec, exec_id);
     let link = store
         .seal_artifact(&draft_val, proof.clone(), exec.prep_snapshot_id(), exec_id)
         .expect("seal artifact");
-    let art = draft_val.finalize(proof).expect("artifact");
+    let art = checkpoint_fixtures::canonical_artifact(&draft_val, &exec, exec_id, proof);
     let checkpoint_id = link.checkpoint_id();
     let art_got = store.load_artifact(&checkpoint_id).expect("load artifact");
     let link_got = store.load_link(&checkpoint_id).expect("load link");
@@ -230,9 +245,8 @@ fn test_link_key_mismatch_rejects() {
     )
     .expect("link");
     let bytes = BincodeCodec.serialize(&link).expect("encode link");
-    let path = dir
-        .path()
-        .join("checkpoint/link")
+    let path = store
+        .link_dir()
         .join(format!("{}.bin", hex_id(wrong_id.as_bytes())));
     if let Some(parent) = path.parent() {
         create_dir_all(parent).expect("mkdir");
@@ -286,9 +300,8 @@ fn test_artifact_keeps_codec_error() {
     let dir = temp_dir();
     let mut store = CheckpointFsStore::new(dir.path());
     let checkpoint_id = CheckpointId::new([4u8; 32]);
-    let art_path = dir
-        .path()
-        .join("checkpoint/artifact")
+    let art_path = store
+        .artifact_dir()
         .join(format!("{}.bin", hex_id(checkpoint_id.as_bytes())));
     if let Some(parent) = art_path.parent() {
         create_dir_all(parent).expect("mkdir");
@@ -429,13 +442,13 @@ fn test_load_rejects_exec_row() {
     let exec = exec(snap_id, draft.prev_root());
     let exec_id = store.save_exec_input(&exec).expect("save exec");
     let proof = attest_proof(&draft, snap_id, exec_id);
+    stage_contract(&mut store, &draft, &exec, exec_id);
     let link = store
         .seal_artifact(&draft, proof, snap_id, exec_id)
         .expect("seal artifact");
 
-    let exec_path = dir
-        .path()
-        .join("checkpoint/exec_input")
+    let exec_path = store
+        .exec_dir()
         .join(format!("{}.bin", hex_id(exec_id.as_bytes())));
     std::fs::remove_file(exec_path).expect("remove exec row");
 
@@ -455,13 +468,13 @@ fn test_load_rejects_snapshot_row() {
     let exec = exec(snap_id, draft.prev_root());
     let exec_id = store.save_exec_input(&exec).expect("save exec");
     let proof = attest_proof(&draft, snap_id, exec_id);
+    stage_contract(&mut store, &draft, &exec, exec_id);
     let link = store
         .seal_artifact(&draft, proof, snap_id, exec_id)
         .expect("seal artifact");
 
-    let snap_path = dir
-        .path()
-        .join("prep_snapshot")
+    let snap_path = PrepFsStore::new(dir.path())
+        .snapshot_dir()
         .join(format!("{}.bin", hex_id(snap_id.as_bytes())));
     std::fs::remove_file(snap_path).expect("remove snapshot row");
 

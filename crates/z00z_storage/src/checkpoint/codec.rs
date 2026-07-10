@@ -15,15 +15,33 @@ use super::{
     },
     artifact_final::{check_proof_sys, check_ver},
     audit::{check_audit_ver, CheckpointAudit},
-    exec_input::{check_exec_ver, CheckpointExecInput},
+    da_reference::{
+        decode_da_reference_bin_checked, decode_da_reference_json_checked,
+        encode_da_reference_bin_checked, encode_da_reference_json_checked, CheckpointDaReferenceV1,
+    },
+    exec_input::{check_exec_ver, check_tx_root, CheckpointExecInput},
     link::{
         decode_link_bin_checked, decode_link_json_checked, encode_link_bin_checked,
         encode_link_json_checked, CheckpointLink,
+    },
+    pq_anchor::{
+        decode_pq_anchor_bin_checked, decode_pq_anchor_json_checked, encode_pq_anchor_bin_checked,
+        encode_pq_anchor_json_checked, PostQuantumCheckpointAnchorV1,
     },
     pruning::{
         decode_pruning_decision_bin_checked, decode_pruning_decision_json_checked,
         encode_pruning_decision_bin_checked, encode_pruning_decision_json_checked,
         PruningDecisionV1,
+    },
+    publication_evidence::{
+        decode_publication_evidence_bin_checked, decode_publication_evidence_json_checked,
+        encode_publication_evidence_bin_checked, encode_publication_evidence_json_checked,
+        CheckpointPublicationEvidenceV1,
+    },
+    recursive_checkpoint::{
+        decode_recursive_sidecar_bin_checked, decode_recursive_sidecar_json_checked,
+        encode_recursive_sidecar_bin_checked, encode_recursive_sidecar_json_checked,
+        RecursiveCheckpointSidecarV1,
     },
     retrieval_audit::{
         decode_retrieval_audit_bin_checked, decode_retrieval_audit_json_checked,
@@ -33,7 +51,8 @@ use super::{
         decode_state_snapshot_bin_checked, decode_state_snapshot_json_checked,
         encode_state_snapshot_bin_checked, encode_state_snapshot_json_checked, StateSnapshotV1,
     },
-    CheckpointArtifact, CheckpointDraft, CheckpointStatement,
+    CheckpointArtifact, CheckpointContractConfigV1, CheckpointDraft, CheckpointProofSystem,
+    CheckpointStatement,
 };
 
 pub(crate) fn check_artifact_contract(
@@ -47,16 +66,30 @@ pub(crate) fn check_artifact_contract(
     if artifact.cp_proof().is_empty() {
         return Err(CheckpointError::ProoflessFinal);
     }
-    if artifact.has_partial_stmt_ids() {
+    if artifact.has_partial_stmt_ids() || artifact.has_partial_canonical_binding() {
         return Err(CheckpointError::ArtifactCompatMix);
     }
 
     match artifact.statement() {
         CheckpointStatement::Detached => Err(CheckpointError::ArtifactCompatMix),
-        CheckpointStatement::CURRENT(_) => {
+        CheckpointStatement::V1(_) => {
             if artifact.proof_sys().is_opaque_attest() {
-                if let CheckpointStatement::CURRENT(stmt) = artifact.statement() {
+                if let CheckpointStatement::V1(stmt) = artifact.statement() {
                     if artifact.cp_proof() == stmt.backend_payload().as_slice() {
+                        if let (Some(statement_core), Some(da_ref)) =
+                            (artifact.statement_core(), artifact.da_ref())
+                        {
+                            if artifact.statement_digest_v1()
+                                != Some(stmt.final_statement_digest_v1(
+                                    &statement_core,
+                                    &super::artifact_stmt::CheckpointTransitionStatementFinalV1::new(
+                                        da_ref,
+                                    ),
+                                ))
+                            {
+                                return Err(CheckpointError::ArtifactCompatMix);
+                            }
+                        }
                         Ok(())
                     } else {
                         Err(CheckpointError::ProofMix)
@@ -83,6 +116,19 @@ fn check_draft_contract(draft: &CheckpointDraft) -> Result<(), CheckpointError> 
 fn check_exec_contract(exec: &CheckpointExecInput) -> Result<(), CheckpointError> {
     if crate::settlement::CheckRoot::from(exec.prev_settlement_root()) != exec.prev_root() {
         return Err(CheckpointError::RootMix);
+    }
+    check_tx_root(exec)?;
+    Ok(())
+}
+
+pub fn guard_verified_backend_codec_support(
+    cfg: &CheckpointContractConfigV1,
+    proof_system: CheckpointProofSystem,
+) -> Result<(), CheckpointError> {
+    if proof_system.claims_verified() && !cfg.verified_backend_codec_ready()? {
+        return Err(CheckpointError::ContractConfig(
+            "verified backend reject: codec_support_missing".to_string(),
+        ));
     }
     Ok(())
 }
@@ -258,6 +304,98 @@ pub fn decode_archive_receipt_json(
     decode_archive_receipt_json_checked(bytes)
 }
 
+pub fn encode_da_reference_bin(
+    da_reference: &CheckpointDaReferenceV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_da_reference_bin_checked(da_reference)
+}
+
+pub fn decode_da_reference_bin(bytes: &[u8]) -> Result<CheckpointDaReferenceV1, CheckpointError> {
+    decode_da_reference_bin_checked(bytes)
+}
+
+pub fn encode_da_reference_json(
+    da_reference: &CheckpointDaReferenceV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_da_reference_json_checked(da_reference)
+}
+
+pub fn decode_da_reference_json(bytes: &[u8]) -> Result<CheckpointDaReferenceV1, CheckpointError> {
+    decode_da_reference_json_checked(bytes)
+}
+
+pub fn encode_publication_evidence_bin(
+    evidence: &CheckpointPublicationEvidenceV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_publication_evidence_bin_checked(evidence)
+}
+
+pub fn decode_publication_evidence_bin(
+    bytes: &[u8],
+) -> Result<CheckpointPublicationEvidenceV1, CheckpointError> {
+    decode_publication_evidence_bin_checked(bytes)
+}
+
+pub fn encode_publication_evidence_json(
+    evidence: &CheckpointPublicationEvidenceV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_publication_evidence_json_checked(evidence)
+}
+
+pub fn decode_publication_evidence_json(
+    bytes: &[u8],
+) -> Result<CheckpointPublicationEvidenceV1, CheckpointError> {
+    decode_publication_evidence_json_checked(bytes)
+}
+
+pub fn encode_pq_anchor_bin(
+    anchor: &PostQuantumCheckpointAnchorV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_pq_anchor_bin_checked(anchor)
+}
+
+pub fn decode_pq_anchor_bin(
+    bytes: &[u8],
+) -> Result<PostQuantumCheckpointAnchorV1, CheckpointError> {
+    decode_pq_anchor_bin_checked(bytes)
+}
+
+pub fn encode_pq_anchor_json(
+    anchor: &PostQuantumCheckpointAnchorV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_pq_anchor_json_checked(anchor)
+}
+
+pub fn decode_pq_anchor_json(
+    bytes: &[u8],
+) -> Result<PostQuantumCheckpointAnchorV1, CheckpointError> {
+    decode_pq_anchor_json_checked(bytes)
+}
+
+pub fn encode_recursive_sidecar_bin(
+    sidecar: &RecursiveCheckpointSidecarV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_recursive_sidecar_bin_checked(sidecar)
+}
+
+pub fn decode_recursive_sidecar_bin(
+    bytes: &[u8],
+) -> Result<RecursiveCheckpointSidecarV1, CheckpointError> {
+    decode_recursive_sidecar_bin_checked(bytes)
+}
+
+pub fn encode_recursive_sidecar_json(
+    sidecar: &RecursiveCheckpointSidecarV1,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_recursive_sidecar_json_checked(sidecar)
+}
+
+pub fn decode_recursive_sidecar_json(
+    bytes: &[u8],
+) -> Result<RecursiveCheckpointSidecarV1, CheckpointError> {
+    decode_recursive_sidecar_json_checked(bytes)
+}
+
 pub fn encode_retrieval_audit_bin(audit: &RetrievalAuditV1) -> Result<Vec<u8>, CheckpointError> {
     encode_retrieval_audit_bin_checked(audit)
 }
@@ -314,26 +452,33 @@ pub fn decode_pruning_decision_json(bytes: &[u8]) -> Result<PruningDecisionV1, C
 mod tests {
     use super::{
         decode_archive_manifest_bin, decode_archive_manifest_json, decode_archive_receipt_bin,
-        decode_archive_receipt_json, decode_art_bin, decode_audit_bin, decode_draft_bin,
-        decode_draft_json, decode_exec_bin, decode_exec_json, decode_link_bin, decode_link_json,
-        decode_pruning_decision_bin, decode_pruning_decision_json, decode_retrieval_audit_bin,
-        decode_retrieval_audit_json, decode_state_snapshot_bin, decode_state_snapshot_json,
-        encode_archive_manifest_bin, encode_archive_manifest_json, encode_archive_receipt_bin,
-        encode_archive_receipt_json, encode_art_bin, encode_audit_bin, encode_draft_bin,
-        encode_exec_bin, encode_link_bin, encode_pruning_decision_bin,
-        encode_pruning_decision_json, encode_retrieval_audit_bin, encode_retrieval_audit_json,
+        decode_archive_receipt_json, decode_art_bin, decode_audit_bin, decode_da_reference_bin,
+        decode_da_reference_json, decode_draft_bin, decode_draft_json, decode_exec_bin,
+        decode_exec_json, decode_link_bin, decode_link_json, decode_pruning_decision_bin,
+        decode_pruning_decision_json, decode_publication_evidence_bin,
+        decode_publication_evidence_json, decode_retrieval_audit_bin, decode_retrieval_audit_json,
+        decode_state_snapshot_bin, decode_state_snapshot_json, encode_archive_manifest_bin,
+        encode_archive_manifest_json, encode_archive_receipt_bin, encode_archive_receipt_json,
+        encode_art_bin, encode_audit_bin, encode_da_reference_bin, encode_da_reference_json,
+        encode_draft_bin, encode_exec_bin, encode_link_bin, encode_pruning_decision_bin,
+        encode_pruning_decision_json, encode_publication_evidence_bin,
+        encode_publication_evidence_json, encode_retrieval_audit_bin, encode_retrieval_audit_json,
         encode_state_snapshot_bin, encode_state_snapshot_json,
     };
+    use crate::fixture_support::checkpoint_fixtures;
     use crate::{
         checkpoint::audit::{CheckpointAudit, CheckpointAuditVersion},
         checkpoint::{
-            ArchiveBackend, ArchiveManifestVersion, ArchiveProviderReceiptV1,
-            ArchiveProviderReceiptVersion, CheckpointArchiveManifestV1, CheckpointArtifact,
+            ArchiveBackend, ArchiveProviderReceiptV1, ArchiveProviderReceiptVersion,
+            CheckpointArchiveManifestV1, CheckpointArtifact, CheckpointDaLocatorKind,
+            CheckpointDaProviderFamily, CheckpointDaReferenceV1, CheckpointDaReferenceVersion,
             CheckpointDraft, CheckpointExecInput, CheckpointExecInputId, CheckpointExecOut,
             CheckpointExecTx, CheckpointExecVersion, CheckpointId, CheckpointInRef, CheckpointLink,
-            CheckpointLinkVersion, CheckpointVersion, CreatedEnt, PruningDecisionV1,
-            PruningDecisionVersion, PruningNodeClass, RetrievalAuditV1, RetrievalAuditVersion,
-            SpentEnt, StateSnapshotV1, StateSnapshotVersion,
+            CheckpointLinkVersion, CheckpointPublicationEvidenceV1,
+            CheckpointPublicationEvidenceVersion, CheckpointPublicationState, CheckpointVersion,
+            CreatedEnt, PruningDecisionV1, PruningDecisionVersion, PruningNodeClass,
+            RetrievalAuditV1, RetrievalAuditVersion, SpentEnt, StateSnapshotV1,
+            StateSnapshotVersion,
         },
         settlement::CheckRoot,
         snapshot::PrepSnapshotId,
@@ -409,21 +554,9 @@ mod tests {
     }
 
     fn archive_manifest() -> CheckpointArchiveManifestV1 {
-        CheckpointArchiveManifestV1::new(
-            ArchiveManifestVersion::CURRENT,
-            root(11),
-            root(12),
-            root(13),
-            root(14),
-            root(15),
-            root(16),
-            root(17),
-            root(18),
-            root(19),
-            root(20),
-            3,
-        )
-        .expect("archive manifest")
+        let draft = draft();
+        let exec = exec();
+        checkpoint_fixtures::archive_manifest(&draft, &exec, CheckpointExecInputId::new([8u8; 32]))
     }
 
     fn archive_receipt() -> ArchiveProviderReceiptV1 {
@@ -438,6 +571,39 @@ mod tests {
             true,
         )
         .expect("archive receipt")
+    }
+
+    fn da_reference() -> CheckpointDaReferenceV1 {
+        let manifest = archive_manifest();
+        CheckpointDaReferenceV1::new(
+            CheckpointDaReferenceVersion::CURRENT,
+            CheckpointDaProviderFamily::LocalArchive,
+            CheckpointDaLocatorKind::OpaqueProviderRef,
+            "local-da://manifest/001",
+            manifest.da_payload_commitment(),
+            manifest.statement_core_digest(),
+            manifest.archive_manifest_root(),
+            1000,
+        )
+        .expect("da reference")
+    }
+
+    fn publication_evidence() -> CheckpointPublicationEvidenceV1 {
+        let manifest = archive_manifest();
+        let da_reference = da_reference();
+        CheckpointPublicationEvidenceV1::new(
+            CheckpointPublicationEvidenceVersion::CURRENT,
+            manifest.statement_core_digest(),
+            da_reference.da_ref(),
+            manifest.archive_manifest_root(),
+            manifest.da_payload_commitment(),
+            CheckpointPublicationState::DaPublicationReady,
+            CheckpointDaProviderFamily::LocalArchive,
+            1000,
+            1000,
+            root(35),
+        )
+        .expect("publication evidence")
     }
 
     fn retrieval_audit() -> RetrievalAuditV1 {
@@ -528,6 +694,19 @@ mod tests {
             archive_receipt()
         );
         assert_eq!(
+            decode_da_reference_bin(&encode_da_reference_bin(&da_reference()).expect("da ref bin"))
+                .expect("da reference"),
+            da_reference()
+        );
+        assert_eq!(
+            decode_publication_evidence_bin(
+                &encode_publication_evidence_bin(&publication_evidence())
+                    .expect("publication evidence bin")
+            )
+            .expect("publication evidence"),
+            publication_evidence()
+        );
+        assert_eq!(
             decode_retrieval_audit_bin(
                 &encode_retrieval_audit_bin(&retrieval_audit()).expect("retrieval audit bin")
             )
@@ -565,6 +744,21 @@ mod tests {
             )
             .expect("archive receipt"),
             archive_receipt()
+        );
+        assert_eq!(
+            decode_da_reference_json(
+                &encode_da_reference_json(&da_reference()).expect("da reference json")
+            )
+            .expect("da reference"),
+            da_reference()
+        );
+        assert_eq!(
+            decode_publication_evidence_json(
+                &encode_publication_evidence_json(&publication_evidence())
+                    .expect("publication evidence json")
+            )
+            .expect("publication evidence"),
+            publication_evidence()
         );
         assert_eq!(
             decode_retrieval_audit_json(

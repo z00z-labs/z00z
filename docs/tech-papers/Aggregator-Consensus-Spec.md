@@ -1769,7 +1769,7 @@ Once that is complete, the BFT and Celestia design can be implemented as a secon
 
 This addendum is the short implementation contract for agents and reviewers. It resolves the remaining ambiguity in this spec without replacing the detailed sections above.
 
-1. Canonical authority is `.planning/phases/067-Sharded-Concensus/Agg-Concensus-Spec.md`. Scenario execution scope is tracked in `.planning/phases/069-New-Scenarios/066-TODO.md` under `scenario_11`. Older review-named copies are derived references, not implementation authority.
+1. Canonical authority is `.planning/phases/000/067-Sharded-Concensus/Agg-Concensus-Spec.md`. Scenario execution scope is tracked in `.planning/phases/069-New-Scenarios/066-TODO.md` under `scenario_11`. Older review-named copies are derived references, not implementation authority.
 2. Implementation starts inside `crates/z00z_runtime/aggregators`. Do not create a separate production consensus crate until `CommitSubject`, `ShardVote`, `ShardQuorumCertificate`, and `SecondaryReplayVerifier` are proven through local tests and `scenario_11`.
 3. Public Rust exports must be added through the `z00z_aggregators` crate root. Proposed module homes are `commit_subject.rs`, `shard_vote.rs`, `shard_quorum_certificate.rs`, and `secondary_replay.rs`, unless implementation discovers a tighter existing seam.
 4. Canonical digest inputs must be binary-encoded in stable field order with explicit domain/version bytes. Do not use JSON display text, debug output, map iteration order, or fixture filenames as digest material.

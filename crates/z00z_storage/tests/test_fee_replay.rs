@@ -325,7 +325,7 @@ fn sha256_row_hash(bytes: &[u8]) -> [u8; 32] {
 
 fn check_wire(artifact: &z00z_storage::checkpoint::CheckpointArtifact) -> CheckArtWire {
     let (prep_snapshot_id, exec_input_id) = match artifact.statement() {
-        CheckpointStatement::CURRENT(stmt) => {
+        CheckpointStatement::V1(stmt) => {
             (Some(stmt.prep_snapshot_id()), Some(stmt.exec_input_id()))
         }
         CheckpointStatement::Detached => {

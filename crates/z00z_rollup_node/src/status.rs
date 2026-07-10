@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use z00z_aggregators::{PublicationRecord, PublishedBatch, ShardExecTicket, ShardPlacementView};
+use z00z_storage::checkpoint::CheckpointLifecycleV1;
 use z00z_validators::{ObjectRejectCode, ObjectValidatorVerdict, Verdict};
 use z00z_watchers::{ObservationSnapshot, ProviderSignal};
 
@@ -17,6 +18,7 @@ pub struct StatusSnapshot {
     pub placement: Option<ShardPlacementView>,
     pub exec_ticket: Option<ShardExecTicket>,
     pub verdict: Option<Verdict>,
+    pub lifecycle: Option<CheckpointLifecycleV1>,
     pub provider_signal: Option<ProviderSignal>,
     pub observation: Option<ObservationSnapshot>,
 }
@@ -93,6 +95,7 @@ mod tests {
                     reject: Some(ObjectRejectCode::FeeBoundary),
                 }],
             }),
+            lifecycle: None,
             provider_signal: None,
             observation: None,
         };

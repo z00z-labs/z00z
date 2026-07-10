@@ -43,8 +43,8 @@ without importing broader routing, proof, or Poseidon-scope claims.
 - `crates/z00z_wallets/tests/test_asset_pack_v2_memo.rs` now provides dedicated
   regression coverage for V2 memo classification, memo privacy, and malformed
   memo rejection on the receive path.
-- `.planning/STATE.md`, `.planning/ROADMAP.md`, and the memory-bank continuity
-  files now advance the next active handoff to `035-17-PLAN.md`.
+- `.planning/STATE.md` and `.planning/ROADMAP.md` now advance the next active
+  handoff to `035-17-PLAN.md`.
 
 ## Validation
 

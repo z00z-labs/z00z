@@ -68,8 +68,14 @@ fn test_equivocation_evidence_emits_for_conflicting_votes() -> Result<(), Box<dy
                 evidence.first_vote.vote_digest,
                 evidence.second_vote.vote_digest
             );
-            assert_eq!(evidence.first_vote.signature_scheme.as_str(), "deterministic_local");
-            assert_eq!(evidence.second_vote.signature_scheme.as_str(), "deterministic_local");
+            assert_eq!(
+                evidence.first_vote.signature_scheme.as_str(),
+                "deterministic_local"
+            );
+            assert_eq!(
+                evidence.second_vote.signature_scheme.as_str(),
+                "deterministic_local"
+            );
             assert_eq!(tracker.records().len(), 1);
         }
         other => panic!("expected equivocation evidence, got {other:?}"),

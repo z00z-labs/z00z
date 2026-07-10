@@ -113,8 +113,8 @@ pub fn save(snapshot: &PrepSnapshot) -> (TempDir, PrepFsStore, PrepSnapshotId) {
 }
 
 pub fn bin_path(dir: &TempDir, snap_id: &PrepSnapshotId) -> PathBuf {
-    dir.path()
-        .join("prep_snapshot")
+    PrepFsStore::new(dir.path())
+        .snapshot_dir()
         .join(format!("{}.bin", hex_id(snap_id)))
 }
 

@@ -1,13 +1,15 @@
 use jmt::{KeyHash, ValueHash};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use z00z_core::assets::AssetLeaf;
 use z00z_crypto::{expert::hash_domain, hash_zk::hash_zk};
 use z00z_storage::settlement::{
-    BatchPathEntryV1, BatchProofBlobV1, BatchProofFamilyTagV1, BatchProofHeaderV1,
-    BatchProofLimits, BucketPolicy, BucketRootLeaf, DefinitionId, DefinitionRootLeaf,
-    DeletionFactV1, InclusionOpeningV1, LeafFamilyTagV1, NodeDomainTagV1, NonExistenceOpeningV1,
-    OpeningEntryV1, PathWitnessRefV1, PriorProofContextV1, ProofBlob, SerialId, SerialRootLeaf,
-    SettlementLeaf, SettlementLeafFamily, SettlementPath, SettlementStateRoot, SiblingSideTagV1,
+    derive_journal_digest_v1, derive_witness_root_v1, BatchPathEntryV1, BatchProofBlobV1,
+    BatchProofFamilyTagV1, BatchProofHeaderV1, BatchProofLimits, BucketPolicy, BucketRootLeaf,
+    DefinitionId, DefinitionRootLeaf, DeletionFactV1, InclusionOpeningV1, LeafFamilyTagV1,
+    NodeDomainTagV1, NonExistenceOpeningV1, OpeningEntryV1, PathWitnessRefV1, PriorProofContextV1,
+    ProofBlob, ProofChkErr, SerialId, SerialRootLeaf, SettlementLeaf, SettlementLeafFamily,
+    SettlementPath, SettlementStateRoot, SettlementStore, SiblingSideTagV1, StoreItem,
     TerminalFamilyTagV1, TerminalId, TerminalLeaf, WitnessNodeV1,
 };
 
@@ -18,6 +20,41 @@ const INTERNAL_DOMAIN_SEPARATOR: &[u8] = b"JMT::IntrnalNode";
 hash_domain!(TestDefKeyDom, "z00z.storage.key.definition.v1", 1);
 hash_domain!(TestSerKeyDom, "z00z.storage.key.serial.v1", 1);
 hash_domain!(TestProofBindDom, "z00z.storage.proof.bind", 1);
+hash_domain!(TestBatchProofDom, "z00z.storage.batch.proof", 1);
+
+const WITNESS_CHUNK_LABEL: &str = "checkpoint_witness_chunk_v1";
+const WITNESS_PAYLOAD_LABEL: &str = "checkpoint_witness_payload_v1";
+const WITNESS_ROOT_LABEL: &str = "checkpoint_witness_root_v1";
+
+#[derive(Serialize)]
+struct CheckpointWitnessChunkV1 {
+    version: u8,
+    ordinal: u32,
+    chunk_kind: u8,
+    encoding_version: u8,
+    byte_length: u32,
+    content_digest: [u8; 32],
+    linked_terminal_ids: Vec<TerminalId>,
+}
+
+impl CheckpointWitnessChunkV1 {
+    fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&z00z_crypto::frame_bytes(&[self.version]));
+        bytes.extend_from_slice(&z00z_crypto::frame_bytes(&self.ordinal.to_le_bytes()));
+        bytes.extend_from_slice(&z00z_crypto::frame_bytes(&[self.chunk_kind]));
+        bytes.extend_from_slice(&z00z_crypto::frame_bytes(&[self.encoding_version]));
+        bytes.extend_from_slice(&z00z_crypto::frame_bytes(&self.byte_length.to_le_bytes()));
+        bytes.extend_from_slice(&z00z_crypto::frame_bytes(&self.content_digest));
+        bytes.extend_from_slice(&z00z_crypto::frame_bytes(
+            &(self.linked_terminal_ids.len() as u32).to_le_bytes(),
+        ));
+        for terminal_id in &self.linked_terminal_ids {
+            bytes.extend_from_slice(&z00z_crypto::frame_bytes(terminal_id.as_bytes()));
+        }
+        bytes
+    }
+}
 
 pub fn bytes(value: u8) -> [u8; 32] {
     [value; 32]
@@ -390,4 +427,87 @@ fn checkpoint_bind(
             &journal_digest,
         ],
     )
+}
+
+fn manual_witness_root(batches: &[BatchProofBlobV1]) -> [u8; 32] {
+    let mut root_bytes = z00z_crypto::frame_bytes(&(batches.len() as u32).to_le_bytes());
+    for (ordinal, batch) in batches.iter().enumerate() {
+        let batch_bytes = batch.encode().expect("encode batch");
+        let content_digest =
+            hash_zk::<TestBatchProofDom>(WITNESS_PAYLOAD_LABEL, &[batch_bytes.as_slice()]);
+        let chunk = CheckpointWitnessChunkV1 {
+            version: 1,
+            ordinal: ordinal as u32,
+            chunk_kind: 1,
+            encoding_version: batch.header.encoding_version,
+            byte_length: batch_bytes.len() as u32,
+            content_digest,
+            linked_terminal_ids: batch
+                .path_table
+                .iter()
+                .map(|entry| entry.path.terminal_id())
+                .collect(),
+        };
+        let chunk_bytes = chunk.canonical_bytes();
+        let chunk_hash =
+            hash_zk::<TestBatchProofDom>(WITNESS_CHUNK_LABEL, &[chunk_bytes.as_slice()]);
+        root_bytes.extend_from_slice(&z00z_crypto::frame_bytes(&chunk_hash));
+    }
+    hash_zk::<TestBatchProofDom>(WITNESS_ROOT_LABEL, &[root_bytes.as_slice()])
+}
+
+fn live_batches() -> [BatchProofBlobV1; 2] {
+    let mut store = SettlementStore::new();
+    let path_a = sample_path();
+    let path_b = SettlementPath::new(
+        DefinitionId::new(bytes(9)),
+        SerialId::new(8),
+        TerminalId::new(bytes(10)),
+    );
+    store
+        .put_settlement_item(StoreItem::new(path_a, terminal_leaf(path_a)).expect("item a"))
+        .expect("put item a");
+    store
+        .put_settlement_item(StoreItem::new(path_b, terminal_leaf(path_b)).expect("item b"))
+        .expect("put item b");
+
+    [
+        store
+            .settlement_inclusion_batch_v1(&[path_a])
+            .expect("batch a"),
+        store
+            .settlement_inclusion_batch_v1(&[path_b])
+            .expect("batch b"),
+    ]
+}
+
+#[test]
+fn test_witness_root_v1_matches_manual_vector_and_batch_order() {
+    let batches = live_batches();
+    let actual = derive_witness_root_v1(&batches).expect("witness root");
+    let expected = manual_witness_root(&batches);
+    let swapped = derive_witness_root_v1(&[batches[1].clone(), batches[0].clone()])
+        .expect("swapped witness root");
+
+    assert_eq!(actual, expected);
+    assert_ne!(actual, swapped);
+}
+
+#[test]
+fn test_journal_digest_v1_requires_checkpoint_and_consistent_lineage() {
+    let batches = live_batches();
+    let actual = derive_journal_digest_v1(&batches).expect("journal digest");
+    assert_eq!(actual, batches[0].header.journal_digest);
+
+    let mut missing = batches[1].clone();
+    missing.header.journal_checkpoint = None;
+    let err = derive_journal_digest_v1(&[batches[0].clone(), missing])
+        .expect_err("missing checkpoint must reject");
+    assert!(matches!(err, ProofChkErr::BatchCheckpointMix));
+
+    let mut drifted = batches[1].clone();
+    drifted.header.journal_digest = bytes(99);
+    let err = derive_journal_digest_v1(&[batches[0].clone(), drifted])
+        .expect_err("journal drift must reject");
+    assert!(matches!(err, ProofChkErr::BatchCheckpointMix));
 }

@@ -7,21 +7,21 @@ use crate::{
 
 use super::{
     artifact_final::{check_attest_sys, check_ver},
-    CheckpointArtifact, CheckpointProofSystem, CheckpointPubIn, CheckpointStmt, CheckpointVersion,
-    CreatedEnt, SpentEnt, WalletDraft,
+    CheckpointArtifact, CheckpointProofSystem, CheckpointPubIn, CheckpointTransitionStatementV1,
+    CheckpointVersion, CreatedEnt, SpentEnt, WalletDraft,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CheckpointProof {
     proof_sys: CheckpointProofSystem,
     pub_in: CheckpointPubIn,
-    stmt: CheckpointStmt,
+    stmt: CheckpointTransitionStatementV1,
     attest_payload_bytes: Vec<u8>,
 }
 
 impl CheckpointProof {
     pub fn new_attest(
-        stmt: CheckpointStmt,
+        stmt: CheckpointTransitionStatementV1,
         attest_payload_bytes: Vec<u8>,
     ) -> Result<Self, CheckpointError> {
         check_ver(stmt.checkpoint_version())?;
@@ -48,7 +48,7 @@ impl CheckpointProof {
 
     #[must_use]
     /// Return the canonical attestation statement when this proof is statement-bound.
-    pub fn statement(&self) -> &CheckpointStmt {
+    pub fn statement(&self) -> &CheckpointTransitionStatementV1 {
         &self.stmt
     }
 
@@ -195,8 +195,8 @@ impl CheckpointDraft {
         &self,
         prep_snapshot_id: PrepSnapshotId,
         exec_input_id: CheckpointExecInputId,
-    ) -> CheckpointStmt {
-        CheckpointStmt::from_draft(self, prep_snapshot_id, exec_input_id)
+    ) -> CheckpointTransitionStatementV1 {
+        CheckpointTransitionStatementV1::from_draft(self, prep_snapshot_id, exec_input_id)
     }
 
     pub fn attest_proof(

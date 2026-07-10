@@ -200,6 +200,9 @@ fn test_publication_handoff_metadata_roundtrips() -> Result<(), Box<dyn std::err
         batch_id: ticket.batch_id,
         checkpoint_id: Some(checkpoint_id),
         state: PublicationState::Posted,
+        da_reference: None,
+        publication_evidence: None,
+        lifecycle: None,
     };
     let record = RecoveryBoundary
         .capture(&ticket, &publication, recovery.clone())

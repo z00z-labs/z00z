@@ -3,7 +3,10 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use z00z_storage::{
-    checkpoint::CheckpointExecTx,
+    checkpoint::{
+        CheckpointDaReferenceV1, CheckpointExecTx, CheckpointLifecycleStatus,
+        CheckpointLifecycleV1, CheckpointPublicationEvidenceV1,
+    },
     settlement::{PublicationRouteSnapshotV1, SettlementExecHandoff, SettlementRouteCtx, StoreOp},
 };
 use z00z_storage::{
@@ -416,6 +419,105 @@ pub struct PublicationRecord {
     pub batch_id: BatchId,
     pub checkpoint_id: Option<CheckpointId>,
     pub state: PublicationState,
+    pub da_reference: Option<CheckpointDaReferenceV1>,
+    pub publication_evidence: Option<CheckpointPublicationEvidenceV1>,
+    pub lifecycle: Option<CheckpointLifecycleV1>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublicationReadinessErr {
+    CheckpointMismatch,
+    PartialBundle,
+    LifecycleStateMismatch,
+    StatementCoreMismatch,
+    EvidenceRootMismatch,
+    ArchiveManifestMismatch,
+    DaReferenceMismatch,
+    PayloadCommitmentMismatch,
+    ProviderMismatch,
+    HeightMismatch,
+}
+
+impl PublicationRecord {
+    pub fn validate_readiness_bundle(
+        &self,
+        checkpoint_id: CheckpointId,
+    ) -> Result<(), PublicationReadinessErr> {
+        if self.checkpoint_id != Some(checkpoint_id) {
+            return Err(PublicationReadinessErr::CheckpointMismatch);
+        }
+
+        match (
+            self.da_reference.as_ref(),
+            self.publication_evidence.as_ref(),
+            self.lifecycle.as_ref(),
+        ) {
+            (None, None, None) => Ok(()),
+            (None, None, Some(lifecycle)) => {
+                if lifecycle.checkpoint_id() != checkpoint_id {
+                    return Err(PublicationReadinessErr::CheckpointMismatch);
+                }
+                match lifecycle.status() {
+                    CheckpointLifecycleStatus::Sealed | CheckpointLifecycleStatus::Linked => Ok(()),
+                    CheckpointLifecycleStatus::PublicationReady
+                    | CheckpointLifecycleStatus::ChallengeOpen
+                    | CheckpointLifecycleStatus::Finalized
+                    | CheckpointLifecycleStatus::Disputed
+                    | CheckpointLifecycleStatus::Rejected => {
+                        Err(PublicationReadinessErr::PartialBundle)
+                    }
+                }
+            }
+            (Some(da_reference), Some(evidence), Some(lifecycle)) => {
+                if lifecycle.checkpoint_id() != checkpoint_id {
+                    return Err(PublicationReadinessErr::CheckpointMismatch);
+                }
+                match lifecycle.status() {
+                    CheckpointLifecycleStatus::PublicationReady
+                    | CheckpointLifecycleStatus::ChallengeOpen
+                    | CheckpointLifecycleStatus::Finalized
+                    | CheckpointLifecycleStatus::Disputed
+                    | CheckpointLifecycleStatus::Rejected => {}
+                    CheckpointLifecycleStatus::Sealed | CheckpointLifecycleStatus::Linked => {
+                        return Err(PublicationReadinessErr::LifecycleStateMismatch);
+                    }
+                }
+                if lifecycle.statement_core_digest() != Some(evidence.statement_core_digest())
+                    || lifecycle.statement_core_digest()
+                        != Some(da_reference.statement_core_digest())
+                {
+                    return Err(PublicationReadinessErr::StatementCoreMismatch);
+                }
+                if lifecycle.publication_evidence_root()
+                    != Some(evidence.publication_evidence_root())
+                {
+                    return Err(PublicationReadinessErr::EvidenceRootMismatch);
+                }
+                if lifecycle.challenge_window_start_height()
+                    != Some(evidence.challenge_window_start_height())
+                {
+                    return Err(PublicationReadinessErr::HeightMismatch);
+                }
+                if evidence.da_ref() != da_reference.da_ref() {
+                    return Err(PublicationReadinessErr::DaReferenceMismatch);
+                }
+                if evidence.archive_manifest_root() != da_reference.archive_manifest_root() {
+                    return Err(PublicationReadinessErr::ArchiveManifestMismatch);
+                }
+                if evidence.payload_commitment() != da_reference.payload_commitment() {
+                    return Err(PublicationReadinessErr::PayloadCommitmentMismatch);
+                }
+                if evidence.provider_family() != da_reference.provider_family() {
+                    return Err(PublicationReadinessErr::ProviderMismatch);
+                }
+                if evidence.readiness_height() != da_reference.published_height() {
+                    return Err(PublicationReadinessErr::HeightMismatch);
+                }
+                Ok(())
+            }
+            _ => Err(PublicationReadinessErr::PartialBundle),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

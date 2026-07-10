@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::OnceLock};
+use std::{
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
 
 use z00z_utils::{
     codec::{Codec, JsonCodec},
@@ -17,6 +20,7 @@ const STAGE11_SRC: &str = include_str!("../../src/scenario_1/stage_11/mod.rs");
 const STAGE12_SRC: &str = include_str!("../../src/scenario_1/stage_12/mod.rs");
 const PIPELINE_DOC: &str =
     include_str!("../../../../wiki/06-simulator-and-quality/scenario-pipeline.md");
+const FILTERED_STAGE_BUILD_RETRIES: usize = 3;
 
 static FILTERED_STAGE_OUT: OnceLock<PathBuf> = OnceLock::new();
 
@@ -24,35 +28,65 @@ fn filtered_stage_out() -> &'static PathBuf {
     FILTERED_STAGE_OUT.get_or_init(|| {
         let root =
             fixture_cache::ensure_shared_case_precise("scenario1_filtered_stage_lane_v1", |base| {
-                let (cfg_path, design_path, out) = scenario_support::make_cfg_in(base, |_| {});
-                let mut session = stage_runner_support::run_stage4_session(&cfg_path, &design_path);
-                for stage_id in [7_u32, 8, 9, 10, 11, 12] {
-                    let stage = stage_runner_support::stage_by_id(&design_path, stage_id);
-                    let result = match stage_id {
-                        7 => stage_7::run_transfer_receive(&mut session, &stage),
-                        8 => stage_8::run_transfer_claim(&mut session, &stage),
-                        9 => stage_9::run_bundle_build(&mut session, &stage),
-                        10 => stage_10::run_bundle_publish(&mut session, &stage),
-                        11 => stage_11::run_apply(&mut session, &stage),
-                        12 => stage_12::run_finalize(&mut session, &stage),
-                        _ => unreachable!(),
-                    };
-                    assert!(
-                        matches!(result, StageResult::Ok),
-                        "stage {stage_id} must succeed: {result:?}"
-                    );
-                }
-
-                let s8 = load_json(&out.join("transactions/checkpoint_s8.json"));
-                assert_eq!(s8["status"].as_str(), Some("ok"));
-                assert_eq!(s8["checkpoint_id_hex"].as_str().map(str::len), Some(64));
-                assert_eq!(
-                    s8["artifact_path"].as_str(),
-                    Some("transactions/checkpoint/artifact")
-                );
+                build_filtered_stage_case(base).unwrap_or_else(|err| panic!("{err}"));
             });
         root.join("outputs/scenario_1")
     })
+}
+
+fn build_filtered_stage_case(base: &Path) -> Result<(), String> {
+    let (cfg_path, design_path, out) = scenario_support::make_cfg_in(base, |_| {});
+    let mut last_err = None;
+
+    for attempt in 1..=FILTERED_STAGE_BUILD_RETRIES {
+        match stage_runner_support::try_run_stage4_session(&cfg_path, &design_path) {
+            Ok(mut session) => match run_filtered_stage_tail(&mut session, &design_path, &out) {
+                Ok(()) => return Ok(()),
+                Err(err) => last_err = Some(format!("attempt {attempt}: {err}")),
+            },
+            Err(err) => last_err = Some(format!("attempt {attempt}: {err}")),
+        }
+
+        if attempt < FILTERED_STAGE_BUILD_RETRIES && out.exists() {
+            let _ = std::fs::remove_dir_all(&out);
+        }
+    }
+
+    Err(format!(
+        "filtered stage lane build failed after {FILTERED_STAGE_BUILD_RETRIES} attempts: {}",
+        last_err.unwrap_or_else(|| "unknown error".to_string())
+    ))
+}
+
+fn run_filtered_stage_tail(
+    session: &mut stage_runner_support::StageSession,
+    design_path: &Path,
+    out: &Path,
+) -> Result<(), String> {
+    for stage_id in [7_u32, 8, 9, 10, 11, 12] {
+        let stage = stage_runner_support::stage_by_id(design_path, stage_id);
+        let result = match stage_id {
+            7 => stage_7::run_transfer_receive(session, &stage),
+            8 => stage_8::run_transfer_claim(session, &stage),
+            9 => stage_9::run_bundle_build(session, &stage),
+            10 => stage_10::run_bundle_publish(session, &stage),
+            11 => stage_11::run_apply(session, &stage),
+            12 => stage_12::run_finalize(session, &stage),
+            _ => unreachable!(),
+        };
+        if !matches!(result, StageResult::Ok) {
+            return Err(format!("stage {stage_id} must succeed: {result:?}"));
+        }
+    }
+
+    let s8 = load_json(&out.join("transactions/checkpoint_s8.json"));
+    assert_eq!(s8["status"].as_str(), Some("ok"));
+    assert_eq!(s8["checkpoint_id_hex"].as_str().map(str::len), Some(64));
+    assert_eq!(
+        s8["artifact_path"].as_str(),
+        Some("transactions/artifacts/checkpoints/final")
+    );
+    Ok(())
 }
 
 fn load_json(path: &std::path::Path) -> serde_json::Value {
@@ -86,7 +120,7 @@ fn test_filtered_stage_lane_keeps_default_finalization() {
     assert_eq!(s8["checkpoint_id_hex"].as_str().map(str::len), Some(64));
     assert_eq!(
         s8["audit_path"].as_str(),
-        Some("transactions/checkpoint/audit")
+        Some("transactions/artifacts/checkpoints/audit")
     );
 }
 

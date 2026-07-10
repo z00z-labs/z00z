@@ -2,7 +2,7 @@ use z00z_storage::{
     checkpoint::{
         derive_checkpoint_id, encode_art_bin, load_artifact, CheckpointDraft,
         CheckpointExecInputId, CheckpointProof, CheckpointProofSystem, CheckpointPubIn,
-        CheckpointStmt, CheckpointVersion, CreatedEnt, SpentEnt,
+        CheckpointTransitionStatementV1, CheckpointVersion, CreatedEnt, SpentEnt,
     },
     settlement::{CheckRoot, ClaimSourceRoot, SettlementStateRoot},
     snapshot::PrepSnapshotId,
@@ -25,7 +25,7 @@ fn draft() -> CheckpointDraft {
 }
 
 fn proof(draft: &CheckpointDraft, bytes: Vec<u8>) -> CheckpointProof {
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),
@@ -73,7 +73,7 @@ struct UnsupportedArtWire {
 #[test]
 fn test_empty_proof_rejects() {
     let draft = draft();
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         &draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),
@@ -87,7 +87,7 @@ fn test_empty_proof_rejects() {
 #[test]
 fn test_tampered_pub_in_rejects() {
     let draft = draft();
-    let bad_stmt = CheckpointStmt::new(
+    let bad_stmt = CheckpointTransitionStatementV1::new(
         CheckpointVersion::CURRENT,
         draft.height(),
         CheckpointPubIn::new(
@@ -116,12 +116,12 @@ fn test_claim_root_changes_payload() {
     let other_claim_root =
         ClaimSourceRoot::new_settlement(1, SettlementStateRoot::settlement_v1([0xB2; 32]));
     let draft = draft().with_claim_root(claim_root);
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         &draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),
     );
-    let other_stmt = CheckpointStmt::new(
+    let other_stmt = CheckpointTransitionStatementV1::new(
         CheckpointVersion::CURRENT,
         draft.height(),
         CheckpointPubIn::new(
@@ -163,7 +163,7 @@ fn test_finalization_is_deterministic() {
 #[test]
 fn test_attested_proof_backend_payload() {
     let draft = draft();
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         &draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),
@@ -176,7 +176,7 @@ fn test_attested_proof_backend_payload() {
 #[test]
 fn test_load_artifact_proof_system() {
     let draft = draft();
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         &draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),
@@ -200,6 +200,37 @@ fn test_load_artifact_proof_system() {
         .expect("unsupported proof-system bytes");
 
     let err = load_artifact(&bytes).expect_err("unsupported proof system must reject load surface");
+
+    assert!(matches!(err, CheckpointError::ProofSysMix));
+}
+
+#[test]
+fn test_load_artifact_verified_proof_system_rejects() {
+    let draft = draft();
+    let stmt = CheckpointTransitionStatementV1::from_draft(
+        &draft,
+        PrepSnapshotId::new([6u8; 32]),
+        CheckpointExecInputId::new([7u8; 32]),
+    );
+    let bytes = BincodeCodec
+        .serialize(&UnsupportedArtWire {
+            version: CheckpointVersion::CURRENT,
+            height: draft.height(),
+            prev_root: draft.prev_root(),
+            new_root: draft.new_root(),
+            prev_settlement_root: draft.prev_settlement_root(),
+            new_settlement_root: draft.new_settlement_root(),
+            claim_root: draft.claim_root(),
+            spent_delta: draft.spent_delta().to_vec(),
+            created_delta: draft.created_delta().to_vec(),
+            prep_snapshot_id: Some(stmt.prep_snapshot_id()),
+            exec_input_id: Some(stmt.exec_input_id()),
+            proof_sys: CheckpointProofSystem::VERIFIED,
+            cp_proof: stmt.backend_payload(),
+        })
+        .expect("verified proof-system bytes");
+
+    let err = load_artifact(&bytes).expect_err("verified proof system must stay reserved");
 
     assert!(matches!(err, CheckpointError::ProofSysMix));
 }

@@ -4,6 +4,7 @@ use z00z_storage::checkpoint::audit::{CheckpointAudit, CheckpointAuditVersion};
 use z00z_storage::checkpoint::{
     check_exec_root, check_link_ids, CheckpointFsStore, CheckpointStore,
 };
+use z00z_storage::fixture_support::checkpoint_fixtures;
 use z00z_storage::snapshot::PrepSnapshotId;
 use z00z_wallets::tx::TxPackage;
 
@@ -36,6 +37,11 @@ pub(super) fn finalize_stage12(
     check_stage12_fragment_ids(checkpoint, &bridge)?;
     let pkg = load_tx_package(out, &cfg.s4)?;
     let proof = build_attest_proof(&draft, &pkg, refs.snap_id, refs.exec_id)?;
+    let manifest = checkpoint_fixtures::archive_manifest(&draft, &exec, refs.exec_id);
+    let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    store
+        .stage_publication_contract(refs.exec_id, &manifest, &da_reference)
+        .map_err(|e| e.to_string())?;
     let link = store
         .seal_artifact(&draft, proof, refs.snap_id, refs.exec_id)
         .map_err(|e| e.to_string())?;
@@ -54,9 +60,9 @@ pub(super) fn finalize_stage12(
     export_post_tx_final_view(out, &artifact, &link, &audit)?;
     summary.fragment_ids = bridge.fragment_ids;
     summary.checkpoint_id_hex = Some(hex::encode(link.checkpoint_id().as_bytes()));
-    summary.artifact_path = Some("transactions/checkpoint/artifact".to_string());
-    summary.link_path = Some("transactions/checkpoint/link".to_string());
-    summary.audit_path = Some("transactions/checkpoint/audit".to_string());
+    summary.artifact_path = Some("transactions/artifacts/checkpoints/final".to_string());
+    summary.link_path = Some("transactions/artifacts/checkpoints/links".to_string());
+    summary.audit_path = Some("transactions/artifacts/checkpoints/audit".to_string());
     summary.status = "ok".to_string();
     Ok(())
 }

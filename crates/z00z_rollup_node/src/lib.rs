@@ -27,7 +27,11 @@ pub use config::{
     PublicationHandoffMeta, RouteRef, ShardMapping, ShardOwn, StartupCheckCfg,
     StartupPreflightInput, StartupPreflightReport, StoreCfg, StorePaths, StoreSet,
 };
-pub use da::{DaAdapter, DaError, LocalAdapterRecord, LocalDaAdapter, LocalResolveState};
+pub use da::{
+    preview_publication_contract, preview_publication_contract_parts,
+    publication_height_for_request, DaAdapter, DaError, LocalAdapterRecord, LocalDaAdapter,
+    LocalResolveState, PreSealPublicationContract, PublicationReadyInput, PublicationReadyRecord,
+};
 pub use mode::NodeMode;
 pub use process_devnet::{
     hjmt_process_event_path, hjmt_process_heartbeat_path, hjmt_process_ready_path,

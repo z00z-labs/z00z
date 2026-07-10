@@ -207,15 +207,23 @@ pub fn run_stage_setup_session(
     design_path: &Path,
     stage_ids: &[u32],
 ) -> StageSession {
+    try_run_stage_setup_session(cfg_path, design_path, stage_ids)
+        .unwrap_or_else(|err| panic!("{err}"))
+}
+
+pub fn try_run_stage_setup_session(
+    cfg_path: &Path,
+    design_path: &Path,
+    stage_ids: &[u32],
+) -> Result<StageSession, String> {
     let mut session = begin_stage_session(cfg_path, true);
     for &stage_id in stage_ids {
         let result = run_stage_once(&mut session, design_path, stage_id);
-        assert!(
-            matches!(result, StageResult::Ok),
-            "stage {stage_id} failed: {result:?}"
-        );
+        if !matches!(result, StageResult::Ok) {
+            return Err(format!("stage {stage_id} failed: {result:?}"));
+        }
     }
-    session
+    Ok(session)
 }
 
 pub fn run_stage_setup(cfg_path: &Path, design_path: &Path, stage_ids: &[u32]) -> SimContext {
@@ -236,6 +244,10 @@ pub fn run_stage5_session(cfg_path: &Path, design_path: &Path) -> StageSession {
 
 pub fn run_stage4_session(cfg_path: &Path, design_path: &Path) -> StageSession {
     run_stage_setup_session(cfg_path, design_path, &[1_u32, 2, 3, 4, 5, 6])
+}
+
+pub fn try_run_stage4_session(cfg_path: &Path, design_path: &Path) -> Result<StageSession, String> {
+    try_run_stage_setup_session(cfg_path, design_path, &[1_u32, 2, 3, 4, 5, 6])
 }
 
 pub fn run_stage5_edit(

@@ -4,7 +4,7 @@ use std::{
     collections::BTreeMap,
     fs::OpenOptions,
     io::Write as _,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
     thread,
     time::{Duration, Instant},
@@ -36,7 +36,13 @@ use z00z_wallets::claim::registry as claim_registry;
 use super::runner_contract::load_design;
 use super::runner_verify::{check_stage, log_stage};
 use super::runtime_observability;
-use super::support::fixture_cache;
+use super::support::{
+    fixture_cache,
+    path_roots::{
+        normalize_path, resolve_workspace_path, simulator_root, workspace_root,
+        workspace_target_root,
+    },
+};
 
 // Stage 5 and stage 6 continue to route through stage_4 via their facades.
 const CFG_PATH: &str = "crates/z00z_simulator/src/scenario_1/scenario_config.yaml";
@@ -402,35 +408,24 @@ fn process_scope_name() -> String {
 fn runtime_cache_root_base() -> Option<PathBuf> {
     std::env::var_os(RUNTIME_CWD_ROOT_ENV)
         .map(PathBuf::from)
-        .map(|root| normalize_path(&root.join("cache")))
+        .map(|root| resolve_workspace_path(&root).join("cache"))
         .or_else(|| {
             std::env::var_os(VERIFICATION_RUN_ROOT_ENV)
                 .map(PathBuf::from)
-                .map(|root| normalize_path(&root.join("cache")))
+                .map(|root| resolve_workspace_path(&root).join("cache"))
         })
-        .or_else(|| current_exe_run_root().map(|root| normalize_path(&root.join("cache"))))
+        .or_else(|| current_exe_run_root().map(|root| resolve_workspace_path(&root).join("cache")))
         .or_else(|| {
             std::env::var_os(CARGO_TARGET_DIR_ENV)
                 .map(PathBuf::from)
-                .map(|target| normalize_path(&target.join("z00z-simulator-cache")))
+                .map(|target| resolve_workspace_path(&target).join("z00z-simulator-cache"))
         })
-}
-
-fn simulator_root() -> PathBuf {
-    normalize_path(&PathBuf::from(env!("CARGO_MANIFEST_DIR")))
-}
-
-fn workspace_root() -> PathBuf {
-    normalize_path(&simulator_root().join("../.."))
-}
-
-fn workspace_target_root() -> PathBuf {
-    normalize_path(&workspace_root().join("target"))
 }
 
 fn scenario_cache_root() -> PathBuf {
     std::env::var_os(SCENARIO_CACHE_ROOT_ENV)
         .map(PathBuf::from)
+        .map(resolve_workspace_path)
         .or_else(|| runtime_cache_root_base().map(|root| root.join("scenario_1")))
         .unwrap_or_else(|| workspace_root().join(".cache").join("scenario_1"))
 }
@@ -438,6 +433,7 @@ fn scenario_cache_root() -> PathBuf {
 fn scenario_storage_root() -> PathBuf {
     std::env::var_os(SCENARIO_STORAGE_ROOT_ENV)
         .map(PathBuf::from)
+        .map(resolve_workspace_path)
         .or_else(|| runtime_cache_root_base().map(|root| root.join("storage").join("scenario_1")))
         .unwrap_or_else(|| {
             workspace_root()
@@ -534,9 +530,9 @@ fn resolve_output_candidate(dir: &str) -> PathBuf {
 }
 
 fn approved_fixture_root(cfg_path: &Path) -> Option<PathBuf> {
-    let fixture_root = normalize_path(cfg_path.parent()?);
+    let fixture_root = resolve_workspace_path(cfg_path.parent()?);
     let workspace_target = workspace_target_root();
-    let workspace_fixture_cache = normalize_path(&scenario_cache_root());
+    let workspace_fixture_cache = scenario_cache_root();
     let is_temp_fixture = fixture_root
         .file_name()
         .and_then(|name| name.to_str())
@@ -585,20 +581,6 @@ pub(crate) fn storage_runtime_fingerprint() -> String {
             .expect("BUG: scenario runtime artifacts must hash")
         })
         .clone()
-}
-
-fn normalize_path(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            other => normalized.push(other.as_os_str()),
-        }
-    }
-    normalized
 }
 
 fn build_stage_map() -> BTreeMap<u32, StageFn> {

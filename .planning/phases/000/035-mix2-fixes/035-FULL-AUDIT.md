@@ -10,13 +10,8 @@
 - Phase directory: `.planning/phases/035-mix2-fixes`
 - Derived FULL-AUDIT path: `.planning/phases/035-mix2-fixes/035-FULL-AUDIT.md`
 - Mandatory context files read:
-  - `.github/memory-bank/activeContext.md`
-  - `.github/memory-bank/projectbrief.md`
-  - `.github/memory-bank/productContext.md`
-  - `.github/memory-bank/systemPatterns.md`
-  - `.github/memory-bank/techContext.md`
-  - `.github/memory-bank/progress.md`
-  - `.github/memory-bank/tasks/_index.md`
+  - `.planning/STATE.md`
+  - `.planning/ROADMAP.md`
   - `.github/requirements/Z00Z_DESIGN_FOUNDATION.md`
   - `.github/copilot-instructions.md`
   - `.github/prompts/references/gsd-audit-4-full-audit-report-format.md`

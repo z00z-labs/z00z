@@ -29,6 +29,8 @@ Context budget: ~15% orchestrator, 100% fresh per subagent.
 
 <runtime_note>
 **Copilot (VS Code):** Use `vscode_askquestions` wherever this workflow calls `AskUserQuestion`. They are equivalent — `vscode_askquestions` is the VS Code Copilot implementation of the same interactive question API.
+
+**Codex nested prompt contract:** When a phase plan or verify step references a repository prompt by canonical path or slash name, especially `/.github/prompts/gsd-review-tasks-execution.prompt.md` (`/GSD-Review-Tasks-Execution`), open that prompt file and execute it inline in the current Codex session. Do not shell out through `gsd` or any other CLI or model runner, and do not record provider/quota failures for this repo-local prompt path.
 </runtime_note>
 
 <context>

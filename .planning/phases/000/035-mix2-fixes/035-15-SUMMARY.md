@@ -42,8 +42,8 @@ prematurely.
 - `crates/z00z_core/src/assets/mod.rs` now re-exports the explicit version-aware
   decode surface and the new V2 boundary types.
 - `.planning/STATE.md` now advances continuity to `035-16-PLAN.md`.
-- `.github/memory-bank/activeContext.md` and `.github/memory-bank/progress.md`
-  now reflect the verified Phase 035 baseline through Plan 15.
+- The verified Phase 035 baseline through Plan 15 remains recorded in the
+  planning continuity artifacts and closeout evidence chain.
 
 ## Validation
 

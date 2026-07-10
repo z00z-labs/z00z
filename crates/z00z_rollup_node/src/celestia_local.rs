@@ -6,8 +6,9 @@ use z00z_aggregators::{bind_publication_contract, BatchId, PublicationRequest, P
 use z00z_validators::{ResolvedBatch, SettlementTheoremBundle};
 
 use crate::da::{
-    artifact_for_request, hash_parts, request_payload_bytes, request_payload_digest,
-    verify_request_quorum_binding, DaAdapter, DaError,
+    hash_parts, persist_publication_ready, request_payload_bytes, request_payload_digest,
+    verify_request_quorum_binding, DaAdapter, DaError, PublicationReadyInput,
+    PublicationReadyRecord,
 };
 
 const NAMESPACE_LABEL: &[u8] = b"z00z.rollup.celestia-local.namespace.v1";
@@ -226,7 +227,11 @@ impl CelestiaLocalAdapter {
         ),
         DaError,
     > {
-        let artifact = artifact_for_request(&request.draft, &request.exec_input)?;
+        let preview = super::da::preview_publication_contract(
+            request,
+            z00z_storage::checkpoint::CheckpointDaProviderFamily::NamespaceBlob,
+        )?;
+        let artifact = preview.artifact.clone();
         let theorem = SettlementTheoremBundle::new(
             request.tx_package.clone(),
             artifact.clone(),
@@ -235,15 +240,15 @@ impl CelestiaLocalAdapter {
         )
         .map_err(|_| DaError::PublishFailed)?;
         let theorem_digest = theorem.theorem_digest();
-        let checkpoint_id = z00z_storage::checkpoint::derive_checkpoint_id(&artifact)
-            .map_err(|_| DaError::PublishFailed)?;
+        let checkpoint_id = preview.checkpoint_id;
+        if request.link.checkpoint_id() != checkpoint_id
+            || request.link.prep_snapshot_id() != request.exec_input.prep_snapshot_id()
+        {
+            return Err(DaError::PublishFailed);
+        }
         let publication_route = request.publication_route.clone();
         let route_table_digest = publication_route.route_table_digest;
-        let publication_checkpoint = request
-            .draft
-            .height()
-            .max(publication_route.activation_checkpoint)
-            .max(1);
+        let publication_checkpoint = preview.publication_height;
         let pub_in = artifact.pub_in();
         let binding =
             bind_publication_contract(request.batch_id, checkpoint_id, route_table_digest, &pub_in);
@@ -426,6 +431,7 @@ impl DaAdapter for CelestiaLocalAdapter {
 
         Ok(ResolvedBatch::new(
             item.published.clone(),
+            None,
             item.request.ordered_batch.clone(),
             theorem,
             Some(item.request.subject.clone()),
@@ -434,6 +440,28 @@ impl DaAdapter for CelestiaLocalAdapter {
             None,
             None,
         ))
+    }
+
+    fn publication_ready(
+        &mut self,
+        batch: &PublishedBatch,
+        input: &PublicationReadyInput,
+        store: &mut z00z_storage::checkpoint::CheckpointFsStore,
+    ) -> Result<PublicationReadyRecord, DaError> {
+        self.resolve(batch)?;
+        let item = self
+            .batches
+            .get(&batch.batch_id)
+            .ok_or(DaError::MissingResolveResult)?;
+        persist_publication_ready(
+            store,
+            batch,
+            input,
+            z00z_storage::checkpoint::CheckpointDaProviderFamily::NamespaceBlob,
+            &batch.blob_ref,
+            item.record.payload_digest,
+            item.record.blob_height,
+        )
     }
 }
 

@@ -2,7 +2,7 @@ use tempfile::TempDir;
 use z00z_storage::{
     checkpoint::{
         load_artifact, load_draft, CheckpointDraft, CheckpointExecInputId, CheckpointProof,
-        CheckpointStmt, CheckpointVersion, CreatedEnt, SpentEnt,
+        CheckpointTransitionStatementV1, CheckpointVersion, CreatedEnt, SpentEnt,
     },
     settlement::CheckRoot,
     snapshot::PrepSnapshotId,
@@ -29,7 +29,7 @@ fn draft() -> CheckpointDraft {
 }
 
 fn proof(draft: &CheckpointDraft, bytes: Vec<u8>) -> CheckpointProof {
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),
@@ -75,7 +75,7 @@ fn test_persist_rejects_draft_load() {
 #[test]
 fn test_proofless_final_rejects() {
     let draft = draft();
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         &draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),

@@ -169,7 +169,10 @@ fn scenario11_fault_matrix_covers() {
         "stale_member",
         "split_brain",
     ] {
-        assert!(registry_kinds.contains(kind), "missing registry kind {kind}");
+        assert!(
+            registry_kinds.contains(kind),
+            "missing registry kind {kind}"
+        );
     }
     assert!(faults
         .entries
@@ -297,8 +300,7 @@ fn scenario11_fault_matrix_covers() {
             vote.case_id
         );
         assert_eq!(
-            vote.artifact_digests_hex,
-            registry_entry.artifact_digests_hex,
+            vote.artifact_digests_hex, registry_entry.artifact_digests_hex,
             "vote {} must preserve the canonical evidence artifacts",
             vote.case_id
         );
@@ -489,7 +491,7 @@ fn load_claim_registry() -> Result<BTreeMap<String, String>, Box<dyn std::error:
 
 fn claim_registry_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../.planning/phases/067-Sharded-Concensus/067-GLOSSARY-CLAIMS.md")
+        .join("../../.planning/phases/000/067-Sharded-Concensus/067-GLOSSARY-CLAIMS.md")
 }
 
 struct Scenario11OutputRoot {

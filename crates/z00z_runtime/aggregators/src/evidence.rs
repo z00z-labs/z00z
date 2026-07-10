@@ -213,9 +213,18 @@ impl PayloadWithholdingEvidence {
         payload_digest: [u8; 32],
         detail: impl Into<String>,
     ) -> Result<Self, RejectRecord> {
-        require_nonzero_digest(membership_digest, "payload withholding evidence requires a membership digest")?;
-        require_nonzero_digest(subject_digest, "payload withholding evidence requires a subject digest")?;
-        require_nonzero_digest(payload_digest, "payload withholding evidence requires a payload digest")?;
+        require_nonzero_digest(
+            membership_digest,
+            "payload withholding evidence requires a membership digest",
+        )?;
+        require_nonzero_digest(
+            subject_digest,
+            "payload withholding evidence requires a subject digest",
+        )?;
+        require_nonzero_digest(
+            payload_digest,
+            "payload withholding evidence requires a payload digest",
+        )?;
         let detail = detail.into();
         let mut evidence = Self {
             version: EVIDENCE_VERSION,
@@ -281,11 +290,23 @@ impl MissingBlobEvidence {
         certificate_digest: [u8; 32],
         detail: impl Into<String>,
     ) -> Result<Self, RejectRecord> {
-        require_nonzero_digest(membership_digest, "missing blob evidence requires a membership digest")?;
-        require_nonzero_digest(subject_digest, "missing blob evidence requires a subject digest")?;
+        require_nonzero_digest(
+            membership_digest,
+            "missing blob evidence requires a membership digest",
+        )?;
+        require_nonzero_digest(
+            subject_digest,
+            "missing blob evidence requires a subject digest",
+        )?;
         require_namespace(namespace, "missing blob evidence requires a namespace")?;
-        require_nonzero_digest(blob_commitment, "missing blob evidence requires a blob commitment")?;
-        require_nonzero_digest(certificate_digest, "missing blob evidence requires a certificate digest")?;
+        require_nonzero_digest(
+            blob_commitment,
+            "missing blob evidence requires a blob commitment",
+        )?;
+        require_nonzero_digest(
+            certificate_digest,
+            "missing blob evidence requires a certificate digest",
+        )?;
         let detail = detail.into();
         let mut evidence = Self {
             version: EVIDENCE_VERSION,
@@ -347,10 +368,20 @@ impl WrongRootEvidence {
         claimed_root: [u8; 32],
         detail: impl Into<String>,
     ) -> Result<Self, RejectRecord> {
-        require_nonzero_digest(subject_digest, "wrong root evidence requires a subject digest")?;
-        require_nonzero_digest(expected_root, "wrong root evidence requires an expected root")?;
+        require_nonzero_digest(
+            subject_digest,
+            "wrong root evidence requires a subject digest",
+        )?;
+        require_nonzero_digest(
+            expected_root,
+            "wrong root evidence requires an expected root",
+        )?;
         require_nonzero_digest(claimed_root, "wrong root evidence requires a claimed root")?;
-        require_distinct_digests(expected_root, claimed_root, "wrong root evidence requires conflicting root digests")?;
+        require_distinct_digests(
+            expected_root,
+            claimed_root,
+            "wrong root evidence requires conflicting root digests",
+        )?;
         let detail = detail.into();
         let mut evidence = Self {
             version: EVIDENCE_VERSION,
@@ -408,9 +439,18 @@ impl WrongRouteDigestEvidence {
         claimed_route_digest: [u8; 32],
         detail: impl Into<String>,
     ) -> Result<Self, RejectRecord> {
-        require_nonzero_digest(subject_digest, "wrong route digest evidence requires a subject digest")?;
-        require_nonzero_digest(expected_route_digest, "wrong route digest evidence requires an expected route digest")?;
-        require_nonzero_digest(claimed_route_digest, "wrong route digest evidence requires a claimed route digest")?;
+        require_nonzero_digest(
+            subject_digest,
+            "wrong route digest evidence requires a subject digest",
+        )?;
+        require_nonzero_digest(
+            expected_route_digest,
+            "wrong route digest evidence requires an expected route digest",
+        )?;
+        require_nonzero_digest(
+            claimed_route_digest,
+            "wrong route digest evidence requires a claimed route digest",
+        )?;
         require_distinct_digests(
             expected_route_digest,
             claimed_route_digest,
@@ -541,9 +581,18 @@ impl SplitBrainEvidence {
         second_subject_digest: [u8; 32],
         detail: impl Into<String>,
     ) -> Result<Self, RejectRecord> {
-        require_nonzero_digest(membership_digest, "split brain evidence requires a membership digest")?;
-        require_nonzero_digest(first_subject_digest, "split brain evidence requires a first subject digest")?;
-        require_nonzero_digest(second_subject_digest, "split brain evidence requires a second subject digest")?;
+        require_nonzero_digest(
+            membership_digest,
+            "split brain evidence requires a membership digest",
+        )?;
+        require_nonzero_digest(
+            first_subject_digest,
+            "split brain evidence requires a first subject digest",
+        )?;
+        require_nonzero_digest(
+            second_subject_digest,
+            "split brain evidence requires a second subject digest",
+        )?;
         require_distinct_digests(
             first_subject_digest,
             second_subject_digest,
@@ -680,7 +729,10 @@ impl EvidenceRecord {
                 artifact_ref(ArtifactKind::RouteDigest, evidence.claimed_route_digest),
             ],
             Self::StaleMember(evidence) => vec![
-                artifact_ref(ArtifactKind::Membership, evidence.expected_membership_digest),
+                artifact_ref(
+                    ArtifactKind::Membership,
+                    evidence.expected_membership_digest,
+                ),
                 artifact_ref(ArtifactKind::Membership, evidence.claimed_membership_digest),
             ],
             Self::SplitBrain(evidence) => vec![

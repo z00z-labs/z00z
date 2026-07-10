@@ -27,10 +27,10 @@ found in scope.
 - `.planning/ROADMAP.md` now reflects that all live Phase 036 plans `036-04`
   through `036-10` are summary-backed complete and that the active checkpoint
   no longer sits at `036-09-PLAN.md`.
-- `.planning/STATE.md`, `.github/memory-bank/activeContext.md`, and
-  `.github/memory-bank/progress.md` now carry the actual closeout truth: Phase
-  036 is complete, `036-10-SUMMARY.md` is part of the evidence chain, and the
-  next active phase remains a separate roadmap decision.
+- `.planning/STATE.md` and `.planning/ROADMAP.md` now carry the actual
+  closeout truth: Phase 036 is complete, `036-10-SUMMARY.md` is part of the
+  evidence chain, and the next active phase remains a separate roadmap
+  decision.
 
 ## Validation
 

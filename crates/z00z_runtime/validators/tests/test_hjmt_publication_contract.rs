@@ -2,13 +2,16 @@
 mod theorem_support;
 
 use z00z_aggregators::{
-    AggregatorId, BatchId, BatchPlanned, BatchRoute, OrderedBatch, PlanDigest, PublishedBatch,
-    ShardExecState, ShardExecTicket, ShardId, ShardPlacementView,
+    AggregatorId, BatchId, BatchPlanned, BatchRoute, OrderedBatch, PlanDigest, PublicationRecord,
+    PublicationState, PublishedBatch, ShardExecState, ShardExecTicket, ShardId, ShardPlacementView,
 };
 use z00z_storage::{
     checkpoint::{
-        derive_checkpoint_id, CheckpointArtifact, CheckpointId, CheckpointLink,
-        CheckpointLinkVersion, CheckpointPubIn,
+        derive_checkpoint_id, CheckpointArtifact, CheckpointDaLocatorKind,
+        CheckpointDaProviderFamily, CheckpointDaReferenceV1, CheckpointDaReferenceVersion,
+        CheckpointId, CheckpointLifecycleV1, CheckpointLink, CheckpointLinkVersion,
+        CheckpointPubIn, CheckpointPublicationEvidenceV1, CheckpointPublicationEvidenceVersion,
+        CheckpointPublicationState,
     },
     settlement::{ObjectPolicyRegistryV1, PublicationRouteSnapshotV1, SettlementStateRoot},
 };
@@ -198,6 +201,89 @@ fn verdict_blob_gap_incomplete() {
 }
 
 #[test]
+fn verdict_does_not_open_challenge_without_publication_readiness() {
+    let batch_id = BatchId::from_bytes([0x84; 32]);
+    let resolved = resolved_batch(batch_id, Some(placement_view(1, 7, 3)), None);
+    let verdict =
+        ValidatorBoundary.verdict_for_batch(&resolved, &ObjectPolicyRegistryV1::default());
+    let lifecycle = CheckpointLifecycleV1::from_artifact(resolved.artifact())
+        .expect("sealed lifecycle")
+        .link(resolved.artifact(), resolved.link(), None, [0xA4; 32])
+        .expect("linked lifecycle");
+
+    assert_eq!(verdict.kind, VerdictKind::Accepted);
+    assert!(verdict.publication.is_some());
+    assert_eq!(
+        lifecycle.status(),
+        z00z_storage::checkpoint::CheckpointLifecycleStatus::Linked
+    );
+    assert!(matches!(
+        lifecycle.challenge_open(11),
+        Err(z00z_storage::CheckpointError::LifecycleMix)
+    ));
+}
+
+#[test]
+fn validator_accepts_publication_readiness_bundle() {
+    let batch_id = BatchId::from_bytes([0x8A; 32]);
+    let mut resolved = resolved_batch(batch_id, Some(placement_view(1, 7, 3)), None);
+    resolved.publication_record = Some(ready_publication_record(&resolved));
+
+    let flow = CheckpointFlow::try_from_resolved(&resolved).expect("ready bundle must validate");
+    let verdict =
+        ValidatorBoundary.verdict_for_batch(&resolved, &ObjectPolicyRegistryV1::default());
+
+    assert_eq!(flow.publication.batch_id(), batch_id);
+    assert_eq!(verdict.kind, VerdictKind::Accepted);
+    assert!(verdict.reject.is_none());
+}
+
+#[test]
+fn validator_rejects_missing_publication_evidence_when_ready() {
+    let batch_id = BatchId::from_bytes([0x8B; 32]);
+    let mut resolved = resolved_batch(batch_id, Some(placement_view(1, 7, 3)), None);
+    let mut publication = ready_publication_record(&resolved);
+    publication.publication_evidence = None;
+    resolved.publication_record = Some(publication);
+
+    let err = CheckpointFlow::try_from_resolved(&resolved)
+        .expect_err("ready lifecycle without publication evidence must reject");
+
+    assert_eq!(err, RejectClass::ReconcileInvalid);
+}
+
+#[test]
+fn validator_rejects_detached_da_ref_when_ready() {
+    let batch_id = BatchId::from_bytes([0x8C; 32]);
+    let mut resolved = resolved_batch(batch_id, Some(placement_view(1, 7, 3)), None);
+    let mut publication = ready_publication_record(&resolved);
+    let evidence = publication
+        .publication_evidence
+        .as_ref()
+        .expect("publication evidence")
+        .clone();
+    publication.da_reference = Some(
+        CheckpointDaReferenceV1::new(
+            CheckpointDaReferenceVersion::CURRENT,
+            evidence.provider_family(),
+            CheckpointDaLocatorKind::OpaqueProviderRef,
+            "local-da://validator-detached",
+            evidence.payload_commitment(),
+            evidence.statement_core_digest(),
+            evidence.archive_manifest_root(),
+            evidence.readiness_height(),
+        )
+        .expect("detached da ref"),
+    );
+    resolved.publication_record = Some(publication);
+
+    let err =
+        CheckpointFlow::try_from_resolved(&resolved).expect_err("detached da ref must reject");
+
+    assert_eq!(err, RejectClass::ReconcileInvalid);
+}
+
+#[test]
 fn test_keeps_adapter_advisory() {
     let batch_id = BatchId::from_bytes([0x85; 32]);
     let mut resolved = resolved_batch(batch_id, Some(placement_view(1, 7, 3)), None);
@@ -304,6 +390,7 @@ fn resolved_batch(
     let published = published_batch(batch_id, theorem.artifact());
     ResolvedBatch::new(
         published,
+        None,
         ordered_batch(batch_id),
         theorem,
         None,
@@ -318,6 +405,7 @@ fn resolved_batch_with_quorum(batch_id: BatchId) -> ResolvedBatch {
     let fixture = theorem_support::quorum_fixture(batch_id);
     ResolvedBatch::new(
         fixture.published,
+        None,
         fixture.ordered,
         fixture.theorem,
         Some(fixture.subject),
@@ -404,4 +492,56 @@ fn tampered_pub_in(pub_in: &CheckpointPubIn) -> CheckpointPubIn {
         tampered = tampered.with_claim_root(claim_root);
     }
     tampered
+}
+
+fn ready_publication_record(resolved: &ResolvedBatch) -> PublicationRecord {
+    let statement_core_digest = [0xB4; 32];
+    let archive_manifest_root = [0xB5; 32];
+    let payload_commitment = [0xB6; 32];
+    let observations_root = [0xB7; 32];
+    let readiness_height = resolved.published.publication_checkpoint;
+    let da_reference = CheckpointDaReferenceV1::new(
+        CheckpointDaReferenceVersion::CURRENT,
+        CheckpointDaProviderFamily::LocalArchive,
+        CheckpointDaLocatorKind::OpaqueProviderRef,
+        "local-da://validator-ready",
+        payload_commitment,
+        statement_core_digest,
+        archive_manifest_root,
+        readiness_height,
+    )
+    .expect("da reference");
+    let publication_evidence = CheckpointPublicationEvidenceV1::new(
+        CheckpointPublicationEvidenceVersion::CURRENT,
+        statement_core_digest,
+        da_reference.da_ref(),
+        archive_manifest_root,
+        payload_commitment,
+        CheckpointPublicationState::DaPublicationReady,
+        CheckpointDaProviderFamily::LocalArchive,
+        readiness_height,
+        readiness_height,
+        observations_root,
+    )
+    .expect("publication evidence");
+    let lifecycle = CheckpointLifecycleV1::from_artifact(resolved.artifact())
+        .expect("sealed lifecycle")
+        .link(
+            resolved.artifact(),
+            resolved.link(),
+            None,
+            statement_core_digest,
+        )
+        .expect("linked lifecycle")
+        .publication_ready(&publication_evidence)
+        .expect("publication-ready lifecycle");
+
+    PublicationRecord {
+        batch_id: resolved.published.batch_id,
+        checkpoint_id: Some(resolved.published.checkpoint_id),
+        state: PublicationState::Accepted,
+        da_reference: Some(da_reference),
+        publication_evidence: Some(publication_evidence),
+        lifecycle: Some(lifecycle),
+    }
 }

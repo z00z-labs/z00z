@@ -4,7 +4,13 @@ use z00z_aggregators::{
     ShardExecTicket, ShardId, ShardPlacementView,
 };
 use z00z_storage::{
-    checkpoint::{derive_checkpoint_id, CheckpointId, CheckpointPubIn},
+    checkpoint::{
+        derive_checkpoint_id, CheckpointDaLocatorKind, CheckpointDaProviderFamily,
+        CheckpointDaReferenceV1, CheckpointDaReferenceVersion, CheckpointExecInputId, CheckpointId,
+        CheckpointLifecycleStatus, CheckpointLifecycleV1, CheckpointPubIn,
+        CheckpointPublicationEvidenceV1, CheckpointPublicationEvidenceVersion,
+        CheckpointPublicationState,
+    },
     fixture_support::checkpoint_fixtures,
     settlement::{PublicationRouteSnapshotV1, SettlementStateRoot},
 };
@@ -131,6 +137,102 @@ fn test_keeps_adapter_advisory() {
 }
 
 #[test]
+fn watcher_signal_does_not_open_challenge_without_publication_readiness() {
+    let batch_id = BatchId::from_bytes([0x7A; 32]);
+    let published = published_batch(batch_id, 5, 12, [0xAA; 32]);
+    let publication = publication_record(&published, PublicationState::Accepted);
+    let binding = bind_publication_contract(
+        batch_id,
+        published.checkpoint_id,
+        published.publication_route.route_table_digest,
+        &published.pub_in,
+    );
+    let input = WatcherInput {
+        published: published.clone(),
+        publication,
+        soft_confirmation: None,
+        placement: None,
+        exec_ticket: None,
+        verdict: Some(Verdict {
+            batch_id,
+            checkpoint_id: Some(published.checkpoint_id),
+            publication: Some(binding),
+            kind: VerdictKind::Accepted,
+            reject: None,
+            object_verdicts: Vec::new(),
+        }),
+        provider_signal: Some(ProviderSignal {
+            provider_name: "local-da".to_string(),
+            batch_id,
+            stage: ProviderStage::Observe,
+            outcome: ProviderOutcome::Success,
+            blob_ref: Some(published.blob_ref.clone()),
+        }),
+        runtime_notes: Vec::new(),
+    };
+    let artifact = checkpoint_fixtures::artifact();
+    let link = checkpoint_fixtures::link(
+        derive_checkpoint_id(&artifact).expect("checkpoint id"),
+        CheckpointExecInputId::new([8u8; 32]),
+    );
+    let lifecycle = CheckpointLifecycleV1::from_artifact(&artifact)
+        .expect("sealed lifecycle")
+        .link(&artifact, &link, None, [0xA5; 32])
+        .expect("linked lifecycle");
+
+    let watch = WatcherBoundary
+        .publication_watch(&input)
+        .expect("watcher publication proof");
+
+    assert_eq!(watch.publication_state, PublicationState::Accepted);
+    assert_eq!(lifecycle.status(), CheckpointLifecycleStatus::Linked);
+    assert!(matches!(
+        lifecycle.challenge_open(11),
+        Err(z00z_storage::CheckpointError::LifecycleMix)
+    ));
+}
+
+#[test]
+fn watcher_accepts_publication_readiness_bundle() {
+    let batch_id = BatchId::from_bytes([0x7B; 32]);
+    let published = published_batch(batch_id, 5, 12, [0xAB; 32]);
+    let publication = ready_publication_record(&published, PublicationState::Accepted);
+    let binding = bind_publication_contract(
+        batch_id,
+        published.checkpoint_id,
+        published.publication_route.route_table_digest,
+        &published.pub_in,
+    );
+
+    let watch = WatcherBoundary
+        .publication_watch(&WatcherInput {
+            published,
+            publication,
+            soft_confirmation: None,
+            placement: None,
+            exec_ticket: None,
+            verdict: Some(Verdict {
+                batch_id,
+                checkpoint_id: Some(binding.checkpoint_id()),
+                publication: Some(binding),
+                kind: VerdictKind::Accepted,
+                reject: None,
+                object_verdicts: Vec::new(),
+            }),
+            provider_signal: None,
+            runtime_notes: Vec::new(),
+        })
+        .expect("ready publication watch");
+
+    assert!(watch.da_reference.is_some());
+    assert!(watch.publication_evidence.is_some());
+    assert_eq!(
+        watch.lifecycle.as_ref().expect("lifecycle").status(),
+        CheckpointLifecycleStatus::PublicationReady
+    );
+}
+
+#[test]
 fn evidence_keeps_publication_story() {
     let batch_id = BatchId::from_bytes([0x81; 32]);
     let published = published_batch(batch_id, 6, 13, [0xB1; 32]);
@@ -195,6 +297,105 @@ fn evidence_keeps_publication_story() {
     assert_eq!(watch.publication.binding_digest(), binding.binding_digest());
     assert_eq!(watch.publication_route, published.publication_route);
     assert_eq!(watch.runtime_route, Some(exec.placement.route));
+}
+
+#[test]
+fn watcher_rejects_missing_publication_evidence_when_ready() {
+    let batch_id = BatchId::from_bytes([0x90; 32]);
+    let published = published_batch(batch_id, 6, 13, [0xC0; 32]);
+    let mut publication = ready_publication_record(&published, PublicationState::Accepted);
+    publication.publication_evidence = None;
+    let binding = bind_publication_contract(
+        batch_id,
+        published.checkpoint_id,
+        published.publication_route.route_table_digest,
+        &published.pub_in,
+    );
+    let input = WatcherInput {
+        published,
+        publication,
+        soft_confirmation: None,
+        placement: None,
+        exec_ticket: None,
+        verdict: Some(Verdict {
+            batch_id,
+            checkpoint_id: Some(binding.checkpoint_id()),
+            publication: Some(binding),
+            kind: VerdictKind::Accepted,
+            reject: None,
+            object_verdicts: Vec::new(),
+        }),
+        provider_signal: None,
+        runtime_notes: Vec::new(),
+    };
+
+    let err = WatcherBoundary
+        .publication_watch(&input)
+        .expect_err("ready lifecycle without publication evidence must reject");
+
+    assert_eq!(err, PublicationWatchErr::ReadinessMismatch);
+    assert_eq!(
+        WatcherBoundary.validator_state_alerts(&input)[0].kind,
+        AlertKind::InvalidBatch
+    );
+}
+
+#[test]
+fn watcher_rejects_detached_da_ref_when_ready() {
+    let batch_id = BatchId::from_bytes([0x92; 32]);
+    let published = published_batch(batch_id, 6, 13, [0xC2; 32]);
+    let mut publication = ready_publication_record(&published, PublicationState::Accepted);
+    let evidence = publication
+        .publication_evidence
+        .as_ref()
+        .expect("publication evidence")
+        .clone();
+    publication.da_reference = Some(
+        CheckpointDaReferenceV1::new(
+            CheckpointDaReferenceVersion::CURRENT,
+            evidence.provider_family(),
+            CheckpointDaLocatorKind::OpaqueProviderRef,
+            "local-da://watcher-detached",
+            evidence.payload_commitment(),
+            evidence.statement_core_digest(),
+            evidence.archive_manifest_root(),
+            evidence.readiness_height(),
+        )
+        .expect("detached da ref"),
+    );
+    let binding = bind_publication_contract(
+        batch_id,
+        published.checkpoint_id,
+        published.publication_route.route_table_digest,
+        &published.pub_in,
+    );
+    let input = WatcherInput {
+        published,
+        publication,
+        soft_confirmation: None,
+        placement: None,
+        exec_ticket: None,
+        verdict: Some(Verdict {
+            batch_id,
+            checkpoint_id: Some(binding.checkpoint_id()),
+            publication: Some(binding),
+            kind: VerdictKind::Accepted,
+            reject: None,
+            object_verdicts: Vec::new(),
+        }),
+        provider_signal: None,
+        runtime_notes: Vec::new(),
+    };
+
+    let err = WatcherBoundary
+        .publication_watch(&input)
+        .expect_err("detached da ref must reject");
+
+    assert_eq!(err, PublicationWatchErr::ReadinessMismatch);
+    assert_eq!(
+        WatcherBoundary.validator_state_alerts(&input)[0].kind,
+        AlertKind::InvalidBatch
+    );
 }
 
 #[test]
@@ -669,6 +870,64 @@ fn publication_record(published: &PublishedBatch, state: PublicationState) -> Pu
         batch_id: published.batch_id,
         checkpoint_id: Some(published.checkpoint_id),
         state,
+        da_reference: None,
+        publication_evidence: None,
+        lifecycle: None,
+    }
+}
+
+fn ready_publication_record(
+    published: &PublishedBatch,
+    state: PublicationState,
+) -> PublicationRecord {
+    let statement_core_digest = [0xD4; 32];
+    let archive_manifest_root = [0xD5; 32];
+    let payload_commitment = [0xD6; 32];
+    let observations_root = [0xD7; 32];
+    let readiness_height = published.publication_checkpoint;
+    let da_reference = CheckpointDaReferenceV1::new(
+        CheckpointDaReferenceVersion::CURRENT,
+        CheckpointDaProviderFamily::LocalArchive,
+        CheckpointDaLocatorKind::OpaqueProviderRef,
+        "local-da://watcher-ready",
+        payload_commitment,
+        statement_core_digest,
+        archive_manifest_root,
+        readiness_height,
+    )
+    .expect("da reference");
+    let publication_evidence = CheckpointPublicationEvidenceV1::new(
+        CheckpointPublicationEvidenceVersion::CURRENT,
+        statement_core_digest,
+        da_reference.da_ref(),
+        archive_manifest_root,
+        payload_commitment,
+        CheckpointPublicationState::DaPublicationReady,
+        CheckpointDaProviderFamily::LocalArchive,
+        readiness_height,
+        readiness_height,
+        observations_root,
+    )
+    .expect("publication evidence");
+    let artifact = checkpoint_fixtures::artifact();
+    let link = checkpoint_fixtures::link(
+        published.checkpoint_id,
+        CheckpointExecInputId::new([8u8; 32]),
+    );
+    let lifecycle = CheckpointLifecycleV1::from_artifact(&artifact)
+        .expect("sealed lifecycle")
+        .link(&artifact, &link, None, statement_core_digest)
+        .expect("linked lifecycle")
+        .publication_ready(&publication_evidence)
+        .expect("publication-ready lifecycle");
+
+    PublicationRecord {
+        batch_id: published.batch_id,
+        checkpoint_id: Some(published.checkpoint_id),
+        state,
+        da_reference: Some(da_reference),
+        publication_evidence: Some(publication_evidence),
+        lifecycle: Some(lifecycle),
     }
 }
 

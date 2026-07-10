@@ -63,6 +63,8 @@ impl CheckpointLinkVersion {
 pub struct CheckpointLink {
     version: CheckpointLinkVersion,
     checkpoint_id: CheckpointId,
+    #[serde(default)]
+    prev_checkpoint_id: Option<CheckpointId>,
     prep_snapshot_id: PrepSnapshotId,
     exec_input_id: CheckpointExecInputId,
     #[serde(default)]
@@ -78,14 +80,36 @@ impl CheckpointLink {
         prep_snapshot_id: PrepSnapshotId,
         exec_input_id: CheckpointExecInputId,
     ) -> Result<Self, CheckpointError> {
+        Self::with_prev(
+            version,
+            checkpoint_id,
+            None,
+            prep_snapshot_id,
+            exec_input_id,
+        )
+    }
+
+    pub fn with_prev(
+        version: CheckpointLinkVersion,
+        checkpoint_id: CheckpointId,
+        prev_checkpoint_id: Option<CheckpointId>,
+        prep_snapshot_id: PrepSnapshotId,
+        exec_input_id: CheckpointExecInputId,
+    ) -> Result<Self, CheckpointError> {
         check_link_ver(version)?;
         Ok(Self {
             version,
             checkpoint_id,
+            prev_checkpoint_id,
             prep_snapshot_id,
             exec_input_id,
             link_bind_ver: LINK_BIND_VER,
-            link_bind: link_bind(checkpoint_id, prep_snapshot_id, exec_input_id),
+            link_bind: link_bind(
+                checkpoint_id,
+                prev_checkpoint_id,
+                prep_snapshot_id,
+                exec_input_id,
+            ),
         })
     }
 
@@ -97,6 +121,11 @@ impl CheckpointLink {
     #[must_use]
     pub const fn checkpoint_id(&self) -> CheckpointId {
         self.checkpoint_id
+    }
+
+    #[must_use]
+    pub const fn prev_checkpoint_id(&self) -> Option<CheckpointId> {
+        self.prev_checkpoint_id
     }
 
     #[must_use]
@@ -126,6 +155,7 @@ impl CheckpointLink {
         if self.link_bind
             != link_bind(
                 self.checkpoint_id,
+                self.prev_checkpoint_id,
                 self.prep_snapshot_id,
                 self.exec_input_id,
             )
@@ -174,13 +204,20 @@ pub(crate) fn decode_link_json_checked(bytes: &[u8]) -> Result<CheckpointLink, C
 
 fn link_bind(
     checkpoint_id: CheckpointId,
+    prev_checkpoint_id: Option<CheckpointId>,
     prep_snapshot_id: PrepSnapshotId,
     exec_input_id: CheckpointExecInputId,
 ) -> [u8; 32] {
+    let mut prev_bytes = [0u8; 33];
+    if let Some(prev_checkpoint_id) = prev_checkpoint_id {
+        prev_bytes[0] = 1;
+        prev_bytes[1..].copy_from_slice(prev_checkpoint_id.as_bytes());
+    }
     hash_zk::<StorCheckpointLinkDom>(
         LINK_BIND_LABEL,
         &[
             checkpoint_id.as_bytes(),
+            &prev_bytes,
             prep_snapshot_id.as_bytes(),
             exec_input_id.as_bytes(),
         ],
@@ -207,6 +244,7 @@ mod tests {
         .expect("link");
 
         assert_eq!(link.version(), CheckpointLinkVersion::CURRENT);
+        assert_eq!(link.prev_checkpoint_id(), None);
     }
 
     #[test]

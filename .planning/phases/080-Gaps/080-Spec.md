@@ -295,6 +295,8 @@ AuditViewProofV1:
 - **080-C-004**: Add a minimal `AuditViewProofV1` skeleton that binds policy IDs, selected fields, root/path commitments, and optional checkpoint anchors.
 - **080-C-005**: Store evidence in an encrypted wallet-owned archive or `.wlt` extension. It MUST NOT be required for normal reopen unless the wallet has enabled a compliance profile.
 - **080-C-006**: If evidence is exportable, add a versioned `WalletExportPack` extension or manifest reference. Do not create a second canonical export bundle.
+- **080-C-007**: Add a purpose-bound selective audit/disclosure package scenario with explicit disclosed fields, hidden fields, verifier inputs, source anchors, and leakage budget.
+- **080-C-008**: Add wallet, storage/checkpoint, and simulator or integration coverage for one accepted selective audit package and one rejected over-disclosure package.
 
 ### 8.4 Acceptance Criteria
 
@@ -302,6 +304,233 @@ AuditViewProofV1:
 - **AC-080-C-002**: A disclosure receipt records purpose, field set, policy, retention, expiry, and holder authorization.
 - **AC-080-C-003**: Unknown or expired audit requests fail closed.
 - **AC-080-C-004**: Evidence package loss cannot corrupt cash balance, scan cursor, tx history, or object inventory.
+- **AC-080-C-005**: A selective audit package proves which fields are disclosed, which fields are hidden, and which verifier accepted the package.
+- **AC-080-C-006**: Over-disclosure, hidden-field leakage, raw wallet-history export, hidden-liability leakage, secrets, and unrelated asset metadata are rejected by tests.
+
+### 8.5 Disclosure Ladder Implementation Blueprint
+
+This section defines the concrete next step for graduated read-only disclosure over wallet transaction history and typed wallet inventory. The implementation MUST be a holder-approved disclosure layer above the existing 080-C evidence package work. It MUST NOT reinterpret the existing receiver view key as a master audit key, and it MUST NOT introduce a universal wallet-history backdoor.
+
+`WalletReveal::{Present, Redacted, Unavailable}` is the required response semantics for every optional or sensitive disclosure field:
+
+| State | Meaning | Implementation rule |
+| --- | --- | --- |
+| `Present(value)` | The wallet had the value and the approved field set permits disclosure. | The DTO may carry the value and the field proof MUST bind that value to the source row, object checksum, or settlement proof. |
+| `Redacted` | The wallet had or could derive the value, but the approved field set does not permit disclosure. | The DTO MUST NOT omit the field silently. The field proof MAY carry a commitment, hash, or redaction marker, but no plaintext value. |
+| `Unavailable` | The wallet could not recover or verify the value from current wallet state, retained history, or source evidence. | The DTO MUST distinguish this from deliberate redaction and MUST include a stable unavailable reason when it affects audit interpretation. |
+
+The disclosure ladder is a set of policy presets over a field-set lattice. A higher label MUST NOT mean "see everything"; each level is still bounded by subject scope, time range, object family, transaction set, purpose, expiry, requester identity, and holder approval.
+
+| Level | Primary audience | Allowed default surface | MUST remain hidden unless explicitly escalated |
+| --- | --- | --- | --- |
+| `L0Receipt` | Counterparty or support desk | Existence proof, status, timestamp bucket, receipt hash, checkpoint anchor if available. | Amount, unrelated tx rows, wallet inventory, receiver secrets, blindings, memos, raw package bytes. |
+| `L1PaymentProof` | Counterparty, invoice reviewer, dispute intake | One named payment or claim, amount if policy allows, fee, status, selected asset family, receipt, invoice/document hash. | Other payments, change outputs, unrelated assets, vouchers, rights, wallet labels, scan metadata. |
+| `L2AccountingSummary` | Accountant, tax preparer, treasury controller | Aggregate period totals, counts, fee totals, asset-family totals, policy membership, proof-of-metric commitments. | Row-level counterparties, raw tx bytes, full object leaves, receiver/card material, unrelated periods. |
+| `L3RowAudit` | Enterprise auditor or regulated service reviewer | Selected row-level tx history, statuses, amounts, fees, selected input/output identifiers, confirmation evidence, selected labels if approved. | Seed phrases, session tokens, spend keys, receiver secrets, blindings, encrypted payload internals, rows outside scope. |
+| `L4ObjectAudit` | Issuer, rights operator, voucher program, enterprise auditor | Selected asset, voucher, and right inventory fields; object family, lifecycle, policy ids, expiry, holder or beneficiary commitments, disclosure and retention policy ids. | Ordinary wallet cash outside scope, unrelated rights, unrelated vouchers, holder/control openings unless explicitly approved. |
+| `L5DisputeForensic` | Court, arbitrator, incident reviewer, fraud workflow | Named tx/object/fraud-case evidence, selected package bytes or proof bytes only when required by policy, checkpoint anchors, conflict evidence, receipt chain. | Whole-wallet history, unrelated object families, root secrets, spend authority, blanket future access. |
+
+The first implementation MUST ship `L0Receipt`, `L1PaymentProof`, and one narrow `L4ObjectAudit` profile before broader `L2AccountingSummary`, `L3RowAudit`, or `L5DisputeForensic` profiles are enabled. This keeps the first release testable against named transactions and named object families instead of creating an overbroad enterprise export.
+
+#### Cryptographic Model
+
+The disclosure layer MUST use project-owned cryptographic primitives from `z00z_crypto` and existing wallet wrappers. It MUST NOT add custom AEAD, custom transcript framing, custom range-proof machinery, or edits under `crates/z00z_crypto/tari/`.
+
+Each disclosure response MUST be built from these artifacts:
+
+```text
+DisclosureScopeV1:
+  version
+  wallet_id_commitment
+  account_scope?
+  tx_ids[]
+  object_ids[]
+  object_families[]
+  asset_families[]
+  time_range?
+  checkpoint_range?
+  purpose
+  requester_commitment
+  expires_at
+
+DisclosureFieldSetV1:
+  version
+  field_set_id
+  level
+  allowed_fields[]
+  denied_fields[]
+  field_set_commitment
+
+DisclosureCapabilityV1:
+  version
+  capability_id
+  scope_commitment
+  field_set_commitment
+  requester_commitment
+  purpose_hash
+  expires_at
+  request_signature
+
+DisclosedFieldV1<T>:
+  field_id
+  source_ref
+  reveal: WalletReveal<T>
+  field_commitment
+  value_hash?
+  redaction_reason?
+  unavailable_reason?
+
+DisclosurePackageV1:
+  version
+  disclosure_id
+  capability_id
+  receipt_id
+  source_manifest_hash
+  disclosed_fields[]
+  proof_bundle
+  holder_signature
+
+DisclosureVerifierV1:
+  version
+  accepted_profile_ids[]
+  max_clock_skew_ms
+  verify_package(package_bytes, request_bytes, receipt_bytes, policy_snapshot_bytes) -> DisclosureVerifyResult
+```
+
+Field commitments MUST be domain separated and canonical. A disclosed field SHOULD use:
+
+```text
+field_commitment =
+  H(
+    "z00z.wallet.disclosure.field.v1",
+    disclosure_id,
+    source_ref,
+    field_id,
+    field_version,
+    reveal_state,
+    value_hash_or_zero,
+    redaction_or_unavailable_code,
+    field_nonce_commitment
+  )
+```
+
+All disclosure hashes and signatures MUST be computed over deterministic canonical project codec bytes. Unknown enum variants, duplicate fields, duplicate source refs, extra fields, and non-canonical encodings MUST reject before policy approval or field verification continues.
+
+For `Present(value)`, the package MUST include the canonical value encoding, value hash, field opening material needed by the verifier, and enough source proof material for the verifier to recompute or validate the field commitment. For `Redacted`, the package MUST include the field id and redaction reason but MUST NOT include the value encoding, field opening, or reversible encrypted value. For `Unavailable`, the package MUST include a stable reason such as `source_row_missing`, `history_pruned`, `object_not_retained`, `checkpoint_not_available`, or `wallet_key_unavailable`.
+
+The package proof bundle MUST bind every disclosed value to one of the current live source anchors:
+
+| Source | Anchor that MUST be used |
+| --- | --- |
+| Tx-history row | `WalletTxHistoryJsonlEntry.entry_hash`, `record_hash`, `tx_bytes_hash`, row sequence, and wallet stem commitment. |
+| Tx confirmation | `TxConfirmationEvidence` fields and checkpoint id/root fields. |
+| Asset inventory | Owned asset checksum or canonical payload hash plus asset id and spend/ref state. |
+| Voucher inventory | `OwnedVoucherPayload` checksum plus `VoucherLeaf` terminal id, lifecycle, policy id, disclosure commitment, and audit commitment. |
+| Right inventory | `OwnedRightPayload` checksum plus `RightLeaf` terminal id, class, policy ids, disclosure policy id, retention policy id, and validity windows. |
+| Settlement proof | Checkpoint, root, path, and object proof material from the existing storage facades when available. |
+
+Profiles that claim completeness over a scoped time range, tx set, or object family MUST include a source-manifest completeness proof. Named-subject profiles MAY prove only the named tx/object, but summary, row-audit, and object-audit profiles MUST commit to the complete ordered source set for the approved scope. Tx-history completeness MUST bind row sequence and previous-entry chain boundaries; object inventory completeness MUST bind the relevant wallet snapshot root, object checksum set, or checkpoint/settlement root that the verifier can replay.
+
+`AuditViewProofV1` in the first release MAY be a signed, deterministic proof skeleton over canonical source anchors, field commitments, and optional checkpoint anchors. It SHOULD NOT claim zero-knowledge aggregate properties until dedicated proof code and tests exist. `L2AccountingSummary` SHOULD later replace row disclosure with `prove(metric)` style aggregate proofs where possible.
+
+`DisclosureCapabilityV1` is read-only. It MUST NOT carry spend authority, receiver secrets, seed material, raw session tokens, or an unbounded view secret. Requester keys MAY encrypt the final package for transport, but package encryption is delivery privacy only; the authorization truth is the validated request, scope, field set, policy, receipt, and holder signature. A decrypted package MUST still fail closed unless every signature, policy gate, field commitment, source anchor, expiry, and scope check passes.
+
+The requester signature MUST cover the exact canonical request bytes, including requester identity, scope, requested field set, purpose, expiry, and replay nonce. The holder signature MUST cover the exact canonical receipt and package binding bytes, including `disclosure_id`, `capability_id`, `scope_commitment`, `field_set_commitment`, `source_manifest_hash`, `proof_bundle_hash`, `expires_at`, `retention_policy_id`, and package hash.
+
+#### Verification Order
+
+`DisclosureVerifierV1` MUST be implemented before any remote/RPC disclosure path is exposed. Verification MUST be deterministic and MUST run in this order:
+
+1. Parse canonical package, request, receipt, and policy bytes and reject non-canonical encodings.
+2. Verify supported schema version, profile id, and field-set id.
+3. Verify requester signature over the exact canonical request bytes.
+4. Verify holder signature over the exact canonical receipt and package binding bytes.
+5. Verify expiry, replay nonce, purpose, requester identity, scope, retention policy, and policy id.
+6. Recompute `source_manifest_hash` from profile-defined deterministic, duplicate-free source refs; tx-history refs MUST preserve sequence order.
+7. Verify each field id is allowed by the field set and no undeclared field is present.
+8. Recompute every field commitment and verify the `WalletReveal` state transition is legal.
+9. Verify every source anchor: tx-history `entry_hash`, tx `record_hash`, `tx_bytes_hash`, object checksum, checkpoint root, or settlement proof material as applicable.
+10. Reject if `Redacted` carries an opening or plaintext, if `Unavailable` hides an available source row, or if `Present` lacks enough proof material for the verifier.
+11. Return only a typed `DisclosureVerifyResult`; verification MUST NOT mutate wallet balance, object inventory, scan cursor, tx history, or disclosure archive state.
+
+#### Implementation Order
+
+1. Add disclosure field taxonomy and field ids under `z00z_wallets`.
+2. Add `DisclosureScopeV1`, `DisclosureFieldSetV1`, `DisclosureCapabilityV1`, `DisclosedFieldV1<T>`, and `DisclosurePackageV1` as wallet-owned DTOs.
+3. Add canonical serialization, hash, and signature helpers for `DisclosureReceiptV1`, `EvidencePackageV1`, and `DisclosurePackageV1`.
+4. Add a verifier module that accepts only package/request/receipt/policy bytes and proves the verification order above without wallet mutation.
+5. Add a projection module that reads `TxStorage::list_history_rows()`, object inventory rows, and owned asset rows, then emits disclosure DTOs without mutating wallet state.
+6. Add a field-set evaluator that maps each requested field to `Present`, `Redacted`, or `Unavailable`.
+7. Add approval gates that validate requester signature, scope, expiry, purpose, policy id, retention policy, and holder confirmation before any package is generated.
+8. Add the first three profiles: `L0Receipt`, `L1PaymentProof`, and narrow `L4ObjectAudit` over one voucher or right family.
+9. Add encrypted wallet-owned storage for evidence packages and disclosure receipts. This archive MUST be non-authoritative for normal wallet reopen.
+10. Add export support through a versioned `WalletExportPack` extension or manifest reference only after import, restore, and loss behavior are tested.
+11. Add RPC endpoints only after the local projection, receipt, and verifier paths are tested. RPC MUST expose generated disclosure packages, not raw `.wlt` rows or raw tx-history JSONL.
+12. Add simulator or integration coverage for one successful payment proof, one successful object audit, one expired request rejection, and one over-disclosure rejection.
+
+#### Suggested Module Layout
+
+The implementation SHOULD prefer a dedicated wallet disclosure module instead of spreading policy logic through existing tx and object RPC files:
+
+```text
+crates/z00z_wallets/src/disclosure/
+  mod.rs
+  types.rs
+  field_set.rs
+  scope.rs
+  capability.rs
+  projection.rs
+  verifier.rs
+  receipt.rs
+  proof.rs
+  archive.rs
+  policy.rs
+```
+
+RPC wiring SHOULD stay transport-shaped:
+
+```text
+crates/z00z_wallets/src/rpc/disclosure_types.rs
+crates/z00z_wallets/src/rpc/disclosure_rpc.rs
+crates/z00z_wallets/src/rpc/disclosure_rpc_impl.rs
+```
+
+The stable public facade SHOULD expose only the approved DTOs and service methods. Internal projection helpers MUST remain crate-private until their invariants and tests are stable.
+
+#### Disclosure Gates
+
+- A disclosure request MUST fail closed if its scope is empty, unbounded, expired, signed by the wrong requester, references an unknown profile, or requests fields outside the profile.
+- A disclosure request MUST fail closed if it asks for full wallet history, all object inventory, all future transactions, seed phrases, spend keys, receiver secrets, blindings, memo plaintext, session tokens, or encrypted payload internals.
+- A disclosure package MUST include an explicit field-set commitment and source manifest hash.
+- A disclosure receipt MUST record purpose, field set, scope, policy id, retention id, requester commitment, expiry, holder authorization, and package hash.
+- A disclosure verifier MUST reject non-canonical bytes, unknown fields, duplicate source refs, incomplete scoped manifests, undeclared fields, stale signatures, and any package where decryption succeeds but authorization or proof verification fails.
+- Every redacted field MUST remain represented as `WalletReveal::Redacted`, not dropped.
+- Every missing source MUST remain represented as `WalletReveal::Unavailable`, not converted into `Redacted`.
+- Evidence package loss MUST NOT change wallet balance, object inventory, tx history, scan cursor, or package verification behavior.
+- Export/import MUST preserve disclosure receipts only when the manifest explicitly includes the disclosure archive extension.
+
+#### Required Tests
+
+- `test_l0_hides_inventory`
+- `test_l1_named_tx_only`
+- `test_l4_hides_unrelated_rights`
+- `test_reveal_state_distinct`
+- `test_expired_request_rejects`
+- `test_unknown_field_rejects`
+- `test_overbroad_scope_rejects`
+- `test_receipt_binds_scope`
+- `test_package_binds_tx_row`
+- `test_package_binds_object`
+- `test_archive_loss_reopens`
+- `test_export_requires_manifest`
+- `test_extra_field_rejects`
+- `test_reveal_tamper_rejects`
+- `test_manifest_drift_rejects`
+- `test_incomplete_scope_rejects`
+- `test_scope_signature_rejects`
+- `test_encryption_not_auth`
+- `test_leak_budget_enforced`
+- `test_hidden_fields_bound`
 
 ## 9. Workstream 080-D: Wallet Policy Mode
 
@@ -377,6 +606,7 @@ RemoteScanEvidenceV1:
 - **080-E-004**: Preserve existing strict chunk validation: non-empty hashes, strictly increasing heights, contiguous chunks, and resume hints that cannot rewind or set local cursor from origin.
 - **080-E-005**: Ensure worker evidence can only feed `recv_range_authoritative(...)`.
 - **080-E-006**: Add worker provenance fields for accountability, but do not make worker identity a settlement authority.
+- **080-E-007**: Add helper-facing metadata leakage tests for remote worker, fallback scan, and future OnionNet selection fields. These tests MUST prove helper metadata is advisory, local/mock/test labeled, and not a live transport anonymity claim.
 
 ### 10.4 Acceptance Criteria
 
@@ -384,6 +614,7 @@ RemoteScanEvidenceV1:
 - **AC-080-E-002**: A worker resume hint cannot advance, rewind, or overwrite local cursor authority by itself.
 - **AC-080-E-003**: Rejected worker evidence records `worker_evidence_rejected` in receive outcome/reporting.
 - **AC-080-E-004**: Local scanning still derives ownership from wallet receiver keys and `StealthOutputScanner`.
+- **AC-080-E-005**: Helper-facing metadata tests prove no live OnionNet route, packet, replay-ledger, or mix semantics are claimed by Phase 080 wallet code.
 
 ## 11. Workstream 080-F: Package Build Transcripts
 
@@ -611,6 +842,9 @@ The following ideas are not Phase 080 implementation tasks:
 | New `StakeLeaf`, `EscrowLeaf`, `ReserveLeaf`, or similar leaf families | Use `RightLeaf` profiles and policy descriptors first. |
 | Bulk storage/backend/runtime rename wave | The relevant runtime/storage guardrails are carried in Workstream 080-J. Broad rename-only cleanup is not required for wallet extensions. |
 | New `rocksdb` adapter or stub | Add only when a real adapter and tests exist. Do not create placeholder backend surface in Phase 080. |
+| 085 product verticals such as payroll, B2B, useful-work, machine charging, relay, compute, agent tool purchase, escrow, and payout | Real product coverage gaps, but not Phase 080 baseline gates. Phase 080 may expose action recipes and policy mode, but it MUST NOT claim those verticals are implemented unless dedicated fixtures, wallet tests, storage tests, and simulator scenarios exist. |
+| Linked-liability fraud-proof, penalty, lock/slash, and hidden liability enforcement pipeline | Real Phase 075/domain work, not a wallet-extension closure gate. Phase 080 disclosure MUST avoid leaking hidden liabilities and MUST NOT invent liability authority. |
+| Live OnionNet route building, packet mixing, overlay replay ledger, or transport anonymity | Phase 080 may test helper metadata boundaries only. Live OnionNet semantics belong to the later OnionNet phase. |
 
 ## 17. Module Placement
 
@@ -726,6 +960,8 @@ Phase 080 is complete only when:
 - remote scan proof hints are typed and bound to returned chunks;
 - wallet policy mode can fail closed on unknown or missing object policies;
 - scoped disclosure can produce a receipt and bounded proof without wallet-history export;
+- selective audit/disclosure has one accepted package, one over-disclosure rejection, explicit hidden-field proof, and a leakage-budget test;
+- helper-facing metadata and future OnionNet selection fields are tested as advisory/local/mock boundaries, not live transport anonymity;
 - `ValidatorMandate` locks are canonical rights, not soft UI locks;
 - compaction preserves reopen, export, restore, spendable set, and scan cursor;
 - action recipes expose simple user actions without hiding critical external trust boundaries;
@@ -758,3 +994,20 @@ The recommendations above were doublechecked against live repository surfaces be
 - backend seam, redb backend lane, memory backend lane, runtime batch planner, placement table, shard executor, validator facade, watcher facade, and rollup runtime composition already exist, so Phase 080 carries their guardrails rather than re-running their migration map;
 - the path-level rename and move table was audited against live files; it has no remaining mandatory Phase 080 rename task, and remaining open rows are deferred backend work, superseded names, or rename-only cleanup;
 - `PrivacyReport`, `DisclosureReceipt`, `AuditViewRequest`, `AuditViewProof`, `EvidencePackage`, and `WalletPolicyMode` are not live Rust/API types yet; related disclosure/evidence labels in genesis configuration still need wallet implementation.
+
+## 23. `todo-gaps.md` Triage
+
+Source: `.planning/phases/080-Gaps/todo-gaps.md`. The file is titled as an `085 Cross-Crate Test Matrix` gap list and says those gaps must close inside phases 067-075. Phase 080 MUST NOT absorb unrelated 085 backlog unless the gap directly affects wallet-extension authority, scoped disclosure, remote helper evidence, or privacy claims.
+
+| Gap | Phase 080 classification | Required Phase 080 treatment |
+| --- | --- | --- |
+| `GAP-085-001` cross-crate scenario dependency ledger | Real cross-crate test gap; not a Phase 080 blocker. | If Phase 080 adds simulator scenarios, they SHOULD cite owner-crate tests or the ledger if it exists. Phase 080 MUST NOT build a separate ledger system. |
+| `GAP-085-002` honest claim-root emission | Real checkpoint/storage gap; outside Phase 080. | Phase 080 MUST consume checkpoint anchors only through verified storage/checkpoint facades and MUST NOT create claim-root aliases. |
+| `GAP-085-003` single checkpoint proof verifier | Real structural hardening gap; outside Phase 080. | Phase 080 MUST NOT implement local checkpoint proof verifier copies. Disclosure and scan evidence must call the checkpoint-owned verifier once available. |
+| `GAP-085-004` request-bound inbox simulator scenarios | Real Phase 071 integration gap; not a Phase 080 blocker. | Phase 080 privacy reports and remote evidence may depend on wallet-local receive authority, but MUST NOT claim RBI simulator closure. |
+| `GAP-085-005` offline bundle and handoff graph | Real Phase 072 gap; outside Phase 080. | Phase 080 package transcripts may annotate existing `TxPackage` flows only. It MUST NOT implement or imply `OfflineTxBundleV1` finality. |
+| `GAP-085-006` selective audit and disclosure package scenario | Real Phase 080 blocker because Workstream 080-C owns scoped disclosure and evidence. | Close through `080-C-007`, `080-C-008`, `AC-080-C-005`, `AC-080-C-006`, verifier order, leakage budget tests, and over-disclosure rejection. |
+| `GAP-085-007` payroll, B2B, useful-work verticals | Real product coverage gap; nice-to-have for Phase 080. | Keep out of Phase 080 acceptance. Action recipes may expose generic `Pay`, `Claim`, `Use`, `Delegate`, and `Prove` only. |
+| `GAP-085-008` linked-liability enforcement pipeline | Real Phase 075/domain gap; outside Phase 080. | Phase 080 disclosure MUST NOT leak hidden liabilities or invent fraud-proof, penalty, lock/slash, or liability authority. |
+| `GAP-085-009` agent and machine economic verticals | Real product coverage gap; nice-to-have for Phase 080. | Keep out of Phase 080 acceptance unless dedicated fixtures, wallet tests, storage tests, and simulator scenarios are added. |
+| `GAP-085-010` OnionNet local control-plane reconciliation | Real boundary gap; partial Phase 080 guardrail only. | Close the Phase 080 part through `080-E-007` and `AC-080-E-005`. Live route building, packet mixing, replay-ledger, and overlay semantics remain out of scope. |

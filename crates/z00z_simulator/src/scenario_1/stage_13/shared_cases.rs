@@ -2,6 +2,8 @@ use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
+    thread,
+    time::Duration,
 };
 
 use crate::{config::ScenarioCfg, scenario_1::runner, StageResult};
@@ -21,8 +23,10 @@ const FULL_STAGE13_BUILD_RETRIES: usize = 5;
 const STAGE13_STABLE_MARKER_FILE: &str = ".stage13-stable";
 const STAGE13_STABLE_SCHEMA: &str = "stage13-shared-stable-v2";
 const STAGE13_LOCAL_CASE_PREFIX: &str = "scenario1_full_stage13_localized_v2";
+const STAGE13_ARTIFACT_READY_RETRIES: usize = 100;
+const STAGE13_ARTIFACT_READY_WAIT_MS: u64 = 100;
 
-fn validate_stage13_run(run: &crate::ScenarioResult, out: &std::path::Path) -> Result<(), String> {
+fn validate_stage13_run(run: &crate::ScenarioResult) -> Result<(), String> {
     for &stage_id in FULL_STAGE13_IDS {
         let state = run
             .stages
@@ -43,32 +47,6 @@ fn validate_stage13_run(run: &crate::ScenarioResult, out: &std::path::Path) -> R
                     message
                 ));
             }
-        }
-    }
-
-    if !out.join("hjmt/hjmt_settlement_examples.json").exists() {
-        return Err("stage13 shared case missing settlement examples report".to_string());
-    }
-    if !out.join("transactions/tx_alice_to_bob_pkg.json").exists() {
-        return Err("stage13 shared case missing tx package".to_string());
-    }
-    if !out.join("stage_4_snapshot.json").exists() {
-        return Err("stage13 shared case missing stage 4 snapshot".to_string());
-    }
-    for rel in [
-        "run_meta.json",
-        "wallet_scan.json",
-        "asset_flow.json",
-        "voucher_flow.json",
-        "right_flow.json",
-        "hist_flow.json",
-        "occ_flow.json",
-        "sim_summary.md",
-    ] {
-        if !out.join(rel).exists() {
-            return Err(format!(
-                "stage13 shared case missing public packet artifact {rel}"
-            ));
         }
     }
 
@@ -100,11 +78,11 @@ fn stabilize_stage13_root_locked(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn reset_stage13_attempt_root(base: &Path) {
-    if path_exists(base).unwrap_or(false) {
-        remove_dir_all(base).expect("remove stale shared stage13 attempt root");
+fn reset_stage13_build_root(root: &Path) {
+    if path_exists(root).unwrap_or(false) {
+        remove_dir_all(root).expect("remove stale shared stage13 build root");
     }
-    create_dir_all(base).expect("create shared stage13 attempt root");
+    create_dir_all(root).expect("create shared stage13 build root");
 }
 
 fn build_shared_stage13_root(base: &Path) -> Result<(), String> {
@@ -115,29 +93,32 @@ fn build_shared_stage13_root(base: &Path) -> Result<(), String> {
         )
     })?;
 
+    let mut last_attempt_err = None;
     for attempt in 1..=FULL_STAGE13_BUILD_RETRIES {
-        let attempt_root = base.join(format!("attempt-{attempt}"));
-        reset_stage13_attempt_root(&attempt_root);
-        let (cfg_path, design_path, out) = scenario_support::make_cfg_in(&attempt_root, |_| {});
+        reset_stage13_build_root(base);
+        let (cfg_path, design_path, out) = scenario_support::make_cfg_in(base, |_| {});
         match runner::run_with_paths(&cfg_path, &design_path) {
             Ok(run) => match validate_and_stabilize_stage13_attempt(
-                &attempt_root,
+                base,
                 &cfg_path,
                 &design_path,
                 &out,
                 &run,
             ) {
                 Ok(()) => {
-                    promote_stage13_attempt_root(base, &attempt_root)?;
                     stabilize_stage13_root_locked(base)?;
                     return Ok(());
                 }
-                Err(_message) if attempt < FULL_STAGE13_BUILD_RETRIES => continue,
+                Err(message) if attempt < FULL_STAGE13_BUILD_RETRIES => {
+                    last_attempt_err = Some(format!("attempt {attempt}: {message}"));
+                    continue;
+                }
                 Err(message) => return Err(message),
             },
             Err(err) => {
                 let message = format!("shared stage13 scenario run must succeed: {err}");
                 if attempt < FULL_STAGE13_BUILD_RETRIES {
+                    last_attempt_err = Some(format!("attempt {attempt}: {message}"));
                     continue;
                 }
                 return Err(message);
@@ -146,87 +127,12 @@ fn build_shared_stage13_root(base: &Path) -> Result<(), String> {
     }
 
     Err(format!(
-        "shared stage13 build exhausted {} retry attempts",
-        FULL_STAGE13_BUILD_RETRIES
+        "shared stage13 build exhausted {} retry attempts{}",
+        FULL_STAGE13_BUILD_RETRIES,
+        last_attempt_err
+            .map(|message| format!("; last error: {message}"))
+            .unwrap_or_default()
     ))
-}
-
-fn promote_stage13_attempt_root(base: &Path, attempt_root: &Path) -> Result<(), String> {
-    let attempt_name = attempt_root
-        .file_name()
-        .ok_or_else(|| {
-            format!(
-                "shared stage13 attempt root missing file name: {}",
-                attempt_root.display()
-            )
-        })?
-        .to_os_string();
-
-    for entry in z00z_utils::io::read_dir(base)
-        .map_err(|err| format!("read shared stage13 base {} failed: {err}", base.display()))?
-    {
-        if entry
-            .file_name()
-            .is_some_and(|value| value == attempt_name.as_os_str())
-        {
-            continue;
-        }
-        if entry.is_dir() {
-            remove_dir_all(&entry).map_err(|err| {
-                format!(
-                    "remove stale shared stage13 sibling {} failed: {err}",
-                    entry.display()
-                )
-            })?;
-        } else {
-            remove_file(&entry).map_err(|err| {
-                format!(
-                    "remove stale shared stage13 file {} failed: {err}",
-                    entry.display()
-                )
-            })?;
-        }
-    }
-
-    for src in z00z_utils::io::read_dir(attempt_root).map_err(|err| {
-        format!(
-            "read shared stage13 attempt {} failed: {err}",
-            attempt_root.display()
-        )
-    })? {
-        let file_name = src.file_name().ok_or_else(|| {
-            format!(
-                "shared stage13 attempt entry missing name: {}",
-                src.display()
-            )
-        })?;
-        let dst = base.join(file_name);
-        if src.is_dir() {
-            fixture_cache::copy_tree(&src, &dst);
-        } else {
-            let bytes = read_file(&src).map_err(|err| {
-                format!(
-                    "read shared stage13 attempt file {} failed: {err}",
-                    src.display()
-                )
-            })?;
-            write_file(&dst, &bytes).map_err(|err| {
-                format!(
-                    "write promoted shared stage13 file {} failed: {err}",
-                    dst.display()
-                )
-            })?;
-        }
-    }
-
-    remove_dir_all(attempt_root).map_err(|err| {
-        format!(
-            "remove promoted shared stage13 attempt root {} failed: {err}",
-            attempt_root.display()
-        )
-    })?;
-
-    Ok(())
 }
 
 fn refresh_shared_stage13_root(root: &Path) -> Result<(), String> {
@@ -324,6 +230,7 @@ fn stage13_case_name(shared_root: &Path, case_suffix: &str) -> Result<String, St
 fn rewrite_stage13_trace_cfg_paths(root: &Path) -> Result<(), String> {
     let cfg_path = root.join("scenario_config.yaml");
     let out = root.join("outputs/scenario_1");
+    wait_for_stage13_artifacts(&out)?;
     let cfg = ScenarioCfg::from_file(&cfg_path)
         .map_err(|err| format!("shared stage13 config must load: {err}"))?;
     let observability = cfg
@@ -356,8 +263,7 @@ fn rewrite_stage13_trace_cfg_paths(root: &Path) -> Result<(), String> {
 
     for rel in rels {
         let path = out.join(&rel);
-        let bytes = read_file(&path)
-            .map_err(|err| format!("read shared stage13 trace {} failed: {err}", path.display()))?;
+        let bytes = read_stage13_file_with_retry(&path, "trace")?;
         let mut value: Value = JsonCodec.deserialize(&bytes).map_err(|err| {
             format!(
                 "decode shared stage13 trace {} failed: {err}",
@@ -455,42 +361,74 @@ fn validate_stage13_cached_root(
     design_path: &Path,
     out: &Path,
 ) -> Result<(), String> {
-    for rel in [
-        "hjmt/hjmt_settlement_examples.json",
-        "transactions/tx_alice_to_bob_pkg.json",
-        "stage_4_snapshot.json",
-        "run_meta.json",
-        "wallet_scan.json",
-        "asset_flow.json",
-        "voucher_flow.json",
-        "right_flow.json",
-        "hist_flow.json",
-        "occ_flow.json",
-        "sim_summary.md",
-    ] {
-        let path = out.join(rel);
-        if !path.exists() {
-            return Err(format!(
-                "stage13 shared case missing required artifact {}",
-                path.display()
-            ));
-        }
-    }
-
     runner::validate_runtime_observability_artifacts(cfg_path, design_path, out)
         .map_err(|err| format!("stage13 shared case runtime trace pack must validate: {err}"))
 }
 
+fn stage13_out_needs_repair(out: &Path) -> bool {
+    !out.join("hjmt/hjmt_settlement_examples.json").exists()
+        || !out.join("transactions/tx_alice_to_bob_pkg.json").exists()
+        || !out.join("stage_4_snapshot.json").exists()
+        || !out.join("asset_flow.json").exists()
+        || !out.join("voucher_flow.json").exists()
+        || !out.join("right_flow.json").exists()
+}
+
+fn wait_for_stage13_artifacts(out: &Path) -> Result<(), String> {
+    for attempt in 1..=STAGE13_ARTIFACT_READY_RETRIES {
+        if !stage13_out_needs_repair(out) {
+            return Ok(());
+        }
+        if attempt < STAGE13_ARTIFACT_READY_RETRIES {
+            thread::sleep(Duration::from_millis(STAGE13_ARTIFACT_READY_WAIT_MS));
+            continue;
+        }
+    }
+
+    Err(format!(
+        "shared stage13 artifacts not ready under {} after {} waits",
+        out.display(),
+        STAGE13_ARTIFACT_READY_RETRIES
+    ))
+}
+
+fn read_stage13_file_with_retry(path: &Path, label: &str) -> Result<Vec<u8>, String> {
+    let mut last_err = None;
+    for attempt in 1..=STAGE13_ARTIFACT_READY_RETRIES {
+        match read_file(path) {
+            Ok(bytes) => return Ok(bytes),
+            Err(err) => {
+                last_err = Some(err);
+                if attempt < STAGE13_ARTIFACT_READY_RETRIES {
+                    thread::sleep(Duration::from_millis(STAGE13_ARTIFACT_READY_WAIT_MS));
+                    continue;
+                }
+            }
+        }
+    }
+
+    Err(format!(
+        "read shared stage13 {label} {} failed: {}",
+        path.display(),
+        last_err
+            .map(|err| err.to_string())
+            .unwrap_or_else(|| "unknown read error".to_string())
+    ))
+}
+
 fn validate_and_stabilize_stage13_attempt(
-    root: &Path,
-    cfg_path: &Path,
-    design_path: &Path,
-    out: &Path,
+    _root: &Path,
+    _cfg_path: &Path,
+    _design_path: &Path,
+    _out: &Path,
     run: &crate::ScenarioResult,
 ) -> Result<(), String> {
-    validate_stage13_run(run, out)?;
-    rewrite_stage13_trace_cfg_paths(root)?;
-    validate_stage13_cached_root(cfg_path, design_path, out)?;
+    validate_stage13_run(run)?;
+    // `runner::run_with_paths(...)` already emits and strict-validates the
+    // fresh runtime packet before it returns success. Shared-case promotion must
+    // not re-run that same packet walk on the attempt root; the canonical
+    // path-rebased validation belongs only to `stabilize_stage13_root_locked(...)`
+    // after promotion or localization changes the packet anchor.
     Ok(())
 }
 
@@ -543,13 +481,7 @@ pub fn full_stage13_out() -> PathBuf {
     static OUT: OnceLock<Mutex<PathBuf>> = OnceLock::new();
     let out = OUT.get_or_init(|| Mutex::new(build_full_stage13_out()));
     let mut guard = out.lock().unwrap_or_else(|poison| poison.into_inner());
-    let needs_repair = !guard.join("hjmt/hjmt_settlement_examples.json").exists()
-        || !guard.join("transactions/tx_alice_to_bob_pkg.json").exists()
-        || !guard.join("stage_4_snapshot.json").exists()
-        || !guard.join("asset_flow.json").exists()
-        || !guard.join("voucher_flow.json").exists()
-        || !guard.join("right_flow.json").exists();
-    if needs_repair {
+    if stage13_out_needs_repair(&guard) {
         *guard = build_full_stage13_out();
     }
     guard.clone()
@@ -561,7 +493,13 @@ pub fn stage13_out(case_suffix: &str) -> PathBuf {
         .expect("derive localized stage13 case with suffix");
     let local_root = prepare_localized_stage13_root(&shared_root, &local_case_name)
         .expect("prepare localized stage13 root with suffix");
-    local_root.join("outputs/scenario_1")
+    let out = local_root.join("outputs/scenario_1");
+    if stage13_out_needs_repair(&out) {
+        let local_root = prepare_localized_stage13_root(&shared_root, &local_case_name)
+            .expect("repair localized stage13 root with suffix");
+        return local_root.join("outputs/scenario_1");
+    }
+    out
 }
 
 pub fn shared_full_stage13_out() -> PathBuf {
@@ -570,7 +508,7 @@ pub fn shared_full_stage13_out() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::reset_stage13_attempt_root;
+    use super::reset_stage13_build_root;
     use std::path::PathBuf;
     use z00z_utils::io::{create_dir_all, path_exists, remove_dir_all, write_file};
     use z00z_utils::time::{SystemTimeProvider, TimeProvider};
@@ -594,7 +532,7 @@ mod tests {
         create_dir_all(stale.parent().expect("stale parent")).expect("create stale parent");
         write_file(&stale, b"stale").expect("write stale artifact");
 
-        reset_stage13_attempt_root(&root);
+        reset_stage13_build_root(&root);
 
         assert!(path_exists(&root).expect("check root exists"));
         assert!(

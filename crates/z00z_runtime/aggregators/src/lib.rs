@@ -44,11 +44,10 @@ pub use dist_dispatch::{
 pub use dist_scheduler::{BatchWave, DistScheduler, ScheduledBatch, SchedulerWave};
 pub use dist_sim::{DistNode, DistSim, FrameStage, FrameVerdict, JournalFrame};
 pub use evidence::{
-    ArtifactKind, ArtifactRef, EvidenceKind, EvidenceRecord, EquivocationEvidence,
-    MissingBlobEvidence, PayloadWithholdingEvidence, SplitBrainEvidence,
-    StaleMemberEvidence, TransportFaultEvidence, TransportFaultEvidenceKind,
-    VoteArtifactRef, VoteEvidence, VoteEvidenceKind, VoteEvidenceTracker,
-    WrongRootEvidence, WrongRouteDigestEvidence,
+    ArtifactKind, ArtifactRef, EquivocationEvidence, EvidenceKind, EvidenceRecord,
+    MissingBlobEvidence, PayloadWithholdingEvidence, SplitBrainEvidence, StaleMemberEvidence,
+    TransportFaultEvidence, TransportFaultEvidenceKind, VoteArtifactRef, VoteEvidence,
+    VoteEvidenceKind, VoteEvidenceTracker, WrongRootEvidence, WrongRouteDigestEvidence,
 };
 pub use hotstuff_local::{
     HotstuffCommit, HotstuffLeaderConflict, HotstuffLocal, HotstuffProposal, HotstuffQc,
@@ -88,7 +87,8 @@ pub use transport::{
 };
 pub use types::{
     BatchId, BatchPlanned, BatchRoute, IntakeId, ObjectWitnessBundleV1, OrderedBatch, PlanDigest,
-    PlannerMode, PublicationBinding, PublicationRecord, PublicationRequest, PublicationState,
-    PublishedBatch, RejectClass, RejectRecord, RightWitnessRefV1, RightWitnessStateV1,
-    RuntimeObjectPackageV1, ShardId, SoftConfirmation, WorkItem, WorkPayload,
+    PlannerMode, PublicationBinding, PublicationReadinessErr, PublicationRecord,
+    PublicationRequest, PublicationState, PublishedBatch, RejectClass, RejectRecord,
+    RightWitnessRefV1, RightWitnessStateV1, RuntimeObjectPackageV1, ShardId, SoftConfirmation,
+    WorkItem, WorkPayload,
 };

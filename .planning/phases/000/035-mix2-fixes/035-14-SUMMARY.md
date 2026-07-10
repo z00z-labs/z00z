@@ -36,8 +36,8 @@ or debug evidence flows instead of a general public convenience method.
   `ReceiverSecret` from debug artifact bytes and explicitly declares the
   `wallet_debug_dump` prerequisite.
 - `.planning/STATE.md` now advances continuity to `035-15-PLAN.md`.
-- `.github/memory-bank/activeContext.md` and `.github/memory-bank/progress.md`
-  now reflect the verified Phase 035 baseline through Plan 14.
+- The verified Phase 035 baseline through Plan 14 remains recorded in the
+  planning continuity artifacts and closeout evidence chain.
 
 ## Validation
 

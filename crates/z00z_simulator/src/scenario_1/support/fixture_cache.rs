@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use super::path_roots::{normalize_path, resolve_workspace_path, workspace_root};
 use z00z_utils::io::{
     create_dir_all, current_exe_run_root, prune_scope_alias_dirs, read_dir, read_link,
     read_to_string, remove_dir_all, remove_file, rename_file, stable_current_exe_scope, write_file,
@@ -139,37 +140,23 @@ impl Drop for CaseLockGuard {
 }
 
 pub fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-fn normalize_path(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                normalized.pop();
-            }
-            other => normalized.push(other.as_os_str()),
-        }
-    }
-    normalized
+    workspace_root()
 }
 
 fn runtime_cache_root_base() -> Option<PathBuf> {
     std::env::var_os(RUNTIME_CWD_ROOT_ENV)
         .map(PathBuf::from)
-        .map(|root| root.join("cache"))
+        .map(|root| resolve_workspace_path(&root).join("cache"))
         .or_else(|| {
             std::env::var_os(VERIFICATION_RUN_ROOT_ENV)
                 .map(PathBuf::from)
-                .map(|root| root.join("cache"))
+                .map(|root| resolve_workspace_path(&root).join("cache"))
         })
-        .or_else(|| current_exe_run_root().map(|root| root.join("cache")))
+        .or_else(|| current_exe_run_root().map(|root| resolve_workspace_path(&root).join("cache")))
         .or_else(|| {
             std::env::var_os(CARGO_TARGET_DIR_ENV)
                 .map(PathBuf::from)
-                .map(|target| target.join("z00z-simulator-cache"))
+                .map(|target| resolve_workspace_path(&target).join("z00z-simulator-cache"))
         })
 }
 
@@ -179,13 +166,15 @@ fn cache_root_override() -> Option<PathBuf> {
 
 #[doc(hidden)]
 pub fn override_cache_root_for_thread(path: &Path) -> CacheRootOverrideGuard {
-    let prev = CACHE_ROOT_OVERRIDE.with(|slot| slot.replace(Some(path.to_path_buf())));
+    let prev = CACHE_ROOT_OVERRIDE.with(|slot| slot.replace(Some(resolve_workspace_path(path))));
     CacheRootOverrideGuard { prev }
 }
 
 pub fn scenario_cache_root() -> PathBuf {
     cache_root_override()
+        .map(resolve_workspace_path)
         .or_else(|| std::env::var_os(SCENARIO_CACHE_ROOT_ENV).map(PathBuf::from))
+        .map(resolve_workspace_path)
         .or_else(|| runtime_cache_root_base().map(|root| root.join("scenario_1")))
         .unwrap_or_else(|| repo_root().join(".cache").join("scenario_1"))
 }

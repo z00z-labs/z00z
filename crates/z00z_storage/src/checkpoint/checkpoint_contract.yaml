@@ -72,6 +72,38 @@ authority_promotion:
   allowed_next_stages:
     - config_gate
 
+verified_backend:
+  proof_object: VerifiedCheckpointProofV1
+  verifier_api: VerifiedCheckpointVerifierV1
+  codec_support: VerifiedCheckpointArtifactV1
+  adapter_trait: VerifiedCheckpointBackendAdapterV1
+  chain_evidence:
+    object: RecursiveCheckpointChainEvidenceV1
+    min_steps: 3
+    max_steps: 5
+    requires_prior_output_binding: true
+  negative_tests:
+    - wrong_root
+    - wrong_delta
+    - wrong_witness
+    - wrong_proof
+    - wrong_link
+    - unsupported_backend
+    - mixed_era
+  benchmarks:
+    - proof_size
+    - prover_time
+    - verifier_time
+    - memory
+    - witness_size
+  rollback:
+    procedure: disable_verified_backend_without_statement_change
+    preserves_statement: true
+  security_review:
+    status: pending
+    requires_third_party_equivalent: true
+  statement_stability: CheckpointTransitionStatementV1
+
 gates:
   inputs:
     has_statement_fields: true
@@ -199,6 +231,9 @@ paths:
   plonky3_epoch_proofs: artifacts/checkpoints/plonky3_epoch
   epoch_manifests: artifacts/checkpoints/epoch_manifest
   archive_manifests: artifacts/checkpoints/archive_manifest
+  da_references: artifacts/checkpoints/da_reference
+  publication_evidence: artifacts/checkpoints/publication_evidence
+  checkpoint_lifecycles: artifacts/checkpoints/lifecycle
   state_snapshots: artifacts/checkpoints/state_snapshot
   retrieval_audits: artifacts/checkpoints/retrieval_audit
   archive_receipts: artifacts/checkpoints/archive_receipt

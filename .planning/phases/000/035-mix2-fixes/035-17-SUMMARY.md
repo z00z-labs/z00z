@@ -46,8 +46,8 @@ mirror or declaration rewrite claims begin.
   `crates/z00z_wallets/src/adapters/rpc/methods/tx_impl_tests.rs` now point at
   the new Wave A filenames on the approved mirror rows that belong inside this
   plan.
-- `.planning/STATE.md`, `.planning/ROADMAP.md`, and the memory-bank continuity
-  files now advance the next active handoff to `035-18-PLAN.md`.
+- `.planning/STATE.md` and `.planning/ROADMAP.md` now advance the next active
+  handoff to `035-18-PLAN.md`.
 
 ## Validation
 

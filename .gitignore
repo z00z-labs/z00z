@@ -66,6 +66,7 @@ z00z-*.tar.gz
 /graphify-out/
 crates/graphify-out/
 crates/.graphify-out/
+.planning
 .planning/graphs
 .codex/
 .bg-shell/

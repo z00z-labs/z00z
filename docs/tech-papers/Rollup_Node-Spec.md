@@ -1384,7 +1384,7 @@ The challenge flow MUST follow this order:
 | `CheckpointArtifact` | `z00z_storage::checkpoint` | Canonical finalized checkpoint evidence. |
 | `CheckpointDraft` | `z00z_storage::checkpoint` | Draft transition before proof/finalization. |
 | `CheckpointProof` | `z00z_storage::checkpoint` | Proof artifact for checkpoint finalization. |
-| `CheckpointStatement` / `CheckpointStmt` | `z00z_storage::checkpoint` | Statement truth and digest binding. |
+| `CheckpointStatement` / `CheckpointTransitionStatementV1` | `z00z_storage::checkpoint` | Statement truth and digest binding. |
 | `CheckpointExecInput` | `z00z_storage::checkpoint` | Replay/input evidence and prep snapshot binding. |
 | `CheckpointLink` | `z00z_storage::checkpoint` | Chain/linkage evidence. |
 | `CheckpointArchiveManifestV1` | `z00z_storage::checkpoint` | Storage-owned archive manifest. |

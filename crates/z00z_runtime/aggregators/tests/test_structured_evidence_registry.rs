@@ -5,7 +5,7 @@ mod test_recovery_common;
 
 use z00z_aggregators::{
     bind_publication_contract, membership_digest_for_voters, AggregatorId, ArtifactKind,
-    BatchPlanner, BatchRoute, EvidenceKind, EvidenceRecord, EquivocationEvidence,
+    BatchPlanner, BatchRoute, EquivocationEvidence, EvidenceKind, EvidenceRecord,
     MissingBlobEvidence, PayloadWithholdingEvidence, RouteRangeRule, SecondaryState, ShardId,
     ShardRouteTable, ShardVote, ShardVoteKind, ShardVoteRole, SplitBrainEvidence,
     StaleMemberEvidence, TransportFaultEvidence, TransportFaultEvidenceKind, VoteTransportEnvelope,
@@ -55,71 +55,86 @@ fn test_structured_evidence_registry_covers_gate14() -> Result<(), Box<dyn std::
             EquivocationEvidence::new(first_vote, second_vote)
                 .expect("equivocation evidence fixture"),
         ),
-        EvidenceRecord::PayloadWithholding(PayloadWithholdingEvidence::new(
-            fixture.secondary.aggregator_id,
-            fixture.primary,
-            fixture.subject.shard_id,
-            fixture.subject.term,
-            fixture.subject.membership_digest,
-            fixture.subject.digest(),
-            fixture.subject.payload_digest,
-            "payload missing before replay",
-        )
-        .expect("payload withholding fixture")),
-        EvidenceRecord::MissingBlob(MissingBlobEvidence::new(
-            fixture.secondary.aggregator_id,
-            fixture.subject.shard_id,
-            fixture.subject.term,
-            fixture.subject.membership_digest,
-            fixture.subject.digest(),
-            [0x11; 8],
-            [0x22; 32],
-            [0x33; 32],
-            "blob bytes were unavailable during resolution",
-        )
-        .expect("missing blob fixture")),
-        EvidenceRecord::WrongRoot(WrongRootEvidence::new(
-            fixture.secondary.aggregator_id,
-            fixture.subject.shard_id,
-            fixture.subject.term,
-            fixture.subject.digest(),
-            [0x44; 32],
-            [0x55; 32],
-            "wrong root drifted from replayed execution",
-        )
-        .expect("wrong root fixture")),
-        EvidenceRecord::WrongRouteDigest(WrongRouteDigestEvidence::new(
-            fixture.secondary.aggregator_id,
-            fixture.subject.shard_id,
-            fixture.subject.term,
-            fixture.subject.digest(),
-            [0x66; 32],
-            [0x77; 32],
-            "wrong route digest drifted from the live table",
-        )
-        .expect("wrong route fixture")),
-        EvidenceRecord::StaleMember(StaleMemberEvidence::new(
-            fixture.secondary.aggregator_id,
-            fixture.subject.shard_id,
-            fixture.subject.term,
-            fixture.subject.membership_digest,
-            [0x88; 32],
-            "stale member replay drifted from the live membership",
-        )
-        .expect("stale member fixture")),
-        EvidenceRecord::SplitBrain(SplitBrainEvidence::new(
-            fixture.primary,
-            fixture.subject.shard_id,
-            fixture.subject.term,
-            fixture.subject.membership_digest,
-            fixture.subject.digest(),
-            conflicting_subject.digest(),
-            "same-term divergent root froze the committee",
-        )
-        .expect("split brain fixture")),
+        EvidenceRecord::PayloadWithholding(
+            PayloadWithholdingEvidence::new(
+                fixture.secondary.aggregator_id,
+                fixture.primary,
+                fixture.subject.shard_id,
+                fixture.subject.term,
+                fixture.subject.membership_digest,
+                fixture.subject.digest(),
+                fixture.subject.payload_digest,
+                "payload missing before replay",
+            )
+            .expect("payload withholding fixture"),
+        ),
+        EvidenceRecord::MissingBlob(
+            MissingBlobEvidence::new(
+                fixture.secondary.aggregator_id,
+                fixture.subject.shard_id,
+                fixture.subject.term,
+                fixture.subject.membership_digest,
+                fixture.subject.digest(),
+                [0x11; 8],
+                [0x22; 32],
+                [0x33; 32],
+                "blob bytes were unavailable during resolution",
+            )
+            .expect("missing blob fixture"),
+        ),
+        EvidenceRecord::WrongRoot(
+            WrongRootEvidence::new(
+                fixture.secondary.aggregator_id,
+                fixture.subject.shard_id,
+                fixture.subject.term,
+                fixture.subject.digest(),
+                [0x44; 32],
+                [0x55; 32],
+                "wrong root drifted from replayed execution",
+            )
+            .expect("wrong root fixture"),
+        ),
+        EvidenceRecord::WrongRouteDigest(
+            WrongRouteDigestEvidence::new(
+                fixture.secondary.aggregator_id,
+                fixture.subject.shard_id,
+                fixture.subject.term,
+                fixture.subject.digest(),
+                [0x66; 32],
+                [0x77; 32],
+                "wrong route digest drifted from the live table",
+            )
+            .expect("wrong route fixture"),
+        ),
+        EvidenceRecord::StaleMember(
+            StaleMemberEvidence::new(
+                fixture.secondary.aggregator_id,
+                fixture.subject.shard_id,
+                fixture.subject.term,
+                fixture.subject.membership_digest,
+                [0x88; 32],
+                "stale member replay drifted from the live membership",
+            )
+            .expect("stale member fixture"),
+        ),
+        EvidenceRecord::SplitBrain(
+            SplitBrainEvidence::new(
+                fixture.primary,
+                fixture.subject.shard_id,
+                fixture.subject.term,
+                fixture.subject.membership_digest,
+                fixture.subject.digest(),
+                conflicting_subject.digest(),
+                "same-term divergent root froze the committee",
+            )
+            .expect("split brain fixture"),
+        ),
     ];
 
-    let kinds = required.iter().map(|entry| entry.kind()).collect::<Vec<_>>();
+    let kinds = required
+        .iter()
+        .map(|entry| entry.kind())
+        .collect::<Vec<_>>();
     assert!(kinds.contains(&EvidenceKind::Equivocation));
     assert!(kinds.contains(&EvidenceKind::PayloadWithholding));
     assert!(kinds.contains(&EvidenceKind::MissingBlob));
@@ -127,7 +142,9 @@ fn test_structured_evidence_registry_covers_gate14() -> Result<(), Box<dyn std::
     assert!(kinds.contains(&EvidenceKind::WrongRouteDigest));
     assert!(kinds.contains(&EvidenceKind::StaleMember));
     assert!(kinds.contains(&EvidenceKind::SplitBrain));
-    assert!(required.iter().all(|entry| !entry.artifact_refs().is_empty()));
+    assert!(required
+        .iter()
+        .all(|entry| !entry.artifact_refs().is_empty()));
     assert!(required.iter().all(|entry| entry.digest() != [0u8; 32]));
 
     let transport = EvidenceRecord::TransportFault(TransportFaultEvidence::for_envelope(
@@ -195,7 +212,9 @@ fn test_structured_evidence_registry_rejects_malformed_records() {
         "identical membership",
     )
     .expect_err("membership digests must conflict");
-    assert!(stale_member_err.detail.contains("conflicting membership digests"));
+    assert!(stale_member_err
+        .detail
+        .contains("conflicting membership digests"));
 
     let split_brain_err = SplitBrainEvidence::new(
         reporter,
@@ -207,7 +226,9 @@ fn test_structured_evidence_registry_rejects_malformed_records() {
         "same subject twice",
     )
     .expect_err("split brain requires two subjects");
-    assert!(split_brain_err.detail.contains("conflicting subject digests"));
+    assert!(split_brain_err
+        .detail
+        .contains("conflicting subject digests"));
 }
 
 struct EvidenceFixture {
@@ -225,7 +246,10 @@ fn evidence_fixture() -> Result<EvidenceFixture, Box<dyn std::error::Error>> {
     let secondary = SecondaryState::ready(AggregatorId::new(22));
     let companion = SecondaryState::ready(AggregatorId::new(23));
     let batch = planner(route)
-        .make_batch(batch_id("evidence-registry-fixture"), &[tx_item("registry")])
+        .make_batch(
+            batch_id("evidence-registry-fixture"),
+            &[tx_item("registry")],
+        )
         .expect("planned batch");
     let recovery = route_bound_recovery_state(
         0x81,

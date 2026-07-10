@@ -4,7 +4,7 @@ use z00z_storage::{
         check_art_key, check_exec_key, derive_checkpoint_id, derive_draft_id, derive_exec_id,
         encode_art_bin, reject_draft_for_checkpoint_id, CheckpointArtifact, CheckpointDraft,
         CheckpointExecInputId, CheckpointId, CheckpointProof, CheckpointProofSystem,
-        CheckpointStmt, CheckpointVersion, CreatedEnt, SpentEnt,
+        CheckpointTransitionStatementV1, CheckpointVersion, CreatedEnt, SpentEnt,
     },
     settlement::{CheckRoot, SettlementStateRoot},
     snapshot::PrepSnapshotId,
@@ -138,6 +138,39 @@ fn test_proof_sys_art_id() {
 }
 
 #[test]
+fn test_verified_proof_sys_rejects_art_id_and_encode() {
+    let draft = draft();
+    let stmt = CheckpointTransitionStatementV1::from_draft(
+        &draft,
+        PrepSnapshotId::new([7u8; 32]),
+        CheckpointExecInputId::new([8u8; 32]),
+    );
+    let wire = ArtWire {
+        version: CheckpointVersion::CURRENT,
+        height: draft.height(),
+        prev_root: draft.prev_root(),
+        new_root: draft.new_root(),
+        prev_settlement_root: draft.prev_settlement_root(),
+        new_settlement_root: draft.new_settlement_root(),
+        claim_root: draft.claim_root(),
+        spent_delta: draft.spent_delta().to_vec(),
+        created_delta: draft.created_delta().to_vec(),
+        prep_snapshot_id: Some(stmt.prep_snapshot_id()),
+        exec_input_id: Some(stmt.exec_input_id()),
+        proof_sys: CheckpointProofSystem::VERIFIED,
+        cp_proof: stmt.backend_payload(),
+    };
+    let bytes = BincodeCodec.serialize(&wire).expect("encode wire");
+    let bad: CheckpointArtifact = BincodeCodec.deserialize(&bytes).expect("artifact shell");
+
+    let id_err = derive_checkpoint_id(&bad).expect_err("verified proof sys must reject id");
+    let encode_err = encode_art_bin(&bad).expect_err("verified proof sys must reject encode");
+
+    assert!(matches!(id_err, CheckpointError::ProofSysMix));
+    assert!(matches!(encode_err, CheckpointError::ProofSysMix));
+}
+
+#[test]
 fn test_attest_rejects_id_encode() {
     let wire = ArtWire {
         version: CheckpointVersion::CURRENT,
@@ -262,7 +295,7 @@ fn test_separated_ids_differ_payload() {
 #[test]
 fn test_checkpoint_id_proof_bytes() {
     let draft = draft();
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         &draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),

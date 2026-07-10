@@ -105,7 +105,7 @@ pub(super) fn validate_checkpoint_meta(
         crate::checkpoint::decode_link_bin(link_bytes.value()).map_err(helpers::map_check)?;
     if !matches!(
         checkpoint.statement(),
-        crate::checkpoint::CheckpointStatement::CURRENT(_)
+        crate::checkpoint::CheckpointStatement::V1(_)
     ) {
         return Err(StoreBackendError::Tx(
             "checkpoint artifacts missing statement ids cannot carry persisted link metadata"
@@ -147,7 +147,7 @@ pub(super) fn validate_checkpoint_meta(
         crate::checkpoint::CheckpointExecInputId::new(meta.exec_id),
     );
     match checkpoint.statement() {
-        CheckpointStatement::CURRENT(stmt) => {
+        CheckpointStatement::V1(stmt) => {
             if *stmt != expect_stmt {
                 return Err(StoreBackendError::Tx(
                     "checkpoint artifact statement does not match persisted draft boundary"

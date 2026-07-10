@@ -1,5 +1,7 @@
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
 use z00z_simulator::config::{ObjectFlowCaseCfg, ObjectFlowMatrixCfg, ScenarioCfg};
-use z00z_simulator::scenario_1::stage_13::shared_cases;
+use z00z_simulator::scenario_1::{stage_13::shared_cases, support::stage_runner_support};
 use z00z_storage::settlement::{
     DefinitionId, RightAction, RightActionCtx, RightClass, RightErr, RightLeaf, SerialId,
     SettlementPath, TerminalId,
@@ -22,6 +24,22 @@ const REQUIRED_WALLET_LIFECYCLE_CASES: &[&str] = &[
     "invalid_digest",
     "unsupported_package_version",
 ];
+
+struct HjmtE2eGuard {
+    _process_guard: stage_runner_support::ProcessLock,
+    _thread_guard: MutexGuard<'static, ()>,
+}
+
+fn hjmt_e2e_lock() -> HjmtE2eGuard {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    HjmtE2eGuard {
+        _process_guard: stage_runner_support::acquire_process_lock(),
+        _thread_guard: LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()),
+    }
+}
 
 fn live_out(case_suffix: &str) -> std::path::PathBuf {
     shared_cases::stage13_out(case_suffix)
@@ -105,6 +123,7 @@ fn wrong_path() -> SettlementPath {
 
 #[test]
 fn test_e2e_acceptance_homes_live() {
+    let _guard = hjmt_e2e_lock();
     let out_dir = live_out("test_hjmt_e2e_acceptance_homes_live");
     z00z_simulator::scenario_1::runner::validate_runtime_observability_artifacts(
         live_cfg(&out_dir),
@@ -281,6 +300,7 @@ fn test_e2e_acceptance_homes_live() {
 
 #[test]
 fn test_e2e_digest_story_single() {
+    let _guard = hjmt_e2e_lock();
     let out_dir = live_out("test_hjmt_e2e_digest_story_single");
     let leaf_flow = read_json(&out_dir, "leaf_flow.json");
     let proof_flow = read_json(&out_dir, "proof_flow.json");
@@ -348,6 +368,7 @@ fn test_e2e_digest_story_single() {
 
 #[test]
 fn test_rights_business_entitlement_lifecycle_local() {
+    let _guard = hjmt_e2e_lock();
     let out_dir = live_out("test_rights_business_entitlement_lifecycle_local");
     let matrix = object_flow_matrix(&out_dir);
 
@@ -376,6 +397,7 @@ fn test_rights_business_entitlement_lifecycle_local() {
 
 #[test]
 fn test_agentic_right_lifecycle_local() {
+    let _guard = hjmt_e2e_lock();
     let out_dir = live_out("test_agentic_right_lifecycle_local");
     let matrix = object_flow_matrix(&out_dir);
     for id in [
@@ -457,6 +479,7 @@ fn test_agentic_right_lifecycle_local() {
 
 #[test]
 fn test_machine_capability_lifecycle_local() {
+    let _guard = hjmt_e2e_lock();
     let out_dir = live_out("test_machine_capability_lifecycle_local");
     let cfg = ScenarioCfg::from_file(live_cfg(&out_dir)).expect("load localized scenario cfg");
     assert!(cfg

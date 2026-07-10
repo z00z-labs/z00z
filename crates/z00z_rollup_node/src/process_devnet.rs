@@ -1,14 +1,18 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
     path::{Path, PathBuf},
     thread,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use serde::{Deserialize, Serialize};
+use z00z_utils::{
+    codec::{Codec, JsonCodec},
+    config::{ConfigSource, EnvConfig},
+    io,
+    time::{SystemTimeProvider, TimeProvider},
+};
 
 use crate::{AggLaunch, AggProc};
 
@@ -292,8 +296,10 @@ fn run_process_devnet(
 }
 
 fn env_value(name: &str) -> Option<String> {
-    std::env::var(name)
+    EnvConfig
+        .get(name)
         .ok()
+        .flatten()
         .filter(|value| !value.trim().is_empty())
 }
 
@@ -311,7 +317,7 @@ fn parse_env_u64(name: &str, default: u64) -> Result<u64, String> {
 }
 
 fn create_dir(path: &Path) -> Result<(), String> {
-    fs::create_dir_all(path).map_err(|err| format!("failed to create {}: {err}", path.display()))
+    io::create_dir_all(path).map_err(|err| format!("failed to create {}: {err}", path.display()))
 }
 
 fn create_parent(path: &Path) -> Result<(), String> {
@@ -323,18 +329,14 @@ fn create_parent(path: &Path) -> Result<(), String> {
 
 fn save_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
     create_parent(path)?;
-    let bytes = serde_json::to_vec_pretty(value)
-        .map_err(|err| format!("failed to serialize {}: {err}", path.display()))?;
-    fs::write(path, bytes).map_err(|err| format!("failed to write {}: {err}", path.display()))
+    io::save_json(path, value).map_err(|err| format!("failed to write {}: {err}", path.display()))
 }
 
 fn load_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<T>, String> {
     if !path.is_file() {
         return Ok(None);
     }
-    let bytes =
-        fs::read(path).map_err(|err| format!("failed to read {}: {err}", path.display()))?;
-    serde_json::from_slice(&bytes)
+    io::load_json(path)
         .map(Some)
         .map_err(|err| format!("failed to decode {}: {err}", path.display()))
 }
@@ -368,37 +370,39 @@ fn append_event(
     detail: String,
 ) -> Result<(), String> {
     create_parent(path)?;
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|err| format!("failed to open {}: {err}", path.display()))?;
-    let line = serde_json::to_string(&HjmtProcessEvent {
-        run_id: run_id.to_string(),
-        aggregator_id,
-        pid,
-        boot_count,
-        event: event.to_string(),
-        observed_unix_ms: unix_ms()?,
-        detail,
-    })
-    .map_err(|err| format!("failed to serialize {}: {err}", path.display()))?;
-    writeln!(file, "{line}").map_err(|err| format!("failed to append {}: {err}", path.display()))
+    let line = JsonCodec
+        .serialize(&HjmtProcessEvent {
+            run_id: run_id.to_string(),
+            aggregator_id,
+            pid,
+            boot_count,
+            event: event.to_string(),
+            observed_unix_ms: unix_ms()?,
+            detail,
+        })
+        .map_err(|err| format!("failed to serialize {}: {err}", path.display()))?;
+    append_bytes(path, &line)
 }
 
 fn append_log_line(path: &Path, line: &str) -> Result<(), String> {
     create_parent(path)?;
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|err| format!("failed to open {}: {err}", path.display()))?;
-    writeln!(file, "{line}").map_err(|err| format!("failed to append {}: {err}", path.display()))
+    append_bytes(path, line.as_bytes())
+}
+
+fn append_bytes(path: &Path, line: &[u8]) -> Result<(), String> {
+    let mut existing = if path.is_file() {
+        io::read_file(path).map_err(|err| format!("failed to read {}: {err}", path.display()))?
+    } else {
+        Vec::new()
+    };
+    existing.extend_from_slice(line);
+    existing.push(b'\n');
+    io::write_file(path, &existing)
+        .map_err(|err| format!("failed to append {}: {err}", path.display()))
 }
 
 fn unix_ms() -> Result<u64, String> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
+    SystemTimeProvider
+        .try_unix_timestamp_ms()
         .map_err(|err| format!("system clock drifted before unix epoch: {err}"))
 }

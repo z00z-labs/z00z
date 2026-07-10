@@ -37,11 +37,11 @@ fn only_bin(dir: &Path) -> PathBuf {
 }
 
 fn draft_file(out: &Path) -> PathBuf {
-    only_bin(&out.join("transactions/checkpoint/draft"))
+    only_bin(&out.join("transactions/artifacts/checkpoints/draft"))
 }
 
 fn exec_file(out: &Path) -> PathBuf {
-    only_bin(&out.join("transactions/checkpoint/exec_input"))
+    only_bin(&out.join("transactions/artifacts/checkpoints/exec_input"))
 }
 
 fn cp_file(out: &Path) -> PathBuf {
@@ -85,7 +85,8 @@ fn test_stage6_writes_exec_input() {
     assert!(exec_file(out).exists(), "exec_input file must exist");
     assert!(bridge_file(out).exists(), "bridge file must exist");
     assert!(
-        !out.join("transactions/checkpoint/draft").exists(),
+        !out.join("transactions/artifacts/checkpoints/draft")
+            .exists(),
         "stage6 bridge must not write draft output on its own"
     );
 }
@@ -127,19 +128,22 @@ fn test_stage6_keeps_surfaces_off() {
     assert!(draft_file(out).exists(), "draft file must exist");
     assert!(exec_file(out).exists(), "exec_input file must exist");
     assert!(
-        !out.join("transactions/checkpoint/artifact").exists(),
+        !out.join("transactions/artifacts/checkpoints/final")
+            .exists(),
         "draft-only mode must not persist final artifacts"
     );
     assert!(
-        !out.join("transactions/checkpoint/link").exists(),
+        !out.join("transactions/artifacts/checkpoints/links")
+            .exists(),
         "draft-only mode must not persist links"
     );
     assert!(
-        !out.join("transactions/checkpoint/audit").exists(),
+        !out.join("transactions/artifacts/checkpoints/audit")
+            .exists(),
         "draft-only mode must not persist audit files without a checkpoint id"
     );
     assert!(
-        !out.join("storage/post_tx/checkpoint/final_lane.marker")
+        !out.join("storage/post_tx/artifacts/checkpoints/final_lane.marker")
             .exists(),
         "draft-only mode must not publish any final-lane marker"
     );

@@ -2,7 +2,7 @@
 
 use z00z_aggregators::{
     bind_publication_contract, membership_digest_for_voters, BatchRoute, PublicationBinding,
-    RejectClass as AggregatorRejectClass, ShardQuorumCertificate,
+    PublicationReadinessErr, RejectClass as AggregatorRejectClass, ShardQuorumCertificate,
 };
 use z00z_storage::{
     checkpoint::derive_checkpoint_id,
@@ -74,6 +74,7 @@ impl CheckpointFlow {
             ordered_route: batch.ordered.planned.route,
             runtime_route,
         };
+        verify_publication_record(batch)?;
         if batch.quorum_binding_enabled() {
             flow.verify_quorum_binding(batch)?;
         }
@@ -175,4 +176,17 @@ fn map_aggregator_reject(reject: z00z_aggregators::RejectRecord) -> RejectClass 
         }
         AggregatorRejectClass::ParseInvalid => RejectClass::ArtifactVersion,
     }
+}
+
+fn verify_publication_record(batch: &ResolvedBatch) -> Result<(), RejectClass> {
+    let Some(publication) = batch.publication_record() else {
+        return Ok(());
+    };
+    publication
+        .validate_readiness_bundle(batch.published.checkpoint_id)
+        .map_err(map_readiness_reject)
+}
+
+fn map_readiness_reject(_err: PublicationReadinessErr) -> RejectClass {
+    RejectClass::ReconcileInvalid
 }

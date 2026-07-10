@@ -116,6 +116,9 @@ fn capture_rejects_mismatched_publication_batch() {
         batch_id: BatchId::new(CheckpointDraftId::new([0x42; 32])),
         checkpoint_id: None,
         state: PublicationState::HandedOff,
+        da_reference: None,
+        publication_evidence: None,
+        lifecycle: None,
     };
 
     let err = RecoveryBoundary

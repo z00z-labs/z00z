@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use z00z_storage::checkpoint::CheckpointFsStore;
 use z00z_utils::io::path_exists;
 
 use super::super::stage_9::bundle_lane_impl::{
@@ -60,9 +61,8 @@ pub(crate) fn write_step_fallbacks(
 }
 
 fn expect_exec_input(tx_dir: &Path, exec_input_id_hex: &str) -> Result<PathBuf, String> {
-    let path = tx_dir
-        .join("checkpoint")
-        .join("exec_input")
+    let path = CheckpointFsStore::new(tx_dir)
+        .exec_dir()
         .join(format!("{exec_input_id_hex}.bin"));
     if !path_exists(&path).map_err(|e| e.to_string())? {
         return Err(format!("missing exec_input {}", path.display()));

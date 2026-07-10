@@ -18,7 +18,7 @@ fn test_persist_key_mix() {
     let (dir, store) = temp_store();
     let wrong_id = PrepSnapshotId::new([2u8; 32]);
 
-    create_dir_all(dir.path().join("prep_snapshot")).expect("create snapshot dir");
+    create_dir_all(store.snapshot_dir()).expect("create snapshot dir");
     write_file(bin_path(&dir, &wrong_id), &bytes(&snapshot)).expect("write wrong-key snapshot");
 
     let err = store.load_snapshot(&wrong_id).expect_err("key mix");
@@ -44,7 +44,7 @@ fn test_reject_json_wrap() {
     let (dir, store) = temp_store();
     let snap_id = PrepSnapshotId::new([7u8; 32]);
 
-    create_dir_all(dir.path().join("prep_snapshot")).expect("create snapshot dir");
+    create_dir_all(store.snapshot_dir()).expect("create snapshot dir");
     write_file(
         bin_path(&dir, &snap_id),
         br#"{"prev_root_hex":"00","rows":[]}"# as &[u8],

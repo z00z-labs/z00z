@@ -1,8 +1,11 @@
 #![forbid(unsafe_code)]
 
 use z00z_aggregators::{
-    BatchRoute, PublicationBinding, PublicationRecord, PublishedBatch, ShardExecTicket,
-    ShardPlacementView,
+    BatchRoute, PublicationBinding, PublicationReadinessErr, PublicationRecord, PublishedBatch,
+    ShardExecTicket, ShardPlacementView,
+};
+use z00z_storage::checkpoint::{
+    CheckpointDaReferenceV1, CheckpointLifecycleV1, CheckpointPublicationEvidenceV1,
 };
 use z00z_storage::settlement::{check_route_binding_v1, PublicationRouteSnapshotV1};
 use z00z_validators::{Verdict, VerdictKind};
@@ -16,6 +19,7 @@ pub enum PublicationWatchErr {
     BindingMismatch,
     RouteMismatch,
     ExecMismatch,
+    ReadinessMismatch,
 }
 
 impl PublicationWatchErr {
@@ -31,6 +35,9 @@ pub struct PublicationWatch {
     pub publication: PublicationBinding,
     /// Storage-owned route snapshot; watchers do not invent a second route truth.
     pub publication_route: PublicationRouteSnapshotV1,
+    pub da_reference: Option<CheckpointDaReferenceV1>,
+    pub publication_evidence: Option<CheckpointPublicationEvidenceV1>,
+    pub lifecycle: Option<CheckpointLifecycleV1>,
     pub publication_state: z00z_aggregators::PublicationState,
     pub verdict_kind: VerdictKind,
     pub runtime_route: Option<BatchRoute>,
@@ -72,6 +79,9 @@ impl PublicationWatch {
                 return Err(PublicationWatchErr::ExecMismatch);
             }
         }
+        publication
+            .validate_readiness_bundle(published.checkpoint_id)
+            .map_err(map_readiness_err)?;
         let runtime_route = exec_ticket
             .map(|ticket| ticket.placement.route)
             .or_else(|| placement.map(|item| item.route));
@@ -86,9 +96,16 @@ impl PublicationWatch {
         Ok(Self {
             publication: binding.clone(),
             publication_route: published.publication_route.clone(),
+            da_reference: publication.da_reference.clone(),
+            publication_evidence: publication.publication_evidence.clone(),
+            lifecycle: publication.lifecycle.clone(),
             publication_state: publication.state.clone(),
             verdict_kind: verdict.kind.clone(),
             runtime_route,
         })
     }
+}
+
+fn map_readiness_err(_err: PublicationReadinessErr) -> PublicationWatchErr {
+    PublicationWatchErr::ReadinessMismatch
 }

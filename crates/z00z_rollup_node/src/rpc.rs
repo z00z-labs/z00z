@@ -73,6 +73,7 @@ mod tests {
                         reject: Some(ObjectRejectCode::UnknownPolicy),
                     }],
                 }),
+                lifecycle: None,
                 provider_signal: None,
                 observation: None,
             }),

@@ -92,9 +92,16 @@ z00z_runtime/aggregators
 Z00Z-Roadmap-Blueprint.md
 
 acceptance matrix 
+
+unpack.Dockerfile - icon Docker
 -----------------------------------------
 
-RAID-like scenarios | planer | rotation| etc, etc
+067 RAID-like scenarios | planer | rotation| etc, etc
+
+068 **Более жёсткая формулировка “aggregation cannot recover data”.**
+TODO уже говорит proof != storage, но я бы добавил прямой invariant: archive manifests must retain exact raw packages/chunks sufficient to recompute sidecars/proofs after fraud/audit, not only roots or aggregated proofs.
+
+
 
 /home/vadim/Projects/z00z/AGENTS.md   
 Order Of Operations
@@ -118,6 +125,8 @@ docker system df
 docker image ls
 docker ps -a
 -----------------------------------------
+
+формирую не просто список слов placeholder, а карту “документ заявляет → код подтверждает → можно закрыть локально?”. В карте останутся только те gaps, где уже есть существующий harness, локальный backend, тестовая модель или симуляторный путь. Это всё можно делать сейчас локальными tests/scripts/CI guardrails, без реальной сети, chain, DA или OnionNet.
 
 -----------------------------------------
 
@@ -334,5 +343,104 @@ FOLDING: ^K^2  ^K^J
 * Не делай общий roadmap уровня “build wallet / build validator”. Разбивай на реальные implementation tasks.
 * Сохраняй фокус на Z00Z uniqueness: offline coins, wallet-held assets, aggregator/checkpoint model, Celestia DA, validators, watchers, cross-chain use cases, treasury incentives.
 * Цель — не минимальный MVP, а убедительный testnet с showcase features для fundraising.
+
+------------------------------
+
+/gsd-plan-phase 001
+
+tvoja cel sozdat plan rabot po sleduwek teme:
+
+propisat  podrobno kazhdij iz dokuentov /home/vadim/Projects/z00z-website/content/docs/**/*.md  na osnove   /home/vadim/Projects/z00z-website/content/whitepapers (main corpus); 
+chto i kak dolzhno bit opisanov kazhdom dokumente zadano v z00z-website/docs/z00z_website-design.html
+to chto seichas nahoditsja v kazhdom iz docs MD - eto stub/placeholder kotorij mozhno bez problem perepisat zanovo;
+kogda nudesh pisat eti docs obrawaj vnimanie na raswirennij format plugins mdit-plugins.github.io i markdown-it kotorie ustanovleni v sisteme;
+tvoja cel sdelat dokumenti vizhimkoj iz dlinnij whitepapers - sdelat ih readable maksimalno ponjatnij , maksimalno grafcheski interesnij, bolee korotkij dlja ponimanija osnovnij idej. bolee naglajdno objasnit koncepcii kak dlaj ludej ne znakomih s temoj kotorie dolzhni pogruzitsja v z00z no sdelat eto plavno, mjagko. 
+ne delaja uprowenij i ne peregruzhaja technical details; komu nuzhni tech-detais pojdut v whitepappers;
+poetomu k kazhdmonu dokumentu docs dolzhni bit konkretnie ssilki na whitepapres na konkretnie sections (links) chtob komu nado mog legko sveritsja i poluchit blshe informacii
+
+pered tem kak zakonchish rabotu nad Docs MD doublecheck svoju rabotu; 3. MUST run /.github/prompts/gsd-review-tasks-execution.prompt.md (/GSD-Review-Tasks-Execution) at least 3 times in YOLO mode.
+   MUST fix all issues and warnings.
+   MUST continue review/fix cycles until at least 2 consecutive runs show no significant code issues.
+
+ispolzuj plugins i effekti dlja sozdanija user-freandly okruzhenija, strukturirovanija temi i  dlja oblegchenija  ponimanija; Mozhet chast tem stoit dlja nachala delat foldablei user smozhet raskrit podrobnosti nazhav knopku; produmaj horosh design teh dokumentov nad kotorimi budehs rabotat; 
+
+kazhdij iz MD docs dolzhen bit na 5-7 minute reading, ne bolshe;
+
+
+
+/gsd-execute-phase 001 continue
+
+Update STATE #sym:Status and ROADMAP
+
+3. In each <verify> section, include a requirement to run /.github/prompts/gsd-review-tasks-execution.prompt.md (`/GSD-Review-Tasks-Execution`) at least 3 times in YOLO mode and fix all issues and warnings. Stop running gsd-review-tasks-execution only after at least 2 consecutive runs show no significant issues in the code.
+
+4. After completing plan N: (N)-PLAN.md, moves to plan (N+1)-PLAN.md in YOLO mode
+
+5. When you need to commit changes in GIT, use skill `/z00z-git-versioning`
+
+6. All necessary nested skills, prompts, and instructions are in `.github/`, use them as needed.
+------------------------
+
+dovav vo vse "YAML Front Matter" - doc_level:
+produmaj dlja kazhdogo dokumenta svoj doc_level i ukazhi ego konkretno
+nizhe dlja kazhdogo doc_levek ukazano kakoj Icon vistavit etomu dokumentu; esli vsdrug pojavilsja doument bez opredelennogo doc_level - to daj emu
+doc_level: unknown
+icon: 
+unknown
+Carbon
+
+doc_level: overview
+icon:
+overview-outline
+Material Symbols
+
+doc_level: guide 
+icon:
+guide
+Element Plus
+
+doc_level: architecture 
+icon:
+architecture
+Material Symbols
+
+doc_level: advanced 
+icon:
+level-three-advanced
+Game Icons
+
+doc_level: specification
+icon:
+rspec
+File Icons
+
+https://icon-sets.iconify.design
+update all icons v content, no ne trogaj icons c domain switcher i drugih mestah; tolko dlja dokumentov
+
+-----------------------
+doc_level:
+
+difficulty: basic
+alphabet-a-box-outline
+
+difficulty: intermediate
+alphabet-b-box-outline
+
+difficulty: advanced
+alphabet-c-box-outline
+
+difficulty: expert
+alphabet-d-box-outline
+
+difficulty: specialist
+alphabet-e-box-outline
+
+difficulty: unknown
+icon: 
+unknown
+Carbon
+
+
+
 
 

@@ -8,8 +8,59 @@ use z00z_utils::io::load_yaml_bounded;
 
 use crate::CheckpointError;
 
+use super::pq_anchor::{
+    PostQuantumCheckpointAnchorModeV1, PostQuantumCheckpointAnchorV1,
+    PostQuantumCheckpointAnchorVersion, PostQuantumCheckpointEnforcementStageV1,
+};
+
 pub const CHECKPOINT_CONTRACT_CONFIG_PATH: &str =
     "crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml";
+pub const AUTHORITY_PROMOTION_STAGE_SPEC_ONLY: &str = "spec_only";
+pub const AUTHORITY_PROMOTION_STAGE_CONFIG_GATE: &str = "config_gate";
+pub const AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT: &str =
+    "canonical_extended_statement";
+pub const AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR: &str = "recursive_shadow_sidecar";
+pub const POST_QUANTUM_MODE: &str = "plonky3_epoch_proof";
+pub const POST_QUANTUM_ENFORCEMENT_STAGE: &str = "pq_anchor_writer";
+pub const VERIFIED_BACKEND_CANDIDATE_STAGE: &str = "verified_backend_candidate";
+pub const VERIFIED_BACKEND_ENABLED_STAGE: &str = "verified_backend_enabled";
+pub const VERIFIED_BACKEND_PROOF_OBJECT: &str = "VerifiedCheckpointProofV1";
+pub const VERIFIED_BACKEND_VERIFIER_API: &str = "VerifiedCheckpointVerifierV1";
+pub const VERIFIED_BACKEND_CODEC_SUPPORT: &str = "VerifiedCheckpointArtifactV1";
+pub const VERIFIED_BACKEND_ADAPTER_TRAIT: &str = "VerifiedCheckpointBackendAdapterV1";
+pub const VERIFIED_BACKEND_CHAIN_EVIDENCE_OBJECT: &str = "RecursiveCheckpointChainEvidenceV1";
+pub const VERIFIED_BACKEND_ROLLBACK_PROCEDURE: &str =
+    "disable_verified_backend_without_statement_change";
+pub const VERIFIED_BACKEND_STATEMENT_STABILITY: &str = "CheckpointTransitionStatementV1";
+pub const VERIFIED_BACKEND_REVIEW_PENDING: &str = "pending";
+pub const VERIFIED_BACKEND_REVIEW_APPROVED: &str = "approved";
+pub const POST_QUANTUM_REQUIRED_ARTIFACTS: [&str; 9] = [
+    "pq_statement_digest",
+    "pq_delta_root",
+    "pq_witness_root",
+    "pq_archive_manifest_root",
+    "plonky3_epoch_statement_digest",
+    "plonky3_epoch_proof_digest",
+    "plonky3_public_inputs_digest",
+    "nova_chain_root",
+    "pq_signature_or_commitment",
+];
+pub const VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS: [&str; 7] = [
+    "wrong_root",
+    "wrong_delta",
+    "wrong_witness",
+    "wrong_proof",
+    "wrong_link",
+    "unsupported_backend",
+    "mixed_era",
+];
+pub const VERIFIED_BACKEND_REQUIRED_BENCHMARKS: [&str; 5] = [
+    "proof_size",
+    "prover_time",
+    "verifier_time",
+    "memory",
+    "witness_size",
+];
 const CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES: u64 = 256 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -21,6 +72,7 @@ pub struct CheckpointContractConfigV1 {
     pub statement: StatementCfg,
     pub branches: BranchesCfg,
     pub authority_promotion: AuthorityPromotionCfg,
+    pub verified_backend: VerifiedBackendCfg,
     pub gates: GatesCfg,
     pub da: DaCfg,
     pub archive_retention: ArchiveRetentionCfg,
@@ -114,6 +166,44 @@ pub struct AuthorityPromotionCfg {
     pub recursive_authority_allowed: bool,
     pub verified_backend_allowed: bool,
     pub allowed_next_stages: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifiedBackendCfg {
+    pub proof_object: String,
+    pub verifier_api: String,
+    pub codec_support: String,
+    pub adapter_trait: String,
+    pub chain_evidence: VerifiedBackendChainEvidenceCfg,
+    pub negative_tests: Vec<String>,
+    pub benchmarks: Vec<String>,
+    pub rollback: VerifiedBackendRollbackCfg,
+    pub security_review: VerifiedBackendSecurityReviewCfg,
+    pub statement_stability: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifiedBackendChainEvidenceCfg {
+    pub object: String,
+    pub min_steps: u32,
+    pub max_steps: u32,
+    pub requires_prior_output_binding: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifiedBackendRollbackCfg {
+    pub procedure: String,
+    pub preserves_statement: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifiedBackendSecurityReviewCfg {
+    pub status: String,
+    pub requires_third_party_equivalent: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -254,6 +344,33 @@ pub struct CheckpointContractPaths {
     pub plonky3_epoch_proofs: PathBuf,
     pub epoch_manifests: PathBuf,
     pub archive_manifests: PathBuf,
+    pub da_references: PathBuf,
+    pub publication_evidence: PathBuf,
+    pub checkpoint_lifecycles: PathBuf,
+    pub state_snapshots: PathBuf,
+    pub retrieval_audits: PathBuf,
+    pub archive_receipts: PathBuf,
+    pub da_exports: PathBuf,
+    pub documentation_packets: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckpointResolvedPaths {
+    pub checkpoint_artifacts: PathBuf,
+    pub checkpoint_links: PathBuf,
+    pub exec_inputs: PathBuf,
+    pub prep_snapshots: PathBuf,
+    pub delta_journals: PathBuf,
+    pub witness_archives: PathBuf,
+    pub recursive_sidecars: PathBuf,
+    pub nova_block_proofs: PathBuf,
+    pub pq_checkpoints: PathBuf,
+    pub plonky3_epoch_proofs: PathBuf,
+    pub epoch_manifests: PathBuf,
+    pub archive_manifests: PathBuf,
+    pub da_references: PathBuf,
+    pub publication_evidence: PathBuf,
+    pub checkpoint_lifecycles: PathBuf,
     pub state_snapshots: PathBuf,
     pub retrieval_audits: PathBuf,
     pub archive_receipts: PathBuf,
@@ -294,6 +411,15 @@ pub struct DocumentationCfg {
     pub include_rejected_claim_register: bool,
 }
 
+/// Return the repository-owned checkpoint-contract YAML path anchored to the
+/// `z00z_storage` crate root rather than the caller's current working
+/// directory.
+pub fn repo_default_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(CHECKPOINT_CONTRACT_CONFIG_PATH)
+}
+
 impl CheckpointContractConfigV1 {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, CheckpointError> {
         let cfg: Self = load_yaml_bounded(path.as_ref(), CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES)
@@ -303,7 +429,34 @@ impl CheckpointContractConfigV1 {
     }
 
     pub fn load_repo_default() -> Result<Self, CheckpointError> {
-        Self::load(CHECKPOINT_CONTRACT_CONFIG_PATH)
+        Self::load(repo_default_path())
+    }
+
+    #[must_use]
+    pub fn resolve_paths(&self, root: impl Into<PathBuf>) -> CheckpointResolvedPaths {
+        let root = root.into();
+        CheckpointResolvedPaths {
+            checkpoint_artifacts: root.join(&self.paths.checkpoint_artifacts),
+            checkpoint_links: root.join(&self.paths.checkpoint_links),
+            exec_inputs: root.join(&self.paths.exec_inputs),
+            prep_snapshots: root.join(&self.paths.prep_snapshots),
+            delta_journals: root.join(&self.paths.delta_journals),
+            witness_archives: root.join(&self.paths.witness_archives),
+            recursive_sidecars: root.join(&self.paths.recursive_sidecars),
+            nova_block_proofs: root.join(&self.paths.nova_block_proofs),
+            pq_checkpoints: root.join(&self.paths.pq_checkpoints),
+            plonky3_epoch_proofs: root.join(&self.paths.plonky3_epoch_proofs),
+            epoch_manifests: root.join(&self.paths.epoch_manifests),
+            archive_manifests: root.join(&self.paths.archive_manifests),
+            da_references: root.join(&self.paths.da_references),
+            publication_evidence: root.join(&self.paths.publication_evidence),
+            checkpoint_lifecycles: root.join(&self.paths.checkpoint_lifecycles),
+            state_snapshots: root.join(&self.paths.state_snapshots),
+            retrieval_audits: root.join(&self.paths.retrieval_audits),
+            archive_receipts: root.join(&self.paths.archive_receipts),
+            da_exports: root.join(&self.paths.da_exports),
+            documentation_packets: root.join(&self.paths.documentation_packets),
+        }
     }
 
     pub fn validate(&self) -> Result<(), CheckpointError> {
@@ -321,6 +474,7 @@ impl CheckpointContractConfigV1 {
         self.validate_statement()?;
         self.validate_branches()?;
         self.validate_authority_promotion()?;
+        self.validate_verified_backend()?;
         self.validate_gates()?;
         self.validate_da()?;
         self.validate_archive_retention()?;
@@ -334,8 +488,122 @@ impl CheckpointContractConfigV1 {
         Ok(())
     }
 
-    pub fn is_pq_cadence_height(&self, height: u64) -> bool {
+    pub fn has_pq_checkpoint(&self, height: u64) -> bool {
         height > 0 && height.is_multiple_of(self.post_quantum.cadence_blocks)
+    }
+
+    #[must_use]
+    pub fn is_pq_cadence_height(&self, height: u64) -> bool {
+        self.has_pq_checkpoint(height)
+    }
+
+    pub fn is_verified_backend_enabled(&self) -> Result<bool, CheckpointError> {
+        self.validate_verified_backend()?;
+        Ok(
+            self.authority_promotion.stage == VERIFIED_BACKEND_ENABLED_STAGE
+                && self.authority_promotion.recursive_authority_allowed
+                && self.authority_promotion.verified_backend_allowed,
+        )
+    }
+
+    pub fn verified_backend_codec_ready(&self) -> Result<bool, CheckpointError> {
+        self.validate_verified_backend()?;
+        Ok(self.is_verified_backend_enabled()?
+            && self.verified_backend.codec_support == VERIFIED_BACKEND_CODEC_SUPPORT)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn build_pq_anchor(
+        &self,
+        height: u64,
+        statement_digest: [u8; 32],
+        pq_delta_root: [u8; 32],
+        pq_witness_root: [u8; 32],
+        pq_archive_manifest_root: [u8; 32],
+        plonky3_epoch_statement_digest: [u8; 32],
+        plonky3_epoch_proof_digest: [u8; 32],
+        plonky3_public_inputs_digest: [u8; 32],
+        nova_chain_root: [u8; 32],
+        pq_signature_or_commitment: [u8; 32],
+    ) -> Result<Option<PostQuantumCheckpointAnchorV1>, CheckpointError> {
+        self.ensure_post_quantum_surface()?;
+        if !self.has_pq_checkpoint(height) || !is_pq_anchor_ready(&self.authority_promotion.stage)?
+        {
+            return Ok(None);
+        }
+        Ok(Some(PostQuantumCheckpointAnchorV1::new(
+            PostQuantumCheckpointAnchorVersion::CURRENT,
+            height,
+            self.post_quantum.cadence_blocks,
+            statement_digest,
+            pq_delta_root,
+            pq_witness_root,
+            pq_archive_manifest_root,
+            plonky3_epoch_statement_digest,
+            plonky3_epoch_proof_digest,
+            plonky3_public_inputs_digest,
+            nova_chain_root,
+            pq_signature_or_commitment,
+            PostQuantumCheckpointAnchorModeV1::Plonky3EpochProof,
+            PostQuantumCheckpointEnforcementStageV1::PqAnchorWriter,
+        )?))
+    }
+
+    pub fn validate_pq_anchor(
+        &self,
+        height: u64,
+        statement_digest: [u8; 32],
+        pq_delta_root: [u8; 32],
+        pq_witness_root: [u8; 32],
+        pq_archive_manifest_root: [u8; 32],
+        pq_anchor: Option<&PostQuantumCheckpointAnchorV1>,
+    ) -> Result<(), CheckpointError> {
+        self.ensure_post_quantum_surface()?;
+        let live_anchor_required =
+            is_pq_anchor_ready(&self.authority_promotion.stage)? && self.has_pq_checkpoint(height);
+        let Some(pq_anchor) = pq_anchor else {
+            if live_anchor_required {
+                return Err(CheckpointError::Backend(
+                    "pq anchor reject: pq_anchor_missing".to_string(),
+                ));
+            }
+            return Ok(());
+        };
+        if pq_anchor.height() != height {
+            return Err(CheckpointError::Backend(
+                "pq anchor reject: height_mismatch".to_string(),
+            ));
+        }
+        if !self.has_pq_checkpoint(pq_anchor.height()) {
+            return Err(CheckpointError::Backend(
+                "pq anchor reject: non_cadence_height".to_string(),
+            ));
+        }
+        if pq_anchor.cadence_blocks() != self.post_quantum.cadence_blocks {
+            return Err(CheckpointError::Backend(
+                "pq anchor reject: cadence_mismatch".to_string(),
+            ));
+        }
+        if pq_anchor.mode().as_str() != self.post_quantum.mode {
+            return Err(CheckpointError::Backend(
+                "pq anchor reject: mode_mismatch".to_string(),
+            ));
+        }
+        if pq_anchor.enforcement_stage().as_str() != self.post_quantum.enforcement_stage {
+            return Err(CheckpointError::Backend(
+                "pq anchor reject: enforcement_stage_mismatch".to_string(),
+            ));
+        }
+        if pq_anchor.statement_digest() != statement_digest
+            || pq_anchor.pq_delta_root() != pq_delta_root
+            || pq_anchor.pq_witness_root() != pq_witness_root
+            || pq_anchor.pq_archive_manifest_root() != pq_archive_manifest_root
+        {
+            return Err(CheckpointError::Backend(
+                "pq anchor reject: pq_anchor_digest_mismatch".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     fn validate_statement(&self) -> Result<(), CheckpointError> {
@@ -515,31 +783,122 @@ impl CheckpointContractConfigV1 {
     }
 
     fn validate_authority_promotion(&self) -> Result<(), CheckpointError> {
-        require_false(
-            "authority_promotion.recursive_authority_allowed",
-            self.authority_promotion.recursive_authority_allowed,
+        match authority_promotion_next_stage(&self.authority_promotion.stage)? {
+            Some(next) => require_exact_list(
+                "authority_promotion.allowed_next_stages",
+                &self.authority_promotion.allowed_next_stages,
+                &[next],
+            ),
+            None => require_empty_list(
+                "authority_promotion.allowed_next_stages",
+                &self.authority_promotion.allowed_next_stages,
+            ),
+        }
+    }
+
+    fn validate_verified_backend(&self) -> Result<(), CheckpointError> {
+        let verified = &self.verified_backend;
+        require_eq(
+            "verified_backend.proof_object",
+            &verified.proof_object,
+            VERIFIED_BACKEND_PROOF_OBJECT,
         )?;
-        require_false(
-            "authority_promotion.verified_backend_allowed",
-            self.authority_promotion.verified_backend_allowed,
+        require_eq(
+            "verified_backend.verifier_api",
+            &verified.verifier_api,
+            VERIFIED_BACKEND_VERIFIER_API,
         )?;
-        let next = match self.authority_promotion.stage.as_str() {
-            "spec_only" => "config_gate",
-            "config_gate" => "canonical_extended_statement",
-            "canonical_extended_statement" => "recursive_shadow_sidecar",
-            "recursive_shadow_sidecar" => "pq_anchor_writer",
-            "pq_anchor_writer" => "verified_backend_candidate",
-            "verified_backend_candidate" => "verified_backend_enabled",
-            "verified_backend_enabled" => {
-                return invalid("verified_backend_enabled is not allowed by Phase 069 gate")
-            }
-            other => return invalid(format!("unsupported authority_promotion.stage {other}")),
-        };
+        require_eq(
+            "verified_backend.codec_support",
+            &verified.codec_support,
+            VERIFIED_BACKEND_CODEC_SUPPORT,
+        )?;
+        require_eq(
+            "verified_backend.adapter_trait",
+            &verified.adapter_trait,
+            VERIFIED_BACKEND_ADAPTER_TRAIT,
+        )?;
+        require_eq(
+            "verified_backend.chain_evidence.object",
+            &verified.chain_evidence.object,
+            VERIFIED_BACKEND_CHAIN_EVIDENCE_OBJECT,
+        )?;
+        require_eq_u32(
+            "verified_backend.chain_evidence.min_steps",
+            verified.chain_evidence.min_steps,
+            self.branches.recursive.min_chain_steps,
+        )?;
+        require_eq_u32(
+            "verified_backend.chain_evidence.max_steps",
+            verified.chain_evidence.max_steps,
+            self.branches.recursive.target_chain_steps,
+        )?;
+        require_true(
+            "verified_backend.chain_evidence.requires_prior_output_binding",
+            verified.chain_evidence.requires_prior_output_binding,
+        )?;
         require_exact_list(
-            "authority_promotion.allowed_next_stages",
-            &self.authority_promotion.allowed_next_stages,
-            &[next],
-        )
+            "verified_backend.negative_tests",
+            &verified.negative_tests,
+            &VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS,
+        )?;
+        require_exact_list(
+            "verified_backend.benchmarks",
+            &verified.benchmarks,
+            &VERIFIED_BACKEND_REQUIRED_BENCHMARKS,
+        )?;
+        require_eq(
+            "verified_backend.rollback.procedure",
+            &verified.rollback.procedure,
+            VERIFIED_BACKEND_ROLLBACK_PROCEDURE,
+        )?;
+        require_true(
+            "verified_backend.rollback.preserves_statement",
+            verified.rollback.preserves_statement,
+        )?;
+        match verified.security_review.status.as_str() {
+            VERIFIED_BACKEND_REVIEW_PENDING | VERIFIED_BACKEND_REVIEW_APPROVED => {}
+            other => {
+                return invalid(format!(
+                    "verified_backend.security_review.status must be {VERIFIED_BACKEND_REVIEW_PENDING} or {VERIFIED_BACKEND_REVIEW_APPROVED}, got {other}"
+                ))
+            }
+        }
+        require_true(
+            "verified_backend.security_review.requires_third_party_equivalent",
+            verified.security_review.requires_third_party_equivalent,
+        )?;
+        require_eq(
+            "verified_backend.statement_stability",
+            &verified.statement_stability,
+            VERIFIED_BACKEND_STATEMENT_STABILITY,
+        )?;
+
+        if self.authority_promotion.stage == VERIFIED_BACKEND_ENABLED_STAGE {
+            require_true(
+                "authority_promotion.recursive_authority_allowed",
+                self.authority_promotion.recursive_authority_allowed,
+            )?;
+            require_true(
+                "authority_promotion.verified_backend_allowed",
+                self.authority_promotion.verified_backend_allowed,
+            )?;
+            require_eq(
+                "verified_backend.security_review.status",
+                &verified.security_review.status,
+                VERIFIED_BACKEND_REVIEW_APPROVED,
+            )?;
+        } else {
+            require_false(
+                "authority_promotion.recursive_authority_allowed",
+                self.authority_promotion.recursive_authority_allowed,
+            )?;
+            require_false(
+                "authority_promotion.verified_backend_allowed",
+                self.authority_promotion.verified_backend_allowed,
+            )?;
+        }
+        Ok(())
     }
 
     fn validate_gates(&self) -> Result<(), CheckpointError> {
@@ -689,11 +1048,11 @@ impl CheckpointContractConfigV1 {
         if pq.cadence_blocks == 0 {
             return invalid("post_quantum.cadence_blocks must be > 0");
         }
-        require_eq("post_quantum.mode", &pq.mode, "plonky3_epoch_proof")?;
+        require_eq("post_quantum.mode", &pq.mode, POST_QUANTUM_MODE)?;
         require_eq(
             "post_quantum.enforcement_stage",
             &pq.enforcement_stage,
-            "pq_anchor_writer",
+            POST_QUANTUM_ENFORCEMENT_STAGE,
         )?;
         if is_pq_anchor_ready(&self.authority_promotion.stage)? {
             require_true("post_quantum.enforce_live_cadence", pq.enforce_live_cadence)?;
@@ -703,17 +1062,24 @@ impl CheckpointContractConfigV1 {
         require_exact_list(
             "post_quantum.required_artifacts",
             &pq.required_artifacts,
-            &[
-                "pq_statement_digest",
-                "pq_delta_root",
-                "pq_witness_root",
-                "pq_archive_manifest_root",
-                "plonky3_epoch_statement_digest",
-                "plonky3_epoch_proof_digest",
-                "plonky3_public_inputs_digest",
-                "nova_chain_root",
-                "pq_signature_or_commitment",
-            ],
+            &POST_QUANTUM_REQUIRED_ARTIFACTS,
+        )
+    }
+
+    fn ensure_post_quantum_surface(&self) -> Result<(), CheckpointError> {
+        require_true("post_quantum.is_enabled", self.post_quantum.is_enabled)?;
+        if self.post_quantum.cadence_blocks == 0 {
+            return invalid("post_quantum.cadence_blocks must be > 0");
+        }
+        require_eq(
+            "post_quantum.mode",
+            &self.post_quantum.mode,
+            POST_QUANTUM_MODE,
+        )?;
+        require_eq(
+            "post_quantum.enforcement_stage",
+            &self.post_quantum.enforcement_stage,
+            POST_QUANTUM_ENFORCEMENT_STAGE,
         )
     }
 
@@ -905,12 +1271,21 @@ impl CheckpointContractConfigV1 {
                 &self.paths.plonky3_epoch_proofs,
             ),
             ("paths.epoch_manifests", &self.paths.epoch_manifests),
+            ("paths.archive_manifests", &self.paths.archive_manifests),
+            ("paths.da_references", &self.paths.da_references),
+            (
+                "paths.publication_evidence",
+                &self.paths.publication_evidence,
+            ),
+            (
+                "paths.checkpoint_lifecycles",
+                &self.paths.checkpoint_lifecycles,
+            ),
             ("paths.da_exports", &self.paths.da_exports),
             (
                 "paths.documentation_packets",
                 &self.paths.documentation_packets,
             ),
-            ("paths.archive_manifests", &self.paths.archive_manifests),
             ("paths.state_snapshots", &self.paths.state_snapshots),
             ("paths.retrieval_audits", &self.paths.retrieval_audits),
             ("paths.archive_receipts", &self.paths.archive_receipts),
@@ -1087,6 +1462,13 @@ fn require_exact_list(label: &str, got: &[String], want: &[&str]) -> Result<(), 
     invalid(format!("{label} must equal [{}]", want.join(", ")))
 }
 
+fn require_empty_list(label: &str, got: &[String]) -> Result<(), CheckpointError> {
+    if got.is_empty() {
+        return Ok(());
+    }
+    invalid(format!("{label} must be empty"))
+}
+
 fn validate_relative_path(label: &str, path: &Path) -> Result<PathBuf, CheckpointError> {
     if path.as_os_str().is_empty() {
         return invalid(format!("{label} must not be empty"));
@@ -1111,16 +1493,34 @@ fn validate_relative_path(label: &str, path: &Path) -> Result<PathBuf, Checkpoin
     Ok(out)
 }
 
+fn authority_promotion_next_stage(stage: &str) -> Result<Option<&'static str>, CheckpointError> {
+    match stage {
+        AUTHORITY_PROMOTION_STAGE_SPEC_ONLY => Ok(Some(AUTHORITY_PROMOTION_STAGE_CONFIG_GATE)),
+        AUTHORITY_PROMOTION_STAGE_CONFIG_GATE => {
+            Ok(Some(AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT))
+        }
+        AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT => {
+            Ok(Some(AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR))
+        }
+        AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR => {
+            Ok(Some(POST_QUANTUM_ENFORCEMENT_STAGE))
+        }
+        POST_QUANTUM_ENFORCEMENT_STAGE => Ok(Some(VERIFIED_BACKEND_CANDIDATE_STAGE)),
+        VERIFIED_BACKEND_CANDIDATE_STAGE => Ok(Some(VERIFIED_BACKEND_ENABLED_STAGE)),
+        VERIFIED_BACKEND_ENABLED_STAGE => Ok(None),
+        other => invalid(format!("unsupported authority_promotion.stage {other}")),
+    }
+}
+
 fn is_pq_anchor_ready(stage: &str) -> Result<bool, CheckpointError> {
     match stage {
-        "spec_only"
-        | "config_gate"
-        | "canonical_extended_statement"
-        | "recursive_shadow_sidecar" => Ok(false),
-        "pq_anchor_writer" | "verified_backend_candidate" => Ok(true),
-        "verified_backend_enabled" => {
-            invalid("verified_backend_enabled is not allowed by Phase 069 gate")
-        }
+        AUTHORITY_PROMOTION_STAGE_SPEC_ONLY
+        | AUTHORITY_PROMOTION_STAGE_CONFIG_GATE
+        | AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT
+        | AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR => Ok(false),
+        POST_QUANTUM_ENFORCEMENT_STAGE
+        | VERIFIED_BACKEND_CANDIDATE_STAGE
+        | VERIFIED_BACKEND_ENABLED_STAGE => Ok(true),
         other => invalid(format!("unsupported authority_promotion.stage {other}")),
     }
 }
@@ -1133,17 +1533,15 @@ fn invalid<T>(detail: impl Into<String>) -> Result<T, CheckpointError> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{CheckpointContractConfigV1, CHECKPOINT_CONTRACT_CONFIG_PATH};
+    use super::{
+        repo_default_path, CheckpointContractConfigV1, POST_QUANTUM_ENFORCEMENT_STAGE,
+        POST_QUANTUM_MODE, VERIFIED_BACKEND_CANDIDATE_STAGE, VERIFIED_BACKEND_PROOF_OBJECT,
+        VERIFIED_BACKEND_STATEMENT_STABILITY,
+    };
     use crate::CheckpointError;
 
-    fn repo_config_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .join(CHECKPOINT_CONTRACT_CONFIG_PATH)
-    }
-
     fn cfg() -> CheckpointContractConfigV1 {
-        CheckpointContractConfigV1::load(repo_config_path()).expect("repo checkpoint contract")
+        CheckpointContractConfigV1::load(repo_default_path()).expect("repo checkpoint contract")
     }
 
     #[test]
@@ -1161,23 +1559,41 @@ mod tests {
         );
         assert!(cfg.branches.plonky3_epoch.is_pq_authoritative);
         assert_eq!(cfg.post_quantum.cadence_blocks, 1000);
-        assert_eq!(cfg.post_quantum.mode, "plonky3_epoch_proof");
+        assert_eq!(cfg.post_quantum.mode, POST_QUANTUM_MODE);
         assert!(cfg.archive_retention.celestia_is_da_only);
         assert_eq!(cfg.archive_retention.min_archive_replicas, 3);
         assert!(cfg.archive_retention.ipfs_pinning_required);
         assert_eq!(cfg.snapshots.object_type, "state_snapshot_v1");
         assert_eq!(cfg.snapshots.cadence_blocks, 10_000);
         assert!(!cfg.pruning.archive_node_pruning_allowed);
+        assert_eq!(
+            cfg.verified_backend.proof_object,
+            VERIFIED_BACKEND_PROOF_OBJECT
+        );
+        assert_eq!(
+            cfg.verified_backend.statement_stability,
+            VERIFIED_BACKEND_STATEMENT_STABILITY
+        );
+    }
+
+    #[test]
+    fn test_load_repo_default_uses_repo_anchor() {
+        let anchored = CheckpointContractConfigV1::load(repo_default_path())
+            .expect("repo checkpoint contract via anchored path");
+        let default = CheckpointContractConfigV1::load_repo_default()
+            .expect("repo checkpoint contract via default helper");
+
+        assert_eq!(default, anchored);
     }
 
     #[test]
     fn test_pq_cadence_default() {
         let cfg = cfg();
 
-        assert!(!cfg.is_pq_cadence_height(0));
-        assert!(!cfg.is_pq_cadence_height(999));
-        assert!(cfg.is_pq_cadence_height(1000));
-        assert!(cfg.is_pq_cadence_height(2000));
+        assert!(!cfg.has_pq_checkpoint(0));
+        assert!(!cfg.has_pq_checkpoint(999));
+        assert!(cfg.has_pq_checkpoint(1000));
+        assert!(cfg.has_pq_checkpoint(2000));
     }
 
     #[test]
@@ -1315,9 +1731,9 @@ mod tests {
     #[test]
     fn test_pq_writer_cadence() {
         let mut cfg = cfg();
-        cfg.authority_promotion.stage = "pq_anchor_writer".to_string();
+        cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
         cfg.authority_promotion.allowed_next_stages =
-            vec!["verified_backend_candidate".to_string()];
+            vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
 
         let err = cfg.validate().expect_err("pq writer must enforce cadence");
         assert!(matches!(err, CheckpointError::ContractConfig(_)));

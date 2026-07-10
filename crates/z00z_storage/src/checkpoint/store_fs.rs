@@ -37,32 +37,60 @@ impl CheckpointFinalLane {
 }
 
 impl CheckpointFsStore {
-    pub(super) fn checkpoint_dir(&self) -> PathBuf {
-        self.root.join("checkpoint")
+    pub fn checkpoint_dir(&self) -> PathBuf {
+        self.resolved_paths
+            .checkpoint_artifacts
+            .parent()
+            .unwrap_or(&self.root)
+            .to_path_buf()
     }
 
-    pub(super) fn draft_dir(&self) -> PathBuf {
+    pub fn draft_dir(&self) -> PathBuf {
         self.checkpoint_dir().join("draft")
     }
 
-    pub(super) fn artifact_dir(&self) -> PathBuf {
-        self.checkpoint_dir().join("artifact")
+    pub fn artifact_dir(&self) -> PathBuf {
+        self.resolved_paths.checkpoint_artifacts.clone()
     }
 
-    pub(super) fn link_dir(&self) -> PathBuf {
-        self.checkpoint_dir().join("link")
+    pub fn link_dir(&self) -> PathBuf {
+        self.resolved_paths.checkpoint_links.clone()
     }
 
-    pub(super) fn exec_dir(&self) -> PathBuf {
-        self.checkpoint_dir().join("exec_input")
+    pub fn exec_dir(&self) -> PathBuf {
+        self.resolved_paths.exec_inputs.clone()
     }
 
-    pub(super) fn audit_dir(&self) -> PathBuf {
-        self.checkpoint_dir().join("audit")
+    pub fn audit_dir(&self) -> PathBuf {
+        self.audit_dir.clone()
     }
 
-    pub(super) fn final_lane_path(&self) -> PathBuf {
-        self.checkpoint_dir().join("final_lane.marker")
+    pub fn archive_manifest_dir(&self) -> PathBuf {
+        self.resolved_paths.archive_manifests.clone()
+    }
+
+    pub fn staged_archive_manifest_dir(&self) -> PathBuf {
+        self.checkpoint_dir().join("staged_archive_manifest")
+    }
+
+    pub fn da_reference_dir(&self) -> PathBuf {
+        self.resolved_paths.da_references.clone()
+    }
+
+    pub fn staged_da_reference_dir(&self) -> PathBuf {
+        self.checkpoint_dir().join("staged_da_reference")
+    }
+
+    pub fn publication_evidence_dir(&self) -> PathBuf {
+        self.resolved_paths.publication_evidence.clone()
+    }
+
+    pub fn lifecycle_dir(&self) -> PathBuf {
+        self.resolved_paths.checkpoint_lifecycles.clone()
+    }
+
+    pub fn final_lane_path(&self) -> PathBuf {
+        self.final_lane_path.clone()
     }
 
     pub(super) fn draft_path(&self, draft_id: &CheckpointDraftId) -> PathBuf {
@@ -87,6 +115,36 @@ impl CheckpointFsStore {
 
     pub(super) fn audit_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
         self.audit_dir()
+            .join(format!("{}.bin", id_hex(checkpoint_id.as_bytes())))
+    }
+
+    pub(super) fn archive_manifest_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
+        self.archive_manifest_dir()
+            .join(format!("{}.bin", id_hex(checkpoint_id.as_bytes())))
+    }
+
+    pub(super) fn staged_archive_manifest_path(&self, exec_id: &CheckpointExecInputId) -> PathBuf {
+        self.staged_archive_manifest_dir()
+            .join(format!("{}.bin", id_hex(exec_id.as_bytes())))
+    }
+
+    pub(super) fn da_reference_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
+        self.da_reference_dir()
+            .join(format!("{}.bin", id_hex(checkpoint_id.as_bytes())))
+    }
+
+    pub(super) fn staged_da_reference_path(&self, exec_id: &CheckpointExecInputId) -> PathBuf {
+        self.staged_da_reference_dir()
+            .join(format!("{}.bin", id_hex(exec_id.as_bytes())))
+    }
+
+    pub(super) fn publication_evidence_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
+        self.publication_evidence_dir()
+            .join(format!("{}.bin", id_hex(checkpoint_id.as_bytes())))
+    }
+
+    pub(super) fn lifecycle_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
+        self.lifecycle_dir()
             .join(format!("{}.bin", id_hex(checkpoint_id.as_bytes())))
     }
 
@@ -168,7 +226,7 @@ impl CheckpointFsStore {
         artifact: &CheckpointArtifact,
     ) -> Result<(), CheckpointError> {
         match artifact.statement() {
-            crate::checkpoint::CheckpointStatement::CURRENT(stmt) => {
+            crate::checkpoint::CheckpointStatement::V1(stmt) => {
                 if stmt.prep_snapshot_id() != link.prep_snapshot_id()
                     || stmt.exec_input_id() != link.exec_input_id()
                 {
@@ -195,6 +253,10 @@ impl CheckpointFsStore {
                 if seen == *link {
                     continue;
                 }
+                return Err(CheckpointError::LinkMix);
+            }
+
+            if seen.prev_checkpoint_id() == link.prev_checkpoint_id() {
                 return Err(CheckpointError::LinkMix);
             }
 

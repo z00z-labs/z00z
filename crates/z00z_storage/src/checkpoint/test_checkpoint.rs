@@ -3,7 +3,8 @@ use crate::CheckpointError;
 
 use super::{
     artifact_final::check_proof_sys, CheckpointDraft, CheckpointProof, CheckpointProofSystem,
-    CheckpointPubIn, CheckpointStmt, CheckpointVersion, CreatedEnt, SpentEnt, WalletDraft,
+    CheckpointPubIn, CheckpointTransitionStatementV1, CheckpointVersion, CreatedEnt, SpentEnt,
+    WalletDraft,
 };
 use crate::checkpoint::CheckpointExecInputId;
 use crate::snapshot::PrepSnapshotId;
@@ -69,7 +70,7 @@ fn test_final_rejects_empty_proof() {
         vec![SpentEnt::new([3u8; 32])],
         vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
     );
-    let stmt = CheckpointStmt::from_draft(
+    let stmt = CheckpointTransitionStatementV1::from_draft(
         &draft,
         PrepSnapshotId::new([6u8; 32]),
         CheckpointExecInputId::new([7u8; 32]),
@@ -95,7 +96,7 @@ fn test_finalize_rejects_pub_mix() {
         vec![SpentEnt::new([3u8; 32])],
         vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
     );
-    let bad_stmt = CheckpointStmt::new(
+    let bad_stmt = CheckpointTransitionStatementV1::new(
         CheckpointVersion::CURRENT,
         draft.height(),
         bad_pub,
@@ -113,6 +114,14 @@ fn test_finalize_rejects_pub_mix() {
 #[test]
 fn test_unsupported_proof_sys_rejects() {
     let err = check_proof_sys(CheckpointProofSystem::new(9)).expect_err("bad proof sys");
+
+    assert!(matches!(err, CheckpointError::ProofSysMix));
+}
+
+#[test]
+fn test_verified_proof_sys_remains_reserved() {
+    let err =
+        check_proof_sys(CheckpointProofSystem::VERIFIED).expect_err("verified proof sys reserved");
 
     assert!(matches!(err, CheckpointError::ProofSysMix));
 }

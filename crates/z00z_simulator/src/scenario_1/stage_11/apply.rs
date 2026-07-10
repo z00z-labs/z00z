@@ -200,7 +200,7 @@ fn load_exec(
     ),
     String,
 > {
-    let exec_path = only_bin(&tx_dir.join("checkpoint/exec_input"))?;
+    let exec_path = only_bin(&CheckpointFsStore::new(tx_dir).exec_dir())?;
     let exec_bytes = read_file(&exec_path).map_err(|e| e.to_string())?;
     let exec = decode_exec_bin(&exec_bytes).map_err(|e| e.to_string())?;
     let exec_id = derive_exec_id(&exec_bytes);

@@ -83,6 +83,8 @@ The following local customizations must always be included in the restore review
 - the local `gsd-add-tests` changes;
 - the local `gsd-code-review` auto-fix flow at the end of every completed plan;
 - the local phase-level `gsd-code-review` auto-fix flow in `execute-phase.md`;
+- the local Codex inline nested-prompt routing in `gsd-execute-phase`;
+- the local inline/runtime contract for `GSD-Review-Tasks-Execution`;
 - the repo-local `gsd-graphify` flow;
 - the current repository-specific `.github/copilot-instructions.md`;
 - the compatibility alias `/gsd-add-phase` when that command surface exists or is explicitly requested.
@@ -92,6 +94,8 @@ Treat these files as mandatory anchors when building the carry-forward set:
 - `.github/skills/gsd-add-tests/SKILL.md`
 - `.github/gsd-core/workflows/execute-plan.md`
 - `.github/gsd-core/workflows/execute-phase.md`
+- `.github/skills/gsd-execute-phase/SKILL.md`
+- `.github/prompts/gsd-review-tasks-execution.prompt.md`
 - `.github/skills/gsd-graphify/SKILL.md`
 - `.github/copilot-instructions.md`
 - `.github/skills/gsd-add-phase/SKILL.md` when present in the repo or selected for restore;
@@ -101,6 +105,8 @@ Treat these files as mandatory anchors when building the carry-forward set:
   - `.github/get-shit-done/workflows/add-tests.md` -> `.github/gsd-core/workflows/add-tests.md`
 - `execute-phase.md` still contains the `code_review_gate` anchor and automatically invokes `gsd-code-review-fix` for non-clean review results while remaining non-blocking for execution flow;
 - `execute-plan.md` still contains the `plan_review_gate` anchor and automatically invokes `/gsd-code-review-fix ${PHASE} --all --auto` for non-clean plan review results while remaining non-blocking for execution flow;
+- `.github/skills/gsd-execute-phase/SKILL.md` still preserves the local Codex nested-prompt contract that forces repository-local prompt execution to stay inline and local;
+- `.github/prompts/gsd-review-tasks-execution.prompt.md` still preserves the inline/local runtime contract and explicitly rejects shelling out through external CLIs, APIs, or model routers for repo-local review prompts;
 - `.github/skills/gsd-add-tests/SKILL.md` still preserves the intended local behavior from the saved patch set, including phase-local test-spec outputs and commit-on-demand behavior;
 - `.github/skills/gsd-graphify/SKILL.md` still preserves the repo-local `.github/gsd-core` invocation flow;
 - `.github/copilot-instructions.md` is still the repository's local file, not the upstream template.
@@ -124,7 +130,7 @@ Also inspect related support files when needed for preserving those behaviors:
 8. Verify the live installed version directly from `./.github/gsd-core/VERSION` after install instead of relying only on installer output. When migrating from `legacy_root`, also record the pre-upgrade legacy version from `legacy_root/VERSION` when available.
 9. After the new version is installed, diff the backup files against the upgraded files.
 10. Present the user with the restore candidates.
-11. Explicitly call out the `gsd-add-tests` local changes, the plan-end auto-fix behavior, the phase-level auto-fix behavior, the repo-local graphify flow, the preserved `.github/copilot-instructions.md`, and the compatibility alias when present as mandatory review items.
+11. Explicitly call out the `gsd-add-tests` local changes, the plan-end auto-fix behavior, the phase-level auto-fix behavior, the local Codex inline nested-prompt routing, the repo-local review-prompt runtime contract, the repo-local graphify flow, the preserved `.github/copilot-instructions.md`, and the compatibility alias when present as mandatory review items.
 12. For each selected restore, map the old behavior into the new file's current structure and insert it at the smallest valid anchor points.
 13. Only use full-file replacement when the upgraded file shape is materially unchanged or when the user explicitly requests a full rollback for that file.
 14. Let the user choose what should be restored.
@@ -174,6 +180,8 @@ When this repository matches the known local-anchor profile, recommend restoring
 - `.github/skills/gsd-add-tests/SKILL.md`
 - `.github/gsd-core/workflows/execute-plan.md` plan review gate
 - `.github/gsd-core/workflows/execute-phase.md` code review gate
+- `.github/skills/gsd-execute-phase/SKILL.md`
+- `.github/prompts/gsd-review-tasks-execution.prompt.md`
 - `.github/skills/gsd-graphify/SKILL.md`
 - `.github/skills/gsd-add-phase/SKILL.md` when the alias is installed or explicitly requested
 
@@ -199,6 +207,8 @@ Verify these conditions directly in workspace files after the restore step:
 - `execute-plan.md` still contains the concrete `/gsd-code-review-fix ${PHASE} --all --auto` invocation;
 - `execute-phase.md` still contains the concrete `code_review_gate` anchor;
 - `execute-phase.md` still automatically invokes `Skill(skill="gsd-code-review-fix", args="${PHASE_NUMBER}")` for non-clean review results;
+- `.github/skills/gsd-execute-phase/SKILL.md` still contains the local Codex nested-prompt contract for repo-local prompt execution;
+- `.github/prompts/gsd-review-tasks-execution.prompt.md` still contains the inline/local runtime contract and the explicit no-external-router rule;
 - `.github/skills/gsd-add-tests/SKILL.md` still matches the intended local behavior from the selected patch set, including phase-local test-spec outputs and commit-on-demand behavior;
 - `.github/skills/gsd-graphify/SKILL.md` still preserves the repo-local `.github/gsd-core` graphify invocation flow;
 - `.github/copilot-instructions.md` is still the repository's local file and was not replaced by the upstream template;
@@ -227,6 +237,8 @@ When finished, provide a concise result that includes:
 - which changes were actually restored;
 - whether `.github/copilot-instructions.md` was preserved verbatim;
 - whether phase-level auto-fix customization survived;
+- whether the local Codex nested-prompt routing survived;
+- whether the local `GSD-Review-Tasks-Execution` runtime contract survived;
 - whether the repo-local graphify flow survived;
 - whether the `/gsd-add-phase` compatibility alias survived or was intentionally skipped;
 - backup manifest integrity summary: `BACKUP_MISSING` count and listed paths (if any);
@@ -246,6 +258,8 @@ Completion requires all of the following:
 - the `gsd-add-tests` local customization was included in the restore review;
 - the plan-end code-review auto-fix customization was included in the restore review;
 - the phase-level code-review auto-fix customization was included in the restore review;
+- the local Codex nested-prompt routing customization was included in the restore review;
+- the local `GSD-Review-Tasks-Execution` runtime-contract customization was included in the restore review;
 - the repo-local graphify customization was included in the restore review;
 - the repository-specific `.github/copilot-instructions.md` was preserved;
 - backup manifest integrity was validated and any `BACKUP_MISSING` entries were explicitly reported;

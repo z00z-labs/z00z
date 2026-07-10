@@ -8,9 +8,9 @@ from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-TODO_PATH = ROOT / ".planning/phases/067-Sharded-Concensus/067-TODO.md"
-VERDICT_PATH = ROOT / ".planning/phases/067-Sharded-Concensus/067-verdict.md"
-REGISTRY_PATH = ROOT / ".planning/phases/067-Sharded-Concensus/067-GLOSSARY-CLAIMS.md"
+TODO_PATH = ROOT / ".planning/phases/000/067-Sharded-Concensus/067-TODO.md"
+VERDICT_PATH = ROOT / ".planning/phases/000/067-Sharded-Concensus/067-verdict.md"
+REGISTRY_PATH = ROOT / ".planning/phases/000/067-Sharded-Concensus/067-GLOSSARY-CLAIMS.md"
 REGISTRY_DIR = REGISTRY_PATH.parent
 
 ALLOWED_LEVELS = {"live", "simulated-full", "live-claim-removed", "not-claimed"}

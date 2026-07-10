@@ -9,7 +9,7 @@ use z00z_storage::{
     checkpoint::{
         derive_exec_id, encode_exec_bin, CheckpointExecInput, CheckpointExecInputId,
         CheckpointExecTx, CheckpointFsStore, CheckpointId, CheckpointProofSystem, CheckpointStore,
-        CheckpointVersion, CreatedEnt, SpentEnt,
+        CheckpointTransitionStatementCoreV1, CheckpointVersion, CreatedEnt, SpentEnt,
     },
     settlement::{CheckRoot, ClaimSourceRoot, SettlementStateRoot},
     snapshot::PrepSnapshotId,
@@ -46,6 +46,8 @@ struct ArtifactWire {
     created_delta: Vec<CreatedEnt>,
     prep_snapshot_id: Option<PrepSnapshotId>,
     exec_input_id: Option<CheckpointExecInputId>,
+    statement_core: Option<CheckpointTransitionStatementCoreV1>,
+    da_ref: Option<[u8; 32]>,
     proof_sys: CheckpointProofSystem,
     cp_proof: Vec<u8>,
 }
@@ -83,14 +85,14 @@ fn read_stage7_input_id(out: &Path) -> CheckpointExecInputId {
 }
 
 fn exec_path(root: &Path, exec_id: CheckpointExecInputId) -> PathBuf {
-    root.join("checkpoint")
-        .join("exec_input")
+    CheckpointFsStore::new(root)
+        .exec_dir()
         .join(format!("{}.bin", hex::encode(exec_id.as_bytes())))
 }
 
 fn artifact_path(root: &Path, checkpoint_id: CheckpointId) -> PathBuf {
-    root.join("checkpoint")
-        .join("artifact")
+    CheckpointFsStore::new(root)
+        .artifact_dir()
         .join(format!("{}.bin", hex::encode(checkpoint_id.as_bytes())))
 }
 
@@ -215,7 +217,7 @@ fn test_checkpoint_matches_exec_proof() {
     assert_eq!(tx_exec.txs().len(), 1);
     assert_eq!(
         tx_art.cp_proof(),
-        z00z_storage::checkpoint::CheckpointStmt::new(
+        z00z_storage::checkpoint::CheckpointTransitionStatementV1::new(
             tx_art.version(),
             tx_art.height(),
             tx_art.pub_in(),
@@ -308,7 +310,9 @@ fn test_stage4_artifacts_pre_acceptance() {
         "semantic failure must block authoritative checkpoint summary emission"
     );
     assert!(
-        !post_tx_store_root(&out).join("checkpoint/draft").exists(),
+        !post_tx_store_root(&out)
+            .join("artifacts/checkpoints/draft")
+            .exists(),
         "semantic failure must block post-tx checkpoint draft state mutation"
     );
 }
@@ -351,7 +355,9 @@ fn test_stage11_rejects_input_row() {
         "stage 11 must not emit checkpoint_s7.json after authoritative exec mismatch"
     );
     assert!(
-        !post_tx_store_root(&out).join("checkpoint/draft").exists(),
+        !post_tx_store_root(&out)
+            .join("artifacts/checkpoints/draft")
+            .exists(),
         "stage 11 must not persist post-tx checkpoint draft after authoritative exec mismatch"
     );
 }
@@ -405,7 +411,9 @@ fn test_stage11_checkpoint_second_seam() {
         "checkpoint apply must stay the second explicit seam after package admission"
     );
     assert!(
-        !post_tx_store_root(&out).join("checkpoint/draft").exists(),
+        !post_tx_store_root(&out)
+            .join("artifacts/checkpoints/draft")
+            .exists(),
         "failed checkpoint apply must not persist post-tx checkpoint draft state"
     );
 }
@@ -464,7 +472,9 @@ fn test_stage11_rejects_root_drift() {
         "stage 11 must not emit checkpoint_s7.json after exec root drift"
     );
     assert!(
-        !post_tx_store_root(&out).join("checkpoint/draft").exists(),
+        !post_tx_store_root(&out)
+            .join("artifacts/checkpoints/draft")
+            .exists(),
         "stage 11 must not persist post-tx checkpoint draft after exec root drift"
     );
 }

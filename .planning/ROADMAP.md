@@ -210,7 +210,7 @@ This roadmap tracks the active GSD milestone and its executable phases.
   `066-SECURITY.md` with `threats_open: 0`; no active Phase 066 lane remains,
   and no duplicate directory or parallel authority path is allowed)
 - [x] **Phase 067: Sharded Concensus** (added 2026-07-03; directory
-  pre-existing `.planning/phases/067-Sharded-Concensus/`; reuse the existing
+  pre-existing `.planning/phases/000/067-Sharded-Concensus/`; reuse the existing
   folder only; `067-TODO.md` is the normative human-readable authority for
   registration, planning, and execution scoping; its architecture-spec and
   implementation-contract wording supersedes prior working notes; source code,
@@ -274,6 +274,62 @@ This roadmap tracks the active GSD milestone and its executable phases.
   `/GSD-Review-Tasks-Execution` attempts were captured with consecutive clean
   manual-review fallback after final sync, no active `067-*` lane remains,
   and Phase 046 stays paused after `046-04`)
+- [x] **Phase 068: Checkpoint Contract** (added 2026-07-07; directory
+  pre-existing `.planning/phases/068-Checkpoint-Contract/`; reuse the existing
+  folder only; `068-TODO.md` is the normative human-readable authority for
+  registration, planning, and execution scoping; source code, tests, and local
+  configuration remain ground truth; future-only and target-design wording in
+  the Phase 068 corpus is live mandatory scope; required config gate path is
+  `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`; owner crate is
+  `z00z_storage`; literal `TASK-NNN` count is zero because `068-TODO.md`
+  contains no literal `TASK-NNN` identifiers; the canonical packet now
+  includes `068-CONTEXT.md`, `068-COVERAGE.md`, `068-01-PLAN.md` through
+  `068-16-PLAN.md`, `068-TEST-SPEC.md`, and `068-TESTS-TASKS.md`; execution
+  remained in strict order, `068-01` through `068-16` are summary-backed
+  closed on the current tree, `068-VERIFICATION.md` is now the final
+  phase-close packet, and no active `068-*` lane remains;
+  the current-cycle `bootstrap_tests.sh` gate is green again on the current
+  tree,
+  `bash scripts/audit/audit_068_source_truth.sh` is green,
+  `bash scripts/audit/audit_release_feature_guards.sh` is green, the broad
+  `cargo test --release` workspace gate is green on the current tree, the
+  targeted `test_checkpoint_contract_config` and `068-14` release simulations
+  are green on the current tree, a later same-day continuity rerun
+  reconfirmed the broad `cargo test --release` workspace gate plus both Phase
+  068 audit lanes green on that same tree, and
+  repo-default config loading now routes through
+  `z00z_storage::checkpoint::repo_default_path()`, the last live storage tests
+  now use the same helper, `CheckpointContractConfigV1::resolve_paths(...)`
+  now drives one canonical checkpoint and prep-snapshot namespace across
+  storage and live Scenario 1 consumers, the new release test file
+  `crates/z00z_storage/tests/test_checkpoint_contract_config.rs` now locks the
+  literal contract path strings plus the resolved path family, live Phase 067
+  refs are normalized to `.planning/phases/000/067-Sharded-Concensus/`, every
+  `068-*` verify block now names
+  `/.github/prompts/gsd-review-tasks-execution.prompt.md` explicitly as a
+  canonical inline/local Codex review loop, discarded `gsd` shell-out
+  attempts are routing noise only, the provider-neutral
+  `CheckpointDaReferenceV1` and `CheckpointPublicationEvidenceV1` path is
+  landed, `CheckpointArchiveManifestV1` is now rooted in
+  `statement_core_digest`, bare locator authority and provider-leakage drift
+  reject on the canonical codec path, the live Scenario 1 design packet is now
+  synced away from legacy checkpoint path strings, validator and watcher
+  checkpoint consumers now share one storage-owned publication-readiness
+  bundle path while watcher evidence remains advisory, storage now also owns
+  one canonical typed PQ audit-anchor path that binds statement or delta or
+  witness or archive-manifest or Plonky3 epoch or Nova chain or PQ
+  commitment digests through one cadence/helper/validation lane while live
+  cadence enforcement rejects missing PQ anchors once the stage gate is
+  active, storage now also owns one canonical authority-promotion stage
+  machine and typed verified-backend evidence surface that keeps
+  `CheckpointProofSystem::VERIFIED` reserved unless every required proof or
+  verifier or codec or adapter or chain-evidence or rollback or review gate
+  matches one canonical config lane, the deterministic local E2E checkpoint
+  lane and the source-truth repair or claim-guardrail lane are now
+  summary-backed closed on `068-14-SUMMARY.md`, `068-15-SUMMARY.md`, and
+  `068-16-SUMMARY.md`; the final review loop recorded Pass 1 fixing the
+  missing direct config-path coverage and Passes 2 and 3 clean; and no
+  duplicate directory or parallel authority path is allowed)
 
 ### Phase 015: JMT Serialization And Visualization
 
@@ -2681,7 +2737,7 @@ execution-prompt, and documentation-or-migration lanes. Phase 066 completed on
 
 ## Phase 067: Sharded Concensus
 
-**Goal:** Plan the existing `.planning/phases/067-Sharded-Concensus/` folder as
+**Goal:** Plan the existing `.planning/phases/000/067-Sharded-Concensus/` folder as
 the canonical Phase 067 execution root for shard-local aggregator consensus
 hardening, secondary-aggregator quorum modeling, `scenario_11` end-to-end local
 simulation, downstream validator binding, and the later transport/BFT/Celestia
@@ -2702,11 +2758,11 @@ through `067-19-PLAN.md`, and map `ADDENDUM-067-20` plus
 **Depends on:** Phase 066 closeout; Phase 046 remains paused separately and is
 not advanced by Phase 067 planning.
 **Plans:** 21/21 plans executed:
-`.planning/phases/067-Sharded-Concensus/067-01-PLAN.md` through
-`.planning/phases/067-Sharded-Concensus/067-21-PLAN.md`.
+`.planning/phases/000/067-Sharded-Concensus/067-01-PLAN.md` through
+`.planning/phases/000/067-Sharded-Concensus/067-21-PLAN.md`.
 
 **Status**: Completed 2026-07-06 on the existing
-`.planning/phases/067-Sharded-Concensus/` directory only. No new phase folder
+`.planning/phases/000/067-Sharded-Concensus/` directory only. No new phase folder
 was created. Phase 067 expanded planning is complete with `067-CONTEXT.md`,
 `067-COVERAGE.md`, `067-verdict.md`, and 21 executable GSD plan packets in the
 same canonical folder. `067-TODO.md` plus `067-verdict.md` remain the
@@ -2779,23 +2835,23 @@ roots are recorded under `reports/phase-067/20260706T120602Z/` and
 packet is frozen in `067-CLAIM-AUDIT.md` and `067-FINAL-CONFORMANCE.md`, no
 active `067-*` lane remains, and Phase 046 stays paused after `046-04`.
 **Added**: 2026-07-03
-**Directory**: `.planning/phases/067-Sharded-Concensus/`
+**Directory**: `.planning/phases/000/067-Sharded-Concensus/`
 (pre-existing; do not create a duplicate phase folder)
 
 **Canonical refs:**
 
-- `.planning/phases/067-Sharded-Concensus/067-TODO.md`
-- `.planning/phases/067-Sharded-Concensus/067-CONTEXT.md`
-- `.planning/phases/067-Sharded-Concensus/067-COVERAGE.md`
-- `.planning/phases/067-Sharded-Concensus/067-01-PLAN.md` through
-  `.planning/phases/067-Sharded-Concensus/067-21-PLAN.md`
+- `.planning/phases/000/067-Sharded-Concensus/067-TODO.md`
+- `.planning/phases/000/067-Sharded-Concensus/067-CONTEXT.md`
+- `.planning/phases/000/067-Sharded-Concensus/067-COVERAGE.md`
+- `.planning/phases/000/067-Sharded-Concensus/067-01-PLAN.md` through
+  `.planning/phases/000/067-Sharded-Concensus/067-21-PLAN.md`
 
 **Success Criteria**:
 
 1. Phase 067 is discoverable in the active milestone without creating a
    second `067` directory.
 
-2. The existing `.planning/phases/067-Sharded-Concensus/` folder remains the
+2. The existing `.planning/phases/000/067-Sharded-Concensus/` folder remains the
    only canonical phase root, and Phase 067 registration does not create a
    duplicate folder or a parallel authority layer.
 
@@ -2815,3 +2871,135 @@ active `067-*` lane remains, and Phase 046 stays paused after `046-04`.
    `067-21-PLAN.md` packet with coverage, simulation, evidence, and
    anti-placeholder gates for every required Phase 067 unit plus the explicit
    late addendum overlays.
+
+## Phase 068: Checkpoint Contract
+
+**Goal:** Register the existing `.planning/phases/068-Checkpoint-Contract/`
+folder as the canonical Phase 068 planning root for the storage-owned
+recursive-ready checkpoint contract and replay substrate, keeping checkpoint
+theorem or artifact or config-gate ownership in `z00z_storage::checkpoint`
+without creating a duplicate phase directory or a parallel authority path.
+**Requirements**: `068-TODO.md` remains the normative human-readable Phase 068
+authority for registration, planning, and execution scoping. It defines the
+storage-first recursive-ready checkpoint contract, keeps source code or tests
+or local configuration as ground truth, treats future-only or target-design
+wording in the Phase 068 corpus as live mandatory scope, freezes the required
+config gate path to `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`,
+keeps owner-crate authority in `z00z_storage`, and records literal `TASK-NNN`
+count as zero because `068-TODO.md` contains no literal task identifiers.
+**Depends on:** Phase 067 closeout; Phase 046 remains paused separately and is
+not advanced by Phase 068 registration.
+**Plans:** 16 canonical plan packets exist in the pre-existing phase folder.
+Execution must proceed strictly in order from `068-01-PLAN`; later plans exist
+as packetized execution intent only and MUST NOT be claimed complete out of
+order. All discuss, context, coverage, plan, test, or execution artifacts for
+Phase 068 MUST remain inside `.planning/phases/068-Checkpoint-Contract/` only.
+
+**Status**: Added 2026-07-07 on the existing
+`.planning/phases/068-Checkpoint-Contract/` directory only. No new phase folder
+was created. Phase 068 planning packet generation is complete on that same
+folder: `068-CONTEXT.md`, `068-COVERAGE.md`, `068-01-PLAN.md` through
+`068-16-PLAN.md`, `068-TEST-SPEC.md`, and `068-TESTS-TASKS.md` are the live
+phase-local execution packet under the still-normative `068-TODO.md`. Source
+code, tests, and local configuration remain ground truth; the required config
+gate path remains `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`;
+owner-crate authority remains `z00z_storage`; `CheckpointContractConfigV1::load_repo_default()`
+now resolves through `z00z_storage::checkpoint::repo_default_path()` so the
+repo-owned YAML gate keeps one canonical path independent of caller `cwd`, the
+remaining live storage tests now use the same helper instead of rebuilding the
+repo path manually, and `CheckpointContractConfigV1::resolve_paths(...)` now
+drives one canonical checkpoint and prep-snapshot namespace across storage and
+live Scenario 1 consumers. The new release test file
+`crates/z00z_storage/tests/test_checkpoint_contract_config.rs` now locks the
+literal contract path strings plus the resolved path family. Every Phase 068
+plan `<verify>` block now explicitly
+names `/.github/prompts/gsd-review-tasks-execution.prompt.md`
+(`/GSD-Review-Tasks-Execution`) as a canonical inline/local Codex review loop
+with the at-least-three-runs and two-consecutive-clean rule; live Phase 067
+references are normalized onto `.planning/phases/000/067-Sharded-Concensus/`;
+the repo-default config path cleanup, canonical V1 statement framing,
+replay-owned `tx_data_root` execution-input commitment path, the new
+storage-owned `delta_root` or `witness_root` or `journal_digest` helper path,
+and the provider-neutral `CheckpointDaReferenceV1` or
+`CheckpointPublicationEvidenceV1` contract are landed. `CheckpointArchiveManifestV1`
+is now rooted in `statement_core_digest`, and bare locator authority plus
+provider-leakage or unknown-field drift reject on the canonical codec path.
+Explicit predecessor-bound checkpoint links plus `CheckpointLifecycleV1` and
+publication-readiness challenge gating are now landed. The checkpoint store and
+prep snapshot surfaces now resolve through the same validated
+`artifacts/checkpoints/*` family, the live Scenario 1 checkpoint consumers and
+the scenario design packet are synced away from legacy checkpoint path
+strings, the current-cycle `bootstrap_tests.sh` gate is green on the current
+tree again, `bash scripts/audit/audit_068_source_truth.sh` is green,
+`bash scripts/audit/audit_release_feature_guards.sh` is green, the broad
+current-tree `cargo test --release` workspace gate is green, the targeted
+`test_checkpoint_contract_config` and `068-14` rollup-node or validator or
+watcher or simulator release reruns are green, and a later same-day continuity
+rerun reconfirmed the broad `cargo test --release` workspace gate plus both
+Phase 068 audit lanes green on that same tree. The canonical inline/local
+workspace-first review loop is now recorded on `068-16-SUMMARY.md` with Pass 1
+fixing the missing direct config-path coverage and Passes 2 and 3 clean,
+`068-16` is summary-backed closed on `068-16-SUMMARY.md`, the phase
+verification packet is landed on `068-VERIFICATION.md`, the repaired Phase 090
+source now records current-code anchors plus Phase 068 versus Phase 069
+authority boundaries, the real local DA adapter still proves publication
+readiness only through the storage-owned publication-evidence boundary,
+validator and watcher checkpoint consumers now share one storage-owned
+publication-readiness bundle path while watcher evidence remains advisory, the
+storage-owned recursive sidecar contract now binds statement digests,
+prior-output roots, proof-byte digests, measurements, and 3-to-5-step chain
+evidence on one non-authoritative facade path while canonical admission still
+rejects the sidecar, storage now also owns one canonical typed PQ audit-anchor
+path that binds statement or delta or witness or archive-manifest or Plonky3
+epoch or Nova chain or PQ commitment digests through one cadence/helper/
+validation lane while live cadence enforcement rejects missing PQ anchors once
+the stage gate is active, storage now also owns one canonical
+authority-promotion stage machine and typed verified-backend evidence surface
+that keeps `CheckpointProofSystem::VERIFIED` reserved unless every required
+gate matches one canonical config lane, the deterministic local E2E checkpoint
+lane plus the fixture-backed source-truth or claim-guardrail lane are now
+summary-backed closed, Phase 068 is verification-backed complete, and no
+active `068-*` lane remains.
+**Added**: 2026-07-07
+**Directory**: `.planning/phases/068-Checkpoint-Contract/`
+(pre-existing; do not create a duplicate phase folder)
+
+**Canonical refs:**
+
+- `.planning/phases/068-Checkpoint-Contract/068-TODO.md`
+- `.planning/phases/068-Checkpoint-Contract/068-CONTEXT.md`
+- `.planning/phases/068-Checkpoint-Contract/068-COVERAGE.md`
+- `.planning/phases/068-Checkpoint-Contract/068-01-PLAN.md`
+- `.planning/phases/068-Checkpoint-Contract/068-16-PLAN.md`
+- `.planning/phases/068-Checkpoint-Contract/068-TEST-SPEC.md`
+- `.planning/phases/068-Checkpoint-Contract/068-TESTS-TASKS.md`
+- `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`
+
+**Success Criteria**:
+
+1. Phase 068 is discoverable in the active milestone without creating a
+   second `068` directory.
+
+2. The existing `.planning/phases/068-Checkpoint-Contract/` folder remains the
+   only canonical phase root, and Phase 068 registration does not create a
+   duplicate folder or a parallel authority layer.
+
+3. `068-TODO.md` remains the canonical human-readable Phase 068 authority,
+   source code or tests or local configuration remain ground truth, literal
+   `TASK-NNN` count remains truthfully zero, and future-only or target-design
+   wording in the Phase 068 corpus stays live mandatory scope.
+
+4. The canonical config gate path remains
+   `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`, and
+   checkpoint statement or artifact or config-gate ownership stays in
+   `z00z_storage::checkpoint` with no root-level parallel authority path.
+
+5. `/gsd-discuss-phase 068`, `/gsd-plan-phase 068`, `/gsd-add-tests 068`, and
+   `/gsd-execute-phase 068` must operate locally against the existing folder
+   only and must not create any duplicate phase root, alias authority, or
+   parallel plan tree outside that directory.
+
+6. Release-mode simulator verification for Phase 068 must use the canonical
+   `scenario_1` test target path and must not rely on a standalone
+   `test-params-fast` lane that the live `z00z_simulator` crate rejects in
+   release-capable builds.

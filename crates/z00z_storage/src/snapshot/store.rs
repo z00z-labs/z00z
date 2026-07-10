@@ -1,7 +1,11 @@
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use z00z_utils::io::{create_dir_all, read_file, write_file};
 
+use crate::checkpoint::CheckpointContractConfigV1;
 use crate::settlement::{
     chk_blob_settlement_inclusion, CheckRoot, HjmtProofFamily, ModelErr, ProofBlob, ProofChkErr,
     ProofItem, SettlementStore, SettlementStoreError, SnapItem, StoreItem, StoreOp,
@@ -133,22 +137,41 @@ pub trait PrepSnapshotStore {
 /// File-backed canonical snapshot store.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrepFsStore {
-    root: PathBuf,
+    snap_dir: PathBuf,
 }
 
 impl PrepFsStore {
     /// Build one file-backed snapshot store rooted at the given directory.
     #[must_use]
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self::try_new(root).expect("repo checkpoint contract must validate snapshot paths")
     }
 
-    pub(super) fn snap_dir(&self) -> PathBuf {
-        self.root.join("prep_snapshot")
+    /// Build one file-backed snapshot store rooted at the repository contract
+    /// paths for the given lane root.
+    pub fn try_new(root: impl Into<PathBuf>) -> Result<Self, PrepSnapshotError> {
+        let cfg = CheckpointContractConfigV1::load_repo_default()
+            .map_err(|err| PrepSnapshotError::Backend(err.to_string()))?;
+        let resolved = cfg.resolve_paths(root.into());
+        Ok(Self::with_snapshot_dir(resolved.prep_snapshots))
+    }
+
+    /// Build one file-backed snapshot store for an exact already-validated
+    /// snapshot directory.
+    #[must_use]
+    pub fn with_snapshot_dir(snap_dir: impl Into<PathBuf>) -> Self {
+        Self {
+            snap_dir: snap_dir.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn snapshot_dir(&self) -> &Path {
+        &self.snap_dir
     }
 
     pub(super) fn snap_path(&self, snapshot_id: &PrepSnapshotId) -> PathBuf {
-        self.snap_dir().join(format!("{}.bin", id_hex(snapshot_id)))
+        self.snap_dir.join(format!("{}.bin", id_hex(snapshot_id)))
     }
 }
 
@@ -160,7 +183,7 @@ impl PrepSnapshotStore for PrepFsStore {
         self.validate_snapshot(snapshot)?;
         let snapshot_id = self.derive_snapshot_id(snapshot)?;
         let bytes = encode_snap(snapshot)?;
-        create_dir_all(self.snap_dir())?;
+        create_dir_all(&self.snap_dir)?;
         write_file(self.snap_path(&snapshot_id), &bytes)?;
 
         let reloaded = self.load_snapshot(&snapshot_id)?;
