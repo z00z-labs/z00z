@@ -6255,9 +6255,7 @@ wallet:
         let history_path = service.wallet_history_jsonl_path(&wallet_id);
 
         z00z_utils::io::write_file(&backup_path, &forensic_backup_bytes()).expect("write backup");
-        std::fs::create_dir_all(history_path.parent().expect("history parent"))
-            .expect("history parent dir");
-        std::fs::create_dir(&history_path).expect("block history path with directory");
+        z00z_utils::io::create_dir_all(&history_path).expect("block history path with directory");
 
         let err = service
             .restore_backup_with_mode(

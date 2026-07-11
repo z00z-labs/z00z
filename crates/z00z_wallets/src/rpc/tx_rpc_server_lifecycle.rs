@@ -810,7 +810,7 @@ impl TxRpcImpl {
         let receiver_secret = crate::key::ReceiverSecret::from_bytes(recv_secret)
             .map_err(|err| ErrorObjectOwned::owned(-32603, err.to_string(), None::<()>))?;
         let mut auth_rng = rand::rngs::StdRng::from_seed(self.tx_seed_bytes());
-        let (proof, auth) = crate::tx::build_public_spend_contract_with_rng(
+        let (proof, auth) = crate::tx::build_spend_contract_with_rng(
             &recv_keys,
             chain_id,
             1,

@@ -319,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn test_da_reference_rejects_empty_locator() {
+    fn test_da_ref_rejects_empty() {
         let err = CheckpointDaReferenceV1::new(
             CheckpointDaReferenceVersion::CURRENT,
             CheckpointDaProviderFamily::LocalArchive,
@@ -336,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn test_da_reference_rejects_zero_height() {
+    fn test_da_ref_rejects_zero() {
         let err = CheckpointDaReferenceV1::new(
             CheckpointDaReferenceVersion::CURRENT,
             CheckpointDaProviderFamily::LocalArchive,
@@ -353,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn test_da_reference_rejects_bare_locator_kind() {
+    fn test_da_rejects_bare_kind() {
         let err = CheckpointDaReferenceV1::new(
             CheckpointDaReferenceVersion::CURRENT,
             CheckpointDaProviderFamily::LocalArchive,

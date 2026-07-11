@@ -350,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lifecycle_rejects_link_stmt_drift() {
+    fn test_lifecycle_rejects_link_drift() {
         let artifact = checkpoint_fixtures::artifact();
         let checkpoint_id =
             crate::checkpoint::derive_checkpoint_id(&artifact).expect("checkpoint id");
@@ -371,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lifecycle_rejects_early_challenge_start() {
+    fn test_lifecycle_rejects_early_start() {
         let (artifact, link) = lifecycle_link();
         let lifecycle = CheckpointLifecycleV1::from_artifact(&artifact)
             .expect("sealed lifecycle")
@@ -388,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lifecycle_rejects_finalized_after_dispute() {
+    fn test_lifecycle_rejects_finalized_dispute() {
         let (artifact, link) = lifecycle_link();
         let lifecycle = CheckpointLifecycleV1::from_artifact(&artifact)
             .expect("sealed lifecycle")
@@ -417,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lifecycle_rejects_publication_evidence_drift() {
+    fn test_lifecycle_rejects_evidence_drift() {
         let (artifact, link) = lifecycle_link();
         let lifecycle = CheckpointLifecycleV1::from_artifact(&artifact)
             .expect("sealed lifecycle")

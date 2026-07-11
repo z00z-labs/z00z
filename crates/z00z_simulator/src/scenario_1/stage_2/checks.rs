@@ -345,10 +345,9 @@ mod tests {
     use super::*;
     use crate::scenario_1::stage_2::actors::actor_password;
     use crate::scenario_1::support::{fixture_cache, scenario_support, stage_runner_support};
-    use serde_json::Value;
     use std::path::PathBuf;
     use std::sync::OnceLock;
-    use z00z_utils::codec::Value as CodecValue;
+    use z00z_utils::codec::Value;
     use z00z_utils::io::{load_json, read_file, remove_file};
 
     fn stage2_shared_root() -> &'static PathBuf {
@@ -383,7 +382,7 @@ mod tests {
             name: "alice".to_string(),
             password: password.to_string(),
             wallet_id: wallet_id.0.clone(),
-            session: CodecValue::Null,
+            session: Value::Null,
             seed_phrase: String::new(),
             receiver_secret_hex: String::new(),
             owner_handle: String::new(),

@@ -663,7 +663,7 @@ pub fn build_spend_input_proof(
     })
 }
 
-pub fn build_public_spend_contract_with_rng<R>(
+pub fn build_spend_contract_with_rng<R>(
     receiver_keys: &ReceiverKeys,
     chain_id: u32,
     tx_version: u8,
@@ -733,7 +733,7 @@ pub fn build_public_spend_contract(
     proof_witness: SpendProofWitness,
 ) -> Result<(TxProofWire, TxAuthWire), SpendPublicErr> {
     let mut rng = SystemRngProvider.rng();
-    build_public_spend_contract_with_rng(
+    build_spend_contract_with_rng(
         receiver_keys,
         chain_id,
         tx_version,

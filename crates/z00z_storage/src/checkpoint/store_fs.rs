@@ -89,6 +89,10 @@ impl CheckpointFsStore {
         self.resolved_paths.checkpoint_lifecycles.clone()
     }
 
+    pub fn recursive_sidecar_dir(&self) -> PathBuf {
+        self.resolved_paths.recursive_sidecars.clone()
+    }
+
     pub fn final_lane_path(&self) -> PathBuf {
         self.final_lane_path.clone()
     }
@@ -146,6 +150,11 @@ impl CheckpointFsStore {
     pub(super) fn lifecycle_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
         self.lifecycle_dir()
             .join(format!("{}.bin", id_hex(checkpoint_id.as_bytes())))
+    }
+
+    pub(super) fn recursive_sidecar_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
+        self.recursive_sidecar_dir()
+            .join(format!("{}.sidecar.bin", id_hex(checkpoint_id.as_bytes())))
     }
 
     pub(super) fn save_bin(path: &Path, bytes: &[u8]) -> Result<(), CheckpointError> {

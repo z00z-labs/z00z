@@ -177,7 +177,9 @@ fn assert_tx_error_payload(
 ) {
     let data = err.data().expect("typed tx error payload");
     let parsed: crate::rpc::error_mapping::RuntimeTxRpcErrorData =
-        serde_json::from_str(data.get()).expect("typed tx error payload json");
+        JsonCodec
+            .deserialize(data.get().as_bytes())
+            .expect("typed tx error payload json");
     assert_eq!(parsed.error_codes, expected_codes);
     assert_eq!(parsed.lifecycle, expected_lifecycle);
 }

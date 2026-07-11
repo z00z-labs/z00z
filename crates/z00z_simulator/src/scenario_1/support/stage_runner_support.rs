@@ -19,6 +19,8 @@ use z00z_core::{AssetDefinitionRegistry, ChainType};
 use z00z_utils::{logger::NoopLogger, metrics::NoopMetrics, time::SystemTimeProvider};
 use z00z_wallets::claim::registry as claim_registry;
 
+const STAGE_SETUP_RETRIES: usize = 3;
+
 pub struct StageSession {
     pub ctx: SimContext,
     _process_guard: crate::scenario_1::ScenarioProcessGuard<'static>,
@@ -216,14 +218,29 @@ pub fn try_run_stage_setup_session(
     design_path: &Path,
     stage_ids: &[u32],
 ) -> Result<StageSession, String> {
-    let mut session = begin_stage_session(cfg_path, true);
-    for &stage_id in stage_ids {
-        let result = run_stage_once(&mut session, design_path, stage_id);
-        if !matches!(result, StageResult::Ok) {
-            return Err(format!("stage {stage_id} failed: {result:?}"));
+    let mut last_err = None;
+
+    for attempt in 1..=STAGE_SETUP_RETRIES {
+        let mut session = begin_stage_session(cfg_path, true);
+        let mut failed = None;
+        for &stage_id in stage_ids {
+            let result = run_stage_once(&mut session, design_path, stage_id);
+            if !matches!(result, StageResult::Ok) {
+                failed = Some(format!("stage {stage_id} failed: {result:?}"));
+                break;
+            }
         }
+        if let Some(err) = failed {
+            last_err = Some(format!("attempt {attempt}: {err}"));
+            continue;
+        }
+        return Ok(session);
     }
-    Ok(session)
+
+    Err(format!(
+        "stage setup failed after {STAGE_SETUP_RETRIES} attempts: {}",
+        last_err.unwrap_or_else(|| "unknown stage setup error".to_string())
+    ))
 }
 
 pub fn run_stage_setup(cfg_path: &Path, design_path: &Path, stage_ids: &[u32]) -> SimContext {

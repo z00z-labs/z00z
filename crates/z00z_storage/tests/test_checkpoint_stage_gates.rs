@@ -1,8 +1,7 @@
 use z00z_storage::{
     checkpoint::{
-        repo_default_path, CheckpointContractConfigV1,
-        AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT,
-        AUTHORITY_PROMOTION_STAGE_CONFIG_GATE, AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR,
+        repo_default_path, CheckpointContractConfigV1, AUTHORITY_PROMOTION_STAGE_CONFIG_GATE,
+        AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT, AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR,
         AUTHORITY_PROMOTION_STAGE_SPEC_ONLY, POST_QUANTUM_ENFORCEMENT_STAGE,
         VERIFIED_BACKEND_CANDIDATE_STAGE, VERIFIED_BACKEND_ENABLED_STAGE,
         VERIFIED_BACKEND_REVIEW_APPROVED,
@@ -40,16 +39,16 @@ fn test_all_legal_phase068_stages_validate() {
         ),
         (
             AUTHORITY_PROMOTION_STAGE_CONFIG_GATE,
-            &[AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT],
+            &[AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT],
             false,
         ),
         (
-            AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT,
-            &[AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR],
+            AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT,
+            &[AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR],
             false,
         ),
         (
-            AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR,
+            AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR,
             &[POST_QUANTUM_ENFORCEMENT_STAGE],
             false,
         ),
@@ -80,7 +79,7 @@ fn test_all_legal_phase068_stages_validate() {
 fn test_stage_skip_rejects() {
     let err = stage_cfg(
         AUTHORITY_PROMOTION_STAGE_SPEC_ONLY,
-        &[AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR],
+        &[AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR],
         false,
     )
     .validate()
@@ -120,7 +119,7 @@ fn test_verified_backend_flag_rejects_before_promotion() {
 #[test]
 fn test_recursive_authority_flag_rejects_before_promotion() {
     let mut cfg = stage_cfg(
-        AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR,
+        AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR,
         &[POST_QUANTUM_ENFORCEMENT_STAGE],
         false,
     );

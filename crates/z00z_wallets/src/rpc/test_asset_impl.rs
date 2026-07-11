@@ -2347,7 +2347,7 @@ async fn test_asset_send_limits_10() {
 }
 
 #[tokio::test]
-async fn test_asset_send_ignores_env_drift() {
+async fn test_asset_send_ignores_drift() {
     let time = Arc::new(MockTimeProvider::default());
     let rpc = AssetRpcImpl::with_dependencies(time);
     let (wallet_id, session) = create_unlocked_session(&rpc).await;
@@ -3089,7 +3089,7 @@ async fn test_asset_merge_assets_total() {
 }
 
 #[tokio::test]
-async fn test_asset_merge_rejects_mixed_definitions() {
+async fn test_asset_merge_rejects_mixed() {
     let time = Arc::new(MockTimeProvider::default());
     let rpc = AssetRpcImpl::with_dependencies(time);
 
@@ -3199,7 +3199,7 @@ async fn test_asset_unstake_roundtrip_surface() {
 }
 
 #[tokio::test]
-async fn test_asset_swap_inputs_live_tx() {
+async fn test_asset_swap_inputs_live() {
     let time = Arc::new(MockTimeProvider::default());
     let rpc = AssetRpcImpl::with_dependencies(time);
 

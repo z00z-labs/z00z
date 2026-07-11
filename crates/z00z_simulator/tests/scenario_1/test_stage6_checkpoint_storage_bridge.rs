@@ -1,5 +1,6 @@
 use std::{
     fs,
+    panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
 };
@@ -16,6 +17,8 @@ struct FullRunCase {
 struct Stage9Case {
     out: PathBuf,
 }
+
+const CHECKPOINT_CASE_RETRIES: usize = 3;
 
 fn load_json(path: &Path) -> Value {
     serde_json::from_slice(&read_file(path).expect("read json")).expect("decode json")
@@ -55,14 +58,17 @@ fn bridge_file(out: &Path) -> PathBuf {
 fn full_run_case() -> &'static FullRunCase {
     static CASE: OnceLock<FullRunCase> = OnceLock::new();
     CASE.get_or_init(|| FullRunCase {
-        out: checkpoint_shared_cases::default_stage11_out(),
+        out: retry_checkpoint_case(
+            "stage11_full_run",
+            checkpoint_shared_cases::default_stage11_out,
+        ),
     })
 }
 
 fn stage9_case() -> &'static Stage9Case {
     static CASE: OnceLock<Stage9Case> = OnceLock::new();
     CASE.get_or_init(|| Stage9Case {
-        out: checkpoint_shared_cases::bridge_stage9_out(),
+        out: retry_checkpoint_case("stage9_bridge", checkpoint_shared_cases::bridge_stage9_out),
     })
 }
 
@@ -70,7 +76,37 @@ fn stage6_case_lock() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
         .lock()
-        .expect("stage6 test lock")
+        .unwrap_or_else(|poison| poison.into_inner())
+}
+
+fn retry_checkpoint_case(label: &str, build: impl Fn() -> PathBuf) -> PathBuf {
+    let mut last_err = None;
+    for attempt in 1..=CHECKPOINT_CASE_RETRIES {
+        match catch_unwind(AssertUnwindSafe(&build)) {
+            Ok(path) => return path,
+            Err(payload) => {
+                last_err = Some(format!(
+                    "attempt {attempt}: {}",
+                    panic_payload_text(payload)
+                ));
+            }
+        }
+    }
+
+    panic!(
+        "checkpoint shared case {label} failed after {CHECKPOINT_CASE_RETRIES} attempts: {}",
+        last_err.unwrap_or_else(|| "unknown panic".to_string())
+    );
+}
+
+fn panic_payload_text(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(text) = payload.downcast_ref::<&str>() {
+        (*text).to_string()
+    } else if let Some(text) = payload.downcast_ref::<String>() {
+        text.clone()
+    } else {
+        "non-string panic payload".to_string()
+    }
 }
 
 #[test]

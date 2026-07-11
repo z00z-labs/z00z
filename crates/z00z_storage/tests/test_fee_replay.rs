@@ -67,6 +67,8 @@ struct CheckArtWire {
     created_delta: Vec<CreatedEnt>,
     prep_snapshot_id: Option<z00z_storage::snapshot::PrepSnapshotId>,
     exec_input_id: Option<CheckpointExecInputId>,
+    statement_core: Option<z00z_storage::checkpoint::CheckpointTransitionStatementCoreV1>,
+    da_ref: Option<[u8; 32]>,
     proof_sys: CheckpointProofSystem,
     cp_proof: Vec<u8>,
 }
@@ -345,6 +347,8 @@ fn check_wire(artifact: &z00z_storage::checkpoint::CheckpointArtifact) -> CheckA
         created_delta: artifact.created_delta().to_vec(),
         prep_snapshot_id,
         exec_input_id,
+        statement_core: artifact.statement_core(),
+        da_ref: artifact.da_ref(),
         proof_sys: artifact.proof_sys(),
         cp_proof: artifact.cp_proof().to_vec(),
     }
@@ -734,6 +738,8 @@ fn test_stmtless_link_bundle_hjmt() -> Result<(), Box<dyn std::error::Error>> {
         created_delta: draft.created_delta().to_vec(),
         prep_snapshot_id: None,
         exec_input_id: None,
+        statement_core: None,
+        da_ref: None,
         proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
         cp_proof: vec![9u8],
     })?;

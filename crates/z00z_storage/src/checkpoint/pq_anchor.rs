@@ -565,13 +565,14 @@ mod tests {
         PostQuantumCheckpointAnchorVersion, PostQuantumCheckpointEnforcementStageV1,
     };
     use crate::CheckpointError;
+    use z00z_utils::codec::{json, Codec, JsonCodec, Value};
 
     fn root(byte: u8) -> [u8; 32] {
         [byte; 32]
     }
 
     #[test]
-    fn test_decode_rejects_missing_required_pq_artifact_even_with_matching_bindings() {
+    fn test_pq_anchor_requires_artifact() {
         let anchor = PostQuantumCheckpointAnchorV1::new(
             PostQuantumCheckpointAnchorVersion::CURRENT,
             1000,
@@ -589,7 +590,9 @@ mod tests {
             PostQuantumCheckpointEnforcementStageV1::PqAnchorWriter,
         )
         .expect("valid pq anchor");
-        let mut value = serde_json::to_value(anchor).expect("pq anchor json");
+        let mut value: Value = JsonCodec
+            .deserialize(&JsonCodec.serialize(&anchor).expect("pq anchor json"))
+            .expect("pq anchor value");
         let statement_digest = [0u8; 32];
         let pq_statement_digest = pq_statement_digest_v1(
             1000,
@@ -621,12 +624,12 @@ mod tests {
             PostQuantumCheckpointAnchorModeV1::Plonky3EpochProof,
             PostQuantumCheckpointEnforcementStageV1::PqAnchorWriter,
         );
-        value["statement_digest"] = serde_json::json!(statement_digest);
-        value["pq_statement_digest"] = serde_json::json!(pq_statement_digest);
-        value["pq_anchor_root"] = serde_json::json!(pq_anchor_root);
+        value["statement_digest"] = json!(statement_digest);
+        value["pq_statement_digest"] = json!(pq_statement_digest);
+        value["pq_anchor_root"] = json!(pq_anchor_root);
 
         let err =
-            decode_pq_anchor_json_checked(&serde_json::to_vec(&value).expect("pq anchor bytes"))
+            decode_pq_anchor_json_checked(&JsonCodec.serialize(&value).expect("pq anchor bytes"))
                 .expect_err("missing required pq artifact must reject");
 
         assert!(

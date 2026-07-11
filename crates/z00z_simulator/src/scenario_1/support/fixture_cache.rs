@@ -626,11 +626,34 @@ fn cache_process_scope(pid: u32) -> Option<String> {
     let exe_path = read_link(PathBuf::from("/proc").join(pid.to_string()).join("exe"))
         .ok()
         .map(|path| normalize_path(&path))?;
-    if !exe_path.starts_with(normalize_path(&repo_root())) {
+    if !is_cache_process_executable(&exe_path) {
         return None;
     }
     let stem = exe_path.file_stem()?.to_str()?;
     Some(normalize_scope_name(stem))
+}
+
+fn is_cache_process_executable(exe_path: &Path) -> bool {
+    if exe_path.starts_with(normalize_path(&repo_root())) {
+        return true;
+    }
+
+    // Verification runs may set CARGO_TARGET_DIR outside the repository. Trust
+    // only binaries under this test process's own target root, never arbitrary
+    // live PIDs elsewhere on the host.
+    current_target_root().is_some_and(|target_root| exe_path.starts_with(target_root))
+}
+
+fn current_target_root() -> Option<PathBuf> {
+    let current_exe = std::env::current_exe()
+        .ok()
+        .map(|path| normalize_path(&path))?;
+    current_exe
+        .ancestors()
+        .find(|ancestor| ancestor.file_name() == Some(OsStr::new("deps")))
+        .and_then(|deps_dir| deps_dir.parent())
+        .and_then(|profile_dir| profile_dir.parent())
+        .map(Path::to_path_buf)
 }
 
 fn normalize_scope_name(raw: &str) -> String {

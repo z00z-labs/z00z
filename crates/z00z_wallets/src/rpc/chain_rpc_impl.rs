@@ -123,7 +123,7 @@ mod tests {
     use crate::services::WalletService;
 
     #[tokio::test]
-    async fn test_start_local_scan_job_id() {
+    async fn test_local_scan_job() {
         let app_service = Arc::new(AppService::new());
         let scan_rpc = ChainScanRpcImpl::new(app_service);
         let wallet_id = PersistWalletId("start-scan-wallet".to_string());
@@ -152,7 +152,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_start_local_scan_from_genesis() {
+    async fn test_start_scan_genesis() {
         let app_service = Arc::new(AppService::new());
         let scan_rpc = ChainScanRpcImpl::new(app_service);
         let wallet_id = PersistWalletId("wallet123".to_string());
@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_local_scan_status_idle() {
+    async fn test_get_scan_status() {
         let app_service = Arc::new(AppService::new());
         let scan_rpc = ChainScanRpcImpl::new(app_service);
         let wallet_id = PersistWalletId("idle-wallet".to_string());
@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_local_scan_tip_block() {
+    async fn test_get_scan_tip() {
         let app_service = Arc::new(AppService::new());
         let scan_rpc = ChainScanRpcImpl::new(app_service);
 

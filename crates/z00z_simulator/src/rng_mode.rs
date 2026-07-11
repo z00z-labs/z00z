@@ -1,8 +1,10 @@
 //! RNG mode selection for simulator stages.
 //!
-//! When `mock_rng_seed` is `Some(seed)`, uses deterministic [`MockRngProvider`]
+//! When `mock_rng_seed` is `Some(seed)`, uses deterministic
+//! [`z00z_utils::rng::MockRngProvider`]
 //! for simulator reproducibility.
-//! When `None`, uses cryptographically secure [`SystemRngProvider`] for the
+//! When `None`, uses cryptographically secure
+//! [`z00z_utils::rng::SystemRngProvider`] for the
 //! non-mock path.
 //! This helper does not claim one unified randomness selector for every
 //! simulator stage.

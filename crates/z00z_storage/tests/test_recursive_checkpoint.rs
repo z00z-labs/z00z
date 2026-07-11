@@ -243,6 +243,20 @@ fn test_chain_bounds_reject_drift() {
 }
 
 #[test]
+fn test_verifier_rejects_unvalidated_contract_chain_bounds() {
+    let mut contract = cfg();
+    contract.branches.recursive.min_chain_steps = 2;
+
+    let err = RecursiveCheckpointVerifierV1::new(&contract)
+        .expect_err("verifier must not accept an unvalidated chain-bound weakening");
+
+    assert_eq!(
+        err,
+        RecursiveCheckpointRejectReasonV1::BackendClaimUnsupported
+    );
+}
+
+#[test]
 fn test_chain_three_step_ok() {
     let verifier = verifier();
     let steps = build_chain(

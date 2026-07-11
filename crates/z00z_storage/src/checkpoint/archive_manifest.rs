@@ -788,7 +788,7 @@ mod tests {
     }
 
     #[test]
-    fn test_manifest_rejects_non_contiguous_ordinals() {
+    fn test_manifest_rejects_ordinal_gap() {
         let err = CheckpointArchiveManifestV1::new(
             ArchiveManifestVersion::CURRENT,
             root(1),

@@ -52,7 +52,8 @@
 //!
 //! ## Structured Logging Policy
 //!
-//! Fee validation uses `tracing` for audit trails and debugging:
+//! Fee validation uses the injected `z00z_utils::logger::Logger` for audit trails
+//! and debugging:
 //!
 //! ### Log Levels
 //!
@@ -66,11 +67,10 @@
 //! All log statements use key-value pairs for machine parsing:
 //!
 //! ```rust,ignore
-//! tracing::debug!(
-//!     schedule_base = schedule.base_tx_cost,
-//!     price_per_unit = price.per_unit,
-//!     "validating transaction fee"
-//! );
+//! use z00z_utils::logger::{Logger, TracingLogger};
+//!
+//! let logger = TracingLogger;
+//! logger.debug("validating transaction fee");
 //! ```
 //!
 //! ### Field Formatting

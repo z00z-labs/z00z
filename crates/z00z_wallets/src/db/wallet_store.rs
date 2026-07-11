@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wlt_create_restores_missing_parent_before_lock() {
+    fn test_wlt_restores_parent_lock() {
         let dir = TempDir::new().unwrap();
         let wlt_path = dir.path().join("nested/wallets/wallet_missing_parent.wlt");
 

@@ -25,7 +25,7 @@ const ID_CLASS_EXEC: &[u8] = b"exec_input";
 enum CheckpointIdInput {
     V1Opaque {
         proof_sys: CheckpointProofSystem,
-        stmt: CheckpointTransitionStatementV1,
+        stmt: Box<CheckpointTransitionStatementV1>,
     },
     V1Canonical {
         proof_sys: CheckpointProofSystem,
@@ -213,7 +213,7 @@ fn checkpoint_id_input_bytes(artifact: &CheckpointArtifact) -> Result<Vec<u8>, C
             CheckpointStatement::Detached => return Err(CheckpointError::ArtifactCompatMix),
             CheckpointStatement::V1(stmt) => CheckpointIdInput::V1Opaque {
                 proof_sys: artifact.proof_sys(),
-                stmt: *stmt,
+                stmt,
             },
         }
     };

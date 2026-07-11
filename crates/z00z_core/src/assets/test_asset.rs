@@ -1108,7 +1108,7 @@ fn test_new_confidential_ok() {
 }
 
 #[test]
-fn test_new_confidential_with_blinding_is_deterministic() {
+fn test_confidential_blinding_deterministic() {
     let def = create_test_definition();
     let nonce = [12u8; 32];
     let blinding =

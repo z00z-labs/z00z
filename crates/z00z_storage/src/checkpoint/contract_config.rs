@@ -17,9 +17,8 @@ pub const CHECKPOINT_CONTRACT_CONFIG_PATH: &str =
     "crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml";
 pub const AUTHORITY_PROMOTION_STAGE_SPEC_ONLY: &str = "spec_only";
 pub const AUTHORITY_PROMOTION_STAGE_CONFIG_GATE: &str = "config_gate";
-pub const AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT: &str =
-    "canonical_extended_statement";
-pub const AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR: &str = "recursive_shadow_sidecar";
+pub const AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT: &str = "canonical_extended_statement";
+pub const AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR: &str = "recursive_shadow_sidecar";
 pub const POST_QUANTUM_MODE: &str = "plonky3_epoch_proof";
 pub const POST_QUANTUM_ENFORCEMENT_STAGE: &str = "pq_anchor_writer";
 pub const VERIFIED_BACKEND_CANDIDATE_STAGE: &str = "verified_backend_candidate";
@@ -489,7 +488,9 @@ impl CheckpointContractConfigV1 {
     }
 
     pub fn has_pq_checkpoint(&self, height: u64) -> bool {
-        height > 0 && height.is_multiple_of(self.post_quantum.cadence_blocks)
+        self.post_quantum.cadence_blocks > 0
+            && height > 0
+            && height.is_multiple_of(self.post_quantum.cadence_blocks)
     }
 
     #[must_use]
@@ -1067,20 +1068,9 @@ impl CheckpointContractConfigV1 {
     }
 
     fn ensure_post_quantum_surface(&self) -> Result<(), CheckpointError> {
-        require_true("post_quantum.is_enabled", self.post_quantum.is_enabled)?;
-        if self.post_quantum.cadence_blocks == 0 {
-            return invalid("post_quantum.cadence_blocks must be > 0");
-        }
-        require_eq(
-            "post_quantum.mode",
-            &self.post_quantum.mode,
-            POST_QUANTUM_MODE,
-        )?;
-        require_eq(
-            "post_quantum.enforcement_stage",
-            &self.post_quantum.enforcement_stage,
-            POST_QUANTUM_ENFORCEMENT_STAGE,
-        )
+        // The public builder and validator can be invoked with a copied config;
+        // keep the stage-to-cadence gate fail-closed at this boundary too.
+        self.validate_post_quantum()
     }
 
     fn validate_snapshots(&self) -> Result<(), CheckpointError> {
@@ -1497,14 +1487,12 @@ fn authority_promotion_next_stage(stage: &str) -> Result<Option<&'static str>, C
     match stage {
         AUTHORITY_PROMOTION_STAGE_SPEC_ONLY => Ok(Some(AUTHORITY_PROMOTION_STAGE_CONFIG_GATE)),
         AUTHORITY_PROMOTION_STAGE_CONFIG_GATE => {
-            Ok(Some(AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT))
+            Ok(Some(AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT))
         }
-        AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT => {
-            Ok(Some(AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR))
+        AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT => {
+            Ok(Some(AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR))
         }
-        AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR => {
-            Ok(Some(POST_QUANTUM_ENFORCEMENT_STAGE))
-        }
+        AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR => Ok(Some(POST_QUANTUM_ENFORCEMENT_STAGE)),
         POST_QUANTUM_ENFORCEMENT_STAGE => Ok(Some(VERIFIED_BACKEND_CANDIDATE_STAGE)),
         VERIFIED_BACKEND_CANDIDATE_STAGE => Ok(Some(VERIFIED_BACKEND_ENABLED_STAGE)),
         VERIFIED_BACKEND_ENABLED_STAGE => Ok(None),
@@ -1516,8 +1504,8 @@ fn is_pq_anchor_ready(stage: &str) -> Result<bool, CheckpointError> {
     match stage {
         AUTHORITY_PROMOTION_STAGE_SPEC_ONLY
         | AUTHORITY_PROMOTION_STAGE_CONFIG_GATE
-        | AUTHORITY_PROMOTION_STAGE_CANONICAL_EXTENDED_STATEMENT
-        | AUTHORITY_PROMOTION_STAGE_RECURSIVE_SHADOW_SIDECAR => Ok(false),
+        | AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT
+        | AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR => Ok(false),
         POST_QUANTUM_ENFORCEMENT_STAGE
         | VERIFIED_BACKEND_CANDIDATE_STAGE
         | VERIFIED_BACKEND_ENABLED_STAGE => Ok(true),
@@ -1577,7 +1565,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_repo_default_uses_repo_anchor() {
+    fn test_default_uses_repo_anchor() {
         let anchored = CheckpointContractConfigV1::load(repo_default_path())
             .expect("repo checkpoint contract via anchored path");
         let default = CheckpointContractConfigV1::load_repo_default()
@@ -1712,6 +1700,8 @@ mod tests {
     fn test_zero_pq_cadence_rejects() {
         let mut cfg = cfg();
         cfg.post_quantum.cadence_blocks = 0;
+
+        assert!(!cfg.has_pq_checkpoint(1000));
 
         let err = cfg.validate().expect_err("zero cadence must reject");
 

@@ -929,7 +929,7 @@ mod tests {
     }
 
     #[test]
-    fn simulator_local_target_output_is_rejected() {
+    fn sim_target_output_rejected() {
         let err = validate_output_sandbox("crates/z00z_simulator/target/local_target_contract")
             .expect_err("crate-local simulator target must be rejected");
 

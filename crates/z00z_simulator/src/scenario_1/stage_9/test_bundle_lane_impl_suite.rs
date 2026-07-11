@@ -108,7 +108,7 @@ fn fixture_dir(tag: &str) -> PathBuf {
         .join("../..")
         .join("target/test-prep/stage6")
         .join(format!("{tag}_{id}"));
-    std::fs::create_dir_all(&dir).expect("create test dir");
+    z00z_utils::io::create_dir_all(&dir).expect("create test dir");
     dir
 }
 

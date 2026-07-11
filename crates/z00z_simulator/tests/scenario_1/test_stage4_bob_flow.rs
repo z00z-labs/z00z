@@ -1,4 +1,5 @@
 use crate::output_roots;
+use tempfile::tempdir;
 use z00z_simulator::scenario_1::stage_6::sim_pkg_support;
 use z00z_simulator::scenario_1::support::scenario_support;
 
@@ -24,6 +25,7 @@ use crate::stage4_bob::{import_wire, setup_env, unlock};
 use scenario_support::read_rpc_req_rows;
 use sim_pkg_support::load_pkg_bundle;
 use z00z_simulator::scenario_1::stage_6::shared_cases;
+use z00z_simulator::scenario_1::support::fixture_cache;
 
 struct RunCase {
     out: PathBuf,
@@ -233,7 +235,10 @@ fn test_stage4_bob_flow() {
 
     let (_, _, pkg): (PathBuf, Vec<u8>, TxPackage) = load_pkg_bundle(&run.out);
     let bob_id = bob_id(run);
-    let env = setup_env(run.out.join("wallets"));
+    let wallet_temp = tempdir().expect("wallet temp dir");
+    let wallet_root = wallet_temp.path().join("wallets");
+    fixture_cache::copy_tree(&run.out.join("wallets"), &wallet_root);
+    let env = setup_env(wallet_root);
     let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
     rt.block_on(async {
         let bob = unlock(&env, &bob_id, "Bob_Pass_Z00Z_43!").await;

@@ -309,7 +309,7 @@ pub struct RuntimeExportTxResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use z00z_utils::codec::{Codec, JsonCodec};
+    use z00z_utils::codec::{Codec, JsonCodec, Value};
 
     #[test]
     fn test_receipt_info_serialization() {
@@ -327,7 +327,7 @@ mod tests {
         let codec = JsonCodec;
         let bytes = codec.serialize(&receipt).unwrap();
         let deserialized: PersistReceiptInfo = codec.deserialize(&bytes).unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let json: Value = codec.deserialize(&bytes).unwrap();
 
         assert_eq!(deserialized.tx_id.0, "tx123");
         assert_eq!(deserialized.block_height, 1000);
@@ -356,7 +356,7 @@ mod tests {
         let codec = JsonCodec;
         let bytes = codec.serialize(&receipt).unwrap();
         let deserialized: PersistReceiptInfo = codec.deserialize(&bytes).unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let json: Value = codec.deserialize(&bytes).unwrap();
 
         assert_eq!(deserialized.block_height, 2000);
         assert!(!deserialized.verified);
@@ -474,7 +474,7 @@ mod tests {
         };
 
         let bytes = JsonCodec.serialize(&confirmation).unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let json: Value = JsonCodec.deserialize(&bytes).unwrap();
         let object = json.as_object().expect("confirmation receipt object");
 
         assert!(object.contains_key("checkpoint_id_hex"));

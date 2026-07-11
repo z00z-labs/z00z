@@ -15,10 +15,9 @@ hash_domain!(
 );
 
 const CHECKPOINT_TRANSITION_STATEMENT_V1_VERSION: u8 = 1;
-const CHECKPOINT_TRANSITION_STATEMENT_V1_CORE_LABEL: &str =
-    "checkpoint_transition_statement_core_v1";
-const CHECKPOINT_TRANSITION_STATEMENT_V1_FINAL_LABEL: &str = "checkpoint_transition_statement_v1";
-const CHECKPOINT_TRANSITION_STATEMENT_V1_PROOF_FAMILY: &str = "checkpoint_transition_shared_v1";
+const CHECKPOINT_STATEMENT_V1_CORE_LABEL: &str = "checkpoint_transition_statement_core_v1";
+const CHECKPOINT_STATEMENT_V1_FINAL_LABEL: &str = "checkpoint_transition_statement_v1";
+const CHECKPOINT_STATEMENT_V1_PROOF_FAMILY: &str = "checkpoint_transition_shared_v1";
 
 pub const CHECKPOINT_TRANSITION_STATEMENT_V1_DOMAIN: &str = "z00z.checkpoint.transition.v1";
 
@@ -199,7 +198,7 @@ impl CheckpointTransitionStatementV1 {
 
     #[must_use]
     pub const fn proof_system_family_v1() -> &'static str {
-        CHECKPOINT_TRANSITION_STATEMENT_V1_PROOF_FAMILY
+        CHECKPOINT_STATEMENT_V1_PROOF_FAMILY
     }
 
     #[must_use]
@@ -382,7 +381,7 @@ impl CheckpointTransitionStatementV1 {
     pub fn statement_core_digest_v1(&self, core: &CheckpointTransitionStatementCoreV1) -> [u8; 32] {
         let bytes = self.statement_core_preimage_v1(core);
         hash_zk::<StorCheckpointStatementDom>(
-            CHECKPOINT_TRANSITION_STATEMENT_V1_CORE_LABEL,
+            CHECKPOINT_STATEMENT_V1_CORE_LABEL,
             &[bytes.as_slice()],
         )
     }
@@ -410,7 +409,7 @@ impl CheckpointTransitionStatementV1 {
     ) -> [u8; 32] {
         let bytes = Self::final_statement_preimage_v1(core_digest, final_bind);
         hash_zk::<StorCheckpointStatementDom>(
-            CHECKPOINT_TRANSITION_STATEMENT_V1_FINAL_LABEL,
+            CHECKPOINT_STATEMENT_V1_FINAL_LABEL,
             &[bytes.as_slice()],
         )
     }

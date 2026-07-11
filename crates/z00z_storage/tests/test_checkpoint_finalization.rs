@@ -49,6 +49,8 @@ struct StatementlessArtWire {
     claim_root: Option<z00z_storage::settlement::ClaimSourceRoot>,
     spent_delta: Vec<SpentEnt>,
     created_delta: Vec<CreatedEnt>,
+    statement_core: Option<z00z_storage::checkpoint::CheckpointTransitionStatementCoreV1>,
+    da_ref: Option<[u8; 32]>,
     proof_sys: CheckpointProofSystem,
     cp_proof: Vec<u8>,
 }
@@ -66,6 +68,8 @@ struct UnsupportedArtWire {
     created_delta: Vec<CreatedEnt>,
     prep_snapshot_id: Option<PrepSnapshotId>,
     exec_input_id: Option<CheckpointExecInputId>,
+    statement_core: Option<z00z_storage::checkpoint::CheckpointTransitionStatementCoreV1>,
+    da_ref: Option<[u8; 32]>,
     proof_sys: CheckpointProofSystem,
     cp_proof: Vec<u8>,
 }
@@ -194,6 +198,8 @@ fn test_load_artifact_proof_system() {
             created_delta: draft.created_delta().to_vec(),
             prep_snapshot_id: Some(stmt.prep_snapshot_id()),
             exec_input_id: Some(stmt.exec_input_id()),
+            statement_core: None,
+            da_ref: None,
             proof_sys: CheckpointProofSystem::new(9),
             cp_proof: stmt.backend_payload(),
         })
@@ -225,6 +231,8 @@ fn test_load_artifact_verified_proof_system_rejects() {
             created_delta: draft.created_delta().to_vec(),
             prep_snapshot_id: Some(stmt.prep_snapshot_id()),
             exec_input_id: Some(stmt.exec_input_id()),
+            statement_core: None,
+            da_ref: None,
             proof_sys: CheckpointProofSystem::VERIFIED,
             cp_proof: stmt.backend_payload(),
         })
@@ -249,6 +257,8 @@ fn test_statementless_artifact_load_surface() {
             claim_root: draft.claim_root(),
             spent_delta: draft.spent_delta().to_vec(),
             created_delta: draft.created_delta().to_vec(),
+            statement_core: None,
+            da_ref: None,
             proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
             cp_proof: vec![9u8],
         })

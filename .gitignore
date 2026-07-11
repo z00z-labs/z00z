@@ -69,5 +69,9 @@ crates/.graphify-out/
 .planning
 .planning/graphs
 .codex/
+.codeviz/
 .bg-shell/
 **/.z00z-storage-redb/
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md

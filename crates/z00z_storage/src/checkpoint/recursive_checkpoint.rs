@@ -1301,6 +1301,8 @@ impl RecursiveCheckpointVerifierV1 {
         {
             return Err(RecursiveCheckpointRejectReasonV1::SidecarAuthoritative);
         }
+        cfg.validate()
+            .map_err(|_| RecursiveCheckpointRejectReasonV1::BackendClaimUnsupported)?;
         Ok(Self {
             min_chain_steps: cfg.branches.recursive.min_chain_steps,
             max_chain_steps: cfg.branches.recursive.target_chain_steps,

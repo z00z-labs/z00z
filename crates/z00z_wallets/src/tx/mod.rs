@@ -131,7 +131,7 @@ pub use spend_rules::{
     SpendRuleTriplet, SpendStmt, VALIDATOR_MANDATE_LOCK_PROFILE_ID,
 };
 pub use spend_verification::{
-    build_public_spend_contract, build_public_spend_contract_with_rng, build_spend_assets,
+    build_public_spend_contract, build_spend_assets, build_spend_contract_with_rng,
     build_spend_input_proof, verify_tx_public_spend_contract, SpendBuildErr, SpendInputLeaf,
     SpendInputRef, SpendPlan, SpendProofApi, SpendProofErr, SpendPublicErr, SpendWitness,
 };

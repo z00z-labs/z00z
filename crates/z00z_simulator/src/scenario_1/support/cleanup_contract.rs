@@ -361,7 +361,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn scope_owner_liveness_requires_matching_scope() {
+    fn scope_liveness_requires_match() {
         let scope = stable_current_exe_scope("unknown_test_binary");
         let pid = std::process::id();
 
@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn storage_cleanup_uses_runtime_and_test_contracts() {
+    fn storage_cleanup_uses_contracts() {
         let sandbox = TempDir::new().expect("create cleanup contract tempdir");
         let runtime_scope = sandbox
             .path()

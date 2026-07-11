@@ -4,7 +4,8 @@ use z00z_storage::{
         check_art_key, check_exec_key, derive_checkpoint_id, derive_draft_id, derive_exec_id,
         encode_art_bin, reject_draft_for_checkpoint_id, CheckpointArtifact, CheckpointDraft,
         CheckpointExecInputId, CheckpointId, CheckpointProof, CheckpointProofSystem,
-        CheckpointTransitionStatementV1, CheckpointVersion, CreatedEnt, SpentEnt,
+        CheckpointTransitionStatementCoreV1, CheckpointTransitionStatementV1, CheckpointVersion,
+        CreatedEnt, SpentEnt,
     },
     settlement::{CheckRoot, SettlementStateRoot},
     snapshot::PrepSnapshotId,
@@ -28,6 +29,8 @@ struct ArtWire {
     created_delta: Vec<CreatedEnt>,
     prep_snapshot_id: Option<z00z_storage::snapshot::PrepSnapshotId>,
     exec_input_id: Option<CheckpointExecInputId>,
+    statement_core: Option<CheckpointTransitionStatementCoreV1>,
+    da_ref: Option<[u8; 32]>,
     proof_sys: CheckpointProofSystem,
     cp_proof: Vec<u8>,
 }
@@ -101,6 +104,8 @@ fn test_unsupported_rejects_art_id() {
         created_delta: vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
         prep_snapshot_id: None,
         exec_input_id: None,
+        statement_core: None,
+        da_ref: None,
         proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
         cp_proof: vec![8u8],
     };
@@ -126,6 +131,8 @@ fn test_proof_sys_art_id() {
         created_delta: vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
         prep_snapshot_id: None,
         exec_input_id: None,
+        statement_core: None,
+        da_ref: None,
         proof_sys: CheckpointProofSystem::new(9),
         cp_proof: vec![8u8],
     };
@@ -157,6 +164,8 @@ fn test_verified_proof_sys_rejects_art_id_and_encode() {
         created_delta: draft.created_delta().to_vec(),
         prep_snapshot_id: Some(stmt.prep_snapshot_id()),
         exec_input_id: Some(stmt.exec_input_id()),
+        statement_core: None,
+        da_ref: None,
         proof_sys: CheckpointProofSystem::VERIFIED,
         cp_proof: stmt.backend_payload(),
     };
@@ -184,6 +193,8 @@ fn test_attest_rejects_id_encode() {
         created_delta: vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
         prep_snapshot_id: None,
         exec_input_id: None,
+        statement_core: None,
+        da_ref: None,
         proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
         cp_proof: vec![8u8],
     };
@@ -211,6 +222,8 @@ fn test_proofless_rejects_id_encode() {
         created_delta: vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
         prep_snapshot_id: None,
         exec_input_id: None,
+        statement_core: None,
+        da_ref: None,
         proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
         cp_proof: Vec::new(),
     };
@@ -238,6 +251,8 @@ fn test_partial_rejects_id_encode() {
         created_delta: vec![CreatedEnt::new([4u8; 32], [5u8; 32])],
         prep_snapshot_id: Some(PrepSnapshotId::new([6u8; 32])),
         exec_input_id: None,
+        statement_core: None,
+        da_ref: None,
         proof_sys: CheckpointProofSystem::OPAQUE_ATTEST,
         cp_proof: vec![8u8],
     };

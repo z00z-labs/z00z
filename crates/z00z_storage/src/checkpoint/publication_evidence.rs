@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn test_publication_evidence_rejects_early_window() {
+    fn test_evidence_rejects_early_window() {
         let err = CheckpointPublicationEvidenceV1::new(
             CheckpointPublicationEvidenceVersion::CURRENT,
             root(1),

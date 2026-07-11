@@ -238,13 +238,13 @@ act as canonical boundary nouns for one major topic area.
 | `DA commitment` | The data-availability-facing commitment, reference, receipt, or provider evidence that lets a verifier locate or audit published batch bytes. | Publication evidence only; not settlement authority. | [Z00Z-Multi-DA-and-Checkpoint-Architecture.md](../tech-papers/Z00Z-Multi-DA-and-Checkpoint-Architecture.md) |
 | `Anchor calendar` | The batching schedule and root sequence used to make submitted hashes independently verifiable. | Timestamp-service noun. | [Z00Z-Multi-DA-and-Checkpoint-Architecture.md](../tech-papers/Z00Z-Multi-DA-and-Checkpoint-Architecture.md) |
 | `Meta-anchor` | An optional secondary anchor that pins a Z00Z checkpoint or anchor root into an external network. | External witness only; not a settlement authority. | [Z00Z-Multi-DA-and-Checkpoint-Architecture.md](../tech-papers/Z00Z-Multi-DA-and-Checkpoint-Architecture.md) |
-| `PQ-friendly boundary` | A protocol surface that relies primarily on hash-bound state, replay artifacts, and symmetric cryptography rather than elliptic-curve hardness. | Migration posture, not a claim of full post-quantum security. | [PQ-Migration.md](PQ-Migration.md) |
-| `Hybrid suite` | A transition suite that requires both the legacy elliptic-curve path and a post-quantum path, or derives protection from both. | Migration-lane noun. | [PQ-Migration.md](PQ-Migration.md) |
-| `Legacy lane` | The current elliptic-curve transaction lane used by existing receiver, stealth, signature, commitment, and range-proof flows. | Use when discussing migration and cutoff policy. | [PQ-Migration.md](PQ-Migration.md) |
-| `Migration lane` | A suite-versioned lane that carries explicit post-quantum or hybrid cryptographic requirements. | Future transition noun. | [PQ-Migration.md](PQ-Migration.md) |
-| `Integrity firewall` | The rule set that prevents broken legacy cryptography from authorizing new valid settlement after a declared cutover. | PQ migration control noun. | [PQ-Migration.md](PQ-Migration.md) |
-| `Rewrap` | A one-way conversion in which a legacy asset right is consumed and reissued under a stronger cryptographic suite. | Migration action noun. | [PQ-Migration.md](PQ-Migration.md) |
-| `Confidential amount frontier` | The harder migration track for replacing or constraining confidential amount commitments and range proofs under post-quantum assumptions. | Use when separating authorization migration from amount-proof migration. | [PQ-Migration.md](PQ-Migration.md) |
+| `PQ-friendly boundary` | A protocol surface that relies primarily on hash-bound state, replay artifacts, and symmetric cryptography rather than elliptic-curve hardness. | Migration posture, not a claim of full post-quantum security. | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| `Hybrid suite` | A transition suite that requires both the legacy elliptic-curve path and a post-quantum path, or derives protection from both. | Migration-lane noun. | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| `Legacy lane` | The current elliptic-curve transaction lane used by existing receiver, stealth, signature, commitment, and range-proof flows. | Use when discussing migration and cutoff policy. | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| `Migration lane` | A suite-versioned lane that carries explicit post-quantum or hybrid cryptographic requirements. | Future transition noun. | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| `Integrity firewall` | The rule set that prevents broken legacy cryptography from authorizing new valid settlement after a declared cutover. | PQ migration control noun. | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| `Rewrap` | A one-way conversion in which a legacy asset right is consumed and reissued under a stronger cryptographic suite. | Migration action noun. | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| `Confidential amount frontier` | The harder migration track for replacing or constraining confidential amount commitments and range proofs under post-quantum assumptions. | Use when separating authorization migration from amount-proof migration. | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
 | `AssetStateRoot` | The archived compatibility asset-state root name retained for migration evidence and older asset-centric materials. | Compatibility-only alias; do not use as the preferred live HJMT public root. | [Z00Z-HJMT-Design.md](../tech-papers/done/Z00Z-HJMT-Design.md) |
 | `SettlementStateRoot` | The live generalized semantic root over checkpointed terminal settlement leaves. | Preferred live public root term for current HJMT code and docs. | [Z00Z-HJMT-Design.md](../tech-papers/done/Z00Z-HJMT-Design.md) |
 | `CheckRoot` | Checkpoint evidence root that binds checkpoint artifacts to a state transition. | JMT glossary noun. | [Z00Z-HJMT-Design.md](../tech-papers/done/Z00Z-HJMT-Design.md) |
@@ -305,7 +305,7 @@ introduced before use.
 | `CPM` | Cost Per Mille | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
 | `CCTP` | Cross-Chain Transfer Protocol | document-local | [Uniqueness.md](Uniqueness.md) |
 | `DA` | Data Availability | corpus-default after first mention | multiple papers |
-| `ECC` | Elliptic-curve cryptography | corpus-acceptable after first mention in cryptography context | [PQ-Migration.md](PQ-Migration.md) |
+| `ECC` | Elliptic-curve cryptography | corpus-acceptable after first mention in cryptography context | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
 | `EAS` | Ethereum Attestation Service | document-local | [Uniqueness.md](Uniqueness.md), [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
 | `ERR` | Emergency Resource Right | document-local | [Uniqueness.md](Uniqueness.md) |
 | `EVM` | Ethereum Virtual Machine | corpus-acceptable after first mention | [Uniqueness.md](Uniqueness.md) |
@@ -313,14 +313,14 @@ introduced before use.
 | `FE` | FeeEnvelope | document-local shorthand; avoid as a corpus-default | [Uniqueness.md](Uniqueness.md) |
 | `IOU` | A private claim or delayed obligation note | document-local | [UseCases.md](UseCases.md) |
 | `IoT` | Internet of Things | corpus-default | agentic paper |
-| `KEM` | Key-encapsulation mechanism | corpus-acceptable after first mention in cryptography context | [PQ-Migration.md](PQ-Migration.md) |
+| `KEM` | Key-encapsulation mechanism | corpus-acceptable after first mention in cryptography context | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
 | `KPI` | Key Performance Indicator | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
 | `LAN` | Local area network | corpus-default | agentic paper |
 | `LL` | Linked Liability | document-local shorthand; avoid as a corpus-default | [Uniqueness.md](Uniqueness.md) |
 | `LoRa` | Long Range radio shorthand | corpus-default | agentic paper |
 | `MCP` | Model Context Protocol or MCP-style tool surface shorthand in context | corpus-acceptable after first mention | [Agentic-Offline-Economy.md](Agentic-Offline-Economy.md) |
-| `ML-DSA` | Module-Lattice-Based Digital Signature Algorithm | corpus-acceptable after first mention in post-quantum migration context | [PQ-Migration.md](PQ-Migration.md) |
-| `ML-KEM` | Module-Lattice-Based Key-Encapsulation Mechanism | corpus-acceptable after first mention in post-quantum migration context | [PQ-Migration.md](PQ-Migration.md) |
+| `ML-DSA` | Module-Lattice-Based Digital Signature Algorithm | corpus-acceptable after first mention in post-quantum migration context | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| `ML-KEM` | Module-Lattice-Based Key-Encapsulation Mechanism | corpus-acceptable after first mention in post-quantum migration context | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
 | `N-of-M` | A quorum rule in which at least `N` of `M` bounded reviewers, attesters, or validators must agree | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
 | `NFC` | Near-field communication | corpus-default | agentic paper |
 | `NMT` | Namespaced Merkle Tree or equivalent inclusion structure | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
@@ -330,7 +330,7 @@ introduced before use.
 | `RLN` | Rate-Limiting Nullifier | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
 | `SDK` | Software development kit | corpus-default | [OnionNet.md](OnionNet.md) |
 | `SCO` | Spendable Capability Object | document-local shorthand; use only after explicit introduction | [Uniqueness.md](Uniqueness.md) |
-| `SLH-DSA` | Stateless Hash-Based Digital Signature Algorithm | corpus-acceptable after first mention in post-quantum migration context | [PQ-Migration.md](PQ-Migration.md) |
+| `SLH-DSA` | Stateless Hash-Based Digital Signature Algorithm | corpus-acceptable after first mention in post-quantum migration context | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
 | `SLA` | Service Level Agreement | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
 | `SMT` | Sparse Merkle Tree or equivalent state inclusion structure | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
 | `SPV` | Simplified Payment Verification or equivalent inclusion-style proof path | document-local | [Proof-of-Useful-Work.md](Proof-of-Useful-Work.md) |
@@ -628,8 +628,8 @@ document needs to know where to inherit its shared definitions from.
 | Storage roots, `SettlementPath`, JMT proof boundaries, and mixed asset/right root naming | [Z00Z-HJMT-Design.md](../tech-papers/done/Z00Z-HJMT-Design.md) |
 | Sequence, maturity boundary, and workstream ordering across the corpus | [Z00Z-Roadmap-Blueprint.md](../tech-papers/Z00Z-Roadmap-Blueprint.md) |
 | Checkpoint anchors, DA commitments, ZTS timestamp proofs, and optional external meta-anchors | [Z00Z-Multi-DA-and-Checkpoint-Architecture.md](../tech-papers/Z00Z-Multi-DA-and-Checkpoint-Architecture.md) |
-| Post-quantum migration language, suite-versioning, hybrid lanes, rewrap, integrity firewall, and confidential amount frontier | [PQ-Migration.md](PQ-Migration.md) |
-| Short public-facing compression and reader navigation into the rest of the corpus | [Litepaper.md](Litepaper.md) |
+| Post-quantum migration language, suite-versioning, hybrid lanes, rewrap, integrity firewall, and confidential amount frontier | [Post-Quantum-Migration.md](Post-Quantum-Migration.md) |
+| Main protocol overview and reader navigation into the rest of the corpus | [Main-Whitepaper.md](Main-Whitepaper.md) |
 
 **Figure 8.1 - Corpus authority landscape.** The terminology reference is the
 reader-facing vocabulary guardrail, while authority over each concept family

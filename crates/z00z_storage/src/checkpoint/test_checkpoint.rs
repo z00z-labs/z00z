@@ -119,7 +119,7 @@ fn test_unsupported_proof_sys_rejects() {
 }
 
 #[test]
-fn test_verified_proof_sys_remains_reserved() {
+fn test_proof_sys_reserved() {
     let err =
         check_proof_sys(CheckpointProofSystem::VERIFIED).expect_err("verified proof sys reserved");
 

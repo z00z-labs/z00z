@@ -4,10 +4,16 @@ use tempfile::TempDir;
 use z00z_core::assets::AssetLeaf;
 use z00z_storage::{
     checkpoint::{
-        decode_link_bin, derive_exec_id, encode_art_bin, encode_exec_bin, load_artifact,
-        CheckpointExecInput, CheckpointExecInputId, CheckpointExecOut, CheckpointExecTx,
-        CheckpointExecVersion, CheckpointFsStore, CheckpointId, CheckpointInRef, CheckpointLink,
-        CheckpointLinkVersion, CheckpointProof, CheckpointStore,
+        decode_link_bin, derive_exec_id, encode_art_bin, encode_exec_bin,
+        encode_recursive_sidecar_bin, load_artifact, repo_default_path, ArchiveManifestVersion,
+        CheckpointArchiveManifestV1, CheckpointContractConfigV1, CheckpointExecInput,
+        CheckpointExecInputId, CheckpointExecOut, CheckpointExecTx, CheckpointExecVersion,
+        CheckpointFsStore, CheckpointId, CheckpointInRef, CheckpointLink, CheckpointLinkVersion,
+        CheckpointProof, CheckpointStore, CheckpointTransitionStatementFinalV1,
+        RecursiveCheckpointMeasurementV1, RecursiveCheckpointModeV1,
+        RecursiveCheckpointProofFamilyV1, RecursiveCheckpointProofV1,
+        RecursiveCheckpointPublicInputV1, RecursiveCheckpointSidecarV1,
+        RecursiveCheckpointVerifierV1,
     },
     settlement::{CheckRoot, DefinitionId, SerialId, TerminalLeaf},
     snapshot::{build_snapshot, PrepFsStore, PrepSnapshotId, PrepSnapshotStore},
@@ -97,6 +103,110 @@ fn stage_contract(
         .expect("stage publication contract");
 }
 
+fn with_statement_core(
+    manifest: &CheckpointArchiveManifestV1,
+    statement_core_digest: [u8; 32],
+) -> CheckpointArchiveManifestV1 {
+    CheckpointArchiveManifestV1::new(
+        ArchiveManifestVersion::CURRENT,
+        statement_core_digest,
+        manifest.checkpoint_exec_input_id(),
+        manifest.prep_snapshot_id(),
+        manifest.tx_data_root(),
+        manifest.delta_root(),
+        manifest.witness_root(),
+        manifest.journal_digest(),
+        manifest.epoch_manifest_root(),
+        manifest.raw_tx_package_root(),
+        manifest.exact_tx_proof_bytes_root(),
+        manifest.witness_archive_root(),
+        manifest.delta_journal_root(),
+        manifest.da_payload_commitment(),
+        manifest.archive_provider_receipt_root(),
+        manifest.retrieval_audit_root(),
+        manifest.content_address_root(),
+        manifest.entries().to_vec(),
+        manifest.min_archive_replicas(),
+    )
+    .expect("manifest with foreign statement core")
+}
+
+fn recursive_sidecar(
+    artifact: &z00z_storage::checkpoint::CheckpointArtifact,
+    link: &CheckpointLink,
+    proof: &CheckpointProof,
+    statement_digest_override: Option<[u8; 32]>,
+) -> RecursiveCheckpointSidecarV1 {
+    let cfg = CheckpointContractConfigV1::load(repo_default_path()).expect("checkpoint config");
+    let verifier = RecursiveCheckpointVerifierV1::new(&cfg).expect("recursive verifier");
+    let mode = RecursiveCheckpointModeV1::FastClassicalCompressed;
+    let expected_public_input = verifier
+        .build_public_input(
+            proof.statement(),
+            &artifact.statement_core().expect("statement core"),
+            &CheckpointTransitionStatementFinalV1::new(artifact.da_ref().expect("da ref")),
+            link,
+            mode,
+            "nova_compressed_v1",
+            0,
+            3,
+            [0x75; 32],
+        )
+        .expect("public input");
+    let public_input = RecursiveCheckpointPublicInputV1::new(
+        expected_public_input.mode(),
+        expected_public_input.backend_label(),
+        statement_digest_override.unwrap_or(expected_public_input.statement_digest()),
+        expected_public_input.statement_core_digest(),
+        expected_public_input.height(),
+        expected_public_input.chain_index(),
+        expected_public_input.chain_length(),
+        expected_public_input.epoch_index(),
+        expected_public_input.epoch_start_height(),
+        expected_public_input.epoch_end_height(),
+        expected_public_input.prev_root(),
+        expected_public_input.output_root(),
+        expected_public_input.prior_output_root(),
+        expected_public_input.delta_root(),
+        expected_public_input.witness_root(),
+        expected_public_input.checkpoint_link_digest(),
+        expected_public_input.verifier_params_digest(),
+    )
+    .expect("self-consistent sidecar input");
+    let proof_bytes = vec![0x76; 96];
+    let recursive_proof = RecursiveCheckpointProofV1::new(
+        mode,
+        "nova_compressed_v1",
+        &public_input,
+        proof_bytes.clone(),
+    )
+    .expect("recursive proof");
+    let measurement = RecursiveCheckpointMeasurementV1::new(
+        "nova_compressed_v1",
+        mode,
+        3,
+        cfg.post_quantum.cadence_blocks,
+        2,
+        RecursiveCheckpointProofFamilyV1::Nova,
+        0,
+        proof_bytes.len() as u64,
+        4096,
+        17,
+        9,
+        8192,
+        proof.statement().canonical_bytes_v1().len() as u64,
+        public_input.canonical_bytes().len() as u64,
+    )
+    .expect("measurement");
+    RecursiveCheckpointSidecarV1::accepted(
+        public_input,
+        Some(link.checkpoint_id()),
+        recursive_proof,
+        measurement,
+    )
+    .expect("sidecar")
+}
+
 #[test]
 fn test_store_keeps_surfaces_separate() {
     let dir = temp_dir();
@@ -126,6 +236,82 @@ fn test_store_keeps_surfaces_separate() {
     assert_eq!(art_got, art);
     assert_eq!(link_got, link);
     assert_eq!(audit_got, audit);
+}
+
+#[test]
+fn test_seal_rejects_foreign_da_statement_core() {
+    let dir = temp_dir();
+    let mut store = CheckpointFsStore::new(dir.path());
+    let draft = checkpoint_fixtures::draft();
+    let snap_id = save_snapshot(dir.path(), draft.prev_root());
+    let exec = exec(snap_id, draft.prev_root());
+    let exec_id = store.save_exec_input(&exec).expect("save exec");
+    let manifest = with_statement_core(
+        &checkpoint_fixtures::archive_manifest(&draft, &exec, exec_id),
+        [0x42; 32],
+    );
+    let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    store
+        .stage_publication_contract(exec_id, &manifest, &da_reference)
+        .expect("stage mutually-bound foreign publication contract");
+
+    let err = store
+        .seal_artifact(
+            &draft,
+            attest_proof(&draft, snap_id, exec_id),
+            snap_id,
+            exec_id,
+        )
+        .expect_err("foreign DA statement core must reject during seal");
+
+    assert!(matches!(err, CheckpointError::ArchiveMix));
+}
+
+#[test]
+fn test_store_persists_only_canonically_bound_recursive_sidecars() {
+    let dir = temp_dir();
+    let mut store = CheckpointFsStore::new(dir.path());
+    let draft = checkpoint_fixtures::draft();
+    let snap_id = save_snapshot(dir.path(), draft.prev_root());
+    let exec = exec(snap_id, draft.prev_root());
+    let exec_id = store.save_exec_input(&exec).expect("save exec");
+    let proof = attest_proof(&draft, snap_id, exec_id);
+    stage_contract(&mut store, &draft, &exec, exec_id);
+    let link = store
+        .seal_artifact(&draft, proof.clone(), snap_id, exec_id)
+        .expect("seal artifact");
+    let checkpoint_id = link.checkpoint_id();
+    let artifact = store.load_artifact(&checkpoint_id).expect("artifact");
+    let sidecar = recursive_sidecar(&artifact, &link, &proof, None);
+
+    store
+        .save_recursive_sidecar(checkpoint_id, &sidecar)
+        .expect("save sidecar");
+    assert_eq!(
+        store
+            .load_recursive_sidecar(&checkpoint_id)
+            .expect("load sidecar"),
+        sidecar
+    );
+
+    let tampered = recursive_sidecar(&artifact, &link, &proof, Some([0x77; 32]));
+    let err = store
+        .save_recursive_sidecar(checkpoint_id, &tampered)
+        .expect_err("tampered sidecar must reject");
+    assert!(matches!(err, CheckpointError::ArchiveMix));
+
+    let path = store
+        .recursive_sidecar_dir()
+        .join(format!("{}.sidecar.bin", hex_id(checkpoint_id.as_bytes())));
+    write_file(
+        &path,
+        &encode_recursive_sidecar_bin(&tampered).expect("tampered sidecar bytes"),
+    )
+    .expect("write tampered sidecar");
+    let err = store
+        .load_recursive_sidecar(&checkpoint_id)
+        .expect_err("tampered stored sidecar must reject");
+    assert!(matches!(err, CheckpointError::ArchiveMix));
 }
 
 #[test]

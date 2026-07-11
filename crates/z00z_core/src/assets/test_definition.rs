@@ -172,7 +172,7 @@ fn test_validation_symbol_too_long() {
 }
 
 #[test]
-fn test_validation_domain_name_requires_dot_format() {
+fn test_domain_requires_dot_format() {
     let result = AssetDefinition::new(
         [0u8; 32],
         AssetClass::Coin,

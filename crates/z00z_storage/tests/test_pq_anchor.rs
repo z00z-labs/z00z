@@ -134,6 +134,35 @@ fn test_live_stage_requires_complete_pq_anchor_on_cadence() {
 }
 
 #[test]
+fn test_live_pq_entry_points_reject_disabled_live_cadence() {
+    let mut cfg = cfg();
+    cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
+    cfg.authority_promotion.allowed_next_stages =
+        vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
+
+    let build_err = cfg
+        .build_pq_anchor(
+            1000,
+            root(1),
+            root(2),
+            root(3),
+            root(4),
+            root(5),
+            root(6),
+            root(7),
+            root(8),
+            root(9),
+        )
+        .expect_err("live PQ entry points must reject disabled cadence");
+    assert!(matches!(build_err, CheckpointError::ContractConfig(_)));
+
+    let validate_err = cfg
+        .validate_pq_anchor(1000, root(1), root(2), root(3), root(4), None)
+        .expect_err("live PQ validation must reject disabled cadence");
+    assert!(matches!(validate_err, CheckpointError::ContractConfig(_)));
+}
+
+#[test]
 fn test_pq_anchor_roundtrip_and_unknown_field_reject() {
     let anchor = live_anchor();
 
