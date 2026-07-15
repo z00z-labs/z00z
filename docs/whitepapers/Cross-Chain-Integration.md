@@ -1,3 +1,11 @@
+---
+title: "Cross-Chain Integration Whitepaper"
+description: "Explains how Z00Z settles private rights while integrating with external custody, issuance, liquidity, and attestation systems without surrendering settlement truth."
+difficulty: advanced
+icon: mdi:alpha-c-circle-outline
+toc: true
+---
+
 # Z00Z Cross-Chain Integration Whitepaper
 
 [TOC]
@@ -324,11 +332,22 @@ The three-phase model is clearer in table form:
 
 ```mermaid
 sequenceDiagram
-  participant User as User or wallet
-  participant Source as Source chain or issuer
-  participant Adapter as Relayer or adapter
-  participant Z as Z00Z
-  participant Dest as Destination system
+  box rgb(227,242,253) Public API / User
+    participant User as User or wallet
+  end
+  box rgb(232,245,233) External / Cross-system
+    participant Source as Source chain or issuer
+  end
+  box rgb(236,239,241) Neutral / Support
+    participant Adapter as Relayer or adapter
+  end
+  box rgb(236,239,241) Neutral / Support
+    participant Z as Z00Z
+  end
+  box rgb(236,239,241) Neutral / Support
+    participant Dest as Destination system
+  end
+
 
   User->>Source: deposit, burn, or trigger eligible source event
   Source-->>Adapter: event, attestation, or finality signal

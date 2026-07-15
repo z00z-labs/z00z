@@ -38,11 +38,6 @@ use super::{
         encode_publication_evidence_bin_checked, encode_publication_evidence_json_checked,
         CheckpointPublicationEvidenceV1,
     },
-    recursive_checkpoint::{
-        decode_recursive_sidecar_bin_checked, decode_recursive_sidecar_json_checked,
-        encode_recursive_sidecar_bin_checked, encode_recursive_sidecar_json_checked,
-        RecursiveCheckpointSidecarV1,
-    },
     retrieval_audit::{
         decode_retrieval_audit_bin_checked, decode_retrieval_audit_json_checked,
         encode_retrieval_audit_bin_checked, encode_retrieval_audit_json_checked, RetrievalAuditV1,
@@ -370,30 +365,6 @@ pub fn decode_pq_anchor_json(
     bytes: &[u8],
 ) -> Result<PostQuantumCheckpointAnchorV1, CheckpointError> {
     decode_pq_anchor_json_checked(bytes)
-}
-
-pub fn encode_recursive_sidecar_bin(
-    sidecar: &RecursiveCheckpointSidecarV1,
-) -> Result<Vec<u8>, CheckpointError> {
-    encode_recursive_sidecar_bin_checked(sidecar)
-}
-
-pub fn decode_recursive_sidecar_bin(
-    bytes: &[u8],
-) -> Result<RecursiveCheckpointSidecarV1, CheckpointError> {
-    decode_recursive_sidecar_bin_checked(bytes)
-}
-
-pub fn encode_recursive_sidecar_json(
-    sidecar: &RecursiveCheckpointSidecarV1,
-) -> Result<Vec<u8>, CheckpointError> {
-    encode_recursive_sidecar_json_checked(sidecar)
-}
-
-pub fn decode_recursive_sidecar_json(
-    bytes: &[u8],
-) -> Result<RecursiveCheckpointSidecarV1, CheckpointError> {
-    decode_recursive_sidecar_json_checked(bytes)
 }
 
 pub fn encode_retrieval_audit_bin(audit: &RetrievalAuditV1) -> Result<Vec<u8>, CheckpointError> {

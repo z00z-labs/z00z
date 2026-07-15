@@ -1,5 +1,5 @@
-version: 1
-profile: checkpoint-contract-recursive-ready-v1
+version: 2
+profile: checkpoint-contract-streaming-v2
 architecture_mode: checkpoint_contract_first
 
 statement:
@@ -34,29 +34,39 @@ branches:
   recursive:
     is_enabled: true
     is_authoritative: false
-    mode: hybrid_nova_plonky3
-    proof_system: recursive_hybrid_v1
+    mode: streaming_transition_v2
+    proof_system: nova_streaming_compressed_v2
     has_prior_output_binding: true
     min_chain_steps: 3
     target_chain_steps: 5
+    no_op:
+      is_enabled: true
+      execution_input_version: 2
+      mode: explicit_empty_handoff_v2
+      requires_empty_handoff: true
+      preserves_settlement_root: true
   nova:
     is_enabled: true
-    cadence_blocks: 1
     is_authoritative: false
-    is_pq_authoritative: false
-    mode: fast_classical_compressed
-    proof_system: nova_compressed_v1
+    selected: true
+    is_available: true
+    fold_cadence_blocks: 1
+    compressed_proof_snapshot_cadence_blocks: 1
+    mode: fast_classical_streaming_v2
+    proof_system: nova_streaming_compressed_v2
     has_prior_output_binding: true
     must_bind_statement_digest: true
     must_bind_checkpoint_link: true
     retain_until_pq_epoch: true
   plonky3_epoch:
-    is_enabled: true
+    is_enabled: false
     cadence_blocks: 1000
     is_authoritative: false
-    is_pq_authoritative: true
-    mode: pq_epoch_finality
-    proof_system: plonky3_stark_epoch_v1
+    selected: false
+    is_available: false
+    provides_pq_epoch_evidence: true
+    mode: pq_epoch_evidence
+    proof_system: plonky3_stark_epoch_v2
     must_prove_canonical_transition_range: true
     may_bind_nova_chain_root: true
     must_not_depend_only_on_nova: true
@@ -73,12 +83,12 @@ authority_promotion:
     - config_gate
 
 verified_backend:
-  proof_object: VerifiedCheckpointProofV1
-  verifier_api: VerifiedCheckpointVerifierV1
-  codec_support: VerifiedCheckpointArtifactV1
-  adapter_trait: VerifiedCheckpointBackendAdapterV1
+  proof_object: VerifiedCheckpointProofV2
+  verifier_api: VerifiedCheckpointVerifierV2
+  codec_support: VerifiedCheckpointArtifactV2
+  adapter_trait: VerifiedCheckpointBackendAdapterV2
   chain_evidence:
-    object: RecursiveCheckpointChainEvidenceV1
+    object: RecursiveCheckpointChainEvidenceV2
     min_steps: 3
     max_steps: 5
     requires_prior_output_binding: true
@@ -117,7 +127,6 @@ gates:
     has_da_export: true
     has_archive_manifest: true
   artifacts:
-    has_recursive_sidecar_non_authoritative: true
     has_pq_anchor_on_cadence: true
     has_mixed_era_fail_closed: true
 
@@ -165,6 +174,7 @@ post_quantum:
   mode: plonky3_epoch_proof
   enforcement_stage: pq_anchor_writer
   enforce_live_cadence: false
+  epoch_evidence_commitment: non_authenticating_digest_v2
   required_artifacts:
     - pq_statement_digest
     - pq_delta_root
@@ -174,7 +184,7 @@ post_quantum:
     - plonky3_epoch_proof_digest
     - plonky3_public_inputs_digest
     - nova_chain_root
-    - pq_signature_or_commitment
+    - epoch_evidence_commitment
 
 snapshots:
   is_enabled: true
@@ -225,7 +235,6 @@ paths:
   prep_snapshots: artifacts/checkpoints/prep_snapshot
   delta_journals: artifacts/checkpoints/delta_journal
   witness_archives: artifacts/checkpoints/witness_archive
-  recursive_sidecars: artifacts/checkpoints/recursive_shadow
   nova_block_proofs: artifacts/checkpoints/nova_block
   pq_checkpoints: artifacts/checkpoints/pq_anchor
   plonky3_epoch_proofs: artifacts/checkpoints/plonky3_epoch
@@ -244,8 +253,6 @@ limits:
   max_batch_ops: 1000
   max_batch_bytes: 8388608
   max_witness_bytes: 67108864
-  max_recursive_proof_bytes: 8388608
-  max_recursive_sidecar_bytes: 12582912
   max_nova_block_proof_bytes: 131072
   max_epoch_nova_archive_bytes: 134217728
   max_plonky3_epoch_proof_bytes: 16777216
@@ -257,7 +264,6 @@ limits:
   max_documentation_packet_bytes: 8388608
 
 documentation:
-  recursive_packet_required: true
   include_source_disposition: true
   include_object_schemas: true
   include_golden_vectors: true

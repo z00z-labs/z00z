@@ -74,6 +74,18 @@ impl<T: Zeroize> Hidden<T> {
         f(self.inner.reveal())
     }
 
+    /// Access the hidden value mutably within a narrowly scoped closure.
+    ///
+    /// This is the mutable counterpart of [`Self::with_revealed`].  It keeps
+    /// callers from retaining a raw mutable reference outside the operation
+    /// that needs to initialise or scrub a hidden buffer.
+    pub fn with_revealed_mut<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut T) -> R,
+    {
+        f(self.inner.reveal_mut())
+    }
+
     /// DANGEROUS: Creates a copy of hidden data.
     ///
     /// # Security Warning
@@ -140,6 +152,13 @@ mod tests {
         let secret = Hidden::hide(vec![1u8, 2u8, 3u8]);
         let len = secret.with_revealed(|data| data.len());
         assert_eq!(len, 3);
+    }
+
+    #[test]
+    fn test_hidden_mutation_stays_scoped() {
+        let mut secret = Hidden::hide(vec![1u8, 2u8, 3u8]);
+        secret.with_revealed_mut(|data| data[1] = 9);
+        assert_eq!(secret.with_revealed(|data| data[1]), 9);
     }
 
     #[test]

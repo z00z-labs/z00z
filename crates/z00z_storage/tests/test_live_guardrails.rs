@@ -190,7 +190,13 @@ fn test_live_contract_exports_compile() {
         RootGeneration::from_version(1),
         Some(RootGeneration::SettlementV1)
     );
-    assert_eq!(RootGeneration::from_version(2), None);
+    let v2_root = SettlementStateRoot::settlement_v2(bytes(2));
+    assert_eq!(v2_root.generation(), RootGeneration::SettlementV2);
+    assert_eq!(v2_root.into_bytes(), bytes(2));
+    assert_eq!(
+        RootGeneration::from_version(2),
+        Some(RootGeneration::SettlementV2)
+    );
 
     let terminal_id = TerminalId::new(bytes(2));
     let path = SettlementPath::new(DefinitionId::new(bytes(3)), SerialId::new(7), terminal_id);

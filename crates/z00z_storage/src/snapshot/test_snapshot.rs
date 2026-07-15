@@ -100,6 +100,21 @@ fn test_build_snapshot_returns_id() {
     assert_ne!(snapshot_id.as_bytes(), &[0u8; 32]);
 }
 
+#[test]
+fn test_build_snapshot_v2_preserves_the_typed_root_binding() {
+    let store = SettlementStore::new();
+    let root = store
+        .settlement_root_v2(7)
+        .expect("derive empty typed V2 root");
+
+    let (snapshot, snapshot_id) =
+        super::build_snapshot_v2(root, Vec::new()).expect("build V2-bound snapshot");
+
+    assert_eq!(snapshot.settlement_root_v2(), Some(root));
+    assert_eq!(snapshot.prev_root, CheckRoot::from(root));
+    assert_ne!(snapshot_id.as_bytes(), &[0u8; 32]);
+}
+
 fn snapshot_from_specs(specs: &[(u8, u32, u8)]) -> PrepSnapshot {
     let mut store = SettlementStore::test_hjmt_store();
     let mut rows = Vec::with_capacity(specs.len());

@@ -25,6 +25,7 @@
 
 pub mod error;
 pub mod fs;
+mod spool;
 
 pub use std::fs::File;
 pub use std::io::copy;
@@ -40,3 +41,4 @@ pub use fs::{
     reset_managed_root_once, save_bincode, save_json, save_with_codec, save_yaml,
     set_permissions_mode, stable_current_exe_scope, write_file,
 };
+pub use spool::PrivateSpoolFile;

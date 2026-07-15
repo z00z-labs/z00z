@@ -1,0 +1,5 @@
+# Phase 069 checked-in proptest corpus
+#
+# Deterministic normal seed is recorded in
+# .planning/phases/069-Recursive-Proof/069-03-PROPERTY-EVIDENCE.json.
+# No minimized counterexample has been observed as of the initial 256-case run.

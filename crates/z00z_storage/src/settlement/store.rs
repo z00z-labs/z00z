@@ -5,7 +5,7 @@ use std::{
 
 use crate::backend::{
     memory::MemTreeStore,
-    redb::StoragePlane,
+    redb::{state::RecursiveV2CutoverManifestV2, StoragePlane},
     roots::{HjmtRoots, TreeRoots},
 };
 use sha2::{Digest, Sha256};
@@ -17,6 +17,15 @@ use jmt::{RootHash, Version};
 
 #[allow(unused_imports)]
 use super::tree_id::{PathIndexRec, TreeId, TreeRootRef};
+#[allow(unused_imports)]
+use super::{
+    derive_settlement_root_v2, model::SettlementModel, tx_plan_types::ObjectDeltaSetV1,
+    BucketPolicy, CheckRoot, ClaimSourceRoot, DefinitionId, DefinitionRootLeaf, FeeActorCtx,
+    FeeEnvelope, FeeReplayKey, FeeReplayRec, PolicySetCommitmentV1, PolicySetMemberV1, ProofBlob,
+    ProofItem, ProofScanOut, RightActionCtx, RightLeaf, RootGeneration, SerialId, SerialRootLeaf,
+    SettlementListReq, SettlementLookup, SettlementPage, SettlementPageTok, SettlementPath,
+    SettlementStateRoot, SnapItem, StoreItem, TerminalId,
+};
 use super::{
     hjmt_cache::ForestCache,
     hjmt_config::{bucket_policy_from_env, env_opt, SettlementBackendMode},
@@ -24,20 +33,13 @@ use super::{
     hjmt_scheduler::ForestScheduler,
     hjmt_store::HjmtStore,
 };
-#[allow(unused_imports)]
-use super::{
-    model::SettlementModel, tx_plan_types::ObjectDeltaSetV1, BucketPolicy, CheckRoot,
-    ClaimSourceRoot, DefinitionId, DefinitionRootLeaf, FeeActorCtx, FeeEnvelope, FeeReplayKey,
-    FeeReplayRec, PolicySetCommitmentV1, PolicySetMemberV1, ProofBlob, ProofItem, ProofScanOut,
-    RightActionCtx, RightLeaf, SerialId, SerialRootLeaf, SettlementListReq, SettlementLookup,
-    SettlementPage, SettlementPageTok, SettlementPath, SettlementStateRoot, SnapItem, StoreItem,
-    TerminalId,
-};
 use crate::backend::error::StoreBackendError;
 pub use crate::backend::types::{
     ClaimNullRec, ClaimNullStatus, ClaimNullTx, ClaimNullifier, SettlementStoreError, StoreOp,
 };
-use z00z_crypto::expert::encoding::to_hex;
+use z00z_crypto::{expert::encoding::to_hex, CheckpointSha256V2, CheckpointShaRole};
+
+type RecursiveV2SnapshotBinding = ([u8; 32], u64, u64, u64, [u8; 32]);
 
 #[cfg(test)]
 pub(crate) const TEST_HJMT_INJ_STAGE_ENV: &str = "Z00Z_STORAGE_HJMT_INJ_STAGE";
@@ -135,6 +137,25 @@ impl SettlementExecHandoff {
         txs: Vec<crate::checkpoint::CheckpointExecTx>,
     ) -> Self {
         Self { route, ops, txs }
+    }
+
+    /// Construct the sole canonical empty handoff accepted by the recursive V2
+    /// authority-defined no-op relation.  Its sentinel route prevents an empty
+    /// ad-hoc execution request from becoming a second no-op encoding.
+    #[must_use]
+    pub fn recursive_v2_noop() -> Self {
+        Self {
+            route: SettlementRouteCtx::new([0x4e; 32], u32::MAX, u64::MAX, [0xa5; 32]),
+            ops: Vec::new(),
+            txs: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn is_recursive_v2_noop(&self) -> bool {
+        self.ops.is_empty()
+            && self.txs.is_empty()
+            && self.route == SettlementRouteCtx::new([0x4e; 32], u32::MAX, u64::MAX, [0xa5; 32])
     }
 
     #[must_use]
@@ -312,6 +333,8 @@ pub(crate) fn scope_tx_id(index: usize, proof: &[u8]) -> String {
 /// Physical backend roots and table layout stay private to storage internals.
 pub trait SettlementTreeBackend {
     fn settlement_root(&self) -> Result<SettlementStateRoot, SettlementStoreError>;
+
+    fn settlement_root_v2(&self, layout: u32) -> Result<SettlementStateRoot, SettlementStoreError>;
 
     fn settlement_root_for_version(
         &self,
@@ -596,6 +619,149 @@ impl SettlementStore {
         Ok(self.hjmt_roots.settlement_root())
     }
 
+    /// Derive the only recursive V2 settlement root from the live HJMT
+    /// definition-tree root. This does not reinterpret legacy semantic roots.
+    pub fn settlement_root_v2(
+        &self,
+        layout: u32,
+    ) -> Result<SettlementStateRoot, SettlementStoreError> {
+        if layout == 0 {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 settlement layout must be nonzero".to_string(),
+            ));
+        }
+        let definition_root = self.recursive_v2_definition_root();
+        derive_settlement_root_v2(
+            RootGeneration::SettlementV2,
+            layout,
+            self.bucket_policy.bucket_policy_id(),
+            definition_root,
+        )
+        .map_err(|err| {
+            SettlementStoreError::Backend(format!("recursive V2 root derivation: {err}"))
+        })
+    }
+
+    /// Return the storage-owned definition-tree root used by the sole recursive
+    /// V2 root derivation. This is crate-visible so the independent evaluator
+    /// cannot accept a caller-supplied post-state root.
+    #[must_use]
+    pub(crate) fn recursive_v2_definition_root(&self) -> [u8; 32] {
+        self.hjmt_roots
+            .def_root
+            .map(TreeRootRef::into_bytes)
+            .unwrap_or(*b"SPARSE_MERKLE_PLACEHOLDER_HASH__")
+    }
+
+    /// Return the live HJMT generation captured by a recursive V2 snapshot.
+    #[must_use]
+    pub const fn recursive_v2_storage_generation(&self) -> u64 {
+        self.hjmt_roots.version
+    }
+
+    /// Enumerate canonical records once and return the V2 snapshot binding.
+    ///
+    /// The result is crate-visible only. The sole public V2 path obtains it
+    /// through `RecursiveAuthoritySnapshotV2::resolve_repository_local_fixture`,
+    /// which prevents caller-selected snapshot, count, byte-count, or
+    /// content-digest claims.
+    pub(crate) fn recursive_v2_snapshot_binding(
+        &self,
+        layout: u32,
+    ) -> Result<RecursiveV2SnapshotBinding, SettlementStoreError> {
+        let root = self.settlement_root_v2(layout)?;
+        let mut record_count = 0_u64;
+        let mut byte_count = 0_u64;
+        let mut content = CheckpointSha256V2::new(CheckpointShaRole::Content);
+        for path in self.sorted_paths() {
+            let Some(item) = self.hjmt_get_settlement_item(&path)? else {
+                continue;
+            };
+            let leaf = item.leaf().encode().map_err(|error| {
+                SettlementStoreError::Backend(format!(
+                    "recursive V2 snapshot leaf encoding: {error}"
+                ))
+            })?;
+            let leaf_len = u32::try_from(leaf.len()).map_err(|_| {
+                SettlementStoreError::Backend("recursive V2 snapshot leaf too large".to_string())
+            })?;
+            let mut record = Vec::with_capacity(32 + 4 + 32 + 1 + 4 + leaf.len());
+            record.extend_from_slice(&path.definition_id.into_bytes());
+            record.extend_from_slice(&path.serial_id.get().to_le_bytes());
+            record.extend_from_slice(&path.terminal_id().into_bytes());
+            record.push(item.leaf().family_tag());
+            record.extend_from_slice(&leaf_len.to_le_bytes());
+            record.extend_from_slice(&leaf);
+            content.update_part(&record).map_err(|_| {
+                SettlementStoreError::Backend(
+                    "recursive V2 snapshot content exceeds SHA limit".to_string(),
+                )
+            })?;
+            record_count = record_count.checked_add(1).ok_or_else(|| {
+                SettlementStoreError::Backend(
+                    "recursive V2 snapshot record-count overflow".to_string(),
+                )
+            })?;
+            byte_count = byte_count
+                .checked_add(u64::try_from(record.len()).map_err(|_| {
+                    SettlementStoreError::Backend(
+                        "recursive V2 snapshot byte-count overflow".to_string(),
+                    )
+                })?)
+                .ok_or_else(|| {
+                    SettlementStoreError::Backend(
+                        "recursive V2 snapshot byte-count overflow".to_string(),
+                    )
+                })?;
+        }
+        Ok((
+            *root.as_bytes(),
+            self.recursive_v2_storage_generation(),
+            record_count,
+            byte_count,
+            content.finalize(),
+        ))
+    }
+
+    /// Persist the sole recursive-V2 cutover record with a durable CAS against
+    /// the exact live HJMT generation. The store owner independently checks
+    /// the V2 root before the backend writes the authority manifest.
+    pub(crate) fn install_recursive_v2_cutover(
+        &mut self,
+        manifest: RecursiveV2CutoverManifestV2,
+    ) -> Result<(), SettlementStoreError> {
+        if !self.backend.is_on() {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 cutover requires a durable isolated store".to_string(),
+            ));
+        }
+        if manifest.policy_digest != self.bucket_policy().bucket_policy_id()
+            || manifest.storage_generation != self.recursive_v2_storage_generation()
+            || manifest.expected_definition_root != self.recursive_v2_definition_root()
+            || manifest.expected_settlement_root
+                != *self.settlement_root_v2(manifest.layout)?.as_bytes()
+        {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 cutover manifest does not match the live store".to_string(),
+            ));
+        }
+        self.backend
+            .install_recursive_v2_cutover(&manifest)
+            .map_err(|err| SettlementStoreError::Backend(err.to_string()))?;
+        if self
+            .backend
+            .load_recursive_v2_cutover()
+            .map_err(|err| SettlementStoreError::Backend(err.to_string()))?
+            .as_ref()
+            != Some(&manifest)
+        {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 cutover durable readback mismatch".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn settlement_root_for_version(
         &self,
         version: Version,
@@ -650,6 +816,36 @@ impl SettlementStore {
         Ok(Some(store))
     }
 
+    /// Build an isolated, non-durable exact copy for recursive-V2 preflight.
+    ///
+    /// The canonical V2 transition uses this clone to construct and seal its
+    /// sole witness source before it mutates the live store.  The clone keeps
+    /// every semantic and HJMT versioned field, but its backend is explicitly
+    /// off so a rejected preflight cannot create a durable side effect.
+    pub(crate) fn recursive_v2_preflight_clone(&self) -> Self {
+        let mut clone =
+            Self::build_with_policy(StoragePlane::off(), self.backend_mode, self.bucket_policy());
+        clone.forest_cache.restore(self.forest_cache.snapshot());
+        clone.hjmt_store.restore(self.hjmt_store.snap());
+        clone.hjmt_roots = self.hjmt_roots.clone();
+        clone.flat_store.restore(self.flat_store.snap());
+        clone.flat_version = self.flat_version;
+        clone.flat_root = self.flat_root;
+        clone.model = self.model.clone();
+        clone.tree_roots = self.tree_roots.clone();
+        clone.path_by_terminal_id = self.path_by_terminal_id.clone();
+        clone.nullifier = self.nullifier.clone();
+        clone.claim_null_seq = self.claim_null_seq;
+        clone.fee_replays = self.fee_replays.clone();
+        clone.fee_replay_seq = self.fee_replay_seq;
+        clone.settlement_root_by_ver = self.settlement_root_by_ver.clone();
+        clone.model_by_ver = self.model_by_ver.clone();
+        clone.hjmt_roots_by_ver = self.hjmt_roots_by_ver.clone();
+        clone.last_object_delta = self.last_object_delta.clone();
+        clone.object_deltas_by_ver = self.object_deltas_by_ver.clone();
+        clone
+    }
+
     pub fn apply_settlement_ops(
         &mut self,
         ops: Vec<StoreOp>,
@@ -664,6 +860,23 @@ impl SettlementStore {
     ) -> Result<ScopeFlow, SettlementStoreError> {
         self.require_hjmt_mode()?;
         self.hjmt_apply_exec_handoff(handoff)
+    }
+
+    /// Execute the only recursive-V2 eligible handoff and expose the traced
+    /// pinned-JMT result. The ordinary semantic API intentionally does not
+    /// retain this proving artifact.
+    pub(crate) fn apply_exec_handoff_v2(
+        &mut self,
+        handoff: SettlementExecHandoff,
+    ) -> Result<
+        (
+            ScopeFlow,
+            super::proof_batch::SettlementUpdateTraceEnvelopeV2,
+        ),
+        SettlementStoreError,
+    > {
+        self.require_hjmt_mode()?;
+        self.hjmt_apply_exec_handoff_with_update_trace(handoff)
     }
 
     pub fn recovery_state(&self) -> Result<SettlementRecoveryState, SettlementStoreError> {
@@ -714,6 +927,10 @@ impl SettlementStore {
 impl SettlementTreeBackend for SettlementStore {
     fn settlement_root(&self) -> Result<SettlementStateRoot, SettlementStoreError> {
         SettlementStore::settlement_root(self)
+    }
+
+    fn settlement_root_v2(&self, layout: u32) -> Result<SettlementStateRoot, SettlementStoreError> {
+        SettlementStore::settlement_root_v2(self, layout)
     }
 
     fn settlement_root_for_version(

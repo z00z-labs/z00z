@@ -1,4 +1,4 @@
-use crate::settlement::{CheckRoot, SnapItem};
+use crate::settlement::{CheckRoot, RootGeneration, SettlementStateRoot, SnapItem};
 
 /// Canonical snapshot schema version.
 ///
@@ -88,6 +88,11 @@ impl From<[u8; 32]> for PrepSnapshotId {
 pub struct PrepSnapshot {
     pub version: PrepSnapshotVersion,
     pub prev_root: CheckRoot,
+    /// V2-only typed root binding.  Its absence denotes the retained
+    /// non-recursive legacy snapshot schema; V2 checkpoint resolution requires
+    /// a present `SettlementV2` value and never reinterprets `prev_root`.
+    #[serde(default)]
+    pub prev_settlement_root: Option<SettlementStateRoot>,
     pub entries: Vec<SnapItem>,
 }
 
@@ -98,7 +103,35 @@ impl PrepSnapshot {
         Self {
             version,
             prev_root,
+            prev_settlement_root: None,
             entries,
         }
+    }
+
+    /// Build one V2 snapshot whose typed root is independently retained beside
+    /// the historical raw checkpoint-root field for existing non-recursive
+    /// consumers.
+    #[must_use]
+    pub fn new_settlement_v2(
+        version: PrepSnapshotVersion,
+        prev_settlement_root: SettlementStateRoot,
+        entries: Vec<SnapItem>,
+    ) -> Self {
+        debug_assert_eq!(
+            prev_settlement_root.generation(),
+            RootGeneration::SettlementV2
+        );
+        Self {
+            version,
+            prev_root: CheckRoot::from(prev_settlement_root),
+            prev_settlement_root: Some(prev_settlement_root),
+            entries,
+        }
+    }
+
+    /// Return the exact V2 root when this is a V2-bound snapshot.
+    #[must_use]
+    pub const fn settlement_root_v2(&self) -> Option<SettlementStateRoot> {
+        self.prev_settlement_root
     }
 }

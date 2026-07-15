@@ -1,3 +1,11 @@
+---
+title: "Main Whitepaper"
+description: "Core protocol paper describing wallet-local possession, confidential settlement objects, checkpointed reconciliation, and narrow public evidence."
+difficulty: advanced
+icon: mdi:alpha-c-circle-outline
+toc: true
+---
+
 # Z00Z Main Whitepaper
 
 [TOC]
@@ -798,12 +806,25 @@ A compact artifact pipeline helps keep that staging readable:
 
 ```mermaid
 sequenceDiagram
-  participant Wallet as Wallet
-  participant Agg as Aggregator
-  participant Adapter as DA Adapter
-  participant Provider as DA Provider
-  participant Val as Validator
-  participant Watch as Watcher
+  box rgb(227,242,253) Public API / User
+    participant Wallet as Wallet
+  end
+  box rgb(255,243,224) Infrastructure / Runtime
+    participant Agg as Aggregator
+  end
+  box rgb(255,224,178) Storage / DA layer
+    participant Adapter as DA Adapter
+  end
+  box rgb(255,224,178) Storage / DA layer
+    participant Provider as DA Provider
+  end
+  box rgb(255,243,224) Infrastructure / Runtime
+    participant Val as Validator
+  end
+  box rgb(255,243,224) Infrastructure / Runtime
+    participant Watch as Watcher
+  end
+
 
   Wallet->>Agg: submit TxPackage or ClaimTxPackage
   Agg->>Agg: admit, order, build PublicationRequest
@@ -1364,7 +1385,7 @@ The same rule becomes stricter higher up in transaction and claim packages. Asse
 
 This appendix provides **the shipped cryptographic boundary**: the current backend facade, stable public types, range-proof and signature APIs, domain registry, stealth KDF stack, and replay-boundary derivations that the live wallet, storage, and rollup crates already consume. It does not pretend to provide a mathematically complete proving-system monograph for every future surface or a finished disclosure-proof regime for future corporate workflows.
 
-Post-quantum migration is now handled as its own companion paper, [Z00Z PQ Migration Whitepaper](Post-Quantum-Migration.md). The main whitepaper should keep the honest short claim: Z00Z has a comparatively migration-friendly settlement and storage boundary, but its current transaction cryptography is not end-to-end post-quantum secure. The dedicated migration paper owns the firewall, suite-versioning, hybrid-lane, and rewrap strategy.
+Post-quantum migration is now handled as its own companion paper, [Z00Z PQ Migration Whitepaper](PQ-Migration.md). The main whitepaper should keep the honest short claim: Z00Z has a comparatively migration-friendly settlement and storage boundary, but its current transaction cryptography is not end-to-end post-quantum secure. The dedicated migration paper owns the firewall, suite-versioning, hybrid-lane, and rewrap strategy.
 
 That boundary is healthy. The main paper relies on the cryptographic consequences already enforced in code, while Appendix B carries the deeper object-level details that explain how those consequences are currently achieved.
 

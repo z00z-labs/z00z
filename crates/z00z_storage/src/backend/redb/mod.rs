@@ -33,6 +33,8 @@ const DRAFT_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("settlem
 const CHECK_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("settlement_checkpoints");
 const EXEC_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("settlement_cp_execs");
 const LINK_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("settlement_cp_links");
+const RECURSIVE_V2_CUTOVER_TABLE: TableDefinition<&[u8], &[u8]> =
+    TableDefinition::new("settlement_recursive_v2_cutover");
 
 const KEY_ACTIVE: &[u8] = b"active_version";
 const KEY_STATE: &[u8] = b"state_meta";
@@ -99,6 +101,22 @@ impl StoragePlane {
         path: crate::settlement::SettlementPath,
     ) -> Result<Option<u64>, StoreBackendError> {
         self.inner.hjmt_last_version_for_path(path)
+    }
+
+    /// Atomically compare the active HJMT generation and install the sole V2
+    /// cutover manifest. A cutover is a once-only authority transition, not a
+    /// replayable state update.
+    pub(crate) fn install_recursive_v2_cutover(
+        &self,
+        manifest: &state::RecursiveV2CutoverManifestV2,
+    ) -> Result<(), StoreBackendError> {
+        self.inner.install_recursive_v2_cutover(manifest)
+    }
+
+    pub(crate) fn load_recursive_v2_cutover(
+        &self,
+    ) -> Result<Option<state::RecursiveV2CutoverManifestV2>, StoreBackendError> {
+        self.inner.load_recursive_v2_cutover()
     }
 }
 

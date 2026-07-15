@@ -1,4 +1,4 @@
-const WHITEPAPER_DOC: &str = include_str!("../../../docs/Z00Z-Main-Whitepaper.md");
+const WHITEPAPER_DOC: &str = include_str!("../../../docs/whitepapers/Main-Whitepaper.md");
 const ROADMAP_DOC: &str = include_str!("../../../docs/tech-papers/Z00Z-Roadmap-Blueprint.md");
 const ONIONNET_DOC: &str = include_str!("../../z00z_networks/onionnet/README.md");
 const WALLET_LIB_SRC: &str = include_str!("../src/lib.rs");

@@ -4,14 +4,16 @@ use tempfile::NamedTempFile;
 use z00z_storage::{
     checkpoint::{
         repo_default_path, CheckpointContractConfigV1, POST_QUANTUM_ENFORCEMENT_STAGE,
-        VERIFIED_BACKEND_CANDIDATE_STAGE, VERIFIED_BACKEND_ENABLED_STAGE,
-        VERIFIED_BACKEND_PROOF_OBJECT, VERIFIED_BACKEND_REQUIRED_BENCHMARKS,
-        VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS, VERIFIED_BACKEND_REVIEW_APPROVED,
+        VERIFIED_BACKEND_ENABLED_STAGE, VERIFIED_BACKEND_PROOF_OBJECT,
+        VERIFIED_BACKEND_REQUIRED_BENCHMARKS, VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS,
         VERIFIED_BACKEND_STATEMENT_STABILITY,
     },
     CheckpointError,
 };
-use z00z_utils::io::{read_to_string, write_file};
+use z00z_utils::{
+    codec::{Codec, YamlCodec},
+    io::{read_to_string, write_file},
+};
 
 const REQUIRED_FIELDS: &[&str] = &[
     "height",
@@ -69,13 +71,16 @@ fn test_statement_field_order_matches_phase068_contract() {
 }
 
 #[test]
-fn test_recursive_shadow_branch_stays_non_authoritative() {
+fn test_streaming_branch_is_live_and_non_authoritative() {
     let cfg = cfg();
 
     assert!(cfg.branches.recursive.is_enabled);
     assert!(!cfg.branches.recursive.is_authoritative);
-    assert_eq!(cfg.branches.recursive.mode, "hybrid_nova_plonky3");
-    assert_eq!(cfg.branches.recursive.proof_system, "recursive_hybrid_v1");
+    assert_eq!(cfg.branches.recursive.mode, "streaming_transition_v2");
+    assert_eq!(
+        cfg.branches.recursive.proof_system,
+        "nova_streaming_compressed_v2"
+    );
     assert!(cfg.branches.recursive.has_prior_output_binding);
     assert_eq!(cfg.branches.recursive.min_chain_steps, 3);
     assert_eq!(cfg.branches.recursive.target_chain_steps, 5);
@@ -108,10 +113,6 @@ fn test_path_strings_match_contract() {
     assert_eq!(
         cfg.paths.witness_archives,
         PathBuf::from("artifacts/checkpoints/witness_archive")
-    );
-    assert_eq!(
-        cfg.paths.recursive_sidecars,
-        PathBuf::from("artifacts/checkpoints/recursive_shadow")
     );
     assert_eq!(
         cfg.paths.nova_block_proofs,
@@ -183,7 +184,6 @@ fn test_resolve_paths_keeps_contract() {
         (&resolved.prep_snapshots, &cfg.paths.prep_snapshots),
         (&resolved.delta_journals, &cfg.paths.delta_journals),
         (&resolved.witness_archives, &cfg.paths.witness_archives),
-        (&resolved.recursive_sidecars, &cfg.paths.recursive_sidecars),
         (&resolved.nova_block_proofs, &cfg.paths.nova_block_proofs),
         (&resolved.pq_checkpoints, &cfg.paths.pq_checkpoints),
         (
@@ -214,7 +214,6 @@ fn test_resolve_paths_keeps_contract() {
     }
 
     assert_ne!(resolved.checkpoint_artifacts, resolved.prep_snapshots);
-    assert_ne!(resolved.checkpoint_artifacts, resolved.recursive_sidecars);
     assert_ne!(resolved.checkpoint_artifacts, resolved.pq_checkpoints);
     assert_ne!(resolved.checkpoint_artifacts, resolved.da_exports);
 }
@@ -261,7 +260,7 @@ fn test_unknown_yaml_key_rejects() {
 
 #[test]
 fn test_missing_nova_profile_field_rejects() {
-    let yaml = repo_config_yaml().replace("    proof_system: nova_compressed_v1\n", "");
+    let yaml = repo_config_yaml().replace("    proof_system: nova_streaming_compressed_v2\n", "");
 
     let err = load_temp_contract(&yaml).expect_err("missing nova profile field must reject");
 
@@ -278,25 +277,28 @@ fn test_missing_plonky3_profile_field_rejects() {
 }
 
 #[test]
-fn test_nova_branch_disable_rejects() {
+fn test_nova_branch_is_live_and_disabled_state_rejects() {
     let mut cfg = cfg();
+    cfg.validate()
+        .expect("live nova branch configuration must validate");
+
     cfg.branches.nova.is_enabled = false;
 
     let err = cfg
         .validate()
-        .expect_err("disabled nova branch must reject");
+        .expect_err("disabled live nova branch must reject");
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 }
 
 #[test]
-fn test_plonky3_branch_disable_rejects() {
+fn test_plonky3_branch_enable_rejects_without_a_bound_backend() {
     let mut cfg = cfg();
-    cfg.branches.plonky3_epoch.is_enabled = false;
+    cfg.branches.plonky3_epoch.is_enabled = true;
 
     let err = cfg
         .validate()
-        .expect_err("disabled plonky3 branch must reject");
+        .expect_err("unimplemented plonky3 branch must reject");
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 }
@@ -326,9 +328,9 @@ fn test_pq_anchor_limit_cannot_drop_below_plonky3_limit() {
 }
 
 #[test]
-fn test_recursive_shadow_stage_rejects_live_pq_cadence() {
+fn test_spec_stage_rejects_live_pq_cadence() {
     let mut cfg = cfg();
-    cfg.authority_promotion.stage = "recursive_shadow_sidecar".to_string();
+    cfg.authority_promotion.stage = "spec_only".to_string();
     cfg.authority_promotion.allowed_next_stages = vec![POST_QUANTUM_ENFORCEMENT_STAGE.to_string()];
     cfg.post_quantum.enforce_live_cadence = true;
 
@@ -342,7 +344,7 @@ fn test_recursive_shadow_stage_rejects_live_pq_cadence() {
 #[test]
 fn test_stage_skip_rejects() {
     let mut cfg = cfg();
-    cfg.authority_promotion.allowed_next_stages = vec!["recursive_shadow_sidecar".to_string()];
+    cfg.authority_promotion.allowed_next_stages = vec![POST_QUANTUM_ENFORCEMENT_STAGE.to_string()];
 
     let err = cfg.validate().expect_err("stage skip must reject");
 
@@ -350,7 +352,7 @@ fn test_stage_skip_rejects() {
 }
 
 #[test]
-fn test_verified_backend_stage_requires_review_and_empty_next_set() {
+fn test_verified_backend_stage_remains_unavailable_without_promotion_evidence() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = VERIFIED_BACKEND_ENABLED_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages.clear();
@@ -364,34 +366,65 @@ fn test_verified_backend_stage_requires_review_and_empty_next_set() {
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 
-    cfg.verified_backend.security_review.status = VERIFIED_BACKEND_REVIEW_APPROVED.to_string();
-    cfg.validate()
-        .expect("verified backend enablement contract");
-
-    cfg.authority_promotion.allowed_next_stages =
-        vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
-
+    cfg.branches.nova.is_available = true;
+    cfg.branches.plonky3_epoch.is_available = true;
     let err = cfg
         .validate()
-        .expect_err("verified backend enabled stage must be terminal");
+        .expect_err("verified backend stays unavailable without promotion evidence");
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 }
 
 #[test]
-fn test_pq_writer_stage_requires_live_pq_cadence() {
+fn test_pq_writer_stage_rejects_without_a_bound_writer() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
-    cfg.authority_promotion.allowed_next_stages =
-        vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
+    cfg.authority_promotion.allowed_next_stages.clear();
     cfg.post_quantum.enforce_live_cadence = false;
 
     let err = cfg
         .validate()
-        .expect_err("pq writer stage must enable live pq cadence");
+        .expect_err("unbound PQ writer stage must reject");
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 
     cfg.post_quantum.enforce_live_cadence = true;
-    cfg.validate().expect("pq writer stage contract");
+    let err = cfg
+        .validate()
+        .expect_err("unbound PQ writer stage must reject even with cadence enabled");
+    assert!(matches!(err, CheckpointError::ContractConfig(_)));
+}
+
+#[test]
+fn test_v2_config_encoder_never_emits_legacy_pq_fields() {
+    let cfg = cfg();
+    let yaml = String::from_utf8(YamlCodec.serialize(&cfg).expect("encode V2 config"))
+        .expect("V2 YAML utf8");
+
+    assert!(yaml.contains("epoch_evidence_commitment: non_authenticating_digest_v2"));
+    assert!(!yaml.contains("pq_signature_or_commitment"));
+    assert!(!yaml.contains("is_pq_authoritative"));
+    assert!(!yaml.contains("cadence_blocks: 0"));
+    load_temp_contract(&yaml).expect("reencoded V2 config remains valid");
+}
+
+#[test]
+fn test_v2_config_rejects_overflowed_object_caps_and_unavailable_promotion() {
+    let mut overflow_cfg = cfg();
+    overflow_cfg.limits.max_nova_block_proof_bytes = usize::MAX;
+    assert!(matches!(
+        overflow_cfg.validate(),
+        Err(CheckpointError::ContractConfig(_))
+    ));
+
+    let mut cfg = cfg();
+    cfg.authority_promotion.stage = VERIFIED_BACKEND_ENABLED_STAGE.to_string();
+    cfg.authority_promotion.allowed_next_stages.clear();
+    cfg.authority_promotion.recursive_authority_allowed = true;
+    cfg.authority_promotion.verified_backend_allowed = true;
+    cfg.post_quantum.enforce_live_cadence = true;
+    assert!(matches!(
+        cfg.validate(),
+        Err(CheckpointError::ContractConfig(_))
+    ));
 }

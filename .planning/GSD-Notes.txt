@@ -104,6 +104,12 @@ Order Of Operations
 - Docs-Freshness check update
 
 -----------------------------------------
+tvoja cel prorabotat 069-Recursive-Proof/069-TODO.md pered nachalom planirovanija etoj phase;
+prover vse li opisano dostatocno podrobno dlj anachalal planirovanija; esli nuzhno mozheh svnesti pravki, utochneija, zamechanija,
+vse tochechno ne perepisivat dokument;
+podgotovit dokument dlja nachala planirovwika [$gsd-add-phase](/home/vadim/Projects/z00z/.github/skills/gsd-add-phase/SKILL.md) , no samo planirovanie ne delat ; tolko dorabotka s 069-TODO.md
+prover net kakih to logcheskih ochibok, pitfalls, concept drifts et etc
+-----------------------------------------
 ./pack_z00z_project.sh
 ./unpack_z00z_project.sh --archive ./z00z-<timestamp>.tar.gz --docker-sandbox
 

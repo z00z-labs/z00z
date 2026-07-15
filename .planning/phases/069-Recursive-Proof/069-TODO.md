@@ -1,16 +1,13 @@
 ---
 phase: 069
 artifact: recursive-proof-spec
-status: planned
-updated: 2026-07-03
+status: planning-ready
+registration: registered-existing-phase-reuse
+updated: 2026-07-11
 authority: phase-local
 ---
 
 # Phase 069 Recursive Proof Spec
-
-[TOC]
-
-
 
 ## 🎯 Purpose
 
@@ -24,19 +21,22 @@ checkpoint transition statement from
 `docs/tech-papers/Recursive-Ready-Checkpoint-Contract.md`. The selected
 implementation architecture is hybrid:
 
-- Nova compressed proof on every checkpoint block as a fast classical IVC lane.
+- Nova IVC fold on every checkpoint block, with compressed proof snapshots at
+  a measured/configured cadence, as a fast classical lane.
 - Plonky3 recursive STARK epoch proof every configured PQ cadence interval,
-  default `1000` blocks, as the long-horizon PQ-friendly history lock.
+  default `1000` blocks, as PQ-oriented outer proof evidence over the accepted
+  checkpoint transition-consistency predicate.
 - Canonical checkpoint artifacts, exact transaction proof bytes, HJMT roots,
   witness roots, DA/archive manifests, and checkpoint links remain mandatory.
 
-📌 The Plonky3 epoch proof MUST prove or re-check the canonical transition range
-for the epoch. It MUST NOT be a STARK wrapper that only proves "1000 Nova proofs
-verified", because that would inherit Nova's ECC/DLOG soundness and would not
-survive the quantum rewrite threat model. The epoch proof MAY bind the Nova
-chain root as additional performance/audit evidence, but the PQ authority must
-come from canonical checkpoint statements, witnesses, deltas, roots, and
-archive commitments.
+📌 The Plonky3 epoch proof MUST prove or re-check the accepted canonical
+transition-consistency predicate for every step in the epoch. It MUST NOT be a
+STARK wrapper that only proves "1000 Nova proofs verified". The epoch proof MAY
+bind the Nova chain root as additional performance/audit evidence. It still
+MUST NOT be described as end-to-end post-quantum checkpoint validity while the
+accepted transaction theorem depends on classical signatures, commitments,
+range proofs, or spend proofs. Phase 069 proves the explicitly scoped predicate;
+it does not upgrade the assumptions of nested classical primitives.
 
 📌 Phase 069 still MUST NOT replace the current spend verifier, range-proof
 verifier, checkpoint artifact codec, checkpoint link, or canonical replay path.
@@ -45,10 +45,12 @@ stage has real verifier code, codec support, rollback policy, benchmarks,
 negative tests, and security review.
 
 📌 The primary output of this phase is a deterministic hybrid recursive
-checkpoint contract: typed public inputs, Nova block proof objects, Plonky3
-epoch statement/proof objects, epoch manifests, verifier adapter interfaces,
-typed reject reasons, measurements, storage path gates, and 3 to 5 step chain
-evidence for prior-output binding.
+checkpoint implementation over the existing storage contract: a real Nova IVC
+step lane, a real Plonky3 base-STARK and recursive epoch lane, typed public
+inputs, proof objects, epoch manifests, cryptographic verifier adapters, typed
+reject reasons, measurements, storage path gates, and 3 to 5 step chain evidence
+for prior-output binding. Shape validation or arbitrary non-empty proof bytes do
+not satisfy this output.
 
 📌 The secondary output is a recursive documentation and audit packet that makes
 the hybrid lane reviewable: statement vectors, object schemas, rejection matrix,
@@ -73,10 +75,62 @@ Reading order:
 5. Config gates define the real repository YAML file that controls modes,
    limits, paths, stage promotion, retention, DA, and PQ cadence.
 6. Module placement defines where the implementation lives across storage,
-   runtime, rollup node, crypto, simulator, and the future recursive proof crate.
+   runtime, rollup node, crypto, simulator, and `z00z_recursive_proofs`.
 7. Diagrams provide C4 and Mermaid-spectrum views of the same architecture.
 8. Failure model, tests, acceptance criteria, implementation slices, and
    artifacts define how Phase 069 is accepted.
+
+## 🚦 Pre-Planning Readiness Gate
+
+📌 Phase 068 completed after the first draft of this document and already
+landed much of the storage contract that older Phase 069 slices described as
+future work. Phase 069 planning MUST start from current source and tests, not
+from the historical implementation tense in this spec.
+
+⚠️ **Registration constraint:** The canonical phase directory already exists at
+`.planning/phases/069-Recursive-Proof/`, while higher-numbered scenario/future
+directories also exist. The append-only `gsd-add-phase` implementation scans
+on-disk phase numbers and would allocate after the highest one rather than
+register this existing Phase 069. Registration MUST reuse this exact directory
+through an existing-phase roadmap registration/edit path. It MUST NOT call
+`phase.add`, create a duplicate `069-*` directory, or renumber this spec.
+
+| Surface | Current baseline on 2026-07-11 | Phase 069 planning treatment |
+| --- | --- | --- |
+| Statement/core/final digests | Implemented in `artifact_stmt.rs`. | Reuse and regression-test; do not introduce a second theorem. |
+| Recursive public input, evidence, measurement, chain evidence, codec, and verifier | Absent at T0; the former implementation is eradicated. | T1 creates the sole V2 path `z00z_storage::checkpoint::recursive_v2`; no compatibility surface exists. |
+| PQ anchor envelope and cadence gate | Implemented in `pq_anchor.rs` and `contract_config.rs`. | Reuse as audit metadata; bind only verified backend outputs. |
+| Archive manifests/receipts, retrieval audits, snapshots, and pruning decisions | Implemented under `z00z_storage::checkpoint`. | Keep as inherited regression constraints; do not reimplement them in the V2 recursive module. |
+| Nova backend | No `nova-snark` dependency, step circuit, prover, or verifier is present. | New Phase 069 implementation scope. |
+| Plonky3 recursion backend | No `p3-recursion` dependency, checkpoint AIR, base proof, recursive aggregation, prover, or verifier is present. | New Phase 069 implementation scope. |
+| Recursive implementation root | No recursive source exists at T0. | T1 creates only `z00z_storage::checkpoint::recursive_v2` after its dependency and predicate gates pass. |
+
+📌 The planner MUST preserve these readiness decisions:
+
+1. **No duplicate baseline work.** Existing storage-owned objects are inputs to
+   the plan. Any replacement requires a migration and caller inventory, not a
+   parallel type family.
+2. **Dependency preflight first.** Record an exact compatible `nova-snark` and
+   `p3-*` set, MSRV/toolchain impact, license, feature flags, transitive audit
+   surface, and a compile-only compatibility probe before backend code.
+3. **Predicate before prover.** Freeze the exact R1CS/AIR predicate, field
+   encoding, hash gadgets, public-input order, witness schema, and golden vectors
+   before implementing either backend.
+4. **Real verification.** A plan cannot close a backend slice by accepting a
+   boolean claim, digest-shaped placeholder, arbitrary bytes, or a shape-only
+   verifier.
+5. **Honest security vocabulary.** Existing identifiers such as
+   `PqEpochFinality` and `is_pq_authoritative` are legacy configuration labels.
+   They do not grant checkpoint finality or end-to-end PQ authority. Phase 069
+   MUST either migrate them versionedly to evidence-oriented names or document
+   their compatibility-only meaning at every public boundary.
+6. **Spike failure is a valid stop.** If the exact checkpoint predicate cannot
+   be represented with the selected backend within bounded proving time,
+   memory, or auditability, stop after the feasibility packet and split a
+   successor phase. Do not close Phase 069 with a mock backend.
+
+📌 Planning readiness means the unknowns above are explicit, ordered gates. It
+does not mean their technical outcomes are predetermined.
 
 ## 🔐 Authority Chain
 
@@ -121,13 +175,13 @@ filtered by this spec and the recursive-ready checkpoint contract.
 | --- | --- | --- |
 | `README.md` and `README-recursive_proofs.md` | Exact statement first, no spend verifier replacement, 3 to 5 step chain, proof-size/prover/verifier measurements, recursive sidecar evidence. | Backend-first design that does not bind the checkpoint contract or tries to use proof-system choice as theorem authority. |
 | `z00z-recursive-proofs.md` | State-transition model with `root_old`, update witness, `root_new`, prior-output binding, and Nova-compatible per-block IVC flow. | Nova or SuperNova as PQ/final authority. |
-| `nova-supernova.md` | Nova compressed per-block lane, SuperNova as future non-uniform-step comparison, and classical IVC measurement categories. | Proof-size claims as Z00Z implementation facts before local measurement; ECC proofs as quantum-safe history locks. |
-| `20-Recursive checkpoint proof.md` | Current code truth: no recursive proof chain exists today. | Treating recursive header fields as live code. |
+| `nova-supernova.md` | Nova per-block IVC lane, compression as a separately measured operation, SuperNova as future non-uniform-step comparison, and classical IVC measurement categories. | Proof-size claims as Z00Z implementation facts before local measurement; ECC proofs as quantum-safe history locks. |
+| `20-Recursive checkpoint proof.md` | Historical baseline: no cryptographic recursive backend chain existed. Phase 068 later added storage-owned shape/chain evidence, but no real Nova or Plonky3 verification. | Treating shape-chain fields as live cryptographic proofs. |
 | `11_Z00Z_Recursive_StateProof.md` | Chain failure cases, nullifier/spent retention, fraud/audit evidence categories. | Link tag as recursive proof authority, 100 byte proofs, 200 KB active state, IPFS-only history. |
 | `12_chat-PQ Recursive Proof-last.md` | PQ cautions, storage/recovery warnings, nullifier permanence, DA availability warnings. | Magic aggregation, same-challenge aggregation, production PQ theorem closure. |
 | `13_chat-Recursive Proof Analysis.md` | ECC attack model, RNG/reuse risks, genesis trust, quantum migration warning. | DLP-based proof as long-term PQ-safe authority. |
 | `14_chat-Обзор PQ рекурсивных доказательств.md` | PQ backend evidence checklist: parameters, ABI, vectors, PoK, center-lift, domain slots, constant-time review; STARK/FRI as the practical PQ-friendly implementation direction for Phase 069. | Pedersen binding as PQ-safe, unproved RLWE/folding claims, LatticeFold/RLWE/Fractal as live production backends. |
-| `plonky3-stark.md` | Primary real implementation target: Nova compressed every block plus Plonky3 recursive STARK epoch proof every `post_quantum.cadence_blocks`; Plonky3 must prove canonical range and may bind Nova root. | Plonky3 proof that only verifies Nova proofs; permanent storage of all per-block STARK proofs; exact proof-size claims without Z00Z benchmarks. |
+| `plonky3-stark.md` | Primary real implementation target: Nova fold every block plus measured-cadence compression and a Plonky3 recursive STARK epoch proof every `post_quantum.cadence_blocks`; Plonky3 must prove the scoped canonical predicate and may bind Nova root. | Plonky3 proof that only verifies Nova proofs; permanent storage of all per-block STARK proofs; exact proof-size claims without Z00Z benchmarks. |
 | `068-TODO.md` | Checkpoint-contract-first architecture, recursive branch surfaces, DA readiness gate, retention policy, stage transitions, and 1000-block PQ epoch cadence. | Treating a generic PQ anchor as enough once Plonky3 epoch proof is selected, or enabling live cadence before `pq_anchor_writer`. |
 | `+69-70-proposal.md` | Wave 69 scope and Wave 70 dependency boundaries. | DA/publication evidence as recursive proof authority. |
 | `+69-70-proposal.audit.md` | Conflict resolutions and residual risks. | Any source group marked rejected or research-only. |
@@ -142,15 +196,15 @@ configuration and MUST NOT bypass repository dependency pinning.
 | Reference | Phase 069 use | Imported decision |
 | --- | --- | --- |
 | [Plonky3](https://github.com/Plonky3/Plonky3) | Primary STARK toolkit candidate. | Use as the default STARK family because it is Rust-native, supports FRI/STARK-oriented primitives, and includes KoalaBear/Poseidon2-relevant components. |
-| [Plonky3-recursion](https://github.com/Plonky3/Plonky3-recursion/) | Primary recursive STARK implementation target. | Use for `plonky3_stark_epoch_v1` only behind non-authoritative Phase 069 gates until audit and promotion evidence exists. |
+| [Plonky3-recursion](https://github.com/Plonky3/Plonky3-recursion/) | Primary recursive STARK implementation target. | Use for `plonky3_stark_epoch_v2` only behind non-authoritative Phase 069 gates until audit and promotion evidence exists. |
 | [Plonky3-recursion benchmarks](https://plonky3.github.io/Plonky3-recursion/appendix/benchmark.html) | Measurement planning input. | Treat any timing or proof-size number as a Z00Z measurement target, not as a verified Z00Z result. |
 | [Plonky3 audit report](https://leastauthority.com/wp-content/uploads/2024/11/Updated_071124_Polygon_Plonky3_Final_Audit_Report.pdf) | Security-review reference for the Plonky3 base stack. | Audit coverage is not equivalent to full audit coverage of `Plonky3-recursion`; Phase 069 must still record recursion-specific risk. |
-| [Nova](https://github.com/microsoft/Nova) | Secondary fast classical IVC baseline. | Use `NovaCompressedBlockProofV1` every block for continuity, measurement, and audit, but never as PQ authority. |
+| [Nova](https://github.com/microsoft/Nova) | Secondary fast classical IVC baseline. | Fold every block; choose compressed snapshot cadence from local measurements; never use Nova as PQ authority. |
 | [Nova paper](https://par.nsf.gov/servlets/purl/10440508) | Classical proof-size and IVC reasoning reference. | Treat 8 KiB to 30 KiB as a rough planning target until Z00Z fixtures measure local proofs. |
 | [Arecibo](https://github.com/lurk-lang/arecibo) | Nova/SuperNova-family comparison lane. | Keep as benchmark or future non-uniform-step candidate, not as the Phase 069 primary backend. |
 | [LatticeFold](https://github.com/NethermindEth/latticefold) | PQ folding research track. | Keep as research-only until production parameters, ABI, vectors, audit, and implementation gates exist. |
 | [Fractal paper](https://link.springer.com/chapter/10.1007/978-3-030-45721-1_27) and [libiop](https://github.com/scipr-lab/libiop) | Transparent recursive-proof design reference. | Do not use as implementation base because the available implementation path is C++/academic-reference oriented. |
-| [HyperPlonk](https://github.com/EspressoSystems/hyperplonk) | Future prover/circuit comparison. | Do not select as primary because Phase 069 needs recursion-first STARK epoch finality. |
+| [HyperPlonk](https://github.com/EspressoSystems/hyperplonk) | Future prover/circuit comparison. | Do not select as primary because Phase 069 targets a recursion-first STARK epoch artifact. |
 | [Winterfell](https://github.com/facebook/winterfell) | Generic STARK fallback reference. | Do not use standalone Winterfell as the recursive backend because Phase 069 selects Plonky3-recursion for the STARK lane. |
 | [STARK paper](https://eprint.iacr.org/2018/046) | Transparent/STARK/FRI security-family reference. | Use only for security-family reasoning; implementation authority remains the selected, pinned backend plus local Z00Z tests. |
 
@@ -165,28 +219,43 @@ configuration and MUST NOT bypass repository dependency pinning.
 | Retention rule: do not store every per-block STARK proof permanently. | `Hybrid Backend Architecture`, `Long-Term Archive Retention Contract`, `Config Gates`, and `Required Artifacts`. | Imported and extended with archive manifests, receipts, retrieval audits, snapshots, and pruning gates. |
 | Config deltas for Nova, Plonky3, PQ cadence, and proof-size caps. | `Config Gates`, `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`, and `CheckpointContractConfigV1`. | Imported into the active runtime gate. |
 
+⚠️ External source recheck on 2026-07-11:
+
+- Official `Plonky3-recursion` documentation exposes `p3-recursion` `0.1.0`
+  and the upstream repository states that the code is under active development,
+  unaudited, and not recommended for production use.
+- The workspace currently pins selected base `p3-*` crates at `0.4.2`; this is
+  not evidence that they are API-compatible with the recursion crate.
+- The official Nova implementation separates incremental folding from optional
+  compressed proof generation. Phase 069 therefore measures compression
+  cadence rather than assuming one compression per block.
+- These are preflight inputs, not dependency selections. The implementation
+  plan must recheck them and pin exact compatible revisions at execution time.
+
 ## 🧱 Implementation Dependency And Installation Matrix
 
 📌 Phase 068 defines the checkpoint theorem, storage contract, and YAML gate.
 It does not pin recursive backend libraries. Phase 069 is the dependency
-authority for Nova, Plonky3, and IPFS/Kubo integration.
+authority for Nova, Plonky3, and IPFS/Kubo integration. It owns IPFS/Kubo pins
+only if a live IPFS adapter is explicitly included in a Phase 069 execution
+plan; storage schema support alone does not require installing Kubo.
 
 📌 Default ownership for dependency wiring:
 
-- `crates/z00z_storage/src/checkpoint/` keeps the statement, artifact, sidecar,
-  PQ anchor codecs, and config validation.
-- A future `z00z_recursive_proofs` crate SHOULD own Nova and Plonky3 adapters,
-  proving/verifying APIs, benchmark harnesses, and backend dependency pins.
+- `crates/z00z_storage/src/checkpoint/` keeps the statement, artifact, evidence,
+  PQ anchor codecs, configuration validation, and the sole V2 recursive module.
+- `z00z_storage::checkpoint::recursive_v2` owns the Nova and Plonky3 adapter
+  boundary, proving/verifying APIs, benchmark harnesses, and backend dependency pins.
 - `z00z_rollup_node` SHOULD own Kubo/IPFS RPC wiring and archive-operator
   process integration, not checkpoint theorem bytes.
 
 | Dependency surface | Install target | Required package(s) | Primary docs | Phase 069 rule |
 | --- | --- | --- | --- | --- |
-| Nova block proof lane | Future `z00z_recursive_proofs` crate | [`nova-snark`](https://docs.rs/nova-snark/), [Microsoft/Nova repository](https://github.com/microsoft/Nova), [Nova paper](https://par.nsf.gov/servlets/purl/10440508) | `docs.rs`, repository README/examples, paper | MUST implement `NovaCompressedBlockProofV1`; MUST stay non-PQ; MUST pin one exact crate version or git revision in workspace metadata before the first adapter lands. |
-| Plonky3 recursion lane | Future `z00z_recursive_proofs` crate | [`p3-recursion`](https://docs.rs/crate/p3-recursion/latest), [`p3-uni-stark`](https://docs.rs/crate/p3-uni-stark/latest), [`p3-fri`](https://docs.rs/crate/p3-fri/latest), [`p3-commit`](https://docs.rs/crate/p3-commit/latest), [`p3-challenger`](https://docs.rs/crate/p3-challenger/latest), [`p3-field`](https://docs.rs/crate/p3-field/latest), [`p3-matrix`](https://docs.rs/crate/p3-matrix/latest), [Plonky3 repository](https://github.com/Plonky3/Plonky3), and [Plonky3-recursion repository](https://github.com/Plonky3/Plonky3-recursion/) | `docs.rs`, upstream repositories, local benchmark vectors | MUST implement `Plonky3EpochProofV1`; MUST pin one approved compatibility set; MUST NOT mix unrelated `p3-*` release families inside the same workspace. |
-| Plonky3 field/hash profile | Same crate plus shared crypto helpers | [`p3-koala-bear`](https://docs.rs/crate/p3-koala-bear/latest), [`p3-poseidon2`](https://docs.rs/crate/p3-poseidon2/latest), and when sponge helpers are needed [`p3-symmetric`](https://docs.rs/crate/p3-symmetric/latest) | `docs.rs` plus the upstream Plonky3 workspace manifest | MUST match config `field: koala_bear` and `hash: poseidon2`; any alternative field/hash pair rejects unless config, vectors, proofs, and tests move together. |
-| IPFS archive RPC client | `z00z_rollup_node` archive adapter or future archive crate | [`ipfs-api-backend-hyper`](https://docs.rs/crate/ipfs-api-backend-hyper/latest) | `docs.rs` crate docs | MUST talk to an external pinned Kubo node over local or private RPC; MUST emit provider receipts and pinning evidence; MUST NOT embed IPFS node logic into canonical checkpoint modules. |
-| IPFS/Kubo daemon | Operator host, CI fixture, archive node | [Kubo install guide](https://docs.ipfs.tech/install/command-line/), [Kubo quick start](https://docs.ipfs.tech/how-to/command-line-quick-start/), and [Kubo RPC reference](https://docs.ipfs.tech/reference/kubo/rpc/) | Official IPFS docs | MUST be installed as an external service when `ipfs_pinned` backend is enabled; RPC MUST stay localhost or otherwise private; public RPC exposure is forbidden. |
+| Nova block proof lane | `z00z_storage::checkpoint::recursive_v2::nova` | [`nova-snark`](https://docs.rs/nova-snark/), [Microsoft/Nova repository](https://github.com/microsoft/Nova), [Nova paper](https://par.nsf.gov/servlets/purl/10440508) | `docs.rs`, repository README/examples, paper | MUST implement `NovaStreamingCompressedBlockProofV2`; MUST stay non-PQ; MUST pin one exact crate version or git revision in workspace metadata before the first adapter lands. |
+| Plonky3 recursion lane | `z00z_storage::checkpoint::recursive_v2::plonky3` | [`p3-recursion`](https://docs.rs/crate/p3-recursion/latest), [`p3-uni-stark`](https://docs.rs/crate/p3-uni-stark/latest), [`p3-fri`](https://docs.rs/crate/p3-fri/latest), [`p3-commit`](https://docs.rs/crate/p3-commit/latest), [`p3-challenger`](https://docs.rs/crate/p3-challenger/latest), [`p3-field`](https://docs.rs/crate/p3-field/latest), [`p3-matrix`](https://docs.rs/crate/p3-matrix/latest), [Plonky3 repository](https://github.com/Plonky3/Plonky3), and [Plonky3-recursion repository](https://github.com/Plonky3/Plonky3-recursion/) | `docs.rs`, upstream repositories, local benchmark vectors | MUST implement `Plonky3EpochProofV2`; MUST pin one approved compatibility set; MUST NOT mix unrelated `p3-*` release families inside the same workspace. |
+| Plonky3 field/hash profile | Same V2 module plus shared crypto helpers | [`p3-koala-bear`](https://docs.rs/crate/p3-koala-bear/latest), [`p3-poseidon2`](https://docs.rs/crate/p3-poseidon2/latest), and when sponge helpers are needed [`p3-symmetric`](https://docs.rs/crate/p3-symmetric/latest) | `docs.rs` plus the upstream Plonky3 workspace manifest | MUST match config `field: koala_bear` and `hash: poseidon2`; any alternative field/hash pair rejects unless config, vectors, proofs, and tests move together. |
+| IPFS archive RPC client | `z00z_rollup_node` archive adapter or future archive crate | [`ipfs-api-backend-hyper`](https://docs.rs/crate/ipfs-api-backend-hyper/latest) | `docs.rs` crate docs | Conditional scope only. If `ipfs_pinned` is exercised, the adapter MUST talk to an external pinned Kubo node over local or private RPC, emit receipts/pinning evidence, and keep SDK types outside canonical checkpoint modules. |
+| IPFS/Kubo daemon | Operator host, CI fixture, archive node | [Kubo install guide](https://docs.ipfs.tech/install/command-line/), [Kubo quick start](https://docs.ipfs.tech/how-to/command-line-quick-start/), and [Kubo RPC reference](https://docs.ipfs.tech/reference/kubo/rpc/) | Official IPFS docs | Install only when a Phase 069 plan includes the `ipfs_pinned` integration fixture. RPC MUST stay localhost or otherwise private; public RPC exposure is forbidden. |
 
 📌 Version-lock rules:
 
@@ -201,21 +270,24 @@ authority for Nova, Plonky3, and IPFS/Kubo integration.
   for `nova-snark`, `p3-*`, and the IPFS client crate.
 - The exact pinned dependency set and the Kubo binary version used by local
   fixtures or CI MUST be recorded in the Phase 069 documentation packet and in
-  the future backend crate manifest.
+  the live backend crate manifest.
+- `latest` documentation URLs in this section are discovery links only. They
+  MUST NOT be copied into dependency commands or used as evidence of API
+  compatibility.
 
 ## 🧾 Key Terms
 
 | Term | Meaning in Phase 069 |
 | --- | --- |
 | `CheckpointTransitionStatementV1` | The canonical storage-owned statement defined by the recursive-ready checkpoint contract. Every recursive sidecar binds this exact statement digest. |
-| `RecursiveCheckpointPublicInputV1` | The proof-facing public input object derived from the statement digest, roots, chain position, backend label, and prior-output binding. |
-| `RecursiveCheckpointWitnessV1` | Local witness fixture and archive reference material used by mock or candidate proof adapters. It is not canonical state truth. |
-| `RecursiveCheckpointProofV1` | Versioned envelope that can carry a Nova per-block proof, a Plonky3 epoch proof reference, or a local test proof. The active repository profile requires `recursive_hybrid_v1`. |
-| `NovaCompressedBlockProofV1` | Classical per-block compressed IVC proof over one `CheckpointTransitionStatementV1`. It binds statement digest, checkpoint link, prior Nova output, and output root; it is not PQ authority. |
-| `NovaEpochChainRootV1` | Merkle or commitment root over the ordered Nova block proof digests and statement digests for one epoch. It is optional evidence inside the Plonky3 epoch statement, not the source of PQ soundness. |
-| `EpochRangeStatementV1` | Statement for one configured epoch range. It binds start/end heights, start/end roots, previous PQ anchor root, ordered statement root, DA/archive manifest root, witness/delta roots, and optional Nova chain root. |
-| `Plonky3EpochProofV1` | Recursive STARK proof for one epoch range using Plonky3/Plonky3-recursion. It must prove the canonical transition range and bind public inputs; it is the selected PQ-friendly epoch lane. |
-| `EpochManifestV1` | Retained manifest for a completed epoch: statements, canonical artifacts, links, DA refs, witness roots, Nova proof digests, Plonky3 proof digest, sizes, and retention locations. |
+| `RecursiveCheckpointPublicInputV2` | The proof-facing public input object derived from the statement digest, roots, chain position, backend label, and prior-output binding. |
+| `RecursiveCheckpointWitnessV2` | Missing Phase 069 contract that binds context/predicate plus bounded replay/HJMT/spent/delta material used by real proof adapters. It is not canonical state truth. |
+| `RecursiveCheckpointProofV2` | Existing Phase 068 single-checkpoint proof envelope. Phase 069 may use it for Nova step/snapshot evidence, but MUST NOT overload its single-statement fields with an epoch proof. |
+| `NovaStreamingCompressedBlockProofV2` | Classical compressed snapshot of the running per-block IVC state. It binds statement digest, checkpoint link, prior Nova output, output root, context, predicate, and parameters; it is not PQ authority. |
+| `NovaEpochChainRootV2` | Merkle or commitment root over the ordered Nova block proof digests and statement digests for one epoch. It is optional evidence inside the Plonky3 epoch statement, not the source of PQ soundness. |
+| `EpochRangeStatementV2` | Statement for one configured epoch range. It binds start/end heights, start/end roots, previous PQ anchor root, ordered statement root, DA/archive manifest root, witness/delta roots, and optional Nova chain root. |
+| `Plonky3EpochProofV2` | Recursive STARK proof for one epoch range using Plonky3/Plonky3-recursion. It must prove the canonical transition range and bind public inputs; it is the selected PQ-friendly epoch lane. |
+| `EpochManifestV2` | Retained manifest for a completed epoch: statements, canonical artifacts, links, DA refs, witness roots, Nova proof digests, Plonky3 proof digest, sizes, and retention locations. |
 | `Archive Retention Layer` | Z00Z-owned long-term retrieval layer over content-addressed archive manifests, pinned IPFS/CID references, archive node replicas, provider receipts, and retrieval audits. It is separate from Celestia DA. |
 | `CheckpointArchiveManifestV1` | Permanent compact metadata root over raw packages, exact proof bytes, witness chunks, deltas, DA payload commitment, archive provider receipts, and retrieval audit roots. |
 | `ArchiveProviderReceiptV1` | Provider-neutral evidence that a configured archival backend stores a content-addressed object. It may reference IPFS pinning, paid archival providers, Filecoin-like storage, local archive nodes, or cold object storage. |
@@ -223,21 +295,21 @@ authority for Nova, Plonky3, and IPFS/Kubo integration.
 | `StateSnapshotV1` | Bootstrap object binding state root, settlement root, latest Plonky3 epoch proof, latest epoch manifest root, archive manifest root, snapshot chunk root, and PQ anchor root. |
 | `Full-node pruning` | Local deletion of replay bytes by ordinary full nodes after dispute, Plonky3, manifest, archive replication, and retrieval-audit gates pass. |
 | `Archive-node pruning` | Deletion by archive replicas. This is forbidden in the default Phase 069 profile. |
-| `RecursiveCheckpointSidecarV1` | Non-authoritative attachment that stores the proof object, verdict, reject reason, and measurements for one checkpoint transition or epoch proof reference. |
-| `RecursiveCheckpointChainEvidenceV1` | A 3 to 5 step ordered chain of sidecars proving prior-output binding and tamper rejection. |
-| `RecursiveCheckpointMeasurementV1` | Local measurement payload for proof bytes, witness bytes, prover time, verifier time, memory, chain length, and backend label. |
-| `RecursiveCheckpointRejectReasonV1` | Stable machine-readable rejection taxonomy for sidecars, proof objects, codecs, and chains. |
+| `RecursiveCheckpointEvidenceV2` | Non-authoritative attachment that stores the proof object, verdict, reject reason, and measurements for one checkpoint transition or epoch proof reference. |
+| `RecursiveCheckpointChainEvidenceV2` | A 3 to 5 step ordered chain of sidecars proving prior-output binding and tamper rejection. |
+| `RecursiveCheckpointMeasurementV2` | Local measurement payload for proof bytes, witness bytes, prover time, verifier time, memory, chain length, and backend label. |
+| `RecursiveCheckpointRejectReasonV2` | Stable machine-readable rejection taxonomy for sidecars, proof objects, codecs, and chains. |
 | `Canonical branch` | The current authoritative checkpoint path using `CheckpointArtifact`, `CheckpointLink`, `CheckpointExecInput`, exact transaction proof bytes, and `CheckpointProofSystem::OPAQUE_ATTEST`. |
 | `Recursive branch` | Hybrid proof lane over the same statement: Nova per block plus Plonky3 epoch proof. It cannot admit checkpoints in Phase 069. |
 | `Fast classical lane` | Nova compressed per-block proof lane used for fast local recursion, UX, audit, and benchmarking inside an open epoch. |
-| `PQ epoch lane` | Plonky3 recursive STARK lane that locks each completed epoch under hash/FRI/STARK assumptions. |
-| `Open epoch` | The last not-yet-Plonky3-finalized range of fewer than `post_quantum.cadence_blocks` blocks. During a quantum break it remains protected by canonical replay and retention, not by a completed PQ epoch proof. |
+| `PQ epoch lane` | Compatibility name for the Plonky3 recursive STARK lane that produces PQ-oriented outer proof evidence under declared hash/FRI/STARK assumptions. It is not end-to-end PQ checkpoint authority. |
+| `Open epoch` | The last range of fewer than `post_quantum.cadence_blocks` blocks without a completed Plonky3 epoch proof. It remains protected by canonical replay and retention, not by completed epoch evidence. |
 | `Future verified branch` | A later backend-promotion stage after proof object, verifier API, codec, negative tests, benchmarks, security review, and rollback rules exist. |
 | `Prior-output binding` | The recursive chain rule where a previous proof output root equals the next statement previous root. |
-| `Backend label` | A configured identifier for the proof lane. In the active profile the required labels are `nova_compressed_v1` and `plonky3_stark_epoch_v1`; local test labels cannot be promoted. |
+| `Backend label` | A configured identifier for the proof lane. In the active profile the required labels are `nova_streaming_compressed_v2` and `plonky3_stark_epoch_v2`; local test labels cannot be promoted. |
 | `PostQuantumCheckpointAnchorV1` | Epoch audit envelope emitted on configured cadence blocks after live enforcement starts. In this profile it binds Plonky3 epoch proof material, canonical archive roots, and the optional Nova chain root. |
 | `PQ cadence` | The configured block interval, default `1000`, where a Plonky3 epoch proof and PQ anchor are required once `authority_promotion.stage >= pq_anchor_writer`. |
-| `RecursiveCheckpointDocumentationPacketV1` | Phase 069 closeout packet containing schemas, vectors, chain evidence, measurements, reject matrix, PQ cadence evidence, and rejected-claim register. |
+| `RecursiveCheckpointDocumentationPacketV2` | Phase 069 closeout packet containing schemas, vectors, chain evidence, measurements, reject matrix, PQ cadence evidence, and rejected-claim register. |
 
 ## 🧭 Current Code Truth
 
@@ -251,9 +323,14 @@ authority for Nova, Plonky3, and IPFS/Kubo integration.
 | `crates/z00z_storage/src/checkpoint/artifact_types.rs` | `CheckpointProofSystem::OPAQUE_ATTEST` is live. `CheckpointProofSystem::VERIFIED` is reserved. | Phase 069 cannot enable verified admission. |
 | `crates/z00z_storage/src/checkpoint/link.rs` | `CheckpointLink` binds checkpoint ID, prep snapshot ID, and exec input ID with a domain-separated link bind. | Recursive chain evidence must not replace checkpoint links. |
 | `crates/z00z_storage/src/checkpoint/mod.rs` | Checkpoint public surface is already a narrow facade over split implementation files. | Add new surfaces through the facade only after ownership is stable. |
+| `crates/z00z_storage/src/checkpoint/recursive_v2/` | Absent at T0 by design; no recursive schema, codec, size check, shape verifier, or digest path survives. | T1 creates one V2 relation and real verifier boundary in this exact module path before storage accepts evidence. |
+| `crates/z00z_storage/src/checkpoint/pq_anchor.rs` | Phase 068 validates non-zero Plonky3/Nova digest fields and anchor binding, but does not verify the referenced proof bytes. | A digest-complete PQ anchor is not evidence that a Plonky3 proof exists or verifies. Phase 069 must bind it to an actual successful backend verification result. |
+| Archive, retrieval, snapshot, and pruning modules | `archive_manifest.rs`, `archive_receipt.rs`, `retrieval_audit.rs`, `state_snapshot.rs`, and `pruning.rs` already implement the storage-owned contracts. | Preserve them as regression gates and integration inputs; do not schedule duplicate type implementations. |
+| Recursive backend dependencies | T0 has no recursive dependency or smoke boundary. | Compatibility probing and exact pinning precede T1; existing `p3-*` pins do not prove recursion compatibility. |
+| Chain identity | The inherited Phase 068 statement binds checkpoint data but V2 context must add network ID, genesis digest, chain ID, and contract/predicate identity. | Phase 069 adds the canonical V2 context bind before accepting portable proof bytes. |
 | `crates/z00z_storage/src/settlement/` | Settlement owns HJMT roots, journals, proof blobs, witness DAGs, and state lineage. | Witness and delta roots must come from settlement-owned material. |
-| Runtime publication seams | Validators, watchers, rollup node, and simulator have publication/binding concepts, but not the exact `CheckpointPublicationEvidenceV1` contract from the reference spec. | Phase 069 may consume a fixture or existing local binding as non-authoritative input, but must not claim Phase 70 publication readiness is implemented. |
-| Checkpoint contract config loader | `crates/z00z_storage/src/checkpoint/contract_config.rs` defines `CheckpointContractConfigV1`, loads `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml` through bounded YAML IO, denies unknown fields, validates branch authority, DA, archive retention, snapshots, pruning, PQ cadence, retention, paths, limits, documentation gates, and exposes `is_pq_cadence_height`. | Phase 069 now has a real storage-owned config gate. Runtime writers still must call this validated surface before checkpoint, sidecar, PQ, archive, snapshot, pruning, documentation, or promotion writes. |
+| Runtime publication seams | Phase 068 landed provider-neutral `CheckpointPublicationEvidenceV1` and shared validator/watcher readiness consumption over the local DA adapter. | Reuse the current non-authoritative publication boundary; do not rebuild it or claim live external DA. |
+| Checkpoint contract config loader | `crates/z00z_storage/src/checkpoint/contract_config.rs` defines `CheckpointContractConfigV1`, loads `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml` through bounded YAML IO, denies unknown fields, and rejects every recursive backend enablement at T0. | Runtime writers must call this validated surface before checkpoint, V2 evidence, PQ, archive, snapshot, pruning, documentation, or promotion writes. |
 
 ## 🧪 Architecture Doublecheck Ledger
 
@@ -264,14 +341,14 @@ MUST update this ledger and add a test that proves the new boundary.
 | Decision | Source confirmation | Code truth confirmation | Phase 069 result | Required gate |
 | --- | --- | --- | --- | --- |
 | Checkpoint contract first, not backend first. | Phase 068 `CheckpointTransitionStatementV1`; Phase 069 audit says exact statement first. | `z00z_storage::checkpoint` owns artifact, statement, exec input, link, and codec. | Recursive proof work binds one storage-owned statement. | `RCP-INV-001`, statement golden vectors. |
-| Recursive sidecar is non-authoritative hybrid evidence. | Phase 069 proposal requires sidecar evidence and `VERIFIED` disabled; `plonky3-stark.md` selects Nova+Plonky3 roles. | `CheckpointProofSystem::OPAQUE_ATTEST` is live; `VERIFIED` is reserved and codec rejects unsupported proof classes. | Sidecar cannot mutate or admit canonical artifacts; Nova and Plonky3 evidence remains separate from canonical admission until promotion. | Config branch gate plus artifact admission tests. |
-| Storage owns contract objects. | Phase 068 says config validator and statement live under storage checkpoint module. | `CheckpointFsStore`, codec, link validation, exec input, and `CheckpointContractConfigV1` live under `crates/z00z_storage/src/checkpoint/`. | Add sidecar envelope, PQ anchor envelope, and digest helpers through the same storage facade; keep config validation storage-owned. | Storage config tests and path gates. |
+| V2 evidence is non-authoritative until T4. | Phase 069 requires V2 evidence and `VERIFIED` disabled; AUDIT-2 fixes Nova+Plonky3 roles. | `CheckpointProofSystem::OPAQUE_ATTEST` is live; `VERIFIED` is reserved and codec rejects unsupported proof classes. | V2 evidence cannot mutate or admit canonical artifacts before promotion. | Config branch gate plus artifact admission tests. |
+| Storage owns contract objects. | Phase 068 says config validator and statement live under storage checkpoint module. | `CheckpointFsStore`, codec, link validation, exec input, and `CheckpointContractConfigV1` live under `crates/z00z_storage/src/checkpoint/`. | Add V2 evidence, PQ anchor binding, and digest helpers through the same storage facade; keep config validation storage-owned. | Storage config tests and path gates. |
 | Runtime validators consume theorem; they do not redefine it. | Phase 068 forbids duplicate checkpoint theorem. | `crates/z00z_runtime/validators` is crate `z00z_validators`; `SettlementTheoremBundle` verifies artifact, exec input, link, and tx package. | Validators may reject sidecar authority but MUST NOT own recursive theorem. | Validator non-authority integration tests. |
 | Rollup node wires lifecycle and DA adapters. | Phase 068 keeps provider SDKs behind DA/export adapter boundary. | `crates/z00z_rollup_node/src/da.rs` has `DaAdapter`, `LocalDaAdapter`, publication binding, and resolve path. | Rollup node loads/passes config and DA evidence; it does not define statement bytes. | DA SDK leakage tests. |
 | Watchers observe publication readiness only. | Phase 068 says watcher evidence is not settlement authority. | `z00z_watchers::PublicationWatch` checks runtime, validator, and storage bindings. | Watchers can report readiness/gaps, not recursive validity. | Publication readiness and no-authority tests. |
-| Real recursive backend crate is allowed after storage contract gates. | User-approved architecture selects real implementation targets, not placeholder scaffolds. | No current `z00z_recursive_proofs` crate exists; storage config is already the authority gate. | A future crate MAY own Nova and Plonky3 adapters, but storage still owns statement bytes, artifact codecs, path gates, and reject taxonomy. | Implementation slices `069-05` through `069-08`. |
-| Nova compressed proof runs every block. | `plonky3-stark.md` resolves Nova as fast classical lane. | Config now contains `branches.nova.cadence_blocks: 1`, `proof_system: nova_compressed_v1`, and `is_pq_authoritative: false`. | Every checkpoint block should be able to emit a Nova proof binding statement digest, checkpoint link, prior Nova output, and output root. | Nova branch config tests and chain tests. |
-| Plonky3 recursive STARK locks every epoch. | `plonky3-stark.md` resolves Plonky3/STARK as primary PQ-friendly epoch lane. | Config now contains `branches.plonky3_epoch.cadence_blocks: 1000`, `proof_system: plonky3_stark_epoch_v1`, `field: koala_bear`, `hash: poseidon2`, `security_bits: 124`, `recursion_library: p3_recursion`. | At every configured positive cadence height, emit a Plonky3 epoch statement/proof/anchor that binds the canonical 1000-block range. | Cadence tests at heights 999 and 1000; Plonky3 config tests. |
+| Real recursive implementation is active only after storage contract gates. | User-approved architecture selects real implementation targets, not placeholder scaffolds. | T0 contains no recursive backend; T1 creates `z00z_storage::checkpoint::recursive_v2` as the sole verifier-gated boundary. | The V2 module owns Nova and Plonky3 adapters while the checkpoint facade owns statement bytes, artifact codecs, path gates, and reject taxonomy. | Implementation slices `069-05` through `069-08`. |
+| Nova compressed proof runs every block. | `plonky3-stark.md` resolves Nova as fast classical lane. | Config now contains `branches.nova.cadence_blocks: 1`, `proof_system: nova_streaming_compressed_v2`, and `is_pq_authoritative: false`. | Every checkpoint block should be able to emit a Nova proof binding statement digest, checkpoint link, prior Nova output, and output root. | Nova branch config tests and chain tests. |
+| Plonky3 recursive STARK locks every epoch. | `plonky3-stark.md` resolves Plonky3/STARK as primary PQ-friendly epoch lane. | Config now contains `branches.plonky3_epoch.cadence_blocks: 1000`, `proof_system: plonky3_stark_epoch_v2`, `field: koala_bear`, `hash: poseidon2`, `security_bits: 124`, `recursion_library: p3_recursion`. | At every configured positive cadence height, emit a Plonky3 epoch statement/proof/anchor that binds the canonical 1000-block range. | Cadence tests at heights 999 and 1000; Plonky3 config tests. |
 | Plonky3 MUST NOT depend only on Nova. | Quantum attack can break ECC/Nova and then a STARK wrapper over Nova verifier would only prove false classical proofs verify. | Config has `must_prove_canonical_transition_range: true` and `must_not_depend_only_on_nova: true`. | Plonky3 epoch proof may bind `nova_chain_root`, but PQ soundness must come from canonical transition range, roots, witnesses, deltas, and archive commitments. | `Plonky3DependsOnlyOnNova` negative test. |
 | PQ epoch artifact budget is explicit. | Plonky3/STARK proofs are larger than ECC/Nova; per-block STARK retention is too expensive. | Config limits reserve 8 MiB recursive proof cap, 16 MiB Plonky3 epoch proof/PQ anchor caps, 128 KiB Nova block proof cap, and 128 MiB Nova epoch archive cap. | Store final epoch proof and manifest permanently; retain Nova block proofs through the PQ epoch window; avoid permanent storage of every internal STARK aggregation proof. | Proof-size cap tests and retention tests. |
 | Celestia is DA, not forever archive. | Phase 068 separates DA reference from archive manifest; Celestia-style DA availability does not imply indefinite historical retrieval. | Config has `archive_retention.celestia_is_da_only: true` and long-term retrieval gates. | DA publication can start challenge timing, but Z00Z archive retention owns long-term retrieval. | Celestia-as-archive negative config test. |
@@ -285,35 +362,31 @@ MUST update this ledger and add a test that proves the new boundary.
 ### ✅ In Scope
 
 - Define the Phase 069 recursive sidecar data contract.
-- Define `RecursiveCheckpointPublicInputV1` canonical binary bytes.
-- Define `RecursiveCheckpointWitnessV1` local witness fixture requirements.
-- Define `NovaCompressedBlockProofV1`, `Plonky3EpochProofV1`,
-  `EpochRangeStatementV1`, and strict codec rules.
-- Define `RecursiveCheckpointSidecarV1` and storage attachment rules.
-- Define `RecursiveCheckpointVerifierV1` and Nova/Plonky3 proof-adapter
+- Define `RecursiveCheckpointPublicInputV2` canonical binary bytes.
+- Define `RecursiveCheckpointWitnessV2` local witness fixture requirements.
+- Define `NovaStreamingCompressedBlockProofV2`, `Plonky3EpochProofV2`,
+  `EpochRangeStatementV2`, and strict codec rules.
+- Define `RecursiveCheckpointEvidenceV2` and storage attachment rules.
+- Define `RecursiveCheckpointVerifierV2` and Nova/Plonky3 proof-adapter
   semantics.
-- Define `RecursiveCheckpointRejectReasonV1` with deterministic failure outputs.
-- Define `RecursiveCheckpointMeasurementV1` and benchmark metadata requirements.
+- Define `RecursiveCheckpointRejectReasonV2` with deterministic failure outputs.
+- Define `RecursiveCheckpointMeasurementV2` and benchmark metadata requirements.
 - Build deterministic 3 to 5 step chain evidence over checkpoint statements,
   with Nova per-block proof semantics.
 - Prove canonical checkpoint admission is unchanged by recursive sidecars.
 - Preserve exact transaction proof bytes and witness/archive obligations.
-- Define `PostQuantumCheckpointAnchorV1` and `EpochManifestV1` enough for
-  Phase 069 fixtures, cadence tests, and closeout audit evidence.
+- Reuse `PostQuantumCheckpointAnchorV1`; add the missing `EpochManifestV2` and
+  bind both to actual backend verification receipts.
 - Define Plonky3 epoch proof cadence, public inputs, proof-size limits,
   retention, and negative gates.
 - Define Nova block proof cadence, per-block chain root, retention, and negative
   gates.
-- Define the Archive Retention Layer that treats Celestia as DA-only and
-  requires long-term retrieval through content-addressed archive manifests,
-  pinned IPFS or equivalent backends, archive provider receipts, and retrieval
-  audits.
-- Define `StateSnapshotV1` enough for future bootstrap from verified snapshots
-  without replaying from genesis.
-- Define full-node pruning gates that allow local deletion only after dispute,
-  Plonky3 epoch finality, epoch manifest finality, archive replication, and
-  retrieval audit success.
-- Define the required `RecursiveCheckpointDocumentationPacketV1` closeout
+- Regression-test the existing Archive Retention Layer, provider receipts,
+  retrieval audits, and Celestia-as-DA-only boundary against verified backend
+  receipts.
+- Regression-test the existing `StateSnapshotV1` and pruning contracts; Phase
+  069 does not create replacement types.
+- Define the required `RecursiveCheckpointDocumentationPacketV2` closeout
   content.
 - Add tests, fixtures, and scenario evidence for all gates in this spec.
 
@@ -323,7 +396,7 @@ MUST update this ledger and add a test that proves the new boundary.
   STARK claims as production truth outside the selected Nova+Plonky3 profile.
 - Treating Nova compressed proofs as PQ authority.
 - Treating a Plonky3 epoch proof that only wraps Nova verifier execution as
-  PQ-finality.
+  PQ-oriented epoch evidence or finality.
 - Permanently storing every internal per-block STARK aggregation proof as the
   default consensus retention path.
 - Enabling `CheckpointProofSystem::VERIFIED` for canonical admission.
@@ -364,8 +437,8 @@ MUST update this ledger and add a test that proves the new boundary.
 | `RCP-INV-012 Recursive Docs` | Phase 069 MUST leave enough stable docs, vectors, and rejection evidence for a future backend review without re-reading research chats. | Documentation packet and source audit. |
 | `RCP-INV-013 Nova Classical Only` | Nova compressed proofs MUST NOT be described or enforced as PQ authority. | Config tests, backend manifest tests, docs audit. |
 | `RCP-INV-014 Plonky3 Canonical Range` | A Plonky3 epoch proof MUST prove the canonical transition range, not only Nova verifier acceptance. | Epoch statement tests and negative backend manifest tests. |
-| `RCP-INV-015 Epoch Finality Window` | Blocks after the last completed Plonky3 cadence height are an open epoch and MUST be treated as not yet PQ-finalized. | Cadence tests and operator status tests. |
-| `RCP-INV-016 Hybrid No Downgrade` | Disabling either the Nova branch or Plonky3 epoch branch in the default profile MUST reject config. | Config negative tests. |
+| `RCP-INV-015 Epoch Evidence Window` | Blocks after the last completed Plonky3 cadence height are an open epoch and MUST be reported as lacking completed epoch evidence. | Cadence tests and operator status tests. |
+| `RCP-INV-016 Safe Backend Disable` | Before verified-backend promotion, operators MUST be able to disable non-authoritative proving without disabling canonical checkpoint admission. Promotion evidence requires both selected backends enabled and healthy. | Config, lifecycle, and degraded-mode tests. |
 | `RCP-INV-017 Proof Size Budgets` | Nova and Plonky3 proof objects MUST obey explicit byte caps and target/cap reporting. | Codec tests, limit tests, measurement tests. |
 | `RCP-INV-018 DA Is Not Archive` | Celestia or any DA layer MUST NOT be treated as indefinite historical storage. | Config tests and docs audit. |
 | `RCP-INV-019 Retrievability Is Not Validity` | Archive receipts and retrieval audits prove bytes are retrievable; they MUST NOT prove state-transition validity. | Validator and watcher non-authority tests. |
@@ -400,8 +473,11 @@ CheckpointTransitionStatementV1:
 📌 Phase 069 statement rules:
 
 - The statement digest domain MUST be `z00z.checkpoint.transition.v1`.
-- The statement digest MUST include version, domain, field names, chain context,
-  proof-system family, and length-delimited canonical field bytes.
+- The V1 statement digest MUST include version, domain, field names,
+  proof-system family, and length-delimited canonical field bytes exactly as
+  implemented by the storage owner. It currently has no explicit chain/network
+  identifier; recursive proofs MUST bind `RecursiveCheckpointContextV2`
+  separately rather than silently changing V1 statement bytes.
 - The same final `statement_digest_v1` MUST be used by canonical artifacts,
   recursive sidecars, and future verified backends.
 - `statement_core_digest_v1` MUST bind the checkpoint theorem before DA and PQ
@@ -439,14 +515,155 @@ CheckpointTransitionStatementV1:
 family already used by checkpoint IDs and storage proof binds unless a new
 versioned statement era is created.
 
+## 🧠 Proof Semantics And Completeness
+
+### 🛡️ Threat Model
+
+📌 Phase 069 protects canonical transition consistency and evidence integrity;
+it does not claim transaction confidentiality improvements or end-to-end PQ
+transaction validity.
+
+| Dimension | Phase 069 assumption/goal |
+| --- | --- |
+| Assets | Canonical statement identity, state/settlement roots, witness confidentiality, proof soundness, parameter integrity, epoch order, archive bindings, and canonical checkpoint liveness. |
+| Malicious prover | May choose arbitrary witness/proof bytes, omit rows, reorder steps, exploit field aliases, reuse another context, or claim false metadata. The verifier must reject without trusting prover reports. |
+| Malicious sequencer/operator | May equivocate across forks, select stale parameters, replay proofs, force unsafe config, withhold evidence, or exhaust prover resources. It cannot make shadow evidence authoritative. |
+| Malicious archive/DA provider | May return wrong, missing, stale, or unavailable bytes. Receipts/audits prove retrievability only and cannot create proof validity. |
+| Compromised proving worker | May leak witness data, return malformed proofs, crash mid-write, or report false measurements. Only local verification plus atomic persistence can accept its output. |
+| Quantum adversary | May break nested DLOG/ECC assumptions. A hash/FRI/STARK outer proof does not repair classical transaction authorization, commitments, range proofs, or spend proofs. |
+| Trusted boundaries | Storage owns canonical bytes and reference replay semantics. Backend code and proving workers are untrusted until the local pinned verifier succeeds. Config/parameter manifests are trusted only after canonical digest validation. |
+| Failure assumptions | Reorgs, restarts, partial writes, version skew, malformed inputs, entropy failure, queue/memory/time exhaustion, parameter rotation, and backend verification failure are expected and fail closed for evidence. |
+| Liveness | Non-authoritative proving may lag or fail without blocking canonical checkpoint admission. Promotion remains disabled until the later authority gate. |
+
+📌 Security priority is: preserve canonical admission and soundness first,
+prevent cross-context/downgrade acceptance second, protect witness/parameter
+material third, and optimize proving performance only after those gates hold.
+
+📌 Committing to a statement, witness root, delta root, or manifest root proves
+only that bytes were bound. It does not prove that the state transition was
+executed correctly. Phase 069 therefore separates two predicates:
+
+| Predicate | Required Phase 069 meaning | Security boundary |
+| --- | --- | --- |
+| `CheckpointTransitionConsistencyV2` | Re-execute the accepted checkpoint state update from bounded witness material; verify ordered input/output application, membership/non-membership paths, spent/nullifier transition, delta/journal commitments, root continuity, and both resulting roots. | Required in the Nova step circuit and Plonky3 base AIR. |
+| `EndToEndCheckpointValidityV2` | Independently verify all transaction authorization, spend, range-proof, signature, commitment, and value-conservation semantics inside a PQ-safe theorem. | Not delivered by Phase 069 unless every nested classical primitive is replaced or separately proven under PQ-safe assumptions. |
+
+📌 Mandatory completeness rules:
+
+- Nova and Plonky3 MUST prove the same versioned
+  `CheckpointTransitionConsistencyV2` predicate over the same canonical
+  statement fields.
+- Predicate equivalence MUST NOT rely on shared naming. A backend-neutral
+  reference evaluator plus one positive/negative differential vector corpus
+  MUST be executed against the native replay path, Nova R1CS, and Plonky3 AIR.
+  Any acceptance disagreement blocks both backend receipts.
+- The predicate MUST constrain witness contents to `tx_data_root`,
+  `delta_root`, `witness_root`, `journal_digest`, `prev_root`, `new_root`,
+  `prev_settlement_root`, and `new_settlement_root`; merely exposing these as
+  public inputs is insufficient.
+- Every storage-owned hash/root function used by the predicate MUST have an
+  equivalent constrained gadget or a separately verified versioned translation
+  proof. Replacing an existing Blake2/domain-separated/HJMT commitment with
+  Poseidon2 only inside the backend would define a different theorem and is
+  forbidden.
+- The witness schema MUST enumerate exact replay rows, HJMT paths, old leaves,
+  new leaves, spent/nullifier updates, transaction proof-byte digests, and all
+  length bounds needed by the circuit/AIR. A witness object containing only
+  roots or archive references is insufficient for proving the predicate.
+- Transaction proof bytes MUST remain available and their digests MUST be
+  constrained. If the recursive predicate calls a classical verifier, the
+  resulting outer proof inherits that verifier's assumptions and MUST remain
+  explicitly non-PQ end-to-end.
+- `proves_canonical_transition_range`, `depends_only_on_nova`,
+  `is_pq_authoritative`, and similar booleans are descriptive metadata checked
+  after cryptographic verification. They MUST NOT be accepted as evidence of
+  the property they name.
+- A positive backend verdict MUST identify the backend revision, circuit/AIR
+  digest, verifier-parameter digest, public-input digest, proof digest, and
+  verification result. Storage shape validation alone cannot create it.
+- Negative tests MUST mutate constrained witness/public-input/proof elements
+  and call the actual backend verifier. Tests that only mutate envelope fields
+  do not close backend soundness acceptance criteria.
+
+📌 Cross-backend field encoding V1 MUST avoid modular aliasing:
+
+- Every canonical 32-byte digest/root is exposed as sixteen little-endian
+  `u16` limbs, and every limb is range-constrained to `0..=65535`.
+- `u64` heights/counts are exposed as four little-endian `u16` limbs with full
+  range constraints and reconstructed equality.
+- Enum/version/string tags use their canonical framed bytes and the same
+  limb/range rules; backends MUST NOT hash human-readable replacements.
+- Direct reduction of a 256-bit digest modulo a backend field is forbidden
+  because distinct canonical digests could alias.
+- Any more efficient encoding requires a version bump, collision/alias analysis,
+  and new cross-backend golden vectors.
+
+### 🔑 Backend Parameter Manifest
+
+📌 `verifier_params_digest` MUST commit to a canonical backend parameter
+manifest. A backend name plus `security_bits` integer is insufficient.
+
+| Backend | Required manifest fields |
+| --- | --- |
+| Nova | Exact crate revision, curve cycle, R1CS/predicate digest, commitment/evaluation argument, compressed SNARK variant, transcript/random-oracle configuration, setup mode, commitment-key/SRS digest when applicable, public-input encoding version, and feature flags. |
+| Plonky3 | Exact compatible crate revisions, base/extension fields, AIR/predicate digest, Poseidon2 round constants and linear-layer parameter digest, MMCS/PCS configuration, FRI blowup/folding/final-poly/query/grinding parameters, ZK mode, recursion tree/packing parameters, public-input encoding version, and feature flags. |
+
+📌 Parameter rules:
+
+- Every transcript or Fiat-Shamir sponge MUST absorb context, predicate,
+  parameter, public-input, algorithm, version, and proof-subject tags before
+  deriving challenges.
+- Poseidon2 constants and linear layers MUST come from the pinned upstream
+  instantiation for the selected field; ad hoc generation or substitution is
+  forbidden.
+- If the Nova compression variant uses a universal setup, the manifest MUST
+  bind the ceremony/source transcript and exact SRS digest. Random-tau or
+  `test-utils` setup is forbidden outside test-only profiles.
+- Parameter rotation starts a new versioned proof epoch. Silent fallback to
+  older parameters, alternate curves/fields, or weaker FRI settings rejects.
+- Claimed security bits MUST be derived from the complete manifest and reviewed
+  composition, not copied from one upstream example.
+
+### 🔗 Chain Context And Epoch Math
+
+📌 Portable proofs require an explicit versioned namespace. Without changing
+the V1 canonical checkpoint theorem, Phase 069 MUST bind a
+`RecursiveCheckpointContextV2` into public-input and verifier-parameter digests:
+
+```yaml
+recursive_checkpoint_context_v2:
+  version: 1
+  chain_id: 0
+  network_id: "0x..."
+  genesis_digest: "0x..."
+  checkpoint_config_digest: "0x..."
+  predicate_digest: "0x..."
+```
+
+📌 Context and epoch rules:
+
+- The context digest MUST reject cross-network, cross-genesis, cross-config,
+  and cross-predicate replay.
+- For cadence `C`, epoch index is `(height - 1) / C`, start height is
+  `epoch_index * C + 1`, and end height is `(epoch_index + 1) * C`.
+- Height `0` is genesis and is never an epoch member.
+- A completed epoch MUST contain exactly `C` unique consecutive heights and one
+  explicit leaf count. Implicit duplicate-last padding is forbidden.
+- Any aggregation padding or arity conversion MUST use a versioned domain and
+  bind real leaf count, ordered heights, and tree shape.
+- Reorg or fork replacement invalidates every queued or persisted proof whose
+  context, predecessor, statement digest, or checkpoint link no longer matches
+  the canonical branch.
+
 ## 🧩 Public Input Contract
 
-📌 `RecursiveCheckpointPublicInputV1` is the proof-facing public input. It is
+📌 `RecursiveCheckpointPublicInputV2` is the proof-facing public input. It is
 derived from `CheckpointTransitionStatementV1`; it is not a new theorem.
 
 ```yaml
-recursive_checkpoint_public_input_v1:
+recursive_checkpoint_public_input_v2:
   version: 1
+  context_digest: "0x..."
   statement_digest: "0x..."
   statement_core_digest: "0x..."
   height: 0
@@ -461,13 +678,15 @@ recursive_checkpoint_public_input_v1:
   delta_root: "0x..."
   witness_root: "0x..."
   checkpoint_link_digest: "0x..."
-  backend_label: nova_compressed_v1
+  backend_label: nova_streaming_compressed_v2
   verifier_params_digest: "0x..."
   proof_mode: fast_classical_compressed
 ```
 
 📌 Public input rules:
 
+- `context_digest` MUST equal the canonical
+  `RecursiveCheckpointContextV2` digest and reject cross-context replay.
 - `statement_digest` MUST equal the canonical checkpoint statement digest.
 - `statement_core_digest` MUST equal the statement core digest from the
   checkpoint contract.
@@ -478,27 +697,30 @@ recursive_checkpoint_public_input_v1:
   from sidecar-local bytes.
 - `checkpoint_link_digest` MUST bind the storage-owned checkpoint link for the
   same statement.
-- `backend_label` MUST be one of the configured backend labels:
-  `nova_compressed_v1` for per-block proof input or
-  `plonky3_stark_epoch_v1` for epoch proof input.
-- `proof_mode` MUST be `fast_classical_compressed` for Nova block proofs and
-  `pq_epoch_finality` for Plonky3 epoch proofs.
+- For real single-step proof input, `backend_label` MUST be
+  `nova_streaming_compressed_v2` and `proof_mode` MUST be
+  `fast_classical_compressed`.
+- `plonky3_stark_epoch_v2` uses `EpochRangeStatementV2` public inputs. The
+  inherited single-step `PqEpochFinality` mode is compatibility-only and MUST
+  NOT be the public-input contract for a real epoch proof.
 - `chain_length` MUST be at least 3 and no more than 5 for required local
   evidence unless a later spec changes the target.
 - Public input digest MUST be computed from canonical public input bytes, not
   from proof bytes or measurement payloads.
-- A local test profile MAY use `recursive_mock_v1`, but only behind a test-only
+- A local test profile MAY use `streaming_v2_unavailable`, but only behind a test-only
   config fixture that cannot pass the repository `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`
   validator.
 
 ## 📦 Witness Contract
 
-📌 `RecursiveCheckpointWitnessV1` is local proof input material. It exists to
+📌 `RecursiveCheckpointWitnessV2` is local proof input material. It exists to
 drive mock and future candidate adapters. It is not canonical checkpoint truth.
 
 ```yaml
-recursive_checkpoint_witness_v1:
+recursive_checkpoint_witness_v2:
   version: 1
+  context_digest: "0x..."
+  predicate_digest: "0x..."
   statement_digest: "0x..."
   exec_input_id: "0x..."
   prep_snapshot_id: "0x..."
@@ -507,6 +729,10 @@ recursive_checkpoint_witness_v1:
   witness_root: "0x..."
   journal_digest: "0x..."
   witness_package_digest: "0x..."
+  exact_tx_proof_bytes_root: "0x..."
+  replay_row_count: 0
+  hjmt_path_count: 0
+  witness_byte_length: 0
   archive_manifest_root: "0x..."
   checkpoint_link_digest: "0x..."
   source: local_fixture_or_archive
@@ -515,11 +741,18 @@ recursive_checkpoint_witness_v1:
 📌 Witness rules:
 
 - The witness MUST bind the same statement digest as the public input.
+- The witness MUST bind the same context and predicate digests as the public
+  input and backend parameter manifest.
 - The witness MUST reference exact execution input and prep snapshot IDs.
 - The witness MUST preserve exact transaction proof bytes through the canonical
   storage path.
 - The witness MUST include enough fixture material to reproduce valid and
   tampered local transitions.
+- Before proving, archive references MUST resolve to bounded
+  `CheckpointTransitionWitnessMaterialV2` containing ordered replay rows, exact
+  transaction proof bytes, HJMT membership/non-membership paths, old/new leaves,
+  spent/nullifier updates, delta rows, and journal inputs. The material's roots,
+  counts, and byte length MUST match this envelope.
 - The witness MUST NOT contain wallet private keys, plaintext secrets, or
   provider SDK-native receipts.
 - The witness MAY use archive references for large data, but those references
@@ -533,8 +766,8 @@ recursive_checkpoint_witness_v1:
 
 | Lane | Cadence | Backend | Security role | Storage role |
 | --- | --- | --- | --- | --- |
-| Nova block lane | Every block | `nova_compressed_v1` | Fast classical recursion and local proof continuity. Not PQ. | Stored under `paths.nova_block_proofs`; retained at least until the enclosing Plonky3 epoch is finalized. |
-| Plonky3 epoch lane | Every `post_quantum.cadence_blocks`, default `1000` | `plonky3_stark_epoch_v1` using `p3_recursion` | PQ-friendly epoch history lock under STARK/FRI/hash assumptions. | Stored under `paths.plonky3_epoch_proofs` with permanent epoch manifest metadata. |
+| Nova block lane | Fold every block; compress on measured cadence | `nova_streaming_compressed_v2` compatibility label | Fast classical recursion and local proof continuity. Not PQ. | Stored under `paths.nova_block_proofs`; retained at least until the enclosing Plonky3 epoch artifact is verified and persisted. |
+| Plonky3 epoch lane | Every `post_quantum.cadence_blocks`, default `1000` | `plonky3_stark_epoch_v2` using `p3_recursion` | PQ-oriented outer proof evidence under declared STARK/FRI/hash assumptions; not end-to-end PQ authority. | Stored under `paths.plonky3_epoch_proofs` with permanent epoch manifest metadata. |
 
 📌 Architecture rules:
 
@@ -544,11 +777,11 @@ recursive_checkpoint_witness_v1:
 - Plonky3 epoch proofs MUST bind an ordered 1000-block canonical transition
   range when default cadence is used.
 - Plonky3 MAY bind `nova_chain_root` as a consistency/audit input.
-- Plonky3 MUST NOT rely only on Nova proof verification for PQ-finality.
-- A block inside an open epoch has canonical replay plus Nova evidence, but it
-  is not yet Plonky3/PQ-finalized until the epoch proof lands.
+- Plonky3 MUST NOT rely only on Nova proof verification for epoch evidence.
+- A block inside an open epoch has canonical replay plus Nova evidence, but no
+  completed Plonky3 epoch evidence until the epoch proof lands.
 - Per-block STARK proofs are not the default permanent retention path. The
-  permanent record is the final epoch proof plus `EpochManifestV1` and archive
+  permanent record is the final epoch proof plus `EpochManifestV2` and archive
   commitments.
 
 📌 Backend decision matrix:
@@ -565,13 +798,17 @@ recursive_checkpoint_witness_v1:
 
 ## ⚡ Nova Block Proof Contract
 
-📌 `NovaCompressedBlockProofV1` is emitted for each block when
-`branches.nova.is_enabled` is true.
+📌 A Nova IVC step is updated for each block when `branches.nova.is_enabled` is
+true. `NovaStreamingCompressedBlockProofV2` is a compressed snapshot of that running IVC
+state. Compression on every block is a measurement target, not an assumption:
+the first backend spike MUST compare per-block compression with configured
+periodic/on-demand compression while preserving one statement-bound IVC step
+per block.
 
 ```yaml
-nova_compressed_block_proof_v1:
+nova_streaming_compressed_block_proof_v2:
   version: 1
-  proof_system: nova_compressed_v1
+  proof_system: nova_streaming_compressed_v2
   mode: fast_classical_compressed
   height: 42
   statement_digest: "0x..."
@@ -594,12 +831,18 @@ nova_compressed_block_proof_v1:
 - `prior_output_root` and `output_root` MUST match the checkpoint roots.
 - `prior_nova_output_root` MUST equal the previous block's `nova_output_root`
   for contiguous chain evidence.
-- `proof_system` MUST be `nova_compressed_v1`.
+- `proof_system` MUST be `nova_streaming_compressed_v2`.
 - `mode` MUST be `fast_classical_compressed`.
 - `proof_bytes` MUST be non-empty and capped by
   `limits.max_nova_block_proof_bytes`.
 - Nova proof digests for an epoch MUST be retained until the Plonky3 epoch proof
-  and `EpochManifestV1` are finalized.
+  and `EpochManifestV2` are finalized.
+- The implementation MUST distinguish `fold_cadence_blocks: 1` from
+  `compression_cadence_blocks`. The latter MUST be selected from measured
+  proving latency, memory, proof size, crash-recovery cost, and block cadence.
+- If the repository keeps `cadence_blocks: 1` as a compatibility field, it
+  denotes fold cadence until a versioned config migration explicitly says
+  otherwise.
 - Nova MUST NOT be used as PQ authority. Any config or proof object that sets
   Nova as `is_pq_authoritative: true` MUST reject.
 
@@ -607,18 +850,18 @@ nova_compressed_block_proof_v1:
 
 | Quantity | Target | Hard cap |
 | --- | --- | --- |
-| One compressed Nova block proof | 8 KiB to 30 KiB after Z00Z measurement target | 128 KiB via `max_nova_block_proof_bytes` |
-| 1000 Nova proofs archive window | 8 MiB to 30 MiB target | 128 MiB via `max_epoch_nova_archive_bytes` |
+| One compressed Nova proof snapshot | 8 KiB to 30 KiB imported planning target pending Z00Z measurement | 128 KiB via `max_nova_block_proof_bytes` |
+| 1000 per-block compressed snapshots | Not a default retention assumption until measured | 128 MiB via `max_epoch_nova_archive_bytes` |
 
 ## 🛡️ Plonky3 Epoch Proof Contract
 
-📌 `EpochRangeStatementV1` is the public epoch statement for the Plonky3 proof.
+📌 `EpochRangeStatementV2` is the public epoch statement for the Plonky3 proof.
 
 ```yaml
-epoch_range_statement_v1:
+epoch_range_statement_v2:
   version: 1
-  proof_system: plonky3_stark_epoch_v1
-  mode: pq_epoch_finality
+  proof_system: plonky3_stark_epoch_v2
+  mode: pq_epoch_finality # Legacy wire label; semantically PQ-oriented epoch evidence.
   epoch_index: 0
   start_height: 1
   end_height: 1000
@@ -638,13 +881,13 @@ epoch_range_statement_v1:
   security_bits: 124
 ```
 
-📌 `Plonky3EpochProofV1` is emitted at each completed epoch boundary.
+📌 `Plonky3EpochProofV2` is emitted at each completed epoch boundary.
 
 ```yaml
-plonky3_epoch_proof_v1:
+plonky3_epoch_proof_v2:
   version: 1
-  proof_system: plonky3_stark_epoch_v1
-  mode: pq_epoch_finality
+  proof_system: plonky3_stark_epoch_v2
+  mode: pq_epoch_finality # Legacy wire label; semantically PQ-oriented epoch evidence.
   epoch_statement_digest: "0x..."
   public_inputs_digest: "0x..."
   epoch_index: 0
@@ -675,7 +918,10 @@ plonky3_epoch_proof_v1:
 - `depends_only_on_nova` MUST be false.
 - `field` MUST be `koala_bear`, `hash` MUST be `poseidon2`, and
   `recursion_library` MUST be `p3_recursion` for the default profile.
-- `security_bits` MUST be at least `124`.
+- `security_bits` MUST be at least `124` only after a parameter derivation
+  records the concrete FRI query count, blowup, grinding, hash security,
+  extension field, conjectured-security assumptions, and composition loss. A
+  literal config value is not security evidence.
 - Proof bytes MUST be capped by `limits.max_plonky3_epoch_proof_bytes`.
 - Sidecar/report bytes for the epoch MUST be capped by
   `limits.max_plonky3_epoch_sidecar_bytes`.
@@ -688,16 +934,16 @@ plonky3_epoch_proof_v1:
 
 | Quantity | Target | Hard cap |
 | --- | --- | --- |
-| Final Plonky3 epoch proof for 1000 blocks | 0.5 MiB to 4 MiB after Z00Z measurement target | 16 MiB via `max_plonky3_epoch_proof_bytes` |
-| Final PQ anchor / epoch artifact | 0.5 MiB to 4 MiB target | 16 MiB via `max_pq_anchor_bytes` |
-| Amortized permanent PQ storage per block | 0.5 KiB to 4 KiB target | 16 KiB per block budget implied by the 16 MiB epoch cap |
+| Final Plonky3 epoch proof for 1000 blocks | 0.5 MiB to 4 MiB imported planning target pending Z00Z measurement | 16 MiB via `max_plonky3_epoch_proof_bytes` |
+| Final PQ-oriented anchor / epoch artifact | 0.5 MiB to 4 MiB imported target | 16 MiB via `max_pq_anchor_bytes` |
+| Amortized permanent epoch-evidence storage per block | 0.5 KiB to 4 KiB imported target | 16 KiB per block budget implied by the 16 MiB epoch cap |
 
 ## 📦 Epoch Manifest Contract
 
-📌 `EpochManifestV1` is the retained index for one completed epoch.
+📌 `EpochManifestV2` is the retained index for one completed epoch.
 
 ```yaml
-epoch_manifest_v1:
+epoch_manifest_v2:
   version: 1
   epoch_index: 0
   start_height: 1
@@ -802,9 +1048,15 @@ retrieval_audit_v1:
   MUST reject.
 - At least `archive_retention.min_archive_replicas` independent archive receipts
   MUST exist before local full-node pruning.
+- Replica independence MUST be enforced by a versioned provider/operator
+  identity and failure-domain policy. Three receipts controlled by one operator,
+  credential, endpoint, or storage failure domain do not satisfy three replicas.
 - Retrieval audits MUST run every
   `archive_retention.retrieval_audit_interval_blocks`, default equal to PQ
   cadence `1000`.
+- Retrieval-audit challenges MUST use approved unpredictable randomness and bind
+  manifest, sample set, challenge epoch, provider identity, response digest, and
+  timeout. Provider-selected samples do not prove retrievability.
 - Retrieval audit success MUST NOT be treated as state validity. It only proves
   required bytes are still retrievable.
 - Recursive proofs MAY reduce replay cost, but they MUST NOT remove the network
@@ -843,6 +1095,7 @@ state_snapshot_v1:
 
 📌 Snapshot rules:
 
+- `StateSnapshotV1` is bootstrap data, not a trust root.
 - Snapshot cadence MUST be a positive multiple of PQ cadence.
 - The default profile uses `cadence_epochs: 10` and `cadence_blocks: 10000`.
 - A snapshot MUST bind state root and settlement root.
@@ -852,8 +1105,14 @@ state_snapshot_v1:
 - A snapshot MUST bind snapshot chunk root so chunks can be content-addressed
   and independently retrieved.
 - A snapshot MUST bind PQ anchor root.
-- Bootstrap from snapshot MAY be used by new nodes only if archive retrieval
-  audit has passed and compact metadata remains available.
+- Before a verified backend is explicitly promoted, bootstrap MAY load snapshot
+  bytes as an acceleration path only after archive retrieval audit passes; the
+  node MUST still validate the snapshot against the canonical checkpoint trust
+  model and MUST NOT infer state validity from retrieval or shadow proof
+  evidence.
+- `bootstrap_allowed_from_snapshot: true` means snapshot data loading is
+  permitted. It MUST NOT bypass canonical checkpoint verification, configured
+  trust anchors, weak-subjectivity rules when later defined, or mixed-era gates.
 
 ## ✂️ Pruning Contract
 
@@ -892,16 +1151,19 @@ pruning_decision_v1:
 
 ## 🧪 Proof Object Contract
 
-📌 `RecursiveCheckpointProofV1` is a common envelope for one proof artifact.
-Concrete payloads are `NovaCompressedBlockProofV1` or `Plonky3EpochProofV1`.
-`recursive_mock_v1` MAY exist only in local tests and MUST NOT pass the default
-repository config.
+📌 `RecursiveCheckpointProofV2` is the inherited single-checkpoint envelope.
+It may carry Nova step/snapshot proof bytes. `Plonky3EpochProofV2` has an epoch
+statement and MUST remain a separate typed artifact. A versioned tagged
+reference may link either artifact into a sidecar/manifest, but the
+single-checkpoint `statement_digest`, height, prior root, and output root MUST
+NOT be reinterpreted as epoch fields. `streaming_v2_unavailable` MAY exist only in
+local tests and MUST NOT pass the default repository config.
 
 ```yaml
-recursive_checkpoint_proof_v1:
+recursive_checkpoint_proof_v2:
   version: 1
   mode: fast_classical_compressed
-  backend_label: nova_compressed_v1
+  backend_label: nova_streaming_compressed_v2
   statement_digest: "0x..."
   public_input_digest: "0x..."
   prior_output_root: "0x..."
@@ -913,33 +1175,35 @@ recursive_checkpoint_proof_v1:
 
 📌 Proof object rules:
 
-- `mode` MUST match the configured branch: `fast_classical_compressed` for Nova
-  block proofs or `pq_epoch_finality` for Plonky3 epoch proofs.
+- `RecursiveCheckpointProofV2.mode` MUST be
+  `fast_classical_compressed` for Nova step/snapshot proofs after the Phase 069
+  migration. The inherited `PqEpochFinality` variant is compatibility-only and
+  MUST NOT carry a real epoch proof.
 - `backend_label` MUST be configured and versioned.
 - `statement_digest` MUST match the public input statement digest.
-- `public_input_digest` MUST match canonical `RecursiveCheckpointPublicInputV1`
+- `public_input_digest` MUST match canonical `RecursiveCheckpointPublicInputV2`
   bytes.
 - `prior_output_root` MUST match public input `prior_output_root`.
 - `output_root` MUST match public input `output_root`.
 - `proof_bytes` MUST be non-empty for Nova, Plonky3, and any local test
   adapter.
 - `proof_bytes_digest` MUST be computed from canonical proof bytes only.
-- Proof bytes over the relevant configured limit MUST reject:
-  `max_nova_block_proof_bytes`, `max_plonky3_epoch_proof_bytes`, or the generic
-  `max_recursive_proof_bytes` envelope cap.
+- Nova proof bytes over `max_nova_block_proof_bytes` or the documented generic
+  envelope cap MUST reject. `Plonky3EpochProofV2` uses its own epoch-proof and
+  epoch-sidecar caps.
 - A proof object claiming canonical admission or `VERIFIED` authority MUST reject.
-- A Plonky3 proof object with `depends_only_on_nova: true` MUST reject as
+- A separate `Plonky3EpochProofV2` with `depends_only_on_nova: true` MUST reject as
   `Plonky3DependsOnlyOnNova`.
 - A Nova proof object claiming PQ authority MUST reject as
   `NovaPqAuthorityUnsupported`.
 
 ## 📎 Sidecar Contract
 
-📌 `RecursiveCheckpointSidecarV1` attaches recursive evidence to a checkpoint
+📌 `RecursiveCheckpointEvidenceV2` attaches recursive evidence to a checkpoint
 statement without changing checkpoint admission.
 
 ```yaml
-recursive_checkpoint_sidecar_v1:
+recursive_checkpoint_evidence_v2:
   version: 1
   mode: fast_classical_compressed
   statement_digest: "0x..."
@@ -947,7 +1211,7 @@ recursive_checkpoint_sidecar_v1:
   checkpoint_id_hint: "0x..."
   proof:
     version: 1
-    backend_label: nova_compressed_v1
+    backend_label: nova_streaming_compressed_v2
   verifier_verdict: accepted
   reject_reason: null
   chain_index: 0
@@ -959,6 +1223,8 @@ recursive_checkpoint_sidecar_v1:
 📌 Sidecar rules:
 
 - A sidecar MUST bind the same statement digest as the canonical artifact.
+- A single-checkpoint sidecar MAY reference an epoch artifact by typed digest,
+  but MUST NOT embed or reinterpret the epoch proof as its single-step proof.
 - A sidecar MAY include `checkpoint_id_hint` for local lookup, but the statement
   digest remains the proof authority for sidecar evidence.
 - A sidecar MUST NOT mutate `CheckpointArtifact`, `CheckpointLink`, or
@@ -973,14 +1239,14 @@ recursive_checkpoint_sidecar_v1:
 
 ## 🔗 Chain Evidence Contract
 
-📌 `RecursiveCheckpointChainEvidenceV1` proves local recursive chain semantics
+📌 `RecursiveCheckpointChainEvidenceV2` proves local recursive chain semantics
 over 3 to 5 ordered checkpoint statements.
 
 ```yaml
-recursive_checkpoint_chain_evidence_v1:
+recursive_checkpoint_chain_evidence_v2:
   version: 1
   mode: fast_classical_compressed
-  backend_label: nova_compressed_v1
+  backend_label: nova_streaming_compressed_v2
   chain_length: 5
   first_statement_digest: "0x..."
   last_statement_digest: "0x..."
@@ -1015,34 +1281,34 @@ plan targets Nova and Plonky3 adapters rather than placeholder scaffolds.
 pub trait RecursiveCheckpointProofAdapter {
     fn prove_step(
         &self,
-        input: &RecursiveCheckpointPublicInputV1,
-        witness: &RecursiveCheckpointWitnessV1,
-    ) -> Result<RecursiveCheckpointProofV1, RecursiveCheckpointRejectReasonV1>;
+        input: &RecursiveCheckpointPublicInputV2,
+        witness: &RecursiveCheckpointWitnessV2,
+    ) -> Result<RecursiveCheckpointProofV2, RecursiveCheckpointRejectReasonV2>;
 
     fn verify_step(
         &self,
-        input: &RecursiveCheckpointPublicInputV1,
-        proof: &RecursiveCheckpointProofV1,
-    ) -> Result<(), RecursiveCheckpointRejectReasonV1>;
+        input: &RecursiveCheckpointPublicInputV2,
+        proof: &RecursiveCheckpointProofV2,
+    ) -> Result<(), RecursiveCheckpointRejectReasonV2>;
 
     fn verify_chain(
         &self,
-        chain: &RecursiveCheckpointChainEvidenceV1,
-    ) -> Result<(), RecursiveCheckpointRejectReasonV1>;
+        chain: &RecursiveCheckpointChainEvidenceV2,
+    ) -> Result<(), RecursiveCheckpointRejectReasonV2>;
 }
 
 pub trait RecursiveEpochProofAdapter {
     fn prove_epoch(
         &self,
-        statement: &EpochRangeStatementV1,
-        manifest: &EpochManifestV1,
-    ) -> Result<Plonky3EpochProofV1, RecursiveCheckpointRejectReasonV1>;
+        statement: &EpochRangeStatementV2,
+        manifest: &EpochManifestV2,
+    ) -> Result<Plonky3EpochProofV2, RecursiveCheckpointRejectReasonV2>;
 
     fn verify_epoch(
         &self,
-        statement: &EpochRangeStatementV1,
-        proof: &Plonky3EpochProofV1,
-    ) -> Result<(), RecursiveCheckpointRejectReasonV1>;
+        statement: &EpochRangeStatementV2,
+        proof: &Plonky3EpochProofV2,
+    ) -> Result<(), RecursiveCheckpointRejectReasonV2>;
 }
 ```
 
@@ -1050,10 +1316,11 @@ pub trait RecursiveEpochProofAdapter {
 
 - The adapter MUST be injected through traits, not hard-coded into checkpoint
   logic.
-- The Nova adapter MUST prove and verify per-block compressed proofs over
-  `RecursiveCheckpointPublicInputV1`.
-- The Plonky3 adapter MUST prove and verify `EpochRangeStatementV1` and
-  `Plonky3EpochProofV1`.
+- The Nova adapter MUST fold one step per block over
+  `RecursiveCheckpointPublicInputV2` and produce/verify compressed snapshots at
+  the measured configured cadence.
+- The Plonky3 adapter MUST prove and verify `EpochRangeStatementV2` and
+  `Plonky3EpochProofV2`.
 - `verify_step` MUST return typed reject reasons, not string-only errors.
 - `verify_chain` MUST validate order, roots, statement digests, chain length,
   backend labels, and measurements.
@@ -1063,10 +1330,50 @@ pub trait RecursiveEpochProofAdapter {
   checkpoint theorem bytes.
 - Local mock adapters MAY remain in tests for negative cases, but MUST be
   impossible to enable through the repository config.
+- `RecursiveCheckpointVerifierV2` remains a storage shape verifier. A successful
+  call to its current `verify_step` MUST NOT be reported as Nova or Plonky3
+  cryptographic verification.
+- Backend verification MUST parse and verify proof bytes with the pinned backend
+  library, then return a typed receipt binding context, predicate, parameters,
+  public inputs, proof digest, and backend revision.
+
+## ⚙️ Prover Lifecycle And Fault Contract
+
+📌 Recursive proving is CPU- and memory-bound while canonical checkpoint writes
+remain authoritative. The shadow backend MUST therefore have an explicit
+lifecycle contract:
+
+- Canonical checkpoint admission MUST NOT wait for a non-authoritative Nova
+  compression or Plonky3 epoch job. Backend lag is reported as evidence lag,
+  not checkpoint invalidity.
+- Prover jobs MUST use bounded queues, explicit memory/job limits, cancellation,
+  and typed timeout/resource-exhaustion outcomes. Unbounded task spawning or
+  unbounded witness allocation is forbidden.
+- CPU work launched from an async runtime MUST use a bounded blocking/CPU pool;
+  it MUST NOT run on the Tokio I/O executor.
+- Job identity MUST bind chain context, height/range, statement digest(s),
+  predecessor proof/accumulator digest, predicate digest, and parameter digest.
+  Re-submission with the same identity is idempotent.
+- Reorg, replacement, or predecessor drift MUST cancel or quarantine stale jobs
+  and prevent their artifacts from entering the current chain/epoch manifest.
+- Proof, manifest, receipt, and sidecar writes MUST be temp-write plus atomic
+  rename through approved `z00z_utils` I/O surfaces. Partial write sets MUST be
+  recoverable without presenting a complete epoch.
+- Restart recovery MUST distinguish queued, proving, proved, verified,
+  persisted, superseded, and rejected jobs. A crash after proof write but before
+  manifest/anchor write MUST resume idempotently.
+- Production proving randomness MUST come from the approved CSPRNG provider.
+  Deterministic RNG is permitted only in explicitly test-only vectors and MUST
+  use a separate domain/profile.
+- Proof logs, errors, and measurements MUST NOT contain witness bytes, secrets,
+  prover randomness, private keys, or provider credentials.
+- Parameter/key rotation MUST be versioned and epoch-bound. Mixed parameter
+  digests inside one epoch reject unless a versioned migration rule explicitly
+  permits them.
 
 ## 🚫 Reject Reason Contract
 
-📌 `RecursiveCheckpointRejectReasonV1` MUST be stable enough for deterministic
+📌 `RecursiveCheckpointRejectReasonV2` MUST be stable enough for deterministic
 tests and operator diagnostics.
 
 | Reason | Required trigger |
@@ -1081,7 +1388,7 @@ tests and operator diagnostics.
 | `BackendClaimUnsupported` | Backend claims production, PQ, audited, or verified status without promotion. |
 | `ProofBytesEmpty` | Proof bytes are empty. |
 | `ProofBytesTooLarge` | Proof bytes exceed configured limit. |
-| `NovaPqAuthorityUnsupported` | Nova proof or config claims PQ/final authority. |
+| `NovaPqAuthorityUnsupported` | Nova proof or config claims PQ or end-to-end final authority. |
 | `NovaChainRootMismatch` | Ordered Nova proof digests do not match the epoch `nova_chain_root`. |
 | `Plonky3CanonicalRangeMissing` | Plonky3 epoch proof does not prove or bind the canonical transition range. |
 | `Plonky3DependsOnlyOnNova` | Plonky3 epoch proof only proves Nova verifier acceptance. |
@@ -1121,12 +1428,12 @@ tests and operator diagnostics.
 
 ## 📊 Measurement Contract
 
-📌 `RecursiveCheckpointMeasurementV1` records local evidence only.
+📌 `RecursiveCheckpointMeasurementV2` records local evidence only.
 
 ```yaml
-recursive_checkpoint_measurement_v1:
+recursive_checkpoint_measurement_v2:
   version: 1
-  backend_label: nova_compressed_v1
+  backend_label: nova_streaming_compressed_v2
   mode: fast_classical_compressed
   chain_length: 5
   epoch_length: 1000
@@ -1173,7 +1480,10 @@ publication readiness, pruning, or verified-backend promotion. A test fixture is
 not enough; the repository file MUST be parseable by the storage-owned
 validator.
 
-📌 Full required repository YAML shape:
+📌 Current repository YAML baseline follows. It is evidence of the Phase 068
+contract, not proof that the backend semantics are already correct. Phase 069
+planning MUST include a versioned config migration before real backend writes
+if any correction below changes serialized meaning.
 
 ```yaml
 version: 1
@@ -1213,7 +1523,7 @@ branches:
     is_enabled: true
     is_authoritative: false
     mode: hybrid_nova_plonky3
-    proof_system: recursive_hybrid_v1
+    proof_system: recursive_hybrid_v2
     has_prior_output_binding: true
     min_chain_steps: 3
     target_chain_steps: 5
@@ -1223,7 +1533,7 @@ branches:
     is_authoritative: false
     is_pq_authoritative: false
     mode: fast_classical_compressed
-    proof_system: nova_compressed_v1
+    proof_system: nova_streaming_compressed_v2
     has_prior_output_binding: true
     must_bind_statement_digest: true
     must_bind_checkpoint_link: true
@@ -1232,9 +1542,9 @@ branches:
     is_enabled: true
     cadence_blocks: 1000
     is_authoritative: false
-    is_pq_authoritative: true
+    is_pq_authoritative: true # Legacy Phase 068 label; not checkpoint authority.
     mode: pq_epoch_finality
-    proof_system: plonky3_stark_epoch_v1
+    proof_system: plonky3_stark_epoch_v2
     must_prove_canonical_transition_range: true
     may_bind_nova_chain_root: true
     must_not_depend_only_on_nova: true
@@ -1419,7 +1729,7 @@ branches:
     is_enabled: true
     is_authoritative: false
     mode: hybrid_nova_plonky3
-    proof_system: recursive_hybrid_v1
+    proof_system: recursive_hybrid_v2
     has_prior_output_binding: true
     min_chain_steps: 3
     target_chain_steps: 5
@@ -1429,7 +1739,7 @@ branches:
     is_authoritative: false
     is_pq_authoritative: false
     mode: fast_classical_compressed
-    proof_system: nova_compressed_v1
+    proof_system: nova_streaming_compressed_v2
     has_prior_output_binding: true
     must_bind_statement_digest: true
     must_bind_checkpoint_link: true
@@ -1438,9 +1748,9 @@ branches:
     is_enabled: true
     cadence_blocks: 1000
     is_authoritative: false
-    is_pq_authoritative: true
+    is_pq_authoritative: true # Legacy Phase 068 label; not checkpoint authority.
     mode: pq_epoch_finality
-    proof_system: plonky3_stark_epoch_v1
+    proof_system: plonky3_stark_epoch_v2
     must_prove_canonical_transition_range: true
     may_bind_nova_chain_root: true
     must_not_depend_only_on_nova: true
@@ -1558,6 +1868,33 @@ limits:
 
 📌 Gate rules:
 
+- Before backend implementation, config V2 or an explicitly documented V1
+  compatibility adapter MUST resolve the ambiguous `is_pq_authoritative` and
+  `pq_epoch_finality` labels. Preferred target semantics are
+  `provides_pq_epoch_evidence: true` and `pq_epoch_evidence`; keeping the old
+  labels requires public compatibility documentation and tests proving they do
+  not grant checkpoint authority.
+- The config MUST distinguish Nova fold cadence from compressed-proof snapshot
+  cadence. A single `cadence_blocks` field MUST NOT silently control both.
+- The config MUST distinguish selected policy from live backend availability.
+  Before `verified_backend_candidate`, a disabled or unavailable
+  non-authoritative prover is a valid degraded mode and MUST NOT block canonical
+  checkpoint admission. Promotion evidence requires both selected backends live,
+  healthy, and fully verified.
+- Generic and backend-specific proof caps MUST have one documented precedence.
+  The current verifier uses the smaller cap, so the baseline
+  `max_recursive_proof_bytes: 8388608` silently reduces the advertised 16 MiB
+  Plonky3 cap to 8 MiB. The same conflict exists between the 12 MiB generic
+  sidecar cap and 24 MiB Plonky3 sidecar cap. Phase 069 MUST resolve both and
+  add boundary tests for the effective cap.
+- `pruning.full_node_pruning_allowed: false` MUST be accepted as the safer
+  operator choice. Pruning prerequisites are mandatory only when pruning is
+  enabled; the default profile MUST NOT force deletion capability on.
+- `pq_signature_or_commitment` MUST name and bind a concrete versioned
+  algorithm, key/parameter identifier, and verification rule, or be renamed to
+  a non-cryptographic `epoch_evidence_commitment`. Non-zero bytes are not a
+  signature-verification contract.
+
 - Missing or bypassed config validator rejects runtime sidecar use.
 - `branches.recursive.is_authoritative: true` rejects.
 - `authority_promotion.recursive_authority_allowed: true` rejects before
@@ -1569,16 +1906,24 @@ limits:
 - `target_chain_steps < min_chain_steps` rejects.
 - `target_chain_steps > 5` rejects for required Phase 069 evidence.
 - `branches.recursive.mode != hybrid_nova_plonky3` rejects.
-- `branches.recursive.proof_system != recursive_hybrid_v1` rejects.
-- Missing `branches.nova` or disabled Nova branch rejects.
+- `branches.recursive.proof_system != recursive_hybrid_v2` rejects.
+- Missing `branches.nova` rejects. Under legacy V1, a disabled Nova branch
+  rejects profile validation; the Phase 069 semantic migration MUST permit an
+  explicitly disabled/degraded non-authoritative runtime before promotion.
 - `branches.nova.cadence_blocks != 1` rejects.
 - `branches.nova.is_pq_authoritative: true` rejects.
-- `branches.nova.proof_system != nova_compressed_v1` rejects.
-- Missing `branches.plonky3_epoch` or disabled Plonky3 epoch branch rejects.
+- `branches.nova.proof_system != nova_streaming_compressed_v2` rejects.
+- Missing `branches.plonky3_epoch` rejects. Under legacy V1, a disabled
+  Plonky3 branch rejects profile validation; the Phase 069 semantic migration
+  MUST permit an explicitly disabled/degraded non-authoritative runtime before
+  promotion.
 - `branches.plonky3_epoch.cadence_blocks != post_quantum.cadence_blocks`
   rejects.
-- `branches.plonky3_epoch.is_pq_authoritative: false` rejects.
-- `branches.plonky3_epoch.proof_system != plonky3_stark_epoch_v1` rejects.
+- Under the legacy V1 compatibility schema,
+  `branches.plonky3_epoch.is_pq_authoritative: false` rejects. No planner may
+  interpret the corresponding `true` value as canonical or end-to-end PQ
+  authority; the semantic migration above is a pre-backend gate.
+- `branches.plonky3_epoch.proof_system != plonky3_stark_epoch_v2` rejects.
 - `branches.plonky3_epoch.must_prove_canonical_transition_range: false`
   rejects.
 - `branches.plonky3_epoch.must_not_depend_only_on_nova: false` rejects.
@@ -1602,7 +1947,9 @@ limits:
   rejects.
 - `snapshots.object_type != state_snapshot_v1` rejects.
 - Any snapshot binding flag set to false rejects.
-- `pruning.full_node_pruning_allowed: false` rejects in the default profile.
+- If `pruning.full_node_pruning_allowed` is true, every pruning prerequisite
+  flag and runtime decision gate is mandatory. A false value remains valid and
+  disables pruning.
 - `pruning.archive_node_pruning_allowed: true` rejects.
 - `pruning.prune_scope != local_full_node_only` rejects.
 - `pruning.min_retain_recent_epochs == 0` rejects.
@@ -1661,9 +2008,9 @@ limits:
 
 📌 Phase 069 backend policy:
 
-- `recursive_hybrid_v1` is the required repository proof profile.
-- `nova_compressed_v1` is the required fast classical per-block lane.
-- `plonky3_stark_epoch_v1` is the required PQ-friendly epoch lane.
+- `recursive_hybrid_v2` is the required repository proof profile.
+- `nova_streaming_compressed_v2` is the required fast classical per-block lane.
+- `plonky3_stark_epoch_v2` is the required PQ-friendly epoch lane.
 - Nova/Arecibo dependencies MUST be pinned by repository dependency policy
   before implementation work lands.
 - Plonky3 and Plonky3-recursion dependencies MUST be pinned by commit or exact
@@ -1676,7 +2023,7 @@ limits:
 - A backend implementation MUST provide parameter docs, canonical ABI, test
   vectors, reject reasons, measured fixtures, audit notes, and rollback policy
   before future canonical promotion review.
-- `recursive_mock_v1` MAY remain only as a local test utility for codec and
+- `streaming_v2_unavailable` MAY remain only as a local test utility for codec and
   negative-path tests; it MUST NOT be the default repository profile.
 - SuperNova, Fractal, HyperPlonk, LatticeFold, RLWE, and generic STARK
   references remain research or benchmark tracks unless a later spec promotes
@@ -1689,12 +2036,15 @@ limits:
 - Nova is curve/ECC based and therefore cannot protect history after a quantum
   break of DLOG assumptions.
 - Plonky3-recursion gives a real Rust recursive STARK path with transparent
-  setup and hash/FRI security assumptions that match the PQ epoch objective.
+  setup and hash/FRI security assumptions that match the outer-proof objective.
+  Its upstream repository currently states that it is under active development,
+  unaudited, and not recommended for production use; Phase 069 must preserve
+  that red line in code and docs.
 - Plonky3 proofs are larger and proving is more expensive, so they run at
   epoch cadence by default instead of every block.
 - The 1000-block cadence is a configurable compromise: recent open-epoch blocks
   keep fast classical proofs and full replay material, while completed epochs
-  gain a Plonky3/STARK history lock.
+  gain Plonky3/STARK outer proof evidence.
 
 📌 PQ red lines:
 
@@ -1703,7 +2053,10 @@ limits:
   PQ evidence.
 - Nova compressed proofs MUST NOT be described as PQ evidence.
 - A Plonky3 proof that only proves Nova verifier acceptance MUST NOT be
-  described as PQ epoch finality.
+  described as PQ epoch evidence or finality.
+- A Plonky3 proof of a predicate that accepts classical spend/range/signature
+  verification MUST NOT be described as end-to-end PQ validity even when the
+  outer proof itself uses hash/FRI/STARK assumptions.
 - Same-challenge aggregation across proofs MUST NOT be accepted without a real
   reviewed folding construction.
 - RLWE or lattice PoK sketches MUST NOT be promoted without explicit challenge
@@ -1716,10 +2069,11 @@ limits:
 
 ## 🧬 Post-Quantum Cadence Contract
 
-📌 `PostQuantumCheckpointAnchorV1` is the Phase 069 PQ epoch audit object. It is
-external to V1 canonical checkpoint admission and binds the Plonky3 epoch proof,
-retained canonical material, and optional Nova chain root for long-horizon audit
-and migration.
+📌 `PostQuantumCheckpointAnchorV1` is the existing compatibility name for the
+Phase 069 PQ-oriented epoch audit object. It is external to V1 canonical
+checkpoint admission and binds the Plonky3 epoch proof, retained canonical
+material, and optional Nova chain root for long-horizon audit and migration. It
+does not certify end-to-end PQ validity.
 
 ```yaml
 post_quantum_checkpoint_anchor_v1:
@@ -1771,9 +2125,9 @@ post_quantum_checkpoint_anchor_v1:
 - `pq_archive_manifest_root` MUST equal the archive manifest root used by the
   DA/archive contract for the same checkpoint.
 - `plonky3_epoch_statement_digest` MUST equal the digest of
-  `EpochRangeStatementV1`.
+  `EpochRangeStatementV2`.
 - `plonky3_epoch_proof_digest` MUST equal the digest of the
-  `Plonky3EpochProofV1` proof bytes and metadata.
+  `Plonky3EpochProofV2` proof bytes and metadata.
 - `plonky3_public_inputs_digest` MUST equal the canonical public inputs used by
   the Plonky3 verifier.
 - `nova_chain_root` MUST match the ordered Nova proof digest root when Nova
@@ -1803,12 +2157,12 @@ post_quantum_checkpoint_anchor_v1:
 
 ## 📚 Recursive Documentation Packet Contract
 
-📌 `RecursiveCheckpointDocumentationPacketV1` is a required Phase 069 artifact.
+📌 `RecursiveCheckpointDocumentationPacketV2` is a required Phase 069 artifact.
 It makes this spec operational by bundling the concrete evidence needed for
 review, re-run, and backend promotion decisions.
 
 ```yaml
-recursive_checkpoint_documentation_packet_v1:
+recursive_checkpoint_documentation_packet_v2:
   version: 1
   spec_path: .planning/phases/069-Recursive-Proof/069-TODO.md
   config_path: crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml
@@ -1817,22 +2171,22 @@ recursive_checkpoint_documentation_packet_v1:
   statement_schema_digest: "0x..."
   source_disposition_digest: "0x..."
   object_schema_digests:
-    recursive_checkpoint_public_input_v1: "0x..."
-    recursive_checkpoint_witness_v1: "0x..."
-    recursive_checkpoint_proof_v1: "0x..."
-    nova_compressed_block_proof_v1: "0x..."
-    nova_epoch_chain_root_v1: "0x..."
-    epoch_range_statement_v1: "0x..."
-    plonky3_epoch_proof_v1: "0x..."
-    epoch_manifest_v1: "0x..."
+    recursive_checkpoint_public_input_v2: "0x..."
+    recursive_checkpoint_witness_v2: "0x..."
+    recursive_checkpoint_proof_v2: "0x..."
+    nova_streaming_compressed_block_proof_v2: "0x..."
+    nova_epoch_chain_root_v2: "0x..."
+    epoch_range_statement_v2: "0x..."
+    plonky3_epoch_proof_v2: "0x..."
+    epoch_manifest_v2: "0x..."
     checkpoint_archive_manifest_v1: "0x..."
     archive_provider_receipt_v1: "0x..."
     retrieval_audit_v1: "0x..."
     state_snapshot_v1: "0x..."
     pruning_decision_v1: "0x..."
-    recursive_checkpoint_sidecar_v1: "0x..."
-    recursive_checkpoint_chain_evidence_v1: "0x..."
-    recursive_checkpoint_measurement_v1: "0x..."
+    recursive_checkpoint_evidence_v2: "0x..."
+    recursive_checkpoint_chain_evidence_v2: "0x..."
+    recursive_checkpoint_measurement_v2: "0x..."
     post_quantum_checkpoint_anchor_v1: "0x..."
   golden_vector_root: "0x..."
   chain_evidence_root: "0x..."
@@ -1851,8 +2205,9 @@ recursive_checkpoint_documentation_packet_v1:
 - The packet MUST be generated from persisted artifacts, not handwritten after
   the fact.
 - It MUST include exact pinned versions or reviewed git revisions for
-  `nova-snark`, the selected `p3-*` family, `ipfs-api-backend-hyper`, and the
-  Kubo binary used by fixtures, CI, or operator runbooks.
+  `nova-snark` and the selected `p3-*` family. It MUST include
+  `ipfs-api-backend-hyper` and Kubo pins only when those components are used by
+  Phase 069 fixtures, CI, or operator runbooks.
 - It MUST include direct documentation links for every external crate and
   binary named in the implementation dependency matrix.
 - It MUST include source disposition for every Phase 069 idea file and
@@ -1873,8 +2228,8 @@ recursive_checkpoint_documentation_packet_v1:
   chunk root, PQ anchor, and retrieval audit.
 - It MUST include pruning decision evidence showing full-node pruning is local
   only and archive-node pruning rejects.
-- It MUST include a backend manifest that labels `nova_compressed_v1` as the
-  per-block classical lane and `plonky3_stark_epoch_v1` as the epoch
+- It MUST include a backend manifest that labels `nova_streaming_compressed_v2` as the
+  per-block classical lane and `plonky3_stark_epoch_v2` as the epoch
   PQ-friendly lane.
 - It MUST record that Plonky3-recursion is active-development/unaudited and
   therefore blocked from canonical `VERIFIED` promotion until later review.
@@ -1882,18 +2237,18 @@ recursive_checkpoint_documentation_packet_v1:
   recursive validity, PQ safety, proof size, state size, DA-as-validity, or
   pruning.
 - It MUST be written under `paths.documentation_packets`.
-- A packet that omits dependency pins or documentation links MUST reject
-  closeout as incomplete.
+- A packet that omits required or actually used dependency pins or
+  documentation links MUST reject closeout as incomplete.
 - A missing packet or missing required section MUST reject Phase 069 closeout.
 
 ## 🧱 Module Placement
 
 | Module or crate | Owns in Phase 069 | MUST NOT own |
 | --- | --- | --- |
-| `z00z_storage::checkpoint` | Statement binding, Nova/Plonky3 sidecar envelopes, epoch manifest, archive manifest, archive receipts, retrieval audits, state snapshots, pruning decisions, sidecar codec, PQ anchor envelope, config subset, artifact attachment, reject reason facade. | Recursive backend security claims, archive provider SDK ownership, or spend verifier replacement. |
+| `z00z_storage::checkpoint` | Statement binding, V2 evidence, epoch manifest, archive manifest, archive receipts, retrieval audits, state snapshots, pruning decisions, V2 codec, PQ anchor envelope, config subset, artifact attachment, and reject facade. | Archive provider SDK ownership or spend verifier replacement. |
 | `z00z_storage::settlement` | HJMT roots, delta rows, witness roots, journal digest, witness package references. | Recursive proof theorem. |
 | `z00z_crypto` | Domain separators and digest helper facades only. | Unreviewed recursive verifier truth. |
-| Future `z00z_recursive_proofs` | Nova compressed adapter, Plonky3 epoch adapter, recursive verifier traits, chain verifier, benchmark harness after storage contract gates pass. | Canonical checkpoint theorem, artifact codec authority, or spend/range verifier replacement. |
+| `z00z_storage::checkpoint::recursive_v2` | Nova streaming adapter, Plonky3 epoch adapter, recursive verifier traits, chain verifier, and benchmark harness behind the completed storage contract gates. | Canonical checkpoint theorem, artifact codec authority, or spend/range verifier replacement. |
 | `z00z_simulator` | Deterministic 3-step and 5-step chain evidence, Nova tamper fixtures, Plonky3 cadence fixtures, measurement output. | Production recursive backend claims before measured evidence. |
 | `z00z_runtime::validators` | Rejection that sidecars are not admission authority. | Duplicate checkpoint theorem. |
 | `z00z_runtime::watchers` | Gap reporting and publication observation when Phase 70 evidence exists. | Settlement validity. |
@@ -1906,17 +2261,17 @@ updates the architecture doublecheck ledger and tests the migration.
 
 | Surface | Primary home | Candidate files | Runtime role | MUST NOT do |
 | --- | --- | --- | --- | --- |
-| Checkpoint contract config | `z00z_storage::checkpoint` | Implemented in `contract_config.rs`, exported from `mod.rs` | Validate `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml` before checkpoint, sidecar, PQ, pruning, documentation, or promotion writes. | Hide validation inside rollup-node only. |
+| Checkpoint contract config | `z00z_storage::checkpoint` | Implemented in `contract_config.rs`, exported from `mod.rs` | Validate `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml` before checkpoint, V2 evidence, PQ, pruning, documentation, or promotion writes. | Hide validation inside rollup-node only. |
 | Extended transition statement | `z00z_storage::checkpoint` | `transition_statement.rs` or extension of `artifact_stmt.rs` | Produce statement/core/final digests from storage-owned fields. | Rebuild a second theorem in runtime or recursive crate. |
 | Canonical artifact compatibility | `z00z_storage::checkpoint` | `codec.rs`, `artifact_final.rs`, `artifact_types.rs` | Keep `OPAQUE_ATTEST` canonical and `VERIFIED` reserved. | Admit recursive proof bytes as canonical. |
-| Recursive sidecar envelope | `z00z_storage::checkpoint` first; future `z00z_recursive_proofs` may consume it | `recursive_sidecar.rs`, `recursive_chain.rs`, `recursive_reject.rs` | Persist and verify non-authoritative sidecar evidence. | Mutate `CheckpointArtifact` or `CheckpointLink`. |
-| Nova block proof object | `z00z_storage::checkpoint` schema; future `z00z_recursive_proofs` prover/verifier | `nova_block_proof.rs`, `recursive_chain.rs` | Bind one checkpoint statement and checkpoint link per block; retain until PQ epoch. | Claim PQ authority or bypass canonical replay. |
-| Plonky3 epoch statement/proof | `z00z_storage::checkpoint` schema; future `z00z_recursive_proofs` prover/verifier | `epoch_range_statement.rs`, `plonky3_epoch_proof.rs` | Bind configured epoch range, canonical statements, DA/archive manifests, witness roots, and optional Nova chain root. | Depend only on Nova verifier acceptance. |
+| V2 evidence envelope | `z00z_storage::checkpoint::recursive_v2` | `evidence.rs`, `store.rs`, `reject.rs` | Persist and verify non-authoritative V2 evidence. | Mutate `CheckpointArtifact` or `CheckpointLink`. |
+| Nova block proof object | `z00z_storage::checkpoint::recursive_v2::nova` | `nova.rs`, `evidence.rs` | Bind one checkpoint statement and checkpoint link per block; retain until PQ epoch. | Claim PQ authority or bypass canonical replay. |
+| Plonky3 epoch statement/proof | `z00z_storage::checkpoint::recursive_v2::plonky3` | `plonky3.rs`, `evidence.rs` | Bind configured epoch range, canonical statements, DA/archive manifests, witness roots, and optional Nova chain root. | Depend only on Nova verifier acceptance. |
 | Epoch manifest | `z00z_storage::checkpoint` | `epoch_manifest.rs` | Persist permanent metadata tying canonical artifacts, Nova proof digests, Plonky3 proof digest, and archive roots. | Store unverifiable local paths as committed data. |
 | Archive manifest and receipts | `z00z_storage::checkpoint` schema; rollup/storage exporter writes receipts | `archive_manifest.rs`, `archive_receipt.rs`, `retrieval_audit.rs` | Bind raw packages, exact proof bytes, witness chunks, deltas, DA payload commitment, provider receipts, and retrieval audits. | Treat Celestia DA or unpinned IPFS CID as permanent history. |
 | State snapshot | `z00z_storage::checkpoint` schema; simulator/rollup fixture generation | `state_snapshot.rs` | Bind state root, settlement root, latest Plonky3 proof, latest epoch manifest, archive manifest, chunk root, PQ anchor, and retrieval audit. | Replace proof verification or archive retrieval with a naked root. |
 | Pruning decision | `z00z_storage::checkpoint` | `pruning.rs` | Permit local full-node deletion only after dispute, Plonky3, manifest, archive replication, and retrieval audit gates pass. | Permit archive-node pruning or network-wide history deletion. |
-| Recursive adapter trait | Future `z00z_recursive_proofs`; storage tests may use local test traits | `adapter.rs`, `nova.rs`, `plonky3.rs`, `measurement.rs` | Provide Nova `prove_step`/`verify_step` and Plonky3 `prove_epoch`/`verify_epoch`. | Own statement schema or settlement roots. |
+| Recursive adapter trait | `z00z_storage::checkpoint::recursive_v2`; storage tests use the same owner | `nova.rs`, `plonky3.rs`, `evidence.rs` | Provide Nova `prove_step`/`verify_step` and Plonky3 `prove_epoch`/`verify_epoch`. | Own statement schema or settlement roots. |
 | PQ anchor envelope | `z00z_storage::checkpoint` | `pq_anchor.rs` | Write and validate cadence audit objects under configured paths; bind Plonky3 epoch proof and manifest roots. | Claim canonical admission before verified-backend promotion. |
 | Documentation packet | `z00z_storage::checkpoint` plus simulator/test harness | `documentation_packet.rs` or closeout artifact generator | Index vectors, chain evidence, measurements, PQ anchors, and rejected claims. | Replace tests or code validation with prose. |
 | Rollup integration | `z00z_rollup_node` | `config.rs`, `runtime.rs`, `da.rs` | Load config path, pass validated gates, publish/resolve DA payloads. | Put provider SDK types into statement/public input bytes. |
@@ -1925,15 +2280,24 @@ updates the architecture doublecheck ledger and tests the migration.
 | Simulator evidence | `z00z_simulator` | scenario fixtures and test helpers | Produce deterministic 3-step, 5-step, Nova tamper, Plonky3 cadence, and doc-packet evidence. | Claim production backend performance. |
 | Crypto helpers | `z00z_crypto` | domain separator and digest facade modules | Provide domain-separated digest helpers if storage needs a shared facade. | Import unreviewed backend security assumptions. |
 
-📌 Crate creation rule:
+📌 Module creation rule:
 
-- Phase 069 SHOULD create `z00z_recursive_proofs` only after the storage-owned
-  sidecar envelope, reject taxonomy, public input vectors, and active config
-  gates are stable.
-- If a crate is created during Phase 069, it MUST target real Nova and Plonky3
-  adapters, but it MUST remain non-authoritative until promotion gates pass.
-- The future crate MUST depend on the storage statement contract; storage MUST
-  NOT depend on a concrete recursive backend.
+- `z00z_storage::checkpoint::recursive_v2` exists only after the storage-owned
+  V2 evidence contract, reject taxonomy, public-input vectors, and active
+  config gates stabilize.
+- The live module MUST target real Nova and Plonky3 adapters, but it MUST remain
+  non-authoritative until promotion gates pass.
+- The live module MUST consume the storage statement contract and keep concrete
+  backend types private to its adapter modules.
+- Direct `nova-snark` and `p3-*` imports are permitted only inside this explicit
+  V2 adapter boundary. Vendor/backend concrete types MUST NOT escape its
+  project-owned public traits or receipts.
+- Shared framing, domain separation, hashing, sensitive wrappers, and RNG
+  providers MUST use `z00z_crypto`/`z00z_utils` facades. The V2 module MUST
+  NOT create parallel consensus hash or randomness abstractions.
+- Runtime integration that needs both storage and the backend belongs in an
+  orchestration crate such as `z00z_rollup_node`; do not create a storage-to-
+  concrete-backend dependency cycle.
 
 ## 🗺️ Architecture Diagrams
 
@@ -1994,7 +2358,7 @@ flowchart LR
     Storage[z00z_storage\nCheckpoint statement, artifacts, sidecars, PQ anchors]
     Crypto[z00z_crypto\nDomain separators and digest helpers]
     Simulator[z00z_simulator\nDeterministic fixtures and E2E evidence]
-    FutureRec[z00z_recursive_proofs future\nNova and Plonky3 adapters]
+    RecursiveProofs[z00z_recursive_proofs\nNova and Plonky3 adapters]
     Config[(crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml\nActive architecture gate)]
     ArtifactStore[(Checkpoint artifact stores\nCanonical, sidecar, PQ, docs)]
   end
@@ -2008,8 +2372,8 @@ flowchart LR
   Validators -->|Verdict| Watchers
   Watchers -->|PublicationWatch| Rollup
   Storage -->|hash domains| Crypto
-  FutureRec -. Nova prove_step / verify_step .-> Storage
-  FutureRec -. Plonky3 prove_epoch / verify_epoch .-> Storage
+  RecursiveProofs -. Nova prove_step / verify_step .-> Storage
+  RecursiveProofs -. Plonky3 prove_epoch / verify_epoch .-> Storage
   Simulator -->|fixtures and tamper cases| Rollup
   Config -->|validated before writes| Rollup
   Config -->|storage-owned validation| Storage
@@ -2024,7 +2388,7 @@ flowchart LR
   style Storage fill:#FFE0B2,stroke:#F57C00,stroke-width:1px
   style Crypto fill:#EDE7F6,stroke:#5E35B1,stroke-width:1px,color:#311B92
   style Simulator fill:#E8F5E9,stroke:#43A047,stroke-width:1px,color:#1B5E20
-  style FutureRec fill:#EDE7F6,stroke:#5E35B1,stroke-width:1px,color:#311B92
+  style RecursiveProofs fill:#EDE7F6,stroke:#5E35B1,stroke-width:1px,color:#311B92
   style Config fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238
   style ArtifactStore fill:#FFE0B2,stroke:#F57C00,stroke-width:1px
 ```
@@ -2039,18 +2403,18 @@ flowchart LR
     ExecInput[CheckpointExecInput\nExact replay and tx proof bytes]
     ArtifactCodec[CheckpointArtifact Codec\nOpaque canonical admission]
     LinkStore[CheckpointLink Store\nSnapshot and exec binding]
-    SidecarCodec[RecursiveCheckpointSidecarV1\nShadow proof evidence]
-    NovaProof[NovaCompressedBlockProofV1\nPer-block classical IVC]
-    EpochStmt[EpochRangeStatementV1\nCanonical 1000-block range]
-    PlonkyProof[Plonky3EpochProofV1\nRecursive STARK epoch proof]
-    EpochManifest[EpochManifestV1\nPermanent epoch metadata]
+    SidecarCodec[RecursiveCheckpointEvidenceV2\nShadow proof evidence]
+    NovaProof[NovaStreamingCompressedBlockProofV2\nPer-block classical IVC]
+    EpochStmt[EpochRangeStatementV2\nCanonical 1000-block range]
+    PlonkyProof[Plonky3EpochProofV2\nRecursive STARK epoch proof]
+    EpochManifest[EpochManifestV2\nPermanent epoch metadata]
     ArchiveManifest[CheckpointArchiveManifestV1\nLong-term retrieval metadata]
     RetrievalAudit[RetrievalAuditV1\nReplica retrieval gate]
     StateSnapshot[StateSnapshotV1\nVerified bootstrap base]
     PruningDecision[PruningDecisionV1\nLocal full-node pruning gate]
-    ChainVerifier[RecursiveCheckpointChainEvidenceV1\nPrior-output binding]
+    ChainVerifier[RecursiveCheckpointChainEvidenceV2\nPrior-output binding]
     PqAnchor[PostQuantumCheckpointAnchorV1\nCadence audit envelope]
-    DocPacket[RecursiveCheckpointDocumentationPacketV1\nCloseout evidence]
+    DocPacket[RecursiveCheckpointDocumentationPacketV2\nCloseout evidence]
     Store[CheckpointFsStore\nFile-backed persistence]
   end
 
@@ -2147,7 +2511,7 @@ sequenceDiagram
   Rollup->>Watch: publish local publication evidence
   Watch-->>Rollup: observation or gap alert
   Store->>Rec: build public input and witness fixture
-  Rec-->>Store: write non-authoritative RecursiveCheckpointSidecarV1
+  Rec-->>Store: write non-authoritative RecursiveCheckpointEvidenceV2
   Store->>Rec: verify 3-step and 5-step chain evidence
   Store->>PQ: if height % cadence_blocks == 0 and live stage, write PQ anchor
   PQ-->>Store: PostQuantumCheckpointAnchorV1 audit envelope
@@ -2169,7 +2533,7 @@ flowchart LR
     Sim[Simulator / tests\nz00z_simulator]
   end
 
-  ExternalDA[External DA provider\nfuture adapter]
+  ExternalDA[External DA provider\nprovider adapter]
 
   Operator -->|starts node| NodeProc
   ConfigFile -->|must validate before writes| NodeProc
@@ -2248,21 +2612,21 @@ flowchart TD
 flowchart TD
   Start[Checkpoint block h] --> Canonical[Build canonical CheckpointTransitionStatementV1]
   Canonical --> Artifact[Seal OPAQUE_ATTEST CheckpointArtifact and CheckpointLink]
-  Artifact --> NovaInput[Build RecursiveCheckpointPublicInputV1 for Nova]
-  NovaInput --> NovaProof[NovaCompressedBlockProofV1]
+  Artifact --> NovaInput[Build RecursiveCheckpointPublicInputV2 for Nova]
+  NovaInput --> NovaProof[NovaStreamingCompressedBlockProofV2]
   NovaProof --> NovaGate{Nova proof binds statement, link, prior output?}
   NovaGate -->|no| NovaReject[Reject Nova sidecar only]
   NovaGate -->|yes| NovaStore[Store under paths.nova_block_proofs]
   NovaStore --> Cadence{h % cadence_blocks == 0 and h > 0?}
-  Cadence -->|no| OpenEpoch[Open epoch continues\nNot Plonky3/PQ finalized yet]
-  Cadence -->|yes| Manifest[Build EpochManifestV1\n1000 statements, links, DA, witness, Nova root]
-  Manifest --> EpochStmt[Build EpochRangeStatementV1]
+  Cadence -->|no| OpenEpoch[Open epoch continues\nNo completed Plonky3 epoch evidence yet]
+  Cadence -->|yes| Manifest[Build EpochManifestV2\n1000 statements, links, DA, witness, Nova root]
+  Manifest --> EpochStmt[Build EpochRangeStatementV2]
   EpochStmt --> PlonkyProve[Prove with Plonky3 recursive STARK]
   PlonkyProve --> CanonicalRange{Proves canonical transition range?}
   CanonicalRange -->|no| RangeReject[Reject Plonky3CanonicalRangeMissing]
   CanonicalRange -->|yes| NovaOnly{Depends only on Nova verifier?}
   NovaOnly -->|yes| NovaOnlyReject[Reject Plonky3DependsOnlyOnNova]
-  NovaOnly -->|no| PlonkyStore[Store Plonky3EpochProofV1]
+  NovaOnly -->|no| PlonkyStore[Store Plonky3EpochProofV2]
   PlonkyStore --> PQAnchor[Write PostQuantumCheckpointAnchorV1]
   PQAnchor --> Closed[Epoch closed under Plonky3/PQ-friendly proof]
 
@@ -2559,21 +2923,23 @@ tests - verifies -> req_archive
 1. Load and validate checkpoint contract config.
 2. Load or build a canonical `CheckpointTransitionStatementV1`.
 3. Compute `statement_core_digest_v1` and `statement_digest_v1`.
-4. Build `RecursiveCheckpointPublicInputV1`.
-5. Load deterministic `RecursiveCheckpointWitnessV1` fixture or archive refs.
-6. Run `nova_compressed_v1.prove_step`.
-7. Run `nova_compressed_v1.verify_step`.
-8. Write `RecursiveCheckpointSidecarV1` and `NovaCompressedBlockProofV1`
-   under the configured recursive and Nova proof paths.
+4. Build `RecursiveCheckpointPublicInputV2`.
+5. Load deterministic `RecursiveCheckpointWitnessV2` fixture or archive refs.
+6. Run the Nova IVC fold step and actual backend verification.
+7. At the configured compression snapshot cadence, compress and verify the Nova
+   proof with the pinned backend.
+8. Write `RecursiveCheckpointEvidenceV2` and the versioned Nova step/snapshot
+   artifact under the configured recursive and Nova proof paths.
 9. Repeat for 3 to 5 ordered checkpoint statements.
-10. Build and verify `RecursiveCheckpointChainEvidenceV1`.
-11. Emit `RecursiveCheckpointMeasurementV1`.
+10. Build and verify `RecursiveCheckpointChainEvidenceV2`.
+11. Emit `RecursiveCheckpointMeasurementV2`.
 12. Prove canonical checkpoint admission remains unchanged.
-13. If the fixture height is a PQ cadence height, build `EpochManifestV1` and
-    `EpochRangeStatementV1` for the completed epoch.
-14. If live enforcement is active, run `plonky3_stark_epoch_v1.prove_epoch`,
-    verify `Plonky3EpochProofV1`, and reject if canonical range proof is
-    missing or the proof depends only on Nova.
+13. If the fixture height is a PQ cadence height, build `EpochManifestV2` and
+    `EpochRangeStatementV2` for the completed epoch.
+14. In Phase 069 evaluation/tests, always run the real Plonky3 base proof and
+    recursive epoch prover/verifier for the acceptance fixture. Live enforcement
+    controls whether runtime requires the artifact at every cadence height; it
+    does not permit Phase 069 to close without real backend verification.
 15. Emit and validate `PostQuantumCheckpointAnchorV1` binding the Plonky3 epoch
     proof, epoch manifest, archive roots, and Nova chain root.
 16. Emit or update `CheckpointArchiveManifestV1` with raw package, exact proof
@@ -2588,18 +2954,28 @@ tests - verifies -> req_archive
     manifest, snapshot chunk root, PQ anchor, and retrieval audit.
 20. Allow `PruningDecisionV1` only for local full-node storage after all pruning
     gates pass. Archive-node pruning MUST reject.
-21. Emit or update `RecursiveCheckpointDocumentationPacketV1` with vectors,
+21. Emit or update `RecursiveCheckpointDocumentationPacketV2` with vectors,
     measurements, reject matrix, backend manifest red lines, and PQ cadence
     evidence.
 
 📌 Runtime MUST reject any attempt to shortcut from Nova sidecar or Plonky3
-epoch proof directly to checkpoint admission.
+epoch proof directly to checkpoint admission. Phase 069 acceptance MUST also
+reject any attempt to substitute the existing shape verifier for either real
+backend verifier.
 
 ## 🧨 Failure Model
 
 | Failure | Required response |
 | --- | --- |
 | Config missing recursive subset | Reject sidecar runtime mode. |
+| Shape-only verifier returns success but backend proof was not verified | Reject backend evidence as incomplete. |
+| Metadata claims canonical-range or PQ properties without an actual backend verification receipt | Reject as `BackendClaimUnsupported`. |
+| Context digest mismatches chain, network, genesis, config, or predicate | Reject as `MixedEra` or a versioned context-mismatch reason. |
+| Circuit/AIR or verifier parameter digest mismatches proof epoch | Reject before proof verification. |
+| Classical nested verifier is presented as end-to-end PQ validity | Reject documentation/promotion evidence. |
+| Reorg invalidates a queued or persisted proof job | Cancel or quarantine it; never attach it to the replacement branch. |
+| Prover queue, memory, witness, or time budget is exhausted | Fail the shadow job with a typed resource outcome; do not block canonical admission. |
+| Crash leaves a partial epoch artifact set | Recover idempotently and keep the epoch incomplete until every verified object is atomically persisted. |
 | Recursive branch marked authoritative | Reject config fail-closed. |
 | Missing statement digest | Reject public input. |
 | Wrong statement digest in proof | Reject proof. |
@@ -2646,6 +3022,7 @@ epoch proof directly to checkpoint admission.
 | Required archive provider receipt is missing | Reject as `ArchiveProviderReceiptMissing`. |
 | Retrieval audit is missing, stale, or failed | Reject as `RetrievalAuditMissing` or `RetrievalAuditFailed`. |
 | State snapshot misses Plonky3, epoch manifest, archive manifest, chunk, PQ, or retrieval binding | Reject as `SnapshotBindingIncomplete`. |
+| Snapshot is treated as a validity trust root before verified-backend promotion | Reject bootstrap acceptance; loading bytes alone remains non-authoritative. |
 | Full-node pruning is attempted before all configured gates pass | Reject as `PruningBeforeArchiveFinality`. |
 | Archive node pruning is attempted or enabled | Reject as `ArchiveNodePruningUnsupported`. |
 | Recursive documentation packet lacks vectors, reject matrix, or PQ cadence evidence | Reject phase closeout. |
@@ -2664,10 +3041,13 @@ Phase 069 MUST add unit tests for:
 - Recursive authority enabled rejects.
 - Verified backend enabled rejects before promotion gates.
 - Recursive profile that is not `hybrid_nova_plonky3` rejects.
-- Missing or disabled Nova branch rejects.
+- Missing Nova branch rejects; disabled Nova backend is accepted as degraded
+  before promotion and rejects when promotion evidence requires it live.
 - Nova cadence other than 1 rejects.
 - Nova `is_pq_authoritative: true` rejects.
-- Missing or disabled Plonky3 epoch branch rejects.
+- Missing Plonky3 epoch branch rejects; disabled Plonky3 backend is accepted as
+  degraded before promotion and rejects when promotion evidence requires it
+  live.
 - Plonky3 cadence mismatch with `post_quantum.cadence_blocks` rejects.
 - Plonky3 `must_prove_canonical_transition_range: false` rejects.
 - Plonky3 `must_not_depend_only_on_nova: false` rejects.
@@ -2723,6 +3103,10 @@ Phase 069 MUST add unit tests for:
   witness, delta, DA payload, provider receipt, or retrieval audit roots.
 - Archive provider receipt rejects unpinned IPFS records.
 - Retrieval audit rejects insufficient successful replicas.
+- Archive replica counting rejects duplicate operator/credential/endpoint or
+  configured failure-domain identities.
+- Retrieval audit rejects provider-selected, stale, replayed, or unbound
+  challenge samples.
 - State snapshot codec rejects missing Plonky3, epoch manifest, archive
   manifest, chunk, PQ, or retrieval bindings.
 - Pruning decision rejects archive-node target and early full-node pruning.
@@ -2731,6 +3115,14 @@ Phase 069 MUST add unit tests for:
 - Reject reason serialization is stable.
 - Measurements reject missing units, missing byte counts, missing backend label,
   and mismatched chain length.
+- Recursive context digest rejects cross-network, cross-genesis, cross-config,
+  and cross-predicate replay.
+- Epoch index/start/end formulas reject genesis, gaps, duplicates, overflow,
+  and implicit duplicate-last padding.
+- Effective generic/backend proof and sidecar caps match documented precedence.
+- Disabling optional full-node pruning remains valid and performs no deletion.
+- `pq_signature_or_commitment` uses a concrete verified algorithm contract or
+  is treated only as a non-authoritative evidence commitment.
 
 ### ✅ Integration Tests
 
@@ -2775,13 +3167,27 @@ Phase 069 MUST add integration tests for:
   enforcement and passes when the full anchor is present.
 - Cadence-height audit fails when the Plonky3 epoch proof or epoch manifest is
   missing under live enforcement.
+- The existing storage shape verifier cannot produce a cryptographic backend
+  receipt.
+- A real Nova proof verifies with the pinned backend and fails after constrained
+  witness, public-input, proof-byte, parameter, or context mutation.
+- A real Plonky3 base proof verifies the same transition-consistency predicate
+  as Nova and fails after constrained witness/public-input mutation.
+- A real recursive Plonky3 epoch proof verifies the ordered epoch and fails when
+  one base proof, one height, the leaf count, tree shape, or parameter digest is
+  changed.
+- Reorged or superseded jobs cannot enter the current sidecar, epoch manifest,
+  or PQ anchor.
+- Crash recovery resumes an incomplete proof write set idempotently and never
+  presents it as a complete epoch.
 
 ### ✅ Chain Tests
 
 Phase 069 MUST add chain tests for:
 
-- Valid 3-step mock chain.
-- Valid 5-step mock chain.
+- Valid 3-step and 5-step envelope/shape regression chains over the inherited
+  Phase 068 fixture surface.
+- Valid 3-step and 5-step chains backed by real Nova verification receipts.
 - Broken prior-output binding.
 - Wrong statement digest in one middle step.
 - Skipped step.
@@ -2797,10 +3203,12 @@ Phase 069 MUST add chain tests for:
 
 Phase 069 MUST add local simulator evidence for:
 
-- A deterministic 3-step recursive sidecar run.
-- A deterministic 5-step recursive sidecar run.
-- A deterministic Nova per-block proof run.
-- A deterministic Plonky3 epoch proof fixture at height 1000.
+- A deterministic-input 3-step recursive sidecar run.
+- A deterministic-input 5-step recursive sidecar run.
+- A deterministic-input Nova per-block fold/proof run with real verification.
+- A deterministic-input Plonky3 epoch proof fixture at height 1000 with real
+  verification. Production prover randomness remains non-deterministic CSPRNG
+  input under a separate profile.
 - Tampered middle proof rejection.
 - Tampered witness package rejection.
 - Canonical checkpoint admission unchanged before and after sidecar emission.
@@ -2851,7 +3259,7 @@ Phase 069 MUST add source or documentation guards proving:
 | ID | Given | When | Then |
 | --- | --- | --- | --- |
 | `RCP-AC-001` | A valid checkpoint statement fixture | Public input is built | The public input digest matches the golden vector. |
-| `RCP-AC-002` | A valid public input and witness | Nova adapter proves and verifies one step | `NovaCompressedBlockProofV1` verifies and remains non-authoritative. |
+| `RCP-AC-002` | A valid public input and witness | Nova adapter proves and verifies one step | `NovaStreamingCompressedBlockProofV2` verifies and remains non-authoritative. |
 | `RCP-AC-003` | Three ordered checkpoint statements | Chain evidence is verified | The 3-step chain passes prior-output binding. |
 | `RCP-AC-004` | Five ordered checkpoint statements | Chain evidence is verified | The 5-step chain passes prior-output binding. |
 | `RCP-AC-005` | A middle step output root is tampered | Chain evidence is verified | The chain rejects with `PriorOutputMismatch` or `OutputRootMismatch`. |
@@ -2869,7 +3277,7 @@ Phase 069 MUST add source or documentation guards proving:
 | `RCP-AC-017` | Phase 069 closeout is evaluated | Recursive docs packet is missing PQ cadence evidence | Closeout rejects with `RecursiveDocumentationIncomplete`. |
 | `RCP-AC-018` | Active config is loaded | Nova branch is marked PQ authoritative | Config rejects with `NovaPqAuthorityUnsupported` or equivalent fail-closed config error. |
 | `RCP-AC-019` | Active config is loaded | Plonky3 cadence differs from PQ cadence | Config rejects with `HybridCadenceMismatch` or equivalent fail-closed config error. |
-| `RCP-AC-020` | A completed 1000-block epoch exists | `EpochRangeStatementV1` is built | It binds every canonical statement digest, checkpoint link, witness root, DA/archive root, and optional Nova chain root. |
+| `RCP-AC-020` | A completed 1000-block epoch exists | `EpochRangeStatementV2` is built | It binds every canonical statement digest, checkpoint link, witness root, DA/archive root, and optional Nova chain root. |
 | `RCP-AC-021` | A Plonky3 proof only verifies Nova proofs | Epoch proof is validated | Validation rejects with `Plonky3DependsOnlyOnNova`. |
 | `RCP-AC-022` | A Plonky3 epoch proof omits canonical range binding | Epoch proof is validated | Validation rejects with `Plonky3CanonicalRangeMissing`. |
 | `RCP-AC-023` | A valid height-1000 epoch proof exists | PQ anchor is built | Anchor binds Plonky3 epoch statement digest, proof digest, public inputs digest, archive roots, and Nova chain root. |
@@ -2881,24 +3289,34 @@ Phase 069 MUST add source or documentation guards proving:
 | `RCP-AC-029` | A state snapshot is emitted | It omits latest Plonky3 epoch proof or archive manifest binding | Validation rejects with `SnapshotBindingIncomplete`. |
 | `RCP-AC-030` | A full node requests pruning | Dispute, Plonky3, manifest, archive replication, or retrieval audit gate is missing | Validation rejects with `PruningBeforeArchiveFinality`. |
 | `RCP-AC-031` | An archive node requests pruning | Pruning decision is validated | Validation rejects with `ArchiveNodePruningUnsupported`. |
+| `RCP-AC-032` | Arbitrary non-empty bytes satisfy the storage envelope | Backend verification is requested | Verification rejects; shape validity is not cryptographic validity. |
+| `RCP-AC-033` | A pinned Nova backend, frozen predicate, and valid witness exist | One IVC step is folded and verified | The real backend verifies the statement-bound step and emits a parameter/context-bound receipt. |
+| `RCP-AC-034` | A Nova proof or witness is mutated | The real Nova verifier runs | Verification rejects independently of envelope digest checks. |
+| `RCP-AC-035` | A pinned Plonky3 backend and valid base trace exist | The base STARK verifier runs | It verifies `CheckpointTransitionConsistencyV2`, not only public-root equality. |
+| `RCP-AC-036` | A completed epoch has exactly the configured consecutive steps | Recursive Plonky3 aggregation runs | The final proof verifies ordered statements, real leaf count, tree shape, context, predicate, and parameter digests. |
+| `RCP-AC-037` | A recursive proof is replayed on another network, genesis, config, or predicate | Backend verification runs | Verification rejects on context mismatch. |
+| `RCP-AC-038` | The outer Plonky3 proof verifies classical nested proof rules | Documentation and promotion evidence are evaluated | The artifact is labeled PQ-oriented outer evidence, not end-to-end PQ validity. |
+| `RCP-AC-039` | A proof job becomes stale after a reorg | Persistence is attempted | The job is canceled or quarantined and cannot enter the canonical branch manifest. |
+| `RCP-AC-040` | A prover exceeds queue, memory, or time budget | The shadow job fails | Canonical checkpoint admission continues and typed evidence-lag diagnostics are emitted. |
+| `RCP-AC-041` | A retrievable, digest-consistent snapshot has no promoted validity trust path | A new node bootstraps | Snapshot bytes may load, but state acceptance rejects until canonical trust validation succeeds. |
 
 ## 🧱 Implementation Slices
 
 | Slice | Goal | Exit gate |
 | --- | --- | --- |
-| `069-01` | Land this spec and source-disposition audit. | Spec exists, links resolve, rejected claims are explicit. |
-| `069-02` | Land the storage-owned `CheckpointContractConfigV1` validator for `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`. | Repo config loads; unknown fields, unsafe recursive authority, invalid PQ cadence, invalid paths, path collisions, and missing documentation gates reject. |
-| `069-03` | Add public input and witness fixture contracts. | Golden vectors and mutation tests pass. |
-| `069-04` | Add proof object, sidecar, codec, and reject reasons for hybrid profile. | Codec and reject taxonomy tests pass, including Nova PQ overclaim and Plonky3 Nova-only rejection. |
-| `069-05` | Add Nova compressed block proof object and adapter boundary. | One-step Nova prove/verify tests pass; proof binds statement, checkpoint link, prior output, and output root. |
-| `069-06` | Add Nova chain evidence verifier. | 3-step and 5-step positive and tamper tests pass; Nova chain root vectors exist. |
-| `069-07` | Add Plonky3 epoch statement/proof contract. | Epoch statement binds canonical 1000-block range; Nova-only Plonky3 proof rejects. |
-| `069-08` | Add epoch manifest and storage attachment. | Sidecar, Nova proof, Plonky3 proof, manifest, and PQ anchor cannot affect checkpoint admission. |
-| `069-09` | Add simulator chain evidence and measurements. | Deterministic Nova and Plonky3 simulator evidence emits and rejects tampering. |
-| `069-10` | Add Plonky3 PQ epoch cadence contract and fixtures. | Height 999/1000 cadence tests, epoch proof tests, anchor digest tests, and stage-gate tests pass. |
-| `069-11` | Add Archive Retention Layer, retrieval audits, and provider receipt contracts. | Celestia-as-archive, unpinned IPFS, insufficient replicas, and missing retrieval audit reject. |
-| `069-12` | Add state snapshot and pruning contracts. | Snapshot binding tests pass; full-node pruning requires all gates; archive-node pruning rejects. |
-| `069-13` | Add recursive documentation packet and audit guards. | No production admission, Nova PQ, Plonky3 Nova-only, size, DA-overclaim, Celestia-forever-storage, IPFS-without-pinning, or proof-as-storage claim survives and required docs are present. |
+| `069-01` | Reconcile this spec with the completed Phase 068 baseline. | Current types/callers/tests are inventoried; duplicate implementation tasks are removed; inherited regression gates are named. |
+| `069-02` | Run dependency, license, MSRV, API, and compile compatibility preflight. | One exact `nova-snark` pin and one internally compatible `p3-*`/`p3-recursion` set build in an isolated probe; no floating revision survives. |
+| `069-03` | Freeze recursive context, predicate, witness, field encoding, hash gadgets, parameter manifest, and golden vectors. | `CheckpointTransitionConsistencyV2` has an auditable R1CS/AIR constraint map and cross-backend vectors; end-to-end PQ non-claims are explicit. |
+| `069-04` | Create the backend crate and typed cryptographic receipt boundary. | Storage depends only on backend-neutral contracts; backend verification cannot be confused with the existing shape verifier. |
+| `069-05` | Implement the real Nova per-block IVC fold step. | Pinned Nova prover/verifier passes valid and constrained mutation tests with context/predicate/parameter binding. |
+| `069-06` | Resolve Nova compression cadence and chain recovery. | Measured per-block versus periodic compression decision is recorded; 3-step/5-step, restart, and reorg tests pass. |
+| `069-07` | Implement the real Plonky3 base STARK for the same transition-consistency predicate. | Base proof verifies constrained state updates and rejects witness/public-input/parameter mutation. |
+| `069-08` | Implement recursive Plonky3 epoch aggregation. | A configured epoch proof verifies exact ordered leaf count/tree shape and rejects Nova-only, missing-step, reordered, padded, or mixed-parameter inputs. |
+| `069-09` | Bind verified backend receipts into existing sidecar, epoch manifest, archive, and PQ-anchor schemas. | Only actual backend verification can populate verified evidence; canonical admission remains unchanged. |
+| `069-10` | Add bounded prover lifecycle, atomic persistence, restart, timeout, and reorg handling. | Resource exhaustion affects evidence availability only; stale/partial artifacts cannot appear complete. |
+| `069-11` | Benchmark proof size, fold/compression/prover/verifier time, peak memory, and witness size. | Local reproducible results replace imported targets or record a justified stop/split decision. |
+| `069-12` | Add simulator and cadence evidence over real backends. | Real 3-step/5-step Nova evidence and a bounded Plonky3 epoch fixture verify; height 999/1000 semantics remain non-authoritative. |
+| `069-13` | Close documentation, security, dependency, retention, and overclaim audits. | Backend packet records pins, parameters, receipts, limitations, archive/snapshot/pruning regression evidence, and no finality/PQ/production overclaim survives. |
 
 ## 🧾 Required Artifacts
 
@@ -2907,20 +3325,23 @@ Phase 069 MUST add source or documentation guards proving:
 | Spec | `.planning/phases/069-Recursive-Proof/069-TODO.md` | This document. |
 | Source audit | Phase 069 closeout or audit doc | Source disposition and rejected-claim register. |
 | Config fixture | `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml` | Full active config with canonical, recursive, DA, PQ, retention, paths, limits, and documentation gates. |
-| Dependency manifest | Future recursive proof crate `Cargo.toml` or Phase 069 closeout packet | Exact pinned `nova-snark`, `p3-*`, `ipfs-api-backend-hyper`, and Kubo binary versions or reviewed git revisions, plus documentation links and compatibility notes. |
-| Storage config validator | `crates/z00z_storage/src/checkpoint/contract_config.rs` | Strict `CheckpointContractConfigV1` loader, schema validator, path validator, authority gate, PQ cadence helper, and negative tests. |
+| Dependency manifest | Recursive proof crate `Cargo.toml` and Phase 069 closeout packet | Exact pinned `nova-snark` and compatible `p3-*` revisions plus documentation and compatibility notes; IPFS/Kubo pins are conditional on actual use. |
+| Storage config validator | Existing `crates/z00z_storage/src/checkpoint/contract_config.rs` | Reused strict loader plus Phase 069 semantic migration, effective-cap, optional-pruning, and compression-cadence tests. |
+| Predicate and constraint map | Recursive proof crate docs/tests | Exact `CheckpointTransitionConsistencyV2` R1CS/AIR mapping, witness columns/variables, bounds, hash gadgets, public-input order, and non-claims. |
+| Recursive context | Storage schema plus backend crate | Versioned chain/network/genesis/config/predicate bind with cross-context replay tests. |
+| Cryptographic verification receipt | Backend crate, consumed by storage integration | Backend revision, predicate/parameter/context/public-input/proof digests and actual verification verdict. |
 | Golden vectors | Storage or recursive proof tests | Statement, public input, Nova proof, Plonky3 epoch statement/proof, epoch manifest, proof object, and sidecar digests. |
-| Sidecar objects | `artifacts/checkpoints/recursive_shadow` in local runs | `RecursiveCheckpointSidecarV1` bytes and JSON report if needed. |
-| Nova block proofs | `artifacts/checkpoints/nova_block` in local runs | `NovaCompressedBlockProofV1` bytes, digest, statement binding, checkpoint-link binding, and prior-output binding. |
-| Chain evidence | Simulator output | 3-step and 5-step `RecursiveCheckpointChainEvidenceV1`. |
-| Epoch manifest | `artifacts/checkpoints/epoch_manifest` in local runs | `EpochManifestV1` binding statement roots, canonical artifact roots, link roots, archive roots, Nova root, and Plonky3 proof digest. |
+| Sidecar objects | `artifacts/checkpoints/recursive_shadow` in local runs | `RecursiveCheckpointEvidenceV2` bytes and JSON report if needed. |
+| Nova IVC artifacts | `artifacts/checkpoints/nova_block` in local runs | Per-block fold state plus measured-cadence compressed proof snapshots, digests, statement/link/context/parameter binding, and real verifier receipts. |
+| Chain evidence | Simulator output | 3-step and 5-step `RecursiveCheckpointChainEvidenceV2`. |
+| Epoch manifest | `artifacts/checkpoints/epoch_manifest` in local runs | `EpochManifestV2` binding statement roots, canonical artifact roots, link roots, archive roots, Nova root, and Plonky3 proof digest. |
 | Archive manifest | `artifacts/checkpoints/archive_manifest` in local runs | `CheckpointArchiveManifestV1` binding raw package, exact tx proof bytes, witness, delta, DA payload, provider receipts, retrieval audit, and content-address root. |
 | Archive receipts | `artifacts/checkpoints/archive_receipt` in local runs | `ArchiveProviderReceiptV1` entries for archive replicas, including pinned IPFS receipts when IPFS is used. |
 | Retrieval audits | `artifacts/checkpoints/retrieval_audit` in local runs | `RetrievalAuditV1` proving enough configured archive replicas remain retrievable. |
 | State snapshots | `artifacts/checkpoints/state_snapshot` in local runs | `StateSnapshotV1` binding state, settlement, Plonky3, epoch manifest, archive manifest, chunk, PQ, and retrieval roots. |
 | Pruning decisions | Storage checkpoint pruning tests | Positive local full-node pruning decision after gates and negative archive-node/early-pruning decisions. |
-| Plonky3 epoch proof | `artifacts/checkpoints/plonky3_epoch` in local runs | `Plonky3EpochProofV1` at default cadence heights with canonical range proof flag and Nova-only rejection evidence. |
-| Measurements | Simulator or benchmark output | `RecursiveCheckpointMeasurementV1` with local-spike label. |
+| Plonky3 base and epoch proofs | `artifacts/checkpoints/plonky3_epoch` in local runs | Real base proof of the accepted predicate and recursive epoch proof with exact leaf count/tree shape, backend receipts, and Nova-only rejection evidence. |
+| Measurements | Simulator or benchmark output | `RecursiveCheckpointMeasurementV2` with local-spike label. |
 | PQ anchor object | `artifacts/checkpoints/pq_anchor` in local runs | `PostQuantumCheckpointAnchorV1` at default cadence heights binding Plonky3 epoch proof and Nova chain root when live enforcement is active. |
 | PQ cadence vectors | Storage, recursive proof, or simulator tests | Height 999 no-anchor fixture, height 1000 anchor fixture, stage-gate positive and negative cases. |
 | Recursive docs packet | Phase 069 closeout | Schemas, vectors, sidecar and chain IDs, measurements, PQ cadence evidence, backend manifest, rejected-claim register. |
@@ -2972,6 +3393,14 @@ Phase 069 MUST reject any design that:
 - Claims PQ safety from Pedersen binding, DLP assumptions, or unproved folding.
 - Claims Nova compressed proofs are PQ-safe.
 - Claims Plonky3 PQ epoch proof can depend only on Nova proof verification.
+- Treats envelope/digest/boolean checks as cryptographic backend verification.
+- Claims end-to-end PQ validity while nested transaction primitives remain
+  classical.
+- Accepts cross-chain, cross-genesis, cross-config, or cross-predicate proof
+  replay.
+- Forces optional full-node pruning to be enabled.
+- Blocks canonical checkpoint admission on non-authoritative prover lag or
+  resource exhaustion.
 - Claims production proof sizes or state sizes without measured backend evidence.
 - Adds a second checkpoint theorem.
 
@@ -2979,18 +3408,28 @@ Phase 069 MUST reject any design that:
 
 Phase 069 is complete only when:
 
-- `RecursiveCheckpointPublicInputV1`, `RecursiveCheckpointWitnessV1`,
-  `RecursiveCheckpointProofV1`, `NovaCompressedBlockProofV1`,
-  `EpochRangeStatementV1`, `Plonky3EpochProofV1`, `EpochManifestV1`,
-  `RecursiveCheckpointSidecarV1`, `RecursiveCheckpointRejectReasonV1`,
-  `RecursiveCheckpointMeasurementV1`, and `RecursiveCheckpointChainEvidenceV1`
-  are specified and implemented or tracked as exact implementation tasks.
-- `CheckpointArchiveManifestV1`, `ArchiveProviderReceiptV1`,
+- The Phase 068 baseline for `RecursiveCheckpointPublicInputV2`,
+  `RecursiveCheckpointProofV2`,
+  `RecursiveCheckpointEvidenceV2`, `RecursiveCheckpointRejectReasonV2`,
+  `RecursiveCheckpointMeasurementV2`, and `RecursiveCheckpointChainEvidenceV2`
+  is inventoried and reused without a duplicate storage authority path.
+- Missing Phase 069 contracts, including `RecursiveCheckpointContextV2`, the
+  bounded witness material, Nova IVC artifacts, cryptographic receipts,
+  `EpochRangeStatementV2`, `Plonky3EpochProofV2`, and `EpochManifestV2`, are
+  implemented and tested, not merely tracked as future tasks.
+- Existing `CheckpointArchiveManifestV1`, `ArchiveProviderReceiptV1`,
   `RetrievalAuditV1`, `StateSnapshotV1`, and `PruningDecisionV1` are specified
-  and implemented or tracked as exact implementation tasks.
-- The Nova adapter proves and verifies one step.
-- The Plonky3 epoch adapter has a concrete implementation task and rejects
-  Nova-only epoch proofs.
+  and pass Phase 069 regression/integration gates; they are not reimplemented.
+- The Nova adapter cryptographically proves and verifies one real IVC step over
+  the frozen predicate, and the compression cadence decision is measured.
+- The Plonky3 adapter cryptographically proves and verifies the same base
+  predicate and one recursive epoch fixture; Nova-only aggregation rejects.
+- Shape-only verification, arbitrary proof bytes, metadata booleans, or a
+  concrete future task do not satisfy either backend requirement.
+- `RecursiveCheckpointContextV2` prevents cross-network, cross-genesis,
+  cross-config, and cross-predicate replay.
+- The accepted predicate and witness constraint map are complete, bounded, and
+  covered by mutation tests against both real backend verifiers.
 - Local 3-step and 5-step chain evidence passes.
 - Tampered chain evidence rejects.
 - Canonical checkpoint admission remains unchanged.
@@ -3005,11 +3444,65 @@ Phase 069 is complete only when:
 - Celestia is specified, tested, and documented as DA-only.
 - IPFS is allowed only with pinning, provider receipts, and retrieval audits.
 - State snapshot and local full-node pruning gates are specified and tested.
-- `RecursiveCheckpointDocumentationPacketV1` exists or is tracked as an exact
-  implementation task with all required sections.
+- Snapshot loading cannot become state-validity acceptance before a promoted
+  canonical trust path succeeds.
+- `RecursiveCheckpointDocumentationPacketV2` exists with all required sections
+  and is generated from persisted evidence.
 - Measurements are emitted as local spike evidence only.
+- Prover lifecycle tests cover bounded resources, non-blocking canonical
+  admission, atomic persistence, restart, parameter mismatch, and reorg
+  invalidation.
 - Audit guards reject production backend, PQ, DA, and size overclaims.
+- Audit guards state that a PQ-oriented outer Plonky3 proof does not upgrade
+  classical nested transaction primitives to end-to-end PQ validity.
 - All required unit, integration, chain, simulator, and audit tests pass.
+
+## ✅ Planning Handoff Checklist
+
+📌 A planner may now decompose Phase 069 only if every generated plan preserves
+the following checklist:
+
+- [x] Phase 068 baseline work is referenced as existing and verified, not
+  recreated.
+- [x] Phase registration reuses `.planning/phases/069-Recursive-Proof/`; the
+  append-only `phase.add` mutation is not used for this pre-existing phase.
+- [ ] Dependency compatibility and predicate/constraint design precede backend
+  crate implementation.
+- [ ] Nova fold cadence is separated from compression cadence.
+- [ ] Plonky3 base proof precedes recursive epoch aggregation.
+- [ ] Both backends prove the same scoped transition-consistency predicate.
+- [ ] Real backend verification receipts are required; storage shape checks are
+  not accepted as cryptographic closure.
+- [ ] Chain/network/genesis/config/predicate context is bound.
+- [ ] Effective proof/sidecar cap precedence and legacy PQ label migration are
+  explicit tasks.
+- [ ] Reorg, restart, bounded-resource, atomic-write, and parameter-rotation
+  behavior have executable tests.
+- [x] Archive/snapshot/pruning contracts are regression gates, not duplicate
+  implementation slices.
+- [ ] Phase closure requires real Nova and real Plonky3 verification; a failed
+  feasibility gate produces a stop/split packet, never a mock-backed success.
+- [ ] No plan enables `CheckpointProofSystem::VERIFIED` or claims end-to-end PQ
+  checkpoint validity.
+
+📌 Phase 069 is registered in `ROADMAP.md` and `STATE.md` against the existing
+phase directory. Registration did not create plan packets or execute
+`/gsd-plan-phase`.
+
+## ⚡ Live Scope Execution Directive
+
+📌 During Phase 069 execution, every target-design, future-design, planned, or
+otherwise forward-looking implementation statement in this specification and
+its listed normative references is a mandatory live-code requirement for this
+phase. Such wording records source history or implementation order; it does not
+defer a Nova, Plonky3, storage, runtime, simulator, test, or documentation
+deliverable outside Phase 069.
+
+📌 The sole exception is an explicit authority-promotion exclusion: Phase 069
+must implement and verify its scoped recursive evidence lanes while preserving
+the fail-closed prohibition on canonical `CheckpointProofSystem::VERIFIED`
+admission. A later promotion requirement is a security boundary, not permission
+to leave a Phase 069 implementation requirement as a design-only placeholder.
 
 ## 📎 Related Documents
 

@@ -1,18 +1,22 @@
 # Z00Z
 
-Z00Z is a privacy-first Rust workspace for private objects, wallet-local possession, checkpointed settlement, storage proofs, rollup services, and scenario-driven validation.
+> **Private objects. Wallet-local possession. Checkpointed settlement. Narrow public evidence.**
 
-This repository combines two layers that should be read separately:
+Z00Z is a private-object and settlement architecture. It keeps the private meaning of value and rights in wallets, moves transfers and claims as portable packages, and uses checkpoints to decide when a typed transition becomes final settlement.
 
-- live implementation crates and runnable tooling;
-- research and architecture corpus in `docs/whitepapers/` and `docs/tech-papers/`.
+Unlike a public-account chain, Z00Z is not designed around a permanent public graph of reusable accounts, balances, and ownership history. The public layer keeps the narrower artifacts required for shared verification: commitments, roots, deltas, proofs, checkpoint references, and settlement evidence. The wallet keeps the private context needed to recognize objects, prepare actions, and decide what to disclose.
 
-The codebase already exposes real Rust crates, tests, binaries, and verification gates. Some broader protocol claims in the research corpus still describe target architecture rather than fully shipped runtime behavior, so the README keeps those boundaries explicit.
+The goal is not to hide an ordinary account system behind stronger encryption. The goal is to change what must be public in the first place, while preserving replay-safe and independently verifiable settlement.
+
+This repository is the implementation and validation workspace for that model. It gives protocol, wallet, storage, and runtime builders concrete Rust crates, simulator scenarios, and verification gates without presenting the entire research architecture as an already deployed production network.
 
 ## Table of Contents
 
+- [Why Z00Z Exists](#why-z00z-exists)
+- [How Z00Z Works](#how-z00z-works)
+- [What Z00Z Is Not](#what-z00z-is-not)
+- [Repository Scope](#repository-scope)
 - [Quickstart](#quickstart)
-- [What Is In This Repository](#what-is-in-this-repository)
 - [Workspace Map](#workspace-map)
 - [Documentation Map](#documentation-map)
 - [Installation](#installation)
@@ -23,19 +27,79 @@ The codebase already exposes real Rust crates, tests, binaries, and verification
 - [Contributing](#contributing)
 - [License](#license)
 
+## Why Z00Z Exists
+
+Public-account systems usually make shared state answer a broad question: who owns what, under which address, after which public execution history? That model is easy to inspect, but it also creates a reusable public economic graph.
+
+Z00Z separates two kinds of truth:
+
+- **Wallet-local possession:** the wallet holds private object meaning, receiver material, local history, and the information needed to prepare a transfer or claim.
+- **Public settlement:** the checkpoint layer records only the bounded evidence needed to establish that a typed transition is valid, ordered, and replay-safe.
+
+This separation lets privacy and verifiability live at different layers. Privacy does not mean that nothing ever becomes public. It means the public surface is limited to what shared settlement actually needs.
+
+The target architecture extends the same model beyond coin balances to private assets, vouchers, payment requests, claims, and rights-oriented objects without turning every private relationship into a permanent public account row. That broader rights economy is corpus-backed direction and is not presented here as a fully deployed system.
+
+## How Z00Z Works
+
+```mermaid
+flowchart LR
+  Wallet["Wallet-local object<br/>possession and preparation"] --> Package["Portable package<br/>transfer, claim, or rights action"]
+  Package --> Checkpoint["Checkpoint validation<br/>final settlement boundary"]
+  Checkpoint --> Record["Public evidence<br/>without a public account graph"]
+
+  style Wallet fill:#E3F2FD,stroke:#1E88E5,stroke-width:1px,color:#0D47A1
+  style Package fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238
+  style Checkpoint fill:#EDE7F6,stroke:#5E35B1,stroke-width:1px,color:#311B92
+  style Record fill:#FFE0B2,stroke:#F57C00,stroke-width:1px,color:#263238
+```
+
+1. **Possess locally.** A wallet recognizes private objects and holds the private context needed to act on them.
+2. **Prepare a portable package.** A transfer, claim, or rights action carries bounded proof and transition material instead of exposing the wallet's full history.
+3. **Validate at a checkpoint.** Publication or local acceptance is not finality. Checkpoint rules decide whether the transition becomes canonical, ordered, and replay-safe settlement.
+4. **Publish narrow evidence.** The public record exposes what independent verification requires without becoming a reusable public ownership graph.
+
+## What Z00Z Is Not
+
+| Misleading category | Why it misses the project |
+| --- | --- |
+| A privacy coin with hidden balances | Z00Z changes the default object and settlement boundary rather than only hiding an account ledger. |
+| A generic private smart-contract chain | A universal hidden VM is not the primary model; typed objects, packages, checkpoints, and evidence are. |
+| A hosted wallet or payment network | Wallets and operators can provide services, but those services do not become the protocol's settlement authority. |
+| An official DEX, bridge, or custodian | Trading, bridging, custody, redemption, and issuer promises remain separate service roles with their own trust boundaries. |
+| A promise of total anonymity | Public proofs, roots, checkpoints, publication timing, and external services still create observable surfaces that must be evaluated separately. |
+
+## Repository Scope
+
+This repository combines two evidence layers that must be read separately:
+
+- **Live implementation:** Rust crates, binaries, tests, benchmarks, configuration fixtures, and verification tooling.
+- **Architecture corpus:** whitepapers and technical papers that define the wider protocol direction, maturity boundaries, and open research.
+
+The live workspace currently contains:
+
+- foundational crates for cryptography, typed objects, and shared utilities;
+- storage and proof surfaces for checkpointed settlement;
+- runtime crates for aggregation, validation, watching, and rollup-node orchestration;
+- wallet code with native, WASM, and GUI-oriented surfaces;
+- simulator binaries and tests for scenario-driven validation.
+
+> [!IMPORTANT]
+> Working crates and runnable tooling are real repository evidence. Broader claims from the research corpus—including some rights, service, disclosure, and migration lanes—remain target architecture until current code and tests prove them directly.
+
 ## Quickstart
 
 > [!IMPORTANT]
-> The active workspace is a Rust monorepo. The fastest successful first run is a workspace check plus CLI surface inspection, not a full protocol deployment.
+> The active workspace is a Rust monorepo. The fastest successful first run is a workspace check plus CLI surface inspection, not a full protocol deployment. Run Cargo workflows with `--release`: debug binaries and test runs can be substantially slower.
 
 ```bash
 rustup toolchain install stable
 rustup component add rustfmt clippy
 git clone https://github.com/z00z-labs/z00z.git
 cd z00z
-cargo check --workspace
-cargo run -p z00z_rollup_node -- --help
-cargo run -p z00z_simulator --bin scenario_1 -- --help
+cargo check --workspace --release
+cargo run --release -p z00z_rollup_node -- --help
+cargo run --release -p z00z_simulator --bin scenario_1 -- --help
 ```
 
 What this proves:
@@ -43,17 +107,6 @@ What this proves:
 - the workspace resolves and compiles locally;
 - the current rollup-node CLI contract is present;
 - the simulator binary surface is present.
-
-## What Is In This Repository
-
-Z00Z is not just a paper dump and not just a single crate. The repository currently contains:
-
-- foundational crates for cryptography, typed objects, and shared utilities;
-- storage and proof surfaces for checkpointed settlement;
-- runtime crates for aggregation, validation, watching, and rollup-node orchestration;
-- wallet crates with native, WASM, and GUI-oriented surfaces;
-- simulator binaries and tests for scenario-driven validation;
-- curated research and architecture documents in `docs/whitepapers/` and `docs/tech-papers/`.
 
 ## Workspace Map
 
@@ -67,7 +120,7 @@ Z00Z is not just a paper dump and not just a single crate. The repository curren
 | Transport | `z00z_networks_rpc`, `onionnet` | RPC and network-boundary crates in the active workspace |
 
 ```mermaid
-flowchart LR
+flowchart TD
   Docs["docs/whitepapers<br/>docs/tech-papers"] --> Design["Protocol and research guidance"]
   Design --> Apps["Wallets, simulator, rollup node"]
   Apps --> Runtime["Aggregators, validators,<br/>watchers, storage"]
@@ -123,14 +176,14 @@ If you want optimized WASM output from `scripts/build_wasm.sh`, install `wasm-op
 ### Build the workspace
 
 ```bash
-cargo check --workspace
-cargo test --workspace
+cargo check --workspace --release
+cargo test --workspace --release
 ```
 
 ### Inspect the current rollup-node CLI contract
 
 ```bash
-cargo run -p z00z_rollup_node -- --help
+cargo run --release -p z00z_rollup_node -- --help
 ```
 
 Current help output defines this live entrypoint:
@@ -145,27 +198,17 @@ z00z_rollup_node --mode aggregator --aggregator-config <path> --planner-config <
 ### Run the simulator surface
 
 ```bash
-cargo run -p z00z_simulator --bin scenario_1 -- --help
+cargo run --release -p z00z_simulator --bin scenario_1 -- --help
 ```
 
 ### Build wallet WASM artifacts
 
 ```bash
-./scripts/build_wasm.sh --dev
+./scripts/build_wasm.sh
 ./scripts/serve_wasm.sh 8000
 ```
 
-`./scripts/build_wasm.sh` writes browser artifacts into `www/pkg/`. `./scripts/serve_wasm.sh` serves the `www/` directory for local testing.
-
-### Inspect wallet-oriented binaries
-
-The wallet crate currently declares these notable binaries:
-
-- `z00z_wallet_egui`
-- `z00z-wallet-validate`
-- `gen_password_bloom`
-
-See [`crates/z00z_wallets/Cargo.toml`](crates/z00z_wallets/Cargo.toml) for the current binary, benchmark, feature, and target matrix.
+`./scripts/build_wasm.sh` writes optimized release artifacts into `www/pkg/`. `./scripts/serve_wasm.sh` serves the `www/` directory for local testing. Use `./scripts/build_wasm.sh --dev` only for short iteration loops.
 
 ## Verification
 
@@ -173,8 +216,8 @@ For normal development, use the standard Rust gates first:
 
 ```bash
 cargo fmt --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace
+cargo clippy --workspace --release --all-targets --all-features -- -D warnings
+cargo test --workspace --release
 ```
 
 For the repository-wide verification sweep, use the canonical script:
@@ -193,6 +236,8 @@ That script runs a broader gate that includes:
 - long-running test reporting;
 - optional heavy validation stages when enabled by environment flags.
 
+Its Cargo clippy, test, and benchmark stages already use the release profile.
+
 ## Maturity Model
 
 The repository follows a strict distinction between what is currently proved by code and what is currently described by the architecture corpus.
@@ -210,10 +255,10 @@ Practical rule:
 
 ## Troubleshooting
 
-- `cargo check --workspace` fails immediately: verify that your Rust toolchain is new enough for the workspace `rust-version = "1.90.0"`.
+- `cargo check --workspace --release` fails immediately: verify that your Rust toolchain is new enough for the workspace `rust-version = "1.90.0"`.
 - WASM build fails on `wasm-pack`: install `wasm-pack` and the `wasm32-unknown-unknown` target before running `scripts/build_wasm.sh`.
 - WASM build skips optimization: `wasm-opt` is optional; the script can still produce development output without it.
-- Full verification takes a long time: start with `cargo check --workspace`, `cargo test --workspace`, and only then run `full_verify.sh`.
+- Full verification takes a long time: start with `cargo check --workspace --release`, `cargo test --workspace --release`, and only then run `full_verify.sh`.
 - A research paper sounds broader than the shipped code: treat the paper as target architecture unless the current crate surfaces prove the claim directly.
 
 ## Contributing

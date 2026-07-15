@@ -1,3 +1,11 @@
+---
+title: "OnionNet Whitepaper"
+description: "Describes Z00Z transport privacy, route construction, membership, and replay-safe ingress without turning the network layer into settlement authority."
+difficulty: advanced
+icon: mdi:alpha-c-circle-outline
+toc: true
+---
+
 # Z00Z OnionNet Whitepaper
 
 [TOC]

@@ -7,7 +7,7 @@ mod types;
 
 pub use self::{
     error::PrepSnapshotError,
-    store::build_snapshot,
+    store::{build_snapshot, build_snapshot_v2},
     store::{PrepFsStore, PrepReplayEntry, PrepSnapshotStore},
     types::{PrepSnapshot, PrepSnapshotId, PrepSnapshotVersion},
 };

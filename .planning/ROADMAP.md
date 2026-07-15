@@ -168,6 +168,7 @@ This roadmap tracks the active GSD milestone and its executable phases.
   reran the mandatory bootstrap gate green on an isolated target directory,
   ended with green focused release validation, and left no active Phase 063
   lane remaining)
+
 - [x] **Phase 064: Gaps Closing 3** (added 2026-06-29; directory
   pre-existing `.planning/phases/064-Gaps-Closing-3/`; reuse the existing
   folder only; completed 2026-06-30 with `064-01` through `064-05`
@@ -176,6 +177,7 @@ This roadmap tracks the active GSD milestone and its executable phases.
   scope throughout execution, executable `z00z_utils` or `z00z_crypto` or
   `z00z_extensions` boundary audits plus local docs-link guards landed, and
   no active Phase 064 lane remaining)
+
 - [x] **Phase 065: Attack Surface** (added 2026-06-30; directory pre-existing
   `.planning/phases/065-Attack-Surface/`; reuse the existing folder only;
   `065-TODO.md` remains the normative human-readable authority; the legacy
@@ -188,6 +190,7 @@ This roadmap tracks the active GSD milestone and its executable phases.
   wallet-chain claim binding, explicit request or receiver-card hash-policy
   proofs, and a green broad `cargo test --release`; no active Phase 065 lane
   remains)
+
 - [x] **Phase 066: Local Pentest Orchestration** (added 2026-07-02;
   directory pre-existing `.planning/phases/066-Strix/`; reuse the existing
   folder only; `066-TODO.md` is the normative human-readable authority for
@@ -209,6 +212,7 @@ This roadmap tracks the active GSD milestone and its executable phases.
   consecutive clean manual review passes; security verified 2026-07-03 on
   `066-SECURITY.md` with `threats_open: 0`; no active Phase 066 lane remains,
   and no duplicate directory or parallel authority path is allowed)
+
 - [x] **Phase 067: Sharded Concensus** (added 2026-07-03; directory
   pre-existing `.planning/phases/000/067-Sharded-Concensus/`; reuse the existing
   folder only; `067-TODO.md` is the normative human-readable authority for
@@ -274,6 +278,7 @@ This roadmap tracks the active GSD milestone and its executable phases.
   `/GSD-Review-Tasks-Execution` attempts were captured with consecutive clean
   manual-review fallback after final sync, no active `067-*` lane remains,
   and Phase 046 stays paused after `046-04`)
+
 - [x] **Phase 068: Checkpoint Contract** (added 2026-07-07; directory
   pre-existing `.planning/phases/068-Checkpoint-Contract/`; reuse the existing
   folder only; `068-TODO.md` is the normative human-readable authority for
@@ -2711,6 +2716,7 @@ execution-prompt, and documentation-or-migration lanes. Phase 066 completed on
 - `.planning/phases/066-Strix/066-COVERAGE.md`
 - `.planning/phases/066-Strix/066-01-SUMMARY.md` through
   `.planning/phases/066-Strix/066-14-SUMMARY.md`
+
 - `.planning/phases/066-Strix/066-01-PLAN.md` through
   `.planning/phases/066-Strix/066-14-PLAN.md`
 
@@ -3003,3 +3009,159 @@ active `068-*` lane remains.
    `scenario_1` test target path and must not rely on a standalone
    `test-params-fast` lane that the live `z00z_simulator` crate rejects in
    release-capable builds.
+
+## Phase 069: Recursive Proof
+
+**Goal:** Deliver a non-authoritative hybrid recursive checkpoint proof lane using
+Nova IVC for checkpoint steps and Plonky3 recursive STARK evidence for bounded
+epochs over the existing Phase 068 checkpoint contract.
+
+**Requirements:** RCP-069
+**Depends on:** Phase 068 completion and its storage-owned checkpoint,
+recursive-sidecar, PQ-anchor, and authority-promotion contracts.
+**Plans:** 5/14 plans executed
+
+- [x] 069-01-PLAN.md
+- [x] 069-02-PLAN.md
+- [x] 069-03-PLAN.md
+- [x] 069-04-PLAN.md
+- [x] 069-05-PLAN.md
+- [ ] 069-051-PLAN.md
+- [ ] 069-06-PLAN.md
+- [ ] 069-07-PLAN.md
+- [ ] 069-08-PLAN.md
+- [ ] 069-09-PLAN.md
+- [ ] 069-10-PLAN.md
+- [ ] 069-11-PLAN.md
+- [ ] 069-12-PLAN.md
+- [ ] 069-13-PLAN.md
+
+**T1 acceptance (2026-07-14):** T1 is complete. The repository-local cutover validates every manifest/root binding, commits its CAS at immediate durability, reloads it, and rejects a second install. The evaluator consumes strict bounded opcode/JMT bytes, independently recomputes raw-SHA JMT transitions, and requires exact terminal→bucket→serial→definition child-root consumption. The authority-defined empty/no-op transition is explicit: config, authority digest, durable manifest, canonical transition, and independent evaluator bind the same execution-input version; only the sentinel handoff and a typed zero-update envelope are accepted. Five YOLO execution reviews ran (the final two clean) and two `doublecheck` passes completed. Bootstrap, targeted release suites, the full 187-unit/package `z00z_storage` release suite, `cargo build --release`, full workspace `cargo test --release`, and the release feature guard completed. T2 is now active; T3–T4 and Plan 06 remain locked on T2 acceptance.
+
+**Verification update (2026-07-14):** The current mandatory bootstrap completed. Release target suites pass: `test_recursive_v2_trace` 6/6 and `test_recursive_v2_cutover` 4/4; config-drift and JMT-envelope tamper regressions pass. The scoped recursive V1 elimination is complete; no executable recursive V1 selector or fallback remains. T1 is accepted and execution advances to T2. T2 dependency preflight pins and release-checks `nova-snark = 0.73.0` with its audited `io` feature only; its circuit/bundle/runner work remains active.
+
+**T2 execution update (2026-07-14):** The mandatory bootstrap reran successfully after the exact Nova dependency pin. T2 implementation is constrained to the sole private path `z00z_storage::checkpoint::recursive_v2::nova`; no public Nova type, V1 compatibility item, runtime SHA-width selector, duplicate JMT evaluator, or second circuit owner is permitted. T3–T4 and Plan 06 remain locked until the real `ShapeCS → PublicParams → RecursiveSNARK → CompressedSNARK::prove/verify` acceptance and review convergence evidence are retained.
+
+**T2 evidence update (2026-07-14):** One fixed 780-cell control relation, capped private authority-bundle framing, and constrained typed source-event phase/opcode/ordinal/payload-commitment limbs are implemented. Release tests pass for a real Nova control proof and one-bit source-event commitment tampering through the actual verifier. The expensive PP/VK bundle round-trip was stopped without a captured exit and is inconclusive. Full replay/SHA/uniqueness/JMT/hierarchy/final-input constraints, continuous runner, and complete adversarial mutation ledger remain open; T2 is not complete and T3–T4 remain locked.
+
+**T2 progression update (2026-07-15):** The private fixed-shape circuit now carries a 16-limb accumulator over canonical T1 source-event bindings and constrains exact ordinal succession. A real two-step compressed Nova proof passed in release mode; verifier-negative cases reject tampered event digests, skipped or reordered ordinals, and wrong initial accumulator limbs. This is not the authority-final trace root or full replay relation. T2 remains active and T3–T4 remain locked.
+
+**T2 terminal-binding update (2026-07-15):** `FINALIZE_BLOCK` now constrains each post-step accumulator limb to a persistent, range-constrained authority-supplied expected-root limb. The real release `real_nova_finalization_binds_authority_trace_root` compressed-proof test passed in 195.40 seconds and rejects early finalization, mismatched expected roots, and tampered expected-root values at verification. The carried accumulator is still not the canonical SHA `RecursiveTracePrecommitV2::trace_digest`, and its expected root is not bound to the canonical authority snapshot. T2 remains active; T3–T4 and Plan 06 remain locked.
+
+**T2 control-machine update (2026-07-15):** The private Nova witness and R1CS legal-edge/next-state relation now consume one explicit 35-edge production control table. A separate test-only 16×13 expected-edge matrix exhaustively checked all 208 phase/done/opcode tuples in release mode: exactly one successor or typed rejection, `FINALIZE_BLOCK` as the sole route to `done=1`, and early, double, generic-no-op, and post-final events rejected. The affected real compressed finalization regression passed in 193.83 seconds. This table is not yet shared with the independent trace validator/evaluator, so T2 remains active; T3–T4 and Plan 06 remain locked.
+
+**T2 verifier-bundle update (2026-07-15):** The private `CheckpointVerifierBundleV2` completed a real release `ShapeCS → PublicParams → recursive/compressed proof → encode → strict canonical load → loaded-key decode/verify` flow in 453.38 seconds. The measured PP/VK/proof/header/bundle sizes are 451,157,344/273,174,184/37,808/490/724,332,018 bytes, below the unchanged 939,525,120-byte bundle cap. Authority/profile/spec/source/lock header mutations (with recomputed project digest) and PP payload mutation reject before proof decoding. This is bundle evidence only: no runner/receipt integration or T2 acceptance claim follows; T3–T4 and Plan 06 remain locked.
+
+**T2 review-pass-2 update (2026-07-15):** Inline `/GSD-Review-Tasks-Execution` pass 2 found and fixed the under-constrained boolean `done`: the allocated bit now has an R1CS equality to `z[DONE_CELL]`, and the exact release `DONE_CELL=2` regression is unsatisfied. The active-shape finalization rerun passed in 197.71 seconds, and the active-shape full PP/VK bundle rerun passed in 461.15 seconds; the pre-fix values remain historical diagnostics only. Pass 2 is not clean: the circuit still lacks the canonical SHA trace/replay/uniqueness/net/JMT/hierarchy/statement relations and source-expander EOF binding; the accumulator is not `RecursiveTracePrecommitV2::trace_digest`; table sharing, selected measured SHA width, complete parser/mutation/Model B/C corpus, and runner/receipt are absent. T2 remains active; T3–T4 and Plan 06 remain locked.
+
+**T2 SHA/preflight update (2026-07-15):** The one private Nova owner now allocates a fixed 64-byte FIPS SHA-256 compression gadget on every step. `SHA_BLOCK` R1CS-binds block bytes, eight u32 chaining words, ordinal, and output; an inactive lane is uniquely zero and preserves SHA state. It reuses `CheckpointSha256BlockV2` only as the native witness/differential source, with no native-validity acceptance path or runtime width selection. Exact sparse shape/preflight values are C=46,719, V=45,645, NZ=223,454, N=223,454, G=262,145; cap+1/overflow paths return typed `Resource` before setup. One real release gated setup→IVC→compression→bundle/load/loaded-key verification passed: PP/VK/proof/header/bundle are 457,647,656/273,174,184/37,808/490/730,822,330 bytes, wall 7:32.03, peak RSS 15.30 GiB, no swap. This is one-compression-lane evidence only, not full framed SHA/trace digest or a selected measured SHA width; T2 remains active and T3–T4/Plan 06 remain locked.
+
+**T2 canonical-hash-control update (2026-07-15):** The private Nova owner now consumes the sole `recursive_trace` expander's source→Begin→Block*→End control sequence. One decoded `HashControlBindingV2` feeds the SHA witness; R1CS binds source hash, role, framed message length, block count/index/offset, final flag, chaining, and digest, while separate state counters constrain global schedule, source-record, and encoded high-bit control ordinals. Canonical sequence and independent metadata/order/block/chaining mutations pass focused release tests; fixed shape is C=47,210, V=45,594, NZ=224,501, with cap+1/overflow preflight rejection before setup. The captured current-shape real setup→IVC→compression→strict bundle/load/loaded-key verify passes in 454.95 seconds; PP/VK/proof/header/bundle are 457,701,320/273,174,184/37,808/490/730,875,994 bytes. This verifies per-source `hash_binding` controls only, not global `RecursiveTracePrecommitV2::trace_digest` or full T2 SHA/replay; T2 remains active and T3–T4/Plan 06 remain locked.
+
+**T2 global-trace update (2026-07-15):** The one spool now emits a grammar-tagged TracePrecommit BEGIN/BLOCK*/END sequence after per-source controls, using the same decoder and one Nova SHA lane. During the existing replay, canonical source records are absorbed exactly once; the global controls bind source count/bytes, schema/role, EOF, exact framed byte length, padding-zero count, bit length, block count/index/offset/final marker, chaining, and the expected `RecursiveTracePrecommitV2::trace_digest`. Two-source canonical R1CS and source/order/length/role/schema/framing/padding/bit-length/count/EOF/digest mutation tests pass. Current shape is C=47,645, V=45,937, NZ=226,133; cap+1/overflow preflight rejects before setup. Captured `real_nova_global_trace_bundle_loads_and_verifies_compressed_proof` passes in 449.56 seconds with PP/VK/proof/header/bundle 457,777,040/273,174,184/37,808/490/730,951,714 bytes. **Review pass 3 correctly rejects this as full source→trace evidence:** the current SHA lane constrains a witness-supplied block stream and its geometry/chaining, but not byte equality to the canonical source records/framing. T2 is therefore redesigning the same one-spool, one-64-byte-lane schedule to stream R1CS-bound canonical record-byte chunks through concurrent O(1) source/global SHA contexts; it may not use a digest/preimage, same-length, raw-64-MiB-state, second-spool, or per-source-only fallback. This does not establish exact trace bytes, replay, uniqueness, JMT, hierarchy, statement, runner, or T2 acceptance; T3–T4 and Plan 06 remain locked.
+
+**T2 canonical-chunk foundation update (2026-07-15):** `recursive_trace` now owns one reusable canonical source-record encoder/parser and strict 64-byte zero-padded `TraceChunk` control grammar (`version|source ordinal LE|chunk ordinal LE|chunk count LE|byte count|bytes[64]`) in a disjoint bit-62 ordinal space. Header/payload cut-point tests exercise reconstruction from that sole byte view; the old Nova fixed-shape fixture explicitly rejects `TraceChunk` rather than manufacturing a no-op edge. This is intentionally not an acceptance claim: emission waits for the single-gadget concurrent source/global context transition, and four release dead-code warnings remain until those production paths consume the grammar. T2 remains active; T3–T4 and Plan 06 remain locked.
+
+**T2 canonical-chunk schedule update (2026-07-15):** The sole spool now emits the strict encoder-derived chunks immediately before each corresponding source record. The backend-neutral evaluator rejects an over-profile `chunk_count` before allocation, retains at most one bounded source record's chunk sequence, and compares every ordinal, count, meaningful byte, and zero tail against that same canonical encoder before semantic processing or the derived source hash schedule. The integration trace suite and focused release source/global-control fixtures pass; this removes the former production dead-code warnings without suppression. The private Nova table still rejects `TraceChunk`, because a generic self-loop, a digest-only accumulator, or a host-side byte assertion would leave review pass 3's byte-to-SHA gap intact. The next active T2 slice is the single fixed-width R1CS byte-context and exact chunk-to-block equality; T2 is not accepted, and T3–T4/Plan 06 remain locked.
+
+**Status:** `069-051-T0` completed on 2026-07-13 and `069-051-T1` completed on 2026-07-14. `RepositoryLocalNoLiveV1` has a two-process opaque fixture capture; scoped recursive V1 source/package/tests, codec/store/config ingress, stale mirrors, and named release-cache artifacts are removed. V2-only normative authority names one path, `z00z_storage::checkpoint::recursive_v2`; coverage is 1084/1084 without drift; external release consumers prove deleted types/codecs/features fail. T1 provides one resolver-derived repository-local capability and snapshot binding, private bounded source spool, actual pinned-HJMT traces, immediate-durability redb CAS cutover/reload, typed V2 statement, strict independently evaluated opcode/JMT/hierarchy relation, and exactly one authority-defined typed empty/no-op transition. The no-op contract is digest- and manifest-bound and rejects every generic empty handoff or envelope substitution. Bootstrap, full storage/workspace release build/tests, release feature guard, five YOLO reviews (the last two clean), and two doublechecks passed. `069-051-T2` is active; it alone owns the uniform Nova micro-step and immutable verifier bundle. T3–T4 and Plan 06 may not start until T2 accepts. The version-managed release commit awaits explicit authority because the shared worktree has unrelated user changes. `069-02` resolved its documented successor decision:
+registry `p3-recursion 0.1.0` remains rejected as a placeholder, while exact
+upstream commit `b36339709a7a67ee9760fb578b3d4339fd983709` resolves the P3
+`0.6.1` recursion family and executes a real KoalaBear/Poseidon2 recursive
+proof. The workspace P3 `0.4.3` hash policy stays private to `z00z_crypto`; the
+live recursion adapter may receive only project-owned canonical bytes. The
+locked real Nova probe co-resolves that boundary but cannot substitute for P3
+evidence or authority. `069-03` froze the one storage-owned bounded predicate,
+context/witness/parameter encoding, V2 non-authenticating epoch-evidence
+commitment, and stable reject taxonomy; its final isolated root release gate
+passed. `069-04` added the non-authoritative isolated Nova/P3 receipt boundary with real
+library-smoke verification and no public backend types. `069-05` owns private
+exact Goldilocks Poseidon2 and finite-input `hash_zk` R1CS components with
+native differential/mutation evidence. The original `069-051-T1` padded
+64 MiB arena premise is no longer accepted as a completed contract.
+`069-051-T2-CRYPTO-AUDIT-2.md` establishes that the 67,108,864-byte value is a
+total storage/witness cap, not one Nova-step shape. The existing pinned-Nova
+`ShapeCS` abort—603,979,776 minimum auxiliary variables/constraints before the
+semantic relation—remains valid falsification of that representation only.
+It is not a theorem-level resource lower bound.
+
+Audit 2 additionally records an executable V1 byte-field alias, insufficient
+rate-seven sponge capacity, incomplete native replay/HJMT update semantics,
+false-positive fixtures, conflated storage/recursive roots, a test-only
+`TrivialCircuit` Nova proof, underbound smoke-only receipt, and invalid
+independent per-block IVC restart assumptions. A release Pallas/Vesta
+feasibility experiment completed a SHA-bound 64-byte step, real setup, IVC,
+Spartan compression, and compressed verification with 55,205 primary
+constraints and 261,984 KiB runtime peak RSS. Its temporary source/executable
+were removed.
+
+Further direct root-source review found that V1 `SettlementModel::root` is a
+separate weak Poseidon2 computation, HJMT paths reconstruct the SHA definition
+backend root, V1 batch headers hard-code generation/binds V1, and a root pair in
+Nova `z0` would not prove state equivalence. The sole permitted recovery is
+therefore one authority-pinned deterministic storage migration in the existing
+owners to `RootGeneration::SettlementV2`, whose digest is derived with the
+canonical SHA-256 helper from HJMT layout/policy/definition root; one
+settlement-owned V2 HJMT envelope and actual-length typed event trace; streamed
+field-bound SHA/JMT work; two-pair sorted/permutation uniqueness; one directly
+compiled algebraically gated fixed-shape private Nova checkpoint circuit; and one
+continuous IVC across blocks with compression only at finalized boundaries.
+After T0 capture, V1 must be physically eradicated; only its opaque migration record and inert negative test bytes may remain. There may be no live V1/V2 selector,
+recursive projection root, asserted cutover pair, V1 Poseidon settlement lane,
+native-validity/sort shim, reduced theorem, alias, duplicate JMT walker, or
+parallel circuit/state/root owner. `069-051-PLAN.md` has been rewritten and
+reviewed in place from T1 through T4. Its source-bound coverage closes 55/55
+Audit-2 E-IDs, 347/347 non-fenced audit list items, A-01..A-17,
+DC2-F01..DC2-F24, every named lemma/attack/
+vendor row through the mandatory theorem matrix, and all 31 Plan 05 TODO atoms.
+The existing canonical coverage audit now checks the active `069-051` overlay,
+all four continuation task schemas/verification gates, and those 31 inherited
+atoms directly; it no longer relies only on the superseded Plan-05 task text.
+The reviewed T2 sequence also measures a finite compile-time SHA batch-width
+set and freezes exactly one width before authoritative PP/VK generation; no
+runtime-selectable or parallel circuit path is permitted.
+Corrected migration/code/tests, production receipt, and end-to-end verifier
+evidence remain incomplete; T0 is complete and execution is at partial T1,
+while T2–T4 and Plan 06 are locked.
+Two independent planning doublechecks pass: the first verifies AUDIT-2 claims,
+owners, constraints, tests, and Models A/B/C; the second verifies `069-TODO.md`
+against the 1084-atom ledger and the exact 31-atom Plan 05 disposition. The
+current mandatory release bootstrap, full root
+`cargo test --release` through final doc-tests, full `cargo build --release`,
+and release-feature guard all exit `0`; they establish a regression-green
+baseline but cannot certify unimplemented T1-T4 behavior. Scoped cargo-deny
+source/license/advisory checks pass; its nested path/workspace `bans` diagnostics
+remain a production/promotion blocker, not a waiver. The
+deterministic audit covers 1084/1084 TODO atoms, 66/66 scoped semantic owners,
+and 149/149 test-section owners. These are planning/baseline facts only and do
+not certify the unimplemented T1–T4 path.
+The 2026-07-14 final source-bound doublecheck binds the 4,325-line AUDIT-2
+snapshot `7638cbf46e7410b8627e9d734682a11fd185ddb4bb68f9d8b225f38cfc18751f`,
+recomputes the exact Nova fold and two-pair uniqueness bounds, and records five
+review passes with the last two clean for audit/plan coverage. It also records
+the current blockers DC2-F11–F24 and the absence of a live Nova dependency,
+uniform circuit, authority-pinned verifier bundle, continuous runner, and real
+Models A/B/C verifier targets. Bootstrap, full workspace release tests/build,
+targeted V2 tests, and security guards pass; they do not unlock Plan 06.
+Plan 069-01 froze the Phase 068 owner ledger, made target/future design wording
+explicit live scope, canonicalized the live-boundary whitepaper source path,
+passed the required bootstrap, release-feature, and full release test gates,
+and recorded six YOLO reviews with two consecutive clean final passes.
+**Directory:** `.planning/phases/069-Recursive-Proof/` (pre-existing; do not
+create or duplicate).
+**Authority:** `069-TODO.md` and its referenced design/whitepaper corpus are
+phase authority and mandatory live implementation scope; current code, tests,
+and repository configuration remain implementation ground truth. Target/future
+design statements are live scope, not deferred status.
+**Execution gate:** `069-03` permits only the frozen byte-only storage predicate
+boundary. Plan 04 must consume it without duplicating schema, theorem, reject,
+or config ownership. No P3 type/value conversion may cross into storage or
+rollup public APIs. Planning and the isolated probe must not enable
+`CheckpointProofSystem::VERIFIED` or make recursive evidence authoritative.
+
+**Success Criteria:**
+
+1. All 13 plans execute in dependency order against the existing phase folder.
+2. Phase 068 schemas and validators are extended, never duplicated.
+3. Real Nova and Plonky3 verification satisfy the acceptance and rejection gates
+   before any authority-promotion claim.

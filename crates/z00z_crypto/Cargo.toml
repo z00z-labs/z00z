@@ -32,7 +32,7 @@ tari_bulletproofs_plus = { path = "./tari/bulletproofs_plus", features = [
 chacha20poly1305 = { version = "0.10", features = ["std"] }
 bip39 = { version = "2.2.2", features = ["all-languages"] }
 hkdf = "0.12"
-sha2 = "0.10"
+sha2 = { version = "0.10", features = ["compress"] }
 hmac = "0.12"
 bip32 = { version = "0.5", features = ["secp256k1"] }
 argon2 = "0.5"

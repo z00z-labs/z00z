@@ -1,3 +1,11 @@
+---
+title: "Uniqueness Whitepaper"
+description: "Explains why Z00Z is more than a privacy coin by centering private wallet-local objects, bounded rights, and later settlement evidence."
+difficulty: basic
+icon: mdi:alpha-a-circle-outline
+toc: true
+---
+
 # Z00Z Uniqueness Whitepaper
 
 [TOC]

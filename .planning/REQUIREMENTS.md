@@ -163,6 +163,10 @@ Phase 034 closure package is rooted in `034-08-SUMMARY.md`, `034-VALIDATION.md`,
 - [ ] **P-044-011**: WHEN restore writes tx history, THE SYSTEM SHALL write archived JSONL bytes back to the restored wallet stem's live JSONL path and SHALL NOT reconstruct history from extracted records or expand rows into per-tx JSON files.
 - [ ] **P-044-012**: WHEN existing `wallet_<stem>_tx_history/` directories are encountered, THE SYSTEM SHALL treat them as legacy migration input only, preserve tx bytes, write `Migrated` JSONL entries, and SHALL NOT delete legacy directories automatically.
 
+### Recursive Checkpoint Proof
+
+- [ ] **RCP-069**: WHEN Phase 069 is executed, THE SYSTEM SHALL implement and locally verify the complete non-authoritative Nova IVC plus Plonky3 recursive-STARK checkpoint evidence contract defined by `.planning/phases/069-Recursive-Proof/069-TODO.md`, SHALL preserve the Phase 068 storage-owned theorem and canonical admission path, SHALL close all thirteen required plan groups with real backend and negative-test evidence, and SHALL NOT substitute shape checks, placeholders, deferred local correctness, Nova-only PQ claims, or end-to-end PQ claims over classical nested primitives.
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -281,13 +285,14 @@ Phase 034 closure package is rooted in `034-08-SUMMARY.md`, `034-VALIDATION.md`,
 | P-044-010 | Phase 044 | Planned |
 | P-044-011 | Phase 044 | Planned |
 | P-044-012 | Phase 044 | Planned |
+| RCP-069 | Phase 069 | Planned |
 
 **Coverage:**
 
-- v0.15 + vNext active requirements: 103 total
-- Mapped to phases: 103
+- v0.15 + vNext active requirements: 104 total
+- Mapped to phases: 104
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-06-23 after Phase 060 sender-authority wording was synchronized to the live canonical module path*
+*Last updated: 2026-07-11 after Phase 069 recursive-proof planning authority was registered*

@@ -18,21 +18,21 @@ pub const CHECKPOINT_CONTRACT_CONFIG_PATH: &str =
 pub const AUTHORITY_PROMOTION_STAGE_SPEC_ONLY: &str = "spec_only";
 pub const AUTHORITY_PROMOTION_STAGE_CONFIG_GATE: &str = "config_gate";
 pub const AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT: &str = "canonical_extended_statement";
-pub const AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR: &str = "recursive_shadow_sidecar";
 pub const POST_QUANTUM_MODE: &str = "plonky3_epoch_proof";
 pub const POST_QUANTUM_ENFORCEMENT_STAGE: &str = "pq_anchor_writer";
 pub const VERIFIED_BACKEND_CANDIDATE_STAGE: &str = "verified_backend_candidate";
 pub const VERIFIED_BACKEND_ENABLED_STAGE: &str = "verified_backend_enabled";
-pub const VERIFIED_BACKEND_PROOF_OBJECT: &str = "VerifiedCheckpointProofV1";
-pub const VERIFIED_BACKEND_VERIFIER_API: &str = "VerifiedCheckpointVerifierV1";
-pub const VERIFIED_BACKEND_CODEC_SUPPORT: &str = "VerifiedCheckpointArtifactV1";
-pub const VERIFIED_BACKEND_ADAPTER_TRAIT: &str = "VerifiedCheckpointBackendAdapterV1";
-pub const VERIFIED_BACKEND_CHAIN_EVIDENCE_OBJECT: &str = "RecursiveCheckpointChainEvidenceV1";
+pub const VERIFIED_BACKEND_PROOF_OBJECT: &str = "VerifiedCheckpointProofV2";
+pub const VERIFIED_BACKEND_VERIFIER_API: &str = "VerifiedCheckpointVerifierV2";
+pub const VERIFIED_BACKEND_CODEC_SUPPORT: &str = "VerifiedCheckpointArtifactV2";
+pub const VERIFIED_BACKEND_ADAPTER_TRAIT: &str = "VerifiedCheckpointBackendAdapterV2";
+pub const VERIFIED_BACKEND_CHAIN_EVIDENCE_OBJECT: &str = "RecursiveCheckpointChainEvidenceV2";
 pub const VERIFIED_BACKEND_ROLLBACK_PROCEDURE: &str =
     "disable_verified_backend_without_statement_change";
 pub const VERIFIED_BACKEND_STATEMENT_STABILITY: &str = "CheckpointTransitionStatementV1";
 pub const VERIFIED_BACKEND_REVIEW_PENDING: &str = "pending";
 pub const VERIFIED_BACKEND_REVIEW_APPROVED: &str = "approved";
+/// V2 writes only the non-authenticating evidence-commitment field name.
 pub const POST_QUANTUM_REQUIRED_ARTIFACTS: [&str; 9] = [
     "pq_statement_digest",
     "pq_delta_root",
@@ -42,7 +42,7 @@ pub const POST_QUANTUM_REQUIRED_ARTIFACTS: [&str; 9] = [
     "plonky3_epoch_proof_digest",
     "plonky3_public_inputs_digest",
     "nova_chain_root",
-    "pq_signature_or_commitment",
+    "epoch_evidence_commitment",
 ];
 pub const VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS: [&str; 7] = [
     "wrong_root",
@@ -61,6 +61,11 @@ pub const VERIFIED_BACKEND_REQUIRED_BENCHMARKS: [&str; 5] = [
     "witness_size",
 ];
 const CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES: u64 = 256 * 1024;
+const CHECKPOINT_CONTRACT_MAX_OBJECT_BYTES: usize = 256 * 1024 * 1024;
+
+const fn is_false(value: &bool) -> bool {
+    !*value
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -123,15 +128,39 @@ pub struct RecursiveBranchCfg {
     pub has_prior_output_binding: bool,
     pub min_chain_steps: u32,
     pub target_chain_steps: u32,
+    pub no_op: RecursiveNoopCfg,
+}
+
+/// Authority-pinned schema for the sole legal recursive V2 empty transition.
+///
+/// It is intentionally not a generic execution switch: the exact input
+/// version, empty-handoff mode, and root-preservation rule are all part of the
+/// checkpoint-contract digest consumed by the recursive authority.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecursiveNoopCfg {
+    pub is_enabled: bool,
+    pub execution_input_version: u8,
+    pub mode: String,
+    pub requires_empty_handoff: bool,
+    pub preserves_settlement_root: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct NovaBranchCfg {
     pub is_enabled: bool,
-    pub cadence_blocks: u64,
     pub is_authoritative: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
     pub is_pq_authoritative: bool,
+    #[serde(default)]
+    pub selected: bool,
+    #[serde(default)]
+    pub is_available: bool,
+    #[serde(default)]
+    pub fold_cadence_blocks: u64,
+    #[serde(default)]
+    pub compressed_proof_snapshot_cadence_blocks: u64,
     pub mode: String,
     pub proof_system: String,
     pub has_prior_output_binding: bool,
@@ -146,7 +175,14 @@ pub struct Plonky3EpochBranchCfg {
     pub is_enabled: bool,
     pub cadence_blocks: u64,
     pub is_authoritative: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
     pub is_pq_authoritative: bool,
+    #[serde(default)]
+    pub selected: bool,
+    #[serde(default)]
+    pub is_available: bool,
+    #[serde(default)]
+    pub provides_pq_epoch_evidence: bool,
     pub mode: String,
     pub proof_system: String,
     pub must_prove_canonical_transition_range: bool,
@@ -235,7 +271,6 @@ pub struct OutputGatesCfg {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactGatesCfg {
-    pub has_recursive_sidecar_non_authoritative: bool,
     pub has_pq_anchor_on_cadence: bool,
     pub has_mixed_era_fail_closed: bool,
 }
@@ -274,6 +309,8 @@ pub struct PostQuantumCfg {
     pub mode: String,
     pub enforcement_stage: String,
     pub enforce_live_cadence: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub epoch_evidence_commitment: String,
     pub required_artifacts: Vec<String>,
 }
 
@@ -337,7 +374,6 @@ pub struct CheckpointContractPaths {
     pub prep_snapshots: PathBuf,
     pub delta_journals: PathBuf,
     pub witness_archives: PathBuf,
-    pub recursive_sidecars: PathBuf,
     pub nova_block_proofs: PathBuf,
     pub pq_checkpoints: PathBuf,
     pub plonky3_epoch_proofs: PathBuf,
@@ -361,7 +397,6 @@ pub struct CheckpointResolvedPaths {
     pub prep_snapshots: PathBuf,
     pub delta_journals: PathBuf,
     pub witness_archives: PathBuf,
-    pub recursive_sidecars: PathBuf,
     pub nova_block_proofs: PathBuf,
     pub pq_checkpoints: PathBuf,
     pub plonky3_epoch_proofs: PathBuf,
@@ -383,8 +418,6 @@ pub struct CheckpointContractLimits {
     pub max_batch_ops: usize,
     pub max_batch_bytes: usize,
     pub max_witness_bytes: usize,
-    pub max_recursive_proof_bytes: usize,
-    pub max_recursive_sidecar_bytes: usize,
     pub max_nova_block_proof_bytes: usize,
     pub max_epoch_nova_archive_bytes: usize,
     pub max_plonky3_epoch_proof_bytes: usize,
@@ -399,7 +432,6 @@ pub struct CheckpointContractLimits {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DocumentationCfg {
-    pub recursive_packet_required: bool,
     pub include_source_disposition: bool,
     pub include_object_schemas: bool,
     pub include_golden_vectors: bool,
@@ -441,7 +473,6 @@ impl CheckpointContractConfigV1 {
             prep_snapshots: root.join(&self.paths.prep_snapshots),
             delta_journals: root.join(&self.paths.delta_journals),
             witness_archives: root.join(&self.paths.witness_archives),
-            recursive_sidecars: root.join(&self.paths.recursive_sidecars),
             nova_block_proofs: root.join(&self.paths.nova_block_proofs),
             pq_checkpoints: root.join(&self.paths.pq_checkpoints),
             plonky3_epoch_proofs: root.join(&self.paths.plonky3_epoch_proofs),
@@ -459,12 +490,10 @@ impl CheckpointContractConfigV1 {
     }
 
     pub fn validate(&self) -> Result<(), CheckpointError> {
-        require_eq_u32("version", self.version, 1)?;
-        require_eq(
-            "profile",
-            &self.profile,
-            "checkpoint-contract-recursive-ready-v1",
-        )?;
+        if self.version != 2 {
+            return invalid("version must be 2");
+        }
+        require_eq("profile", &self.profile, "checkpoint-contract-streaming-v2")?;
         require_eq(
             "architecture_mode",
             &self.architecture_mode,
@@ -487,6 +516,11 @@ impl CheckpointContractConfigV1 {
         Ok(())
     }
 
+    #[must_use]
+    pub const fn is_v2(&self) -> bool {
+        self.version == 2
+    }
+
     pub fn has_pq_checkpoint(&self, height: u64) -> bool {
         self.post_quantum.cadence_blocks > 0
             && height > 0
@@ -499,18 +533,13 @@ impl CheckpointContractConfigV1 {
     }
 
     pub fn is_verified_backend_enabled(&self) -> Result<bool, CheckpointError> {
-        self.validate_verified_backend()?;
-        Ok(
-            self.authority_promotion.stage == VERIFIED_BACKEND_ENABLED_STAGE
-                && self.authority_promotion.recursive_authority_allowed
-                && self.authority_promotion.verified_backend_allowed,
-        )
+        self.validate()?;
+        Ok(false)
     }
 
     pub fn verified_backend_codec_ready(&self) -> Result<bool, CheckpointError> {
-        self.validate_verified_backend()?;
-        Ok(self.is_verified_backend_enabled()?
-            && self.verified_backend.codec_support == VERIFIED_BACKEND_CODEC_SUPPORT)
+        self.validate()?;
+        Ok(false)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -677,12 +706,12 @@ impl CheckpointContractConfigV1 {
         require_eq(
             "branches.recursive.mode",
             &recursive.mode,
-            "hybrid_nova_plonky3",
+            "streaming_transition_v2",
         )?;
         require_eq(
             "branches.recursive.proof_system",
             &recursive.proof_system,
-            "recursive_hybrid_v1",
+            "nova_streaming_compressed_v2",
         )?;
         require_true(
             "branches.recursive.has_prior_output_binding",
@@ -697,24 +726,54 @@ impl CheckpointContractConfigV1 {
         if recursive.target_chain_steps > 5 {
             return invalid("branches.recursive.target_chain_steps must be <= 5");
         }
+        let noop = &recursive.no_op;
+        require_true("branches.recursive.no_op.is_enabled", noop.is_enabled)?;
+        if noop.execution_input_version != 2 {
+            return invalid("branches.recursive.no_op.execution_input_version must be 2");
+        }
+        require_eq(
+            "branches.recursive.no_op.mode",
+            &noop.mode,
+            "explicit_empty_handoff_v2",
+        )?;
+        require_true(
+            "branches.recursive.no_op.requires_empty_handoff",
+            noop.requires_empty_handoff,
+        )?;
+        require_true(
+            "branches.recursive.no_op.preserves_settlement_root",
+            noop.preserves_settlement_root,
+        )?;
 
         let nova = &self.branches.nova;
         require_true("branches.nova.is_enabled", nova.is_enabled)?;
-        require_eq_u64("branches.nova.cadence_blocks", nova.cadence_blocks, 1)?;
+        if self.is_v2() {
+            require_true("branches.nova.selected", nova.selected)?;
+            require_true("branches.nova.is_available", nova.is_available)?;
+            require_eq_u64(
+                "branches.nova.fold_cadence_blocks",
+                nova.fold_cadence_blocks,
+                1,
+            )?;
+            if nova.compressed_proof_snapshot_cadence_blocks == 0 {
+                return invalid(
+                    "branches.nova.compressed_proof_snapshot_cadence_blocks must be > 0",
+                );
+            }
+        }
         require_false("branches.nova.is_authoritative", nova.is_authoritative)?;
-        require_false(
-            "branches.nova.is_pq_authoritative",
-            nova.is_pq_authoritative,
-        )?;
+        if nova.is_pq_authoritative {
+            return Err(CheckpointError::NovaPqAuthorityUnsupported);
+        }
         require_eq(
             "branches.nova.mode",
             &nova.mode,
-            "fast_classical_compressed",
+            "fast_classical_streaming_v2",
         )?;
         require_eq(
             "branches.nova.proof_system",
             &nova.proof_system,
-            "nova_compressed_v1",
+            "nova_streaming_compressed_v2",
         )?;
         require_true(
             "branches.nova.has_prior_output_binding",
@@ -734,7 +793,7 @@ impl CheckpointContractConfigV1 {
         )?;
 
         let plonky3 = &self.branches.plonky3_epoch;
-        require_true("branches.plonky3_epoch.is_enabled", plonky3.is_enabled)?;
+        require_false("branches.plonky3_epoch.is_enabled", plonky3.is_enabled)?;
         if plonky3.cadence_blocks != self.post_quantum.cadence_blocks {
             return invalid(
                 "branches.plonky3_epoch.cadence_blocks must equal post_quantum.cadence_blocks",
@@ -744,19 +803,27 @@ impl CheckpointContractConfigV1 {
             "branches.plonky3_epoch.is_authoritative",
             plonky3.is_authoritative,
         )?;
-        require_true(
-            "branches.plonky3_epoch.is_pq_authoritative",
-            plonky3.is_pq_authoritative,
-        )?;
-        require_eq(
-            "branches.plonky3_epoch.mode",
-            &plonky3.mode,
-            "pq_epoch_finality",
-        )?;
+        if self.is_v2() {
+            require_false(
+                "branches.plonky3_epoch.is_pq_authoritative",
+                plonky3.is_pq_authoritative,
+            )?;
+            require_false("branches.plonky3_epoch.selected", plonky3.selected)?;
+            require_false("branches.plonky3_epoch.is_available", plonky3.is_available)?;
+            require_true(
+                "branches.plonky3_epoch.provides_pq_epoch_evidence",
+                plonky3.provides_pq_epoch_evidence,
+            )?;
+            require_eq(
+                "branches.plonky3_epoch.mode",
+                &plonky3.mode,
+                "pq_epoch_evidence",
+            )?;
+        }
         require_eq(
             "branches.plonky3_epoch.proof_system",
             &plonky3.proof_system,
-            "plonky3_stark_epoch_v1",
+            "plonky3_stark_epoch_v2",
         )?;
         require_true(
             "branches.plonky3_epoch.must_prove_canonical_transition_range",
@@ -875,30 +942,19 @@ impl CheckpointContractConfigV1 {
             VERIFIED_BACKEND_STATEMENT_STABILITY,
         )?;
 
-        if self.authority_promotion.stage == VERIFIED_BACKEND_ENABLED_STAGE {
-            require_true(
-                "authority_promotion.recursive_authority_allowed",
-                self.authority_promotion.recursive_authority_allowed,
-            )?;
-            require_true(
-                "authority_promotion.verified_backend_allowed",
-                self.authority_promotion.verified_backend_allowed,
-            )?;
-            require_eq(
-                "verified_backend.security_review.status",
-                &verified.security_review.status,
-                VERIFIED_BACKEND_REVIEW_APPROVED,
-            )?;
-        } else {
-            require_false(
-                "authority_promotion.recursive_authority_allowed",
-                self.authority_promotion.recursive_authority_allowed,
-            )?;
-            require_false(
-                "authority_promotion.verified_backend_allowed",
-                self.authority_promotion.verified_backend_allowed,
-            )?;
-        }
+        require_false(
+            "authority_promotion.recursive_authority_allowed",
+            self.authority_promotion.recursive_authority_allowed,
+        )?;
+        require_false(
+            "authority_promotion.verified_backend_allowed",
+            self.authority_promotion.verified_backend_allowed,
+        )?;
+        require_eq(
+            "verified_backend.security_review.status",
+            &verified.security_review.status,
+            VERIFIED_BACKEND_REVIEW_PENDING,
+        )?;
         Ok(())
     }
 
@@ -935,10 +991,6 @@ impl CheckpointContractConfigV1 {
         require_true(
             "gates.outputs.has_archive_manifest",
             self.gates.outputs.has_archive_manifest,
-        )?;
-        require_true(
-            "gates.artifacts.has_recursive_sidecar_non_authoritative",
-            self.gates.artifacts.has_recursive_sidecar_non_authoritative,
         )?;
         require_true(
             "gates.artifacts.has_pq_anchor_on_cadence",
@@ -1060,6 +1112,11 @@ impl CheckpointContractConfigV1 {
         } else {
             require_false("post_quantum.enforce_live_cadence", pq.enforce_live_cadence)?;
         }
+        require_eq(
+            "post_quantum.epoch_evidence_commitment",
+            &pq.epoch_evidence_commitment,
+            "non_authenticating_digest_v2",
+        )?;
         require_exact_list(
             "post_quantum.required_artifacts",
             &pq.required_artifacts,
@@ -1253,7 +1310,6 @@ impl CheckpointContractConfigV1 {
             ("paths.prep_snapshots", &self.paths.prep_snapshots),
             ("paths.delta_journals", &self.paths.delta_journals),
             ("paths.witness_archives", &self.paths.witness_archives),
-            ("paths.recursive_sidecars", &self.paths.recursive_sidecars),
             ("paths.nova_block_proofs", &self.paths.nova_block_proofs),
             ("paths.pq_checkpoints", &self.paths.pq_checkpoints),
             (
@@ -1295,14 +1351,6 @@ impl CheckpointContractConfigV1 {
         require_positive_usize("limits.max_batch_bytes", self.limits.max_batch_bytes)?;
         require_positive_usize("limits.max_witness_bytes", self.limits.max_witness_bytes)?;
         require_positive_usize(
-            "limits.max_recursive_proof_bytes",
-            self.limits.max_recursive_proof_bytes,
-        )?;
-        require_positive_usize(
-            "limits.max_recursive_sidecar_bytes",
-            self.limits.max_recursive_sidecar_bytes,
-        )?;
-        require_positive_usize(
             "limits.max_nova_block_proof_bytes",
             self.limits.max_nova_block_proof_bytes,
         )?;
@@ -1338,6 +1386,52 @@ impl CheckpointContractConfigV1 {
             "limits.max_documentation_packet_bytes",
             self.limits.max_documentation_packet_bytes,
         )?;
+        for (label, value) in [
+            ("limits.max_batch_bytes", self.limits.max_batch_bytes),
+            ("limits.max_witness_bytes", self.limits.max_witness_bytes),
+            (
+                "limits.max_nova_block_proof_bytes",
+                self.limits.max_nova_block_proof_bytes,
+            ),
+            (
+                "limits.max_epoch_nova_archive_bytes",
+                self.limits.max_epoch_nova_archive_bytes,
+            ),
+            (
+                "limits.max_plonky3_epoch_proof_bytes",
+                self.limits.max_plonky3_epoch_proof_bytes,
+            ),
+            (
+                "limits.max_plonky3_epoch_sidecar_bytes",
+                self.limits.max_plonky3_epoch_sidecar_bytes,
+            ),
+            (
+                "limits.max_pq_anchor_bytes",
+                self.limits.max_pq_anchor_bytes,
+            ),
+            (
+                "limits.max_archive_manifest_bytes",
+                self.limits.max_archive_manifest_bytes,
+            ),
+            (
+                "limits.max_state_snapshot_manifest_bytes",
+                self.limits.max_state_snapshot_manifest_bytes,
+            ),
+            (
+                "limits.max_retrieval_audit_bytes",
+                self.limits.max_retrieval_audit_bytes,
+            ),
+            (
+                "limits.max_documentation_packet_bytes",
+                self.limits.max_documentation_packet_bytes,
+            ),
+        ] {
+            if value > CHECKPOINT_CONTRACT_MAX_OBJECT_BYTES {
+                return invalid(format!(
+                    "{label} must be <= {CHECKPOINT_CONTRACT_MAX_OBJECT_BYTES} to avoid size overflow"
+                ));
+            }
+        }
         if self.limits.max_witness_bytes < self.limits.max_batch_bytes {
             return invalid("limits.max_witness_bytes must be >= max_batch_bytes");
         }
@@ -1364,10 +1458,6 @@ impl CheckpointContractConfigV1 {
     }
 
     fn validate_documentation(&self) -> Result<(), CheckpointError> {
-        require_true(
-            "documentation.recursive_packet_required",
-            self.documentation.recursive_packet_required,
-        )?;
         require_true(
             "documentation.include_source_disposition",
             self.documentation.include_source_disposition,
@@ -1489,13 +1579,9 @@ fn authority_promotion_next_stage(stage: &str) -> Result<Option<&'static str>, C
         AUTHORITY_PROMOTION_STAGE_CONFIG_GATE => {
             Ok(Some(AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT))
         }
-        AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT => {
-            Ok(Some(AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR))
-        }
-        AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR => Ok(Some(POST_QUANTUM_ENFORCEMENT_STAGE)),
-        POST_QUANTUM_ENFORCEMENT_STAGE => Ok(Some(VERIFIED_BACKEND_CANDIDATE_STAGE)),
-        VERIFIED_BACKEND_CANDIDATE_STAGE => Ok(Some(VERIFIED_BACKEND_ENABLED_STAGE)),
-        VERIFIED_BACKEND_ENABLED_STAGE => Ok(None),
+        // T0 stops before proof-system activation. T1 introduces the V2
+        // streaming promotion path together with its live evidence gates.
+        AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT => Ok(None),
         other => invalid(format!("unsupported authority_promotion.stage {other}")),
     }
 }
@@ -1504,11 +1590,7 @@ fn is_pq_anchor_ready(stage: &str) -> Result<bool, CheckpointError> {
     match stage {
         AUTHORITY_PROMOTION_STAGE_SPEC_ONLY
         | AUTHORITY_PROMOTION_STAGE_CONFIG_GATE
-        | AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT
-        | AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR => Ok(false),
-        POST_QUANTUM_ENFORCEMENT_STAGE
-        | VERIFIED_BACKEND_CANDIDATE_STAGE
-        | VERIFIED_BACKEND_ENABLED_STAGE => Ok(true),
+        | AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT => Ok(false),
         other => invalid(format!("unsupported authority_promotion.stage {other}")),
     }
 }
@@ -1536,16 +1618,40 @@ mod tests {
     fn test_repo_contract_loads() {
         let cfg = cfg();
 
-        assert_eq!(cfg.version, 1);
+        assert_eq!(cfg.version, 2);
+        assert!(cfg.branches.recursive.is_enabled);
         assert!(!cfg.branches.recursive.is_authoritative);
-        assert_eq!(cfg.branches.recursive.proof_system, "recursive_hybrid_v1");
-        assert_eq!(cfg.branches.nova.proof_system, "nova_compressed_v1");
+        assert_eq!(
+            cfg.branches.recursive.proof_system,
+            "nova_streaming_compressed_v2"
+        );
+        assert!(cfg.branches.recursive.no_op.is_enabled);
+        assert_eq!(cfg.branches.recursive.no_op.execution_input_version, 2);
+        assert_eq!(
+            cfg.branches.recursive.no_op.mode,
+            "explicit_empty_handoff_v2"
+        );
+        assert!(cfg.branches.nova.is_enabled);
+        assert_eq!(
+            cfg.branches.nova.proof_system,
+            "nova_streaming_compressed_v2"
+        );
         assert!(!cfg.branches.nova.is_pq_authoritative);
+        assert_eq!(cfg.branches.nova.fold_cadence_blocks, 1);
+        assert_eq!(
+            cfg.branches.nova.compressed_proof_snapshot_cadence_blocks,
+            1
+        );
+        assert!(cfg.branches.nova.is_available);
+        assert!(cfg.branches.nova.selected);
         assert_eq!(
             cfg.branches.plonky3_epoch.proof_system,
-            "plonky3_stark_epoch_v1"
+            "plonky3_stark_epoch_v2"
         );
-        assert!(cfg.branches.plonky3_epoch.is_pq_authoritative);
+        assert!(!cfg.branches.plonky3_epoch.is_enabled);
+        assert!(!cfg.branches.plonky3_epoch.is_pq_authoritative);
+        assert!(cfg.branches.plonky3_epoch.provides_pq_epoch_evidence);
+        assert_eq!(cfg.branches.plonky3_epoch.mode, "pq_epoch_evidence");
         assert_eq!(cfg.post_quantum.cadence_blocks, 1000);
         assert_eq!(cfg.post_quantum.mode, POST_QUANTUM_MODE);
         assert!(cfg.archive_retention.celestia_is_da_only);
@@ -1595,13 +1701,96 @@ mod tests {
     }
 
     #[test]
+    fn test_recursive_noop_contract_rejects_drift() {
+        let mut disabled = cfg();
+        disabled.branches.recursive.no_op.is_enabled = false;
+        assert!(matches!(
+            disabled.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
+
+        let mut version_drift = cfg();
+        version_drift
+            .branches
+            .recursive
+            .no_op
+            .execution_input_version = 3;
+        assert!(matches!(
+            version_drift.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
+
+        let mut root_drift = cfg();
+        root_drift
+            .branches
+            .recursive
+            .no_op
+            .preserves_settlement_root = false;
+        assert!(matches!(
+            root_drift.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
+    }
+
+    #[test]
     fn test_nova_pq_authority_rejects() {
         let mut cfg = cfg();
         cfg.branches.nova.is_pq_authoritative = true;
 
         let err = cfg.validate().expect_err("nova pq authority must reject");
 
-        assert!(matches!(err, CheckpointError::ContractConfig(_)));
+        assert!(matches!(err, CheckpointError::NovaPqAuthorityUnsupported));
+    }
+
+    #[test]
+    fn test_live_recursive_config_rejects_disabled_or_unselected_nova() {
+        let mut invalid_cfg = cfg();
+        invalid_cfg.branches.recursive.is_enabled = false;
+        assert!(matches!(
+            invalid_cfg.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
+
+        let mut invalid_cfg = cfg();
+        invalid_cfg.branches.nova.is_enabled = false;
+        assert!(matches!(
+            invalid_cfg.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
+
+        let mut invalid_cfg = cfg();
+        invalid_cfg.branches.nova.selected = false;
+        assert!(matches!(
+            invalid_cfg.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
+    }
+
+    #[test]
+    fn test_live_recursive_config_rejects_bad_cadence_matrix() {
+        for fold in [0, 2] {
+            let mut invalid_cfg = cfg();
+            invalid_cfg.branches.nova.fold_cadence_blocks = fold;
+            assert!(matches!(
+                invalid_cfg.validate(),
+                Err(CheckpointError::ContractConfig(_))
+            ));
+        }
+        let mut invalid_cfg = cfg();
+        invalid_cfg
+            .branches
+            .nova
+            .compressed_proof_snapshot_cadence_blocks = 0;
+        assert!(matches!(
+            invalid_cfg.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
+        let mut invalid_cfg = cfg();
+        invalid_cfg.snapshots.cadence_blocks = 0;
+        assert!(matches!(
+            invalid_cfg.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
     }
 
     #[test]
@@ -1719,23 +1908,22 @@ mod tests {
     }
 
     #[test]
-    fn test_pq_writer_cadence() {
+    fn test_unimplemented_pq_writer_stage_rejects() {
         let mut cfg = cfg();
         cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
         cfg.authority_promotion.allowed_next_stages =
             vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
 
-        let err = cfg.validate().expect_err("pq writer must enforce cadence");
+        let err = cfg
+            .validate()
+            .expect_err("an unbound PQ writer stage must reject");
         assert!(matches!(err, CheckpointError::ContractConfig(_)));
-
-        cfg.post_quantum.enforce_live_cadence = true;
-        cfg.validate().expect("pq writer live cadence");
     }
 
     #[test]
     fn test_absolute_path_rejects() {
         let mut cfg = cfg();
-        cfg.paths.recursive_sidecars = PathBuf::from("/tmp/recursive_shadow");
+        cfg.paths.pq_checkpoints = PathBuf::from("/tmp/pq_anchor");
 
         let err = cfg.validate().expect_err("absolute path must reject");
 
@@ -1745,7 +1933,7 @@ mod tests {
     #[test]
     fn test_path_collision_rejects() {
         let mut cfg = cfg();
-        cfg.paths.pq_checkpoints = cfg.paths.recursive_sidecars.clone();
+        cfg.paths.pq_checkpoints = cfg.paths.nova_block_proofs.clone();
 
         let err = cfg.validate().expect_err("colliding path must reject");
 

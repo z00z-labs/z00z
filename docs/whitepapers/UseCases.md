@@ -1,3 +1,11 @@
+---
+title: "Use Cases Whitepaper"
+description: "Shows which payment, rights, offline, and service workflows fit the Z00Z model of private local objects with delayed or checkpointed settlement."
+difficulty: basic
+icon: mdi:alpha-a-circle-outline
+toc: true
+---
+
 # Z00Z Use Cases Whitepaper
 
 [TOC]

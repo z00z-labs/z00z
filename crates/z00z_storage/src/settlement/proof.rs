@@ -188,6 +188,14 @@ pub enum ProofChkErr {
     PriorTerminalProofMix,
     #[error("unsupported batch proof version")]
     UnsupportedBatchProofVersion,
+    #[error("unsupported JMT update-trace version")]
+    UnsupportedJmtUpdateVersion,
+    #[error("JMT update trace exceeded the configured bound")]
+    JmtUpdateTraceLimit,
+    #[error("JMT update trace is noncanonical")]
+    JmtUpdateTraceCanonical,
+    #[error("JMT update proof verification failed")]
+    JmtUpdateProofMix,
     #[error("batch proof truncated")]
     BatchTrunc,
     #[error("batch proof trailing bytes")]

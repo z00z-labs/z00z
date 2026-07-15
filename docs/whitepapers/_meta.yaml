@@ -1,2 +1,20 @@
-page_title_source: filename
-internal_link_text_source: filename
+page_title_source: document
+internal_link_text_source: authored
+order:
+  - index
+  - Main-Whitepaper
+  - Uniqueness
+  - Corpus-Terminology-Reference
+  - Legal-Architecture
+  - Assets-Rights-Vauchers
+  - Smart-Cash
+  - Linked-Liability
+  - Privacy-Threat-Model
+  - OnionNet
+  - Post-Quantum-Migration
+  - Cross-Chain-Integration
+  - UseCases
+  - Proof-of-Useful-Work
+  - Tokenomics
+  - DAO
+  - Agentic-Offline-Economy

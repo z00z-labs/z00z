@@ -57,7 +57,19 @@ pub use claim::{
 };
 pub use error::CryptoError;
 
-pub use hash::{blake2b_hash, compute_consensus_hash, poseidon2_hash, ConsensusHash, WalletHash};
+pub use hash::{
+    blake2b_hash, compute_consensus_hash, poseidon2_framed_words_v1,
+    poseidon2_goldilocks_params_v1, poseidon2_hash, ConsensusHash, Poseidon2GoldilocksParamsV1,
+    WalletHash, POSEIDON2_GOLDILOCKS_COUNT_BYTES_V1, POSEIDON2_GOLDILOCKS_DELIMITER_V1,
+    POSEIDON2_GOLDILOCKS_FRAME_BYTES_V1, POSEIDON2_GOLDILOCKS_MODULUS_V1,
+    POSEIDON2_GOLDILOCKS_OUTPUT_WORDS_V1, POSEIDON2_GOLDILOCKS_RATE_V1,
+    POSEIDON2_GOLDILOCKS_WIDTH_V1, POSEIDON2_GOLDILOCKS_WORD_BYTES_V1,
+};
+pub use hash::{
+    sha256_256, sha256_256_role, CheckpointSha256BlockStreamV2, CheckpointSha256BlockV2,
+    CheckpointSha256BlockVisitError, CheckpointSha256Error, CheckpointSha256V2, CheckpointShaRole,
+    SHA256_BLOCK_BYTES_V2, SHA256_DIGEST_BYTES_V2, SHA256_IV_V2, SHA256_MAX_BYTES_V2,
+};
 pub use hash::{Blake2bHasher, Blake2bHasher256, Blake2bVarHasher, DomainHasher, DomainHasher256};
 pub use hash::{ConsensusHash32, WalletHash32};
 pub use types::{

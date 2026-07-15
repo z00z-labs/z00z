@@ -36,12 +36,21 @@ fn live_stage_surface_out() -> std::path::PathBuf {
     shared_cases::full_stage13_out()
 }
 
-fn live_stage_surface_cfg() -> std::path::PathBuf {
-    live_stage_surface_out()
+fn stage_surface_cfg_path(out_dir: &Path) -> PathBuf {
+    out_dir
         .parent()
         .and_then(|path| path.parent())
-        .expect("live stage surface base")
+        .expect("stage surface base")
         .join("scenario_config.yaml")
+}
+
+fn live_stage_surface_cfg() -> PathBuf {
+    stage_surface_cfg_path(&live_stage_surface_out())
+}
+
+fn stage_surface_mutation_paths() -> (PathBuf, PathBuf) {
+    let out_dir = shared_cases::stage13_out("stage_surface_mutations");
+    (stage_surface_cfg_path(&out_dir), out_dir)
 }
 
 fn design_doc_path() -> PathBuf {
@@ -907,10 +916,8 @@ fn expect_trace_tamper_reject(
     mutate: impl FnOnce(&mut serde_json::Value),
 ) {
     let _guard = stage_surface_lock();
-    let temp = tempfile::TempDir::new().expect("temp dir");
-    let (cfg_path, design_path, out_dir) = scenario_support::make_cfg_in(temp.path(), |_| {});
-    let run = runner::run_with_paths(&cfg_path, &design_path).expect("scenario run");
-    assert!(run.is_ok());
+    let (cfg_path, out_dir) = stage_surface_mutation_paths();
+    let design_path = design_doc_path();
 
     let mut trace = read_trace(&out_dir, trace_name);
     mutate(&mut trace);
@@ -1865,10 +1872,8 @@ fn test_rejects_detached_proof_bytes() {
 #[test]
 fn test_rejects_missing_runtime_trace() {
     let _guard = stage_surface_lock();
-    let temp = tempfile::TempDir::new().expect("temp dir");
-    let (cfg_path, design_path, out_dir) = scenario_support::make_cfg_in(temp.path(), |_| {});
-    let run = runner::run_with_paths(&cfg_path, &design_path).expect("scenario run");
-    assert!(run.is_ok());
+    let (cfg_path, out_dir) = stage_surface_mutation_paths();
+    let design_path = design_doc_path();
 
     remove_file(out_dir.join("proc_flow.json")).expect("remove proc_flow");
     let err = runner::validate_runtime_observability_artifacts(&cfg_path, &design_path, &out_dir)

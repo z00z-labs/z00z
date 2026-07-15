@@ -65,6 +65,9 @@ pub enum CheckpointError {
     /// Checkpoint contract configuration is missing, malformed, or unsafe.
     #[error("checkpoint contract config error: {0}")]
     ContractConfig(String),
+    /// Nova is a classical non-authoritative branch and cannot claim PQ authority.
+    #[error("Nova PQ authority unsupported")]
+    NovaPqAuthorityUnsupported,
 }
 
 /// Errors for deterministic JMT serialization, reconstruction, and rendering.

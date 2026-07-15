@@ -6,9 +6,9 @@
 
 ## ^H Find-Replace
 
-068-Checkpoint-Contract
+069-Recursive-Proof
 
-068
+069
 
 ---
 
@@ -21,59 +21,59 @@
 ## 🟥 1. gsd-add-phase
 
 ```
-/gsd-add-phase `068-Checkpoint-Contract`
+/gsd-add-phase `069-Recursive-Proof`
 etot folder uzhe suwestvuet; novij ne sozdavat; rabotat s nim
-регистрирую egoкак Phase 068 в ROADMAP и STATE, без создания нового каталога.
+регистрирую egoкак Phase 069 в ROADMAP и STATE, без создания нового каталога.
 ```
 
 ## 🟥 2. gsd-discuss-phase
 
 ```
-/gsd-discuss-phase 068
+/gsd-discuss-phase 069
 Goal:
 -----
-Understand the problems and issues described in 068-TODO.md and provide comprehensive answers and solutions.
+Understand the problems and issues described in 069-TODO.md and provide comprehensive answers and solutions.
 ----
-068-TODO.md is the canonical planning inventory for Phase 068.
-The planner must cover all canonical Phase 068 tasks.
+069-TODO.md is the canonical planning inventory for Phase 069.
+The planner must cover all canonical Phase 069 tasks.
 Planning must proceed sequentially, one canonical task after another.
 
-068-TODO.md describes the specific tasks that must be scheduled for execution. You are forbidden from changing the task titles or their wording. Create a simple 068-CONTEXT.md describing this situation.
+069-TODO.md describes the specific tasks that must be scheduled for execution. You are forbidden from changing the task titles or their wording. Create a simple 069-CONTEXT.md describing this situation.
 
 MANDATORY: Do not duplicate the existing codebase or its logic. Do not introduce a parallel layer. Prevent codebase concept drift.
 
-During the planning phase, you will need to schedule the specific execution of these 068-TODO.md tasks, one after the another.
+During the planning phase, you will need to schedule the specific execution of these 069-TODO.md tasks, one after the another.
 
 None of the tasks in the table can be excluded. Only in extreme cases where it is impossible to bypass a principle blocker will it be necessary to record this in the final report.
 ```
 
 ```
-/gsd-ai-integration-phase 068
+/gsd-ai-integration-phase 069
 ```
 
 ## 🟥 3. gsd-research-phase <mark>NOT IN USE</mark>
 
 ```
-/gsd-research-phase 068
-goal: ponjat problemi i voprosi opisannie v 068-TODO.md i dat' na nih polnocennij otvet i  reshenija
+/gsd-research-phase 069
+goal: ponjat problemi i voprosi opisannie v 069-TODO.md i dat' na nih polnocennij otvet i  reshenija
 ```
 
 ## 🟥 4. GSD-Review-Context <mark>x3 times</mark>
 
 ```
 /GSD-Review-Context
-current_context = 068-CONTEXT.md + 068-TODO.md
+current_context = 069-CONTEXT.md + 069-TODO.md
 review_goal = 
 -----
-Verify that everything mentioned in 068-TODO.md has been transferred to the context for implementing 068-CONTEXT.md.
+Verify that everything mentioned in 069-TODO.md has been transferred to the context for implementing 069-CONTEXT.md.
 -----
-Create a table in the 068-CONTEXT.md file confirming the transfer of each task from the 068-TODO.md that needs to be completed/checked/confirmed, etc.
+Create a table in the 069-CONTEXT.md file confirming the transfer of each task from the 069-TODO.md that needs to be completed/checked/confirmed, etc.
 
-Verify that all suggestions and issues of 068-TODO.md are included in context and in 068-CONTEXT.md. I need to verify everything 100% before implementation
+Verify that all suggestions and issues of 069-TODO.md are included in context and in 069-CONTEXT.md. I need to verify everything 100% before implementation
 
 MANDATORY: Do not duplicate the existing codebase or its logic. Do not introduce a parallel layer. Prevent codebase concept drift.
 
-Run the second `doublecheck` against 068-TODO.md to confirm that all issues are in 068-CONTEXT.md.
+Run the second `doublecheck` against 069-TODO.md to confirm that all issues are in 069-CONTEXT.md.
 ```
 
 ---------------------
@@ -81,28 +81,28 @@ Run the second `doublecheck` against 068-TODO.md to confirm that all issues are 
 ## 🟨 5. gsd-plan-phase
 
 ```markdown
-/gsd-plan-phase 068
+/gsd-plan-phase 069
 --skip-research
---prd 068-TODO.md
+--prd 069-TODO.md
 --text """
-Create complete executable GSD plans for Phase 068.
+Create complete executable GSD plans for Phase 069.
 
 MUST read first:
-1. 068-TODO.md
-2. 068-CONTEXT.md if it exists
-3. Every Markdown source linked from 068-TODO.md task rows.
-4. Relevant current code anchors listed in 068-TODO.md.
+1. 069-TODO.md
+2. 069-CONTEXT.md if it exists
+3. Every Markdown source linked from 069-TODO.md task rows.
+4. Relevant current code anchors listed in 069-TODO.md.
 
-MUST treat 068-TODO.md as normative, not advisory.
+MUST treat 069-TODO.md as normative, not advisory.
 MUST NOT drop, merge away, rename, renumber, or silently reinterpret any TASK-NNN.
 MUST NOT create future/deferred/best-effort work for local correctness.
 MUST close every local blocker by code/tests or by local deterministic simulation using real project primitives.
 
 Before writing plans, perform a coverage audit:
-- Count unique TASK-NNN from 068-TODO.md: 
+- Count unique TASK-NNN from 069-TODO.md: 
 - Count Required GSD Plan Groups: 
 - Build a task-to-plan coverage table.
-- Every TASK-NNN MUST map to exactly one grouped 068-NN-PLAN, unless explicitly split into 068-NN-PLAN fallback.
+- Every TASK-NNN MUST map to exactly one grouped 069-NN-PLAN, unless explicitly split into 069-NN-PLAN fallback.
 - Every plan MUST include every source ref from each included task row.
 - Any missing/duplicate task MUST fail planning.
 
@@ -183,15 +183,15 @@ Planning MUST fail if any TASK-NNN lacks inputs, outputs, artifacts, tests, resu
 
 ```
 /GSD-Review-Plan
-current_plan = {068-*-PLAN.md}, where `*-PLAN.md` - is a naming pattern
-review_goal = I need a 100% guarantee that every bullet from 068-TODO.md i references docs corpus is reflected in 068-CONTEXT.md and in 068-{01..N}-PLAN.md
+current_plan = {069-*-PLAN.md}, where `*-PLAN.md` - is a naming pattern
+review_goal = I need a 100% guarantee that every bullet from 069-TODO.md i references docs corpus is reflected in 069-CONTEXT.md and in 069-{01..N}-PLAN.md
 If there are issues that need to be corrected or supplemented, do it in YOLO mode
 
-Verify that all suggestions and issues of 068-TODO.md are included in context and in the plan. I need to verify everything 100% before implementation
+Verify that all suggestions and issues of 069-TODO.md are included in context and in the plan. I need to verify everything 100% before implementation
 
 MANDATORY: Do not duplicate the existing codebase or its logic. Do not introduce a parallel layer. Prevent codebase concept drift
 
-Run the second `doublecheck` against 068-TODO.md to confirm that all issues are in plans.
+Run the second `doublecheck` against 069-TODO.md to confirm that all issues are in plans.
 ```
 
 ---
@@ -199,10 +199,10 @@ Run the second `doublecheck` against 068-TODO.md to confirm that all issues are 
 ## 🟦 7.1 gsd-add-tests ==x3 times==
 
 ```
-/gsd-add-tests  068
-goal = based on files 068-Checkpoint-Contract
+/gsd-add-tests  069
+goal = based on files 069-Recursive-Proof
 define smart, complete, end-to-end integration tests and realistic examples that prove what the workflow does, how it behaves, which invariants it must preserve, and which failures it must reject.
-подготовить phase-local E2E/unit test specification document для 068 на основе 068-CONTEXT.md, 068-TODO.md и всех 068-*-PLAN.md как planning artifact.
+подготовить phase-local E2E/unit test specification document для 069 на основе 069-CONTEXT.md, 069-TODO.md и всех 069-*-PLAN.md как planning artifact.
 The result must be directly usable by another engineer or agent to implement E2E coverage without guessing scenario boundaries, success criteria, or test anchors. Derive the critical user journeys, state transitions, proof paths, and failure paths that must be verified end to end.
 
 The specification must explicitly address all of the following when relevant:
@@ -219,7 +219,7 @@ The specification must explicitly address all of the following when relevant:
 ## 🟦 7.2 create-tests ==x3 times==
 
 ```
-/create-tests 068
+/create-tests 069
 ```
 
 ---
@@ -228,13 +228,13 @@ The specification must explicitly address all of the following when relevant:
 
 ```
 /GSD-Review-Plan
-current_plan = {068-*-PLAN.md}, where `*-PLAN.md` - is a naming pattern + 068-TEST-SPEC.md + 068-TESTS-TASKS.md
-review_goal = I need a 100% guarantee that every bullet from 068-TODO.md is reflected in 068-CONTEXT.md and in 068-{01..N}-PLAN.md
+current_plan = {069-*-PLAN.md}, where `*-PLAN.md` - is a naming pattern + 069-TEST-SPEC.md + 069-TESTS-TASKS.md
+review_goal = I need a 100% guarantee that every bullet from 069-TODO.md is reflected in 069-CONTEXT.md and in 069-{01..N}-PLAN.md
 If there are issues that need to be corrected or supplemented, do it in YOLO mode
 
-Verify that all suggestions and issues of 068-TODO.md are included in context and in the plan. I need to verify everything 100% before implementation
+Verify that all suggestions and issues of 069-TODO.md are included in context and in the plan. I need to verify everything 100% before implementation
 
-Run the second `doublecheck` against 068-TODO.md to confirm that all issues are in plans.
+Run the second `doublecheck` against 069-TODO.md to confirm that all issues are in plans.
 ```
 
 ---------------------
@@ -242,11 +242,11 @@ Run the second `doublecheck` against 068-TODO.md to confirm that all issues are 
 ## 🟩 9. gsd-executor PLAN
 
 ```markdown
-/gsd-execute-phase 068 continue
+/gsd-execute-phase 069 continue
 
 Update STATE #sym:Status and ROADMAP
 
-все такие future-only design terms становятся live scope и referenced docs как phase authority. I continue to use design/whitepapers as a source of requirements, not as a "to-be-in-the-future" status. 068-TODO.md explicitly states target/future design statement is now a mandatory scope of the live code.
+все такие future-only design terms становятся live scope и referenced docs как phase authority. I continue to use design/whitepapers as a source of requirements, not as a "to-be-in-the-future" status. 069-TODO.md explicitly states target/future design statement is now a mandatory scope of the live code.
 
 Make sure there are no missing or missing strings, so there will be one canonical path
 for all module structures and functions
@@ -270,8 +270,8 @@ MUST pay special attention to following instructions:
 ## 🟩 10. gsd-executor  TESTS
 
 ```markdown
-/gsd-execute-phase 068
-implement 068-TEST-SPEC.md and 068-TESTS-TASKS.md
+/gsd-execute-phase 069
+implement 069-TEST-SPEC.md and 069-TESTS-TASKS.md
 
 MUST pay special attention to following instructions:
 1. Run `./.github/skills/smart-tests-bootstrap/scripts/bootstrap_tests.sh` first as a mandatory fail-fast gate.
@@ -292,26 +292,26 @@ MUST pay special attention to following instructions:
 ## 🟪 11. GSD-Finalization
 
 ```
-/gsd-secure-phase 068
+/gsd-secure-phase 069
 ```
 
 ```
-/gsd-validate-phase 068
+/gsd-validate-phase 069
 ```
 
 ```
-/gsd-verify-work 068
+/gsd-verify-work 069
 ```
 
 ```
-/gsd-eval-review 068
+/gsd-eval-review 069
 ```
 
 ## 🟪 13. GSD-Review-Tasks-Execution ==x3 times== PLAN
 
 ```
 /GSD-Review-Tasks-Execution 
-current_spec = {068-*-PLAN.md}
+current_spec = {069-*-PLAN.md}
 current_task = `*-PLAN.md` - is a naming pattern
 ```
 
@@ -319,8 +319,8 @@ current_task = `*-PLAN.md` - is a naming pattern
 
 ```m
 /GSD-Review-Tasks-Execution 
-current_spec = 068-TEST-SPEC.md + 068-TESTS-TASKS.md
-current_task = `*-PLAN.md` - is a naming pattern + 068-TEST-SPEC.md + 068-TESTS-TASKS.md
+current_spec = 069-TEST-SPEC.md + 069-TESTS-TASKS.md
+current_task = `*-PLAN.md` - is a naming pattern + 069-TEST-SPEC.md + 069-TESTS-TASKS.md
 ```
 
 ---------------------
@@ -329,7 +329,7 @@ current_task = `*-PLAN.md` - is a naming pattern + 068-TEST-SPEC.md + 068-TESTS-
 
 ```
 /doublecheck
-Verify that ALL task plans in 068-TODO.md are fully implemented. Check the code independently of the summaries and give your conclusion.
+Verify that ALL task plans in 069-TODO.md are fully implemented. Check the code independently of the summaries and give your conclusion.
 1. Quality of implementation
 2. Correctness of implementation
 3. Check for logical errors and incomplete implementation features
@@ -344,7 +344,7 @@ Fix all in YOLO mode
 
 ```markdown
 /GSD-Audit-4 
-phase_dir = 068-Checkpoint-Contract
+phase_dir = 069-Recursive-Proof
 ```
 
 ---
@@ -353,7 +353,7 @@ phase_dir = 068-Checkpoint-Contract
 
 ```markdown
 /alert-concept-drift current codebase vs git branch `main` feat(v2.175.0)
-create 068-CONCEPT-DRIFT-REPORT.md
+create 069-CONCEPT-DRIFT-REPORT.md
 ```
 
 ---
@@ -362,14 +362,14 @@ create 068-CONCEPT-DRIFT-REPORT.md
 
 ```markdown
 /phase-exam-create
-phase_dir = 068-Checkpoint-Contract
+phase_dir = 069-Recursive-Proof
 ```
 
 ## ✔️ 19. phase-exam-solve
 
 ```markdown
 /phase-exam-solve
-phase_dir = 068-Checkpoint-Contract
+phase_dir = 069-Recursive-Proof
 ```
 
 ---
@@ -389,9 +389,9 @@ phase_dir = 068-Checkpoint-Contract
 
 ```markdown
 /attack-surfaces-create
-scope = 068-TODO.md + 068-verdict.md
-report_path = 068-Checkpoint-Contract
-db_path = 068-Checkpoint-Contract-db.jsonl
+scope = 069-TODO.md + 069-verdict.md
+report_path = 069-Recursive-Proof
+db_path = 069-Recursive-Proof-db.jsonl
 max_variants = 20
 ```
 
@@ -399,9 +399,9 @@ max_variants = 20
 
 ```markdown
 /attack-surfaces-resolve
-db_path = 068-Checkpoint-Contract-db.jsonl
+db_path = 069-Recursive-Proof-db.jsonl
 surface_id = [id1,id2,...]
-out_spec = 068-Checkpoint-Contract-report.md
+out_spec = 069-Recursive-Proof-report.md
 ```
 
 
@@ -444,7 +444,7 @@ Don't just compare, achieve this state.
 ## 🔷 crypto-architect
 
 ```
-/crypto-architect sozdaj glubokij otchet `.planning/phases/068-Strix/storage-audit-sonet46.md` konkretno po crate `z00z_wallets/` izuchi tolko *.rs implementaciju i ne trogaj drugie dokumenti (ne vkluchaj tari/ vendor)
+/crypto-architect sozdaj glubokij otchet `.planning/phases/069-Strix/storage-audit-sonet46.md` konkretno po crate `z00z_wallets/` izuchi tolko *.rs implementaciju i ne trogaj drugie dokumenti (ne vkluchaj tari/ vendor)
 ```
 
 -------------------------
@@ -452,7 +452,7 @@ Don't just compare, achieve this state.
 ## 🔷 smart-docs-fusion
 
 ```
-/smart-docs-fusion [ ] --> .planning/phases/068-Strix/FUSION.md
+/smart-docs-fusion [ ] --> .planning/phases/069-Strix/FUSION.md
 ```
 
 

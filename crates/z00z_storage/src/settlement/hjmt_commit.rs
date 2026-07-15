@@ -23,13 +23,14 @@ use super::{
     hjmt_plan::{bucket_key_for_path, HjmtBatch, HjmtPlan},
     hjmt_store::HjmtTreeSnap,
     model::SettlementModel,
+    proof_batch::{JmtTreeRoleV2, JmtUpdateTraceV2, SettlementUpdateTraceEnvelopeV2},
     store::{next_ver, scope_tx_id},
     timing,
     tree_id::{HjmtTreeId, TreeRootRef},
-    CheckRoot, DefinitionId, DefinitionRootLeaf, FeeReplayRec, ScopeFlow, ScopeFlowItem,
-    ScopeLeafKind, ScopeOpKind, ScopeSeen, SerialId, SerialRootLeaf, SettlementExecHandoff,
-    SettlementListReq, SettlementLookup, SettlementPage, SettlementPageTok, SettlementPath,
-    SettlementStateRoot, SettlementStore, SettlementStoreError, StoreItem, StoreOp,
+    CheckRoot, DefinitionId, DefinitionRootLeaf, FeeReplayRec, RootGeneration, ScopeFlow,
+    ScopeFlowItem, ScopeLeafKind, ScopeOpKind, ScopeSeen, SerialId, SerialRootLeaf,
+    SettlementExecHandoff, SettlementListReq, SettlementLookup, SettlementPage, SettlementPageTok,
+    SettlementPath, SettlementStateRoot, SettlementStore, SettlementStoreError, StoreItem, StoreOp,
 };
 
 struct TreeJob {
@@ -42,6 +43,7 @@ struct TreeJob {
 struct TreeOut {
     tree_id: HjmtTreeId,
     root: RootHash,
+    trace: JmtUpdateTraceV2,
     snap: HjmtTreeSnap,
 }
 
@@ -54,6 +56,12 @@ struct EnsureJob {
 struct EnsureOut {
     tree_id: HjmtTreeId,
     snap: HjmtTreeSnap,
+}
+
+fn verify_tree_out_trace(out: &TreeOut) -> Result<(), SettlementStoreError> {
+    out.trace
+        .verify_native()
+        .map_err(|err| SettlementStoreError::Backend(format!("HJMT update trace rejected: {err}")))
 }
 
 type ScopeInputKey = ([u8; 32], u32);
@@ -233,6 +241,49 @@ impl SettlementStore {
         Ok(ScopeFlow::new(route, flow_items, prev_root, post_root))
     }
 
+    /// Apply the canonical checkpoint execution handoff and retain every trace
+    /// emitted by that one HJMT commit in a frozen V2 envelope.
+    pub(crate) fn hjmt_apply_exec_handoff_with_update_trace(
+        &mut self,
+        handoff: SettlementExecHandoff,
+    ) -> Result<(ScopeFlow, SettlementUpdateTraceEnvelopeV2), SettlementStoreError> {
+        if handoff.is_recursive_v2_noop() {
+            let (route, ops, txs) = handoff.into_parts();
+            debug_assert!(ops.is_empty() && txs.is_empty());
+            let root = self.hjmt_root()?;
+            let envelope = SettlementUpdateTraceEnvelopeV2::new_noop(RootGeneration::SettlementV2)
+                .map_err(|err| {
+                    SettlementStoreError::Backend(format!(
+                        "recursive V2 no-op envelope rejected: {err}"
+                    ))
+                })?;
+            return Ok((ScopeFlow::new(route, Vec::new(), root, root), envelope));
+        }
+        let (route, ops, txs) = handoff.into_parts();
+        let prev_root = self.hjmt_root()?;
+        if ops.is_empty() || txs.is_empty() {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 execution requires nonempty terminal ops and checkpoint rows"
+                    .to_string(),
+            ));
+        }
+
+        let exec_ops = self.exec_terminal_ops(&ops)?;
+        if exec_ops.is_empty() || exec_ops.len() != ops.len() {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 execution accepts only canonical terminal settlement ops".to_string(),
+            ));
+        }
+        self.check_exec_ops(&exec_ops, &txs)?;
+        let flow_items = self.scope_flow_items(&ops, &txs)?;
+        let (post_root, trace) =
+            self.hjmt_apply_attest_route_with_update_trace(ops, txs, None, Some(route))?;
+        Ok((
+            ScopeFlow::new(route, flow_items, prev_root, post_root),
+            trace,
+        ))
+    }
+
     pub(crate) fn hjmt_apply_attest_exec(
         &mut self,
         ops: Vec<StoreOp>,
@@ -261,15 +312,51 @@ impl SettlementStore {
             return self.hjmt_root();
         }
 
+        self.hjmt_apply_attest_route_with_update_trace(ops, txs, delta_set, route)
+            .map(|(root, _)| root)
+    }
+
+    fn hjmt_apply_attest_route_with_update_trace(
+        &mut self,
+        ops: Vec<StoreOp>,
+        txs: Vec<crate::checkpoint::CheckpointExecTx>,
+        delta_set: Option<ObjectDeltaSetV1>,
+        route: Option<SettlementRouteCtx>,
+    ) -> Result<(SettlementStateRoot, SettlementUpdateTraceEnvelopeV2), SettlementStoreError> {
+        if ops.is_empty() {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 update trace cannot encode an empty operation set".to_string(),
+            ));
+        }
+
         timing::clear();
         let result = timing::run("hjmt_apply_attest_exec", || {
             self.check_exec_ops(&ops, &txs)?;
             let plan = self.sched_plan_ops_with_delta(&ops, delta_set, None)?;
             if !plan.has_ops() {
-                return self.hjmt_root();
+                return Err(SettlementStoreError::Backend(
+                    "recursive V2 update trace cannot encode a no-op plan".to_string(),
+                ));
             }
 
-            self.commit_hjmt_plan(plan, &[], None, route, Some(txs))
+            let version = next_ver(self.hjmt_roots.version);
+            let (root, traces) = self.commit_hjmt_plan_at_with_update_traces(
+                plan,
+                version,
+                &[],
+                None,
+                self.backend.is_on(),
+                route,
+                Some(txs),
+            )?;
+            let envelope =
+                SettlementUpdateTraceEnvelopeV2::new(RootGeneration::SettlementV2, traces)
+                    .map_err(|err| {
+                        SettlementStoreError::Backend(format!(
+                            "recursive V2 trace envelope rejected: {err}"
+                        ))
+                    })?;
+            Ok((root, envelope))
         });
         timing::flush();
         result
@@ -563,6 +650,28 @@ impl SettlementStore {
         route: Option<SettlementRouteCtx>,
         txs: Option<Vec<crate::checkpoint::CheckpointExecTx>>,
     ) -> Result<SettlementStateRoot, SettlementStoreError> {
+        self.commit_hjmt_plan_at_with_update_traces(
+            plan,
+            version,
+            rollback_claims,
+            fee_row,
+            persist,
+            route,
+            txs,
+        )
+        .map(|(root, _)| root)
+    }
+
+    pub(crate) fn commit_hjmt_plan_at_with_update_traces(
+        &mut self,
+        plan: HjmtPlan,
+        version: u64,
+        rollback_claims: &[ClaimNullTx],
+        fee_row: Option<FeeReplayRec>,
+        persist: bool,
+        route: Option<SettlementRouteCtx>,
+        txs: Option<Vec<crate::checkpoint::CheckpointExecTx>>,
+    ) -> Result<(SettlementStateRoot, Vec<JmtUpdateTraceV2>), SettlementStoreError> {
         let prev_root = self.hjmt_root()?;
         let object_delta = plan.delta_set.clone();
         let write_arts = if persist {
@@ -578,15 +687,16 @@ impl SettlementStore {
         let mut next_roots = self.hjmt_roots.clone();
         let plan_root = plan.root;
         let touched_buckets = plan.touched_buckets.clone();
+        let mut traces = Vec::new();
 
         let result = (|| {
             timing::run("hjmt_child_commit", || {
-                self.commit_terminal_batches(version, &plan, &mut next_roots)
+                self.commit_terminal_batches(version, &plan, &mut next_roots, &mut traces)
             })?;
             timing::run("hjmt_parent_commit", || {
-                self.commit_bucket_batches(version, &plan, &mut next_roots)?;
-                self.commit_serial_batches(version, &plan, &mut next_roots)?;
-                self.commit_definition_batch(version, &plan, &mut next_roots)?;
+                self.commit_bucket_batches(version, &plan, &mut next_roots, &mut traces)?;
+                self.commit_serial_batches(version, &plan, &mut next_roots, &mut traces)?;
+                self.commit_definition_batch(version, &plan, &mut next_roots, &mut traces)?;
                 self.ensure_live_hjmt_tree_versions(version, &plan.live_model)
             })?;
             if !plan.path_batch.is_empty() {
@@ -597,6 +707,8 @@ impl SettlementStore {
                         snap: self.hjmt_store.tree_snap(plan.path_batch.tree_id),
                         version,
                     })?;
+                    verify_tree_out_trace(&out)?;
+                    traces.push(out.trace.clone());
                     self.hjmt_store.restore_tree(out.tree_id, out.snap);
                     Ok::<RootHash, SettlementStoreError>(out.root)
                 })?;
@@ -646,7 +758,7 @@ impl SettlementStore {
             self.last_object_delta = Some(object_delta.clone());
             self.object_deltas_by_ver.insert(version, object_delta);
             self.refresh_cache_post_commit();
-            Ok(plan_root)
+            Ok((plan_root, traces))
         })();
 
         if let Err(err) = result {
@@ -749,6 +861,7 @@ impl SettlementStore {
         version: u64,
         plan: &HjmtPlan,
         next_roots: &mut HjmtRoots,
+        traces: &mut Vec<JmtUpdateTraceV2>,
     ) -> Result<(), SettlementStoreError> {
         let jobs = plan
             .terminal_batches
@@ -762,6 +875,8 @@ impl SettlementStore {
             .collect::<Vec<_>>();
 
         for out in self.commit_tree_jobs("hjmt_terminal_batch", jobs)? {
+            verify_tree_out_trace(&out)?;
+            traces.push(out.trace.clone());
             let HjmtTreeId::BucketTerminal(definition_id, serial_id, bucket_id) = out.tree_id
             else {
                 return Err(SettlementStoreError::Backend(
@@ -820,6 +935,7 @@ impl SettlementStore {
         version: u64,
         plan: &HjmtPlan,
         next_roots: &mut HjmtRoots,
+        traces: &mut Vec<JmtUpdateTraceV2>,
     ) -> Result<(), SettlementStoreError> {
         let mut by_serial = BTreeMap::<HjmtSerialKey, Vec<HjmtBucketKey>>::new();
         for key in &plan.touched_buckets {
@@ -856,6 +972,8 @@ impl SettlementStore {
         }
 
         for out in self.commit_tree_jobs("hjmt_bucket_batch", jobs)? {
+            verify_tree_out_trace(&out)?;
+            traces.push(out.trace.clone());
             let HjmtTreeId::Bucket(definition_id, serial_id) = out.tree_id else {
                 return Err(SettlementStoreError::Backend(
                     "hjmt bucket batch used non-bucket tree".to_string(),
@@ -880,6 +998,7 @@ impl SettlementStore {
         version: u64,
         plan: &HjmtPlan,
         next_roots: &mut HjmtRoots,
+        traces: &mut Vec<JmtUpdateTraceV2>,
     ) -> Result<(), SettlementStoreError> {
         let mut by_def = BTreeMap::<DefinitionId, BTreeSet<SerialId>>::new();
         for key in &plan.touched_buckets {
@@ -917,6 +1036,8 @@ impl SettlementStore {
         }
 
         for out in self.commit_tree_jobs("hjmt_serial_batch", jobs)? {
+            verify_tree_out_trace(&out)?;
+            traces.push(out.trace.clone());
             let HjmtTreeId::Serial(definition_id) = out.tree_id else {
                 return Err(SettlementStoreError::Backend(
                     "hjmt serial batch used non-serial tree".to_string(),
@@ -940,6 +1061,7 @@ impl SettlementStore {
         version: u64,
         plan: &HjmtPlan,
         next_roots: &mut HjmtRoots,
+        traces: &mut Vec<JmtUpdateTraceV2>,
     ) -> Result<(), SettlementStoreError> {
         let mut def_ids = BTreeSet::new();
         for key in &plan.touched_buckets {
@@ -971,6 +1093,8 @@ impl SettlementStore {
             snap: self.hjmt_store.tree_snap(batch.tree_id),
             version,
         })?;
+        verify_tree_out_trace(&out)?;
+        traces.push(out.trace.clone());
         self.hjmt_store.restore_tree(out.tree_id, out.snap);
         if plan.has_live_definitions {
             next_roots.def_root = Some(TreeRootRef::new(out.root.0));
@@ -982,11 +1106,16 @@ impl SettlementStore {
 
     fn commit_tree_job(&self, job: TreeJob) -> Result<TreeOut, SettlementStoreError> {
         self.sched_one("hjmt_tree_commit", job, |job| {
-            let (root, snap) =
-                super::hjmt_store::HjmtStore::commit_snap(job.snap, job.ops, job.version)?;
+            let (root, trace, snap) = super::hjmt_store::HjmtStore::commit_snap_with_update_trace(
+                JmtTreeRoleV2::from(job.tree_id),
+                job.snap,
+                job.ops,
+                job.version,
+            )?;
             Ok(TreeOut {
                 tree_id: job.tree_id,
                 root,
+                trace,
                 snap,
             })
         })
@@ -998,11 +1127,16 @@ impl SettlementStore {
         jobs: Vec<TreeJob>,
     ) -> Result<Vec<TreeOut>, SettlementStoreError> {
         self.sched_map(stage, jobs, |job| {
-            let (root, snap) =
-                super::hjmt_store::HjmtStore::commit_snap(job.snap, job.ops, job.version)?;
+            let (root, trace, snap) = super::hjmt_store::HjmtStore::commit_snap_with_update_trace(
+                JmtTreeRoleV2::from(job.tree_id),
+                job.snap,
+                job.ops,
+                job.version,
+            )?;
             Ok(TreeOut {
                 tree_id: job.tree_id,
                 root,
+                trace,
                 snap,
             })
         })

@@ -1,3 +1,11 @@
+---
+title: "Proof-of-Useful-Work Whitepaper"
+description: "Defines a rule-bound reward system for verifiable useful outcomes, evidence review, and treasury-limited payout authorization."
+difficulty: advanced
+icon: mdi:alpha-c-circle-outline
+toc: true
+---
+
 # Z00Z Proof-of-Useful-Work Whitepaper
 
 [TOC]
@@ -563,7 +571,6 @@ stateDiagram-v2
   class Claimable,Redeemed,Settled success
   class Challenged,Rejected danger
   class Expired timeout
-
 ```
 
 #### Payout Modes

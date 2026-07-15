@@ -37,6 +37,7 @@ pub mod audit;
 mod build;
 mod build_prepare;
 mod build_state;
+mod canonical_transition;
 mod codec;
 mod contract_config;
 mod da_reference;
@@ -47,7 +48,14 @@ mod link;
 mod pq_anchor;
 mod pruning;
 mod publication_evidence;
-mod recursive_checkpoint;
+mod recursive_circuit;
+mod recursive_context;
+mod recursive_predicate;
+mod recursive_reject;
+mod recursive_semantics;
+mod recursive_statement;
+mod recursive_trace;
+pub mod recursive_v2;
 mod retrieval_audit;
 mod state_snapshot;
 mod store;
@@ -87,17 +95,15 @@ pub use self::{
         decode_exec_json, decode_link_bin, decode_link_json, decode_pq_anchor_bin,
         decode_pq_anchor_json, decode_pruning_decision_bin, decode_pruning_decision_json,
         decode_publication_evidence_bin, decode_publication_evidence_json,
-        decode_recursive_sidecar_bin, decode_recursive_sidecar_json, decode_retrieval_audit_bin,
-        decode_retrieval_audit_json, decode_state_snapshot_bin, decode_state_snapshot_json,
-        encode_archive_manifest_bin, encode_archive_manifest_json, encode_archive_receipt_bin,
-        encode_archive_receipt_json, encode_art_bin, encode_art_json, encode_da_reference_bin,
-        encode_da_reference_json, encode_draft_bin, encode_draft_json, encode_exec_bin,
-        encode_exec_json, encode_link_bin, encode_link_json, encode_pq_anchor_bin,
+        decode_retrieval_audit_bin, decode_retrieval_audit_json, decode_state_snapshot_bin,
+        decode_state_snapshot_json, encode_archive_manifest_bin, encode_archive_manifest_json,
+        encode_archive_receipt_bin, encode_archive_receipt_json, encode_art_bin, encode_art_json,
+        encode_da_reference_bin, encode_da_reference_json, encode_draft_bin, encode_draft_json,
+        encode_exec_bin, encode_exec_json, encode_link_bin, encode_link_json, encode_pq_anchor_bin,
         encode_pq_anchor_json, encode_pruning_decision_bin, encode_pruning_decision_json,
         encode_publication_evidence_bin, encode_publication_evidence_json,
-        encode_recursive_sidecar_bin, encode_recursive_sidecar_json, encode_retrieval_audit_bin,
-        encode_retrieval_audit_json, encode_state_snapshot_bin, encode_state_snapshot_json,
-        guard_verified_backend_codec_support,
+        encode_retrieval_audit_bin, encode_retrieval_audit_json, encode_state_snapshot_bin,
+        encode_state_snapshot_json, guard_verified_backend_codec_support,
     },
     contract_config::{
         repo_default_path, ArchiveRetentionCfg, AuthorityPromotionCfg, CheckpointContractConfigV1,
@@ -105,15 +111,15 @@ pub use self::{
         SnapshotsCfg, VerifiedBackendCfg, VerifiedBackendChainEvidenceCfg,
         VerifiedBackendRollbackCfg, VerifiedBackendSecurityReviewCfg,
         AUTHORITY_PROMOTION_STAGE_CONFIG_GATE, AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT,
-        AUTHORITY_PROMOTION_STAGE_SHADOW_SIDECAR, AUTHORITY_PROMOTION_STAGE_SPEC_ONLY,
-        CHECKPOINT_CONTRACT_CONFIG_PATH, POST_QUANTUM_ENFORCEMENT_STAGE, POST_QUANTUM_MODE,
-        POST_QUANTUM_REQUIRED_ARTIFACTS, VERIFIED_BACKEND_ADAPTER_TRAIT,
-        VERIFIED_BACKEND_CANDIDATE_STAGE, VERIFIED_BACKEND_CHAIN_EVIDENCE_OBJECT,
-        VERIFIED_BACKEND_CODEC_SUPPORT, VERIFIED_BACKEND_ENABLED_STAGE,
-        VERIFIED_BACKEND_PROOF_OBJECT, VERIFIED_BACKEND_REQUIRED_BENCHMARKS,
-        VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS, VERIFIED_BACKEND_REVIEW_APPROVED,
-        VERIFIED_BACKEND_REVIEW_PENDING, VERIFIED_BACKEND_ROLLBACK_PROCEDURE,
-        VERIFIED_BACKEND_STATEMENT_STABILITY, VERIFIED_BACKEND_VERIFIER_API,
+        AUTHORITY_PROMOTION_STAGE_SPEC_ONLY, CHECKPOINT_CONTRACT_CONFIG_PATH,
+        POST_QUANTUM_ENFORCEMENT_STAGE, POST_QUANTUM_MODE, POST_QUANTUM_REQUIRED_ARTIFACTS,
+        VERIFIED_BACKEND_ADAPTER_TRAIT, VERIFIED_BACKEND_CANDIDATE_STAGE,
+        VERIFIED_BACKEND_CHAIN_EVIDENCE_OBJECT, VERIFIED_BACKEND_CODEC_SUPPORT,
+        VERIFIED_BACKEND_ENABLED_STAGE, VERIFIED_BACKEND_PROOF_OBJECT,
+        VERIFIED_BACKEND_REQUIRED_BENCHMARKS, VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS,
+        VERIFIED_BACKEND_REVIEW_APPROVED, VERIFIED_BACKEND_REVIEW_PENDING,
+        VERIFIED_BACKEND_ROLLBACK_PROCEDURE, VERIFIED_BACKEND_STATEMENT_STABILITY,
+        VERIFIED_BACKEND_VERIFIER_API,
     },
     da_reference::{
         CheckpointDaLocatorKind, CheckpointDaProviderFamily, CheckpointDaReferenceV1,
@@ -138,14 +144,6 @@ pub use self::{
     publication_evidence::{
         CheckpointPublicationEvidenceV1, CheckpointPublicationEvidenceVersion,
         CheckpointPublicationState,
-    },
-    recursive_checkpoint::{
-        RecursiveCheckpointChainEvidenceV1, RecursiveCheckpointChainStepV1,
-        RecursiveCheckpointMeasurementV1, RecursiveCheckpointModeV1,
-        RecursiveCheckpointProofFamilyV1, RecursiveCheckpointProofV1,
-        RecursiveCheckpointPublicInputV1, RecursiveCheckpointRejectReasonV1,
-        RecursiveCheckpointSidecarCodecV1, RecursiveCheckpointSidecarV1,
-        RecursiveCheckpointVerdictV1, RecursiveCheckpointVerifierV1, RecursiveCheckpointVersion,
     },
     retrieval_audit::{RetrievalAuditV1, RetrievalAuditVersion},
     state_snapshot::{StateSnapshotV1, StateSnapshotVersion},

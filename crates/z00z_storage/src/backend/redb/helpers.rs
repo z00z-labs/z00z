@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
-use redb::{Database, ReadableTable};
+use redb::{Database, Durability, ReadableTable};
 #[cfg(not(test))]
 use z00z_utils::io::path_exists;
 use z00z_utils::io::prepare_managed_root;
@@ -15,10 +15,10 @@ use z00z_utils::{
 };
 
 use super::{
-    state::{LoadState, StateMeta},
+    state::{LoadState, RecursiveV2CutoverManifestV2, StateMeta},
     validate, RedbBackend, AST_ROOT_TABLE, AST_ROW_TABLE, CLAIM_NULL_TABLE, DB_FILE,
-    DEF_ROOT_TABLE, DEF_ROW_TABLE, FEE_REPLAY_TABLE, KEY_STATE, META_TABLE, OBJECT_DELTA_TABLE,
-    PATH_ROW_TABLE, SER_ROOT_TABLE, SER_ROW_TABLE,
+    DEF_ROOT_TABLE, DEF_ROW_TABLE, FEE_REPLAY_TABLE, KEY_ACTIVE, KEY_STATE, META_TABLE,
+    OBJECT_DELTA_TABLE, PATH_ROW_TABLE, RECURSIVE_V2_CUTOVER_TABLE, SER_ROOT_TABLE, SER_ROW_TABLE,
 };
 #[cfg(not(test))]
 use crate::settlement::hjmt_config::env_opt;
@@ -198,6 +198,114 @@ impl RedbBackend {
             object_delta: load_object_delta(&read, meta.version)?,
             hjmt_journal,
         }))
+    }
+
+    pub(super) fn install_recursive_v2_cutover(
+        &self,
+        manifest: &RecursiveV2CutoverManifestV2,
+    ) -> Result<(), StoreBackendError> {
+        if self.root.is_none() {
+            return Err(StoreBackendError::Open(
+                "recursive V2 cutover requires durable storage".to_string(),
+            ));
+        }
+        manifest.validate()?;
+
+        let codec = BincodeCodec;
+        let manifest_bytes = codec.serialize(manifest)?;
+        let db = self.db()?;
+        let mut write = db
+            .begin_write()
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
+        // This commit is the restart boundary. It must not stay in redb's
+        // deferred queue after the API reports a successful cutover.
+        write.set_durability(Durability::Immediate);
+
+        let meta_table = write
+            .open_table(META_TABLE)
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
+        let meta_bytes = meta_table
+            .get(KEY_STATE)
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?
+            .ok_or_else(|| {
+                StoreBackendError::Tx(
+                    "recursive V2 cutover has no persisted active state".to_string(),
+                )
+            })?;
+        let meta: StateMeta = codec.deserialize(meta_bytes.value())?;
+        let active = meta_table
+            .get(KEY_ACTIVE)
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?
+            .ok_or_else(|| {
+                StoreBackendError::Tx(
+                    "recursive V2 cutover has no persisted active generation".to_string(),
+                )
+            })?;
+        if active.value().len() != 8 {
+            return Err(StoreBackendError::Tx(
+                "recursive V2 cutover active generation has invalid length".to_string(),
+            ));
+        }
+        let mut active_bytes = [0_u8; 8];
+        active_bytes.copy_from_slice(active.value());
+        let active_generation = u64::from_be_bytes(active_bytes);
+        if meta.version != manifest.storage_generation
+            || active_generation != manifest.storage_generation
+            || meta.def_root != Some(manifest.expected_definition_root)
+        {
+            return Err(StoreBackendError::Tx(
+                "recursive V2 cutover compare-and-swap mismatch".to_string(),
+            ));
+        }
+        drop(active);
+        drop(meta_bytes);
+        drop(meta_table);
+
+        let mut cutover_table = write
+            .open_table(RECURSIVE_V2_CUTOVER_TABLE)
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
+        if cutover_table
+            .get(&b"installed"[..])
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?
+            .is_some()
+        {
+            return Err(StoreBackendError::Tx(
+                "recursive V2 cutover already installed".to_string(),
+            ));
+        }
+        cutover_table
+            .insert(&b"installed"[..], manifest_bytes.as_slice())
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
+        drop(cutover_table);
+        write
+            .commit()
+            .map_err(|err| StoreBackendError::Commit(err.to_string()))
+    }
+
+    pub(super) fn load_recursive_v2_cutover(
+        &self,
+    ) -> Result<Option<RecursiveV2CutoverManifestV2>, StoreBackendError> {
+        if self.root.is_none() {
+            return Ok(None);
+        }
+        let read = self
+            .db()?
+            .begin_read()
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
+        let table = match read.open_table(RECURSIVE_V2_CUTOVER_TABLE) {
+            Ok(table) => table,
+            Err(_) => return Ok(None),
+        };
+        let Some(bytes) = table
+            .get(&b"installed"[..])
+            .map_err(|err| StoreBackendError::Tx(err.to_string()))?
+        else {
+            return Ok(None);
+        };
+        let codec = BincodeCodec;
+        let manifest: RecursiveV2CutoverManifestV2 = codec.deserialize(bytes.value())?;
+        manifest.validate()?;
+        Ok(Some(manifest))
     }
 }
 

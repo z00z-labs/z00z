@@ -36,10 +36,10 @@ pub use self::{
     hjmt_policy::AdaptiveProofErr,
     hjmt_scheduler::ForestSchedulerMetrics,
     identity::{
-        BucketId, BucketPolicy, BucketPolicyError, CheckRoot, ClaimSourceRoot, DefinitionId,
-        RootGeneration, SerialId, SettlementPath, SettlementPathErr, SettlementStateRoot,
-        TerminalId, TxDigest, BUCKET_CANONICAL_ENCODING, BUCKET_HASH_DOMAIN, BUCKET_ID_WIDTH,
-        BUCKET_POLICY_VERSION,
+        derive_settlement_root_v2, BucketId, BucketPolicy, BucketPolicyError, CheckRoot,
+        ClaimSourceRoot, DefinitionId, RootGeneration, SerialId, SettlementPath, SettlementPathErr,
+        SettlementStateRoot, TerminalId, TxDigest, BUCKET_CANONICAL_ENCODING, BUCKET_HASH_DOMAIN,
+        BUCKET_ID_WIDTH, BUCKET_POLICY_VERSION,
     },
     leaf::TerminalLeaf,
     object_package_contract::{
@@ -91,3 +91,8 @@ pub use self::{
         VoucherAction, VoucherActionCtx,
     },
 };
+
+/// Recursive V2 wires are documented and supported only through
+/// `checkpoint::recursive_v2`; this hidden re-export exists solely to bridge
+/// the storage owner into that canonical facade.
+pub(crate) use proof_batch::SettlementUpdateTraceEnvelopeV2;

@@ -11,9 +11,8 @@ use super::{
     codec::{
         decode_archive_manifest_bin, decode_art_bin, decode_audit_bin, decode_da_reference_bin,
         decode_draft_bin, decode_exec_bin, decode_link_bin, decode_publication_evidence_bin,
-        decode_recursive_sidecar_bin, encode_archive_manifest_bin, encode_art_bin,
-        encode_audit_bin, encode_da_reference_bin, encode_draft_bin, encode_exec_bin,
-        encode_link_bin, encode_publication_evidence_bin, encode_recursive_sidecar_bin,
+        encode_archive_manifest_bin, encode_art_bin, encode_audit_bin, encode_da_reference_bin,
+        encode_draft_bin, encode_exec_bin, encode_link_bin, encode_publication_evidence_bin,
     },
     contract_config::{CheckpointContractConfigV1, CheckpointResolvedPaths},
     exec_input::CheckpointExecInput,
@@ -25,8 +24,7 @@ use super::{
     link::CheckpointLink,
     store_fs::CheckpointFinalLane,
     CheckpointArchiveManifestV1, CheckpointArtifact, CheckpointDaReferenceV1, CheckpointDraft,
-    CheckpointProof, CheckpointPublicationEvidenceV1, CheckpointTransitionStatementFinalV1,
-    RecursiveCheckpointSidecarV1, RecursiveCheckpointVerifierV1,
+    CheckpointProof, CheckpointPublicationEvidenceV1,
 };
 
 /// Load one canonical checkpoint draft from canonical storage bytes.
@@ -295,19 +293,6 @@ pub trait CheckpointStore {
         &self,
         checkpoint_id: &CheckpointId,
     ) -> Result<CheckpointLifecycleV1, CheckpointError>;
-
-    /// Persist non-authoritative recursive evidence bound to one canonical checkpoint.
-    fn save_recursive_sidecar(
-        &mut self,
-        checkpoint_id: CheckpointId,
-        sidecar: &RecursiveCheckpointSidecarV1,
-    ) -> Result<(), CheckpointError>;
-
-    /// Load recursive shadow evidence only after rechecking its canonical binding.
-    fn load_recursive_sidecar(
-        &self,
-        checkpoint_id: &CheckpointId,
-    ) -> Result<RecursiveCheckpointSidecarV1, CheckpointError>;
 }
 
 /// File-backed checkpoint store with separate persistence surfaces.
@@ -576,60 +561,6 @@ impl CheckpointFsStore {
             return Err(CheckpointError::KeyMix);
         }
         Ok(lifecycle)
-    }
-
-    fn check_recursive_sidecar_binding(
-        &self,
-        checkpoint_id: CheckpointId,
-        sidecar: &RecursiveCheckpointSidecarV1,
-    ) -> Result<(), CheckpointError> {
-        if sidecar.checkpoint_id_hint() != Some(checkpoint_id) {
-            return Err(CheckpointError::ArchiveMix);
-        }
-        let artifact = self.load_persisted_artifact(&checkpoint_id)?;
-        let statement = match artifact.statement() {
-            super::CheckpointStatement::V1(statement) => statement,
-            super::CheckpointStatement::Detached => return Err(CheckpointError::ArchiveMix),
-        };
-        let statement_core = artifact
-            .statement_core()
-            .ok_or(CheckpointError::ArchiveMix)?;
-        let da_ref = artifact.da_ref().ok_or(CheckpointError::ArchiveMix)?;
-        let link = self.load_link_validated(&checkpoint_id)?;
-        let cfg = CheckpointContractConfigV1::load_repo_default()?;
-        let verifier =
-            RecursiveCheckpointVerifierV1::new(&cfg).map_err(|_| CheckpointError::ArchiveMix)?;
-        verifier
-            .verify_sidecar(
-                sidecar,
-                &statement,
-                &statement_core,
-                &CheckpointTransitionStatementFinalV1::new(da_ref),
-                &link,
-            )
-            .map_err(|_| CheckpointError::ArchiveMix)
-    }
-
-    fn persist_recursive_sidecar_bin(
-        &self,
-        checkpoint_id: CheckpointId,
-        sidecar: &RecursiveCheckpointSidecarV1,
-    ) -> Result<(), CheckpointError> {
-        let bytes = encode_recursive_sidecar_bin(sidecar)?;
-        self.save_unique_bin(
-            &self.recursive_sidecar_path(&checkpoint_id),
-            &bytes,
-            CheckpointError::ArchiveMix,
-        )
-    }
-
-    fn load_persisted_recursive_sidecar(
-        &self,
-        checkpoint_id: &CheckpointId,
-    ) -> Result<RecursiveCheckpointSidecarV1, CheckpointError> {
-        let bytes = read_file(self.recursive_sidecar_path(checkpoint_id))
-            .map_err(|err| CheckpointError::Backend(err.to_string()))?;
-        decode_recursive_sidecar_bin(&bytes)
     }
 
     fn write_link_bin(&self, link: &CheckpointLink) -> Result<(), CheckpointError> {
@@ -1032,25 +963,5 @@ impl CheckpointStore for CheckpointFsStore {
     ) -> Result<CheckpointLifecycleV1, CheckpointError> {
         self.reject_noncanonical_final_lane()?;
         self.load_persisted_lifecycle(checkpoint_id)
-    }
-
-    fn save_recursive_sidecar(
-        &mut self,
-        checkpoint_id: CheckpointId,
-        sidecar: &RecursiveCheckpointSidecarV1,
-    ) -> Result<(), CheckpointError> {
-        self.reject_noncanonical_final_lane()?;
-        self.check_recursive_sidecar_binding(checkpoint_id, sidecar)?;
-        self.persist_recursive_sidecar_bin(checkpoint_id, sidecar)
-    }
-
-    fn load_recursive_sidecar(
-        &self,
-        checkpoint_id: &CheckpointId,
-    ) -> Result<RecursiveCheckpointSidecarV1, CheckpointError> {
-        self.reject_noncanonical_final_lane()?;
-        let sidecar = self.load_persisted_recursive_sidecar(checkpoint_id)?;
-        self.check_recursive_sidecar_binding(*checkpoint_id, &sidecar)?;
-        Ok(sidecar)
     }
 }

@@ -47,10 +47,16 @@ pub use blake2_hash::{
     derive_key_from_seed, hash_asset_id, Blake2bHasher, Blake2bHasher256, Blake2bVarHasher,
     DomainHasher, DomainHasher256,
 };
+pub use domains::CheckpointShaRole;
 pub use hmac_sha256::{
     hmac_sha256, hmac_sha256_raw, try_hmac_sha256, try_hmac_sha256_raw, verify_hmac,
 };
-pub use sha256_hash::{sha256_256, sha256_256_simple};
+pub use sha256_hash::{
+    sha256_256, sha256_256_role, sha256_256_simple, CheckpointSha256BlockStreamV2,
+    CheckpointSha256BlockV2, CheckpointSha256BlockVisitError, CheckpointSha256Error,
+    CheckpointSha256V2, SHA256_BLOCK_BYTES_V2, SHA256_DIGEST_BYTES_V2, SHA256_IV_V2,
+    SHA256_MAX_BYTES_V2,
+};
 
 pub use convenience::{
     safe_take_32, take_32, try_take_32, try_take_n, AssetIdHasher, ChecksumHasher, TestNonceHasher,
@@ -58,7 +64,13 @@ pub use convenience::{
 pub use domains::{ALL_DOMAINS, CONS_DOMAINS, WALLET_DOMAINS};
 pub use policy::{
     blake2b_hash, compute_consensus_hash, compute_wallet_seed_hash, hash_cache_key,
-    hash_db_record_id, hash_fn_for_domain, poseidon2_hash, ConsensusHash, HashFunction, WalletHash,
+    hash_db_record_id, hash_fn_for_domain, poseidon2_framed_words_v1,
+    poseidon2_goldilocks_params_v1, poseidon2_hash, ConsensusHash, HashFunction,
+    Poseidon2GoldilocksParamsV1, WalletHash, POSEIDON2_GOLDILOCKS_COUNT_BYTES_V1,
+    POSEIDON2_GOLDILOCKS_DELIMITER_V1, POSEIDON2_GOLDILOCKS_FRAME_BYTES_V1,
+    POSEIDON2_GOLDILOCKS_MODULUS_V1, POSEIDON2_GOLDILOCKS_OUTPUT_WORDS_V1,
+    POSEIDON2_GOLDILOCKS_RATE_V1, POSEIDON2_GOLDILOCKS_WIDTH_V1,
+    POSEIDON2_GOLDILOCKS_WORD_BYTES_V1,
 };
 pub use typed::{ConsensusHash32, WalletHash32};
 pub use zk::{hash_consensus, hash_to_scalar_zk, hash_zk};

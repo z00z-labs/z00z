@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use super::*;
 
 #[test]
@@ -20,6 +22,117 @@ fn test_sha256_blake2b_are_deterministic() {
     let y1 = blake2b_512("d", "l", &[b"x", b"y"]);
     let y2 = blake2b_512("d", "l", &[b"x", b"y"]);
     assert_eq!(y1, y2);
+}
+
+#[test]
+fn checkpoint_sha_roles_are_distinct_and_fips_frozen() {
+    let root = sha256_256_role(CheckpointShaRole::SettlementRoot, &[b"same"]);
+    let trace = sha256_256_role(CheckpointShaRole::Trace, &[b"same"]);
+    let spent = sha256_256_role(CheckpointShaRole::SpentOriginalIds, &[b"same"]);
+    let output = sha256_256_role(CheckpointShaRole::OutputOriginalIds, &[b"same"]);
+    assert_ne!(root, trace);
+    assert_ne!(spent, output);
+    assert_eq!(SHA256_BLOCK_BYTES_V2, 64);
+    assert_eq!(SHA256_MAX_BYTES_V2, (1_u64 << 61) - 1);
+    assert_eq!(SHA256_IV_V2[0], 0x6a09e667);
+    assert_eq!(SHA256_IV_V2[7], 0x5be0cd19);
+}
+
+#[test]
+fn checkpoint_sha_registry_has_no_duplicate_semantic_pair() {
+    for (index, role) in crate::hash::domains::ALL_CHECKPOINT_SHA_ROLES_V2
+        .iter()
+        .enumerate()
+    {
+        for other in &crate::hash::domains::ALL_CHECKPOINT_SHA_ROLES_V2[index + 1..] {
+            assert!(
+                role.domain() != other.domain() || role.label() != other.label(),
+                "checkpoint SHA roles must not share a semantic domain/label pair"
+            );
+        }
+    }
+}
+
+#[test]
+fn checkpoint_sha_stream_matches_the_role_framing() {
+    let parts: &[&[u8]] = &[b"first", b"second", b""];
+    let role = CheckpointShaRole::Trace;
+    let expected = sha256_256(role.domain(), role.label(), parts);
+    let mut stream = CheckpointSha256V2::new(role);
+    for part in parts {
+        stream.update_part(part).expect("bounded input");
+    }
+    assert_eq!(stream.finalize(), expected);
+}
+
+#[test]
+fn checkpoint_sha_block_stream_matches_rustcrypto_at_fips_boundaries() {
+    for length in [0_usize, 1, 55, 56, 63, 64, 65, 1_024] {
+        let payload = vec![0xA5; length];
+        let expected = sha256_256_role(
+            CheckpointShaRole::Trace,
+            &[b"z00z.recursive.v2.source-record-hash", &payload],
+        );
+        let mut blocks = Vec::new();
+        let mut stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::Trace);
+        stream
+            .update_part_with(b"z00z.recursive.v2.source-record-hash", &mut |block| {
+                blocks.push(block);
+                Ok::<(), ()>(())
+            })
+            .expect("fixed label fits");
+        stream
+            .update_part_with(&payload, &mut |block| {
+                blocks.push(block);
+                Ok::<(), ()>(())
+            })
+            .expect("bounded payload fits");
+        let actual = stream
+            .finalize_with(&mut |block| {
+                blocks.push(block);
+                Ok::<(), ()>(())
+            })
+            .expect("bounded transcript finalizes");
+        assert_eq!(actual, expected, "payload length {length}");
+        assert!(!blocks.is_empty());
+        assert_eq!(blocks[0].chaining_before(), &SHA256_IV_V2);
+        assert!(blocks.last().expect("one final block").final_block());
+        assert!(blocks
+            .iter()
+            .all(CheckpointSha256BlockV2::verifies_transition));
+        assert_eq!(
+            blocks.len() as u64,
+            crate::hash::sha256_hash::CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
+                CheckpointShaRole::Trace,
+                u64::try_from(b"z00z.recursive.v2.source-record-hash".len() + length)
+                    .expect("test length"),
+                2,
+            )
+            .and_then(|bytes| {
+                let with_padding = bytes
+                    .checked_add(9)
+                    .ok_or(CheckpointSha256Error::InputTooLong)?;
+                Ok(with_padding.div_ceil(SHA256_BLOCK_BYTES_V2))
+            })
+            .expect("block count")
+        );
+        for pair in blocks.windows(2) {
+            assert_eq!(pair[0].chaining_after(), pair[1].chaining_before());
+        }
+    }
+}
+
+#[test]
+fn checkpoint_sha_block_count_rejects_fips_length_overflow() {
+    assert_eq!(
+        CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(SHA256_MAX_BYTES_V2)
+            .expect("maximum FIPS message"),
+        (SHA256_MAX_BYTES_V2 + 9).div_ceil(SHA256_BLOCK_BYTES_V2)
+    );
+    assert!(
+        CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(SHA256_MAX_BYTES_V2 + 1)
+            .is_err()
+    );
 }
 
 #[test]

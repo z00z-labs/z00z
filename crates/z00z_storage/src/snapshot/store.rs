@@ -8,7 +8,8 @@ use z00z_utils::io::{create_dir_all, read_file, write_file};
 use crate::checkpoint::CheckpointContractConfigV1;
 use crate::settlement::{
     chk_blob_settlement_inclusion, CheckRoot, HjmtProofFamily, ModelErr, ProofBlob, ProofChkErr,
-    ProofItem, SettlementStore, SettlementStoreError, SnapItem, StoreItem, StoreOp,
+    ProofItem, RootGeneration, SettlementStateRoot, SettlementStore, SettlementStoreError,
+    SnapItem, StoreItem, StoreOp,
 };
 
 use super::{
@@ -40,6 +41,29 @@ pub fn build_snapshot(
     entries: Vec<SnapItem>,
 ) -> Result<(PrepSnapshot, PrepSnapshotId), PrepSnapshotError> {
     let snapshot = PrepSnapshot::new(PrepSnapshotVersion::CURRENT, prev_root, entries);
+    check_snapshot(&snapshot)?;
+    let snapshot_id = derive_id(&snapshot)?;
+    Ok((snapshot, snapshot_id))
+}
+
+/// Build one canonical prep snapshot bound to the typed V2 settlement root.
+///
+/// Unlike the legacy builder, this records the root generation alongside the
+/// raw checkpoint field. Every nonempty entry must carry a proof for that exact
+/// typed root; the V2 transition resolver subsequently compares it to the live
+/// settlement-store snapshot before any witness pass begins.
+pub fn build_snapshot_v2(
+    prev_settlement_root: SettlementStateRoot,
+    entries: Vec<SnapItem>,
+) -> Result<(PrepSnapshot, PrepSnapshotId), PrepSnapshotError> {
+    if prev_settlement_root.generation() != RootGeneration::SettlementV2 {
+        return Err(PrepSnapshotError::RootMix);
+    }
+    let snapshot = PrepSnapshot::new_settlement_v2(
+        PrepSnapshotVersion::CURRENT,
+        prev_settlement_root,
+        entries,
+    );
     check_snapshot(&snapshot)?;
     let snapshot_id = derive_id(&snapshot)?;
     Ok((snapshot, snapshot_id))
@@ -245,7 +269,7 @@ fn check_snapshot(snapshot: &PrepSnapshot) -> Result<(), PrepSnapshotError> {
     let mut terminal_ids = BTreeSet::new();
 
     for entry in &snapshot.entries {
-        check_entry(snapshot.prev_root, entry)?;
+        check_entry(snapshot.prev_root, snapshot.prev_settlement_root, entry)?;
 
         if !paths.insert(entry.path()) {
             return Err(PrepSnapshotError::DupPath);
@@ -261,6 +285,18 @@ fn check_snapshot(snapshot: &PrepSnapshot) -> Result<(), PrepSnapshotError> {
 }
 
 fn check_entries_root(snapshot: &PrepSnapshot) -> Result<(), PrepSnapshotError> {
+    if let Some(root) = snapshot.prev_settlement_root {
+        if root.generation() != RootGeneration::SettlementV2
+            || CheckRoot::from(root) != snapshot.prev_root
+        {
+            return Err(PrepSnapshotError::RootMix);
+        }
+        // Entry-level inclusion checks above bind every materialized leaf to
+        // the exact V2 root. The V2 root itself is derived by the live HJMT
+        // store and is rechecked by the recursive transition resolver; do not
+        // reconstruct a second legacy semantic root here.
+        return Ok(());
+    }
     #[cfg(test)]
     let mut store = SettlementStore::test_hjmt_store();
     #[cfg(not(test))]
@@ -283,7 +319,11 @@ fn check_entries_root(snapshot: &PrepSnapshot) -> Result<(), PrepSnapshotError> 
     Ok(())
 }
 
-fn check_entry(prev_root: CheckRoot, entry: &SnapItem) -> Result<(), PrepSnapshotError> {
+fn check_entry(
+    prev_root: CheckRoot,
+    prev_settlement_root: Option<SettlementStateRoot>,
+    entry: &SnapItem,
+) -> Result<(), PrepSnapshotError> {
     entry.check_path().map_err(map_model)?;
 
     let blob = ProofBlob::decode(entry.wit()).map_err(PrepSnapshotError::WitDecode)?;
@@ -296,7 +336,9 @@ fn check_entry(prev_root: CheckRoot, entry: &SnapItem) -> Result<(), PrepSnapsho
     let proof_item = blob.item();
     let proof_path = proof_item.path();
 
-    if CheckRoot::from(proof_item.settlement_root()) != prev_root {
+    if CheckRoot::from(proof_item.settlement_root()) != prev_root
+        || prev_settlement_root.is_some_and(|root| proof_item.settlement_root() != root)
+    {
         return Err(PrepSnapshotError::RootMix);
     }
     if proof_path.definition_id != entry.path().definition_id {
@@ -417,7 +459,11 @@ fn map_wit(err: ProofChkErr) -> PrepSnapshotError {
         | ProofChkErr::BatchShardCtxMix
         | ProofChkErr::PublicationProofShardMix => PrepSnapshotError::PathMix,
         ProofChkErr::BatchLeafFamilyMix => PrepSnapshotError::LeafMix,
-        ProofChkErr::BatchDefaultCommitmentMix => PrepSnapshotError::WitMix,
+        ProofChkErr::BatchDefaultCommitmentMix
+        | ProofChkErr::UnsupportedJmtUpdateVersion
+        | ProofChkErr::JmtUpdateTraceLimit
+        | ProofChkErr::JmtUpdateTraceCanonical
+        | ProofChkErr::JmtUpdateProofMix => PrepSnapshotError::WitMix,
     }
 }
 

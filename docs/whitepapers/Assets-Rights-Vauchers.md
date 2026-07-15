@@ -1,3 +1,11 @@
+---
+title: "Assets, Rights, And Vouchers Whitepaper"
+description: "Defines the object boundary between assets, rights, and vouchers so value, authority, and conditional claims stay distinct in Z00Z."
+difficulty: advanced
+icon: mdi:alpha-c-circle-outline
+toc: true
+---
+
 # Z00Z Assets, Rights, And Vouchers Whitepaper
 
 [TOC]
@@ -427,6 +435,16 @@ stateDiagram-v2
   PartiallyRedeemed --> Refunded: refund_remaining_after_expiry
   Active --> Expired: expire
   PartiallyRedeemed --> Expired: expire
+
+  classDef support fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238
+  classDef danger fill:#FFE0E0,stroke:#D32F2F,stroke-width:1px,color:#B71C1C
+
+  class Pending support
+  class Active support
+  class Refunded support
+  class PartiallyRedeemed support
+  class Redeemed support
+  class Expired danger
 ```
 
 ### 5.5 Partial Redeem

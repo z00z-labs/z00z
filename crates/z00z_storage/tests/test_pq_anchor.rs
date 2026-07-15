@@ -1,9 +1,11 @@
 use z00z_storage::{
     checkpoint::{
         decode_pq_anchor_bin, decode_pq_anchor_json, encode_pq_anchor_bin, encode_pq_anchor_json,
-        repo_default_path, CheckpointContractConfigV1, PostQuantumCheckpointAnchorV1,
-        StateSnapshotV1, StateSnapshotVersion, POST_QUANTUM_ENFORCEMENT_STAGE,
-        POST_QUANTUM_REQUIRED_ARTIFACTS, VERIFIED_BACKEND_CANDIDATE_STAGE,
+        repo_default_path, CheckpointContractConfigV1, PostQuantumCheckpointAnchorModeV1,
+        PostQuantumCheckpointAnchorV1, PostQuantumCheckpointAnchorVersion,
+        PostQuantumCheckpointEnforcementStageV1, StateSnapshotV1, StateSnapshotVersion,
+        POST_QUANTUM_ENFORCEMENT_STAGE, POST_QUANTUM_REQUIRED_ARTIFACTS,
+        VERIFIED_BACKEND_CANDIDATE_STAGE,
     },
     CheckpointError,
 };
@@ -60,7 +62,7 @@ fn test_state_snapshot_requires_nonzero_pq_anchor_root() {
 }
 
 #[test]
-fn test_pq_anchor_writer_stays_declared_only_before_live_stage() {
+fn test_pq_anchor_writer_stays_non_authoritative_without_a_bound_writer() {
     let cfg = cfg();
 
     assert!(cfg
@@ -76,15 +78,15 @@ fn test_pq_anchor_writer_stays_declared_only_before_live_stage() {
             root(8),
             root(9),
         )
-        .expect("pre-stage pq anchor build")
+        .expect("non-authoritative pq anchor build")
         .is_none());
 
     cfg.validate_pq_anchor(1000, root(1), root(2), root(3), root(4), None)
-        .expect("pre-stage cadence remains declared-only");
+        .expect("non-authoritative cadence remains declared-only");
 }
 
 #[test]
-fn test_live_stage_requires_complete_pq_anchor_on_cadence() {
+fn test_live_pq_stage_rejects_without_a_bound_writer() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages =
@@ -93,11 +95,11 @@ fn test_live_stage_requires_complete_pq_anchor_on_cadence() {
 
     let missing = cfg
         .validate_pq_anchor(1000, root(1), root(2), root(3), root(4), None)
-        .expect_err("live cadence must require pq anchor");
+        .expect_err("unbound PQ writer stage must reject");
 
-    assert!(matches!(missing, CheckpointError::Backend(_)));
+    assert!(matches!(missing, CheckpointError::ContractConfig(_)));
 
-    let anchor = cfg
+    let build = cfg
         .build_pq_anchor(
             1000,
             root(1),
@@ -110,27 +112,14 @@ fn test_live_stage_requires_complete_pq_anchor_on_cadence() {
             root(8),
             root(9),
         )
-        .expect("live pq anchor build")
-        .expect("cadence-height anchor");
+        .expect_err("an unbound backend must not build a live PQ anchor");
+    assert!(matches!(build, CheckpointError::ContractConfig(_)));
 
-    cfg.validate_pq_anchor(1000, root(1), root(2), root(3), root(4), Some(&anchor))
-        .expect("live cadence accepts complete anchor");
-
-    StateSnapshotV1::new(
-        StateSnapshotVersion::CURRENT,
-        10_000,
-        10,
-        10_000,
-        root(11),
-        root(12),
-        root(13),
-        root(14),
-        root(15),
-        root(16),
-        anchor.pq_anchor_root(),
-        root(17),
-    )
-    .expect("snapshot accepts pq anchor root");
+    let anchor = retained_phase068_anchor();
+    let validate = cfg
+        .validate_pq_anchor(1000, root(1), root(2), root(3), root(4), Some(&anchor))
+        .expect_err("an unbound backend must not validate a live PQ anchor");
+    assert!(matches!(validate, CheckpointError::ContractConfig(_)));
 }
 
 #[test]
@@ -164,7 +153,7 @@ fn test_live_pq_entry_points_reject_disabled_live_cadence() {
 
 #[test]
 fn test_pq_anchor_roundtrip_and_unknown_field_reject() {
-    let anchor = live_anchor();
+    let anchor = retained_phase068_anchor();
 
     assert_eq!(
         decode_pq_anchor_bin(&encode_pq_anchor_bin(&anchor).expect("pq anchor bin"))
@@ -187,23 +176,23 @@ fn test_pq_anchor_roundtrip_and_unknown_field_reject() {
 }
 
 #[test]
-fn test_pq_anchor_mismatch_rejects() {
+fn test_pq_anchor_live_validation_rejects_without_a_bound_backend() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages =
         vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
     cfg.post_quantum.enforce_live_cadence = true;
-    let anchor = live_anchor();
+    let anchor = retained_phase068_anchor();
 
     let err = cfg
         .validate_pq_anchor(1000, root(1), root(2), root(3), root(99), Some(&anchor))
-        .expect_err("archive mismatch must reject");
+        .expect_err("live PQ anchor validation requires a bound backend");
 
-    assert!(matches!(err, CheckpointError::Backend(_)));
+    assert!(matches!(err, CheckpointError::ContractConfig(_)));
 }
 
 #[test]
-fn test_verified_backend_candidate_stage_still_requires_live_pq_cadence() {
+fn test_verified_backend_candidate_stage_rejects_without_promotion_evidence() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = VERIFIED_BACKEND_CANDIDATE_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages = vec!["verified_backend_enabled".to_string()];
@@ -211,21 +200,21 @@ fn test_verified_backend_candidate_stage_still_requires_live_pq_cadence() {
 
     let err = cfg
         .validate()
-        .expect_err("verified backend candidate stage must keep live pq cadence");
+        .expect_err("an unbound verified-backend stage must reject");
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 
     cfg.post_quantum.enforce_live_cadence = true;
-    cfg.validate().expect("verified backend candidate contract");
+    let err = cfg
+        .validate()
+        .expect_err("an unbound verified-backend stage must reject with cadence enabled");
+    assert!(matches!(err, CheckpointError::ContractConfig(_)));
 }
 
-fn live_anchor() -> PostQuantumCheckpointAnchorV1 {
-    let mut cfg = cfg();
-    cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
-    cfg.authority_promotion.allowed_next_stages =
-        vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
-    cfg.post_quantum.enforce_live_cadence = true;
-    cfg.build_pq_anchor(
+fn retained_phase068_anchor() -> PostQuantumCheckpointAnchorV1 {
+    PostQuantumCheckpointAnchorV1::new(
+        PostQuantumCheckpointAnchorVersion::CURRENT,
+        1000,
         1000,
         root(1),
         root(2),
@@ -236,7 +225,8 @@ fn live_anchor() -> PostQuantumCheckpointAnchorV1 {
         root(7),
         root(8),
         root(9),
+        PostQuantumCheckpointAnchorModeV1::Plonky3EpochProof,
+        PostQuantumCheckpointEnforcementStageV1::PqAnchorWriter,
     )
-    .expect("live pq anchor build")
-    .expect("cadence-height anchor")
+    .expect("Phase 068 retained anchor fixture")
 }

@@ -1,3 +1,11 @@
+---
+title: "Tokenomics and Incentives Whitepaper"
+description: "Defines the supply, treasury, bond, fee-credit, and bootstrap incentive surfaces around the Z00Z native asset."
+difficulty: specialist
+icon: mdi:alpha-e-circle-outline
+toc: true
+---
+
 # Z00Z Tokenomics and Incentives Whitepaper
 
 [TOC]

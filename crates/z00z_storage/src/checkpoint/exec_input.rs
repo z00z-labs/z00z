@@ -13,6 +13,7 @@ hash_domain!(StorCheckpointExecDom, "z00z.storage.checkpoint.exec", 1);
 
 const EXEC_TX_ROW_LABEL: &str = "checkpoint_exec_tx_row_v1";
 const EXEC_TX_ROOT_LABEL: &str = "checkpoint_exec_tx_root_v1";
+const EXEC_NOOP_ROOT_LABEL: &str = "checkpoint_exec_noop_v2";
 const EXEC_TX_ROW_VER: u8 = 1;
 
 /// Canonical execution-input schema version.
@@ -31,6 +32,13 @@ pub struct CheckpointExecVersion(u8);
 
 impl CheckpointExecVersion {
     pub const CURRENT: Self = Self(1);
+    /// Explicit, authority-gated recursive V2 empty-transition input.
+    ///
+    /// This is not a successor for ordinary checkpoint execution rows.  It
+    /// can only be constructed by [`CheckpointExecInput::new_recursive_v2_noop`]
+    /// and is accepted by the recursive V2 owner only when the pinned contract
+    /// configuration names this exact version and mode.
+    pub const RECURSIVE_V2_NOOP: Self = Self(2);
 
     #[must_use]
     pub const fn new(value: u8) -> Self {
@@ -237,6 +245,23 @@ pub fn derive_exec_tx_root(txs: &[CheckpointExecTx]) -> Result<[u8; 32], Checkpo
     ))
 }
 
+/// Derive the only legal zero-row execution commitment.
+///
+/// The version, preparation snapshot, and V2 predecessor root are framed into
+/// the commitment, so an empty vector cannot stand in for this typed marker.
+fn derive_recursive_v2_noop_exec_root(
+    prep_snapshot_id: PrepSnapshotId,
+    prev_settlement_root: SettlementStateRoot,
+) -> [u8; 32] {
+    let version = CheckpointExecVersion::RECURSIVE_V2_NOOP.as_u8();
+    let generation = prev_settlement_root.generation().version();
+    let mut bytes = frame_bytes(&[version]);
+    bytes.extend_from_slice(&frame_bytes(prep_snapshot_id.as_bytes()));
+    bytes.extend_from_slice(&frame_bytes(&[generation]));
+    bytes.extend_from_slice(&frame_bytes(prev_settlement_root.as_bytes()));
+    hash_zk::<StorCheckpointExecDom>(EXEC_NOOP_ROOT_LABEL, &[bytes.as_slice()])
+}
+
 /// Canonical checkpoint execution-input artifact.
 ///
 /// # Examples
@@ -298,6 +323,9 @@ impl CheckpointExecInput {
         txs: Vec<CheckpointExecTx>,
     ) -> Result<Self, CheckpointError> {
         check_exec_ver(version)?;
+        if version != CheckpointExecVersion::CURRENT {
+            return Err(CheckpointError::VersionMix);
+        }
         if txs.is_empty() {
             return Err(CheckpointError::ReplayMix);
         }
@@ -309,6 +337,29 @@ impl CheckpointExecInput {
             prev_settlement_root,
             tx_data_root,
             txs,
+        })
+    }
+
+    /// Construct the explicit checkpoint input required for a canonical V2
+    /// no-op transition. Ordinary execution constructors never accept empty
+    /// transaction rows.
+    pub fn new_recursive_v2_noop(
+        prep_snapshot_id: PrepSnapshotId,
+        prev_settlement_root: SettlementStateRoot,
+    ) -> Result<Self, CheckpointError> {
+        if prev_settlement_root.generation().version() != 2 {
+            return Err(CheckpointError::ReplayMix);
+        }
+        let version = CheckpointExecVersion::RECURSIVE_V2_NOOP;
+        let tx_data_root =
+            derive_recursive_v2_noop_exec_root(prep_snapshot_id, prev_settlement_root);
+        Ok(Self {
+            version,
+            prep_snapshot_id,
+            prev_root: CheckRoot::from(prev_settlement_root),
+            prev_settlement_root,
+            tx_data_root,
+            txs: Vec::new(),
         })
     }
 
@@ -341,10 +392,31 @@ impl CheckpointExecInput {
     pub fn txs(&self) -> &[CheckpointExecTx] {
         &self.txs
     }
+
+    #[must_use]
+    pub const fn is_recursive_v2_noop(&self) -> bool {
+        self.version.as_u8() == CheckpointExecVersion::RECURSIVE_V2_NOOP.as_u8()
+    }
+
+    pub(crate) fn expected_tx_data_root(&self) -> Result<[u8; 32], CheckpointError> {
+        match self.version {
+            CheckpointExecVersion::CURRENT => derive_exec_tx_root(&self.txs),
+            CheckpointExecVersion::RECURSIVE_V2_NOOP if self.txs.is_empty() => {
+                Ok(derive_recursive_v2_noop_exec_root(
+                    self.prep_snapshot_id,
+                    self.prev_settlement_root,
+                ))
+            }
+            _ => Err(CheckpointError::ReplayMix),
+        }
+    }
 }
 
 pub(crate) fn check_exec_ver(version: CheckpointExecVersion) -> Result<(), CheckpointError> {
-    if version == CheckpointExecVersion::CURRENT {
+    if matches!(
+        version,
+        CheckpointExecVersion::CURRENT | CheckpointExecVersion::RECURSIVE_V2_NOOP
+    ) {
         return Ok(());
     }
 
@@ -352,7 +424,7 @@ pub(crate) fn check_exec_ver(version: CheckpointExecVersion) -> Result<(), Check
 }
 
 pub(crate) fn check_tx_root(exec: &CheckpointExecInput) -> Result<(), CheckpointError> {
-    if exec.tx_data_root != derive_exec_tx_root(exec.txs())? {
+    if exec.tx_data_root != exec.expected_tx_data_root()? {
         return Err(CheckpointError::ReplayMix);
     }
 

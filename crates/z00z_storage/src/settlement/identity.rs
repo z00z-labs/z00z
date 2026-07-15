@@ -1,6 +1,10 @@
 use serde::ser::SerializeStruct;
 use thiserror::Error;
-use z00z_crypto::{expert::hash_domain, hash_zk::hash_zk};
+use z00z_crypto::{
+    expert::hash_domain,
+    hash::{sha256_256_role, CheckpointShaRole},
+    hash_zk::hash_zk,
+};
 
 use super::record::RootErr;
 
@@ -459,6 +463,7 @@ impl From<u32> for SerialId {
 #[repr(u8)]
 pub enum RootGeneration {
     SettlementV1 = 1,
+    SettlementV2 = 2,
 }
 
 impl RootGeneration {
@@ -471,6 +476,7 @@ impl RootGeneration {
     pub const fn from_version(version: u8) -> Option<Self> {
         match version {
             1 => Some(Self::SettlementV1),
+            2 => Some(Self::SettlementV2),
             _ => None,
         }
     }
@@ -495,6 +501,12 @@ impl SettlementStateRoot {
     #[must_use]
     pub const fn settlement_v1(root: [u8; 32]) -> Self {
         Self::new(RootGeneration::SettlementV1, root)
+    }
+
+    /// Creates the sole post-cutover settlement-root generation.
+    #[must_use]
+    pub const fn settlement_v2(root: [u8; 32]) -> Self {
+        Self::new(RootGeneration::SettlementV2, root)
     }
 
     #[must_use]
@@ -524,6 +536,29 @@ impl SettlementStateRoot {
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.root
     }
+}
+
+/// Derive the sole V2 settlement root from the canonical HJMT definition root.
+///
+/// The layout value is an authority-pinned storage layout version, while the
+/// policy digest is the canonical bucket-policy identifier.  Both are bound so
+/// a raw HJMT root can never masquerade as a settlement root.
+pub fn derive_settlement_root_v2(
+    generation: RootGeneration,
+    layout: u32,
+    policy_digest: [u8; 32],
+    definition_root: [u8; 32],
+) -> Result<SettlementStateRoot, RootErr> {
+    if generation != RootGeneration::SettlementV2 {
+        return Err(RootErr::GenerationMix);
+    }
+    let generation = [generation.version()];
+    let layout = layout.to_le_bytes();
+    let digest = sha256_256_role(
+        CheckpointShaRole::SettlementRoot,
+        &[&generation, &layout, &policy_digest, &definition_root],
+    );
+    Ok(SettlementStateRoot::settlement_v2(digest))
 }
 
 /// Authoritative claim-source root exported by storage-owned proof APIs.
@@ -735,4 +770,56 @@ pub enum SettlementPathErr {
     ZeroTerminalId,
     #[error("duplicate settlement terminal id")]
     DupTerminalId,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{derive_settlement_root_v2, RootGeneration};
+
+    #[test]
+    fn settlement_v2_root_has_frozen_vector() {
+        let root = derive_settlement_root_v2(
+            RootGeneration::SettlementV2,
+            0x0102_0304,
+            [0x11; 32],
+            [0x22; 32],
+        )
+        .expect("V2 generation");
+        assert_eq!(root.generation(), RootGeneration::SettlementV2);
+        assert_eq!(
+            root.into_bytes(),
+            [
+                0xe2, 0x67, 0x5c, 0xcb, 0x9e, 0x97, 0x97, 0x5b, 0x79, 0x84, 0x1d, 0xec, 0x9f, 0xfb,
+                0x9f, 0xee, 0xd9, 0x9e, 0xab, 0xb3, 0xd6, 0xb7, 0x6b, 0x9e, 0x19, 0x2c, 0x6d, 0x55,
+                0xd9, 0xed, 0x44, 0xa2,
+            ]
+        );
+    }
+
+    #[test]
+    fn settlement_v2_root_binds_every_input() {
+        let baseline =
+            derive_settlement_root_v2(RootGeneration::SettlementV2, 1, [0x11; 32], [0x22; 32])
+                .expect("V2 generation");
+        let changed_layout =
+            derive_settlement_root_v2(RootGeneration::SettlementV2, 2, [0x11; 32], [0x22; 32])
+                .expect("V2 generation");
+        let changed_policy =
+            derive_settlement_root_v2(RootGeneration::SettlementV2, 1, [0x12; 32], [0x22; 32])
+                .expect("V2 generation");
+        let changed_root =
+            derive_settlement_root_v2(RootGeneration::SettlementV2, 1, [0x11; 32], [0x23; 32])
+                .expect("V2 generation");
+        assert_ne!(baseline, changed_layout);
+        assert_ne!(baseline, changed_policy);
+        assert_ne!(baseline, changed_root);
+    }
+
+    #[test]
+    fn settlement_v2_root_rejects_a_generation_mix() {
+        assert!(
+            derive_settlement_root_v2(RootGeneration::SettlementV1, 1, [0x11; 32], [0x22; 32])
+                .is_err()
+        );
+    }
 }

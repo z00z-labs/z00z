@@ -1,7 +1,14 @@
-use std::sync::OnceLock;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::OnceLock,
+};
 
+use jmt::{proof::UpdateMerkleProof, KeyHash, RootHash, SimpleHasher};
 use serde::{Deserialize, Serialize};
-use z00z_crypto::{expert::hash_domain, frame_bytes, hash_zk::hash_zk};
+use sha2::{Digest, Sha256};
+use z00z_crypto::{
+    expert::hash_domain, frame_bytes, hash_zk::hash_zk, CheckpointSha256V2, CheckpointShaRole,
+};
 use z00z_utils::codec::{BincodeCodec, Codec};
 
 use super::proof::{
@@ -9,8 +16,9 @@ use super::proof::{
     HjmtProofFamily, ProofBlob, ProofChkErr, HJMT_DEFAULT_COMMITMENT_VERSION,
 };
 use super::{
-    BucketPolicy, RootGeneration, SettlementLeaf, SettlementLeafFamily, SettlementPath,
-    SettlementStateRoot,
+    keys::{definition_key, serial_key},
+    BucketPolicy, DefinitionId, RootGeneration, SerialId, SettlementLeaf, SettlementLeafFamily,
+    SettlementPath, SettlementStateRoot,
 };
 
 hash_domain!(StorBatchProofDom, "z00z.storage.batch.proof", 1);
@@ -33,7 +41,1289 @@ const WITNESS_PAYLOAD_LABEL: &str = "checkpoint_witness_payload_v1";
 const WITNESS_ROOT_LABEL: &str = "checkpoint_witness_root_v1";
 const WITNESS_CHUNK_VER: u8 = 1;
 const WITNESS_CHUNK_BATCH: u8 = 1;
+pub const JMT_UPDATE_TRACE_VERSION_V2: u8 = 3;
+pub(crate) const JMT_UPDATE_TRACE_MAX_BYTES_V2: usize = 67_108_864;
+pub(crate) const JMT_UPDATE_TRACE_MAX_OPS_V2: usize = 1_000;
+const JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2: usize = 24 * 1024 * 1024;
+const JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2: usize = 64 * 1024;
+const JMT_UPDATE_TRACE_MAX_VALUES_BYTES_V2: usize = 24 * 1024 * 1024;
+pub(crate) const JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2: usize = 48 * 1024 * 1024;
+const JMT_SPARSE_PLACEHOLDER_HASH_V2: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
+const JMT_LEAF_DOMAIN_V2: &[u8] = b"JMT::LeafNode";
+const JMT_INTERNAL_DOMAIN_V2: &[u8] = b"JMT::IntrnalNode";
+const JMT_UPDATE_TRACE_KIND_MUTATING_V2: u8 = 1;
+const JMT_UPDATE_TRACE_KIND_NOOP_V2: u8 = 2;
+const JMT_UPDATE_TRACE_NOOP_LABEL_V2: &str = "settlement_update_trace_noop_v2";
 static BATCH_PROOF_TRANSCRIPT_DOMAIN: OnceLock<[u8; 32]> = OnceLock::new();
+
+type TerminalRootKeyV2 = ([u8; 32], u32, [u8; 32]);
+type BucketParentValueV2 = ([u8; 32], u32, [u8; 32], [u8; 32], [u8; 32]);
+
+/// Serializable JMT hasher marker for the pinned JMT raw SHA-256 primitive.
+///
+/// JMT encodes the hasher type in serde's generic bounds. The pinned
+/// `sha2::Sha256` marker is not serializable, while this project-owned marker
+/// preserves byte-identical node hashes. Its state is deliberately excluded
+/// from proof transport: JMT serializes only proof data, and each verification
+/// creates a fresh raw-SHA state for the pinned JMT node function.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct JmtSha256V2 {
+    #[serde(skip, default)]
+    state: Sha256,
+}
+
+impl Default for JmtSha256V2 {
+    fn default() -> Self {
+        Self {
+            state: <Sha256 as Digest>::new(),
+        }
+    }
+}
+
+impl SimpleHasher for JmtSha256V2 {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn update(&mut self, bytes: &[u8]) {
+        <Sha256 as Digest>::update(&mut self.state, bytes);
+    }
+
+    fn finalize(self) -> [u8; 32] {
+        <Sha256 as Digest>::finalize(self.state).into()
+    }
+}
+
+/// Storage-owned role of one pinned JMT tree update.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub(crate) enum JmtTreeRoleV2 {
+    Definition,
+    Serial([u8; 32]),
+    Bucket([u8; 32], u32),
+    Terminal([u8; 32], u32, [u8; 32]),
+    PathIndex,
+}
+
+impl From<super::tree_id::HjmtTreeId> for JmtTreeRoleV2 {
+    fn from(tree: super::tree_id::HjmtTreeId) -> Self {
+        match tree {
+            super::tree_id::HjmtTreeId::Definition => Self::Definition,
+            super::tree_id::HjmtTreeId::Serial(definition_id) => {
+                Self::Serial(definition_id.into_bytes())
+            }
+            super::tree_id::HjmtTreeId::Bucket(definition_id, serial_id) => {
+                Self::Bucket(definition_id.into_bytes(), serial_id.get())
+            }
+            super::tree_id::HjmtTreeId::BucketTerminal(definition_id, serial_id, bucket_id) => {
+                Self::Terminal(
+                    definition_id.into_bytes(),
+                    serial_id.get(),
+                    bucket_id.into_bytes(),
+                )
+            }
+            super::tree_id::HjmtTreeId::PathIndex => Self::PathIndex,
+        }
+    }
+}
+
+impl JmtTreeRoleV2 {
+    fn encode_canonical(&self, out: &mut Vec<u8>) {
+        match self {
+            Self::Definition => out.push(1),
+            Self::Serial(definition_id) => {
+                out.push(2);
+                out.extend_from_slice(definition_id);
+            }
+            Self::Bucket(definition_id, serial_id) => {
+                out.push(3);
+                out.extend_from_slice(definition_id);
+                out.extend_from_slice(&serial_id.to_le_bytes());
+            }
+            Self::Terminal(definition_id, serial_id, terminal_id) => {
+                out.push(4);
+                out.extend_from_slice(definition_id);
+                out.extend_from_slice(&serial_id.to_le_bytes());
+                out.extend_from_slice(terminal_id);
+            }
+            Self::PathIndex => out.push(5),
+        }
+    }
+
+    fn decode_canonical(reader: &mut CanonicalReader<'_>) -> Result<Self, ProofChkErr> {
+        match reader.take_u8()? {
+            1 => Ok(Self::Definition),
+            2 => Ok(Self::Serial(reader.take_array()?)),
+            3 => Ok(Self::Bucket(reader.take_array()?, reader.take_u32()?)),
+            4 => Ok(Self::Terminal(
+                reader.take_array()?,
+                reader.take_u32()?,
+                reader.take_array()?,
+            )),
+            5 => Ok(Self::PathIndex),
+            _ => Err(ProofChkErr::JmtUpdateTraceCanonical),
+        }
+    }
+}
+
+/// One ordered key/value operation bound into an update trace.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct JmtUpdateOpV2 {
+    key: [u8; 32],
+    value: Option<Vec<u8>>,
+}
+
+/// Project-owned classification of one upstream update-proof transition.
+///
+/// It is decoded independently from the opaque pinned-JMT wire and never
+/// crosses the storage facade.  Keeping the classification here lets the V2
+/// predicate reject a proof whose case algebra does not agree with its typed
+/// key/value operation before it relies on the upstream root verifier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum JmtMutationCaseV2 {
+    EmptyInsert,
+    ExistingUpdate,
+    SplitInsert { common_prefix_bits: u16 },
+    DeleteToEmpty,
+    DeletePreserveInternal,
+    DeleteCoalesceLeaf,
+}
+
+/// Exact serde mirror of the pinned `jmt 0.12` update-proof wire.
+///
+/// The upstream fields are intentionally private, so this mirror is the sole
+/// project-owned read-only decoder for its already version-pinned bincode
+/// witness.  It is checked by canonical re-encoding and then paired with the
+/// unchanged upstream `verify_update`; it is not a second update executor.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct JmtUpdateProofWireV2(Vec<JmtSparseProofWireV2>);
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct JmtSparseProofWireV2 {
+    leaf: Option<JmtLeafWireV2>,
+    siblings: Vec<JmtSiblingWireV2>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct JmtLeafWireV2 {
+    key_hash: [u8; 32],
+    value_hash: [u8; 32],
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct JmtInternalWireV2 {
+    left_child: [u8; 32],
+    right_child: [u8; 32],
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+enum JmtSiblingWireV2 {
+    Null,
+    Internal(JmtInternalWireV2),
+    Leaf(JmtLeafWireV2),
+}
+
+impl JmtUpdateOpV2 {
+    fn from_live((key, value): (KeyHash, Option<Vec<u8>>)) -> Result<Self, ProofChkErr> {
+        if value
+            .as_ref()
+            .is_some_and(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        Ok(Self { key: key.0, value })
+    }
+
+    fn into_live(self) -> (KeyHash, Option<Vec<u8>>) {
+        (KeyHash(self.key), self.value)
+    }
+
+    fn encode_canonical(&self, out: &mut Vec<u8>) -> Result<(), ProofChkErr> {
+        out.extend_from_slice(&self.key);
+        match &self.value {
+            None => out.push(0),
+            Some(value) => {
+                if value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2 {
+                    return Err(ProofChkErr::JmtUpdateTraceLimit);
+                }
+                out.push(1);
+                append_len_prefixed(out, value)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn decode_canonical(reader: &mut CanonicalReader<'_>) -> Result<Self, ProofChkErr> {
+        let key = reader.take_array()?;
+        let value = match reader.take_u8()? {
+            0 => None,
+            1 => Some(reader.take_vec(JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)?),
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        Ok(Self { key, value })
+    }
+
+    /// Test-only observability for the internal JMT canonicalization tests.
+    ///
+    /// Production code intentionally cannot recover raw replay keys from the
+    /// opaque V2 witness boundary.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn key(&self) -> [u8; 32] {
+        self.key
+    }
+}
+
+/// Strict transport wire for one update proof emitted by the pinned JMT owner.
+///
+/// The upstream proof remains an opaque dependency payload at this facade;
+/// operations, roots, versions, and tree role are project-owned typed fields.
+/// The circuit-facing trace decodes the same wire later and independently
+/// constrains its cases instead of trusting this native verification result.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct JmtUpdateTraceV2 {
+    version: u8,
+    tree: JmtTreeRoleV2,
+    old_version: u64,
+    new_version: u64,
+    old_root: [u8; 32],
+    new_root: [u8; 32],
+    operations: Vec<JmtUpdateOpV2>,
+    proof_wire: Vec<u8>,
+}
+
+impl JmtUpdateTraceV2 {
+    pub(crate) fn from_update(
+        tree: JmtTreeRoleV2,
+        old_version: u64,
+        new_version: u64,
+        old_root: RootHash,
+        new_root: RootHash,
+        operations: Vec<(KeyHash, Option<Vec<u8>>)>,
+        proof: UpdateMerkleProof<JmtSha256V2>,
+    ) -> Result<Self, ProofChkErr> {
+        validate_live_jmt_operations_v2(&operations)?;
+        if !jmt_version_pair_is_canonical(old_version, new_version) {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let proof_wire = BincodeCodec.serialize(&proof)?;
+        if proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+
+        let out = Self {
+            version: JMT_UPDATE_TRACE_VERSION_V2,
+            tree,
+            old_version,
+            new_version,
+            old_root: old_root.0,
+            new_root: new_root.0,
+            operations: operations
+                .into_iter()
+                .map(JmtUpdateOpV2::from_live)
+                .collect::<Result<Vec<_>, _>>()?,
+            proof_wire,
+        };
+        out.verify_semantics()?;
+        out.verify_native()?;
+        let _ = out.canonical_bytes()?;
+        Ok(out)
+    }
+
+    pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, ProofChkErr> {
+        if self.version != JMT_UPDATE_TRACE_VERSION_V2
+            || !jmt_version_pair_is_canonical(self.old_version, self.new_version)
+            || self.operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
+            || self.proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        check_jmt_operations(&self.operations)?;
+        let capacity = 1_usize
+            .checked_add(1 + 32 + 4 + 32)
+            .and_then(|value| value.checked_add(8 * 2 + 32 * 2 + 4))
+            .and_then(|value| value.checked_add(self.proof_wire.len() + 4))
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(capacity)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        bytes.push(self.version);
+        self.tree.encode_canonical(&mut bytes);
+        bytes.extend_from_slice(&self.old_version.to_le_bytes());
+        bytes.extend_from_slice(&self.new_version.to_le_bytes());
+        bytes.extend_from_slice(&self.old_root);
+        bytes.extend_from_slice(&self.new_root);
+        let operations =
+            u32::try_from(self.operations.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        bytes.extend_from_slice(&operations.to_le_bytes());
+        for operation in &self.operations {
+            operation.encode_canonical(&mut bytes)?;
+        }
+        append_len_prefixed(&mut bytes, &self.proof_wire)?;
+        if bytes.len() > JMT_UPDATE_TRACE_MAX_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        Ok(bytes)
+    }
+
+    pub(crate) fn from_canon(bytes: &[u8]) -> Result<Self, ProofChkErr> {
+        if bytes.len() > JMT_UPDATE_TRACE_MAX_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let mut reader = CanonicalReader::new(bytes);
+        let version = reader.take_u8()?;
+        let tree = JmtTreeRoleV2::decode_canonical(&mut reader)?;
+        let old_version = reader.take_u64()?;
+        let new_version = reader.take_u64()?;
+        let old_root = reader.take_array()?;
+        let new_root = reader.take_array()?;
+        let count =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        if count == 0 || count > JMT_UPDATE_TRACE_MAX_OPS_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let mut operations = Vec::new();
+        operations
+            .try_reserve_exact(count)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        for _ in 0..count {
+            operations.push(JmtUpdateOpV2::decode_canonical(&mut reader)?);
+        }
+        let proof_wire = reader.take_vec(JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2)?;
+        reader.finish()?;
+        let out = Self {
+            version,
+            tree,
+            old_version,
+            new_version,
+            old_root,
+            new_root,
+            operations,
+            proof_wire,
+        };
+        if out.version != JMT_UPDATE_TRACE_VERSION_V2 {
+            return Err(ProofChkErr::UnsupportedJmtUpdateVersion);
+        }
+        if out.operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
+            || out.proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2
+            || out.canonical_bytes()? != bytes
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        out.verify_semantics()?;
+        out.verify_native()?;
+        Ok(out)
+    }
+
+    pub(crate) fn verify_native(&self) -> Result<(), ProofChkErr> {
+        if self.version != JMT_UPDATE_TRACE_VERSION_V2
+            || !jmt_version_pair_is_canonical(self.old_version, self.new_version)
+            || self.operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
+            || self.proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        check_jmt_operations(&self.operations)?;
+        let proof: UpdateMerkleProof<JmtSha256V2> = BincodeCodec
+            .deserialize_bounded(&self.proof_wire, JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 as u64)?;
+        let operations = self
+            .operations
+            .clone()
+            .into_iter()
+            .map(JmtUpdateOpV2::into_live)
+            .collect::<Vec<_>>();
+        proof
+            .verify_update(RootHash(self.old_root), RootHash(self.new_root), operations)
+            .map_err(|_| ProofChkErr::JmtUpdateProofMix)
+    }
+
+    /// Independently execute each pinned-JMT proof against typed V2 data.
+    ///
+    /// The project-owned mirror recomputes every old root, update/split path,
+    /// and delete-coalescing result with the pinned raw-SHA node algebra. The
+    /// upstream verifier remains a second, corroborating check and is never
+    /// the only semantic executor for this witness.
+    fn verify_semantics(&self) -> Result<(), ProofChkErr> {
+        let (_cases, computed_root) = self.semantic_cases_and_root()?;
+        if computed_root != self.new_root {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        Ok(())
+    }
+
+    fn semantic_cases_and_root(&self) -> Result<(Vec<JmtMutationCaseV2>, [u8; 32]), ProofChkErr> {
+        let proof: JmtUpdateProofWireV2 = BincodeCodec
+            .deserialize_bounded(&self.proof_wire, JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 as u64)?;
+        if BincodeCodec.serialize(&proof)? != self.proof_wire
+            || proof.0.len() != self.operations.len()
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut cases = Vec::new();
+        cases
+            .try_reserve_exact(proof.0.len())
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let mut current_root = self.old_root;
+        for (proof, operation) in proof.0.iter().zip(&self.operations) {
+            let (case, next_root) =
+                verify_jmt_transition_semantics(proof, operation, current_root)?;
+            cases.push(case);
+            current_root = next_root;
+        }
+        Ok((cases, current_root))
+    }
+
+    /// Test-only observability for native JMT trace invariants.  These
+    /// accessors are deliberately absent from production builds, where the
+    /// trace must remain an opaque circuit witness.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn old_root(&self) -> [u8; 32] {
+        self.old_root
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn new_root(&self) -> [u8; 32] {
+        self.new_root
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn operations(&self) -> &[JmtUpdateOpV2] {
+        &self.operations
+    }
+
+    #[cfg(test)]
+    pub(crate) fn semantic_cases_for_test(&self) -> Result<Vec<JmtMutationCaseV2>, ProofChkErr> {
+        self.semantic_cases_and_root().map(|(cases, _)| cases)
+    }
+}
+
+fn verify_jmt_transition_semantics(
+    proof: &JmtSparseProofWireV2,
+    operation: &JmtUpdateOpV2,
+    expected_old_root: [u8; 32],
+) -> Result<(JmtMutationCaseV2, [u8; 32]), ProofChkErr> {
+    if proof.siblings.len() > 256 {
+        return Err(ProofChkErr::JmtUpdateTraceLimit);
+    }
+
+    let old_path_key = proof.leaf.map_or(operation.key, |leaf| leaf.key_hash);
+    let old_leaf_hash = proof
+        .leaf
+        .map_or(JMT_SPARSE_PLACEHOLDER_HASH_V2, jmt_leaf_hash);
+    if jmt_root_from_path(old_leaf_hash, &old_path_key, &proof.siblings)? != expected_old_root {
+        return Err(ProofChkErr::JmtUpdateProofMix);
+    }
+
+    match (&operation.value, proof.leaf) {
+        (Some(value), None) => Ok((
+            JmtMutationCaseV2::EmptyInsert,
+            jmt_root_from_path(
+                jmt_leaf_hash(JmtLeafWireV2 {
+                    key_hash: operation.key,
+                    value_hash: jmt_value_hash(value),
+                }),
+                &operation.key,
+                &proof.siblings,
+            )?,
+        )),
+        (Some(value), Some(leaf)) if leaf.key_hash == operation.key => Ok((
+            JmtMutationCaseV2::ExistingUpdate,
+            jmt_root_from_path(
+                jmt_leaf_hash(JmtLeafWireV2 {
+                    key_hash: operation.key,
+                    value_hash: jmt_value_hash(value),
+                }),
+                &operation.key,
+                &proof.siblings,
+            )?,
+        )),
+        (Some(value), Some(leaf)) => {
+            let common_prefix_bits = common_prefix_bits(&leaf.key_hash, &operation.key);
+            if common_prefix_bits < proof.siblings.len() {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            let split_siblings = jmt_split_siblings(proof, common_prefix_bits)?;
+            Ok((
+                JmtMutationCaseV2::SplitInsert {
+                    common_prefix_bits: u16::try_from(common_prefix_bits)
+                        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?,
+                },
+                jmt_root_from_path(
+                    jmt_leaf_hash(JmtLeafWireV2 {
+                        key_hash: operation.key,
+                        value_hash: jmt_value_hash(value),
+                    }),
+                    &operation.key,
+                    &split_siblings,
+                )?,
+            ))
+        }
+        (None, Some(leaf)) if leaf.key_hash == operation.key => {
+            let first_non_default = proof
+                .siblings
+                .iter()
+                .position(|sibling| !matches!(sibling, JmtSiblingWireV2::Null));
+            match first_non_default {
+                None => Ok((
+                    JmtMutationCaseV2::DeleteToEmpty,
+                    JMT_SPARSE_PLACEHOLDER_HASH_V2,
+                )),
+                Some(index) if matches!(proof.siblings[index], JmtSiblingWireV2::Internal(_)) => {
+                    Ok((
+                        JmtMutationCaseV2::DeletePreserveInternal,
+                        jmt_root_from_path(
+                            JMT_SPARSE_PLACEHOLDER_HASH_V2,
+                            &operation.key,
+                            &proof.siblings[index..],
+                        )?,
+                    ))
+                }
+                Some(index) if matches!(proof.siblings[index], JmtSiblingWireV2::Leaf(_)) => {
+                    let leaf_hash = jmt_sibling_hash(&proof.siblings[index]);
+                    let mut tail = index
+                        .checked_add(1)
+                        .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+                    while matches!(proof.siblings.get(tail), Some(JmtSiblingWireV2::Null)) {
+                        tail = tail
+                            .checked_add(1)
+                            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+                    }
+                    Ok((
+                        JmtMutationCaseV2::DeleteCoalesceLeaf,
+                        jmt_root_from_path(leaf_hash, &operation.key, &proof.siblings[tail..])?,
+                    ))
+                }
+                Some(_) => Err(ProofChkErr::JmtUpdateTraceCanonical),
+            }
+        }
+        (None, None) | (None, Some(_)) => Err(ProofChkErr::JmtUpdateTraceCanonical),
+    }
+}
+
+fn common_prefix_bits(left: &[u8; 32], right: &[u8; 32]) -> usize {
+    let mut prefix = 0_usize;
+    for (left, right) in left.iter().zip(right) {
+        let diff = left ^ right;
+        if diff == 0 {
+            prefix = prefix.checked_add(8).expect("32-byte prefix is bounded");
+        } else {
+            return prefix + usize::try_from(diff.leading_zeros()).expect("u32 fits usize");
+        }
+    }
+    prefix
+}
+
+fn jmt_split_siblings(
+    proof: &JmtSparseProofWireV2,
+    common_prefix_bits: usize,
+) -> Result<Vec<JmtSiblingWireV2>, ProofChkErr> {
+    let former_leaf = proof.leaf.ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+    let sibling_count = proof.siblings.len();
+    let common_prefix_nibbles = common_prefix_bits / 4;
+    let next_nibble_bits = common_prefix_bits % 4;
+    let prefix_span = common_prefix_nibbles
+        .checked_add(1)
+        .and_then(|value| value.checked_mul(4))
+        .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+    let default_leaves_to_add = prefix_span
+        .checked_sub(sibling_count)
+        .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?
+        / 4
+        * 4;
+    let default_siblings_prev_root = (4 - sibling_count % 4) % 4;
+    let default_siblings = default_siblings_prev_root
+        .checked_add(default_leaves_to_add)
+        .and_then(|value| value.checked_add(next_nibble_bits))
+        .and_then(|value| value.checked_sub(4))
+        .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+    let capacity = 1_usize
+        .checked_add(default_siblings)
+        .and_then(|value| value.checked_add(sibling_count))
+        .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+    let mut siblings = Vec::new();
+    siblings
+        .try_reserve_exact(capacity)
+        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+    siblings.push(JmtSiblingWireV2::Leaf(former_leaf));
+    siblings.resize(1 + default_siblings, JmtSiblingWireV2::Null);
+    siblings.extend_from_slice(&proof.siblings);
+    Ok(siblings)
+}
+
+fn jmt_root_from_path(
+    mut current_hash: [u8; 32],
+    key: &[u8; 32],
+    siblings: &[JmtSiblingWireV2],
+) -> Result<[u8; 32], ProofChkErr> {
+    if siblings.len() > 256 {
+        return Err(ProofChkErr::JmtUpdateTraceLimit);
+    }
+    let sibling_count = siblings.len();
+    for (index, sibling) in siblings.iter().enumerate() {
+        let bit_index = sibling_count
+            .checked_sub(index + 1)
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let bit = (key[bit_index / 8] >> (7 - bit_index % 8)) & 1 != 0;
+        let sibling_hash = jmt_sibling_hash(sibling);
+        current_hash = if bit {
+            jmt_internal_hash(sibling_hash, current_hash)
+        } else {
+            jmt_internal_hash(current_hash, sibling_hash)
+        };
+    }
+    Ok(current_hash)
+}
+
+fn jmt_sibling_hash(sibling: &JmtSiblingWireV2) -> [u8; 32] {
+    match sibling {
+        JmtSiblingWireV2::Null => JMT_SPARSE_PLACEHOLDER_HASH_V2,
+        JmtSiblingWireV2::Internal(node) => jmt_internal_hash(node.left_child, node.right_child),
+        JmtSiblingWireV2::Leaf(node) => jmt_leaf_hash(*node),
+    }
+}
+
+fn jmt_leaf_hash(leaf: JmtLeafWireV2) -> [u8; 32] {
+    jmt_hash(&[JMT_LEAF_DOMAIN_V2, &leaf.key_hash, &leaf.value_hash])
+}
+
+fn jmt_value_hash(value: &[u8]) -> [u8; 32] {
+    jmt_hash(&[value])
+}
+
+fn jmt_internal_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
+    jmt_hash(&[JMT_INTERNAL_DOMAIN_V2, &left, &right])
+}
+
+fn jmt_hash(parts: &[&[u8]]) -> [u8; 32] {
+    let mut hasher = JmtSha256V2::new();
+    for part in parts {
+        hasher.update(part);
+    }
+    hasher.finalize()
+}
+
+fn jmt_version_pair_is_canonical(old_version: u64, new_version: u64) -> bool {
+    (old_version == 0 && new_version == 0)
+        || old_version
+            .checked_add(1)
+            .is_some_and(|expected| expected == new_version)
+}
+
+/// Reject a non-canonical or oversized JMT mutation before it reaches JMT.
+///
+/// `HjmtStore` sorts its caller supplied operations and calls this function
+/// immediately before `put_value_set_with_proof`; `JmtUpdateTraceV2` repeats
+/// the check at its transport boundary.  Keeping the predicate here makes the
+/// pre-mutation and proof-transport limits one canonical policy.
+pub(crate) fn validate_live_jmt_operations_v2(
+    operations: &[(KeyHash, Option<Vec<u8>>)],
+) -> Result<(), ProofChkErr> {
+    if operations.is_empty()
+        || operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
+        || operations
+            .windows(2)
+            .any(|pair| pair[0].0 .0 >= pair[1].0 .0)
+    {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+
+    operations.iter().try_fold(0_usize, |total, (_, value)| {
+        let next = total
+            .checked_add(value.as_ref().map_or(0, Vec::len))
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        if value
+            .as_ref()
+            .is_some_and(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
+            || next > JMT_UPDATE_TRACE_MAX_VALUES_BYTES_V2
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        Ok(next)
+    })?;
+    Ok(())
+}
+
+fn check_jmt_operations(operations: &[JmtUpdateOpV2]) -> Result<(), ProofChkErr> {
+    if operations.is_empty() || operations.windows(2).any(|pair| pair[0].key >= pair[1].key) {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    operations.iter().try_fold(0_usize, |total, operation| {
+        let next = total
+            .checked_add(operation.value.as_ref().map_or(0, Vec::len))
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        if operation
+            .value
+            .as_ref()
+            .is_some_and(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
+            || next > JMT_UPDATE_TRACE_MAX_VALUES_BYTES_V2
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        Ok(next)
+    })?;
+    Ok(())
+}
+
+/// One frozen storage envelope for all traced JMT updates of one V2 transition.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct SettlementUpdateTraceEnvelopeV2 {
+    version: u8,
+    root_generation: u8,
+    kind: u8,
+    trace_digest: [u8; 32],
+    updates: Vec<JmtUpdateTraceV2>,
+}
+
+impl SettlementUpdateTraceEnvelopeV2 {
+    pub(crate) fn new(
+        root_generation: RootGeneration,
+        updates: Vec<JmtUpdateTraceV2>,
+    ) -> Result<Self, ProofChkErr> {
+        if root_generation != RootGeneration::SettlementV2 || updates.is_empty() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        for update in &updates {
+            update.verify_native()?;
+        }
+        let trace_digest = derive_update_trace_digest(&updates)?;
+        let envelope = Self {
+            version: JMT_UPDATE_TRACE_VERSION_V2,
+            root_generation: root_generation.version(),
+            kind: JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+            trace_digest,
+            updates,
+        };
+        let _ = envelope.canonical_bytes()?;
+        Ok(envelope)
+    }
+
+    /// Build the explicit zero-update envelope used only by the
+    /// authority-defined recursive V2 no-op transition.
+    pub(crate) fn new_noop(root_generation: RootGeneration) -> Result<Self, ProofChkErr> {
+        if root_generation != RootGeneration::SettlementV2 {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let envelope = Self {
+            version: JMT_UPDATE_TRACE_VERSION_V2,
+            root_generation: root_generation.version(),
+            kind: JMT_UPDATE_TRACE_KIND_NOOP_V2,
+            trace_digest: noop_update_trace_digest(),
+            updates: Vec::new(),
+        };
+        let _ = envelope.canonical_bytes()?;
+        Ok(envelope)
+    }
+
+    pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, ProofChkErr> {
+        if self.version != JMT_UPDATE_TRACE_VERSION_V2
+            || self.root_generation != RootGeneration::SettlementV2.version()
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        match self.kind {
+            JMT_UPDATE_TRACE_KIND_MUTATING_V2
+                if !self.updates.is_empty()
+                    && self.trace_digest == derive_update_trace_digest(&self.updates)? => {}
+            JMT_UPDATE_TRACE_KIND_NOOP_V2
+                if self.updates.is_empty() && self.trace_digest == noop_update_trace_digest() => {}
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        }
+        let mut total = 1_usize
+            .checked_add(1 + 1 + 32 + 4)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        let mut encoded_updates = Vec::new();
+        encoded_updates
+            .try_reserve_exact(self.updates.len())
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        for update in &self.updates {
+            let encoded = update.canonical_bytes()?;
+            total = total
+                .checked_add(4)
+                .and_then(|value| value.checked_add(encoded.len()))
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+            if total > JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2 {
+                return Err(ProofChkErr::JmtUpdateTraceLimit);
+            }
+            encoded_updates.push(encoded);
+        }
+        let count =
+            u32::try_from(encoded_updates.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(total)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        bytes.push(self.version);
+        bytes.push(self.root_generation);
+        bytes.push(self.kind);
+        bytes.extend_from_slice(&self.trace_digest);
+        bytes.extend_from_slice(&count.to_le_bytes());
+        for update in encoded_updates {
+            append_len_prefixed(&mut bytes, &update)?;
+        }
+        if bytes.len() > JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        Ok(bytes)
+    }
+
+    pub(crate) fn from_canon(bytes: &[u8]) -> Result<Self, ProofChkErr> {
+        if bytes.len() > JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let mut reader = CanonicalReader::new(bytes);
+        let version = reader.take_u8()?;
+        let root_generation = reader.take_u8()?;
+        let kind = reader.take_u8()?;
+        let trace_digest = reader.take_array()?;
+        let count =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        if count > JMT_UPDATE_TRACE_MAX_OPS_V2
+            || (kind == JMT_UPDATE_TRACE_KIND_MUTATING_V2 && count == 0)
+            || (kind == JMT_UPDATE_TRACE_KIND_NOOP_V2 && count != 0)
+            || !matches!(
+                kind,
+                JMT_UPDATE_TRACE_KIND_MUTATING_V2 | JMT_UPDATE_TRACE_KIND_NOOP_V2
+            )
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let mut updates = Vec::new();
+        updates
+            .try_reserve_exact(count)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        for _ in 0..count {
+            let encoded = reader.take_borrowed(JMT_UPDATE_TRACE_MAX_BYTES_V2)?;
+            updates.push(JmtUpdateTraceV2::from_canon(encoded)?);
+        }
+        reader.finish()?;
+        let envelope = Self {
+            version,
+            root_generation,
+            kind,
+            trace_digest,
+            updates,
+        };
+        if envelope.canonical_bytes()? != bytes {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        for update in &envelope.updates {
+            update.verify_native()?;
+        }
+        Ok(envelope)
+    }
+
+    #[must_use]
+    pub(crate) const fn trace_digest(&self) -> [u8; 32] {
+        self.trace_digest
+    }
+
+    #[must_use]
+    pub(crate) fn updates(&self) -> &[JmtUpdateTraceV2] {
+        &self.updates
+    }
+
+    #[must_use]
+    pub(crate) const fn is_noop(&self) -> bool {
+        self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2
+    }
+
+    #[must_use]
+    pub(crate) fn is_noop_digest(trace_digest: [u8; 32]) -> bool {
+        trace_digest == noop_update_trace_digest()
+    }
+
+    /// Independently execute the typed HJMT parent/child promotion relation.
+    ///
+    /// JMT proof verification establishes each tree transition. This second
+    /// machine proves that every changed parent leaf names the exact committed
+    /// child-tree root, in the frozen terminal → bucket → serial → definition
+    /// order, and that the final definition update is the storage-owned root
+    /// exposed to the recursive relation. It never calls the HJMT executor.
+    pub(crate) fn verify_hierarchy_semantics(
+        &self,
+        expected_definition_root: [u8; 32],
+    ) -> Result<(), ProofChkErr> {
+        if self.is_noop() {
+            return if self.updates.is_empty() && self.trace_digest == noop_update_trace_digest() {
+                Ok(())
+            } else {
+                Err(ProofChkErr::JmtUpdateTraceCanonical)
+            };
+        }
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        enum Stage {
+            Terminal,
+            Bucket,
+            Serial,
+            Definition,
+            PathIndex,
+        }
+
+        let mut stage = Stage::Terminal;
+        let mut terminal_roots = BTreeMap::<TerminalRootKeyV2, [u8; 32]>::new();
+        let mut bucket_roots = BTreeMap::<([u8; 32], u32), [u8; 32]>::new();
+        let mut serial_roots = BTreeMap::<[u8; 32], [u8; 32]>::new();
+        let mut used_terminal_roots = BTreeSet::new();
+        let mut used_bucket_roots = BTreeSet::new();
+        let mut used_serial_roots = BTreeSet::new();
+        let mut definition_seen = false;
+
+        for update in &self.updates {
+            match &update.tree {
+                JmtTreeRoleV2::Terminal(definition_id, serial_id, bucket_id) => {
+                    if stage != Stage::Terminal
+                        || terminal_roots
+                            .insert((*definition_id, *serial_id, *bucket_id), update.new_root)
+                            .is_some()
+                    {
+                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                    }
+                }
+                JmtTreeRoleV2::Bucket(definition_id, serial_id) => {
+                    if stage > Stage::Bucket
+                        || bucket_roots
+                            .insert((*definition_id, *serial_id), update.new_root)
+                            .is_some()
+                    {
+                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                    }
+                    stage = Stage::Bucket;
+                    for operation in &update.operations {
+                        let terminal_key = verify_bucket_promotion(
+                            *definition_id,
+                            *serial_id,
+                            operation,
+                            &terminal_roots,
+                        )?;
+                        if !used_terminal_roots.insert(terminal_key) {
+                            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                        }
+                    }
+                }
+                JmtTreeRoleV2::Serial(definition_id) => {
+                    if stage > Stage::Serial
+                        || serial_roots
+                            .insert(*definition_id, update.new_root)
+                            .is_some()
+                    {
+                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                    }
+                    stage = Stage::Serial;
+                    for operation in &update.operations {
+                        let bucket_key =
+                            verify_serial_promotion(*definition_id, operation, &bucket_roots)?;
+                        if !used_bucket_roots.insert(bucket_key) {
+                            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                        }
+                    }
+                }
+                JmtTreeRoleV2::Definition => {
+                    if stage > Stage::Definition || definition_seen {
+                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                    }
+                    stage = Stage::Definition;
+                    definition_seen = true;
+                    for operation in &update.operations {
+                        let definition_id = verify_definition_promotion(operation, &serial_roots)?;
+                        if !used_serial_roots.insert(definition_id) {
+                            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                        }
+                    }
+                    if update.new_root != expected_definition_root {
+                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                    }
+                }
+                JmtTreeRoleV2::PathIndex => {
+                    if stage < Stage::Definition {
+                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                    }
+                    stage = Stage::PathIndex;
+                }
+            }
+        }
+
+        if !definition_seen
+            || stage < Stage::Definition
+            || terminal_roots.len() != used_terminal_roots.len()
+            || bucket_roots.len() != used_bucket_roots.len()
+            || serial_roots.len() != used_serial_roots.len()
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        Ok(())
+    }
+}
+
+fn verify_bucket_promotion(
+    definition_id: [u8; 32],
+    serial_id: u32,
+    operation: &JmtUpdateOpV2,
+    terminal_roots: &BTreeMap<TerminalRootKeyV2, [u8; 32]>,
+) -> Result<TerminalRootKeyV2, ProofChkErr> {
+    match &operation.value {
+        Some(value) => {
+            let (value_definition, value_serial, bucket_id, child_root, _policy) =
+                decode_bucket_parent_value(value)?;
+            if value_definition != definition_id
+                || value_serial != serial_id
+                || operation.key != bucket_id
+                || terminal_roots.get(&(definition_id, serial_id, bucket_id)) != Some(&child_root)
+            {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Ok((definition_id, serial_id, bucket_id))
+        }
+        None => {
+            let key = (definition_id, serial_id, operation.key);
+            if terminal_roots.get(&key) != Some(&JMT_SPARSE_PLACEHOLDER_HASH_V2) {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Ok(key)
+        }
+    }
+}
+
+fn verify_serial_promotion(
+    definition_id: [u8; 32],
+    operation: &JmtUpdateOpV2,
+    bucket_roots: &BTreeMap<([u8; 32], u32), [u8; 32]>,
+) -> Result<([u8; 32], u32), ProofChkErr> {
+    match &operation.value {
+        Some(value) => {
+            let (value_definition, serial_id, child_root) = decode_serial_parent_value(value)?;
+            if value_definition != definition_id
+                || operation.key
+                    != serial_key(DefinitionId::new(definition_id), SerialId::new(serial_id)).0
+                || bucket_roots.get(&(definition_id, serial_id)) != Some(&child_root)
+            {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Ok((definition_id, serial_id))
+        }
+        None => {
+            let mut matches = bucket_roots.iter().filter_map(|(key, root)| {
+                (key.0 == definition_id
+                    && *root == JMT_SPARSE_PLACEHOLDER_HASH_V2
+                    && operation.key
+                        == serial_key(DefinitionId::new(key.0), SerialId::new(key.1)).0)
+                    .then_some(*key)
+            });
+            let key = matches.next().ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+            if matches.next().is_some() {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Ok(key)
+        }
+    }
+}
+
+fn verify_definition_promotion(
+    operation: &JmtUpdateOpV2,
+    serial_roots: &BTreeMap<[u8; 32], [u8; 32]>,
+) -> Result<[u8; 32], ProofChkErr> {
+    match &operation.value {
+        Some(value) => {
+            let (definition_id, child_root) = decode_definition_parent_value(value)?;
+            if operation.key != definition_key(DefinitionId::new(definition_id)).0
+                || serial_roots.get(&definition_id) != Some(&child_root)
+            {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Ok(definition_id)
+        }
+        None => {
+            let mut matches = serial_roots.iter().filter_map(|(definition_id, root)| {
+                (*root == JMT_SPARSE_PLACEHOLDER_HASH_V2
+                    && operation.key == definition_key(DefinitionId::new(*definition_id)).0)
+                    .then_some(*definition_id)
+            });
+            let definition_id = matches.next().ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+            if matches.next().is_some() {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Ok(definition_id)
+        }
+    }
+}
+
+fn decode_definition_parent_value(value: &[u8]) -> Result<([u8; 32], [u8; 32]), ProofChkErr> {
+    if value.len() != 64 {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    Ok((
+        value[..32]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        value[32..]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+    ))
+}
+
+fn decode_serial_parent_value(value: &[u8]) -> Result<([u8; 32], u32, [u8; 32]), ProofChkErr> {
+    if value.len() != 68 {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    Ok((
+        value[..32]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        u32::from_le_bytes(
+            value[32..36]
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ),
+        value[36..]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+    ))
+}
+
+fn decode_bucket_parent_value(value: &[u8]) -> Result<BucketParentValueV2, ProofChkErr> {
+    if value.len() != 132 {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    Ok((
+        value[..32]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        u32::from_le_bytes(
+            value[32..36]
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ),
+        value[36..68]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        value[68..100]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        value[100..]
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+    ))
+}
+
+/// Cursor for the project-owned V2 trace wire.
+///
+/// Every variable-length field is bounded and proven resident in the input
+/// before a `Vec` is reserved or copied.  This is intentionally separate from
+/// the upstream opaque proof payload, whose bytes are admitted only after this
+/// outer grammar has enforced the exact 24 MiB cap.
+struct CanonicalReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> CanonicalReader<'a> {
+    const fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn take_u8(&mut self) -> Result<u8, ProofChkErr> {
+        let value = *self
+            .bytes
+            .get(self.offset)
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        self.offset = self
+            .offset
+            .checked_add(1)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        Ok(value)
+    }
+
+    fn take_u32(&mut self) -> Result<u32, ProofChkErr> {
+        let bytes = self.take_exact(4)?;
+        Ok(u32::from_le_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ))
+    }
+
+    fn take_u64(&mut self) -> Result<u64, ProofChkErr> {
+        let bytes = self.take_exact(8)?;
+        Ok(u64::from_le_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ))
+    }
+
+    fn take_array(&mut self) -> Result<[u8; 32], ProofChkErr> {
+        self.take_exact(32)?
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)
+    }
+
+    fn take_vec(&mut self, max_len: usize) -> Result<Vec<u8>, ProofChkErr> {
+        let bytes = self.take_borrowed(max_len)?;
+        let mut value = Vec::new();
+        value
+            .try_reserve_exact(bytes.len())
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        value.extend_from_slice(bytes);
+        Ok(value)
+    }
+
+    fn take_borrowed(&mut self, max_len: usize) -> Result<&'a [u8], ProofChkErr> {
+        let len =
+            usize::try_from(self.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        if len > max_len {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        self.take_exact(len)
+    }
+
+    fn take_exact(&mut self, len: usize) -> Result<&'a [u8], ProofChkErr> {
+        let end = self
+            .offset
+            .checked_add(len)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        let bytes = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        self.offset = end;
+        Ok(bytes)
+    }
+
+    fn finish(self) -> Result<(), ProofChkErr> {
+        if self.offset == self.bytes.len() {
+            Ok(())
+        } else {
+            Err(ProofChkErr::JmtUpdateTraceCanonical)
+        }
+    }
+}
+
+fn append_len_prefixed(out: &mut Vec<u8>, value: &[u8]) -> Result<(), ProofChkErr> {
+    let len = u32::try_from(value.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(value);
+    Ok(())
+}
+
+fn noop_update_trace_digest() -> [u8; 32] {
+    hash_zk::<StorBatchProofDom>(
+        JMT_UPDATE_TRACE_NOOP_LABEL_V2,
+        &[&[JMT_UPDATE_TRACE_VERSION_V2, JMT_UPDATE_TRACE_KIND_NOOP_V2]],
+    )
+}
+
+fn derive_update_trace_digest(updates: &[JmtUpdateTraceV2]) -> Result<[u8; 32], ProofChkErr> {
+    let mut digest = CheckpointSha256V2::new(CheckpointShaRole::Trace);
+    for update in updates {
+        let encoded = update.canonical_bytes()?;
+        digest
+            .update_part(&encoded)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+    }
+    Ok(digest.finalize())
+}
 
 #[must_use]
 pub fn batch_proof_transcript_domain_v1() -> [u8; 32] {
@@ -166,6 +1456,7 @@ impl LeafFamilyTagV1 {
 pub enum RootGenerationTagV1 {
     RootGeneration0 = 0x00,
     RootGeneration1 = 0x01,
+    RootGeneration2 = 0x02,
 }
 
 impl RootGenerationTagV1 {
@@ -173,6 +1464,7 @@ impl RootGenerationTagV1 {
     pub const fn from_live(root: SettlementStateRoot) -> Self {
         match root.generation() {
             RootGeneration::SettlementV1 => Self::RootGeneration1,
+            RootGeneration::SettlementV2 => Self::RootGeneration2,
         }
     }
 
@@ -181,6 +1473,7 @@ impl RootGenerationTagV1 {
         match self {
             Self::RootGeneration0 => 0,
             Self::RootGeneration1 => 1,
+            Self::RootGeneration2 => 2,
         }
     }
 
@@ -188,6 +1481,7 @@ impl RootGenerationTagV1 {
         match tag {
             0x00 => Ok(Self::RootGeneration0),
             0x01 => Ok(Self::RootGeneration1),
+            0x02 => Ok(Self::RootGeneration2),
             _ => Err(ProofChkErr::BatchTagMix),
         }
     }

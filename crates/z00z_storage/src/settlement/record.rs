@@ -1005,6 +1005,8 @@ pub enum RootErr {
     RecDup,
     #[error("tx digest cannot bind checkpoint root")]
     TxRootMix,
+    #[error("settlement root generation does not match the V2 derivation contract")]
+    GenerationMix,
 }
 
 fn check_path(path: SettlementPath, leaf: &SettlementLeaf) -> Result<(), ModelErr> {
