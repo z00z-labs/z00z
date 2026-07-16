@@ -3062,7 +3062,35 @@ recursive-sidecar, PQ-anchor, and authority-promotion contracts.
 
 **T2 canonical-chunk foundation update (2026-07-15):** `recursive_trace` now owns one reusable canonical source-record encoder/parser and strict 64-byte zero-padded `TraceChunk` control grammar (`version|source ordinal LE|chunk ordinal LE|chunk count LE|byte count|bytes[64]`) in a disjoint bit-62 ordinal space. Header/payload cut-point tests exercise reconstruction from that sole byte view; the old Nova fixed-shape fixture explicitly rejects `TraceChunk` rather than manufacturing a no-op edge. This is intentionally not an acceptance claim: emission waits for the single-gadget concurrent source/global context transition, and four release dead-code warnings remain until those production paths consume the grammar. T2 remains active; T3–T4 and Plan 06 remain locked.
 
-**T2 canonical-chunk schedule update (2026-07-15):** The sole spool now emits the strict encoder-derived chunks immediately before each corresponding source record. The backend-neutral evaluator rejects an over-profile `chunk_count` before allocation, retains at most one bounded source record's chunk sequence, and compares every ordinal, count, meaningful byte, and zero tail against that same canonical encoder before semantic processing or the derived source hash schedule. The integration trace suite and focused release source/global-control fixtures pass; this removes the former production dead-code warnings without suppression. The private Nova table still rejects `TraceChunk`, because a generic self-loop, a digest-only accumulator, or a host-side byte assertion would leave review pass 3's byte-to-SHA gap intact. The next active T2 slice is the single fixed-width R1CS byte-context and exact chunk-to-block equality; T2 is not accepted, and T3–T4/Plan 06 remain locked.
+**T2 canonical-chunk schedule update (2026-07-15):** The sole spool emits every strict encoder-derived chunk only after its corresponding source record and after that record's `BEGIN_HASH`, immediately before the source block it makes available. The backend-neutral evaluator rejects an over-profile `chunk_count` before allocation, retains at most one bounded source record's chunk sequence, and compares every ordinal, count, meaningful byte, and zero tail against that same canonical encoder before semantic processing or the derived source hash schedule. The integration trace suite and focused release source/global-control fixtures pass; this removes the former production dead-code warnings without suppression. The private Nova table still rejects `TraceChunk`, because a generic self-loop, a digest-only accumulator, or a host-side byte assertion would leave review pass 3's byte-to-SHA gap intact. The next active T2 slice is the single fixed-width R1CS byte-context and exact chunk-to-block equality; T2 is not accepted, and T3–T4/Plan 06 remain locked.
+
+**T2 verifier-material/RSS correction update (2026-07-15):** `CheckpointProverMaterialV2` now keeps `PP + PK` private, while `CheckpointVerifierBundleV2` serializes and decodes only an immutable authority-pinned header (`pp_digest`, `vk_digest`, source/lock/profile/spec/shape bindings) plus VK. The release `real_nova_global_trace_bundle_loads_and_verifies_compressed_proof` regression passed in 327.90 seconds with `VK=273,174,184`, `header=454`, `bundle=273,174,638`, and no PP decoder on the verifier path; header and VK-payload mutations still reject before proof decode. This resolves the previous role-mixed PP+VK verifier artifact, not the heavy VK distribution problem. The current base-shape preflight remains a lower-bound diagnostic only: it must not authorize setup until an exact augmented-primary/secondary-shape synthesis and a worker-enforced measured RSS/time budget exist. The byte-to-SHA R1CS relation, full semantics, runner, mutation matrix, and review convergence also remain open. T2 is active; T3–T4 and Plan 06 remain locked.
+
+**T2 verifier binding/cap and verdict-plan adaptation update (2026-07-15):** Bundle generation now rejects a PP digest that differs from the supplied private prover PP, closing the mixed-generation construction gap before framing. The compressed Nova proof cap is the required 128 KiB (not 16 MiB), with an explicit 128 KiB + 1 rejection before bincode decode; the measured 37,808-byte proof remains below it. The mandatory bootstrap rerun, `cargo build --release`, and full `cargo test --release` pass on this source. `069-051-PLAN.md` now makes the verified lifecycle explicit: the recursive lane is asynchronous and cannot affect canonical finality; Nova fold, compression, persistence, and network publication have separate cadence; a possible 1000-block Plonky3 epoch is not a Nova default; full PP/PK/VK/IVC/recovery and per-peer/fanout measurements are required; and Plan 10 owns private PP/PK recovery while Plan 09 owns verifier/archive retention. These are live authority requirements, not a T2 completion claim. Exact source-byte→SHA R1CS, full semantics, augmented-shape bounded worker, selected width, and review convergence remain blocking S1 work; T3–T4 and Plan 06 stay locked.
+
+**T2 source-selector hardening update (2026-07-15):** `CheckpointNovaCircuitV2` now algebraically equates the `SourceRecord` hash-control stage with the one-hot source-opcode set. A retained release mutation relabels a valid source witness as the otherwise legal idle `BEGIN_HASH` self-loop and reaches the R1CS failure `source_stage_matches_source_opcode`; this closes opcode-stage confusion before `TraceChunk` is made a legal edge. The verifier header's source identity also now commits to both `nova.rs` and the sole canonical trace/feeder owner `recursive_trace.rs`, with a direct regression. The fixed base ShapeCS regression is C=47,648, V=45,938, NZ=226,151 (the matching lower-bound preflight is updated but remains diagnostic only). The three PP/PK-heavy real-Nova tests now share one test-only mutex, so the mandatory bootstrap retains normal parallelism elsewhere but cannot cause a multi-setup RAM race; it completed at `2026-07-15T13:32:40+03:00` with exit `0`. The live T2 PLAN now fixes the only valid cutover as source → BEGIN_HASH → ordered canonical chunks/interleaved derived blocks → exact FIPS padding → END_HASH, with O(1) source/global contexts and per-block R1CS equality; it explicitly forbids a second feeder/spool, digest/same-length stand-in, or control-payload assertion. A fresh same-process real-proof invocation reached PP/VK/proof generation (`VK=273174184`, proof=37808) but did not retain a terminal exit record, so it is explicitly not new verifier or bounded-worker evidence. Review pass 4 is not globally clean: `TraceChunk` still has no Nova edge, so no generic self-loop, host-only assertion, or digest/same-length substitute can falsely represent exact canonical bytes. The O(1) source/global byte-context to SHA-block/final-digest relation, augmented worker measurement, complete semantics, and review convergence remain required; T2 is active and T3–T4/Plan 06 stay locked.
+
+**S1 streaming-order update (2026-07-15):** The only production source expander now uses the planned O(1)-compatible order: source → `BEGIN_HASH` → all prefix blocks immediately available from the canonical role/label framing → each zero-tail-checked canonical `TraceChunk` followed by every block it makes available → exact FIPS final block(s) → `END_HASH`. `CheckpointSha256BlockStreamV2` gained the sole declared-length chunk-feed API, so storage neither duplicates the part-prefix grammar nor accumulates a block tape. The independent evaluator now retains a bounded native canonical reference only to reject reordered, missing, duplicated, relabelled, or changed chunks after their source record. This is prerequisite wiring, not T2 acceptance: Nova still rejects `TraceChunk`, no SHA byte is yet R1CS-derived, the global context is not yet proved, and the post-change bootstrap/release cycle remains open. No V1, second source/trace/SHA owner, generic self-loop, digest/same-length substitute, `VERIFIED` promotion, or Plan 06 advancement is authorized.
+
+**S1 prerequisite verification update (2026-07-15):** The post-change bootstrap completed through its foundational, storage real-Nova, wallet, and compile-check stages. Targeted release tests are green: `test_recursive_v2_trace` 6/6, `test_recursive_v2_cutover` 4/4, and the seven `recursive_trace` units. The narrow two-test Nova skeleton packet is also green and retains the negative invariant that `TraceChunk` is rejected before its complete constrained relation lands. These are only regressions for the one expander/evaluator path; they neither prove the source/global R1CS byte relation nor unlock T3–T4/Plan 06.
+
+**S1 framing-owner prerequisite (2026-07-15):** `CheckpointSha256BlockStreamV2` now exposes the canonical role/DST length prefix used by its own streaming implementation. This prevents Nova from recreating the role-domain grammar when the constrained byte context is wired. The subsequent mandatory bootstrap completed, including its storage real-Nova, wallet, and compile-check stages; its crypto packet passed 257/257. The addition still does not make `TraceChunk` a Nova edge or weaken any T2 lock.
+
+**S1 source/global relation status (2026-07-15):** S1 remains one atomic relation, not two permissive feeders. Direct source review confirms that the current global `TracePrecommit` controls are emitted only after all source schedules. They therefore cannot be declared O(1)-bound by retaining or refeeding their SHA blocks: the sole trace-expander/circuit path must reconcile ordering with a second selector-gated global byte context that consumes the same live canonical chunks. Until then Nova must continue to reject `TraceChunk`; no digest, same-length, native assertion, generic self-loop, second spool/encoder, V1 path, width selector, `VERIFIED` enablement, T3–T4, or Plan 06 is authorized.
+
+**S1 byte-context implementation status (2026-07-15):** The active `nova.rs` work now has an explicit internal `inactive/source/begin/block/end` selector split so ordinary non-hash grammar rows cannot alias a source record, plus a fixed-width `TraceChunk` witness allocation that range-constrains ordinals/counts, derives a one-hot 1..64 byte count, and R1CS-forces every zero tail byte. The byte contexts now keep canonical-byte length separate from role-framed SHA message length. Their fixed queue is 192 bytes, not 128: the authoritative Trace role prefix and source label/part framing occupy 131 bytes before the first canonical chunk, so it must hold two pending compression inputs plus a bounded remainder; the running-state cell is R1CS-bounded to `0..=192`, not merely eight bits. The fresh mandatory bootstrap completed with exit 0 after the layout correction: crypto 257/257, core 273/273, storage 222/222 including all real-Nova regressions (719.54s), utils 167/167, wallet integration, and release bench/example checks. ShapeCS was correspondingly remeasured to C=56,650, V=51,785, NZ=255,918, PP lower bound 19,985,104. This is live S1 implementation work, not a staged acceptance: `TraceChunk` has no legal table edge until the same atomic relation binds source/global queues, every selected SHA input, FIPS padding, and endpoint digest; no broader T2/review closure is claimed.
+
+**S1 live-global schedule update (2026-07-16):** `event_pass` now emits TracePrecommit `BEGIN_HASH` before replaying source records and keeps one global `CheckpointSha256BlockStreamV2` live across that replay. For every canonical source record it absorbs the record bytes, then absorbs exactly each canonical `TraceChunk` at its source-expander callback, before finalizing the global stream with its own exact FIPS blocks and `END_HASH`. This removes the former terminal spool rewind/re-read and does not introduce a second encoder, block tape, or native digest assertion. A clean mandatory bootstrap passed (crypto 257/257, core 273/273, storage 221/221 including the three real-Nova regressions in 725.09s, utils 167/167, wallet integration, release bench/example checks); targeted release replay, global-live-chunk-order, and verifier-bundle tests are each 1/1 green. The global order test is deliberately native-only. `TraceChunk` remains rejected by Nova until one fixed-width R1CS byte-context binds canonical source bytes → chunk bytes → each selected source/global SHA block → exact FIPS padding → final endpoint digest atomically. Thus S1, T2, review convergence, worker evidence, T3–T4, and Plan 06 remain open/locked.
+
+**S1 source-header constraint update (2026-07-16):** Before making a `TraceChunk` edge legal, Nova now allocates on every fixed-shape step a range-constrained source-record identity witness: opcode, ordinal, 32-byte object ID, and u32 payload length. On source steps its opcode and ordinal equal the actual `SourceRecord` event and `payload_len + 45` equals the sole canonical record length in the decoded source control; on every other step the entire object is algebraically zero. It retains no payload bytes and creates no encoder, digest substitute, context transition, or generic chunk self-loop. This establishes the exact fixed header from which first-chunk canonical bytes must next be derived. The mandatory bootstrap completed with exit 0: crypto 257/257, core 273/273, storage 221/221 including all real-Nova tests in 719.96s, utils 167/167, wallet integration, and release bench/example checks. Re-pinned diagnostic base shape is C=57,083, V=52,180, NZ=257,543, PP lower bound=20,060,496. It is not augmented-shape/RSS/worker evidence and does not accept `TraceChunk`, close S1/T2, start reviews, or unlock T3–T4/Plan 06.
+
+**S1 canonical-header derivation update (2026-07-16):** The source identity now has one R1CS-derived canonical header, not parallel byte witnesses: `opcode | ordinal_le[8] | object_id[32] | payload_len_le[4]`. The new fixed-width decomposition range-checks and reconstructs each little-endian integer, then retains no payload byte or second source serialization. It is intentionally still insufficient for S1: no `TraceChunk` row is legal, and no block/padding/digest is accepted from this header until concurrent source/global byte contexts consume the same chunk bytes and bind every selected FIPS input. The mandatory bootstrap rerun completed with exit 0 (storage 221/221 including the real-Nova paths in 723.00s), and the targeted release preflight measured C=57,336, V=52,384, NZ=258,490, G=262,145, PP lower bound=20,104,448, VK lower bound=8,388,640, verifier-bundle lower bound=8,389,094, and Pedersen RSS lower bound=50,331,840. These are base-shape diagnostics only; they do not authorize setup/RSS, accept `TraceChunk`, close S1/T2, start review convergence, or unlock T3–T4/Plan 06.
+
+**S1 source-context lifecycle update (2026-07-16):** The exact R1CS-derived 45-byte source header now lives in the fixed source byte context: source row creates it, source `BEGIN_HASH` marks that context started, every source `SHA_BLOCK` preserves it, and source `END_HASH` clears it. Selector-gated range and transition constraints keep all non-source contexts zero and do not make legacy SHA witness bytes trusted. This is an intentionally fail-closed prerequisite for the atomic cutover: `TraceChunk` still has no Nova edge, and the source/global queues, chunk bytes, selected block bytes, FIPS padding, chaining, and final endpoints remain unbound. The mandatory bootstrap rerun completed with exit 0 (crypto 257/257, core 273/273, storage 221/221 including all real-Nova regressions in 721.40s, utils 167/167, wallet integration, release bench/example checks). The targeted release preflight remeasured base ShapeCS C=60,646, V=53,965, NZ=268,958, G=524,289, PP lower bound=28,991,216, VK lower bound=16,777,248, verifier-bundle lower bound=16,777,702, Pedersen RSS lower bound=100,663,488. These diagnostics do not authorize setup/RSS, accept a chunk, close S1/T2, start review convergence, or unlock T3–T4/Plan 06.
+
+**S1 source-static-frame update (2026-07-16):** On a source `BEGIN_HASH`, Nova now materializes into that same fixed context the exact static pre-chunk bytes returned by the sole `CheckpointSha256BlockStreamV2` framing owner: role/DST prefix, source-label length, source label, and the R1CS-decomposed declared canonical-record length. It constrains `message_bytes = static_frame_bytes + canonical_record_bytes`; no local SHA grammar, payload arena, or host byte assertion was added. This is deliberately still pre-cutover: no selected compression input reads the queue yet, `TraceChunk` remains rejected, and source/global queue transitions, exact FIPS padding, chaining, and endpoint equality remain one required atomic relation. The required bootstrap rerun passed with storage 221/221 including real-Nova regressions in 725.40s; targeted release preflight is C=60,785, V=54,225, NZ=269,502, G=524,289, PP lower bound=29,016,312, VK lower bound=16,777,248, verifier-bundle lower bound=16,777,702, and Pedersen RSS lower bound=100,663,488. These diagnostics do not authorize setup/RSS, accept a chunk, close S1/T2, begin review convergence, or unlock T3–T4/Plan 06.
+
+**S1 global-context-prefix update (2026-07-16):** TracePrecommit `BEGIN_HASH` now initializes the second fixed O(1) byte context with exactly the `CheckpointSha256BlockStreamV2` role/DST prefix, precommitted byte/event counters, framed message length, and FIPS IV; its matching TracePrecommit END clears that context. This uses no terminal rewind, global byte encoder, or host validity assertion. It is deliberately not a legal `TraceChunk` edge: source record-length insertion, shared chunk append/order, selected SHA block bytes, exact FIPS padding, chaining, and final endpoint equality still must land as the one atomic S1 relation. The required bootstrap rerun passed with storage 221/221 including the three real-Nova regressions in 719.89s; targeted release preflight is C=63,099, V=55,076, NZ=276,443, G=524,289, PP lower bound=29,349,488, VK lower bound=16,777,248, verifier-bundle lower bound=16,777,702, and Pedersen RSS lower bound=100,663,488. These diagnostics do not authorize setup/RSS, accept a chunk, close S1/T2, begin review convergence, or unlock T3–T4/Plan 06.
 
 **Status:** `069-051-T0` completed on 2026-07-13 and `069-051-T1` completed on 2026-07-14. `RepositoryLocalNoLiveV1` has a two-process opaque fixture capture; scoped recursive V1 source/package/tests, codec/store/config ingress, stale mirrors, and named release-cache artifacts are removed. V2-only normative authority names one path, `z00z_storage::checkpoint::recursive_v2`; coverage is 1084/1084 without drift; external release consumers prove deleted types/codecs/features fail. T1 provides one resolver-derived repository-local capability and snapshot binding, private bounded source spool, actual pinned-HJMT traces, immediate-durability redb CAS cutover/reload, typed V2 statement, strict independently evaluated opcode/JMT/hierarchy relation, and exactly one authority-defined typed empty/no-op transition. The no-op contract is digest- and manifest-bound and rejects every generic empty handoff or envelope substitution. Bootstrap, full storage/workspace release build/tests, release feature guard, five YOLO reviews (the last two clean), and two doublechecks passed. `069-051-T2` is active; it alone owns the uniform Nova micro-step and immutable verifier bundle. T3–T4 and Plan 06 may not start until T2 accepts. The version-managed release commit awaits explicit authority because the shared worktree has unrelated user changes. `069-02` resolved its documented successor decision:
 registry `p3-recursion 0.1.0` remains rejected as a placeholder, while exact
@@ -3158,6 +3186,183 @@ boundary. Plan 04 must consume it without duplicating schema, theorem, reject,
 or config ownership. No P3 type/value conversion may cross into storage or
 rollup public APIs. Planning and the isolated probe must not enable
 `CheckpointProofSystem::VERIFIED` or make recursive evidence authoritative.
+
+**069-051 T2/S1 streaming correction (2026-07-16):** The rejected two-192-byte
+quadratic-queue candidate reached arity 1,298/C=199,653. The retained compact
+single-path relation derives source static framing blocks and the global role/DST
+block by fixed cursor, retains only two O(1) contexts, and has arity 1,170 with
+C=108,685/V=66,636/NZ=415,838. `TraceChunk` is no longer rejected or a
+self-loop: its zero-tail-checked canonical feeder bytes append to both contexts,
+then each selected static or queued SHA block is R1CS-equal to the matching
+context before FIPS compression. Padding, big-endian bit length, chaining,
+block cursor, source/global EOF, and endpoint digest equality remain in that
+one relation; no second spool/encoder, native assertion, raw block witness, or
+digest/same-length substitute is introduced. A retained release mutation changes
+a canonical chunk payload byte and fails at the selected source/global
+compression relation; short-final count, zero-tail, and source-ordinal mutations
+fail at their respective R1CS gates. The mandatory bootstrap passes on this
+source (storage 222/222 including real proof and verifier-bundle verification in
+607.83s, plus crypto/core/utils/wallet and release bench/example checks). This
+does not normalize the metric or memory cap, authorize base-shape setup/RSS,
+select a SHA width, complete the remaining mutation ledger or replay/uniqueness/
+net/JMT/hierarchy/statement relations, or begin review convergence. T2 remains
+active; T3, T4, and Plan 06 remain locked.
+
+**069-051 T2 bounded-worker measurement (2026-07-16):** The mandatory
+release bootstrap passed after the worker gate was added: storage 221/221,
+including both real-Nova paths, in 698.99s; crypto/core/utils, wallet
+integration, and release bench/example checks also passed. A separately
+reproducible release verifier run under `timeout=900s` and `RLIMIT_AS=24 GiB`
+measured the actual augmented Nova shapes as primary C=271,964/V=231,075 and
+secondary C=10,349/V=10,331, versus the base C=108,685/V=66,636. It produced
+VK=273,174,184 bytes, proof=50,392 bytes, and a header+VK verifier bundle of
+273,174,638 bytes; PP/PK are absent from that bundle. The process completed
+without swap in 7:23.29 with a 17,264,693,248-byte (16.08 GiB) peak RSS. This
+is containment evidence only: it disproves any claim that the base-shape
+preflight authorizes safe setup and leaves the 24 GiB ceiling as an emergency
+worker limit, not an acceptable prover or watcher operating budget. T2 remains
+active pending resource acceptance, remaining semantic/mutation obligations,
+and review convergence; T3, T4, and Plan 06 remain locked.
+No numerical authority-pinned resource-budget tuple presently exists; therefore
+the 24 GiB ceiling, host capacity, historical caps, and the observed result
+cannot select or accept this candidate.
+
+**069-051 T2 worker-repair verification (2026-07-16):** The test-only bounded
+worker now invokes the PID-pinned live test harness rather than a pathname Cargo
+may unlink during a concurrent replacement. The mandatory release bootstrap
+then completed with storage 222/222 in 631.07s (including both real-Nova
+workers), crypto 257/257, core 273/273, utils 167/167, wallet integration, and
+release bench/example checks. A separate release verifier-worker run completed
+in 612.074s with peak RSS 17,075,798,016 B. It confirms containment and the
+PP/PK-free verifier-bundle path only; it neither establishes a numerical
+operating budget nor completes the remaining semantic relation, mutation
+ledger, or review convergence. Three current YOLO task-review passes are
+non-converged: the first repaired the worker/test diagnostic; the latter two
+retain the authority-budget and full-semantic-relation blockers. T2 remains
+active; T3, T4, and Plan 06 remain locked.
+
+**069-051 T2 static-preflight re-pin (2026-07-16):** The mandatory bootstrap
+first caught stale assertion values for the now-live compact S1 relation rather
+than a cap breach or setup OOM. The sole static-shape owner was then re-pinned
+to C=108,722, V=66,670, NZ=415,965, G=524,289, PP lower bound=36,025,320 B,
+VK lower bound=16,777,248 B, verifier-bundle lower bound=16,777,702 B, and
+Pedersen RSS lower bound=100,663,488 B; the mandatory release bootstrap rerun
+completed cleanly. These are diagnostic lower bounds for the base circuit, not
+an augmented setup/prover RSS estimate, a selected width, a resource budget,
+or permission to use the 24 GiB worker safety ceiling as an operating target.
+T2 remains active pending the full semantic/mutation ledger, authority-pinned
+resource acceptance, and review convergence; T3, T4, and Plan 06 remain locked.
+
+**069-051 T2/S1 global-closure correction (2026-07-16):** Direct review of
+the sole canonical trace grammar found that its global TracePrecommit
+`BEGIN_HASH` precedes source replay while the matching global `END_HASH` follows
+the final source record. The private Nova control relation therefore requires an
+active and started global byte context on every source row; `FINALIZE_BLOCK`
+arms `TraceClosure`, and only the schema-bound global TracePrecommit `END_HASH`
+can transition that phase to finalized Idle after the successor transient cells
+are zero. Source-local `END_HASH` remains a live closure row, not a self-loop or
+terminal substitute. This retains one private circuit, two O(1) byte contexts,
+the sole source encoder and SHA framing owner, and the exact constrained path
+from canonical source bytes through `TraceChunk`, selected SHA blocks, FIPS
+padding, and endpoint digests. The mandatory release bootstrap completed cleanly
+with storage 224/224 and release bench/example checks; the current static
+preflight remains C=108,722, V=66,670, NZ=415,965. It does not close S1's full
+mutation ledger or T2's replay/uniqueness/net/JMT/hierarchy/statement relations,
+does not select a SHA width or resource budget, and does not begin review
+convergence. T2 remains active; T3, T4, and Plan 06 remain locked.
+
+**069-051 T2 replay-prefix relation (2026-07-16):** The same private Nova
+owner now uses three reserved running-state cells to constrain the canonical
+replay grammar, not a native verdict or a second payload codec: `BeginBlock`
+starts an input prefix, `ReplayInput` cannot occur after `ReplayOutput`, each
+side has an in-circuit nonwrapping 16-bit counter, and
+`UniquenessPrecommit` requires both sets jointly empty or nonempty. The final
+schema-bound global trace END clears those cells with every other transient.
+Three direct R1CS mutations cover input-after-output, the output-prefix
+transition, and an unpaired precommit. The sole source header/chunk/SHA path and
+two byte contexts are unchanged. The mandatory release bootstrap completed
+cleanly with storage 227/227, real Nova proof and verifier-bundle checks,
+wallet integration, and release bench/example checks. Measured static preflight
+is now C=108,813, V=66,735, NZ=416,285, G=524,289, PP lower bound=36,040,304 B.
+This does not decode replay payload semantics, prove uniqueness/net/JMT/
+hierarchy/statement relations, select a SHA width or resource budget, or start
+review convergence. T2 remains active; T3, T4, and Plan 06 remain locked.
+
+**069-051 T2 canonical replay-payload binding (2026-07-16):** The same sole
+private Nova owner parses `CanonicalFlowItemV2` directly from the bounded
+meaningful bytes of the canonical `TraceChunk` feeder. It retains no payload
+tape and accepts no host-decoded item: the parser constrains exact codec field
+order, graphic transaction ID, fixed lower-hex identifier widths, serial width,
+terminal text equal to the authenticated source-record object ID, terminal
+leaf, and input first-seen flags. `ReplayInput`/`ReplayOutput` select the
+replay set, not the storage operation: the payload `op_kind` is independently
+and exactly constrained in R1CS as `Put=1 | Delete=2`. Release evidence covers
+valid `ReplayInput/Put` and `ReplayOutput/Delete` schedules plus direct
+`op_kind=3` rejection at `replay_payload/.../op_kind_canonical`; the terminal
+object-ID mutation remains on its direct R1CS gate. The mandatory release
+bootstrap completed cleanly with storage 231/231, both real-Nova paths, wallet
+integration, and release bench/example checks; its real verifier-bundle worker
+completed in 619.28 s. Current static preflight is C=237,651, V=171,700,
+NZ=901,209, G=1,048,577, PP lower bound=75,306,592 B, VK lower bound=
+33,554,464 B, verifier-bundle lower bound=33,554,918 B, and Pedersen RSS lower
+bound=201,326,784 B. These are base-shape diagnostics only; they do not select
+a width, accept an operating budget, close uniqueness/net/JMT/hierarchy/
+statement relations, or start review convergence. T2 remains active; T3, T4,
+and Plan 06 remain locked.
+
+**069-051 T2 canonical uniqueness-precommit byte binding (2026-07-16):** The
+same fixed-width source-byte context now streams the existing native
+`UniquenessPrecommit` codec directly from its canonical `TraceChunk` bytes.
+It accepts neither a host decoder nor another payload path: it requires the
+exact 169-byte grammar and version `1`, materializes the two little-endian
+32-bit counts and all five 32-byte digest fields as R1CS state, and at the
+source `END_HASH` requires zero count high limbs plus equality of the low
+limbs to the already constrained replay input/output counters. A canonical
+native payload passes; source-byte mutations of its version and stored spent
+count reach direct R1CS gates. The mandatory release bootstrap completed
+cleanly with storage 231/231, real-Nova paths, wallet integration, and release
+bench/example checks. The codec-derived uniqueness state boundary advances each
+later reserved state family, so precommit fields cannot alias NET/JMT state.
+Current base-shape preflight is C=237,651, V=171,700,
+NZ=901,209, G=1,048,577, PP lower bound=75,306,592 B, VK lower bound=
+33,554,464 B, verifier-bundle lower bound=33,554,918 B, and Pedersen RSS lower
+bound=201,326,784 B. These are diagnostics only. This parser does not yet
+prove the five digest meanings, original/sorted order or product, challenge,
+net/JMT/hierarchy/statement relations, a selected width/budget, or review
+convergence; T2 remains active and T3, T4, and Plan 06 remain locked.
+
+**069-051 T2 post-change validation and review (2026-07-16):** After the
+independent canonical `op_kind` relation was corrected, the full workspace
+`cargo test --release`, `cargo build --release`, release feature-guard audit,
+format check, and diff check passed. The focused fourth execution-review pass
+found no further local defect in `{Put=1, Delete=2}`, replay-set independence,
+or the direct `op_kind=3` R1CS rejection. It is not a globally clean review:
+the authority-pinned per-role resource budget and complete
+uniqueness/net/JMT/hierarchy/statement semantics remain unresolved. Therefore
+T2 stays active and T3, T4, and Plan 06 remain locked.
+
+**069-051 T2 canonical uniqueness-challenge/precommit linkage (2026-07-16):**
+The same private fixed-width Nova owner now streams the native 65-byte
+`UniquenessChallenge` codec from the existing canonical `TraceChunk` feeder.
+It uses the canonical codec width/version constants rather than a circuit-local
+grammar, retains no payload tape, and stores only its four bounded parser
+cells plus the sixteen little-endian challenge limbs. During the 32 committed
+precommit bytes, each parsed little-endian pair is constrained directly equal
+to the stored fifth `UniquenessPrecommit` digest limb; the final 32 canonical
+bytes materialize the challenge limbs. Version and committed-precommit-byte
+mutations reach direct R1CS parser gates. This is deliberately not a native
+assertion or a SHA/digest substitute: the authority-bound SHA-derived challenge
+map, digest meanings, uniqueness ordering/product, net, JMT, hierarchy, and
+statement relations remain open. The structural `UNIQUENESS_END` now includes
+this parser before NET/JMT, preventing state aliasing. Mandatory release
+bootstrap completed cleanly with storage 232/232, both real Nova paths, wallet
+integration, and release bench/example checks; the storage suite took 718.47 s.
+Re-measured base-shape preflight is C=261,266, V=190,904, NZ=992,779,
+G=1,048,577, PP lower bound=79,536,152 B, VK lower bound=33,554,464 B,
+verifier-bundle lower bound=33,554,918 B, and Pedersen RSS lower bound=
+201,326,784 B. These base-shape values do not select width/budget, authorize
+actual setup RSS, satisfy the mutation ledger, or begin review convergence;
+T2 remains active and T3, T4, and Plan 06 remain locked.
 
 **Success Criteria:**
 

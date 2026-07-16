@@ -14,7 +14,7 @@ use super::{
 };
 
 pub(crate) const TRACE_EVENT_HEADER_BYTES_V2: usize = 1 + 8 + 32 + 4;
-/// Fixed byte granularity for the future in-circuit source/global SHA feeder.
+/// Fixed byte granularity for the live in-circuit source/global SHA feeder.
 ///
 /// A chunk is only a view of the one canonical source-record encoding below;
 /// it is never a second record serialization.
@@ -193,36 +193,41 @@ fn trace_chunk_control_ordinal(
         .ok_or(RecursiveV2Error::Overflow)
 }
 
-/// Emit fixed-width byte controls from the one canonical source encoder.
-///
-/// The controls precede their source record in the derived schedule.  This is
-/// deliberate: the native evaluator and the Nova state machine must reject a
-/// source record unless the exact, zero-padded byte view was already consumed.
-/// They do not form a second serialization or a generic no-op lane.
+/// Test helper that materializes fixed-width controls from the canonical source
+/// encoder. Production uses [`emit_derived_hash_controls`] so chunks and SHA
+/// controls retain their one streaming order.
+#[cfg(test)]
 pub(crate) fn emit_derived_trace_chunks(
     source: &RecursiveTraceEventV2,
     profile: &RecursiveCircuitProfileV2,
     mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
 ) -> Result<(), RecursiveV2Error> {
     for chunk in source.canonical_chunks()? {
-        let mut payload = Vec::with_capacity(TRACE_CHUNK_CONTROL_PAYLOAD_BYTES_V2);
-        payload.push(TRACE_CHUNK_CONTROL_VERSION_V2);
-        payload.extend_from_slice(&chunk.source_ordinal().to_le_bytes());
-        payload.extend_from_slice(&chunk.chunk_ordinal().to_le_bytes());
-        payload.extend_from_slice(&chunk.chunk_count().to_le_bytes());
-        payload.push(chunk.byte_count());
-        payload.extend_from_slice(&chunk.bytes());
-        let ordinal = trace_chunk_control_ordinal(chunk.source_ordinal(), chunk.chunk_ordinal())?;
-        let object_id = structural_event_id(RecursiveTraceOpcodeV2::TraceChunk, ordinal, &payload);
-        emit(RecursiveTraceEventV2::new(
-            ordinal,
-            RecursiveTraceOpcodeV2::TraceChunk,
-            object_id,
-            payload,
-            profile,
-        )?)?;
+        emit(trace_chunk_control_event(chunk, profile)?)?;
     }
     Ok(())
+}
+
+fn trace_chunk_control_event(
+    chunk: RecursiveTraceCanonicalChunkV2,
+    profile: &RecursiveCircuitProfileV2,
+) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+    let mut payload = Vec::with_capacity(TRACE_CHUNK_CONTROL_PAYLOAD_BYTES_V2);
+    payload.push(TRACE_CHUNK_CONTROL_VERSION_V2);
+    payload.extend_from_slice(&chunk.source_ordinal().to_le_bytes());
+    payload.extend_from_slice(&chunk.chunk_ordinal().to_le_bytes());
+    payload.extend_from_slice(&chunk.chunk_count().to_le_bytes());
+    payload.push(chunk.byte_count());
+    payload.extend_from_slice(&chunk.bytes());
+    let ordinal = trace_chunk_control_ordinal(chunk.source_ordinal(), chunk.chunk_ordinal())?;
+    let object_id = structural_event_id(RecursiveTraceOpcodeV2::TraceChunk, ordinal, &payload);
+    RecursiveTraceEventV2::new(
+        ordinal,
+        RecursiveTraceOpcodeV2::TraceChunk,
+        object_id,
+        payload,
+        profile,
+    )
 }
 
 /// Decode and validate one fixed-width canonical-byte feeder control.
@@ -501,17 +506,45 @@ impl HashControlSchemaV2 {
     }
 }
 
-/// Deterministically derive the non-committed SHA control schedule for one
-/// committed source record.  The source digest never includes these events;
+/// Deterministically derive the non-committed byte and SHA schedule for one
+/// committed source record. The source digest never includes these events;
 /// they are reconstructed from the one committed source record on both passes.
+///
+/// `BEGIN_HASH` starts the only FIPS transcript before the first source byte.
+/// Each fixed-width canonical chunk is then emitted immediately before the
+/// compression events it makes available. This ordering is necessary for the
+/// Nova relation to derive every compression input with only bounded partial
+/// state; it never retains a source-record block tape or treats a chunk as a
+/// generic self-loop.
+#[cfg(test)]
 pub(crate) fn emit_derived_hash_controls(
     source: &RecursiveTraceEventV2,
     profile: &RecursiveCircuitProfileV2,
     mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
 ) -> Result<(), RecursiveV2Error> {
+    let mut forward = |event: &RecursiveTraceEventV2| emit(event.clone());
+    let mut ignore_chunk =
+        |_: RecursiveTraceCanonicalChunkV2, _: &mut _| Ok::<(), RecursiveV2Error>(());
+    emit_derived_hash_controls_with_chunk(source, profile, &mut forward, &mut ignore_chunk)
+}
+
+/// Emit one source SHA schedule while handing each canonical chunk to the
+/// single concurrent whole-trace feeder before the local compression controls
+/// that the chunk makes available. The callback receives the same event sink;
+/// it cannot create a second source encoding or an uncommitted byte path.
+fn emit_derived_hash_controls_with_chunk<F, G>(
+    source: &RecursiveTraceEventV2,
+    profile: &RecursiveCircuitProfileV2,
+    emit: &mut F,
+    feed_chunk: &mut G,
+) -> Result<(), RecursiveV2Error>
+where
+    F: FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
+    G: FnMut(RecursiveTraceCanonicalChunkV2, &mut F) -> Result<(), RecursiveV2Error>,
+{
     let binding = source.hash_binding()?;
     let (message_bytes, block_count) = source.hash_geometry()?;
-    emit(source_hash_control_event(
+    let begin = source_hash_control_event(
         HashControlStageV2::Begin,
         RecursiveTraceOpcodeV2::BeginHash,
         source,
@@ -520,43 +553,83 @@ pub(crate) fn emit_derived_hash_controls(
         block_count,
         None,
         profile,
-    )?)?;
+    )?;
+    emit(&begin)?;
 
     let source_bytes = source.canonical_bytes()?;
+    let canonical_chunks = source.canonical_chunks()?;
     let mut stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::Trace);
     let mut emitted_blocks = 0_u64;
-    let mut emit_block = |block: CheckpointSha256BlockV2| {
-        if block.index() != emitted_blocks {
-            return Err(RecursiveV2Error::Invariant);
-        }
-        emit(source_hash_control_event(
-            HashControlStageV2::Block,
-            RecursiveTraceOpcodeV2::ShaBlock,
-            source,
-            binding,
-            message_bytes,
-            block_count,
-            Some(block),
-            profile,
-        )?)?;
-        emitted_blocks = emitted_blocks
-            .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
-        Ok(())
-    };
     stream
-        .update_part_with(SOURCE_RECORD_HASH_LABEL_V2, &mut emit_block)
+        .update_part_with(SOURCE_RECORD_HASH_LABEL_V2, &mut |block| {
+            emit_source_hash_block(
+                source,
+                binding,
+                message_bytes,
+                block_count,
+                profile,
+                &mut *emit,
+                &mut emitted_blocks,
+                block,
+            )
+        })
         .map_err(map_block_visit_error)?;
     stream
-        .update_part_with(&source_bytes, &mut emit_block)
+        .begin_part_with(
+            u64::try_from(source_bytes.len()).map_err(|_| RecursiveV2Error::Limit)?,
+            &mut |block| {
+                emit_source_hash_block(
+                    source,
+                    binding,
+                    message_bytes,
+                    block_count,
+                    profile,
+                    &mut *emit,
+                    &mut emitted_blocks,
+                    block,
+                )
+            },
+        )
         .map_err(map_block_visit_error)?;
+    for chunk in canonical_chunks {
+        let trace_chunk = trace_chunk_control_event(chunk, profile)?;
+        emit(&trace_chunk)?;
+        feed_chunk(chunk, &mut *emit)?;
+        let byte_count = usize::from(chunk.byte_count());
+        stream
+            .update_part_bytes_with(&chunk.bytes()[..byte_count], &mut |block| {
+                emit_source_hash_block(
+                    source,
+                    binding,
+                    message_bytes,
+                    block_count,
+                    profile,
+                    &mut *emit,
+                    &mut emitted_blocks,
+                    block,
+                )
+            })
+            .map_err(map_block_visit_error)?;
+    }
+    stream.finish_part().map_err(RecursiveV2Error::from)?;
     let digest = stream
-        .finalize_with(&mut emit_block)
+        .finalize_with(&mut |block| {
+            emit_source_hash_block(
+                source,
+                binding,
+                message_bytes,
+                block_count,
+                profile,
+                &mut *emit,
+                &mut emitted_blocks,
+                block,
+            )
+        })
         .map_err(map_block_visit_error)?;
     if digest != binding || emitted_blocks != block_count {
         return Err(RecursiveV2Error::Invariant);
     }
-    emit(source_hash_control_event(
+    let end = source_hash_control_event(
         HashControlStageV2::End,
         RecursiveTraceOpcodeV2::EndHash,
         source,
@@ -565,7 +638,39 @@ pub(crate) fn emit_derived_hash_controls(
         block_count,
         None,
         profile,
-    )?)
+    )?;
+    emit(&end)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_source_hash_block(
+    source: &RecursiveTraceEventV2,
+    binding: [u8; 32],
+    message_bytes: u64,
+    block_count: u64,
+    profile: &RecursiveCircuitProfileV2,
+    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
+    emitted_blocks: &mut u64,
+    block: CheckpointSha256BlockV2,
+) -> Result<(), RecursiveV2Error> {
+    if block.index() != *emitted_blocks {
+        return Err(RecursiveV2Error::Invariant);
+    }
+    let control = source_hash_control_event(
+        HashControlStageV2::Block,
+        RecursiveTraceOpcodeV2::ShaBlock,
+        source,
+        binding,
+        message_bytes,
+        block_count,
+        Some(block),
+        profile,
+    )?;
+    emit(&control)?;
+    *emitted_blocks = emitted_blocks
+        .checked_add(1)
+        .ok_or(RecursiveV2Error::Overflow)?;
+    Ok(())
 }
 
 fn map_block_visit_error(
@@ -652,19 +757,12 @@ fn source_hash_control_event(
     RecursiveTraceEventV2::new(ordinal, opcode, object_id, payload, profile)
 }
 
-/// Regenerate the one global Trace SHA transcript from the canonical spool.
-///
-/// The caller owns the only private spool and supplies its canonical source
-/// record bytes exactly once to this stream.  No derived control encoding is
-/// ever absorbed.  Replaying the spool here keeps the global blocks after the
-/// per-source schedules, allowing Nova's one SHA lane to be reused rather
-/// than held open in parallel with a source-record schedule.
-fn emit_trace_precommit_hash_controls(
-    spool: &mut PrivateSpoolFile,
-    profile: &RecursiveCircuitProfileV2,
+/// Derive the fixed whole-trace FIPS geometry from the precommitted canonical
+/// source records. This is shared by the live expander and never accepts a
+/// caller-supplied padding or length claim.
+fn trace_hash_geometry(
     precommit: RecursiveTracePrecommitV2,
-    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-) -> Result<(), RecursiveV2Error> {
+) -> Result<(u64, u64, u64, u64), RecursiveV2Error> {
     let message_bytes = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
         CheckpointShaRole::Trace,
         precommit.byte_count,
@@ -680,85 +778,39 @@ fn emit_trace_precommit_hash_controls(
     if precommit.event_count == 0 || block_count == 0 {
         return Err(RecursiveV2Error::Invariant);
     }
-    emit(trace_hash_control_event(
-        HashControlStageV2::Begin,
-        RecursiveTraceOpcodeV2::BeginHash,
-        precommit,
-        message_bytes,
-        block_count,
-        padding_bytes,
-        bit_length,
-        None,
-        profile,
-    )?)?;
+    Ok((message_bytes, block_count, padding_bytes, bit_length))
+}
 
-    let mut stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::Trace);
-    let mut emitted_blocks = 0_u64;
-    loop {
-        let Some(bytes) = read_spooled_trace_record(spool, profile)? else {
-            break;
-        };
-        let mut emit_block = |block: CheckpointSha256BlockV2| {
-            if block.index() != emitted_blocks {
-                return Err(RecursiveV2Error::Invariant);
-            }
-            emit(trace_hash_control_event(
-                HashControlStageV2::Block,
-                RecursiveTraceOpcodeV2::ShaBlock,
-                precommit,
-                message_bytes,
-                block_count,
-                padding_bytes,
-                bit_length,
-                Some(block),
-                profile,
-            )?)?;
-            emitted_blocks = emitted_blocks
-                .checked_add(1)
-                .ok_or(RecursiveV2Error::Overflow)?;
-            Ok(())
-        };
-        stream
-            .update_part_with(&bytes, &mut emit_block)
-            .map_err(map_block_visit_error)?;
-    }
-    let mut emit_block = |block: CheckpointSha256BlockV2| {
-        if block.index() != emitted_blocks {
-            return Err(RecursiveV2Error::Invariant);
-        }
-        emit(trace_hash_control_event(
-            HashControlStageV2::Block,
-            RecursiveTraceOpcodeV2::ShaBlock,
-            precommit,
-            message_bytes,
-            block_count,
-            padding_bytes,
-            bit_length,
-            Some(block),
-            profile,
-        )?)?;
-        emitted_blocks = emitted_blocks
-            .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
-        Ok(())
-    };
-    let digest = stream
-        .finalize_with(&mut emit_block)
-        .map_err(map_block_visit_error)?;
-    if digest != precommit.trace_digest || emitted_blocks != block_count {
+fn emit_trace_hash_block(
+    block: CheckpointSha256BlockV2,
+    precommit: RecursiveTracePrecommitV2,
+    message_bytes: u64,
+    block_count: u64,
+    padding_bytes: u64,
+    bit_length: u64,
+    profile: &RecursiveCircuitProfileV2,
+    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
+    emitted_blocks: &mut u64,
+) -> Result<(), RecursiveV2Error> {
+    if block.index() != *emitted_blocks {
         return Err(RecursiveV2Error::Invariant);
     }
-    emit(trace_hash_control_event(
-        HashControlStageV2::End,
-        RecursiveTraceOpcodeV2::EndHash,
+    let control = trace_hash_control_event(
+        HashControlStageV2::Block,
+        RecursiveTraceOpcodeV2::ShaBlock,
         precommit,
         message_bytes,
         block_count,
         padding_bytes,
         bit_length,
-        None,
+        Some(block),
         profile,
-    )?)
+    )?;
+    emit(&control)?;
+    *emitted_blocks = emitted_blocks
+        .checked_add(1)
+        .ok_or(RecursiveV2Error::Overflow)?;
+    Ok(())
 }
 
 fn trace_hash_control_event(
@@ -1266,6 +1318,24 @@ impl RecursiveTransitionTraceSourceV2 {
         // the pass boundary so a truncate, append, replacement, hard-link, or
         // permission change cannot be replayed as the precommitted source.
         self.spool.verify_integrity()?;
+        let (trace_message_bytes, trace_block_count, trace_padding_bytes, trace_bit_length) =
+            trace_hash_geometry(precommit)?;
+        visit(&trace_hash_control_event(
+            HashControlStageV2::Begin,
+            RecursiveTraceOpcodeV2::BeginHash,
+            precommit,
+            trace_message_bytes,
+            trace_block_count,
+            trace_padding_bytes,
+            trace_bit_length,
+            None,
+            &self.profile,
+        )?)?;
+        // This stream is started once and receives the very same chunks that
+        // feed the source-local transcript below. It is never rebuilt from a
+        // rewind, a block tape, or a second source encoder.
+        let mut trace_stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::Trace);
+        let mut trace_blocks = 0_u64;
         let mut trace = CheckpointSha256V2::new(CheckpointShaRole::Trace);
         let mut identifiers = IdentifierPrecommitV2::new(&self.spool_dir, &self.profile)?;
         let mut event_count = 0_u64;
@@ -1292,13 +1362,48 @@ impl RecursiveTransitionTraceSourceV2 {
                 trace.update_part(&bytes)?;
             }
             identifiers.absorb(&event)?;
-            // The canonical-byte feeder is part of the live derived schedule,
-            // not a test helper.  It is emitted before its source event so the
-            // next source transition can prove that every record byte was
-            // supplied exactly once with a checked final short chunk.
-            emit_derived_trace_chunks(&event, &self.profile, |chunk| visit(&chunk))?;
             visit(&event)?;
-            emit_derived_hash_controls(&event, &self.profile, |control| visit(&control))?;
+            let record_bytes = event.canonical_len()?;
+            trace_stream
+                .begin_part_with(record_bytes, &mut |block| {
+                    emit_trace_hash_block(
+                        block,
+                        precommit,
+                        trace_message_bytes,
+                        trace_block_count,
+                        trace_padding_bytes,
+                        trace_bit_length,
+                        &self.profile,
+                        &mut visit,
+                        &mut trace_blocks,
+                    )
+                })
+                .map_err(map_block_visit_error)?;
+            let mut feed_trace_chunk = |chunk: RecursiveTraceCanonicalChunkV2, emit: &mut _| {
+                let byte_count = usize::from(chunk.byte_count());
+                trace_stream
+                    .update_part_bytes_with(&chunk.bytes()[..byte_count], &mut |block| {
+                        emit_trace_hash_block(
+                            block,
+                            precommit,
+                            trace_message_bytes,
+                            trace_block_count,
+                            trace_padding_bytes,
+                            trace_bit_length,
+                            &self.profile,
+                            emit,
+                            &mut trace_blocks,
+                        )
+                    })
+                    .map_err(map_block_visit_error)
+            };
+            emit_derived_hash_controls_with_chunk(
+                &event,
+                &self.profile,
+                &mut visit,
+                &mut feed_trace_chunk,
+            )?;
+            trace_stream.finish_part().map_err(RecursiveV2Error::from)?;
         }
         let replayed = RecursiveTracePrecommitV2 {
             event_count,
@@ -1310,13 +1415,35 @@ impl RecursiveTransitionTraceSourceV2 {
         if replayed != precommit || byte_count != self.spool.len() {
             return Err(RecursiveV2Error::Canonical);
         }
-        // The global Trace controls are regenerated only from the canonical
-        // source spool, after all per-source schedules.  The stream sees each
-        // source-record byte once and never sees its derived SHA controls.
-        self.spool.rewind()?;
-        emit_trace_precommit_hash_controls(&mut self.spool, &self.profile, precommit, |control| {
-            visit(&control)
-        })?;
+        let trace_digest = trace_stream
+            .finalize_with(&mut |block| {
+                emit_trace_hash_block(
+                    block,
+                    precommit,
+                    trace_message_bytes,
+                    trace_block_count,
+                    trace_padding_bytes,
+                    trace_bit_length,
+                    &self.profile,
+                    &mut visit,
+                    &mut trace_blocks,
+                )
+            })
+            .map_err(map_block_visit_error)?;
+        if trace_digest != precommit.trace_digest || trace_blocks != trace_block_count {
+            return Err(RecursiveV2Error::Invariant);
+        }
+        visit(&trace_hash_control_event(
+            HashControlStageV2::End,
+            RecursiveTraceOpcodeV2::EndHash,
+            precommit,
+            trace_message_bytes,
+            trace_block_count,
+            trace_padding_bytes,
+            trace_bit_length,
+            None,
+            &self.profile,
+        )?)?;
         self.state = TraceSourceStateV2::Replayed;
         Ok(RecursiveTracePassV2 { precommit })
     }
@@ -1912,8 +2039,39 @@ mod tests {
                 })
                 .expect("source record in derived schedule");
             let chunks = source_event.canonical_chunks().expect("source chunks");
-            let feeder = &schedule[source_position - chunks.len()..source_position];
-            for (control, expected) in feeder.iter().zip(chunks) {
+            let (begin_position, begin) = schedule
+                .iter()
+                .enumerate()
+                .skip(source_position + 1)
+                .find_map(|(index, candidate)| {
+                    let control = decode_hash_control(candidate).ok()?;
+                    (control.schema == HashControlSchemaV2::SourceRecord
+                        && control.stage == HashControlStageV2::Begin
+                        && control.source_ordinal == source_event.ordinal())
+                    .then_some((index, control))
+                })
+                .expect("source has a following source BEGIN_HASH");
+            assert_eq!(begin.schema, HashControlSchemaV2::SourceRecord);
+            assert_eq!(begin.stage, HashControlStageV2::Begin);
+            assert_eq!(begin.source_ordinal, source_event.ordinal());
+            let end_position = schedule
+                .iter()
+                .enumerate()
+                .skip(begin_position + 1)
+                .find_map(|(index, event)| {
+                    let control = decode_hash_control(event).ok()?;
+                    (control.schema == HashControlSchemaV2::SourceRecord
+                        && control.stage == HashControlStageV2::End
+                        && control.source_ordinal == source_event.ordinal())
+                    .then_some(index)
+                })
+                .expect("source END_HASH in derived schedule");
+            let feeder = schedule[begin_position + 1..end_position]
+                .iter()
+                .filter(|event| event.opcode() == RecursiveTraceOpcodeV2::TraceChunk)
+                .collect::<Vec<_>>();
+            assert_eq!(feeder.len(), chunks.len());
+            for (control, expected) in feeder.into_iter().zip(chunks) {
                 let decoded = decode_trace_chunk_control(control).expect("canonical feeder");
                 assert_eq!(decoded.source_ordinal, expected.source_ordinal());
                 assert_eq!(decoded.chunk_ordinal, expected.chunk_ordinal());
@@ -1988,9 +2146,17 @@ mod tests {
         })
         .expect("FIPS control expansion");
 
+        let chunks = controls
+            .iter()
+            .filter(|control| control.opcode() == RecursiveTraceOpcodeV2::TraceChunk)
+            .count();
+        assert_eq!(
+            chunks,
+            source.canonical_chunks().expect("canonical chunks").len()
+        );
         let decoded = controls
             .iter()
-            .map(|control| decode_hash_control(control).expect("canonical control"))
+            .filter_map(|control| decode_hash_control(control).ok())
             .collect::<Vec<_>>();
         assert_eq!(
             decoded.first().expect("begin").stage,

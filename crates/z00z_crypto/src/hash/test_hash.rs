@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 use super::*;
 
@@ -123,6 +123,70 @@ fn checkpoint_sha_block_stream_matches_rustcrypto_at_fips_boundaries() {
 }
 
 #[test]
+fn checkpoint_sha_block_stream_accepts_one_part_in_canonical_chunks() {
+    let label = b"z00z.recursive.v2.source-record-hash";
+    let payload = vec![0xA5; 129];
+    let expected = sha256_256_role(CheckpointShaRole::Trace, &[label, &payload]);
+    let mut blocks = Vec::new();
+    let mut stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::Trace);
+    stream
+        .update_part_with(label, &mut |block| {
+            blocks.push(block);
+            Ok::<(), ()>(())
+        })
+        .expect("label is framed once");
+    stream
+        .begin_part_with(
+            u64::try_from(payload.len()).expect("test length"),
+            &mut |block| {
+                blocks.push(block);
+                Ok::<(), ()>(())
+            },
+        )
+        .expect("payload part begins");
+    for chunk in payload.chunks(64) {
+        stream
+            .update_part_bytes_with(chunk, &mut |block| {
+                blocks.push(block);
+                Ok::<(), ()>(())
+            })
+            .expect("canonical chunk fits declared part");
+    }
+    stream.finish_part().expect("declared part is complete");
+    let actual = stream
+        .finalize_with(&mut |block| {
+            blocks.push(block);
+            Ok::<(), ()>(())
+        })
+        .expect("complete transcript finalizes");
+    assert_eq!(actual, expected);
+    assert!(blocks
+        .iter()
+        .all(CheckpointSha256BlockV2::verifies_transition));
+}
+
+#[test]
+fn checkpoint_sha_block_stream_rejects_incomplete_or_oversized_part() {
+    let mut stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::Trace);
+    stream
+        .begin_part_with(2, &mut |_| Ok::<(), ()>(()))
+        .expect("part starts");
+    stream
+        .update_part_bytes_with(&[1], &mut |_| Ok::<(), ()>(()))
+        .expect("first byte fits");
+    assert_eq!(
+        stream.finish_part(),
+        Err(CheckpointSha256Error::IncompletePart)
+    );
+    assert!(matches!(
+        stream.update_part_bytes_with(&[2, 3], &mut |_| Ok::<(), ()>(())),
+        Err(CheckpointSha256BlockVisitError::Hash(
+            CheckpointSha256Error::PartTooLong
+        ))
+    ));
+}
+
+#[test]
 fn checkpoint_sha_block_count_rejects_fips_length_overflow() {
     assert_eq!(
         CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(SHA256_MAX_BYTES_V2)
@@ -133,6 +197,23 @@ fn checkpoint_sha_block_count_rejects_fips_length_overflow() {
         CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(SHA256_MAX_BYTES_V2 + 1)
             .is_err()
     );
+}
+
+#[test]
+fn checkpoint_sha_role_prefix_is_the_single_framing_owner() {
+    for role in crate::hash::domains::ALL_CHECKPOINT_SHA_ROLES_V2 {
+        let prefix = CheckpointSha256BlockStreamV2::framed_role_prefix(*role);
+        assert_eq!(
+            u64::try_from(prefix.len()).expect("fixed prefix length"),
+            CheckpointSha256BlockStreamV2::framed_bytes_for_parts(*role, 0, 0)
+                .expect("fixed role framing"),
+        );
+        let declared_len = u64::from_le_bytes(prefix[..8].try_into().expect("prefix length"));
+        assert_eq!(
+            usize::try_from(declared_len).expect("fixed domain length"),
+            prefix.len() - 8
+        );
+    }
 }
 
 #[test]

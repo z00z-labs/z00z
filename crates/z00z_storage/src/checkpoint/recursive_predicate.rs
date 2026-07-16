@@ -150,13 +150,11 @@ struct TraceSemanticMachineV2<'a> {
     jmt_chunks: u64,
     jmt_payload: Vec<u8>,
     envelope_verified: bool,
-    pending_chunks: Option<PendingCanonicalSourceChunksV2>,
     pending_hash: Option<PendingHashV2>,
     replay_transcript: CheckpointSha256V2,
     commit_transcript: CheckpointSha256V2,
 }
 
-#[derive(Clone, Copy)]
 struct PendingHashV2 {
     source_ordinal: u64,
     source_opcode: RecursiveTraceOpcodeV2,
@@ -167,77 +165,63 @@ struct PendingHashV2 {
     blocks_seen: u64,
     chaining_state: Option<[u32; 8]>,
     next_stage: HashControlStageV2,
+    chunks: PendingCanonicalSourceChunksV2,
 }
 
-/// Bounded, per-source canonical-byte feeder state.  The source itself is
-/// still read from the one private spool; retaining at most one source record
-/// worth of fixed 64-byte controls lets the independent evaluator reject a
-/// reordered, omitted, duplicated, or substituted feeder before it reaches a
-/// semantic source transition.
+/// Bounded, per-source canonical-byte reference state. The evaluator retains
+/// this native reference only to reject a malformed derived schedule; Nova
+/// independently proves the same byte relation with O(1) state.
 struct PendingCanonicalSourceChunksV2 {
     source_ordinal: u64,
-    chunk_count: u32,
-    chunks: Vec<super::recursive_trace::RecursiveTraceChunkControlV2>,
+    chunks: Vec<super::recursive_trace::RecursiveTraceCanonicalChunkV2>,
+    next_chunk: usize,
 }
 
 impl PendingCanonicalSourceChunksV2 {
-    fn begin(
-        chunk: super::recursive_trace::RecursiveTraceChunkControlV2,
+    fn from_source(
+        source: &RecursiveTraceEventV2,
         max_source_chunk_count: u32,
     ) -> Result<Self, RecursiveV2Error> {
-        if chunk.chunk_ordinal != 0 || chunk.chunk_count > max_source_chunk_count {
+        let chunks = source.canonical_chunks()?;
+        if chunks.is_empty()
+            || u32::try_from(chunks.len()).map_err(|_| RecursiveV2Error::Limit)?
+                > max_source_chunk_count
+        {
             return Err(RecursiveV2Error::EventOrder);
         }
-        let capacity = usize::try_from(chunk.chunk_count).map_err(|_| RecursiveV2Error::Limit)?;
-        let mut chunks = Vec::new();
-        chunks
-            .try_reserve_exact(capacity)
-            .map_err(|_| RecursiveV2Error::Limit)?;
-        chunks.push(chunk);
         Ok(Self {
-            source_ordinal: chunk.source_ordinal,
-            chunk_count: chunk.chunk_count,
+            source_ordinal: source.ordinal(),
             chunks,
+            next_chunk: 0,
         })
     }
 
-    fn push(
+    fn accept(
         &mut self,
         chunk: super::recursive_trace::RecursiveTraceChunkControlV2,
     ) -> Result<(), RecursiveV2Error> {
-        let expected = u32::try_from(self.chunks.len()).map_err(|_| RecursiveV2Error::Limit)?;
+        let expected = self
+            .chunks
+            .get(self.next_chunk)
+            .ok_or(RecursiveV2Error::EventOrder)?;
         if chunk.source_ordinal != self.source_ordinal
-            || chunk.chunk_count != self.chunk_count
-            || chunk.chunk_ordinal != expected
-            || expected >= self.chunk_count
+            || chunk.source_ordinal != expected.source_ordinal()
+            || chunk.chunk_ordinal != expected.chunk_ordinal()
+            || chunk.chunk_count != expected.chunk_count()
+            || chunk.byte_count != expected.byte_count()
+            || chunk.bytes != expected.bytes()
         {
             return Err(RecursiveV2Error::EventOrder);
         }
-        self.chunks.push(chunk);
+        self.next_chunk = self
+            .next_chunk
+            .checked_add(1)
+            .ok_or(RecursiveV2Error::Overflow)?;
         Ok(())
     }
 
-    fn matches_source(&self, source: &RecursiveTraceEventV2) -> Result<bool, RecursiveV2Error> {
-        if source.ordinal() != self.source_ordinal
-            || usize::try_from(self.chunk_count).map_err(|_| RecursiveV2Error::Limit)?
-                != self.chunks.len()
-        {
-            return Ok(false);
-        }
-        let canonical = source.canonical_chunks()?;
-        if canonical.len() != self.chunks.len() {
-            return Ok(false);
-        }
-        Ok(canonical
-            .into_iter()
-            .zip(&self.chunks)
-            .all(|(expected, actual)| {
-                expected.source_ordinal() == actual.source_ordinal
-                    && expected.chunk_ordinal() == actual.chunk_ordinal
-                    && expected.chunk_count() == actual.chunk_count
-                    && expected.byte_count() == actual.byte_count
-                    && expected.bytes() == actual.bytes
-            }))
+    fn complete(&self) -> bool {
+        self.next_chunk == self.chunks.len()
     }
 }
 
@@ -303,7 +287,6 @@ impl<'a> TraceSemanticMachineV2<'a> {
             jmt_chunks: 0,
             jmt_payload: Vec::new(),
             envelope_verified: false,
-            pending_chunks: None,
             pending_hash: None,
             replay_transcript,
             commit_transcript,
@@ -316,24 +299,19 @@ impl<'a> TraceSemanticMachineV2<'a> {
             | RecursiveTraceOpcodeV2::ShaBlock
             | RecursiveTraceOpcodeV2::EndHash => self.accept_hash_control(event),
             RecursiveTraceOpcodeV2::TraceChunk => {
-                if self.pending_hash.is_some() {
+                let chunk = decode_trace_chunk_control(event)?;
+                let pending = self
+                    .pending_hash
+                    .as_mut()
+                    .ok_or(RecursiveV2Error::EventOrder)?;
+                if pending.next_stage != HashControlStageV2::Block {
                     return Err(RecursiveV2Error::EventOrder);
                 }
-                let chunk = decode_trace_chunk_control(event)?;
-                match self.pending_chunks.as_mut() {
-                    Some(pending) => pending.push(chunk),
-                    None => {
-                        self.pending_chunks = Some(PendingCanonicalSourceChunksV2::begin(
-                            chunk,
-                            self.max_source_chunk_count,
-                        )?);
-                        Ok(())
-                    }
-                }?;
+                pending.chunks.accept(chunk)?;
                 Ok(())
             }
             _ => {
-                if self.pending_hash.is_some() || !self.consume_pending_chunks(event)? {
+                if self.pending_hash.is_some() {
                     return Err(RecursiveV2Error::EventOrder);
                 }
                 self.accept_source(event)?;
@@ -522,21 +500,9 @@ impl<'a> TraceSemanticMachineV2<'a> {
         Ok(())
     }
 
-    fn consume_pending_chunks(
-        &mut self,
-        source: &RecursiveTraceEventV2,
-    ) -> Result<bool, RecursiveV2Error> {
-        let pending = self
-            .pending_chunks
-            .take()
-            .ok_or(RecursiveV2Error::EventOrder)?;
-        pending.matches_source(source)
-    }
-
     fn finish(self) -> Result<(), RecursiveV2Error> {
         if self.phase != TracePhaseV2::Finalized
             || !self.envelope_verified
-            || self.pending_chunks.is_some()
             || self.pending_hash.is_some()
             || self.replay_transcript.finalize() != self.commit_transcript.finalize()
         {
@@ -680,6 +646,10 @@ impl<'a> TraceSemanticMachineV2<'a> {
             blocks_seen: 0,
             chaining_state: None,
             next_stage: HashControlStageV2::Begin,
+            chunks: PendingCanonicalSourceChunksV2::from_source(
+                event,
+                self.max_source_chunk_count,
+            )?,
         });
         Ok(())
     }
@@ -708,7 +678,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 HashControlStageV2::Block => RecursiveTraceOpcodeV2::ShaBlock,
                 HashControlStageV2::End => RecursiveTraceOpcodeV2::EndHash,
             };
-            if event.opcode() != expected_opcode || !same_hash_binding(&control, *pending) {
+            if event.opcode() != expected_opcode || !same_hash_binding(&control, pending) {
                 return Err(RecursiveV2Error::Canonical);
             }
             match control.stage {
@@ -770,6 +740,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         )?
                         || control.block.is_some()
                         || pending.blocks_seen != pending.block_count
+                        || !pending.chunks.complete()
                         || CheckpointSha256BlockV2::digest_from_chaining(
                             &pending.chaining_state.ok_or(RecursiveV2Error::Invariant)?,
                         ) != pending.source_hash
@@ -787,7 +758,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
     }
 }
 
-fn same_hash_binding(control: &HashControlBindingV2, pending: PendingHashV2) -> bool {
+fn same_hash_binding(control: &HashControlBindingV2, pending: &PendingHashV2) -> bool {
     control.schema == HashControlSchemaV2::SourceRecord
         && control.stage == pending.next_stage
         && control.source_ordinal == pending.source_ordinal

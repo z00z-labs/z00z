@@ -1272,6 +1272,33 @@ mod tests {
             .stderr(std::process::Stdio::null())
             .spawn()
             .expect("spawn foreign live process");
+        // `Command::spawn` returns after fork and can race the child's `exec`.
+        // Until `sleep` is exec'd, `/proc/<pid>/exe` may still name this test
+        // binary, which is intentionally recognised as a cache process. Wait
+        // for the foreign executable before asserting foreign-lock cleanup.
+        #[cfg(target_os = "linux")]
+        {
+            let child_exe = PathBuf::from("/proc")
+                .join(child.id().to_string())
+                .join("exe");
+            let deadline = Instant::now() + Duration::from_secs(1);
+            let mut child_execed_sleep = false;
+            while Instant::now() < deadline {
+                child_execed_sleep = read_link(&child_exe)
+                    .ok()
+                    .and_then(|path| path.file_name().map(OsStr::to_owned))
+                    .is_some_and(|name| name == "sleep");
+                if child_execed_sleep {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+            if !child_execed_sleep {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("foreign child did not exec sleep before cleanup test");
+            }
+        }
         write_file(
             &lock_path,
             format!("{}\n/tmp/foreign/outputs/scenario_1\n", child.id()).as_bytes(),

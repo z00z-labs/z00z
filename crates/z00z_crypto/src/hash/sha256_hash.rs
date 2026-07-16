@@ -28,6 +28,14 @@ pub const SHA256_DIGEST_BYTES_V2: usize = 32;
 pub enum CheckpointSha256Error {
     #[error("checkpoint SHA-256 input exceeds the FIPS 2^61 - 1 byte limit")]
     InputTooLong,
+    #[error("checkpoint SHA-256 part is already open")]
+    PartAlreadyOpen,
+    #[error("checkpoint SHA-256 has no open part")]
+    NoOpenPart,
+    #[error("checkpoint SHA-256 part ended before its declared length")]
+    IncompletePart,
+    #[error("checkpoint SHA-256 part exceeds its declared length")]
+    PartTooLong,
 }
 
 /// One FIPS 180-4 compression step of a role-framed checkpoint transcript.
@@ -129,6 +137,7 @@ pub struct CheckpointSha256BlockStreamV2 {
     framed_bytes: u64,
     block_index: u64,
     started: bool,
+    open_part_bytes: Option<u64>,
 }
 
 impl CheckpointSha256BlockStreamV2 {
@@ -143,6 +152,7 @@ impl CheckpointSha256BlockStreamV2 {
             framed_bytes: 0,
             block_index: 0,
             started: false,
+            open_part_bytes: None,
         }
     }
 
@@ -164,6 +174,24 @@ impl CheckpointSha256BlockStreamV2 {
             .and_then(|value| value.checked_add(part_bytes))
             .filter(|value| *value <= SHA256_MAX_BYTES_V2)
             .ok_or(CheckpointSha256Error::InputTooLong)
+    }
+
+    /// Return the exact role-bound prefix that begins every checkpoint SHA
+    /// transcript before its first length-prefixed application part.
+    ///
+    /// Callers that need a streamed or constrained view must use this owner
+    /// API rather than reproduce the domain-separation grammar locally.
+    #[must_use]
+    pub fn framed_role_prefix(role: CheckpointShaRole) -> Vec<u8> {
+        let domain = dst(role.domain(), role.label());
+        let mut prefix = Vec::with_capacity(8 + domain.len());
+        prefix.extend_from_slice(
+            &u64::try_from(domain.len())
+                .expect("fixed checkpoint domain fits u64")
+                .to_le_bytes(),
+        );
+        prefix.extend_from_slice(&domain);
+        prefix
     }
 
     /// Return `Q(L) = ceil((L + 9) / 64)` for one FIPS-authorized message.
@@ -188,10 +216,34 @@ impl CheckpointSha256BlockStreamV2 {
     where
         F: FnMut(CheckpointSha256BlockV2) -> Result<(), E>,
     {
-        self.start_with(visit)?;
         let part_len = u64::try_from(part.len()).map_err(|_| {
             CheckpointSha256BlockVisitError::Hash(CheckpointSha256Error::InputTooLong)
         })?;
+        self.begin_part_with(part_len, visit)?;
+        self.update_part_bytes_with(part, visit)?;
+        self.finish_part()
+            .map_err(CheckpointSha256BlockVisitError::Hash)
+    }
+
+    /// Begin one declared-length part of a checkpoint transcript.
+    ///
+    /// The caller may feed the body with [`Self::update_part_bytes_with`].
+    /// This is the sole streaming extension of the canonical length-prefixed
+    /// grammar; it never exposes an unframed raw-byte path.
+    pub fn begin_part_with<E, F>(
+        &mut self,
+        part_len: u64,
+        visit: &mut F,
+    ) -> Result<(), CheckpointSha256BlockVisitError<E>>
+    where
+        F: FnMut(CheckpointSha256BlockV2) -> Result<(), E>,
+    {
+        if self.open_part_bytes.is_some() {
+            return Err(CheckpointSha256BlockVisitError::Hash(
+                CheckpointSha256Error::PartAlreadyOpen,
+            ));
+        }
+        self.start_with(visit)?;
         let next = self
             .framed_bytes
             .checked_add(8)
@@ -201,9 +253,49 @@ impl CheckpointSha256BlockStreamV2 {
                 CheckpointSha256Error::InputTooLong,
             ))?;
         self.absorb_with(&part_len.to_le_bytes(), false, visit)?;
-        self.absorb_with(part, false, visit)?;
         self.framed_bytes = next;
+        self.open_part_bytes = Some(part_len);
         Ok(())
+    }
+
+    /// Feed bytes into the declared part currently open in this stream.
+    pub fn update_part_bytes_with<E, F>(
+        &mut self,
+        bytes: &[u8],
+        visit: &mut F,
+    ) -> Result<(), CheckpointSha256BlockVisitError<E>>
+    where
+        F: FnMut(CheckpointSha256BlockV2) -> Result<(), E>,
+    {
+        let remaining = self
+            .open_part_bytes
+            .ok_or(CheckpointSha256BlockVisitError::Hash(
+                CheckpointSha256Error::NoOpenPart,
+            ))?;
+        let byte_count = u64::try_from(bytes.len()).map_err(|_| {
+            CheckpointSha256BlockVisitError::Hash(CheckpointSha256Error::InputTooLong)
+        })?;
+        let next_remaining =
+            remaining
+                .checked_sub(byte_count)
+                .ok_or(CheckpointSha256BlockVisitError::Hash(
+                    CheckpointSha256Error::PartTooLong,
+                ))?;
+        self.absorb_with(bytes, false, visit)?;
+        self.open_part_bytes = Some(next_remaining);
+        Ok(())
+    }
+
+    /// Seal the current declared-length part before another part or finalization.
+    pub fn finish_part(&mut self) -> Result<(), CheckpointSha256Error> {
+        match self.open_part_bytes {
+            Some(0) => {
+                self.open_part_bytes = None;
+                Ok(())
+            }
+            Some(_) => Err(CheckpointSha256Error::IncompletePart),
+            None => Err(CheckpointSha256Error::NoOpenPart),
+        }
     }
 
     /// Finish FIPS padding, emit every remaining block, and return the digest.
@@ -214,6 +306,11 @@ impl CheckpointSha256BlockStreamV2 {
     where
         F: FnMut(CheckpointSha256BlockV2) -> Result<(), E>,
     {
+        if self.open_part_bytes.is_some() {
+            return Err(CheckpointSha256BlockVisitError::Hash(
+                CheckpointSha256Error::IncompletePart,
+            ));
+        }
         self.start_with(visit)?;
         let bit_length =
             self.framed_bytes
@@ -243,13 +340,9 @@ impl CheckpointSha256BlockStreamV2 {
         if self.started {
             return Ok(());
         }
-        let domain = dst(self.role.domain(), self.role.label());
-        let domain_len = u64::try_from(domain.len()).expect("fixed domain fits u64");
-        self.absorb_with(&domain_len.to_le_bytes(), false, visit)?;
-        self.absorb_with(&domain, false, visit)?;
-        self.framed_bytes = domain_len
-            .checked_add(8)
-            .expect("fixed domain framing is representable");
+        let prefix = Self::framed_role_prefix(self.role);
+        self.absorb_with(&prefix, false, visit)?;
+        self.framed_bytes = u64::try_from(prefix.len()).expect("fixed role prefix fits u64");
         self.started = true;
         Ok(())
     }

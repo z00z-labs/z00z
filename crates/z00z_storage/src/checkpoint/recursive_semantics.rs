@@ -28,10 +28,24 @@ pub(crate) const RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2: u32 = 1
     + 2
     + CANONICAL_HEX32_BYTES as u32
     + 4;
-const UNIQUENESS_PRECOMMIT_VERSION_V2: u8 = 1;
-const UNIQUENESS_PRECOMMIT_BYTES_V2: usize = 1 + 4 + 4 + 32 * 5;
-const UNIQUENESS_CHALLENGE_BYTES_V2: usize = 1 + 32 + 32;
-const NET_MERGE_BYTES_V2: usize = 1 + 32;
+/// Frozen wire version of the one canonical uniqueness-precommit payload.
+///
+/// The streaming Nova relation imports this exact codec constant; it does not
+/// maintain an independent payload grammar or length source.
+pub(crate) const UNIQUENESS_PRECOMMIT_VERSION_V2: u8 = 1;
+/// Exact byte width of the one canonical uniqueness-precommit payload.
+pub(crate) const UNIQUENESS_PRECOMMIT_BYTES_V2: usize = 1 + 4 + 4 + 32 * 5;
+/// Exact byte width of the one canonical uniqueness-challenge payload.
+///
+/// The streaming Nova relation imports this exact codec constant; challenge
+/// bytes do not have a second circuit-local grammar or length source.
+pub(crate) const UNIQUENESS_CHALLENGE_BYTES_V2: usize = 1 + 32 + 32;
+/// Exact canonical `NetMerge` payload width.
+///
+/// The streaming Nova relation imports this exact codec width while decoding
+/// the sole canonical source record.  It does not define another grammar or
+/// accept a length supplied by the witness.
+pub(crate) const NET_MERGE_BYTES_V2: usize = 1 + 32;
 const HIERARCHY_PROMOTION_BYTES_V2: usize = 1 + 32 + 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
