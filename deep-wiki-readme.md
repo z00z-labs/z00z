@@ -14,7 +14,7 @@ If `deep-wiki` is not installed yet in this repository, use:
 This workspace currently has:
 
 - Codex plugin: `deep-wiki@personal`
-- Repository remote: `https://github.com/vasja34/z00z.git`
+- Repository remote: `https://github.com/z00z-labs/z00z.git`
 - Current branch: `z00z-dev`
 
 Examples below use this repository when showing concrete prompts.

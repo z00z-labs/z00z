@@ -76,14 +76,17 @@ processes were not interrupted. Because heavy Nova workers were already running,
 this audit did not start a third setup/proof process. Observed processes are
 process evidence, not retained pass evidence; their terminal results were not
 available to this audit.
+## 📊 Historical Implementation Status At Audit Snapshot
 
-## 📊 Implementation Status Against Plan 051
+This table records the source snapshot identified above. The live reconciliation
+near the end of this report supersedes its code-presence dispositions; historical
+findings and measurements remain evidence of the state that was audited.
 
 | Task | Spec-to-code status | Audit disposition |
 | --- | --- | --- |
 | T0 authority/V1 eradication | `full_match` with evidence-maintenance caveats | The scoped recursive V1 symbol scan is clean, the authority branch is explicit, and live code has one V2 path. Do not reopen Plans 01–05. |
 | T1 native V2 relation | `partial_match` | Resolver, durable cutover, bounded source, real HJMT trace, strict decoding, hierarchy checks, and typed statement exist. Pre-state backend-root anchoring, complete statement layering, and resource-consistent streaming remain incomplete. T1 must be reopened narrowly rather than erased. |
-| T2 uniform Nova relation | `partial_match` / `missing_in_code` for required families | SHA/source/global/replay/precommit/challenge work is real. Net, full uniqueness, JMT, hierarchy, commitments, application finals, full mutation ledger, and final candidate selection are absent. |
+| T2 uniform Nova relation | `partial_match` / `missing_in_code` for required families | SHA/source/global/replay, exact count/P/U/challenge/list SHA, full semantic-row uniqueness products/order, semantic Delete/Insert/Replace/Unchanged Net, and final per-opcode accounting are real. JMT proof algebra, hierarchy, roots, commitments, `X_h`/prior-IVC/application finals, Models A/B/C, full mutation ledger, final artifacts, and candidate selection remain absent. |
 | T3 continuous runner | `not_started` as required | Correctly locked. Private proof-envelope code in T2 is preparatory and is not a T3 runner. |
 | T4 closure/migration/theorem matrix | `not_started` as required | Correctly locked. Current coverage pass is planning coverage, not T4 theorem-to-code closure. |
 | Plans 06–13 | `blocked_by_dependency` | Must remain locked until all T0–T4 acceptance gates pass. Several downstream path/owner references need reconciliation before execution. |
@@ -228,6 +231,20 @@ operating budgets. The measured incomplete candidate has approximately:
 - verifier check time: `612.074 s`;
 - VK: `273,174,184 B`;
 - verifier bundle: `273,174,638 B`.
+
+The amended S1-01 source-byte relation has newer non-acceptance evidence: its
+fresh 40-step full bounded release worker completed at `16,829,259,776 B` peak
+RSS in `343.966 s`. Setup was `39.179 s`; accumulator construction was
+`85 ms`; the special first `prove_step` was below `1 ms`; the following 39
+folds took `6.999 s` (`179.465 ms/fold`); compression-key setup took `6.281 s`;
+compression took `148.280 s`; verifier bundle load/proof decode/check took
+`126.381 s`, and envelope load/check took `2.609 s`. The compressed proof is
+`53,368 B`; the portable envelope is `134,451 B` (`251 B` header + two
+`40,416 B` public states + proof). Its augmented primary/secondary shapes are
+`C=303,019/10,349` and `V=256,347/10,331`. This
+clears the former emergency-cap failure, but the circuit is
+still semantically incomplete and the worker ceiling is still not an operating
+budget.
 
 No authority tuple exists for setup, fold, compression, verifier load/check,
 RSS, cancellation, VK distribution/fanout, or cadence. Therefore no candidate
@@ -623,3 +640,178 @@ continue fast semantic T2 work without another unconditional heavy bootstrap.
 **Unlock condition:** complete theorem, selected budget-compliant candidate,
 retained Model A/B/C evidence, and converged reviews—never shape/proof smoke or
 planning coverage alone.
+
+## 📌 Live Remediation Record (2026-07-17)
+
+This record is the current disposition of the findings above. It supersedes no
+captured audit evidence and does not convert a partial repair into T1 or T2
+acceptance.
+
+| Finding | Current remediation | Remaining closure condition |
+| --- | --- | --- |
+| S1-01 | The one Nova byte context, replay prefix, uniqueness codecs, and NetMerge byte grammar remain in the sole storage-owned circuit. **Authority-reviewed theorem amendment (2026-07-17):** the endpoint-free Poseidon root/frontier and additive pseudo-root remain removed. One stack-local canonical chunk still derives an immediately adjacent `SourceMemoryWrite` and `TraceChunk`; cursor/order, all metadata, 64 bytes, zero tail, both SHA contexts, EOF/padding/chaining, and final authority digest remain direct R1CS relations. The live exact-P continuation type-binds declared semantic/per-opcode work plus version, chain/height/predecessor, old roots, tx root, executable predicate, profile/spec/grammar and verifier-bundle identity. R1CS recomputes count/P, both U values, all eight challenge digests and all four list hashes before evaluating the two full-field original/sorted product pairs per set. Canonical replay now immediately precedes its commit-pass Original row; 34 O(1) state cells constrain pending-active, set, and all 32 terminal-ID bytes, while another replay or the challenge requires the pending row cleared. The replay codec now also carries the exact 32-byte storage-owned old/new JMT leaf-value hash and the fixed-shape R1CS parser consumes that authenticated field. Globally strict order rejects cross-set equality, and the sole global TraceClosure END checks all 16 live opcode counters. Current static shape is `C=221,624/V=138,756/NZ=810,066/G=1,048,577`, PP lower bound `71,276,224 B`; the resumed-cycle bootstrap was green before this slice and focused post-change release gates pass. No fresh augmented worker was run. All prior worker/proof/envelope figures are historical diagnostics only. | The source-byte, constrained count/P/U/challenge/list-hash, product/order, replay→Original identifier, and per-opcode-accounting subgaps are closed; the exact leaf commitment is now available but not yet consumed by full-row permutation/Net. Close full path/value semantic Net/unchanged-leaf, freeze/prove the degree/query bound and Models A/B/C, and implement JMT, hierarchy, settlement-root/statement/final-state relations and every remaining row in `069-051-T2-GAPS.md`; obtain the authority operating budget and remeasure only the complete circuit. No bounded arena, native/digest substitute, second owner, or T3 start is permitted. |
+| S1-02 | `RecursiveSnapshotHandleV2` captures `pre_definition_root`; the snapshot digest, canonical transition, evaluator, and typed statement bind it. The native converging-prestate cross-substitution fixture now rejects B's real envelope under A at the first old-root gate. | Constrain the complete old/new-root family in R1CS and retain recomputed real-verifier mutations. |
+| S1-03 | STATE and ROADMAP reopen T1 for bounded theorem closure; the typed statement is only a transition commitment, not `X_h`. Its frozen DAG row now commits exact declared/consumed per-opcode counts. | Add backend-root identities to `X_h`, bundle/parameter identity, prior IVC state, expected final fields, and one-field Model C mutations. |
+| S1-04 | No budget tuple was inferred or fabricated. The missing authority tuple is recorded as an external acceptance blocker. | Authority must supply the versioned numeric budget and candidate decision path. |
+| S1-05 | `nova.rs` now uses an OS-visible parent lease with PID/start/source-digest/command metadata and a child bypass marker; a cross-process competing-parent probe rejects. | Retain the two-real-heavy-parent setup-entry test only at the final Gate 3 milestone; do not repeat incomplete-circuit heavy measurements. |
+| S2-01 | Fast semantic/shape/mutation checks are the active loop; retained real-Nova work remains milestone-only. | Measure only after the complete relation and authority budget exist. |
+| S2-02 | The evidence contract remains open; no prose-only ledger is treated as verifier evidence. | Materialize theorem-code matrix, mutation ledger, integration fixtures, bounded-worker report, and Models A/B/C rows as relations land. |
+| S2-03 | The evaluator no longer retains spent/output ID vectors: it compares canonical uniqueness payloads with sealed external-sort commitments and reconstructs each `TraceChunk` from a synchronous borrow of the sole source record. Its profile now commits the bounded JMT envelope, two current-record representations, and sorter buffer capacity. | Authority-bound measurement of the accounted classes and eventual streaming of the JMT envelope remain open. |
+| S2-04 | Coverage now derives invariant and acceptance cardinalities from `069-TODO.md`; `--implementation-evidence` fails closed until the theorem/mutation artifacts exist. | Make every implementation-evidence row source-bound and complete before using it for acceptance. |
+| S2-05 | Current Plan 051 and Plans 06–13 are reconciled to `z00z_storage::checkpoint::recursive_v2`; no later plan may recreate a backend crate or second owner. | Execute only after T2–T4 close; verify paths against then-live modules. |
+| S3-01 | The referenced ZIP evidence packet is absent from this worktree, so it was not replaced or relabelled. | Its custodian must provide the archive path; attach a dated non-authoritative manifest with the recorded live/archived Plan 051 digests. |
+| S3-02 | The T0 manifest now labels `1084/1084` as historical and points to the independently regenerated current inventory. | Preserve the capture; never rewrite its historical evidence as current coverage. |
+
+### 🔑 Live Full-Row/Net/JMT-Header Amendment (2026-07-18)
+
+The S1-01 row above is historical exact-P evidence. The current circuit binds
+the complete 100-byte replay/Original/Sorted semantic row, consumes all fifty
+`u16` limbs in four list hashes and both product pairs, and implements semantic
+Delete/Insert/Replace/Unchanged/Close Net with exact-path and leaf-hash rules.
+The `Close` row directly binds precommit, `P`, spent `U`, and output `U`, then
+checks effect and non-unchanged mutation counts. Circuit-spec version 6 binds
+the corrected full-row security parameters `(50, 49, 248, 128)`; symbolic and
+toy-field release tests cover the `49n` degree ceiling and independent-pair
+accounting. The same authenticated chunks now bind the JMT envelope
+version/generation/kind/digest/update count, canonical no-op digest and exact
+width, plus the PromoteChildRoot trace digest and definition root. Direct
+release mutations reject count, no-op digest/width, and promoted-digest
+changes. The inactive wide/digest-only parser bodies were removed so only one
+canonical implementation path remains. The superseded pre-micro base ShapeCS was
+`C=272,812/V=163,847/NZ=989,221/G=1,048,577`; the static
+PP/VK/bundle/Pedersen lower bounds are
+`79,670,936/33,554,464/33,554,918/201,326,784 B`.
+
+Focused release R1CS tests reject independent definition, serial, terminal,
+leaf-hash, ordering, product, Net-kind, pending-row, Close-binding, and
+cardinality mutations. This closes only the live full-row uniqueness and
+semantic-Net and JMT-header/no-op/Promote subrelations. It does not alter S1-02
+through S1-05 or authorize a complete-circuit worker: mutating JMT
+operation/proof/path algebra, full hierarchy/roots/commitments/`X_h`/finals,
+Models A/B/C, final artifacts, and the authority budget remain open.
+
+### 🔑 Live Single JMT-Micro Path Amendment (2026-07-18)
+
+Circuit-spec version 6 removes the resource-duplicating JMT source path. The
+canonical trace no longer stores an opaque envelope body alongside its derived
+records: it emits one fixed 39-byte authenticated header and one bounded
+`JmtMicroOp` transcript. The storage-owned streaming inverse decoder enforces
+update/operation/value/proof/end ordering, indices, canonical value chunking,
+typed proof reconstruction, project raw-SHA semantics, pinned-JMT verification,
+hierarchy semantics, and the exact transcript digest. It does not retain a
+second envelope body, and digest derivation no longer performs a deep
+`updates.to_vec()` clone. Source-record authority accounting is now derived
+from the content-byte cap and therefore covers short micro records rather than
+assuming max-leaf-sized envelope chunks.
+
+The uniform circuit requires the exact unique header width, binds micro-op
+version/kind/update/operation framing and completed counts, and keeps the
+Promote digest relation. The exact base pin is
+`C=273,537/V=164,495/NZ=991,969/G=1,048,577`; static
+PP/VK/bundle/Pedersen lower bounds are
+`79,798,256/33,554,464/33,554,918/201,326,784 B`. Focused release gates and the
+mandatory bootstrap pass. This amendment closes the duplicate-envelope
+canonical/resource path, not `I_jmt`: raw-SHA mutation cases and root chaining
+are still not R1CS relations. Full hierarchy, roots, commitments, `X_h`, final
+successor, Models A/B/C, artifacts, reopened T1 evidence, and the authority
+budget remain blockers; T3 stays locked.
+
+### 🔑 Live Authenticated JMT Transition Amendment (2026-07-18)
+
+The sole bounded `JmtMicroOp` transcript is now a full per-update R1CS
+transition relation. It constrains exact old leaf/null materialization,
+leaf/value and parent raw-SHA preimages, sibling order/direction, split-prefix
+count/direction and former-leaf/null prelude, all six insert/update/delete
+cases, the declared new root, and old-root continuity across successive real
+operations. Real pinned-JMT fixtures cover all six cases and a two-operation
+chain. Direct mutations reject changed split count, direction, former leaf,
+parent, active/case selection, and declared new root. The exact base pin is
+`C=325,091/V=206,541/NZ=1,221,306/G=2,097,153`; static
+PP/VK/bundle/Pedersen lower bounds are
+`123,763,464/67,108,896/67,109,350/402,653,376 B`. Canonically ordered prior
+value blocks are recomputed in R1CS and bound by presence, key, and value hash
+to the authenticated old proof leaf. The mandatory bootstrap is
+green with `z00z_storage` 250 passed, zero failed, and two ignored.
+
+This closes the JMT per-update transition relation, not T2. Canonical hierarchy
+induction, SettlementV2 roots/commitments, `X_h`/prior-IVC/exact final
+successor, Models A/B/C, complete artifacts/measurement, and the external
+authority budget remain blockers; T3 stays locked.
+
+### 🔑 Live Hierarchy Transition Amendment (2026-07-18)
+
+The sole authenticated JMT stream now feeds one in-circuit hierarchy machine.
+R1CS proves the canonical terminal → bucket → serial → definition → optional
+path-index stage schedule, strict role order, non-equal hierarchy update roots,
+and authenticated prior/new parent-value coordinates and child roots. For each
+of the three parent levels, two independently challenged products over the
+fixed transition row plus exact counts prove that every child transition is
+consumed exactly once and no parent operation invents or duplicates a child.
+The former `PromoteChildRoot` zero-state requirement, which made a real
+mutating hierarchy impossible to promote, is removed.
+
+Exact-P codec version 2 commits `update_trace_digest` as digest anchor 12, and
+the JMT header is equal to that anchor before any hierarchy product is
+accepted. The release four-level hierarchy fixture reaches promotion and
+passes. The exact base pin is
+`C=337,927/V=216,219/NZ=1,266,770/G=2,097,153`; static
+PP/VK/bundle/Pedersen lower bounds are
+`125,890,088/67,108,896/67,109,350/402,653,376 B`.
+
+This amendment closes schedule/order/two-sided-root/unused-child induction, not
+the complete hierarchy theorem. The exact SettlementV2 Goldilocks Poseidon2
+Serial/Definition operation-key relation is still absent. Settlement roots,
+typed commitments, `X_h`, prior IVC, exact final successor, Models A/B/C,
+complete artifacts/measurement, reopened T1 evidence, and the authority budget
+also remain blockers; T3 stays locked.
+
+### 🔑 Live Net→JMT, Canonical-Flow, And Final-State Amendment (2026-07-18)
+
+Every mutating semantic Net row is now consumed exactly once by a terminal-tree
+JMT operation. The circuit evaluates two independently challenged products over
+the exact 132-byte row
+`definition[32] || serial_le[4] || terminal[32] || old_hash[32] || new_hash[32]`
+and compares exact cardinality at the sole promotion gate. The challenges are
+derived before witness rows from the authenticated precommit. Insert and delete
+select a constrained absent zero hash, replacement binds both hashes, and
+Unchanged emits no JMT operation. A retained release mutation changes only the
+terminal JMT value hash and reaches the direct product equality.
+
+The second flow-item representation formerly emitted as `CommitTypedEvent` was
+deleted from the canonical producer and native evaluator. `ReplayInput` and
+`ReplayOutput` are the sole flow-item codec. `CommitTypedEvent` now accepts
+exactly four ordered checkpoint-core commitments—delta root, witness/unchanged
+root, journal digest and checkpoint-link digest—and compares their bytes with
+the X_h-derived public state. The R1CS first-chunk gate rejects the former
+Put/Delete payload tags directly, including a retained handcrafted-trace
+mutant. This removal eliminates the former
+replay/commit-equivalence obligation instead of replacing it with an unchecked
+digest or another SHA context.
+
+The live fixed shape also includes exact SettlementV2 Poseidon2 hierarchy
+parent keys, settlement pre/post root derivation, `X_h`, prior finalized IVC
+state, and the independently derived exact successor. Current base ShapeCS is
+`C=533,905/V=401,549/NZ=2,036,951/G=2,097,153`; static
+PP/VK/bundle/Pedersen lower bounds are
+`161,400,800/67,108,896/67,109,350/402,653,376 B`.
+
+This is not T2 acceptance. The complete mixed real compressed proof, final
+Models A/B/C corpus, theorem/mutation/benchmark/A-17 artifacts, reopened T1
+evidence, authority numeric budget/candidate selection and global review
+convergence remain open. The optional developer PP+PK setup cache remains
+deferred until relation stabilization. Durable folding recovery and Celestia
+DA publication are T3/later integrations and do not substitute for a T2 gate.
+T3 stays locked.
+
+### 🔒 Ordered Live Work List
+
+1. Treat the amended S1-01 source-byte/window relation as the sole main path;
+   retain its direct mutation and bounded-worker regressions. Do not restore the
+   endpoint-free Poseidon root/frontier or introduce an inner/digest substitute.
+2. Complete the remaining T2 evidence families in theorem order: the mixed
+   compressed proof, Models A/B/C, final theorem/mutation/benchmark/A-17
+   artifacts, and evaluator/circuit/verifier differential evidence.
+3. Obtain the S1-04 authority budget, then run the sole complete-circuit
+   candidate/worker measurement and freeze one compile-time SHA width.
+4. Materialize the retained Model A/B/C artifacts and only then execute T3/T4
+   and the two-heavy-parent setup test.

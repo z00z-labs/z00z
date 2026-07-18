@@ -39,7 +39,7 @@ pub use crate::backend::types::{
 };
 use z00z_crypto::{expert::encoding::to_hex, CheckpointSha256V2, CheckpointShaRole};
 
-type RecursiveV2SnapshotBinding = ([u8; 32], u64, u64, u64, [u8; 32]);
+type RecursiveV2SnapshotBinding = ([u8; 32], [u8; 32], u64, u64, u64, [u8; 32]);
 
 #[cfg(test)]
 pub(crate) const TEST_HJMT_INJ_STAGE_ENV: &str = "Z00Z_STORAGE_HJMT_INJ_STAGE";
@@ -215,6 +215,11 @@ pub struct ScopeFlowItem {
     pub definition_id: String,
     pub serial_id: u32,
     pub terminal_id: String,
+    /// Exact SHA-256 JMT value commitment of the old (Delete) or new (Put)
+    /// settlement leaf.  Keeping it on the replay row lets the recursive Net
+    /// relation distinguish a root-preserving replacement from an omitted
+    /// update without retaining private leaf bytes.
+    pub leaf_value_hash: [u8; 32],
     pub leaf_family: ScopeLeafKind,
     pub first_seen: ScopeSeen,
 }
@@ -669,7 +674,19 @@ impl SettlementStore {
         &self,
         layout: u32,
     ) -> Result<RecursiveV2SnapshotBinding, SettlementStoreError> {
-        let root = self.settlement_root_v2(layout)?;
+        // Capture the immutable definition-tree pre-state beside the derived
+        // settlement root.  The recursive evaluator must not reconstruct this
+        // authority from a later post-state envelope.
+        let definition_root = self.recursive_v2_definition_root();
+        let root = derive_settlement_root_v2(
+            RootGeneration::SettlementV2,
+            layout,
+            self.bucket_policy.bucket_policy_id(),
+            definition_root,
+        )
+        .map_err(|err| {
+            SettlementStoreError::Backend(format!("recursive V2 root derivation: {err}"))
+        })?;
         let mut record_count = 0_u64;
         let mut byte_count = 0_u64;
         let mut content = CheckpointSha256V2::new(CheckpointShaRole::Content);
@@ -716,6 +733,7 @@ impl SettlementStore {
         }
         Ok((
             *root.as_bytes(),
+            definition_root,
             self.recursive_v2_storage_generation(),
             record_count,
             byte_count,

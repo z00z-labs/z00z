@@ -1,7 +1,9 @@
 use z00z_core::assets::{AssetLeaf, AssetPackPlain};
 use z00z_crypto::ZkPackEncrypted;
 use z00z_storage::{
-    checkpoint::recursive_v2::{CanonicalCheckpointTransitionV2, RecursiveCircuitProfileV2},
+    checkpoint::recursive_v2::{
+        CanonicalCheckpointTransitionV2, RecursiveCircuitProfileV2, RecursiveTraceOpcodeV2,
+    },
     checkpoint::{
         derive_exec_tx_root, CheckpointDraft, CheckpointExecInput, CheckpointExecOut,
         CheckpointExecTx, CheckpointExecVersion, CheckpointFsStore, CheckpointId, CheckpointInRef,
@@ -232,6 +234,11 @@ fn recursive_v2_trace_replays_one_real_hjmt_commit_and_binds_the_result() {
         transition.post_settlement_root(),
         "the typed statement must bind the independently evaluated V2 post-state root"
     );
+    assert_ne!(
+        evaluated.statement().pre_definition_root(),
+        evaluated.statement().post_definition_root(),
+        "the typed statement must retain the verified definition-tree transition, not only derived settlement endpoints"
+    );
     assert_eq!(evaluated.statement().height(), 1);
     assert_eq!(evaluated.statement().predecessor(), None);
     assert_eq!(evaluated.statement().checkpoint_id(), checkpoint_id);
@@ -251,6 +258,45 @@ fn recursive_v2_trace_replays_one_real_hjmt_commit_and_binds_the_result() {
         precommit.trace_digest(),
         "the typed statement must bind the exact precommitted source trace"
     );
+    let declared_counts = evaluated.statement().declared_event_counts();
+    assert_eq!(
+        declared_counts,
+        evaluated.statement().consumed_event_counts(),
+        "the independent evaluator must consume exactly the source-declared fixed schedule"
+    );
+    assert_eq!(
+        declared_counts
+            .source_record_count()
+            .expect("source count is representable"),
+        precommit.event_count(),
+        "the per-opcode source rows must equal the sealed source-record count"
+    );
+    assert_eq!(declared_counts.count(RecursiveTraceOpcodeV2::BeginBlock), 1);
+    assert_eq!(
+        declared_counts.count(RecursiveTraceOpcodeV2::ReplayInput),
+        1
+    );
+    assert_eq!(
+        declared_counts.count(RecursiveTraceOpcodeV2::ReplayOutput),
+        1
+    );
+    assert_eq!(
+        declared_counts.count(RecursiveTraceOpcodeV2::CommitTypedEvent),
+        2,
+        "every replay row must have one separately counted commit row"
+    );
+    assert_eq!(
+        declared_counts.count(RecursiveTraceOpcodeV2::UniquenessSorted),
+        8,
+        "each replay identifier must appear as original/sorted in commit and product passes"
+    );
+    assert_ne!(evaluated.statement().declared_work_digest(), [0; 32]);
+    assert_ne!(
+        evaluated.statement().pre_uniqueness_context_digest(),
+        [0; 32]
+    );
+    assert!(declared_counts.count(RecursiveTraceOpcodeV2::JmtUpdate) > 0);
+    assert!(declared_counts.count(RecursiveTraceOpcodeV2::TraceChunk) > 0);
     assert_eq!(
         evaluated.statement().update_trace_digest(),
         transition.update_trace_digest(),

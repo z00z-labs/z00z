@@ -3364,6 +3364,274 @@ verifier-bundle lower bound=33,554,918 B, and Pedersen RSS lower bound=
 actual setup RSS, satisfy the mutation ledger, or begin review convergence;
 T2 remains active and T3, T4, and Plan 06 remain locked.
 
+**069-051 Gate 1 truth correction (2026-07-17):** The native V2 path now
+binds the immutable pre-definition root, rejects a real cross-substituted JMT
+envelope from a converging pre-state, eliminates the evaluator's spent/output
+ID vectors, reconstructs `TraceChunk` from its sole source record, commits
+native resident capacity, and commits exact declared/consumed opcode counts in
+the transition commitment. The final clean bootstrap and targeted release tests
+passed. This does **not** establish the current R1CS source-byte theorem: the
+SHA compression lane is equality-bound to its context, but that context still
+appends witness-supplied `TraceChunk` payload bytes rather than a canonical
+source-record payload represented in R1CS. Earlier S1 prose claiming full
+canonical-record equality is superseded. The first T2 implementation item is
+that fixed-width payload relation;
+no digest/native/reduced-cap substitute, width selection, T3/T4, or Plan 06 is
+authorized.
+
+**069-051 S1 authority amendment (2026-07-17):** The first T2 item cannot be
+made sound by a local rename or another SHA assertion. The sole main path still
+emits one derived `SourceMemoryWrite` immediately before the matching
+`TraceChunk` from the same stack-local canonical chunk. The authority-reviewed
+theorem amendment removes the fixed-depth Poseidon root/frontier after its
+bounded worker exhausted the emergency address-space cap: that root had no
+independent public or authority endpoint, so it duplicated the already
+constrained ordered SHA transcript without adding a binding lemma. The writer
+is constrained to the active source ordinal and exact next-chunk cursor;
+pending state forces the immediate reader; direct R1CS equality covers every
+metadata field, all 64 bytes, and zero tail; that reader enters both constrained
+source/global SHA contexts with exact length, EOF, padding, chaining, and final
+authority digest. No inner proof, second encoder/spool/owner, bounded arena,
+native assertion, digest-only equality, or reduced-cap relation is introduced.
+
+**069-051 S1 amended-path evidence (2026-07-17):** Direct byte, metadata,
+cursor/order, zero-tail, source-context, and global-context adversarial tests
+reject in R1CS, and every opcode retains one fixed shape. Sharing the mutually
+exclusive writer/reader lane, replacing the quadratic zero-tail selector
+matrix, decoding the three fixed semantic records by canonical chunk geometry,
+and replacing terminal-ID's 64-way matrix with a six-bit direct-equality mux
+tree reduced the source-only amended base ShapeCS to
+`C=128,769/V=80,844/NZ=493,046`. The
+unrelated additive `SOURCE_TRACE_ROOT` pseudo-endpoint is also deleted because
+summing event-digest limbs was not a root theorem; final trace authority is now
+only the expected digest constrained against the global SHA chaining state. This
+places `NZ` below `2^19`, halves the static generator count again from
+`1,048,577` to `524,289`, and pins lower bounds PP/VK/bundle/Pedersen RSS at
+`39,589,688/16,777,248/16,777,702/100,663,488 B`. A fresh cache-bypassing,
+PID-pinned source-only-revision worker completed the full setup, recursive proof, compressed proof,
+verifier-bundle load, and verifier check under the unchanged 24 GiB/900 s
+emergency limits with exit 0, peak RSS `16,829,259,776 B`, and wall
+`343.966 s`. Augmented primary/secondary shapes are `C=303,019/10,349` and
+`V=256,347/10,331`. The exact 40-step release measurement records setup `39.179 s`,
+39 ordinary folds `6.999 s` (`179.465 ms/fold`), compression `148.280 s`,
+verifier load/decode/check `126.381 s`, compressed proof `53,368 B`, and the
+complete portable envelope `134,451 B`. The verifier bundle remains
+`273,174,638 B`, proving that augmented Nova/Spartan material still dominates
+VK distribution despite the smaller base threshold. The prior S1 emergency-cap resource blocker is closed and semantic
+T2 work may continue. This is not an authority operating budget, candidate
+selection, or T2 acceptance: net effect, full uniqueness, JMT, hierarchy,
+root/statement/final-state relations, Models A/B/C, and S1-04 remain open, so
+T3/T4 and Plan 06 stay locked.
+
+📌 **069-051 T2 exact-P/uniqueness/accounting update (2026-07-18):** The canonical gap
+ledger is now `069-051-T2-GAPS.md`. The sole private
+`z00z_storage::checkpoint::recursive_v2::nova` owner consumes each 79-byte
+Original/Sorted uniqueness record through its two authenticated
+`SourceMemoryWrite`/`TraceChunk` windows. The one 353-byte challenge transcript
+carries `P`, both set-specific `U` values and eight domain-separated SHA-256
+outputs. A single typed authority path now builds exact declared semantic and
+per-opcode work, its count digest, and `P` from version, chain/height/predecessor,
+old settlement/definition roots, tx root, executable predicate, profile/spec/
+grammar, and verifier-bundle identity. R1CS reconstructs the count and `P`
+framing, both `U` values, all eight challenge digests, and all four list hashes
+through the shared fixed FIPS lane. It then maps every output as
+`2 + u248_le(d[0..31])`, reconstructs all sixteen little-endian `u16` ID
+limbs, evaluates `e_beta`, and accumulates two full-field original/sorted grand
+product pairs for both spent and output. NetMerge checks all four product
+equalities and clears the eight product cells. Sorted rows are emitted in one
+globally merged canonical order; per-set and global strict-order gates reject
+intra-set duplicates, cross-set duplicates, and reorderings while four counters
+remain bound to `UniquenessPrecommit`.
+
+All seventeen expanded trace opcode classes have live non-wrapping consumed
+counters. The schema-bound global TraceClosure `END_HASH` is the sole final
+gate; it compares every counter with its declared anchor and clears the
+transient family. The legacy `FinalizeBlock` final-gate overwrite was removed.
+
+The current release ShapeCS pin is
+`C=221,624/V=138,756/NZ=810,066/G=1,048,577`, with PP/VK/bundle/Pedersen lower
+bounds `71,276,224/33,554,464/33,554,918/201,326,784 B`. Canonical replay is
+now immediately paired with its commit-pass Original row; O(1) R1CS state binds
+the exact set and all 32 terminal-ID bytes and rejects skipped or trailing pairs.
+Focused release
+mutations reach count/P framing bytes, a coherent predicate anchor, challenge/
+precommit bytes, direct order/global cross-set/product gates, and the final
+per-opcode equality. The mandatory resumed-cycle bootstrap was green before
+this slice; focused post-change release check, shape, resource preflight,
+exact-P transcript, and final-successor regressions pass. No complete-candidate
+worker was run; every earlier proof/RSS/latency/envelope figure predates exact
+P and final opcode accounting and remains historical diagnostics only.
+
+This closes replay→Original identifier identity, but remains partial
+`I_unique`/Net: identifier equality alone does not establish path/value net
+effect or safe unchanged-leaf omission. The frozen
+`n_max/q_U/q_V` bound, symbolic/toy-field corpus, Models A/B/C, semantic Net,
+JMT/hierarchy/roots, statement/X_h/prior-IVC/final relations, final artifacts,
+complete mixed-block proof, reopened T1 evidence, and authority budget remain
+open. Developer caches and Celestia integration remain outside T2 as specified
+by the gap ledger. T2 is active; T3/T4/Plan 06 remain locked.
+
+**069-051 developer cache boundary (2026-07-17):** `.cache/` has no reusable
+Nova material today. After the S1 relation and its shape stabilize, an opt-in,
+private PP+PK setup cache may use only a SHA-256 digest of a versioned,
+length-delimited identity preimage as its directory key. That preimage includes
+the cache role/format, Nova suite/features, authority/profile/spec/grammar/
+shape/source/lockfile/manifest digests, and running-state arity; names and
+branches are never keys. Strict, capped, canonical decode plus private atomic
+writes are mandatory. Proofs, receipts, VKs/verifier bundles, source payloads,
+and acceptance results are excluded. Every bounded-worker release measurement
+bypasses the cache, so a hit cannot select a SHA width, establish a resource
+budget, or advance T2.
+
+🔑 **069-051 T2 full-row, semantic-Net, and JMT-header update (2026-07-18):**
+The one authenticated uniqueness element is now the complete 100-byte tuple
+`definition_id || serial_id_le || terminal_id || leaf_value_hash`. Replay
+derives it from canonical source bytes; the adjacent Original row, all four
+list SHA commitments, both product pairs, strict ordering, and semantic Net
+consume the same row. A globally repeated terminal is accepted only for one
+spent/output pair on the exact same definition/serial path. Delete-only and
+insert-only blocks are no longer rejected by a false set-cardinality equality.
+
+The sole 134-byte Net codec now proves exact Delete, Insert, Replace,
+Unchanged, and Close rows with one bounded pending spent/output pair. It binds
+the exact path and old/new leaf hashes, requires zero on an absent side,
+distinguishes changed versus unchanged leaves, rejects changed-path
+replacement, and compares effect/mutation counts with the declared Net/JMT
+work. Close directly binds the previously constrained precommit, `P`, spent
+`U`, and output `U`; it introduces no native verdict or digest-only substitute.
+
+Circuit-spec version 6 retains fifty semantic-row limbs, degree 49 per row,
+248-bit mapped challenges, and the separate A-16 `log2(q_U)=128` assumption.
+The repository profile commits `n_max=16,000` per set. Symbolic formal-
+polynomial and exhaustive toy-field release tests cover unequal/equal
+multisets, duplicates, zero factors, the corrected `49n` ceiling, and squared
+two-pair collision accounting. Operational `q_V` remains an external authority
+resource input and cannot replace `q_U`.
+
+The same authenticated TraceChunk stream now decodes the fixed JMT envelope
+header and PromoteChildRoot record in R1CS. It binds the envelope version,
+SettlementV2 generation, mutating/no-op kind, trace digest, declared update
+count, exact no-op digest and no-trailing-byte width, then requires Promote to
+repeat the envelope digest while materializing its definition root. Focused
+release mutations reject a changed count, no-op digest, no-op width, and
+promoted digest. All historical `#[cfg(any())]` wide/digest-only parser bodies
+were removed, leaving one canonical implementation path.
+
+The superseded pre-micro release ShapeCS pin was
+`C=272,812/V=163,847/NZ=989,221/G=1,048,577`, with static
+PP/VK/bundle/Pedersen lower bounds
+`79,670,936/33,554,464/33,554,918/201,326,784 B`. Focused release tests reach direct
+gates for all four replay fields, per-set/global order, four product equalities,
+Net kind, pending old row, Close transcript binding, effect/mutation counts,
+and the JMT-header/Promote mutations above. No fresh real-Nova worker was run because this is not the complete
+relation; prior proof/RSS/latency/size figures remain historical diagnostics.
+Mutating JMT operation/proof/path algebra, terminal→bucket→serial→definition
+induction, settlement roots, typed commitments, `X_h`, prior IVC, exact final
+successor, Models A/B/C, final artifacts, the authority budget, and reopened T1
+evidence still block T2. T3/T4 and Plan 06 remain locked.
+
+🔑 **069-051 T2 single JMT-micro path update (2026-07-18):** Circuit-spec v6
+removes the duplicate source representation that previously emitted both the
+opaque JMT envelope body and derived micro records. The sole canonical source
+is now one fixed 39-byte authenticated header followed by bounded
+`JmtMicroOp` update/operation/value/proof/end records. A storage-owned streaming
+inverse decoder reconstructs typed updates, enforces record order, indices and
+canonical value chunking, re-runs project raw-SHA semantics plus pinned-JMT and
+hierarchy verification, and compares the recomputed micro transcript digest.
+It retains no opaque-envelope spool copy; digest derivation also no longer deep
+clones `updates`. The profile's source-record cap is derived from the same
+content-byte authority rather than the obsolete max-leaf envelope chunk count.
+
+R1CS now requires exactly one fixed-width header, constrains micro-op
+version/kind/update/operation framing and completed counts, and keeps Promote
+bound to the header digest. The exact release ShapeCS pin is
+`C=273,537/V=164,495/NZ=991,969/G=1,048,577`; static
+PP/VK/bundle/Pedersen lower bounds are
+`79,798,256/33,554,464/33,554,918/201,326,784 B`. Focused release tests and the
+mandatory bootstrap pass (`z00z_storage` 248 passed/0 failed/2 milestone-only
+ignored; `z00z_utils` 167/167; wallet/compile checks green). This closes the
+duplicate-envelope resource/canonical-path gap only. Mutating JMT raw-SHA
+path/case/root constraints, hierarchy/settlement-root/commitment/`X_h`/final
+relations, Models A/B/C, artifacts, and the authority budget still block T2;
+T3/T4 and Plan 06 remain locked.
+
+🔑 **069-051 T2 authenticated JMT transition update (2026-07-18):** The sole
+bounded `JmtMicroOp` stream is now a complete R1CS old/path/new-root machine,
+not only a framed parser. It constrains the old leaf/null record, exact
+leaf/value and parent raw-SHA preimages, sibling order and direction, split
+common-prefix count and former-leaf/null prelude, the six insert/update/delete
+cases (including delete coalescence and preserved internal parents), declared
+new-root equality, and old-root continuity between successive updates. Real
+pinned-JMT fixtures cover all six cases plus a two-operation chain. Direct
+mutations reject split count/direction/former leaf/parent changes, active/case
+aliasing, and a changed declared new root. The release base ShapeCS pin is
+`C=325,091/V=206,541/NZ=1,221,306/G=2,097,153`; static
+PP/VK/bundle/Pedersen lower bounds are
+`123,763,464/67,108,896/67,109,350/402,653,376 B`. The sole transcript now
+places prior-value blocks before new-value blocks and R1CS binds their raw SHA,
+presence, and key to the authenticated old proof leaf. The mandatory bootstrap is
+green (`z00z_storage` 250 passed/0 failed/2 ignored; remaining bootstrap gates
+green). This closes the per-update JMT transition relation only. Canonical
+terminal→bucket→serial→definition induction, SettlementV2 roots and typed
+commitments, `X_h`/prior-IVC/exact final successor, Models A/B/C, complete
+measurement, and the authority budget still block T2; T3/T4 and Plan 06 remain
+locked.
+
+🔑 **069-051 T2 hierarchy-transition update (2026-07-18):** The single
+authenticated JMT relation now retains one canonical hierarchy state machine.
+It proves terminal → bucket → serial → definition → optional path-index stage
+order, strict role ordering inside each stage, and non-equal old/new roots for
+every hierarchy-bearing update. Parent prior/new values are decoded from the
+same raw-SHA blocks already authenticated by the JMT proof relation and bind
+their exact definition/serial/bucket coordinates and child roots.
+
+Unused or duplicated children are rejected without a retained map: for each of
+terminal→bucket, bucket→serial, and serial→definition, R1CS evaluates two
+independently challenged products over the fixed 133-byte transition row and
+requires both child/parent products plus exact counts to match at the sole
+mutating promotion. Exact-P codec version 2 adds `update_trace_digest` as the
+twelfth digest anchor; the JMT header must equal it, making these challenges
+non-adaptive. The stale constraint that incorrectly required all hierarchy
+state to be zero at `PromoteChildRoot` was removed. A real four-level hierarchy
+fixture now reaches and satisfies promotion in release TestCS.
+
+The current exact base ShapeCS pin is
+`C=337,927/V=216,219/NZ=1,266,770/G=2,097,153`; static
+PP/VK/bundle/Pedersen lower bounds are
+`125,890,088/67,108,896/67,109,350/402,653,376 B`. The resumed mandatory
+bootstrap passed before this semantic slice. This is not full hierarchy or T2
+closure: exact SettlementV2 Goldilocks Poseidon2 Serial/Definition operation-key
+derivation, settlement roots/typed commitments, statement/`X_h`/prior-IVC/final
+successor, Models A/B/C, complete artifacts/measurement, and the authority
+budget remain open. T3/T4 and Plan 06 remain locked.
+
+🔑 **069-051 T2 canonical-flow and Net→terminal-JMT update (2026-07-18):**
+The semantic relation now proves that every non-Unchanged Net effect is
+consumed exactly once by the terminal JMT scheduler. Because Net rows are
+globally terminal-sorted while terminal operations are hierarchy-grouped,
+R1CS compares two independently challenged products over the exact 132-byte
+row `definition || serial_le || terminal || old_hash || new_hash`, plus exact
+count, at the unique promotion gate. Insert/delete select a constrained zero
+for the absent value; replacement binds both value hashes. A retained release
+mutation changes the JMT value hash and reaches the direct product equality.
+
+The redundant second encoding of every flow item under `CommitTypedEvent` was
+removed from the sole producer and evaluator. `ReplayInput`/`ReplayOutput` are
+now the one canonical flow-item path; `CommitTypedEvent` accepts only the four
+ordered checkpoint-core commitments bound from X_h. The fixed control machine
+retains Commit→Commit solely for those four records, and its R1CS first-chunk
+gate rejects the former Put/Delete tags directly. Current exact base shape
+is `C=533,905/V=401,549/NZ=2,036,951/G=2,097,153`; lower bounds are
+PP/VK/bundle/Pedersen
+`161,400,800/67,108,896/67,109,350/402,653,376 B`.
+
+T2 is not closed. Complete mixed real-proof evidence, final Models A/B/C,
+artifact/theorem/A-17 ledgers, reopened T1 evidence, three-review/two-clean
+convergence and an authority-pinned numeric operating budget remain mandatory.
+The developer-only setup cache is optional and deferred until relation
+stabilization; folding recovery and Celestia DA publication remain T3/later
+integration work. T3/T4 and Plan 06 remain locked.
+
 **Success Criteria:**
 
 1. All 13 plans execute in dependency order against the existing phase folder.

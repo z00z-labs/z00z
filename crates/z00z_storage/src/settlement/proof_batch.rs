@@ -42,18 +42,35 @@ const WITNESS_ROOT_LABEL: &str = "checkpoint_witness_root_v1";
 const WITNESS_CHUNK_VER: u8 = 1;
 const WITNESS_CHUNK_BATCH: u8 = 1;
 pub const JMT_UPDATE_TRACE_VERSION_V2: u8 = 3;
+#[cfg(test)]
 pub(crate) const JMT_UPDATE_TRACE_MAX_BYTES_V2: usize = 67_108_864;
 pub(crate) const JMT_UPDATE_TRACE_MAX_OPS_V2: usize = 1_000;
 const JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2: usize = 24 * 1024 * 1024;
 const JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2: usize = 64 * 1024;
 const JMT_UPDATE_TRACE_MAX_VALUES_BYTES_V2: usize = 24 * 1024 * 1024;
+#[cfg(test)]
 pub(crate) const JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2: usize = 48 * 1024 * 1024;
-const JMT_SPARSE_PLACEHOLDER_HASH_V2: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
+pub(crate) const JMT_SPARSE_PLACEHOLDER_HASH_V2: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
 const JMT_LEAF_DOMAIN_V2: &[u8] = b"JMT::LeafNode";
 const JMT_INTERNAL_DOMAIN_V2: &[u8] = b"JMT::IntrnalNode";
-const JMT_UPDATE_TRACE_KIND_MUTATING_V2: u8 = 1;
-const JMT_UPDATE_TRACE_KIND_NOOP_V2: u8 = 2;
+pub(crate) const JMT_UPDATE_TRACE_KIND_MUTATING_V2: u8 = 1;
+pub(crate) const JMT_UPDATE_TRACE_KIND_NOOP_V2: u8 = 2;
 const JMT_UPDATE_TRACE_NOOP_LABEL_V2: &str = "settlement_update_trace_noop_v2";
+pub(crate) const JMT_CIRCUIT_MICRO_OP_VERSION_V2: u8 = 3;
+pub(crate) const JMT_CIRCUIT_UPDATE_BEGIN_V2: u8 = 1;
+pub(crate) const JMT_CIRCUIT_OPERATION_BEGIN_V2: u8 = 2;
+pub(crate) const JMT_CIRCUIT_OPERATION_VALUE_V2: u8 = 3;
+pub(crate) const JMT_CIRCUIT_OPERATION_PROOF_V2: u8 = 4;
+pub(crate) const JMT_CIRCUIT_OPERATION_END_V2: u8 = 5;
+pub(crate) const JMT_CIRCUIT_UPDATE_END_V2: u8 = 6;
+pub(crate) const JMT_CIRCUIT_OPERATION_SIBLING_V2: u8 = 7;
+pub(crate) const JMT_CIRCUIT_OPERATION_PROOF_END_V2: u8 = 8;
+pub(crate) const JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2: u8 = 9;
+const JMT_CIRCUIT_RAW_BLOCK_BYTES_V2: usize = 64;
+// Sibling records carry two raw SHA blocks for the sibling node and two for
+// the derived old-parent node: 19 framing bytes plus four 64-byte blocks.
+const JMT_CIRCUIT_MAX_RECORD_BYTES_V2: usize = 403;
+pub(crate) const JMT_CIRCUIT_HEADER_BYTES_V2: usize = 1 + 1 + 1 + 32 + 4;
 static BATCH_PROOF_TRANSCRIPT_DOMAIN: OnceLock<[u8; 32]> = OnceLock::new();
 
 type TerminalRootKeyV2 = ([u8; 32], u32, [u8; 32]);
@@ -127,6 +144,7 @@ impl From<super::tree_id::HjmtTreeId> for JmtTreeRoleV2 {
 }
 
 impl JmtTreeRoleV2 {
+    #[cfg(test)]
     fn encode_canonical(&self, out: &mut Vec<u8>) {
         match self {
             Self::Definition => out.push(1),
@@ -149,6 +167,7 @@ impl JmtTreeRoleV2 {
         }
     }
 
+    #[cfg(test)]
     fn decode_canonical(reader: &mut CanonicalReader<'_>) -> Result<Self, ProofChkErr> {
         match reader.take_u8()? {
             1 => Ok(Self::Definition),
@@ -163,12 +182,50 @@ impl JmtTreeRoleV2 {
             _ => Err(ProofChkErr::JmtUpdateTraceCanonical),
         }
     }
+
+    /// Fixed-width circuit encoding. Every unused coordinate is zero so a
+    /// role cannot borrow bytes from a wider hierarchy variant.
+    fn encode_circuit_canonical(&self, out: &mut Vec<u8>) {
+        let (tag, definition_id, serial_id, terminal_id) = match self {
+            Self::Definition => (1, [0; 32], 0, [0; 32]),
+            Self::Serial(definition_id) => (2, *definition_id, 0, [0; 32]),
+            Self::Bucket(definition_id, serial_id) => (3, *definition_id, *serial_id, [0; 32]),
+            Self::Terminal(definition_id, serial_id, terminal_id) => {
+                (4, *definition_id, *serial_id, *terminal_id)
+            }
+            Self::PathIndex => (5, [0; 32], 0, [0; 32]),
+        };
+        out.push(tag);
+        out.extend_from_slice(&definition_id);
+        out.extend_from_slice(&serial_id.to_le_bytes());
+        out.extend_from_slice(&terminal_id);
+    }
+
+    fn decode_circuit_canonical(reader: &mut CanonicalReader<'_>) -> Result<Self, ProofChkErr> {
+        let tag = reader.take_u8()?;
+        let definition_id = reader.take_array()?;
+        let serial_id = reader.take_u32()?;
+        let terminal_id = reader.take_array()?;
+        match tag {
+            1 if definition_id == [0; 32] && serial_id == 0 && terminal_id == [0; 32] => {
+                Ok(Self::Definition)
+            }
+            2 if serial_id == 0 && terminal_id == [0; 32] => Ok(Self::Serial(definition_id)),
+            3 if terminal_id == [0; 32] => Ok(Self::Bucket(definition_id, serial_id)),
+            4 => Ok(Self::Terminal(definition_id, serial_id, terminal_id)),
+            5 if definition_id == [0; 32] && serial_id == 0 && terminal_id == [0; 32] => {
+                Ok(Self::PathIndex)
+            }
+            _ => Err(ProofChkErr::JmtUpdateTraceCanonical),
+        }
+    }
 }
 
 /// One ordered key/value operation bound into an update trace.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct JmtUpdateOpV2 {
     key: [u8; 32],
+    prior_value: Option<Vec<u8>>,
     value: Option<Vec<u8>>,
 }
 
@@ -223,22 +280,40 @@ enum JmtSiblingWireV2 {
 }
 
 impl JmtUpdateOpV2 {
-    fn from_live((key, value): (KeyHash, Option<Vec<u8>>)) -> Result<Self, ProofChkErr> {
-        if value
-            .as_ref()
-            .is_some_and(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
+    fn from_live(
+        (key, prior_value, value): (KeyHash, Option<Vec<u8>>, Option<Vec<u8>>),
+    ) -> Result<Self, ProofChkErr> {
+        if [prior_value.as_ref(), value.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
-        Ok(Self { key: key.0, value })
+        Ok(Self {
+            key: key.0,
+            prior_value,
+            value,
+        })
     }
 
     fn into_live(self) -> (KeyHash, Option<Vec<u8>>) {
         (KeyHash(self.key), self.value)
     }
 
+    #[cfg(test)]
     fn encode_canonical(&self, out: &mut Vec<u8>) -> Result<(), ProofChkErr> {
         out.extend_from_slice(&self.key);
+        match &self.prior_value {
+            None => out.push(0),
+            Some(value) => {
+                if value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2 {
+                    return Err(ProofChkErr::JmtUpdateTraceLimit);
+                }
+                out.push(1);
+                append_len_prefixed(out, value)?;
+            }
+        }
         match &self.value {
             None => out.push(0),
             Some(value) => {
@@ -252,14 +327,24 @@ impl JmtUpdateOpV2 {
         Ok(())
     }
 
+    #[cfg(test)]
     fn decode_canonical(reader: &mut CanonicalReader<'_>) -> Result<Self, ProofChkErr> {
         let key = reader.take_array()?;
+        let prior_value = match reader.take_u8()? {
+            0 => None,
+            1 => Some(reader.take_vec(JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)?),
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
         let value = match reader.take_u8()? {
             0 => None,
             1 => Some(reader.take_vec(JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)?),
             _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
         };
-        Ok(Self { key, value })
+        Ok(Self {
+            key,
+            prior_value,
+            value,
+        })
     }
 
     /// Test-only observability for the internal JMT canonicalization tests.
@@ -292,6 +377,13 @@ pub(crate) struct JmtUpdateTraceV2 {
 }
 
 impl JmtUpdateTraceV2 {
+    fn terminal_operation_count(&self) -> Result<u64, ProofChkErr> {
+        if !matches!(self.tree, JmtTreeRoleV2::Terminal(_, _, _)) {
+            return Ok(0);
+        }
+        u64::try_from(self.operations.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)
+    }
+
     pub(crate) fn from_update(
         tree: JmtTreeRoleV2,
         old_version: u64,
@@ -299,6 +391,7 @@ impl JmtUpdateTraceV2 {
         old_root: RootHash,
         new_root: RootHash,
         operations: Vec<(KeyHash, Option<Vec<u8>>)>,
+        prior_values: Vec<Option<Vec<u8>>>,
         proof: UpdateMerkleProof<JmtSha256V2>,
     ) -> Result<Self, ProofChkErr> {
         validate_live_jmt_operations_v2(&operations)?;
@@ -310,6 +403,9 @@ impl JmtUpdateTraceV2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
 
+        if prior_values.len() != operations.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
         let out = Self {
             version: JMT_UPDATE_TRACE_VERSION_V2,
             tree,
@@ -319,16 +415,18 @@ impl JmtUpdateTraceV2 {
             new_root: new_root.0,
             operations: operations
                 .into_iter()
+                .zip(prior_values)
+                .map(|((key, value), prior_value)| (key, prior_value, value))
                 .map(JmtUpdateOpV2::from_live)
                 .collect::<Result<Vec<_>, _>>()?,
             proof_wire,
         };
         out.verify_semantics()?;
         out.verify_native()?;
-        let _ = out.canonical_bytes()?;
         Ok(out)
     }
 
+    #[cfg(test)]
     pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, ProofChkErr> {
         if self.version != JMT_UPDATE_TRACE_VERSION_V2
             || !jmt_version_pair_is_canonical(self.old_version, self.new_version)
@@ -366,6 +464,7 @@ impl JmtUpdateTraceV2 {
         Ok(bytes)
     }
 
+    #[cfg(test)]
     pub(crate) fn from_canon(bytes: &[u8]) -> Result<Self, ProofChkErr> {
         if bytes.len() > JMT_UPDATE_TRACE_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
@@ -507,6 +606,14 @@ fn verify_jmt_transition_semantics(
 ) -> Result<(JmtMutationCaseV2, [u8; 32]), ProofChkErr> {
     if proof.siblings.len() > 256 {
         return Err(ProofChkErr::JmtUpdateTraceLimit);
+    }
+
+    match (operation.prior_value.as_deref(), proof.leaf) {
+        (Some(prior), Some(leaf))
+            if leaf.key_hash == operation.key && leaf.value_hash == jmt_value_hash(prior) => {}
+        (None, None) => {}
+        (None, Some(leaf)) if leaf.key_hash != operation.key => {}
+        _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
     }
 
     let old_path_key = proof.leaf.map_or(operation.key, |leaf| leaf.key_hash);
@@ -705,6 +812,137 @@ fn jmt_hash(parts: &[&[u8]]) -> [u8; 32] {
     hasher.finalize()
 }
 
+fn jmt_raw_sha_block_count(message_bytes: usize) -> Result<usize, ProofChkErr> {
+    message_bytes
+        .checked_add(9)
+        .map(|bytes| bytes.div_ceil(64))
+        .ok_or(ProofChkErr::JmtUpdateTraceLimit)
+}
+
+fn jmt_raw_sha_block(
+    message: &[u8],
+    block_index: usize,
+    block_count: usize,
+) -> Result<[u8; 64], ProofChkErr> {
+    if block_count != jmt_raw_sha_block_count(message.len())? || block_index >= block_count {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    let bit_length = u64::try_from(message.len())
+        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+        .checked_mul(8)
+        .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+    let start = block_index
+        .checked_mul(64)
+        .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+    let mut block = [0_u8; 64];
+    for (offset, byte) in block.iter_mut().enumerate() {
+        let absolute = start
+            .checked_add(offset)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        *byte = if let Some(byte) = message.get(absolute) {
+            *byte
+        } else if absolute == message.len() {
+            0x80
+        } else if block_index + 1 == block_count && offset >= 56 {
+            bit_length.to_be_bytes()[offset - 56]
+        } else {
+            0
+        };
+    }
+    Ok(block)
+}
+
+fn validate_jmt_raw_sha_value_block(
+    block: &[u8; 64],
+    message_bytes: usize,
+    block_index: usize,
+    block_count: usize,
+) -> Result<(), ProofChkErr> {
+    if block_count != jmt_raw_sha_block_count(message_bytes)? || block_index >= block_count {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    let bit_length = u64::try_from(message_bytes)
+        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+        .checked_mul(8)
+        .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+    let start = block_index
+        .checked_mul(64)
+        .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+    for (offset, byte) in block.iter().enumerate() {
+        let absolute = start
+            .checked_add(offset)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        if absolute < message_bytes {
+            continue;
+        }
+        let expected = if absolute == message_bytes {
+            0x80
+        } else if block_index + 1 == block_count && offset >= 56 {
+            bit_length.to_be_bytes()[offset - 56]
+        } else {
+            0
+        };
+        if *byte != expected {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+    }
+    Ok(())
+}
+
+fn jmt_leaf_raw_blocks(leaf: JmtLeafWireV2) -> Result<[[u8; 64]; 2], ProofChkErr> {
+    let mut message = [0_u8; 77];
+    message[..JMT_LEAF_DOMAIN_V2.len()].copy_from_slice(JMT_LEAF_DOMAIN_V2);
+    message[13..45].copy_from_slice(&leaf.key_hash);
+    message[45..77].copy_from_slice(&leaf.value_hash);
+    Ok([
+        jmt_raw_sha_block(&message, 0, 2)?,
+        jmt_raw_sha_block(&message, 1, 2)?,
+    ])
+}
+
+fn jmt_internal_raw_blocks(node: JmtInternalWireV2) -> Result<[[u8; 64]; 2], ProofChkErr> {
+    let mut message = [0_u8; 80];
+    message[..JMT_INTERNAL_DOMAIN_V2.len()].copy_from_slice(JMT_INTERNAL_DOMAIN_V2);
+    message[16..48].copy_from_slice(&node.left_child);
+    message[48..80].copy_from_slice(&node.right_child);
+    Ok([
+        jmt_raw_sha_block(&message, 0, 2)?,
+        jmt_raw_sha_block(&message, 1, 2)?,
+    ])
+}
+
+fn decode_jmt_leaf_raw_blocks(blocks: [[u8; 64]; 2]) -> Result<JmtLeafWireV2, ProofChkErr> {
+    let mut key_hash = [0_u8; 32];
+    key_hash.copy_from_slice(&blocks[0][13..45]);
+    let mut value_hash = [0_u8; 32];
+    value_hash[..19].copy_from_slice(&blocks[0][45..64]);
+    value_hash[19..].copy_from_slice(&blocks[1][..13]);
+    let leaf = JmtLeafWireV2 {
+        key_hash,
+        value_hash,
+    };
+    if jmt_leaf_raw_blocks(leaf)? != blocks {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    Ok(leaf)
+}
+
+fn decode_jmt_internal_raw_blocks(blocks: [[u8; 64]; 2]) -> Result<JmtInternalWireV2, ProofChkErr> {
+    let mut left_child = [0_u8; 32];
+    left_child.copy_from_slice(&blocks[0][16..48]);
+    let mut right_child = [0_u8; 32];
+    right_child[..16].copy_from_slice(&blocks[0][48..64]);
+    right_child[16..].copy_from_slice(&blocks[1][..16]);
+    let node = JmtInternalWireV2 {
+        left_child,
+        right_child,
+    };
+    if jmt_internal_raw_blocks(node)? != blocks {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    Ok(node)
+}
+
 fn jmt_version_pair_is_canonical(old_version: u64, new_version: u64) -> bool {
     (old_version == 0 && new_version == 0)
         || old_version
@@ -788,15 +1026,14 @@ impl SettlementUpdateTraceEnvelopeV2 {
         for update in &updates {
             update.verify_native()?;
         }
-        let trace_digest = derive_update_trace_digest(&updates)?;
-        let envelope = Self {
+        let mut envelope = Self {
             version: JMT_UPDATE_TRACE_VERSION_V2,
             root_generation: root_generation.version(),
             kind: JMT_UPDATE_TRACE_KIND_MUTATING_V2,
-            trace_digest,
+            trace_digest: [0_u8; 32],
             updates,
         };
-        let _ = envelope.canonical_bytes()?;
+        envelope.trace_digest = envelope.circuit_trace_digest()?;
         Ok(envelope)
     }
 
@@ -813,10 +1050,10 @@ impl SettlementUpdateTraceEnvelopeV2 {
             trace_digest: noop_update_trace_digest(),
             updates: Vec::new(),
         };
-        let _ = envelope.canonical_bytes()?;
         Ok(envelope)
     }
 
+    #[cfg(test)]
     pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, ProofChkErr> {
         if self.version != JMT_UPDATE_TRACE_VERSION_V2
             || self.root_generation != RootGeneration::SettlementV2.version()
@@ -826,7 +1063,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
         match self.kind {
             JMT_UPDATE_TRACE_KIND_MUTATING_V2
                 if !self.updates.is_empty()
-                    && self.trace_digest == derive_update_trace_digest(&self.updates)? => {}
+                    && self.trace_digest == self.circuit_trace_digest()? => {}
             JMT_UPDATE_TRACE_KIND_NOOP_V2
                 if self.updates.is_empty() && self.trace_digest == noop_update_trace_digest() => {}
             _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
@@ -869,6 +1106,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
         Ok(bytes)
     }
 
+    #[cfg(test)]
     pub(crate) fn from_canon(bytes: &[u8]) -> Result<Self, ProofChkErr> {
         if bytes.len() > JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
@@ -925,9 +1163,431 @@ impl SettlementUpdateTraceEnvelopeV2 {
         &self.updates
     }
 
+    pub(crate) fn terminal_operation_count(&self) -> Result<u64, ProofChkErr> {
+        self.updates.iter().try_fold(0_u64, |count, update| {
+            count
+                .checked_add(update.terminal_operation_count()?)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)
+        })
+    }
+
     #[must_use]
     pub(crate) const fn is_noop(&self) -> bool {
         self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2
+    }
+
+    /// Fixed canonical envelope header used by the recursive source. The
+    /// update body has exactly one live representation: circuit micro-ops.
+    pub(crate) fn circuit_header_bytes(
+        &self,
+    ) -> Result<[u8; JMT_CIRCUIT_HEADER_BYTES_V2], ProofChkErr> {
+        match self.kind {
+            JMT_UPDATE_TRACE_KIND_MUTATING_V2
+                if !self.updates.is_empty()
+                    && self.trace_digest == self.circuit_trace_digest()? => {}
+            JMT_UPDATE_TRACE_KIND_NOOP_V2
+                if self.updates.is_empty() && self.trace_digest == noop_update_trace_digest() => {}
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        }
+        if self.version != JMT_UPDATE_TRACE_VERSION_V2
+            || self.root_generation != RootGeneration::SettlementV2.version()
+            || self.updates.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut header = [0_u8; JMT_CIRCUIT_HEADER_BYTES_V2];
+        header[0] = self.version;
+        header[1] = self.root_generation;
+        header[2] = self.kind;
+        header[3..35].copy_from_slice(&self.trace_digest);
+        header[35..39].copy_from_slice(
+            &u32::try_from(self.updates.len())
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                .to_le_bytes(),
+        );
+        Ok(header)
+    }
+
+    fn circuit_trace_digest(&self) -> Result<[u8; 32], ProofChkErr> {
+        let mut digest = CheckpointSha256V2::new(CheckpointShaRole::Trace);
+        self.visit_circuit_micro_operations(|record| {
+            digest
+                .update_part(record)
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)
+        })?;
+        Ok(digest.finalize())
+    }
+
+    /// Visit the canonical circuit-consumable JMT micro-operation transcript.
+    ///
+    /// The opaque pinned-JMT bincode proof is decoded once into the exact
+    /// project-owned mirror.  Each callback receives one bounded record and
+    /// the record is dropped before the next one is built; callers never need
+    /// an update-sized event tape.  These bytes are the sole preimage of the
+    /// mutating envelope's `trace_digest` and expose every operation, old leaf,
+    /// and sibling needed by the subsequent in-circuit raw-SHA path machine.
+    pub(crate) fn visit_circuit_micro_operations(
+        &self,
+        mut visit: impl FnMut(&[u8]) -> Result<(), ProofChkErr>,
+    ) -> Result<(), ProofChkErr> {
+        if self.is_noop() {
+            return if self.updates.is_empty() {
+                Ok(())
+            } else {
+                Err(ProofChkErr::JmtUpdateTraceCanonical)
+            };
+        }
+        if self.kind != JMT_UPDATE_TRACE_KIND_MUTATING_V2 || self.updates.is_empty() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+
+        for (update_index, update) in self.updates.iter().enumerate() {
+            let update_index =
+                u32::try_from(update_index).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+            let proof: JmtUpdateProofWireV2 = BincodeCodec.deserialize_bounded(
+                &update.proof_wire,
+                JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 as u64,
+            )?;
+            if BincodeCodec.serialize(&proof)? != update.proof_wire
+                || proof.0.len() != update.operations.len()
+            {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+
+            let mut record = Vec::with_capacity(1 + 1 + 4 + 69 + 8 * 2 + 32 * 2 + 4);
+            record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+            record.push(JMT_CIRCUIT_UPDATE_BEGIN_V2);
+            record.extend_from_slice(&update_index.to_le_bytes());
+            update.tree.encode_circuit_canonical(&mut record);
+            record.extend_from_slice(&update.old_version.to_le_bytes());
+            record.extend_from_slice(&update.new_version.to_le_bytes());
+            record.extend_from_slice(&update.old_root);
+            record.extend_from_slice(&update.new_root);
+            record.extend_from_slice(
+                &u32::try_from(update.operations.len())
+                    .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                    .to_le_bytes(),
+            );
+            visit(&record)?;
+
+            let mut update_current_root = update.old_root;
+            for (operation_index, (operation, sparse_proof)) in
+                update.operations.iter().zip(&proof.0).enumerate()
+            {
+                let (mutation_case, expected_next_root) =
+                    verify_jmt_transition_semantics(sparse_proof, operation, update_current_root)?;
+                let operation_index =
+                    u32::try_from(operation_index).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+                let mut begin = Vec::with_capacity(1 + 1 + 4 + 4 + 32 + 1 + 4 + 1 + 4);
+                begin.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                begin.push(JMT_CIRCUIT_OPERATION_BEGIN_V2);
+                begin.extend_from_slice(&update_index.to_le_bytes());
+                begin.extend_from_slice(&operation_index.to_le_bytes());
+                begin.extend_from_slice(&operation.key);
+                begin.push(u8::from(operation.value.is_some()));
+                begin.extend_from_slice(
+                    &u32::try_from(operation.value.as_ref().map_or(0, Vec::len))
+                        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                        .to_le_bytes(),
+                );
+                begin.push(u8::from(operation.prior_value.is_some()));
+                begin.extend_from_slice(
+                    &u32::try_from(operation.prior_value.as_ref().map_or(0, Vec::len))
+                        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                        .to_le_bytes(),
+                );
+                visit(&begin)?;
+
+                // Prior and replacement values share one record grammar. The
+                // kind byte is canonical: prior blocks (1) precede new-value
+                // blocks (0), so the streaming decoder needs no second tape.
+                for (value_kind, candidate) in [
+                    (1_u8, operation.prior_value.as_ref()),
+                    (0_u8, operation.value.as_ref()),
+                ] {
+                    let Some(value) = candidate else {
+                        continue;
+                    };
+                    let block_count = jmt_raw_sha_block_count(value.len())?;
+                    for block_index in 0..block_count {
+                        let mut value_record = Vec::with_capacity(19 + 64);
+                        value_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                        value_record.push(JMT_CIRCUIT_OPERATION_VALUE_V2);
+                        value_record.extend_from_slice(&update_index.to_le_bytes());
+                        value_record.extend_from_slice(&operation_index.to_le_bytes());
+                        value_record.extend_from_slice(
+                            &u32::try_from(block_index)
+                                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                                .to_le_bytes(),
+                        );
+                        value_record.extend_from_slice(
+                            &u32::try_from(block_count)
+                                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                                .to_le_bytes(),
+                        );
+                        value_record.push(value_kind);
+                        value_record.extend_from_slice(&jmt_raw_sha_block(
+                            value,
+                            block_index,
+                            block_count,
+                        )?);
+                        visit(&value_record)?;
+                    }
+                }
+
+                // The proof is one fixed-width header followed by exactly one
+                // fixed-width record per sibling.  This is the sole proof
+                // representation in the recursive source and lets the R1CS
+                // path machine consume O(1) state without an opaque arena.
+                let mut proof_record = Vec::with_capacity(19 + 128);
+                proof_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                proof_record.push(JMT_CIRCUIT_OPERATION_PROOF_V2);
+                proof_record.extend_from_slice(&update_index.to_le_bytes());
+                proof_record.extend_from_slice(&operation_index.to_le_bytes());
+                proof_record.push(u8::from(sparse_proof.leaf.is_some()));
+                proof_record.extend_from_slice(
+                    &u16::try_from(sparse_proof.siblings.len())
+                        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                        .to_le_bytes(),
+                );
+                let (case_tag, common_prefix_bits) = match mutation_case {
+                    JmtMutationCaseV2::EmptyInsert => (1_u8, 0_u16),
+                    JmtMutationCaseV2::ExistingUpdate => (2, 0),
+                    JmtMutationCaseV2::SplitInsert { common_prefix_bits } => {
+                        (3, common_prefix_bits)
+                    }
+                    JmtMutationCaseV2::DeleteToEmpty => (4, 0),
+                    JmtMutationCaseV2::DeletePreserveInternal => (5, 0),
+                    JmtMutationCaseV2::DeleteCoalesceLeaf => (6, 0),
+                };
+                let split_siblings =
+                    if matches!(mutation_case, JmtMutationCaseV2::SplitInsert { .. }) {
+                        jmt_split_siblings(sparse_proof, usize::from(common_prefix_bits))?
+                    } else {
+                        sparse_proof.siblings.clone()
+                    };
+                let split_prelude_count = split_siblings
+                    .len()
+                    .checked_sub(sparse_proof.siblings.len())
+                    .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+                proof_record.push(case_tag);
+                proof_record.extend_from_slice(
+                    &u16::try_from(split_prelude_count)
+                        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                        .to_le_bytes(),
+                );
+                proof_record.extend_from_slice(&[0; 3]);
+                match sparse_proof.leaf {
+                    None => proof_record.extend_from_slice(&[0; 128]),
+                    Some(leaf) => {
+                        for block in jmt_leaf_raw_blocks(leaf)? {
+                            proof_record.extend_from_slice(&block);
+                        }
+                    }
+                }
+                let mut new_current = if let Some(value) = operation.value.as_ref() {
+                    let new_leaf = JmtLeafWireV2 {
+                        key_hash: operation.key,
+                        value_hash: jmt_value_hash(value),
+                    };
+                    for block in jmt_leaf_raw_blocks(new_leaf)? {
+                        proof_record.extend_from_slice(&block);
+                    }
+                    jmt_leaf_hash(new_leaf)
+                } else {
+                    proof_record.extend_from_slice(&[0; 128]);
+                    JMT_SPARSE_PLACEHOLDER_HASH_V2
+                };
+                visit(&proof_record)?;
+
+                for (split_index, sibling) in
+                    split_siblings.iter().take(split_prelude_count).enumerate()
+                {
+                    let bit_index = split_siblings
+                        .len()
+                        .checked_sub(split_index + 1)
+                        .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+                    let direction = (operation.key[bit_index / 8] >> (7 - bit_index % 8)) & 1;
+                    let sibling_hash = jmt_sibling_hash(sibling);
+                    let parent = if direction == 0 {
+                        JmtInternalWireV2 {
+                            left_child: new_current,
+                            right_child: sibling_hash,
+                        }
+                    } else {
+                        JmtInternalWireV2 {
+                            left_child: sibling_hash,
+                            right_child: new_current,
+                        }
+                    };
+                    let mut split_record = Vec::with_capacity(19 + 256);
+                    split_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                    split_record.push(JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2);
+                    split_record.extend_from_slice(&update_index.to_le_bytes());
+                    split_record.extend_from_slice(&operation_index.to_le_bytes());
+                    split_record.extend_from_slice(
+                        &u16::try_from(split_index)
+                            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                            .to_le_bytes(),
+                    );
+                    let (sibling_type, sibling_blocks) = match sibling {
+                        JmtSiblingWireV2::Null => (0_u8, [[0; 64]; 2]),
+                        JmtSiblingWireV2::Leaf(node) => (2, jmt_leaf_raw_blocks(*node)?),
+                        JmtSiblingWireV2::Internal(_) => {
+                            return Err(ProofChkErr::JmtUpdateTraceCanonical)
+                        }
+                    };
+                    split_record.push(sibling_type);
+                    split_record.push(direction);
+                    split_record.extend_from_slice(&[0; 5]);
+                    for block in sibling_blocks {
+                        split_record.extend_from_slice(&block);
+                    }
+                    for block in jmt_internal_raw_blocks(parent)? {
+                        split_record.extend_from_slice(&block);
+                    }
+                    visit(&split_record)?;
+                    new_current = jmt_internal_hash(parent.left_child, parent.right_child);
+                }
+
+                let mut old_current = sparse_proof
+                    .leaf
+                    .map_or(JMT_SPARSE_PLACEHOLDER_HASH_V2, jmt_leaf_hash);
+                for (sibling_index, sibling) in sparse_proof.siblings.iter().enumerate() {
+                    let mut sibling_record = Vec::with_capacity(19 + 256);
+                    sibling_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                    sibling_record.push(JMT_CIRCUIT_OPERATION_SIBLING_V2);
+                    sibling_record.extend_from_slice(&update_index.to_le_bytes());
+                    sibling_record.extend_from_slice(&operation_index.to_le_bytes());
+                    sibling_record.extend_from_slice(
+                        &u16::try_from(sibling_index)
+                            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                            .to_le_bytes(),
+                    );
+                    let (sibling_type, sibling_blocks) = match sibling {
+                        JmtSiblingWireV2::Null => (0, [[0; 64]; 2]),
+                        JmtSiblingWireV2::Internal(node) => (1, jmt_internal_raw_blocks(*node)?),
+                        JmtSiblingWireV2::Leaf(node) => (2, jmt_leaf_raw_blocks(*node)?),
+                    };
+                    let bit_index = sparse_proof
+                        .siblings
+                        .len()
+                        .checked_sub(sibling_index + 1)
+                        .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+                    let old_path_key = sparse_proof
+                        .leaf
+                        .map_or(operation.key, |leaf| leaf.key_hash);
+                    let direction = (old_path_key[bit_index / 8] >> (7 - bit_index % 8)) & 1;
+                    let sibling_hash = jmt_sibling_hash(sibling);
+                    let parent = if direction == 0 {
+                        JmtInternalWireV2 {
+                            left_child: old_current,
+                            right_child: sibling_hash,
+                        }
+                    } else {
+                        JmtInternalWireV2 {
+                            left_child: sibling_hash,
+                            right_child: old_current,
+                        }
+                    };
+                    sibling_record.push(sibling_type);
+                    let first_non_default = sparse_proof
+                        .siblings
+                        .iter()
+                        .position(|candidate| !matches!(candidate, JmtSiblingWireV2::Null));
+                    let coalesce_tail = first_non_default.and_then(|first| {
+                        if !matches!(sparse_proof.siblings[first], JmtSiblingWireV2::Leaf(_)) {
+                            return None;
+                        }
+                        let mut tail = first + 1;
+                        while matches!(
+                            sparse_proof.siblings.get(tail),
+                            Some(JmtSiblingWireV2::Null)
+                        ) {
+                            tail += 1;
+                        }
+                        Some(tail)
+                    });
+                    let new_parent_active = match mutation_case {
+                        JmtMutationCaseV2::EmptyInsert | JmtMutationCaseV2::ExistingUpdate => true,
+                        JmtMutationCaseV2::SplitInsert { .. } => true,
+                        JmtMutationCaseV2::DeleteToEmpty => false,
+                        JmtMutationCaseV2::DeletePreserveInternal => {
+                            first_non_default.is_some_and(|first| sibling_index >= first)
+                        }
+                        JmtMutationCaseV2::DeleteCoalesceLeaf => {
+                            coalesce_tail.is_some_and(|tail| sibling_index >= tail)
+                        }
+                    };
+                    if matches!(mutation_case, JmtMutationCaseV2::DeleteCoalesceLeaf)
+                        && first_non_default == Some(sibling_index)
+                    {
+                        new_current = sibling_hash;
+                    }
+                    let new_parent = if new_parent_active {
+                        Some(if direction == 0 {
+                            JmtInternalWireV2 {
+                                left_child: new_current,
+                                right_child: sibling_hash,
+                            }
+                        } else {
+                            JmtInternalWireV2 {
+                                left_child: sibling_hash,
+                                right_child: new_current,
+                            }
+                        })
+                    } else {
+                        None
+                    };
+                    sibling_record.push(direction);
+                    sibling_record.push(u8::from(new_parent_active));
+                    sibling_record.extend_from_slice(&[0; 4]);
+                    for block in sibling_blocks {
+                        sibling_record.extend_from_slice(&block);
+                    }
+                    for block in jmt_internal_raw_blocks(parent)? {
+                        sibling_record.extend_from_slice(&block);
+                    }
+                    match new_parent {
+                        Some(parent) => {
+                            for block in jmt_internal_raw_blocks(parent)? {
+                                sibling_record.extend_from_slice(&block);
+                            }
+                            new_current = jmt_internal_hash(parent.left_child, parent.right_child);
+                        }
+                        None => sibling_record.extend_from_slice(&[0; 128]),
+                    }
+                    old_current = jmt_internal_hash(parent.left_child, parent.right_child);
+                    visit(&sibling_record)?;
+                }
+
+                let mut proof_end = Vec::with_capacity(1 + 1 + 4 + 4);
+                proof_end.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                proof_end.push(JMT_CIRCUIT_OPERATION_PROOF_END_V2);
+                proof_end.extend_from_slice(&update_index.to_le_bytes());
+                proof_end.extend_from_slice(&operation_index.to_le_bytes());
+                visit(&proof_end)?;
+
+                if new_current != expected_next_root {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                update_current_root = expected_next_root;
+
+                let mut end = Vec::with_capacity(1 + 1 + 4 + 4);
+                end.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                end.push(JMT_CIRCUIT_OPERATION_END_V2);
+                end.extend_from_slice(&update_index.to_le_bytes());
+                end.extend_from_slice(&operation_index.to_le_bytes());
+                visit(&end)?;
+            }
+
+            let mut end = Vec::with_capacity(1 + 1 + 4);
+            end.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+            end.push(JMT_CIRCUIT_UPDATE_END_V2);
+            end.extend_from_slice(&update_index.to_le_bytes());
+            visit(&end)?;
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -945,10 +1605,10 @@ impl SettlementUpdateTraceEnvelopeV2 {
     pub(crate) fn verify_hierarchy_semantics(
         &self,
         expected_definition_root: [u8; 32],
-    ) -> Result<(), ProofChkErr> {
+    ) -> Result<([u8; 32], [u8; 32]), ProofChkErr> {
         if self.is_noop() {
             return if self.updates.is_empty() && self.trace_digest == noop_update_trace_digest() {
-                Ok(())
+                Ok((expected_definition_root, expected_definition_root))
             } else {
                 Err(ProofChkErr::JmtUpdateTraceCanonical)
             };
@@ -963,20 +1623,24 @@ impl SettlementUpdateTraceEnvelopeV2 {
         }
 
         let mut stage = Stage::Terminal;
-        let mut terminal_roots = BTreeMap::<TerminalRootKeyV2, [u8; 32]>::new();
-        let mut bucket_roots = BTreeMap::<([u8; 32], u32), [u8; 32]>::new();
-        let mut serial_roots = BTreeMap::<[u8; 32], [u8; 32]>::new();
+        let mut terminal_roots = BTreeMap::<TerminalRootKeyV2, RootTransitionV2>::new();
+        let mut bucket_roots = BTreeMap::<([u8; 32], u32), RootTransitionV2>::new();
+        let mut serial_roots = BTreeMap::<[u8; 32], RootTransitionV2>::new();
         let mut used_terminal_roots = BTreeSet::new();
         let mut used_bucket_roots = BTreeSet::new();
         let mut used_serial_roots = BTreeSet::new();
-        let mut definition_seen = false;
+        let mut definition_transition = None;
 
         for update in &self.updates {
             match &update.tree {
                 JmtTreeRoleV2::Terminal(definition_id, serial_id, bucket_id) => {
                     if stage != Stage::Terminal
+                        || update.old_root == update.new_root
                         || terminal_roots
-                            .insert((*definition_id, *serial_id, *bucket_id), update.new_root)
+                            .insert(
+                                (*definition_id, *serial_id, *bucket_id),
+                                RootTransitionV2::new(update.old_root, update.new_root),
+                            )
                             .is_some()
                     {
                         return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -984,8 +1648,12 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 }
                 JmtTreeRoleV2::Bucket(definition_id, serial_id) => {
                     if stage > Stage::Bucket
+                        || update.old_root == update.new_root
                         || bucket_roots
-                            .insert((*definition_id, *serial_id), update.new_root)
+                            .insert(
+                                (*definition_id, *serial_id),
+                                RootTransitionV2::new(update.old_root, update.new_root),
+                            )
                             .is_some()
                     {
                         return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -1005,8 +1673,12 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 }
                 JmtTreeRoleV2::Serial(definition_id) => {
                     if stage > Stage::Serial
+                        || update.old_root == update.new_root
                         || serial_roots
-                            .insert(*definition_id, update.new_root)
+                            .insert(
+                                *definition_id,
+                                RootTransitionV2::new(update.old_root, update.new_root),
+                            )
                             .is_some()
                     {
                         return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -1021,11 +1693,14 @@ impl SettlementUpdateTraceEnvelopeV2 {
                     }
                 }
                 JmtTreeRoleV2::Definition => {
-                    if stage > Stage::Definition || definition_seen {
+                    if stage > Stage::Definition
+                        || definition_transition.is_some()
+                        || update.old_root == update.new_root
+                    {
                         return Err(ProofChkErr::JmtUpdateTraceCanonical);
                     }
                     stage = Stage::Definition;
-                    definition_seen = true;
+                    definition_transition = Some((update.old_root, update.new_root));
                     for operation in &update.operations {
                         let definition_id = verify_definition_promotion(operation, &serial_roots)?;
                         if !used_serial_roots.insert(definition_id) {
@@ -1045,108 +1720,1025 @@ impl SettlementUpdateTraceEnvelopeV2 {
             }
         }
 
-        if !definition_seen
-            || stage < Stage::Definition
+        let Some(definition_transition) = definition_transition else {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        };
+        if stage < Stage::Definition
             || terminal_roots.len() != used_terminal_roots.len()
             || bucket_roots.len() != used_bucket_roots.len()
             || serial_roots.len() != used_serial_roots.len()
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
+        Ok(definition_transition)
+    }
+}
+
+/// Streaming inverse of [`SettlementUpdateTraceEnvelopeV2::visit_circuit_micro_operations`].
+///
+/// The recursive trace carries one fixed header plus this transcript; the
+/// former opaque envelope body is never copied into the source spool. The
+/// decoder retains only the typed update currently being assembled and the
+/// already completed typed updates needed by hierarchy verification.
+pub(crate) struct SettlementUpdateTraceCircuitDecoderV2 {
+    kind: u8,
+    expected_digest: [u8; 32],
+    expected_updates: usize,
+    updates: Vec<JmtUpdateTraceV2>,
+    current_update: Option<CircuitUpdateBuilderV2>,
+}
+
+struct CircuitUpdateBuilderV2 {
+    tree: JmtTreeRoleV2,
+    old_version: u64,
+    new_version: u64,
+    old_root: [u8; 32],
+    new_root: [u8; 32],
+    current_root: [u8; 32],
+    expected_operations: usize,
+    operations: Vec<JmtUpdateOpV2>,
+    proofs: Vec<JmtSparseProofWireV2>,
+    current_operation: Option<CircuitOperationBuilderV2>,
+}
+
+struct CircuitOperationBuilderV2 {
+    key: [u8; 32],
+    prior_value_present: bool,
+    expected_prior_value_bytes: usize,
+    prior_value: Vec<u8>,
+    next_prior_value_chunk: usize,
+    value_present: bool,
+    expected_value_bytes: usize,
+    value: Vec<u8>,
+    next_value_chunk: usize,
+    proof_leaf: Option<Option<JmtLeafWireV2>>,
+    expected_siblings: Option<usize>,
+    siblings: Vec<JmtSiblingWireV2>,
+    proof_closed: bool,
+    old_current_hash: Option<[u8; 32]>,
+    mutation_case: Option<u8>,
+    expected_split_siblings: usize,
+    split_siblings: Vec<JmtSiblingWireV2>,
+    new_current_hash: Option<[u8; 32]>,
+    new_parent_started: bool,
+    coalesced_leaf_seen: bool,
+}
+
+impl SettlementUpdateTraceCircuitDecoderV2 {
+    pub(crate) fn new(header: &[u8]) -> Result<Self, ProofChkErr> {
+        if header.len() != JMT_CIRCUIT_HEADER_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut reader = CanonicalReader::new(header);
+        let version = reader.take_u8()?;
+        let root_generation = reader.take_u8()?;
+        let kind = reader.take_u8()?;
+        let expected_digest = reader.take_array()?;
+        let expected_updates =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        reader.finish()?;
+        if version != JMT_UPDATE_TRACE_VERSION_V2
+            || root_generation != RootGeneration::SettlementV2.version()
+            || expected_updates > JMT_UPDATE_TRACE_MAX_OPS_V2
+            || !matches!(
+                kind,
+                JMT_UPDATE_TRACE_KIND_MUTATING_V2 | JMT_UPDATE_TRACE_KIND_NOOP_V2
+            )
+            || (kind == JMT_UPDATE_TRACE_KIND_MUTATING_V2 && expected_updates == 0)
+            || (kind == JMT_UPDATE_TRACE_KIND_NOOP_V2
+                && (expected_updates != 0 || expected_digest != noop_update_trace_digest()))
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut updates = Vec::new();
+        updates
+            .try_reserve_exact(expected_updates)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        Ok(Self {
+            kind,
+            expected_digest,
+            expected_updates,
+            updates,
+            current_update: None,
+        })
+    }
+
+    pub(crate) fn accept(&mut self, record: &[u8]) -> Result<(), ProofChkErr> {
+        if self.kind != JMT_UPDATE_TRACE_KIND_MUTATING_V2
+            || record.len() > JMT_CIRCUIT_MAX_RECORD_BYTES_V2
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut reader = CanonicalReader::new(record);
+        if reader.take_u8()? != JMT_CIRCUIT_MICRO_OP_VERSION_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        match reader.take_u8()? {
+            JMT_CIRCUIT_UPDATE_BEGIN_V2 => self.accept_update_begin(&mut reader),
+            JMT_CIRCUIT_OPERATION_BEGIN_V2 => self.accept_operation_begin(&mut reader),
+            JMT_CIRCUIT_OPERATION_VALUE_V2 => self.accept_operation_value(&mut reader),
+            JMT_CIRCUIT_OPERATION_PROOF_V2 => self.accept_operation_proof(&mut reader),
+            JMT_CIRCUIT_OPERATION_END_V2 => self.accept_operation_end(&mut reader),
+            JMT_CIRCUIT_UPDATE_END_V2 => self.accept_update_end(&mut reader),
+            JMT_CIRCUIT_OPERATION_SIBLING_V2 => self.accept_operation_sibling(&mut reader),
+            JMT_CIRCUIT_OPERATION_PROOF_END_V2 => self.accept_operation_proof_end(&mut reader),
+            JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2 => {
+                self.accept_operation_split_sibling(&mut reader)
+            }
+            _ => Err(ProofChkErr::JmtUpdateTraceCanonical),
+        }
+    }
+
+    fn accept_update_begin(&mut self, reader: &mut CanonicalReader<'_>) -> Result<(), ProofChkErr> {
+        let update_index =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        if self.current_update.is_some()
+            || update_index != self.updates.len()
+            || update_index >= self.expected_updates
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let tree = JmtTreeRoleV2::decode_circuit_canonical(reader)?;
+        let old_version = reader.take_u64()?;
+        let new_version = reader.take_u64()?;
+        let old_root = reader.take_array()?;
+        let new_root = reader.take_array()?;
+        let expected_operations =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        reader.finish()?;
+        if !jmt_version_pair_is_canonical(old_version, new_version)
+            || expected_operations == 0
+            || expected_operations > JMT_UPDATE_TRACE_MAX_OPS_V2
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut operations = Vec::new();
+        let mut proofs = Vec::new();
+        operations
+            .try_reserve_exact(expected_operations)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        proofs
+            .try_reserve_exact(expected_operations)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        self.current_update = Some(CircuitUpdateBuilderV2 {
+            tree,
+            old_version,
+            new_version,
+            old_root,
+            new_root,
+            current_root: old_root,
+            expected_operations,
+            operations,
+            proofs,
+            current_operation: None,
+        });
         Ok(())
     }
+
+    fn accept_operation_begin(
+        &mut self,
+        reader: &mut CanonicalReader<'_>,
+    ) -> Result<(), ProofChkErr> {
+        let (update_index, operation_index) = take_circuit_operation_indices(reader)?;
+        let update = self
+            .current_update
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len()
+            || operation_index != update.operations.len()
+            || operation_index >= update.expected_operations
+            || update.current_operation.is_some()
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let key = reader.take_array()?;
+        let value_present = match reader.take_u8()? {
+            0 => false,
+            1 => true,
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        let expected_value_bytes =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let prior_value_present = match reader.take_u8()? {
+            0 => false,
+            1 => true,
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        let expected_prior_value_bytes =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        reader.finish()?;
+        if expected_value_bytes > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2
+            || (!value_present && expected_value_bytes != 0)
+            || expected_prior_value_bytes > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2
+            || (!prior_value_present && expected_prior_value_bytes != 0)
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let mut prior_value = Vec::new();
+        prior_value
+            .try_reserve_exact(expected_prior_value_bytes)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let mut value = Vec::new();
+        value
+            .try_reserve_exact(expected_value_bytes)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        update.current_operation = Some(CircuitOperationBuilderV2 {
+            key,
+            prior_value_present,
+            expected_prior_value_bytes,
+            prior_value,
+            next_prior_value_chunk: 0,
+            value_present,
+            expected_value_bytes,
+            value,
+            next_value_chunk: 0,
+            proof_leaf: None,
+            expected_siblings: None,
+            siblings: Vec::new(),
+            proof_closed: false,
+            old_current_hash: None,
+            mutation_case: None,
+            expected_split_siblings: 0,
+            split_siblings: Vec::new(),
+            new_current_hash: None,
+            new_parent_started: false,
+            coalesced_leaf_seen: false,
+        });
+        Ok(())
+    }
+
+    fn accept_operation_value(
+        &mut self,
+        reader: &mut CanonicalReader<'_>,
+    ) -> Result<(), ProofChkErr> {
+        let (update_index, operation_index) = take_circuit_operation_indices(reader)?;
+        let update = self
+            .current_update
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len() || operation_index != update.operations.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let operation = update
+            .current_operation
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let block_index =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let block_count =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let value_kind = reader.take_u8()?;
+        let block: [u8; 64] = reader
+            .take_exact(64)?
+            .try_into()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?;
+        let (present, expected_bytes, next_chunk, target) = match value_kind {
+            1 if operation.value.is_empty() && operation.next_value_chunk == 0 => (
+                operation.prior_value_present,
+                operation.expected_prior_value_bytes,
+                &mut operation.next_prior_value_chunk,
+                &mut operation.prior_value,
+            ),
+            0 if operation.prior_value.len() == operation.expected_prior_value_bytes
+                && operation.next_prior_value_chunk
+                    == if operation.prior_value_present {
+                        jmt_raw_sha_block_count(operation.expected_prior_value_bytes)?
+                    } else {
+                        0
+                    } =>
+            {
+                (
+                    operation.value_present,
+                    operation.expected_value_bytes,
+                    &mut operation.next_value_chunk,
+                    &mut operation.value,
+                )
+            }
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        let expected_block_count = jmt_raw_sha_block_count(expected_bytes)?;
+        let offset = block_index
+            .checked_mul(JMT_CIRCUIT_RAW_BLOCK_BYTES_V2)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        let meaningful = expected_bytes
+            .saturating_sub(offset)
+            .min(JMT_CIRCUIT_RAW_BLOCK_BYTES_V2);
+        if !present
+            || operation.proof_leaf.is_some()
+            || block_index != *next_chunk
+            || block_count != expected_block_count
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        validate_jmt_raw_sha_value_block(&block, expected_bytes, block_index, block_count)?;
+        reader.finish()?;
+        target.extend_from_slice(&block[..meaningful]);
+        *next_chunk = next_chunk
+            .checked_add(1)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        Ok(())
+    }
+
+    fn accept_operation_proof(
+        &mut self,
+        reader: &mut CanonicalReader<'_>,
+    ) -> Result<(), ProofChkErr> {
+        let (update_index, operation_index) = take_circuit_operation_indices(reader)?;
+        let update = self
+            .current_update
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len() || operation_index != update.operations.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let operation = update
+            .current_operation
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if operation.proof_leaf.is_some()
+            || operation.proof_closed
+            || operation.prior_value.len() != operation.expected_prior_value_bytes
+            || operation.next_prior_value_chunk
+                != if operation.prior_value_present {
+                    jmt_raw_sha_block_count(operation.expected_prior_value_bytes)?
+                } else {
+                    0
+                }
+            || operation.value.len() != operation.expected_value_bytes
+            || operation.next_value_chunk
+                != if operation.value_present {
+                    jmt_raw_sha_block_count(operation.expected_value_bytes)?
+                } else {
+                    0
+                }
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let leaf_present = reader.take_u8()?;
+        let sibling_count = usize::from(reader.take_u16()?);
+        if sibling_count > 256 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let mutation_case = reader.take_u8()?;
+        let split_sibling_count = usize::from(reader.take_u16()?);
+        if reader.take_exact(3)? != [0; 3] || !(1..=6).contains(&mutation_case) {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let blocks: [[u8; 64]; 4] = [
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ];
+        let leaf = match leaf_present {
+            0 if blocks[..2] == [[0; 64]; 2] => None,
+            1 => Some(decode_jmt_leaf_raw_blocks([blocks[0], blocks[1]])?),
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        let new_current_hash = if operation.value_present {
+            let new_leaf = decode_jmt_leaf_raw_blocks([blocks[2], blocks[3]])?;
+            if new_leaf.key_hash != operation.key
+                || new_leaf.value_hash != jmt_value_hash(&operation.value)
+            {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            jmt_leaf_hash(new_leaf)
+        } else if blocks[2..] == [[0; 64]; 2] {
+            JMT_SPARSE_PLACEHOLDER_HASH_V2
+        } else {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        };
+        let case_shape = match mutation_case {
+            1 => operation.value_present && leaf.is_none() && split_sibling_count == 0,
+            2 => {
+                operation.value_present
+                    && leaf.is_some_and(|old| old.key_hash == operation.key)
+                    && split_sibling_count == 0
+            }
+            3 => {
+                operation.value_present
+                    && leaf.is_some_and(|old| old.key_hash != operation.key)
+                    && split_sibling_count > 0
+            }
+            4..=6 => {
+                !operation.value_present
+                    && leaf.is_some_and(|old| old.key_hash == operation.key)
+                    && split_sibling_count == 0
+            }
+            _ => false,
+        };
+        if !case_shape {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut siblings = Vec::new();
+        siblings
+            .try_reserve_exact(sibling_count)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        reader.finish()?;
+        operation.proof_leaf = Some(leaf);
+        operation.expected_siblings = Some(sibling_count);
+        operation.siblings = siblings;
+        operation.old_current_hash =
+            Some(leaf.map_or(JMT_SPARSE_PLACEHOLDER_HASH_V2, jmt_leaf_hash));
+        operation.mutation_case = Some(mutation_case);
+        operation.expected_split_siblings = split_sibling_count;
+        operation.new_current_hash = Some(new_current_hash);
+        operation.new_parent_started = matches!(mutation_case, 1..=3);
+        Ok(())
+    }
+
+    fn accept_operation_sibling(
+        &mut self,
+        reader: &mut CanonicalReader<'_>,
+    ) -> Result<(), ProofChkErr> {
+        let (update_index, operation_index) = take_circuit_operation_indices(reader)?;
+        let update = self
+            .current_update
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len() || operation_index != update.operations.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let operation = update
+            .current_operation
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let sibling_index = usize::from(reader.take_u16()?);
+        let expected_siblings = operation
+            .expected_siblings
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if operation.proof_closed
+            || sibling_index != operation.siblings.len()
+            || sibling_index >= expected_siblings
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let sibling_type = reader.take_u8()?;
+        let direction = reader.take_u8()?;
+        let new_parent_active = reader.take_u8()?;
+        if direction > 1 || new_parent_active > 1 || reader.take_exact(4)? != [0; 4] {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let blocks: [[u8; 64]; 6] = [
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ];
+        let sibling = match sibling_type {
+            0 if blocks[..2] == [[0; 64]; 2] => JmtSiblingWireV2::Null,
+            1 => {
+                JmtSiblingWireV2::Internal(decode_jmt_internal_raw_blocks([blocks[0], blocks[1]])?)
+            }
+            2 => JmtSiblingWireV2::Leaf(decode_jmt_leaf_raw_blocks([blocks[0], blocks[1]])?),
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        let sibling_count = operation
+            .expected_siblings
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let bit_index = sibling_count
+            .checked_sub(sibling_index + 1)
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let old_path_key = operation
+            .proof_leaf
+            .flatten()
+            .map_or(operation.key, |leaf| leaf.key_hash);
+        let expected_direction = (old_path_key[bit_index / 8] >> (7 - bit_index % 8)) & 1;
+        if direction != expected_direction {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let old_current = operation
+            .old_current_hash
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let sibling_hash = jmt_sibling_hash(&sibling);
+        let parent = decode_jmt_internal_raw_blocks([blocks[2], blocks[3]])?;
+        let expected_parent = if direction == 0 {
+            JmtInternalWireV2 {
+                left_child: old_current,
+                right_child: sibling_hash,
+            }
+        } else {
+            JmtInternalWireV2 {
+                left_child: sibling_hash,
+                right_child: old_current,
+            }
+        };
+        if parent != expected_parent {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        operation.old_current_hash = Some(jmt_internal_hash(parent.left_child, parent.right_child));
+        let case = operation
+            .mutation_case
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let expected_new_active = match case {
+            1..=3 => true,
+            4 => false,
+            5 => {
+                if !operation.new_parent_started {
+                    match &sibling {
+                        JmtSiblingWireV2::Null => false,
+                        JmtSiblingWireV2::Internal(_) => {
+                            operation.new_parent_started = true;
+                            true
+                        }
+                        JmtSiblingWireV2::Leaf(_) => {
+                            return Err(ProofChkErr::JmtUpdateTraceCanonical)
+                        }
+                    }
+                } else {
+                    true
+                }
+            }
+            6 => {
+                if operation.new_parent_started {
+                    true
+                } else if !operation.coalesced_leaf_seen {
+                    match &sibling {
+                        JmtSiblingWireV2::Null => false,
+                        JmtSiblingWireV2::Leaf(_) => {
+                            operation.coalesced_leaf_seen = true;
+                            operation.new_current_hash = Some(sibling_hash);
+                            false
+                        }
+                        JmtSiblingWireV2::Internal(_) => {
+                            return Err(ProofChkErr::JmtUpdateTraceCanonical)
+                        }
+                    }
+                } else if matches!(sibling, JmtSiblingWireV2::Null) {
+                    false
+                } else {
+                    operation.new_parent_started = true;
+                    true
+                }
+            }
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        if new_parent_active != u8::from(expected_new_active) {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        if expected_new_active {
+            let current = operation
+                .new_current_hash
+                .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+            let expected_new_parent = if direction == 0 {
+                JmtInternalWireV2 {
+                    left_child: current,
+                    right_child: sibling_hash,
+                }
+            } else {
+                JmtInternalWireV2 {
+                    left_child: sibling_hash,
+                    right_child: current,
+                }
+            };
+            if decode_jmt_internal_raw_blocks([blocks[4], blocks[5]])? != expected_new_parent {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            operation.new_current_hash = Some(jmt_internal_hash(
+                expected_new_parent.left_child,
+                expected_new_parent.right_child,
+            ));
+        } else if blocks[4..] != [[0; 64]; 2] {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        reader.finish()?;
+        operation.siblings.push(sibling);
+        Ok(())
+    }
+
+    fn accept_operation_split_sibling(
+        &mut self,
+        reader: &mut CanonicalReader<'_>,
+    ) -> Result<(), ProofChkErr> {
+        let (update_index, operation_index) = take_circuit_operation_indices(reader)?;
+        let update = self
+            .current_update
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len() || operation_index != update.operations.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let operation = update
+            .current_operation
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let split_index = usize::from(reader.take_u16()?);
+        let sibling_type = reader.take_u8()?;
+        let direction = reader.take_u8()?;
+        if operation.mutation_case != Some(3)
+            || split_index != operation.split_siblings.len()
+            || split_index >= operation.expected_split_siblings
+            || direction > 1
+            || reader.take_exact(5)? != [0; 5]
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let blocks: [[u8; 64]; 4] = [
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+            reader
+                .take_exact(64)?
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ];
+        let sibling = match sibling_type {
+            0 if blocks[..2] == [[0; 64]; 2] => JmtSiblingWireV2::Null,
+            2 => JmtSiblingWireV2::Leaf(decode_jmt_leaf_raw_blocks([blocks[0], blocks[1]])?),
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        };
+        let former_leaf = operation
+            .proof_leaf
+            .flatten()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if (split_index == 0 && sibling != JmtSiblingWireV2::Leaf(former_leaf))
+            || (split_index > 0 && sibling != JmtSiblingWireV2::Null)
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let total_siblings = operation
+            .expected_split_siblings
+            .checked_add(
+                operation
+                    .expected_siblings
+                    .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?,
+            )
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        let bit_index = total_siblings
+            .checked_sub(split_index + 1)
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let expected_direction = (operation.key[bit_index / 8] >> (7 - bit_index % 8)) & 1;
+        let current = operation
+            .new_current_hash
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        let sibling_hash = jmt_sibling_hash(&sibling);
+        let expected_parent = if expected_direction == 0 {
+            JmtInternalWireV2 {
+                left_child: current,
+                right_child: sibling_hash,
+            }
+        } else {
+            JmtInternalWireV2 {
+                left_child: sibling_hash,
+                right_child: current,
+            }
+        };
+        if direction != expected_direction
+            || decode_jmt_internal_raw_blocks([blocks[2], blocks[3]])? != expected_parent
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        operation.new_current_hash = Some(jmt_internal_hash(
+            expected_parent.left_child,
+            expected_parent.right_child,
+        ));
+        operation.split_siblings.push(sibling);
+        reader.finish()
+    }
+
+    fn accept_operation_proof_end(
+        &mut self,
+        reader: &mut CanonicalReader<'_>,
+    ) -> Result<(), ProofChkErr> {
+        let (update_index, operation_index) = take_circuit_operation_indices(reader)?;
+        reader.finish()?;
+        let update = self
+            .current_update
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len() || operation_index != update.operations.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let operation = update
+            .current_operation
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if operation.proof_closed
+            || operation.proof_leaf.is_none()
+            || operation.expected_siblings != Some(operation.siblings.len())
+            || operation.expected_split_siblings != operation.split_siblings.len()
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        if operation.old_current_hash != Some(update.current_root) {
+            return Err(ProofChkErr::JmtUpdateProofMix);
+        }
+        let first_non_default = operation
+            .siblings
+            .iter()
+            .position(|sibling| !matches!(sibling, JmtSiblingWireV2::Null));
+        match operation.mutation_case {
+            Some(3) => {
+                let proof = JmtSparseProofWireV2 {
+                    leaf: operation.proof_leaf.flatten(),
+                    siblings: operation.siblings.clone(),
+                };
+                let old_leaf = proof.leaf.ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+                let common = common_prefix_bits(&old_leaf.key_hash, &operation.key);
+                let expected = jmt_split_siblings(&proof, common)?;
+                if expected[..operation.expected_split_siblings] != operation.split_siblings {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+            }
+            Some(4) if first_non_default.is_some() => {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical)
+            }
+            Some(5)
+                if !first_non_default.is_some_and(|index| {
+                    matches!(operation.siblings[index], JmtSiblingWireV2::Internal(_))
+                }) =>
+            {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical)
+            }
+            Some(6)
+                if !first_non_default.is_some_and(|index| {
+                    matches!(operation.siblings[index], JmtSiblingWireV2::Leaf(_))
+                }) =>
+            {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical)
+            }
+            Some(1..=6) => {}
+            _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+        }
+        operation.proof_closed = true;
+        Ok(())
+    }
+
+    fn accept_operation_end(
+        &mut self,
+        reader: &mut CanonicalReader<'_>,
+    ) -> Result<(), ProofChkErr> {
+        let (update_index, operation_index) = take_circuit_operation_indices(reader)?;
+        reader.finish()?;
+        let update = self
+            .current_update
+            .as_mut()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len() || operation_index != update.operations.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let operation = update
+            .current_operation
+            .take()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if operation.value.len() != operation.expected_value_bytes {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        if operation.prior_value.len() != operation.expected_prior_value_bytes {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        if !operation.proof_closed {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let computed_new_root = operation.new_current_hash;
+        let proof = JmtSparseProofWireV2 {
+            leaf: operation
+                .proof_leaf
+                .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?,
+            siblings: operation.siblings,
+        };
+        let operation = JmtUpdateOpV2 {
+            key: operation.key,
+            prior_value: operation
+                .prior_value_present
+                .then_some(operation.prior_value),
+            value: operation.value_present.then_some(operation.value),
+        };
+        let (_, next_root) =
+            verify_jmt_transition_semantics(&proof, &operation, update.current_root)?;
+        if computed_new_root != Some(next_root) {
+            return Err(ProofChkErr::JmtUpdateProofMix);
+        }
+        update.current_root = next_root;
+        update.operations.push(operation);
+        update.proofs.push(proof);
+        Ok(())
+    }
+
+    fn accept_update_end(&mut self, reader: &mut CanonicalReader<'_>) -> Result<(), ProofChkErr> {
+        let update_index =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        reader.finish()?;
+        let update = self
+            .current_update
+            .take()
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        if update_index != self.updates.len()
+            || update.current_operation.is_some()
+            || update.operations.len() != update.expected_operations
+            || update.proofs.len() != update.expected_operations
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let proof_wire = BincodeCodec.serialize(&JmtUpdateProofWireV2(update.proofs))?;
+        if proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let trace = JmtUpdateTraceV2 {
+            version: JMT_UPDATE_TRACE_VERSION_V2,
+            tree: update.tree,
+            old_version: update.old_version,
+            new_version: update.new_version,
+            old_root: update.old_root,
+            new_root: update.new_root,
+            operations: update.operations,
+            proof_wire,
+        };
+        trace.verify_semantics()?;
+        trace.verify_native()?;
+        self.updates.push(trace);
+        Ok(())
+    }
+
+    pub(crate) fn finish(self) -> Result<SettlementUpdateTraceEnvelopeV2, ProofChkErr> {
+        if self.current_update.is_some() || self.updates.len() != self.expected_updates {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        if self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2 {
+            return SettlementUpdateTraceEnvelopeV2::new_noop(RootGeneration::SettlementV2);
+        }
+        let envelope = SettlementUpdateTraceEnvelopeV2 {
+            version: JMT_UPDATE_TRACE_VERSION_V2,
+            root_generation: RootGeneration::SettlementV2.version(),
+            kind: self.kind,
+            trace_digest: self.expected_digest,
+            updates: self.updates,
+        };
+        if envelope.circuit_trace_digest()? != envelope.trace_digest {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        Ok(envelope)
+    }
+}
+
+fn take_circuit_operation_indices(
+    reader: &mut CanonicalReader<'_>,
+) -> Result<(usize, usize), ProofChkErr> {
+    Ok((
+        usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?,
+        usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?,
+    ))
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RootTransitionV2 {
+    old: [u8; 32],
+    new: [u8; 32],
+}
+
+impl RootTransitionV2 {
+    const fn new(old: [u8; 32], new: [u8; 32]) -> Self {
+        Self { old, new }
+    }
+}
+
+fn verify_parent_transition<T>(
+    operation: &JmtUpdateOpV2,
+    child: RootTransitionV2,
+    decode: impl Fn(&[u8]) -> Result<(T, [u8; 32]), ProofChkErr>,
+) -> Result<(Option<T>, Option<T>), ProofChkErr> {
+    let prior = match operation.prior_value.as_deref() {
+        Some(value) => {
+            let (coordinates, child_root) = decode(value)?;
+            if child_root != child.old {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Some(coordinates)
+        }
+        None if child.old == JMT_SPARSE_PLACEHOLDER_HASH_V2 => None,
+        None => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+    };
+    let next = match operation.value.as_deref() {
+        Some(value) => {
+            let (coordinates, child_root) = decode(value)?;
+            if child_root != child.new {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            Some(coordinates)
+        }
+        None if child.new == JMT_SPARSE_PLACEHOLDER_HASH_V2 => None,
+        None => return Err(ProofChkErr::JmtUpdateTraceCanonical),
+    };
+    Ok((prior, next))
 }
 
 fn verify_bucket_promotion(
     definition_id: [u8; 32],
     serial_id: u32,
     operation: &JmtUpdateOpV2,
-    terminal_roots: &BTreeMap<TerminalRootKeyV2, [u8; 32]>,
+    terminal_roots: &BTreeMap<TerminalRootKeyV2, RootTransitionV2>,
 ) -> Result<TerminalRootKeyV2, ProofChkErr> {
-    match &operation.value {
-        Some(value) => {
-            let (value_definition, value_serial, bucket_id, child_root, _policy) =
-                decode_bucket_parent_value(value)?;
-            if value_definition != definition_id
-                || value_serial != serial_id
-                || operation.key != bucket_id
-                || terminal_roots.get(&(definition_id, serial_id, bucket_id)) != Some(&child_root)
-            {
-                return Err(ProofChkErr::JmtUpdateTraceCanonical);
-            }
-            Ok((definition_id, serial_id, bucket_id))
-        }
-        None => {
-            let key = (definition_id, serial_id, operation.key);
-            if terminal_roots.get(&key) != Some(&JMT_SPARSE_PLACEHOLDER_HASH_V2) {
-                return Err(ProofChkErr::JmtUpdateTraceCanonical);
-            }
-            Ok(key)
+    let key = (definition_id, serial_id, operation.key);
+    let child = *terminal_roots
+        .get(&key)
+        .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+    let (prior, next) = verify_parent_transition(operation, child, |value| {
+        let (value_definition, value_serial, bucket_id, child_root, policy) =
+            decode_bucket_parent_value(value)?;
+        Ok((
+            (value_definition, value_serial, bucket_id, policy),
+            child_root,
+        ))
+    })?;
+    for coordinates in [prior, next].into_iter().flatten() {
+        if coordinates.0 != definition_id
+            || coordinates.1 != serial_id
+            || coordinates.2 != operation.key
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
     }
+    Ok(key)
 }
 
 fn verify_serial_promotion(
     definition_id: [u8; 32],
     operation: &JmtUpdateOpV2,
-    bucket_roots: &BTreeMap<([u8; 32], u32), [u8; 32]>,
+    bucket_roots: &BTreeMap<([u8; 32], u32), RootTransitionV2>,
 ) -> Result<([u8; 32], u32), ProofChkErr> {
-    match &operation.value {
-        Some(value) => {
-            let (value_definition, serial_id, child_root) = decode_serial_parent_value(value)?;
-            if value_definition != definition_id
-                || operation.key
-                    != serial_key(DefinitionId::new(definition_id), SerialId::new(serial_id)).0
-                || bucket_roots.get(&(definition_id, serial_id)) != Some(&child_root)
-            {
-                return Err(ProofChkErr::JmtUpdateTraceCanonical);
-            }
-            Ok((definition_id, serial_id))
-        }
-        None => {
-            let mut matches = bucket_roots.iter().filter_map(|(key, root)| {
-                (key.0 == definition_id
-                    && *root == JMT_SPARSE_PLACEHOLDER_HASH_V2
-                    && operation.key
-                        == serial_key(DefinitionId::new(key.0), SerialId::new(key.1)).0)
-                    .then_some(*key)
-            });
-            let key = matches.next().ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-            if matches.next().is_some() {
-                return Err(ProofChkErr::JmtUpdateTraceCanonical);
-            }
-            Ok(key)
+    let mut matches = bucket_roots.iter().filter_map(|(key, child)| {
+        (key.0 == definition_id
+            && operation.key == serial_key(DefinitionId::new(key.0), SerialId::new(key.1)).0)
+            .then_some((*key, *child))
+    });
+    let (key, child) = matches.next().ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+    if matches.next().is_some() {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    let (prior, next) = verify_parent_transition(operation, child, |value| {
+        let (value_definition, serial_id, child_root) = decode_serial_parent_value(value)?;
+        Ok(((value_definition, serial_id), child_root))
+    })?;
+    for coordinates in [prior, next].into_iter().flatten() {
+        if coordinates != key {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
     }
+    Ok(key)
 }
 
 fn verify_definition_promotion(
     operation: &JmtUpdateOpV2,
-    serial_roots: &BTreeMap<[u8; 32], [u8; 32]>,
+    serial_roots: &BTreeMap<[u8; 32], RootTransitionV2>,
 ) -> Result<[u8; 32], ProofChkErr> {
-    match &operation.value {
-        Some(value) => {
-            let (definition_id, child_root) = decode_definition_parent_value(value)?;
-            if operation.key != definition_key(DefinitionId::new(definition_id)).0
-                || serial_roots.get(&definition_id) != Some(&child_root)
-            {
-                return Err(ProofChkErr::JmtUpdateTraceCanonical);
-            }
-            Ok(definition_id)
-        }
-        None => {
-            let mut matches = serial_roots.iter().filter_map(|(definition_id, root)| {
-                (*root == JMT_SPARSE_PLACEHOLDER_HASH_V2
-                    && operation.key == definition_key(DefinitionId::new(*definition_id)).0)
-                    .then_some(*definition_id)
-            });
-            let definition_id = matches.next().ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-            if matches.next().is_some() {
-                return Err(ProofChkErr::JmtUpdateTraceCanonical);
-            }
-            Ok(definition_id)
+    let mut matches = serial_roots.iter().filter_map(|(definition_id, child)| {
+        (operation.key == definition_key(DefinitionId::new(*definition_id)).0)
+            .then_some((*definition_id, *child))
+    });
+    let (definition_id, child) = matches.next().ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+    if matches.next().is_some() {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    let (prior, next) = verify_parent_transition(operation, child, |value| {
+        decode_definition_parent_value(value)
+    })?;
+    for value_definition in [prior, next].into_iter().flatten() {
+        if value_definition != definition_id {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
     }
+    Ok(definition_id)
 }
 
 fn decode_definition_parent_value(value: &[u8]) -> Result<([u8; 32], [u8; 32]), ProofChkErr> {
@@ -1244,6 +2836,15 @@ impl<'a> CanonicalReader<'a> {
         ))
     }
 
+    fn take_u16(&mut self) -> Result<u16, ProofChkErr> {
+        let bytes = self.take_exact(2)?;
+        Ok(u16::from_le_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?,
+        ))
+    }
+
     fn take_u64(&mut self) -> Result<u64, ProofChkErr> {
         let bytes = self.take_exact(8)?;
         Ok(u64::from_le_bytes(
@@ -1259,6 +2860,7 @@ impl<'a> CanonicalReader<'a> {
             .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)
     }
 
+    #[cfg(test)]
     fn take_vec(&mut self, max_len: usize) -> Result<Vec<u8>, ProofChkErr> {
         let bytes = self.take_borrowed(max_len)?;
         let mut value = Vec::new();
@@ -1269,6 +2871,7 @@ impl<'a> CanonicalReader<'a> {
         Ok(value)
     }
 
+    #[cfg(test)]
     fn take_borrowed(&mut self, max_len: usize) -> Result<&'a [u8], ProofChkErr> {
         let len =
             usize::try_from(self.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
@@ -1291,7 +2894,7 @@ impl<'a> CanonicalReader<'a> {
         Ok(bytes)
     }
 
-    fn finish(self) -> Result<(), ProofChkErr> {
+    fn finish(&self) -> Result<(), ProofChkErr> {
         if self.offset == self.bytes.len() {
             Ok(())
         } else {
@@ -1300,6 +2903,7 @@ impl<'a> CanonicalReader<'a> {
     }
 }
 
+#[cfg(test)]
 fn append_len_prefixed(out: &mut Vec<u8>, value: &[u8]) -> Result<(), ProofChkErr> {
     let len = u32::try_from(value.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
     out.extend_from_slice(&len.to_le_bytes());
@@ -1307,22 +2911,11 @@ fn append_len_prefixed(out: &mut Vec<u8>, value: &[u8]) -> Result<(), ProofChkEr
     Ok(())
 }
 
-fn noop_update_trace_digest() -> [u8; 32] {
+pub(crate) fn noop_update_trace_digest() -> [u8; 32] {
     hash_zk::<StorBatchProofDom>(
         JMT_UPDATE_TRACE_NOOP_LABEL_V2,
         &[&[JMT_UPDATE_TRACE_VERSION_V2, JMT_UPDATE_TRACE_KIND_NOOP_V2]],
     )
-}
-
-fn derive_update_trace_digest(updates: &[JmtUpdateTraceV2]) -> Result<[u8; 32], ProofChkErr> {
-    let mut digest = CheckpointSha256V2::new(CheckpointShaRole::Trace);
-    for update in updates {
-        let encoded = update.canonical_bytes()?;
-        digest
-            .update_part(&encoded)
-            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
-    }
-    Ok(digest.finalize())
 }
 
 #[must_use]

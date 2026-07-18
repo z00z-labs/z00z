@@ -42,7 +42,6 @@ fn test_redb_decrypt_returns_secret() {
 
 const TEST_SEED_PHRASE_24: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art";
 const WALLET_GUIDE_SRC: &str = include_str!("../../docs/WALLET-GUIDE.md");
-const WALLET_IDEA_SRC: &str = include_str!("../../../../docs/tech-papers/TODO-Wallet-idea.md");
 const RIGHTS_CONFIG_SRC: &str =
     include_str!("../../../../crates/z00z_core/configs/devnet_rights_config.yaml");
 
@@ -1920,10 +1919,6 @@ fn test_wallet_profile_catalog_contract() {
         assert!(
             WALLET_GUIDE_SRC.contains(profile),
             "wallet guide must publish profile catalog row for {profile}"
-        );
-        assert!(
-            WALLET_IDEA_SRC.contains(profile),
-            "wallet idea note must keep source-intent anchor for {profile}"
         );
     }
 

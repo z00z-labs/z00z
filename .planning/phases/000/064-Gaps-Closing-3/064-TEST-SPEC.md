@@ -310,7 +310,7 @@ it.
 - `rg -n "open_wallet_source|wallet.object\\.|stub_default|stub_tx_" crates/z00z_wallets/src crates/z00z_wallets/tests wiki/04-wallet-and-rpc/wallet-object-packages.md`
 - `rg -n "verify_session|verify_session_no_touch|build_tx_stealth_output|wasm32|placeholder|Quarantined|ObjectRejectCode" crates/z00z_wallets crates/z00z_storage wiki/04-wallet-and-rpc`
 - `rg -n "save_artifact|seal_artifact|DupPath|DupTerminalId|RootMix|backend_root|SettlementStateRoot|PublicationBinding|split-brain|wrong link root" crates/z00z_storage crates/z00z_rollup_node crates/z00z_runtime/aggregators`
-- `rg -n "github\\.com/vasja34/z00z/blob|tari_crypto::|std::fs|serde_json|serde_yaml|SystemTime::now|not shipped|placeholder|future transport" crates wiki docs scripts .github`
+- `rg -n "github\\.com/z00z-labs/z00z/blob|tari_crypto::|std::fs|serde_json|serde_yaml|SystemTime::now|not shipped|placeholder|future transport" crates wiki docs scripts .github`
 
 <verify>
 

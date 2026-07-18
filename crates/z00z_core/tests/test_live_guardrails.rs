@@ -282,7 +282,7 @@ fn genesis_caveats_stay_local_and_narrow() {
     assert_absent(
         "genesis caveats",
         GENESIS_CAVEATS_DOC,
-        "github.com/vasja34/z00z/blob",
+        "github.com/z00z-labs/z00z/blob",
     );
     assert_absent("genesis caveats", GENESIS_CAVEATS_DOC, "OnionNet");
     assert_absent("genesis caveats", GENESIS_CAVEATS_DOC, "remote chain");

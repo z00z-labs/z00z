@@ -99,10 +99,21 @@ impl CheckpointSha256BlockV2 {
         chaining_before: &[u32; 8],
         chaining_after: &[u32; 8],
     ) -> bool {
+        Self::transition_parts(block, chaining_before) == *chaining_after
+    }
+
+    /// Execute one raw FIPS compression transition for a circuit witness.
+    /// This is the same project-owned primitive used by verification and does
+    /// not apply role framing or finalize a message.
+    #[must_use]
+    pub fn transition_parts(
+        block: &[u8; SHA256_BLOCK_BYTES_V2 as usize],
+        chaining_before: &[u32; 8],
+    ) -> [u32; 8] {
         let mut state = *chaining_before;
         let generic = GenericArray::<u8, U64>::clone_from_slice(block);
         compress256(&mut state, core::slice::from_ref(&generic));
-        state == *chaining_after
+        state
     }
 
     /// Encode a SHA-256 chaining state as its standard big-endian digest form.

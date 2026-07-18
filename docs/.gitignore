@@ -1,7 +1,0 @@
-# Keep only the curated documentation trees under docs/.
-*
-!.gitignore
-!tech-papers/
-!tech-papers/**
-!whitepapers/
-!whitepapers/**

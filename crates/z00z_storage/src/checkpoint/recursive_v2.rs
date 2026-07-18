@@ -16,6 +16,11 @@ pub use super::{
     recursive_context::RecursiveAuthoritySnapshotV2,
     recursive_predicate::EvaluatedCheckpointTransitionV2,
     recursive_reject::RecursiveV2Error,
-    recursive_statement::RecursiveTransitionStatementV2,
-    recursive_trace::RecursiveTracePrecommitV2,
+    recursive_statement::{
+        RecursiveCheckpointPublicInputV2, RecursiveFinalizedIvcStateV2,
+        RecursiveTransitionStatementV2,
+    },
+    recursive_trace::{
+        RecursiveTraceEventCountsV2, RecursiveTraceOpcodeV2, RecursiveTracePrecommitV2,
+    },
 };

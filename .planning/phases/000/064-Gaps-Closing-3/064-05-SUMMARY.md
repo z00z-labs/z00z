@@ -72,7 +72,7 @@ duplicate authority layer, or parallel boundary story was introduced.
 - `bash scripts/audit_local_docs_links.sh`
 - `cargo test --release`
 - `git diff --check -- wiki/03-core-protocol/genesis-caveats.md wiki/06-simulator-and-quality/scenario-pipeline.md crates/z00z_core/tests/test_live_guardrails.rs crates/z00z_wallets/tests/test_live_boundary_claims.rs scripts/audit_z00z_utils_boundary.sh scripts/audit_crypto_facade.sh scripts/audit_extensions_boundary.sh scripts/audit_local_docs_links.sh .github/workflows/boundary-guards.yml`
-- `rg -n 'https://github\\.com/vasja34/z00z/blob|tari_crypto::' wiki/03-core-protocol/genesis-caveats.md wiki/06-simulator-and-quality/scenario-pipeline.md crates -g '!crates/z00z_crypto/**'`
+- `rg -n 'https://github\\.com/z00z-labs/z00z/blob|tari_crypto::' wiki/03-core-protocol/genesis-caveats.md wiki/06-simulator-and-quality/scenario-pipeline.md crates -g '!crates/z00z_crypto/**'`
 - `rg -n 'privacy against network-level traffic analysis is not yet a shipped base-layer guarantee|OnionNet currently exists as a reserved boundary crate|there is no fully landed slashing or fraud-proof execution engine|Real remote-node transport remains an explicit adapter-only seam|remote node adapter is not configured' docs/Z00Z-Main-Whitepaper.md docs/tech-papers/Z00Z-Roadmap-Blueprint.md crates/z00z_networks/onionnet/README.md crates/z00z_wallets/src/app/app_kernel.rs crates/z00z_wallets/src/chain/chain_client_impl.rs`
 
 Result:

@@ -579,6 +579,7 @@ impl SettlementStore {
                         definition_id: hex_id(path.definition_id.into_bytes()),
                         serial_id: path.serial_id.get(),
                         terminal_id: hex_id(path.terminal_id().into_bytes()),
+                        leaf_value_hash: terminal_value_hash(item.leaf())?.0,
                         leaf_family: scope_leaf_kind(item),
                         first_seen: ScopeSeen {
                             definition: first_def,
@@ -606,6 +607,7 @@ impl SettlementStore {
                         definition_id: hex_id(path.definition_id.into_bytes()),
                         serial_id: path.serial_id.get(),
                         terminal_id: hex_id(path.terminal_id().into_bytes()),
+                        leaf_value_hash: terminal_value_hash(item.leaf())?.0,
                         leaf_family: scope_leaf_kind(&item),
                         first_seen: ScopeSeen {
                             definition: false,

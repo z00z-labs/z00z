@@ -29,6 +29,20 @@ pub(crate) mod tree_id;
 mod tx_plan_help;
 pub(crate) mod tx_plan_types;
 
+#[cfg(test)]
+pub(crate) use self::hjmt_store::tests::{
+    hierarchy_circuit_transcript_for_test, jmt_mutation_case_circuit_transcripts_for_test,
+};
+pub(crate) use self::proof_batch::{
+    noop_update_trace_digest, JMT_CIRCUIT_HEADER_BYTES_V2, JMT_CIRCUIT_MICRO_OP_VERSION_V2,
+    JMT_CIRCUIT_OPERATION_BEGIN_V2, JMT_CIRCUIT_OPERATION_END_V2,
+    JMT_CIRCUIT_OPERATION_PROOF_END_V2, JMT_CIRCUIT_OPERATION_PROOF_V2,
+    JMT_CIRCUIT_OPERATION_SIBLING_V2, JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2,
+    JMT_CIRCUIT_OPERATION_VALUE_V2, JMT_CIRCUIT_UPDATE_BEGIN_V2, JMT_CIRCUIT_UPDATE_END_V2,
+    JMT_SPARSE_PLACEHOLDER_HASH_V2, JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+    JMT_UPDATE_TRACE_KIND_NOOP_V2, JMT_UPDATE_TRACE_VERSION_V2,
+};
+
 pub use self::{
     fee_envelope::{FeeActorCtx, FeeErr, FeeReplayKey, FeeReplayRec, FeeSupportCtx},
     hjmt_cache::{CacheLayerMetrics, ForestCacheMetrics},
@@ -95,4 +109,6 @@ pub use self::{
 /// Recursive V2 wires are documented and supported only through
 /// `checkpoint::recursive_v2`; this hidden re-export exists solely to bridge
 /// the storage owner into that canonical facade.
-pub(crate) use proof_batch::SettlementUpdateTraceEnvelopeV2;
+pub(crate) use proof_batch::{
+    SettlementUpdateTraceCircuitDecoderV2, SettlementUpdateTraceEnvelopeV2,
+};

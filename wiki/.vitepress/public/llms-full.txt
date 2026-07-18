@@ -8,7 +8,7 @@ The repository is organized around owner crates with stable facades. The pages b
 
 <doc title="Onboarding Hub" path="./onboarding/index.md">
 
-Z00Z is a privacy-focused blockchain workspace with separate crates for protocol, wallet, storage, runtime, simulator, and observability concerns. The best onboarding path depends on whether you need implementation detail, architectural judgment, business risk framing, or user-facing capability language. [Cargo.toml:3-17](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L17) [README.md:1-4](https://github.com/vasja34/z00z/blob/z00z-dev/README.md#L1-L4)
+Z00Z is a privacy-focused blockchain workspace with separate crates for protocol, wallet, storage, runtime, simulator, and observability concerns. The best onboarding path depends on whether you need implementation detail, architectural judgment, business risk framing, or user-facing capability language. [Cargo.toml:3-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L17) [README.md:1-4](https://github.com/z00z-labs/z00z/blob/z00z-dev/README.md#L1-L4)
 
 ## 🎯 Guide Selector
 
@@ -32,10 +32,10 @@ graph LR
 
 ## 📖 References
 
-- [Cargo.toml:3-17](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L17)
-- [README.md:1-4](https://github.com/vasja34/z00z/blob/z00z-dev/README.md#L1-L4)
-- [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
-- [crates/z00z_simulator/README.md:62-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92)
+- [Cargo.toml:3-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L17)
+- [README.md:1-4](https://github.com/z00z-labs/z00z/blob/z00z-dev/README.md#L1-L4)
+- [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
+- [crates/z00z_simulator/README.md:62-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92)
 
 ## Related Pages
 
@@ -48,24 +48,24 @@ graph LR
 
 <doc title="Contributor Guide" path="./onboarding/contributor-guide.md">
 
-This guide assumes you already know how to program in Python or JavaScript and need a working mental model for a Rust workspace that treats ownership boundaries, stable facades, and release-style verification as first-class concerns. [Cargo.toml:3-17](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L17) [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
+This guide assumes you already know how to program in Python or JavaScript and need a working mental model for a Rust workspace that treats ownership boundaries, stable facades, and release-style verification as first-class concerns. [Cargo.toml:3-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L17) [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
 
 ## 🎯 At A Glance
 
 | Topic | What matters first | Source |
 |---|---|---|
-| Workspace shape | Fourteen default workspace members, each with clear ownership. | [Cargo.toml:3-34](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
-| Protocol core | `z00z_core` owns assets, genesis, policies, rights, vouchers. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| Wallet surface | Wallet inventory is typed; assets, vouchers, and rights are not interchangeable. | [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) |
-| Verification | The repository expects a full verify cycle, not only `cargo test`. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
+| Workspace shape | Fourteen default workspace members, each with clear ownership. | [Cargo.toml:3-34](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
+| Protocol core | `z00z_core` owns assets, genesis, policies, rights, vouchers. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| Wallet surface | Wallet inventory is typed; assets, vouchers, and rights are not interchangeable. | [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) |
+| Verification | The repository expects a full verify cycle, not only `cargo test`. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
 
 ## 🧩 Part I: Rust For Python And JavaScript Engineers
 
 | Concept | Rust in this repo | Python/JS analogy | Source |
 |---|---|---|---|
-| Crate root facade | `src/lib.rs` re-exports supported public API. | Module `__init__.py` or package barrel export, but stricter. | [crates/z00z_core/src/lib.rs:112-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L112-L132) |
-| Feature flags | Cargo features gate optional behavior like deterministic RNG or WASM. | Optional dependency flags or build-time environment switches. | [crates/z00z_core/Cargo.toml:43-59](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/Cargo.toml#L43-L59) [crates/z00z_wallets/Cargo.toml:153-187](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/Cargo.toml#L153-L187) |
-| Result-oriented error flow | Public crates publish typed errors instead of throwing dynamically. | Explicit exception classes, but encoded in function signatures. | [crates/z00z_rollup_node/src/lib.rs:56-83](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L56-L83) |
+| Crate root facade | `src/lib.rs` re-exports supported public API. | Module `__init__.py` or package barrel export, but stricter. | [crates/z00z_core/src/lib.rs:112-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L112-L132) |
+| Feature flags | Cargo features gate optional behavior like deterministic RNG or WASM. | Optional dependency flags or build-time environment switches. | [crates/z00z_core/Cargo.toml:43-59](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/Cargo.toml#L43-L59) [crates/z00z_wallets/Cargo.toml:153-187](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/Cargo.toml#L153-L187) |
+| Result-oriented error flow | Public crates publish typed errors instead of throwing dynamically. | Explicit exception classes, but encoded in function signatures. | [crates/z00z_rollup_node/src/lib.rs:56-83](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L56-L83) |
 
 ```mermaid
 graph TB
@@ -93,10 +93,10 @@ graph TB
 
 | Directory or crate | Why it exists | Source |
 |---|---|---|
-| `crates/z00z_core` | Protocol object and genesis authority. | [crates/z00z_core/README.md:22-43](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) |
-| `crates/z00z_wallets` | Wallet state, object inventory, RPC, persistence. | [crates/z00z_wallets/README.md:27-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L27-L37) |
-| `crates/z00z_storage` | Settlement truth and proof surfaces. | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) |
-| `crates/z00z_simulator` | End-to-end scenario harness and artifact producer. | [crates/z00z_simulator/README.md:46-60](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L46-L60) |
+| `crates/z00z_core` | Protocol object and genesis authority. | [crates/z00z_core/README.md:22-43](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) |
+| `crates/z00z_wallets` | Wallet state, object inventory, RPC, persistence. | [crates/z00z_wallets/README.md:27-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L27-L37) |
+| `crates/z00z_storage` | Settlement truth and proof surfaces. | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) |
+| `crates/z00z_simulator` | End-to-end scenario harness and artifact producer. | [crates/z00z_simulator/README.md:46-60](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L46-L60) |
 
 ### 🔑 Core Concepts
 
@@ -112,10 +112,10 @@ erDiagram
 
 | Term | Plain-English meaning | Source |
 |---|---|---|
-| Asset | Spendable value object. | [crates/z00z_wallets/README.md:16-17](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L17) |
-| Voucher | Conditional claim object with lifecycle rules. | [crates/z00z_wallets/README.md:17-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L17-L18) |
-| Right | Authority object, not spendable balance. | [crates/z00z_wallets/README.md:18-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L18-L19) |
-| Settlement root | Storage-owned state commitment. | [crates/z00z_storage/src/settlement/README.md:94-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L94-L121) |
+| Asset | Spendable value object. | [crates/z00z_wallets/README.md:16-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L17) |
+| Voucher | Conditional claim object with lifecycle rules. | [crates/z00z_wallets/README.md:17-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L17-L18) |
+| Right | Authority object, not spendable balance. | [crates/z00z_wallets/README.md:18-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L18-L19) |
+| Settlement root | Storage-owned state commitment. | [crates/z00z_storage/src/settlement/README.md:94-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L94-L121) |
 
 ### 🔄 Request Lifecycle
 
@@ -140,9 +140,9 @@ sequenceDiagram
 
 | Tool | Version hint | Install or verify command | Source |
 |---|---|---|---|
-| Rust toolchain | Rust 1.90 workspace target | `rustup show` | [Cargo.toml:49-60](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L49-L60) |
-| WASM target | Needed for wallet browser lane | `rustup target add wasm32-unknown-unknown` | [crates/z00z_wallets/README.md:97-99](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L97-L99) |
-| Verify gate | Repository-local script | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
+| Rust toolchain | Rust 1.90 workspace target | `rustup show` | [Cargo.toml:49-60](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L49-L60) |
+| WASM target | Needed for wallet browser lane | `rustup target add wasm32-unknown-unknown` | [crates/z00z_wallets/README.md:97-99](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L97-L99) |
+| Verify gate | Repository-local script | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
 
 ### 🛠️ Your First Task
 
@@ -164,10 +164,10 @@ flowchart LR
 
 | Goal | Command | Source |
 |---|---|---|
-| All workspace tests | `cargo test --all` | [.github/copilot-instructions.md:141-149](https://github.com/vasja34/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) |
-| One crate | `cargo test -p z00z_core --release --all-features` | [crates/z00z_core/Cargo.toml:43-69](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/Cargo.toml#L43-L69) |
-| Wallet WASM check | `cargo check -p z00z_wallets --target wasm32-unknown-unknown --features wasm` | [crates/z00z_wallets/README.md:117-127](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L117-L127) |
-| Simulator CLI wiring | `cargo run -p z00z_simulator --bin scenario_1 -- --help` | [crates/z00z_simulator/bin/scenario_1.rs:71-73](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L71-L73) |
+| All workspace tests | `cargo test --all` | [.github/copilot-instructions.md:141-149](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) |
+| One crate | `cargo test -p z00z_core --release --all-features` | [crates/z00z_core/Cargo.toml:43-69](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/Cargo.toml#L43-L69) |
+| Wallet WASM check | `cargo check -p z00z_wallets --target wasm32-unknown-unknown --features wasm` | [crates/z00z_wallets/README.md:117-127](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L117-L127) |
+| Simulator CLI wiring | `cargo run -p z00z_simulator --bin scenario_1 -- --help` | [crates/z00z_simulator/bin/scenario_1.rs:71-73](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L71-L73) |
 
 ### ⚠️ Common Pitfalls
 
@@ -189,11 +189,11 @@ flowchart LR
 
 ## 📖 References
 
-- [Cargo.toml:3-34](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L34)
-- [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132)
-- [crates/z00z_wallets/README.md:11-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L44)
-- [crates/z00z_storage/src/settlement/README.md:82-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L82-L121)
-- [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
+- [Cargo.toml:3-34](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L34)
+- [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132)
+- [crates/z00z_wallets/README.md:11-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L44)
+- [crates/z00z_storage/src/settlement/README.md:82-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L82-L121)
+- [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
 
 ## Related Pages
 
@@ -207,16 +207,16 @@ flowchart LR
 
 <doc title="Staff Engineer Guide" path="./onboarding/staff-engineer-guide.md">
 
-The central architectural fact about Z00Z is simple but load-bearing: semantic truth is intentionally fragmented by owner crate so that no convenience layer silently becomes the second authority for protocol, settlement, wallet, or transport behavior. [crates/z00z_core/README.md:22-43](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_networks/rpc/README.md:5-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L5-L18)
+The central architectural fact about Z00Z is simple but load-bearing: semantic truth is intentionally fragmented by owner crate so that no convenience layer silently becomes the second authority for protocol, settlement, wallet, or transport behavior. [crates/z00z_core/README.md:22-43](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_networks/rpc/README.md:5-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L5-L18)
 
 ## 🎯 Executive Summary
 
 | Topic | Position | Source |
 |---|---|---|
-| Protocol semantics | Live in `z00z_core`. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| Settlement truth | Lives in `z00z_storage`. | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
-| Planner and publication flow | Live in `z00z_runtime/aggregators`. | [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) |
-| Final theorem composition | Lives in `z00z_rollup_node`. | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) |
+| Protocol semantics | Live in `z00z_core`. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| Settlement truth | Lives in `z00z_storage`. | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
+| Planner and publication flow | Live in `z00z_runtime/aggregators`. | [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) |
+| Final theorem composition | Lives in `z00z_rollup_node`. | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) |
 
 ## 🔑 The Core Architectural Insight
 
@@ -265,9 +265,9 @@ erDiagram
 
 | Entity | Invariant | Enforced by | Source |
 |---|---|---|---|
-| Voucher | `remaining_value` must not exceed `face_value`, and live vouchers need a positive remainder unless terminal. | `VoucherConfigEntry::validate()` | [crates/z00z_core/src/vauchers/voucher_config.rs:162-205](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_config.rs#L162-L205) |
-| Voucher bootstrap entry | Shape must validate before policy/action IDs are resolved. | `VoucherBootstrapEntryV1::validate()` | [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:31-66](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L31-L66) |
-| Settlement root | Semantic root and proof-local physical root must stay distinct. | Settlement README and proof contracts | [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
+| Voucher | `remaining_value` must not exceed `face_value`, and live vouchers need a positive remainder unless terminal. | `VoucherConfigEntry::validate()` | [crates/z00z_core/src/vauchers/voucher_config.rs:162-205](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_config.rs#L162-L205) |
+| Voucher bootstrap entry | Shape must validate before policy/action IDs are resolved. | `VoucherBootstrapEntryV1::validate()` | [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:31-66](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L31-L66) |
+| Settlement root | Semantic root and proof-local physical root must stay distinct. | Settlement README and proof contracts | [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
 
 ## 🧱 Key Abstractions
 
@@ -324,38 +324,38 @@ stateDiagram-v2
 
 | Decision | Alternatives considered | Rationale | Source |
 |---|---|---|---|
-| Keep RPC transport-only | Full network stack in the RPC crate | Preserves reusable transport semantics without importing auth or peer policy. | [crates/z00z_networks/rpc/README.md:5-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L5-L18) |
-| Keep OnionNet crate-shaped before implementation | Wait until overlay code is ready | Avoid namespace churn and future path rewrites. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
-| Keep simulator separate | Put scenario glue into wallet or runtime crates | Prevents harness behavior from becoming production ownership. | [crates/z00z_simulator/README.md:12-22](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22) |
+| Keep RPC transport-only | Full network stack in the RPC crate | Preserves reusable transport semantics without importing auth or peer policy. | [crates/z00z_networks/rpc/README.md:5-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L5-L18) |
+| Keep OnionNet crate-shaped before implementation | Wait until overlay code is ready | Avoid namespace churn and future path rewrites. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
+| Keep simulator separate | Put scenario glue into wallet or runtime crates | Prevents harness behavior from becoming production ownership. | [crates/z00z_simulator/README.md:12-22](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22) |
 
 ## 📈 Performance Characteristics
 
 | Hot path | Observable characteristic | Source |
 |---|---|---|
-| Genesis generation | Uses Rayon and logs current CPU thread count during generation. | [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
-| Rollup theorem verification | Re-serializes and rechecks structure, digest, roots, and inclusion without private witnesses. | [crates/z00z_rollup_node/src/lib.rs:141-197](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L141-L197) |
+| Genesis generation | Uses Rayon and logs current CPU thread count during generation. | [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
+| Rollup theorem verification | Re-serializes and rechecks structure, digest, roots, and inclusion without private witnesses. | [crates/z00z_rollup_node/src/lib.rs:141-197](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L141-L197) |
 
 ## 🛡️ Security Model
 
 | Concern | Current stance | Source |
 |---|---|---|
-| Weak genesis seed | Rejected during schema validation. | [crates/z00z_core/src/genesis/genesis_config_validate.rs:57-78](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config_validate.rs#L57-L78) |
-| Voucher replay and malformed lifecycle | Rejected by voucher validation rules. | [crates/z00z_core/src/vauchers/voucher_config.rs:177-220](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_config.rs#L177-L220) |
-| Wallet object/cash boundary | Voucher and right IDs must not leak into cash-only send/receive paths. | [crates/z00z_wallets/README.md:38-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
+| Weak genesis seed | Rejected during schema validation. | [crates/z00z_core/src/genesis/genesis_config_validate.rs:57-78](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config_validate.rs#L57-L78) |
+| Voucher replay and malformed lifecycle | Rejected by voucher validation rules. | [crates/z00z_core/src/vauchers/voucher_config.rs:177-220](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_config.rs#L177-L220) |
+| Wallet object/cash boundary | Voucher and right IDs must not leak into cash-only send/receive paths. | [crates/z00z_wallets/README.md:38-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
 
 ## 🧪 Testing Strategy
 
 | Area | Evidence surface | Source |
 |---|---|---|
-| Repository-wide verification | `full_verify.sh` runs format, lint, tests, doc, bench, runnable targets, and optional heavy stages. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-83](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L83) |
-| Scenario integration | `scenario_1` crate binary plus stage contract artifacts. | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) [crates/z00z_simulator/README.md:75-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L92) |
+| Repository-wide verification | `full_verify.sh` runs format, lint, tests, doc, bench, runnable targets, and optional heavy stages. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-83](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L83) |
+| Scenario integration | `scenario_1` crate binary plus stage contract artifacts. | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) [crates/z00z_simulator/README.md:75-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L92) |
 
 ## ⚠️ Known Technical Debt
 
 | Issue | Risk level | Affected files | Source |
 |---|---|---|---|
-| `performance.num_threads` is parsed and validated but not visibly applied to a dedicated Rayon pool in the orchestration path. | Medium | `genesis_config.rs`, `genesis_config_validate.rs`, `genesis_run.rs` | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
-| `onionnet` is intentionally placeholder-only, so future overlay work remains an integration risk until real code lands. | Medium | `crates/z00z_networks/onionnet/src/lib.rs` | [crates/z00z_networks/onionnet/src/lib.rs:13-126](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L13-L126) |
+| `performance.num_threads` is parsed and validated but not visibly applied to a dedicated Rayon pool in the orchestration path. | Medium | `genesis_config.rs`, `genesis_config_validate.rs`, `genesis_run.rs` | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
+| `onionnet` is intentionally placeholder-only, so future overlay work remains an integration risk until real code lands. | Medium | `crates/z00z_networks/onionnet/src/lib.rs` | [crates/z00z_networks/onionnet/src/lib.rs:13-126](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L13-L126) |
 
 ## 📚 Where To Go Deep
 
@@ -367,11 +367,11 @@ stateDiagram-v2
 
 ## 📖 References
 
-- [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132)
-- [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93)
-- [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44)
-- [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165)
-- [crates/z00z_simulator/README.md:12-22](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22)
+- [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132)
+- [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93)
+- [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44)
+- [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165)
+- [crates/z00z_simulator/README.md:12-22](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22)
 
 ## Related Pages
 
@@ -385,17 +385,17 @@ stateDiagram-v2
 
 <doc title="Executive Guide" path="./onboarding/executive-guide.md">
 
-Z00Z is organized as a set of explicit owner crates for protocol, wallet state, settlement storage, runtime publication, and end-to-end scenario evidence. That separation reduces hidden coupling, but it also means delivery risk concentrates at the interfaces between crates rather than inside one deployable service. [Cargo.toml:3-17](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L17) [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
+Z00Z is organized as a set of explicit owner crates for protocol, wallet state, settlement storage, runtime publication, and end-to-end scenario evidence. That separation reduces hidden coupling, but it also means delivery risk concentrates at the interfaces between crates rather than inside one deployable service. [Cargo.toml:3-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L17) [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
 
 ## 🎯 Capability Map
 
 | Capability | Status | Maturity | Dependencies | Source |
 |---|---|---|---|---|
-| Confidential protocol object model | Built | Medium | `z00z_core`, `z00z_crypto` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| Typed wallet inventory | Built | Medium | `z00z_wallets`, `z00z_storage` | [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) |
-| Settlement proof and checkpoint surface | Built | Medium | `z00z_storage`, `z00z_rollup_node` | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
-| Distributed planner/runtime simulation | Partial | Medium | runtime crates, simulator | [crates/z00z_runtime/aggregators/README.md:3-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L3-L29) [crates/z00z_simulator/README.md:62-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92) |
-| Privacy overlay networking | Planned placeholder | Low | `onionnet` | [crates/z00z_networks/onionnet/README.md:3-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L3-L31) |
+| Confidential protocol object model | Built | Medium | `z00z_core`, `z00z_crypto` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| Typed wallet inventory | Built | Medium | `z00z_wallets`, `z00z_storage` | [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) |
+| Settlement proof and checkpoint surface | Built | Medium | `z00z_storage`, `z00z_rollup_node` | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
+| Distributed planner/runtime simulation | Partial | Medium | runtime crates, simulator | [crates/z00z_runtime/aggregators/README.md:3-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L3-L29) [crates/z00z_simulator/README.md:62-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92) |
+| Privacy overlay networking | Planned placeholder | Low | `onionnet` | [crates/z00z_networks/onionnet/README.md:3-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L3-L31) |
 
 ## 🧭 Architecture At A Glance
 
@@ -414,25 +414,25 @@ graph LR
 
 | Component family | Implied owner domain | Criticality | Bus factor | Source |
 |---|---|---|---|---|
-| Protocol and genesis | Core protocol team | High | Low-to-medium | [crates/z00z_core/README.md:22-43](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) |
-| Wallet and RPC | Wallet/application team | High | Low-to-medium | [crates/z00z_wallets/README.md:47-55](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L47-L55) |
-| Storage and runtime | Platform/runtime team | High | Low-to-medium | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) |
-| Simulator and telemetry | Developer productivity/ops | Medium | Medium | [crates/z00z_simulator/README.md:46-60](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L46-L60) [crates/z00z_telemetry/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) |
+| Protocol and genesis | Core protocol team | High | Low-to-medium | [crates/z00z_core/README.md:22-43](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) |
+| Wallet and RPC | Wallet/application team | High | Low-to-medium | [crates/z00z_wallets/README.md:47-55](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L47-L55) |
+| Storage and runtime | Platform/runtime team | High | Low-to-medium | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) |
+| Simulator and telemetry | Developer productivity/ops | Medium | Medium | [crates/z00z_simulator/README.md:46-60](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L46-L60) [crates/z00z_telemetry/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) |
 
 ## ⚠️ Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation | Owner | Source |
 |---|---|---|---|---|---|
-| Boundary drift between owner crates | Medium | High | Keep changes at stable facades and enforce full verify gate. | Platform leads | [crates/z00z_utils/README.md:20-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L20-L25) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
-| Placeholder networking overlay | High | Medium | Treat OnionNet as roadmap scope, not production capability. | Network leads | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
-| Hidden performance expectations in genesis threading | Medium | Medium | Either wire `performance.num_threads` into pool selection or document current global-pool behavior. | Core protocol leads | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
+| Boundary drift between owner crates | Medium | High | Keep changes at stable facades and enforce full verify gate. | Platform leads | [crates/z00z_utils/README.md:20-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L20-L25) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
+| Placeholder networking overlay | High | Medium | Treat OnionNet as roadmap scope, not production capability. | Network leads | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
+| Hidden performance expectations in genesis threading | Medium | Medium | Either wire `performance.num_threads` into pool selection or document current global-pool behavior. | Core protocol leads | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
 
 ## 📈 Cost And Scaling Model
 
 | Cost driver | Scaling behavior | Trigger for next investment | Source |
 |---|---|---|---|
-| Genesis and proof-heavy CPU work | Scales with proof generation and verification volume. | When proof throughput becomes a release bottleneck. | [crates/z00z_core/src/genesis/mod.rs:83-89](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/mod.rs#L83-L89) |
-| Runtime publication and observation | Scales with planned batches and publication evidence. | When route, verdict, or observation stages dominate latency. | [crates/z00z_runtime/aggregators/README.md:11-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L11-L16) [crates/z00z_runtime/watchers/README.md:13-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L13-L16) |
+| Genesis and proof-heavy CPU work | Scales with proof generation and verification volume. | When proof throughput becomes a release bottleneck. | [crates/z00z_core/src/genesis/mod.rs:83-89](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/mod.rs#L83-L89) |
+| Runtime publication and observation | Scales with planned batches and publication evidence. | When route, verdict, or observation stages dominate latency. | [crates/z00z_runtime/aggregators/README.md:11-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L11-L16) [crates/z00z_runtime/watchers/README.md:13-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L13-L16) |
 
 ## 🗺️ Dependency Map
 
@@ -451,8 +451,8 @@ graph TB
 
 | Issue | Business impact | Effort to fix | Priority | Source |
 |---|---|---|---|---|
-| Unimplemented privacy-overlay seam | Delays network-mode roadmap promises. | Medium | High | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
-| Genesis threading config not visibly applied | Can create misleading operator expectations for bootstrap runs. | Small-to-medium | Medium | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) |
+| Unimplemented privacy-overlay seam | Delays network-mode roadmap promises. | Medium | High | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
+| Genesis threading config not visibly applied | Can create misleading operator expectations for bootstrap runs. | Small-to-medium | Medium | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) |
 
 ## ✅ Recommendations
 
@@ -470,11 +470,11 @@ flowchart TD
 
 ## 📖 References
 
-- [Cargo.toml:3-17](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L17)
-- [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221)
-- [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
-- [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29)
-- [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31)
+- [Cargo.toml:3-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L17)
+- [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221)
+- [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
+- [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29)
+- [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31)
 
 ## Related Pages
 
@@ -487,7 +487,7 @@ flowchart TD
 
 <doc title="Product Manager Guide" path="./onboarding/product-manager-guide.md">
 
-Z00Z is designed to handle several kinds of private digital objects, not just cash-like balances. The important product distinction is that some objects are spendable money, some are redeemable claims, and some are permissions that let a user perform specific actions. [crates/z00z_wallets/README.md:13-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L13-L25)
+Z00Z is designed to handle several kinds of private digital objects, not just cash-like balances. The important product distinction is that some objects are spendable money, some are redeemable claims, and some are permissions that let a user perform specific actions. [crates/z00z_wallets/README.md:13-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L13-L25)
 
 ## 🎯 User Journey Map
 
@@ -507,10 +507,10 @@ graph LR
 
 | Feature | Status | User-facing behavior | Limitations | Source |
 |---|---|---|---|---|
-| Private asset holding and transfer | Live | Users can hold and move asset-based value. | Cash lane is assets-only; not every object type is spendable. | [crates/z00z_wallets/README.md:16-17](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L17) [crates/z00z_wallets/README.md:38-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
-| Voucher flows | Live in scenario and wallet object model | Users can hold, accept, reject, transfer, redeem, refund, or let vouchers expire. | Voucher activity is not the same as cash balance. | [crates/z00z_simulator/README.md:69-73](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L69-L73) |
-| Permissioned rights | Live in object model | Users can hold authority objects that enable allowed actions. | Rights contribute zero spendable value. | [crates/z00z_wallets/README.md:18-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L18-L19) |
-| Privacy overlay networking | Planned | A future privacy transport mode is reserved. | The crate is currently a placeholder, not a complete product surface. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
+| Private asset holding and transfer | Live | Users can hold and move asset-based value. | Cash lane is assets-only; not every object type is spendable. | [crates/z00z_wallets/README.md:16-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L17) [crates/z00z_wallets/README.md:38-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
+| Voucher flows | Live in scenario and wallet object model | Users can hold, accept, reject, transfer, redeem, refund, or let vouchers expire. | Voucher activity is not the same as cash balance. | [crates/z00z_simulator/README.md:69-73](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L69-L73) |
+| Permissioned rights | Live in object model | Users can hold authority objects that enable allowed actions. | Rights contribute zero spendable value. | [crates/z00z_wallets/README.md:18-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L18-L19) |
+| Privacy overlay networking | Planned | A future privacy transport mode is reserved. | The crate is currently a placeholder, not a complete product surface. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
 
 ## 🧾 Data Model (Product View)
 
@@ -527,22 +527,22 @@ erDiagram
 
 | Flag or control | What it changes | Default meaning | Who should treat it carefully | Source |
 |---|---|---|---|---|
-| `wallet_debug_tools` | Enables debug-only plaintext wallet dump tooling. | Off in normal product flows. | Engineering only. | [crates/z00z_simulator/Cargo.toml:22-24](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L22-L24) [crates/z00z_wallets/Cargo.toml:185-187](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/Cargo.toml#L185-L187) |
-| `wasm` wallet build | Enables browser-facing wallet build checks. | Off unless the browser lane is being built. | Engineering and QA. | [crates/z00z_wallets/Cargo.toml:171-173](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/Cargo.toml#L171-L173) |
+| `wallet_debug_tools` | Enables debug-only plaintext wallet dump tooling. | Off in normal product flows. | Engineering only. | [crates/z00z_simulator/Cargo.toml:22-24](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L22-L24) [crates/z00z_wallets/Cargo.toml:185-187](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/Cargo.toml#L185-L187) |
+| `wasm` wallet build | Enables browser-facing wallet build checks. | Off unless the browser lane is being built. | Engineering and QA. | [crates/z00z_wallets/Cargo.toml:171-173](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/Cargo.toml#L171-L173) |
 
 ## ⏱️ Performance And Expectations
 
 | Operation | Expected behavior | Constraint | Source |
 |---|---|---|---|
-| Genesis bootstrap | Produces the initial object set and manifest. | Thread tuning is not visibly driven by the manifest field in the current orchestration path. | [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
-| Scenario evidence generation | Produces asset, voucher, right, wallet, validator, and watcher evidence files. | This is an integration harness, not a user-facing application shell. | [crates/z00z_simulator/README.md:75-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L92) |
+| Genesis bootstrap | Produces the initial object set and manifest. | Thread tuning is not visibly driven by the manifest field in the current orchestration path. | [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
+| Scenario evidence generation | Produces asset, voucher, right, wallet, validator, and watcher evidence files. | This is an integration harness, not a user-facing application shell. | [crates/z00z_simulator/README.md:75-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L92) |
 
 ## ⚠️ Known Limitations
 
 | Limitation | User impact | Workaround | Planned fix signal | Source |
 |---|---|---|---|---|
-| Rights and vouchers are not cash inputs | Users cannot spend those objects through cash-only asset flows. | Use typed object flows, not cash transfer paths. | None stated; current rule is explicit. | [crates/z00z_wallets/README.md:38-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
-| Privacy overlay is not yet live | Product cannot promise that network mode today. | Position it as roadmap only. | Placeholder namespace already reserved. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
+| Rights and vouchers are not cash inputs | Users cannot spend those objects through cash-only asset flows. | Use typed object flows, not cash transfer paths. | None stated; current rule is explicit. | [crates/z00z_wallets/README.md:38-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
+| Privacy overlay is not yet live | Product cannot promise that network mode today. | Position it as roadmap only. | Placeholder namespace already reserved. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
 
 ## 🔒 Data And Privacy
 
@@ -556,9 +556,9 @@ flowchart LR
 
 | Data type | Where it shows up | Retention or policy hint | Source |
 |---|---|---|---|
-| Owned objects | Wallet inventory and object RPC surfaces. | Unknown-policy objects stay quarantined instead of becoming spendable immediately. | [crates/z00z_wallets/README.md:20-21](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L20-L21) |
-| Settlement evidence | Storage roots, proofs, checkpoint artifacts. | Managed as storage-owned truth. | [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
-| Simulator release artifacts | Flow JSON files and summary docs. | Public evidence anchors are named explicitly. | [crates/z00z_simulator/README.md:75-89](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L89) |
+| Owned objects | Wallet inventory and object RPC surfaces. | Unknown-policy objects stay quarantined instead of becoming spendable immediately. | [crates/z00z_wallets/README.md:20-21](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L20-L21) |
+| Settlement evidence | Storage roots, proofs, checkpoint artifacts. | Managed as storage-owned truth. | [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
+| Simulator release artifacts | Flow JSON files and summary docs. | Public evidence anchors are named explicitly. | [crates/z00z_simulator/README.md:75-89](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L89) |
 
 ## 📚 Glossary
 
@@ -574,16 +574,16 @@ flowchart LR
 
 | Question | Answer | Source |
 |---|---|---|
-| Can users treat vouchers like money? | No. Voucher objects are separate from cash-only asset flows. | [crates/z00z_wallets/README.md:16-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L18) [crates/z00z_wallets/README.md:38-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
-| Is the privacy overlay already a product feature? | No. The repository reserves the namespace, but the overlay remains placeholder scope. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
-| Where does proof and publication evidence come from? | From storage, runtime, validator, watcher, and simulator artifact flows. | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_simulator/README.md:75-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L92) |
+| Can users treat vouchers like money? | No. Voucher objects are separate from cash-only asset flows. | [crates/z00z_wallets/README.md:16-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L18) [crates/z00z_wallets/README.md:38-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L38-L44) |
+| Is the privacy overlay already a product feature? | No. The repository reserves the namespace, but the overlay remains placeholder scope. | [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31) |
+| Where does proof and publication evidence come from? | From storage, runtime, validator, watcher, and simulator artifact flows. | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_simulator/README.md:75-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L92) |
 
 ## 📖 References
 
-- [crates/z00z_wallets/README.md:13-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L13-L44)
-- [crates/z00z_simulator/README.md:67-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L67-L92)
-- [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31)
-- [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121)
+- [crates/z00z_wallets/README.md:13-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L13-L44)
+- [crates/z00z_simulator/README.md:67-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L67-L92)
+- [crates/z00z_networks/onionnet/README.md:27-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L27-L31)
+- [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121)
 
 ## Related Pages
 
@@ -599,17 +599,17 @@ flowchart LR
 
 <doc title="System Overview" path="./02-architecture/system-overview.md">
 
-The architecture is intentionally layered around ownership, not around one universal service abstraction. `z00z_core` defines protocol objects, `z00z_crypto` and `z00z_utils` provide shared primitives, `z00z_wallets` and `z00z_storage` own durable user and settlement state, runtime crates process publication and verdicts, and `z00z_rollup_node` composes the live rollup-facing theorem path. [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) [crates/z00z_crypto/src/lib.rs:31-102](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L31-L102) [crates/z00z_utils/src/lib.rs:20-69](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69) [crates/z00z_rollup_node/src/lib.rs:33-45](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L33-L45)
+The architecture is intentionally layered around ownership, not around one universal service abstraction. `z00z_core` defines protocol objects, `z00z_crypto` and `z00z_utils` provide shared primitives, `z00z_wallets` and `z00z_storage` own durable user and settlement state, runtime crates process publication and verdicts, and `z00z_rollup_node` composes the live rollup-facing theorem path. [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) [crates/z00z_crypto/src/lib.rs:31-102](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L31-L102) [crates/z00z_utils/src/lib.rs:20-69](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69) [crates/z00z_rollup_node/src/lib.rs:33-45](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L33-L45)
 
 ## 🎯 At A Glance
 
 | Layer | Responsibility | Key file | Source |
 |---|---|---|---|
-| Protocol | Asset, genesis, policy, right, voucher contracts. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| Shared primitives | Crypto, codecs, config, I/O, logging, metrics, time, RNG. | `crates/z00z_crypto/src/lib.rs`, `crates/z00z_utils/src/lib.rs` | [crates/z00z_crypto/src/lib.rs:31-102](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L31-L102) [crates/z00z_utils/src/lib.rs:20-69](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69) |
-| User state | Wallet inventory, receiver and tx facades, RPC registration. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
-| Settlement and runtime | Storage truth, planning, validation, observation. | `crates/z00z_storage/src/settlement/mod.rs`, `crates/z00z_runtime/*/src/lib.rs` | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) |
-| Composition and harness | Rollup node and simulator. | `crates/z00z_rollup_node/src/lib.rs`, `crates/z00z_simulator/src/lib.rs` | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39) |
+| Protocol | Asset, genesis, policy, right, voucher contracts. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| Shared primitives | Crypto, codecs, config, I/O, logging, metrics, time, RNG. | `crates/z00z_crypto/src/lib.rs`, `crates/z00z_utils/src/lib.rs` | [crates/z00z_crypto/src/lib.rs:31-102](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L31-L102) [crates/z00z_utils/src/lib.rs:20-69](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69) |
+| User state | Wallet inventory, receiver and tx facades, RPC registration. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
+| Settlement and runtime | Storage truth, planning, validation, observation. | `crates/z00z_storage/src/settlement/mod.rs`, `crates/z00z_runtime/*/src/lib.rs` | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) |
+| Composition and harness | Rollup node and simulator. | `crates/z00z_rollup_node/src/lib.rs`, `crates/z00z_simulator/src/lib.rs` | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39) |
 
 ## 🧭 Layer Map
 
@@ -659,18 +659,18 @@ flowchart LR
 
 | Rule | How the code shows it | Source |
 |---|---|---|
-| Shared primitives are centralized | `z00z_utils` re-exports codec/config/io/logger/metrics/rng/time from one crate. | [crates/z00z_utils/src/lib.rs:20-69](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69) |
-| Crypto remains behind one facade | `z00z_crypto` re-exports the supported public crypto surface from its crate root. | [crates/z00z_crypto/src/lib.rs:53-155](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L53-L155) |
-| Wallet transport is distinct from overlay/network policy | `z00z_networks_rpc` limits itself to transport and dispatch; OnionNet is a separate placeholder boundary. | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) [crates/z00z_networks/onionnet/src/lib.rs:2-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L2-L18) |
-| Rollup node is a composition root, not a second protocol owner | `z00z_rollup_node` wires services and verifies a theorem bundle instead of minting new semantics. | [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165) |
+| Shared primitives are centralized | `z00z_utils` re-exports codec/config/io/logger/metrics/rng/time from one crate. | [crates/z00z_utils/src/lib.rs:20-69](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69) |
+| Crypto remains behind one facade | `z00z_crypto` re-exports the supported public crypto surface from its crate root. | [crates/z00z_crypto/src/lib.rs:53-155](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L53-L155) |
+| Wallet transport is distinct from overlay/network policy | `z00z_networks_rpc` limits itself to transport and dispatch; OnionNet is a separate placeholder boundary. | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) [crates/z00z_networks/onionnet/src/lib.rs:2-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L2-L18) |
+| Rollup node is a composition root, not a second protocol owner | `z00z_rollup_node` wires services and verifies a theorem bundle instead of minting new semantics. | [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165) |
 
 ## 📖 References
 
-- [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132)
-- [crates/z00z_crypto/src/lib.rs:31-155](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L31-L155)
-- [crates/z00z_utils/src/lib.rs:20-69](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69)
-- [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165)
-- [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39)
+- [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132)
+- [crates/z00z_crypto/src/lib.rs:31-155](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/src/lib.rs#L31-L155)
+- [crates/z00z_utils/src/lib.rs:20-69](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/src/lib.rs#L20-L69)
+- [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165)
+- [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39)
 
 ## Related Pages
 
@@ -684,16 +684,16 @@ flowchart LR
 
 <doc title="Crate Boundaries" path="./02-architecture/crate-boundaries.md">
 
-Z00Z’s most important architectural habit is that each crate says what it owns and what it must not absorb. The READMEs and crate roots are unusually explicit about these negative boundaries, so they are the right source for deciding whether a change belongs in an owner crate, a transport seam, or the simulator. [crates/z00z_utils/README.md:3-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) [crates/z00z_simulator/README.md:12-22](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22)
+Z00Z’s most important architectural habit is that each crate says what it owns and what it must not absorb. The READMEs and crate roots are unusually explicit about these negative boundaries, so they are the right source for deciding whether a change belongs in an owner crate, a transport seam, or the simulator. [crates/z00z_utils/README.md:3-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) [crates/z00z_simulator/README.md:12-22](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22)
 
 ## 🎯 At A Glance
 
 | Boundary owner | Owns | Refuses to own | Source |
 |---|---|---|---|
-| `z00z_utils` | Shared infrastructure primitives. | Product-domain behavior. | [crates/z00z_utils/README.md:3-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) |
-| `z00z_networks_rpc` | Transport dispatch and adaptation. | Peer identity, auth, retry, lifecycle policy. | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) |
-| `z00z_storage` | Settlement roots, proofs, and stores. | Generic backup ownership and public physical-root authority. | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
-| `z00z_simulator` | Cross-crate harness behavior and artifacts. | A second owner for wallet, storage, crypto, or network rules. | [crates/z00z_simulator/README.md:12-22](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22) |
+| `z00z_utils` | Shared infrastructure primitives. | Product-domain behavior. | [crates/z00z_utils/README.md:3-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) |
+| `z00z_networks_rpc` | Transport dispatch and adaptation. | Peer identity, auth, retry, lifecycle policy. | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) |
+| `z00z_storage` | Settlement roots, proofs, and stores. | Generic backup ownership and public physical-root authority. | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
+| `z00z_simulator` | Cross-crate harness behavior and artifacts. | A second owner for wallet, storage, crypto, or network rules. | [crates/z00z_simulator/README.md:12-22](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22) |
 
 ## 🧭 Ownership Decision Tree
 
@@ -740,17 +740,17 @@ sequenceDiagram
 
 | Seam | Why it exists | Practical implication | Source |
 |---|---|---|---|
-| `z00z_networks/onionnet` placeholder | Reserves the namespace and module layout before live overlay code lands. | New privacy-overlay work should fill reserved modules in place instead of inventing a new crate. | [crates/z00z_networks/onionnet/README.md:3-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L3-L31) |
-| `z00z_telemetry` thin facade | Holds one stable observability entrypoint without yet claiming richer behavior. | Observability code should point here, but domain semantics still belong elsewhere. | [crates/z00z_telemetry/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) |
-| `z00z_extensions` boundary | Preserves a space for repository-owned add-ons. | Extensions may compose owner APIs but must not fork ownership. | [crates/z00z_extensions/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_extensions/README.md#L3-L12) |
+| `z00z_networks/onionnet` placeholder | Reserves the namespace and module layout before live overlay code lands. | New privacy-overlay work should fill reserved modules in place instead of inventing a new crate. | [crates/z00z_networks/onionnet/README.md:3-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L3-L31) |
+| `z00z_telemetry` thin facade | Holds one stable observability entrypoint without yet claiming richer behavior. | Observability code should point here, but domain semantics still belong elsewhere. | [crates/z00z_telemetry/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) |
+| `z00z_extensions` boundary | Preserves a space for repository-owned add-ons. | Extensions may compose owner APIs but must not fork ownership. | [crates/z00z_extensions/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_extensions/README.md#L3-L12) |
 
 ## 📖 References
 
-- [crates/z00z_utils/README.md:3-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25)
-- [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19)
-- [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121)
-- [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29)
-- [crates/z00z_simulator/README.md:12-30](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L30)
+- [crates/z00z_utils/README.md:3-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25)
+- [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19)
+- [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121)
+- [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29)
+- [crates/z00z_simulator/README.md:12-30](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L30)
 
 ## Related Pages
 
@@ -767,17 +767,17 @@ sequenceDiagram
 
 <doc title="Workspace Overview" path="./01-getting-started/workspace-overview.md">
 
-The first useful fact about Z00Z is that the repository is not a single executable with helper folders around it. It is a Cargo workspace whose root manifest, crate READMEs, and crate roots all treat ownership boundaries as the primary architectural control. [Cargo.toml:1-76](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L1-L76) [crates/z00z_core/README.md:3-17](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L17) [crates/z00z_simulator/README.md:6-30](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30)
+The first useful fact about Z00Z is that the repository is not a single executable with helper folders around it. It is a Cargo workspace whose root manifest, crate READMEs, and crate roots all treat ownership boundaries as the primary architectural control. [Cargo.toml:1-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L1-L76) [crates/z00z_core/README.md:3-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L17) [crates/z00z_simulator/README.md:6-30](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30)
 
 ## 🎯 At A Glance
 
 | Component | Responsibility | Key file | Source |
 |---|---|---|---|
-| Workspace root | Declares members, default members, and workspace-wide package metadata. | `Cargo.toml` | [Cargo.toml:1-76](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L1-L76) |
-| Protocol owner | Exposes assets, genesis, policies, rights, and vouchers. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| Wallet owner | Publishes the stable wallet, receiver, stealth, and tx entrypoints. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
-| Storage owner | Publishes settlement, checkpoint, snapshot, and backend seams. | `crates/z00z_storage/src/lib.rs` | [crates/z00z_storage/src/lib.rs:4-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/lib.rs#L4-L15) |
-| Integration harness | Runs repository scenarios through stable facades. | `crates/z00z_simulator/src/lib.rs` | [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39) |
+| Workspace root | Declares members, default members, and workspace-wide package metadata. | `Cargo.toml` | [Cargo.toml:1-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L1-L76) |
+| Protocol owner | Exposes assets, genesis, policies, rights, and vouchers. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| Wallet owner | Publishes the stable wallet, receiver, stealth, and tx entrypoints. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
+| Storage owner | Publishes settlement, checkpoint, snapshot, and backend seams. | `crates/z00z_storage/src/lib.rs` | [crates/z00z_storage/src/lib.rs:4-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/lib.rs#L4-L15) |
+| Integration harness | Runs repository scenarios through stable facades. | `crates/z00z_simulator/src/lib.rs` | [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39) |
 
 ## 🧭 Workspace Shape
 
@@ -827,28 +827,28 @@ sequenceDiagram
 
 | Family | Crates | Why they are separate | Source |
 |---|---|---|---|
-| Domain core | `z00z_core` | Keeps assets, genesis, policies, rights, and vouchers behind one protocol owner. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| Shared primitives | `z00z_crypto`, `z00z_utils` | Crypto and cross-cutting infrastructure stay reusable and audited once. | [crates/z00z_crypto/README.md:7-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L7-L25) [crates/z00z_utils/README.md:3-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) |
-| User and transport edges | `z00z_wallets`, `z00z_networks/rpc`, `z00z_networks/onionnet` | Wallet state, RPC transport, and privacy-overlay concerns are intentionally not collapsed. | [crates/z00z_wallets/README.md:47-55](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L47-L55) [crates/z00z_networks/rpc/README.md:3-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L3-L18) [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31) |
-| State and publication | `z00z_storage`, `z00z_runtime/aggregators`, `validators`, `watchers`, `z00z_rollup_node` | Storage owns settlement truth; runtime plans; validators and watchers consume published state; rollup node composes. | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_runtime/aggregators/README.md:3-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L3-L16) [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
-| Harness and support | `z00z_simulator`, `z00z_telemetry`, `z00z_extensions` | Scenario execution, telemetry entrypoints, and repository-owned add-ons stay outside the domain owners. | [crates/z00z_simulator/README.md:6-30](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30) [crates/z00z_telemetry/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) [crates/z00z_extensions/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_extensions/README.md#L3-L12) |
+| Domain core | `z00z_core` | Keeps assets, genesis, policies, rights, and vouchers behind one protocol owner. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| Shared primitives | `z00z_crypto`, `z00z_utils` | Crypto and cross-cutting infrastructure stay reusable and audited once. | [crates/z00z_crypto/README.md:7-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L7-L25) [crates/z00z_utils/README.md:3-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) |
+| User and transport edges | `z00z_wallets`, `z00z_networks/rpc`, `z00z_networks/onionnet` | Wallet state, RPC transport, and privacy-overlay concerns are intentionally not collapsed. | [crates/z00z_wallets/README.md:47-55](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L47-L55) [crates/z00z_networks/rpc/README.md:3-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L3-L18) [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31) |
+| State and publication | `z00z_storage`, `z00z_runtime/aggregators`, `validators`, `watchers`, `z00z_rollup_node` | Storage owns settlement truth; runtime plans; validators and watchers consume published state; rollup node composes. | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_runtime/aggregators/README.md:3-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L3-L16) [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
+| Harness and support | `z00z_simulator`, `z00z_telemetry`, `z00z_extensions` | Scenario execution, telemetry entrypoints, and repository-owned add-ons stay outside the domain owners. | [crates/z00z_simulator/README.md:6-30](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30) [crates/z00z_telemetry/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) [crates/z00z_extensions/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_extensions/README.md#L3-L12) |
 
 ## 🔑 Reading Order
 
 | Step | Read this | Reason | Source |
 |---|---|---|---|
-| 1 | Root `Cargo.toml` | Learn the live workspace surface. | [Cargo.toml:3-34](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
-| 2 | Owner crate README | Understand declared boundaries before reading internals. | [crates/z00z_core/README.md:3-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36) [crates/z00z_wallets/README.md:171-183](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L171-L183) |
-| 3 | `src/lib.rs` facade | See the stable exported surface. | [crates/z00z_core/src/lib.rs:112-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L112-L132) [crates/z00z_wallets/src/lib.rs:120-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L120-L156) |
-| 4 | Integration harness docs | See how crates are supposed to compose. | [crates/z00z_simulator/README.md:46-60](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L46-L60) |
+| 1 | Root `Cargo.toml` | Learn the live workspace surface. | [Cargo.toml:3-34](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
+| 2 | Owner crate README | Understand declared boundaries before reading internals. | [crates/z00z_core/README.md:3-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36) [crates/z00z_wallets/README.md:171-183](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L171-L183) |
+| 3 | `src/lib.rs` facade | See the stable exported surface. | [crates/z00z_core/src/lib.rs:112-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L112-L132) [crates/z00z_wallets/src/lib.rs:120-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L120-L156) |
+| 4 | Integration harness docs | See how crates are supposed to compose. | [crates/z00z_simulator/README.md:46-60](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L46-L60) |
 
 ## 📖 References
 
-- [Cargo.toml:1-76](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L1-L76)
-- [crates/z00z_core/README.md:3-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36)
-- [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156)
-- [crates/z00z_storage/src/lib.rs:4-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/lib.rs#L4-L15)
-- [crates/z00z_simulator/README.md:6-30](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30)
+- [Cargo.toml:1-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L1-L76)
+- [crates/z00z_core/README.md:3-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36)
+- [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156)
+- [crates/z00z_storage/src/lib.rs:4-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/lib.rs#L4-L15)
+- [crates/z00z_simulator/README.md:6-30](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30)
 
 ## Related Pages
 
@@ -862,16 +862,16 @@ sequenceDiagram
 
 <doc title="Setup And Verify" path="./01-getting-started/setup-and-verify.md">
 
-Z00Z already encodes its preferred verification path in repository-local instructions and scripts. The fastest way to avoid drift is to follow those exact commands instead of inventing a custom per-crate workflow. [.github/copilot-instructions.md:141-149](https://github.com/vasja34/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
+Z00Z already encodes its preferred verification path in repository-local instructions and scripts. The fastest way to avoid drift is to follow those exact commands instead of inventing a custom per-crate workflow. [.github/copilot-instructions.md:141-149](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
 
 ## 🎯 At A Glance
 
 | Component | Responsibility | Key file | Source |
 |---|---|---|---|
-| Workspace verify gate | Runs fmt, clippy, tests, docs, benches, runnable targets, and optional heavy stages. | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
-| Crypto package verification | Publishes crate-local check, clippy, and test commands. | `crates/z00z_crypto/README.md` | [crates/z00z_crypto/README.md:28-35](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L28-L35) |
-| Wallet WASM lane | Documents native and `wasm32` checks for wallet work. | `crates/z00z_wallets/README.md` | [crates/z00z_wallets/README.md:113-149](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L113-L149) |
-| Simulator entrypoint | Exposes the scenario runner binary. | `crates/z00z_simulator/Cargo.toml` | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) |
+| Workspace verify gate | Runs fmt, clippy, tests, docs, benches, runnable targets, and optional heavy stages. | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
+| Crypto package verification | Publishes crate-local check, clippy, and test commands. | `crates/z00z_crypto/README.md` | [crates/z00z_crypto/README.md:28-35](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L28-L35) |
+| Wallet WASM lane | Documents native and `wasm32` checks for wallet work. | `crates/z00z_wallets/README.md` | [crates/z00z_wallets/README.md:113-149](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L113-L149) |
+| Simulator entrypoint | Exposes the scenario runner binary. | `crates/z00z_simulator/Cargo.toml` | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) |
 
 ## 🧭 Verify Flow
 
@@ -914,37 +914,37 @@ graph LR
 
 | Scope | Command | Why this is canonical | Source |
 |---|---|---|---|
-| Formatting | `cargo fmt --check` | First stage in the repository verify gate. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
-| Lint | `cargo clippy --workspace --release --all-targets --all-features -- -D warnings` | Matches the gate exactly, including all targets and release mode. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
-| Workspace tests | `cargo test --all` | Repository-local instructions require all tests to pass before completion. | [.github/copilot-instructions.md:141-149](https://github.com/vasja34/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) |
-| Release-style gate | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | Adds docs, benches, runnable targets, and slow-test collection. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-83](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L83) |
-| Max-safe sweep | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh --max-safe-run` | Enables the optional max-safe stage that reuses prebuilt artifacts. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:66-72](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L66-L72) |
+| Formatting | `cargo fmt --check` | First stage in the repository verify gate. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
+| Lint | `cargo clippy --workspace --release --all-targets --all-features -- -D warnings` | Matches the gate exactly, including all targets and release mode. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
+| Workspace tests | `cargo test --all` | Repository-local instructions require all tests to pass before completion. | [.github/copilot-instructions.md:141-149](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) |
+| Release-style gate | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | Adds docs, benches, runnable targets, and slow-test collection. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-83](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L83) |
+| Max-safe sweep | `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh --max-safe-run` | Enables the optional max-safe stage that reuses prebuilt artifacts. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:66-72](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L66-L72) |
 
 ## 🔧 Crate-Specific Shortcuts
 
 | Crate | Useful targeted command | When to use it | Source |
 |---|---|---|---|
-| `z00z_crypto` | `cargo test --package z00z_crypto --release --features test-params-fast` | Fastest focused pass when touching crypto internals. | [crates/z00z_crypto/README.md:28-35](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L28-L35) |
-| `z00z_wallets` | `cargo check --target wasm32-unknown-unknown --features wasm -p z00z_wallets` | Validate the wallet WASM lane after wallet changes. | [crates/z00z_wallets/README.md:117-127](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L117-L127) |
-| `z00z_simulator` | `cargo run --package z00z_simulator --bin scenario_1 -- --help` | Confirm the harness binary resolves and its CLI wiring is intact. | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) [crates/z00z_simulator/bin/scenario_1.rs:71-73](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L71-L73) |
-| `z00z_core` | `cargo test --package z00z_core --release --all-features` | Focus on protocol, genesis, and asset changes. | [crates/z00z_core/Cargo.toml:43-69](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/Cargo.toml#L43-L69) |
+| `z00z_crypto` | `cargo test --package z00z_crypto --release --features test-params-fast` | Fastest focused pass when touching crypto internals. | [crates/z00z_crypto/README.md:28-35](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L28-L35) |
+| `z00z_wallets` | `cargo check --target wasm32-unknown-unknown --features wasm -p z00z_wallets` | Validate the wallet WASM lane after wallet changes. | [crates/z00z_wallets/README.md:117-127](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L117-L127) |
+| `z00z_simulator` | `cargo run --package z00z_simulator --bin scenario_1 -- --help` | Confirm the harness binary resolves and its CLI wiring is intact. | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) [crates/z00z_simulator/bin/scenario_1.rs:71-73](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L71-L73) |
+| `z00z_core` | `cargo test --package z00z_core --release --all-features` | Focus on protocol, genesis, and asset changes. | [crates/z00z_core/Cargo.toml:43-69](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/Cargo.toml#L43-L69) |
 
 ## 🛑 What The Gate Actually Adds
 
 | Gate stage beyond ordinary `cargo test` | Why it matters | Source |
 |---|---|---|
-| Doc tests and `cargo doc`-style surface checks | Keeps public API documentation from silently drifting. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:76-79](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L76-L79) |
-| `cargo bench --no-run` | Detects bench compile regressions even when no benchmark is executed. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:78-80](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L78-L80) |
-| Runnable target sweep | Checks whitelisted bins/examples still launch. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:79-83](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L79-L83) |
-| Long-test report | Emits a persistent report for suites that exceed the configured threshold. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:9-13](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L9-L13) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:173-207](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L173-L207) |
+| Doc tests and `cargo doc`-style surface checks | Keeps public API documentation from silently drifting. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:76-79](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L76-L79) |
+| `cargo bench --no-run` | Detects bench compile regressions even when no benchmark is executed. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:78-80](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L78-L80) |
+| Runnable target sweep | Checks whitelisted bins/examples still launch. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:79-83](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L79-L83) |
+| Long-test report | Emits a persistent report for suites that exceed the configured threshold. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:9-13](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L9-L13) [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:173-207](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L173-L207) |
 
 ## 📖 References
 
-- [.github/copilot-instructions.md:141-149](https://github.com/vasja34/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149)
-- [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
-- [crates/z00z_crypto/README.md:28-35](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L28-L35)
-- [crates/z00z_wallets/README.md:113-149](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L113-L149)
-- [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36)
+- [.github/copilot-instructions.md:141-149](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149)
+- [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
+- [crates/z00z_crypto/README.md:28-35](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L28-L35)
+- [crates/z00z_wallets/README.md:113-149](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L113-L149)
+- [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36)
 
 ## Related Pages
 
@@ -958,17 +958,17 @@ graph LR
 
 <doc title="Workspace Map" path="./01-getting-started/workspace-map.md">
 
-This page is the practical inventory: which crate owns what, which crates are intentionally thin, and where a contributor should look before opening implementation files. It follows crate READMEs and root facades instead of inferring ownership from directory names alone. [crates/z00z_core/README.md:3-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36) [crates/z00z_wallets/README.md:171-183](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L171-L183) [crates/z00z_utils/README.md:3-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25)
+This page is the practical inventory: which crate owns what, which crates are intentionally thin, and where a contributor should look before opening implementation files. It follows crate READMEs and root facades instead of inferring ownership from directory names alone. [crates/z00z_core/README.md:3-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36) [crates/z00z_wallets/README.md:171-183](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L171-L183) [crates/z00z_utils/README.md:3-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25)
 
 ## 🎯 At A Glance
 
 | Crate | Role | Key file | Source |
 |---|---|---|---|
-| `z00z_core` | Protocol objects and genesis. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| `z00z_wallets` | Wallet state, object inventory, RPC, receiver, tx. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
-| `z00z_storage` | Settlement truth and proof contracts. | `crates/z00z_storage/src/settlement/mod.rs` | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
-| `z00z_simulator` | Canonical cross-crate scenario harness. | `crates/z00z_simulator/src/scenario_1/mod.rs` | [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37) |
-| Runtime crates | Planning, validation, observation. | `crates/z00z_runtime/*/src/lib.rs` | [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) [crates/z00z_runtime/validators/src/lib.rs:14-28](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L14-L28) [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) |
+| `z00z_core` | Protocol objects and genesis. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| `z00z_wallets` | Wallet state, object inventory, RPC, receiver, tx. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
+| `z00z_storage` | Settlement truth and proof contracts. | `crates/z00z_storage/src/settlement/mod.rs` | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
+| `z00z_simulator` | Canonical cross-crate scenario harness. | `crates/z00z_simulator/src/scenario_1/mod.rs` | [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37) |
+| Runtime crates | Planning, validation, observation. | `crates/z00z_runtime/*/src/lib.rs` | [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) [crates/z00z_runtime/validators/src/lib.rs:14-28](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L14-L28) [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) |
 
 ## 🧭 Crate Inventory
 
@@ -1019,30 +1019,30 @@ sequenceDiagram
 
 | Crate | What it owns | What it explicitly does not own | Source |
 |---|---|---|---|
-| `z00z_core` | Assets, genesis, actions, policies, rights, vouchers. | It does not treat `assets_config.yaml` as a second genesis authority. | [crates/z00z_core/README.md:22-43](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) |
-| `z00z_wallets` | Wallet object inventory, services, receiver, tx, RPC, persistence. | It does not overload `wallet.asset.*` with voucher/right semantics. | [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) |
-| `z00z_storage` | Settlement paths, roots, stores, proof envelopes, checkpoint-facing roots. | It does not collapse checkpoint/snapshot/serialization into one generic backup layer. | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) |
-| `z00z_runtime/aggregators` | Planner, placement, publication, recovery, distributed scheduler. | It does not own settlement semantics, proof verification, or rollup orchestration. | [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) |
-| `z00z_runtime/validators` | Checkpoint, spend, tx/claim verification, verdicts. | It does not own planner admission or watcher projection. | [crates/z00z_runtime/validators/README.md:13-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/validators/README.md#L13-L18) |
-| `z00z_runtime/watchers` | Observation snapshots, alerts, publication and provider health evidence. | It does not create semantic truth beside validators and storage. | [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16) |
-| `z00z_rollup_node` | Composition root for rollup-mode services and settlement theorem verification. | It does not move planner authority out of runtime or storage truth out of storage. | [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
-| `z00z_networks_rpc` | Request dispatch and transport adaptation. | It does not own peer identity, auth, retry, or connection lifecycle. | [crates/z00z_networks/rpc/README.md:5-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L5-L18) |
-| `z00z_networks/onionnet` | Reserved privacy-overlay namespace. | It is not an RPC alias or separate application service. | [crates/z00z_networks/onionnet/README.md:3-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L3-L25) |
+| `z00z_core` | Assets, genesis, actions, policies, rights, vouchers. | It does not treat `assets_config.yaml` as a second genesis authority. | [crates/z00z_core/README.md:22-43](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) |
+| `z00z_wallets` | Wallet object inventory, services, receiver, tx, RPC, persistence. | It does not overload `wallet.asset.*` with voucher/right semantics. | [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) |
+| `z00z_storage` | Settlement paths, roots, stores, proof envelopes, checkpoint-facing roots. | It does not collapse checkpoint/snapshot/serialization into one generic backup layer. | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) |
+| `z00z_runtime/aggregators` | Planner, placement, publication, recovery, distributed scheduler. | It does not own settlement semantics, proof verification, or rollup orchestration. | [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) |
+| `z00z_runtime/validators` | Checkpoint, spend, tx/claim verification, verdicts. | It does not own planner admission or watcher projection. | [crates/z00z_runtime/validators/README.md:13-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/validators/README.md#L13-L18) |
+| `z00z_runtime/watchers` | Observation snapshots, alerts, publication and provider health evidence. | It does not create semantic truth beside validators and storage. | [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16) |
+| `z00z_rollup_node` | Composition root for rollup-mode services and settlement theorem verification. | It does not move planner authority out of runtime or storage truth out of storage. | [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
+| `z00z_networks_rpc` | Request dispatch and transport adaptation. | It does not own peer identity, auth, retry, or connection lifecycle. | [crates/z00z_networks/rpc/README.md:5-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L5-L18) |
+| `z00z_networks/onionnet` | Reserved privacy-overlay namespace. | It is not an RPC alias or separate application service. | [crates/z00z_networks/onionnet/README.md:3-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L3-L25) |
 
 ## 🔑 Thin But Important Crates
 
 | Crate | Why it stays thin | Source |
 |---|---|---|
-| `z00z_telemetry` | Provides one stable observability entrypoint without yet claiming domain behavior. | [crates/z00z_telemetry/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) [crates/z00z_telemetry/src/lib.rs:1-2](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/src/lib.rs#L1-L2) |
-| `z00z_extensions` | Reserves an add-on boundary without stealing ownership from core crates. | [crates/z00z_extensions/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_extensions/README.md#L3-L12) [crates/z00z_extensions/Cargo.toml:2-8](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_extensions/Cargo.toml#L2-L8) |
+| `z00z_telemetry` | Provides one stable observability entrypoint without yet claiming domain behavior. | [crates/z00z_telemetry/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) [crates/z00z_telemetry/src/lib.rs:1-2](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/src/lib.rs#L1-L2) |
+| `z00z_extensions` | Reserves an add-on boundary without stealing ownership from core crates. | [crates/z00z_extensions/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_extensions/README.md#L3-L12) [crates/z00z_extensions/Cargo.toml:2-8](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_extensions/Cargo.toml#L2-L8) |
 
 ## 📖 References
 
-- [crates/z00z_core/README.md:3-43](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L43)
-- [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
-- [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18)
-- [crates/z00z_runtime/aggregators/README.md:3-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L3-L29)
-- [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
+- [crates/z00z_core/README.md:3-43](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L43)
+- [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
+- [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18)
+- [crates/z00z_runtime/aggregators/README.md:3-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L3-L29)
+- [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
 
 ## Related Pages
 
@@ -1059,17 +1059,17 @@ sequenceDiagram
 
 <doc title="Object Model And Genesis" path="./03-core-protocol/object-model-and-genesis.md">
 
-The protocol layer treats genesis as the canonical bootstrap authority for assets, rights, policies, and vouchers, then exports a derived settlement corpus and manifest from that one source of truth. The repo documentation is explicit that registry YAML is secondary data, not a competing genesis authority. [crates/z00z_core/README.md:22-43](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) [crates/z00z_core/src/lib.rs:115-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L115-L132)
+The protocol layer treats genesis as the canonical bootstrap authority for assets, rights, policies, and vouchers, then exports a derived settlement corpus and manifest from that one source of truth. The repo documentation is explicit that registry YAML is secondary data, not a competing genesis authority. [crates/z00z_core/README.md:22-43](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43) [crates/z00z_core/src/lib.rs:115-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L115-L132)
 
 ## 🎯 At A Glance
 
 | Component | Responsibility | Key file | Source |
 |---|---|---|---|
-| Stable protocol facade | Re-exports assets, policies, rights, vouchers, and `ChainType`. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:115-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L115-L132) |
-| Genesis facade | Re-exports the generation, digest, and manifest surfaces. | `crates/z00z_core/src/genesis/mod.rs` | [crates/z00z_core/src/genesis/mod.rs:189-212](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/mod.rs#L189-L212) |
-| Typed config manifest | Loads assets, rights, policies, vouchers, outputs, and performance knobs from YAML. | `crates/z00z_core/src/genesis/genesis_config.rs` | [crates/z00z_core/src/genesis/genesis_config.rs:49-61](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L49-L61) |
-| Orchestrator | Creates definitions, generates the settlement corpus, verifies proofs, and exports artifacts. | `crates/z00z_core/src/genesis/genesis_run.rs` | [crates/z00z_core/src/genesis/genesis_run.rs:2-228](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L2-L228) |
-| Voucher bootstrap shape | Validates manifest-time voucher entries, then materializes runtime-ready configs after policy resolution. | `crates/z00z_core/src/vauchers/voucher_bootstrap.rs` | [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:10-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L10-L92) |
+| Stable protocol facade | Re-exports assets, policies, rights, vouchers, and `ChainType`. | `crates/z00z_core/src/lib.rs` | [crates/z00z_core/src/lib.rs:115-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L115-L132) |
+| Genesis facade | Re-exports the generation, digest, and manifest surfaces. | `crates/z00z_core/src/genesis/mod.rs` | [crates/z00z_core/src/genesis/mod.rs:189-212](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/mod.rs#L189-L212) |
+| Typed config manifest | Loads assets, rights, policies, vouchers, outputs, and performance knobs from YAML. | `crates/z00z_core/src/genesis/genesis_config.rs` | [crates/z00z_core/src/genesis/genesis_config.rs:49-61](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L49-L61) |
+| Orchestrator | Creates definitions, generates the settlement corpus, verifies proofs, and exports artifacts. | `crates/z00z_core/src/genesis/genesis_run.rs` | [crates/z00z_core/src/genesis/genesis_run.rs:2-228](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L2-L228) |
+| Voucher bootstrap shape | Validates manifest-time voucher entries, then materializes runtime-ready configs after policy resolution. | `crates/z00z_core/src/vauchers/voucher_bootstrap.rs` | [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:10-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L10-L92) |
 
 ## 🧭 Bootstrap Flow
 
@@ -1113,26 +1113,26 @@ flowchart LR
 
 | Family | Where it is declared | What genesis does with it | Source |
 |---|---|---|---|
-| Assets | `z00z_core::assets` and `AssetConfigEntry` | Builds definitions first, then generates asset leaves and proofs. | [crates/z00z_core/src/lib.rs:116-120](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L116-L120) [crates/z00z_core/src/genesis/genesis_run.rs:26-38](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L26-L38) |
-| Rights | `RightsConfigEntry` in the manifest | Feeds the settlement corpus and later rights export plus manifest counts. | [crates/z00z_core/src/genesis/genesis_config.rs:53-60](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L53-L60) [crates/z00z_core/src/genesis/genesis_run.rs:72-82](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L72-L82) |
-| Policies | `PolicyConfigEntryV1` and generated records | Derives policy/action pools before voucher and right materialization. | [crates/z00z_core/src/genesis/genesis_config.rs:55-58](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L55-L58) [crates/z00z_core/src/genesis/genesis_run.rs:69-71](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L69-L71) |
-| Vouchers | `VoucherBootstrapEntryV1` bootstrap entries | Validates a manifest-time entry, then resolves it into a concrete voucher config. | [crates/z00z_core/src/genesis/genesis_config.rs:57-60](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L57-L60) [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:47-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L47-L92) |
+| Assets | `z00z_core::assets` and `AssetConfigEntry` | Builds definitions first, then generates asset leaves and proofs. | [crates/z00z_core/src/lib.rs:116-120](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L116-L120) [crates/z00z_core/src/genesis/genesis_run.rs:26-38](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L26-L38) |
+| Rights | `RightsConfigEntry` in the manifest | Feeds the settlement corpus and later rights export plus manifest counts. | [crates/z00z_core/src/genesis/genesis_config.rs:53-60](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L53-L60) [crates/z00z_core/src/genesis/genesis_run.rs:72-82](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L72-L82) |
+| Policies | `PolicyConfigEntryV1` and generated records | Derives policy/action pools before voucher and right materialization. | [crates/z00z_core/src/genesis/genesis_config.rs:55-58](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L55-L58) [crates/z00z_core/src/genesis/genesis_run.rs:69-71](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L69-L71) |
+| Vouchers | `VoucherBootstrapEntryV1` bootstrap entries | Validates a manifest-time entry, then resolves it into a concrete voucher config. | [crates/z00z_core/src/genesis/genesis_config.rs:57-60](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L57-L60) [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:47-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L47-L92) |
 
 ## 🔑 Current-State Caveats
 
 | Topic | What the code currently does | Source |
 |---|---|---|
-| `performance.num_threads` | The manifest parses and validates `performance.num_threads`, including rejecting `0`, but the visible orchestration path logs `rayon::current_num_threads()` and does not build a dedicated Rayon pool from that field. Effective thread count therefore comes from the global Rayon configuration visible to the process. | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) [crates/z00z_core/src/genesis/genesis_config_validate.rs:126-133](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config_validate.rs#L126-L133) [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
-| Manifest path | `genesis_settlement_manifest.json` is written into the timestamped `output_dir` returned from `create_timestamped_output_dir(...)`, and that directory is derived from `outputs.assets_export_path`. | [crates/z00z_core/src/genesis/genesis_run.rs:14-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L14-L16) [crates/z00z_core/src/genesis/genesis_settlement_manifest.rs:10](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_settlement_manifest.rs#L10-L10) [crates/z00z_core/src/genesis/genesis_settlement_manifest.rs:487-493](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_settlement_manifest.rs#L487-L493) |
-| `genesis_output.rs` shim | The file is intentionally thin: it keeps the timestamp helper but then re-exports `genesis_output_support.rs`, while `genesis.rs` still includes `genesis_output.rs` as part of the canonical `genesis` module surface. | [crates/z00z_core/src/genesis/genesis.rs:49-53](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis.rs#L49-L53) [crates/z00z_core/src/genesis/genesis_output.rs:1-55](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_output.rs#L1-L55) |
+| `performance.num_threads` | The manifest parses and validates `performance.num_threads`, including rejecting `0`, but the visible orchestration path logs `rayon::current_num_threads()` and does not build a dedicated Rayon pool from that field. Effective thread count therefore comes from the global Rayon configuration visible to the process. | [crates/z00z_core/src/genesis/genesis_config.rs:205-221](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L205-L221) [crates/z00z_core/src/genesis/genesis_config_validate.rs:126-133](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config_validate.rs#L126-L133) [crates/z00z_core/src/genesis/genesis_run.rs:17-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L17-L25) |
+| Manifest path | `genesis_settlement_manifest.json` is written into the timestamped `output_dir` returned from `create_timestamped_output_dir(...)`, and that directory is derived from `outputs.assets_export_path`. | [crates/z00z_core/src/genesis/genesis_run.rs:14-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L14-L16) [crates/z00z_core/src/genesis/genesis_settlement_manifest.rs:10](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_settlement_manifest.rs#L10-L10) [crates/z00z_core/src/genesis/genesis_settlement_manifest.rs:487-493](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_settlement_manifest.rs#L487-L493) |
+| `genesis_output.rs` shim | The file is intentionally thin: it keeps the timestamp helper but then re-exports `genesis_output_support.rs`, while `genesis.rs` still includes `genesis_output.rs` as part of the canonical `genesis` module surface. | [crates/z00z_core/src/genesis/genesis.rs:49-53](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis.rs#L49-L53) [crates/z00z_core/src/genesis/genesis_output.rs:1-55](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_output.rs#L1-L55) |
 
 ## 📖 References
 
-- [crates/z00z_core/README.md:22-43](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43)
-- [crates/z00z_core/src/genesis/mod.rs:189-212](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/mod.rs#L189-L212)
-- [crates/z00z_core/src/genesis/genesis_config.rs:49-61](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L49-L61)
-- [crates/z00z_core/src/genesis/genesis_run.rs:2-228](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L2-L228)
-- [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:10-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L10-L92)
+- [crates/z00z_core/README.md:22-43](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L22-L43)
+- [crates/z00z_core/src/genesis/mod.rs:189-212](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/mod.rs#L189-L212)
+- [crates/z00z_core/src/genesis/genesis_config.rs:49-61](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_config.rs#L49-L61)
+- [crates/z00z_core/src/genesis/genesis_run.rs:2-228](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/genesis/genesis_run.rs#L2-L228)
+- [crates/z00z_core/src/vauchers/voucher_bootstrap.rs:10-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/vauchers/voucher_bootstrap.rs#L10-L92)
 
 ## Related Pages
 
@@ -1146,16 +1146,16 @@ flowchart LR
 
 <doc title="Wallet Architecture" path="./04-wallet-and-rpc/wallet-architecture.md">
 
-The wallet crate is not an asset-only balance engine anymore. Its documented public model is a typed object inventory in which assets remain spendable cash, vouchers are conditional claims, and rights are authority inventory with zero spendable value. [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
+The wallet crate is not an asset-only balance engine anymore. Its documented public model is a typed object inventory in which assets remain spendable cash, vouchers are conditional claims, and rights are authority inventory with zero spendable value. [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
 
 ## 🎯 At A Glance
 
 | Component | Responsibility | Key file | Source |
 |---|---|---|---|
-| Wallet root facade | Re-exports stealth, wallet errors, services, receiver, and tx surfaces. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
-| Services facade | Publishes orchestration boundaries like `WalletService` and `AppService`. | `crates/z00z_wallets/src/services/mod.rs` | [crates/z00z_wallets/src/services/mod.rs:1-24](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/services/mod.rs#L1-L24) |
-| RPC surface | Groups method modules and registration helpers for wallet/app dispatchers. | `crates/z00z_wallets/src/rpc/mod.rs` | [crates/z00z_wallets/src/rpc/mod.rs:24-91](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/rpc/mod.rs#L24-L91) |
-| Transport seam | Supplies transport-only dispatch and local in-process testing helpers. | `crates/z00z_networks/rpc/src/lib.rs` | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) |
+| Wallet root facade | Re-exports stealth, wallet errors, services, receiver, and tx surfaces. | `crates/z00z_wallets/src/lib.rs` | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
+| Services facade | Publishes orchestration boundaries like `WalletService` and `AppService`. | `crates/z00z_wallets/src/services/mod.rs` | [crates/z00z_wallets/src/services/mod.rs:1-24](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/services/mod.rs#L1-L24) |
+| RPC surface | Groups method modules and registration helpers for wallet/app dispatchers. | `crates/z00z_wallets/src/rpc/mod.rs` | [crates/z00z_wallets/src/rpc/mod.rs:24-91](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/rpc/mod.rs#L24-L91) |
+| Transport seam | Supplies transport-only dispatch and local in-process testing helpers. | `crates/z00z_networks/rpc/src/lib.rs` | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) |
 
 ## 🧭 Wallet Surface
 
@@ -1200,27 +1200,27 @@ flowchart LR
 
 | Object family | Wallet meaning | Allowed public lane | Source |
 |---|---|---|---|
-| Assets | Spendable value. | `wallet.asset.*` and `wallet.object.*` projections. | [crates/z00z_wallets/README.md:16-24](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L24) |
-| Vouchers | Conditional claims with explicit lifecycle and redemption paths. | `wallet.object.*` only. | [crates/z00z_wallets/README.md:16-24](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L24) |
-| Rights | Authority inventory contributing zero to spendable balance. | `wallet.object.*` only. | [crates/z00z_wallets/README.md:18-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L18-L25) |
-| Unknown-policy objects | Durable quarantine until policy descriptors are accepted. | Quarantine, not spendable balance. | [crates/z00z_wallets/README.md:20-21](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L20-L21) [crates/z00z_wallets/README.md:40-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L40-L44) |
+| Assets | Spendable value. | `wallet.asset.*` and `wallet.object.*` projections. | [crates/z00z_wallets/README.md:16-24](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L24) |
+| Vouchers | Conditional claims with explicit lifecycle and redemption paths. | `wallet.object.*` only. | [crates/z00z_wallets/README.md:16-24](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L16-L24) |
+| Rights | Authority inventory contributing zero to spendable balance. | `wallet.object.*` only. | [crates/z00z_wallets/README.md:18-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L18-L25) |
+| Unknown-policy objects | Durable quarantine until policy descriptors are accepted. | Quarantine, not spendable balance. | [crates/z00z_wallets/README.md:20-21](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L20-L21) [crates/z00z_wallets/README.md:40-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L40-L44) |
 
 ## 🔑 Stable Facades And Internal Detail
 
 | Preferred entrypoint | Why it is preferred | Source |
 |---|---|---|
-| `z00z_wallets::db::{WltSession, ScanStatePayload}` | Stable wallet-store boundary types. | [crates/z00z_wallets/README.md:171-177](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L171-L177) |
-| `z00z_wallets::services::{RateLimitPrecheck, WalletService}` | Canonical orchestration layer. | [crates/z00z_wallets/README.md:173-175](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L173-L175) [crates/z00z_wallets/src/services/mod.rs:16-24](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/services/mod.rs#L16-L24) |
-| `z00z_wallets::receiver::*` | Receiver-card and payment-request flows. | [crates/z00z_wallets/README.md:175-177](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L175-L177) |
-| `z00z_wallets::tx::{ClaimTxVerifier, TxVerifier}` | Transaction verification entrypoints. | [crates/z00z_wallets/README.md:177-181](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L177-L181) |
+| `z00z_wallets::db::{WltSession, ScanStatePayload}` | Stable wallet-store boundary types. | [crates/z00z_wallets/README.md:171-177](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L171-L177) |
+| `z00z_wallets::services::{RateLimitPrecheck, WalletService}` | Canonical orchestration layer. | [crates/z00z_wallets/README.md:173-175](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L173-L175) [crates/z00z_wallets/src/services/mod.rs:16-24](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/services/mod.rs#L16-L24) |
+| `z00z_wallets::receiver::*` | Receiver-card and payment-request flows. | [crates/z00z_wallets/README.md:175-177](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L175-L177) |
+| `z00z_wallets::tx::{ClaimTxVerifier, TxVerifier}` | Transaction verification entrypoints. | [crates/z00z_wallets/README.md:177-181](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L177-L181) |
 
 ## 📖 References
 
-- [crates/z00z_wallets/README.md:11-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L44)
-- [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156)
-- [crates/z00z_wallets/src/rpc/mod.rs:24-91](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/rpc/mod.rs#L24-L91)
-- [crates/z00z_wallets/src/services/mod.rs:1-24](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/services/mod.rs#L1-L24)
-- [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19)
+- [crates/z00z_wallets/README.md:11-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L44)
+- [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156)
+- [crates/z00z_wallets/src/rpc/mod.rs:24-91](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/rpc/mod.rs#L24-L91)
+- [crates/z00z_wallets/src/services/mod.rs:1-24](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/services/mod.rs#L1-L24)
+- [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19)
 
 ## Related Pages
 
@@ -1234,17 +1234,17 @@ flowchart LR
 
 <doc title="Settlement Runtime And Rollup" path="./05-storage-runtime/settlement-runtime-and-rollup.md">
 
-The storage layer is the semantic owner of settlement truth. Runtime crates, validators, watchers, and the rollup node all consume that truth, but the repo docs and public exports are explicit that they must not create competing roots, proof contracts, or publication bindings. [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
+The storage layer is the semantic owner of settlement truth. Runtime crates, validators, watchers, and the rollup node all consume that truth, but the repo docs and public exports are explicit that they must not create competing roots, proof contracts, or publication bindings. [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_runtime/aggregators/README.md:18-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L18-L29) [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15)
 
 ## 🎯 At A Glance
 
 | Component | Responsibility | Key file | Source |
 |---|---|---|---|
-| Settlement module | Exposes `SettlementPath`, `SettlementStateRoot`, stores, proof checks, and object package contracts. | `crates/z00z_storage/src/settlement/mod.rs` | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
-| Aggregator runtime | Owns planning, placement, publication, and recovery boundaries. | `crates/z00z_runtime/aggregators/src/lib.rs` | [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) |
-| Validator runtime | Owns checkpoint flow, tx/claim verification, and verdict emission. | `crates/z00z_runtime/validators/src/lib.rs` | [crates/z00z_runtime/validators/src/lib.rs:14-28](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L14-L28) |
-| Watcher runtime | Owns observation and alert surfaces over published state. | `crates/z00z_runtime/watchers/src/lib.rs` | [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) |
-| Rollup verifier | Verifies the canonical theorem bundle without reconstructing private witnesses. | `crates/z00z_rollup_node/src/lib.rs` | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) |
+| Settlement module | Exposes `SettlementPath`, `SettlementStateRoot`, stores, proof checks, and object package contracts. | `crates/z00z_storage/src/settlement/mod.rs` | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
+| Aggregator runtime | Owns planning, placement, publication, and recovery boundaries. | `crates/z00z_runtime/aggregators/src/lib.rs` | [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44) |
+| Validator runtime | Owns checkpoint flow, tx/claim verification, and verdict emission. | `crates/z00z_runtime/validators/src/lib.rs` | [crates/z00z_runtime/validators/src/lib.rs:14-28](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L14-L28) |
+| Watcher runtime | Owns observation and alert surfaces over published state. | `crates/z00z_runtime/watchers/src/lib.rs` | [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) |
+| Rollup verifier | Verifies the canonical theorem bundle without reconstructing private witnesses. | `crates/z00z_rollup_node/src/lib.rs` | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) |
 
 ## 🧭 Ownership Flow
 
@@ -1287,26 +1287,26 @@ flowchart LR
 
 | Storage export | Meaning | Why downstream consumers must not replace it | Source |
 |---|---|---|---|
-| `SettlementPath` | Canonical typed address `definition_id -> serial_id -> terminal_id`. | Downstream code should consume typed paths, not invent flat aliases. | [crates/z00z_storage/src/settlement/README.md:8-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L8-L16) [crates/z00z_storage/src/settlement/README.md:82-103](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L82-L103) |
-| `SettlementStateRoot` and `CheckRoot` | Semantic settlement commitment and checkpoint-facing root type. | `backend_root` is intentionally private proof-local data. | [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
-| `ObjectPolicyRegistryV1` and `RuntimeObjectPackageV1` | Storage-owned object package contract used by validators. | Validator and runtime layers reuse the contract rather than forking a second object-policy surface. | [crates/z00z_storage/src/settlement/mod.rs:45-49](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L45-L49) [crates/z00z_runtime/validators/src/lib.rs:26-28](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L26-L28) |
+| `SettlementPath` | Canonical typed address `definition_id -> serial_id -> terminal_id`. | Downstream code should consume typed paths, not invent flat aliases. | [crates/z00z_storage/src/settlement/README.md:8-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L8-L16) [crates/z00z_storage/src/settlement/README.md:82-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L82-L103) |
+| `SettlementStateRoot` and `CheckRoot` | Semantic settlement commitment and checkpoint-facing root type. | `backend_root` is intentionally private proof-local data. | [crates/z00z_storage/src/settlement/README.md:104-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L104-L121) |
+| `ObjectPolicyRegistryV1` and `RuntimeObjectPackageV1` | Storage-owned object package contract used by validators. | Validator and runtime layers reuse the contract rather than forking a second object-policy surface. | [crates/z00z_storage/src/settlement/mod.rs:45-49](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L45-L49) [crates/z00z_runtime/validators/src/lib.rs:26-28](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L26-L28) |
 
 ## 🔑 Downstream Boundaries
 
 | Crate | What it may consume | What it must not claim | Source |
 |---|---|---|---|
-| `z00z_runtime/aggregators` | Route metadata, placement, publication binding, semantic `StoreOp` handoff. | Settlement semantics or proof truth. | [crates/z00z_runtime/aggregators/README.md:20-29](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L20-L29) |
-| `z00z_runtime/validators` | Resolved batches, storage-owned proof contracts, object packages. | Planner admission or watcher projection. | [crates/z00z_runtime/validators/README.md:13-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/validators/README.md#L13-L18) |
-| `z00z_runtime/watchers` | Published state and placement metadata for observation. | Semantic truth beyond evidence and alerting. | [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16) |
-| `z00z_rollup_node` | `TxPackage`, `CheckpointArtifact`, `CheckpointExecInput`, `CheckpointLink`. | A second protocol owner or private-witness rebuilder. | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) |
+| `z00z_runtime/aggregators` | Route metadata, placement, publication binding, semantic `StoreOp` handoff. | Settlement semantics or proof truth. | [crates/z00z_runtime/aggregators/README.md:20-29](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/README.md#L20-L29) |
+| `z00z_runtime/validators` | Resolved batches, storage-owned proof contracts, object packages. | Planner admission or watcher projection. | [crates/z00z_runtime/validators/README.md:13-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/validators/README.md#L13-L18) |
+| `z00z_runtime/watchers` | Published state and placement metadata for observation. | Semantic truth beyond evidence and alerting. | [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16) |
+| `z00z_rollup_node` | `TxPackage`, `CheckpointArtifact`, `CheckpointExecInput`, `CheckpointLink`. | A second protocol owner or private-witness rebuilder. | [crates/z00z_rollup_node/src/lib.rs:85-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L85-L165) |
 
 ## 📖 References
 
-- [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93)
-- [crates/z00z_storage/src/settlement/README.md:82-121](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L82-L121)
-- [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44)
-- [crates/z00z_runtime/validators/src/lib.rs:14-28](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L14-L28)
-- [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165)
+- [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93)
+- [crates/z00z_storage/src/settlement/README.md:82-121](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/README.md#L82-L121)
+- [crates/z00z_runtime/aggregators/src/lib.rs:18-44](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/aggregators/src/lib.rs#L18-L44)
+- [crates/z00z_runtime/validators/src/lib.rs:14-28](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/validators/src/lib.rs#L14-L28)
+- [crates/z00z_rollup_node/src/lib.rs:97-165](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/src/lib.rs#L97-L165)
 
 ## Related Pages
 
@@ -1320,16 +1320,16 @@ flowchart LR
 
 <doc title="Scenario Pipeline" path="./06-simulator-and-quality/scenario-pipeline.md">
 
-`z00z_simulator` is intentionally an integration harness, not a second application framework. Its README and module root are explicit that scenario code must enter other crates through stable facades and that `scenario_1` remains the canonical executable home for the Phase 059 object model. [crates/z00z_simulator/README.md:6-30](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30) [crates/z00z_simulator/README.md:62-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92)
+`z00z_simulator` is intentionally an integration harness, not a second application framework. Its README and module root are explicit that scenario code must enter other crates through stable facades and that `scenario_1` remains the canonical executable home for the Phase 059 object model. [crates/z00z_simulator/README.md:6-30](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30) [crates/z00z_simulator/README.md:62-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92)
 
 ## 🎯 At A Glance
 
 | Component | Responsibility | Key file | Source |
 |---|---|---|---|
-| Simulator root | Re-exports actor, config, context, design, result, and scenario facades. | `crates/z00z_simulator/src/lib.rs` | [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39) |
-| `scenario_1` module | Declares stages, runner, and process guard for the canonical scenario pipeline. | `crates/z00z_simulator/src/scenario_1/mod.rs` | [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37) |
-| CLI binary | Resolves `--config` and `--design` arguments, then delegates to the runner. | `crates/z00z_simulator/bin/scenario_1.rs` | [crates/z00z_simulator/bin/scenario_1.rs:11-73](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L11-L73) |
-| Release-style verify gate | Supplies the heavy repository verification path that the simulator complements. | `.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
+| Simulator root | Re-exports actor, config, context, design, result, and scenario facades. | `crates/z00z_simulator/src/lib.rs` | [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39) |
+| `scenario_1` module | Declares stages, runner, and process guard for the canonical scenario pipeline. | `crates/z00z_simulator/src/scenario_1/mod.rs` | [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37) |
+| CLI binary | Resolves `--config` and `--design` arguments, then delegates to the runner. | `crates/z00z_simulator/bin/scenario_1.rs` | [crates/z00z_simulator/bin/scenario_1.rs:11-73](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L11-L73) |
+| Release-style verify gate | Supplies the heavy repository verification path that the simulator complements. | `.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
 
 ## 🧭 Scenario Shape
 
@@ -1371,26 +1371,26 @@ flowchart LR
 
 | Aspect | Current contract | Source |
 |---|---|---|
-| Canonical executable | `scenario_1` is the live home of the Phase 059 object model and was extended in place. | [crates/z00z_simulator/README.md:62-66](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L66) |
-| Object lanes | Covers asset transfer, voucher lifecycle, right lifecycle, and right-gated voucher actions. | [crates/z00z_simulator/README.md:67-73](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L67-L73) |
-| Artifact anchors | Publishes `asset_flow.json`, `voucher_flow.json`, `right_flow.json`, `wallet_scan.json`, `val_flow.json`, `watch_flow.json`, and `sim_summary.md`. | [crates/z00z_simulator/README.md:75-89](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L89) |
-| Negative evidence | Reject and fix surfaces are mandatory in the Phase 059 packet. | [crates/z00z_simulator/README.md:91-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L91-L93) |
+| Canonical executable | `scenario_1` is the live home of the Phase 059 object model and was extended in place. | [crates/z00z_simulator/README.md:62-66](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L66) |
+| Object lanes | Covers asset transfer, voucher lifecycle, right lifecycle, and right-gated voucher actions. | [crates/z00z_simulator/README.md:67-73](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L67-L73) |
+| Artifact anchors | Publishes `asset_flow.json`, `voucher_flow.json`, `right_flow.json`, `wallet_scan.json`, `val_flow.json`, `watch_flow.json`, and `sim_summary.md`. | [crates/z00z_simulator/README.md:75-89](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L75-L89) |
+| Negative evidence | Reject and fix surfaces are mandatory in the Phase 059 packet. | [crates/z00z_simulator/README.md:91-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L91-L93) |
 
 ## 🔑 Integration Boundary Rules
 
 | Rule | Meaning in practice | Source |
 |---|---|---|
-| Use stable facades | If the harness needs a new entrypoint, add it to the owner crate instead of deep-importing internals. | [crates/z00z_simulator/README.md:24-30](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L24-L30) |
-| Harness-only code stays narrow | Deterministic fixture setup is fine; business-rule ownership is not. | [crates/z00z_simulator/README.md:12-22](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22) |
-| Secret artifact policy is strict | Plaintext wallet-secret artifacts are debug-only, gated, and outside the default contract. | [crates/z00z_simulator/README.md:32-45](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L32-L45) |
+| Use stable facades | If the harness needs a new entrypoint, add it to the owner crate instead of deep-importing internals. | [crates/z00z_simulator/README.md:24-30](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L24-L30) |
+| Harness-only code stays narrow | Deterministic fixture setup is fine; business-rule ownership is not. | [crates/z00z_simulator/README.md:12-22](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L12-L22) |
+| Secret artifact policy is strict | Plaintext wallet-secret artifacts are debug-only, gated, and outside the default contract. | [crates/z00z_simulator/README.md:32-45](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L32-L45) |
 
 ## 📖 References
 
-- [crates/z00z_simulator/README.md:6-30](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30)
-- [crates/z00z_simulator/README.md:62-92](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92)
-- [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39)
-- [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37)
-- [crates/z00z_simulator/bin/scenario_1.rs:11-73](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L11-L73)
+- [crates/z00z_simulator/README.md:6-30](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L6-L30)
+- [crates/z00z_simulator/README.md:62-92](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/README.md#L62-L92)
+- [crates/z00z_simulator/src/lib.rs:6-39](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/lib.rs#L6-L39)
+- [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37)
+- [crates/z00z_simulator/bin/scenario_1.rs:11-73](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L11-L73)
 
 ## Related Pages
 
@@ -1404,16 +1404,16 @@ flowchart LR
 
 <doc title="Networking And Telemetry" path="./07-networking-and-observability/networking-and-telemetry.md">
 
-The networking and observability story is deliberately split into three different ownership zones: transport-only RPC in `z00z_networks_rpc`, a reserved privacy-overlay namespace in `onionnet`, and operational observation surfaces in watcher and telemetry crates. The code repeatedly warns against collapsing these into one generic “network” module. [crates/z00z_networks/rpc/README.md:3-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L3-L18) [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31) [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16)
+The networking and observability story is deliberately split into three different ownership zones: transport-only RPC in `z00z_networks_rpc`, a reserved privacy-overlay namespace in `onionnet`, and operational observation surfaces in watcher and telemetry crates. The code repeatedly warns against collapsing these into one generic “network” module. [crates/z00z_networks/rpc/README.md:3-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L3-L18) [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31) [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16)
 
 ## 🎯 At A Glance
 
 | Component | Responsibility | Key file | Source |
 |---|---|---|---|
-| `z00z_networks_rpc` | RPC request dispatch, transport adaptation, local transport, and WASM client. | `crates/z00z_networks/rpc/src/lib.rs` | [crates/z00z_networks/rpc/src/lib.rs:64-98](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L64-L98) |
-| `onionnet` | Reserved Phase 115 privacy-overlay crate boundary. | `crates/z00z_networks/onionnet/src/lib.rs` | [crates/z00z_networks/onionnet/src/lib.rs:13-126](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L13-L126) |
-| Watchers | Publication, provider, and alert observation surfaces. | `crates/z00z_runtime/watchers/src/lib.rs` | [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) |
-| Telemetry facade | Stable workspace entrypoint for shared observability concerns. | `crates/z00z_telemetry/README.md` | [crates/z00z_telemetry/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) |
+| `z00z_networks_rpc` | RPC request dispatch, transport adaptation, local transport, and WASM client. | `crates/z00z_networks/rpc/src/lib.rs` | [crates/z00z_networks/rpc/src/lib.rs:64-98](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L64-L98) |
+| `onionnet` | Reserved Phase 115 privacy-overlay crate boundary. | `crates/z00z_networks/onionnet/src/lib.rs` | [crates/z00z_networks/onionnet/src/lib.rs:13-126](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L13-L126) |
+| Watchers | Publication, provider, and alert observation surfaces. | `crates/z00z_runtime/watchers/src/lib.rs` | [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) |
+| Telemetry facade | Stable workspace entrypoint for shared observability concerns. | `crates/z00z_telemetry/README.md` | [crates/z00z_telemetry/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) |
 
 ## 🧭 Network And Ops Layering
 
@@ -1451,24 +1451,24 @@ flowchart LR
 
 | Surface | Current scope | Explicit exclusion | Source |
 |---|---|---|---|
-| `z00z_networks_rpc` | Generic transport and dispatch. | Peer identity, auth, retry policy, connection lifecycle. | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) |
-| `onionnet` | Privacy-ingress transport concerns and reserved module structure. | RPC aliasing, sequencer logic, validator logic, or a standalone application service. | [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31) [crates/z00z_networks/onionnet/src/lib.rs:2-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L2-L18) |
+| `z00z_networks_rpc` | Generic transport and dispatch. | Peer identity, auth, retry policy, connection lifecycle. | [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19) |
+| `onionnet` | Privacy-ingress transport concerns and reserved module structure. | RPC aliasing, sequencer logic, validator logic, or a standalone application service. | [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31) [crates/z00z_networks/onionnet/src/lib.rs:2-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L2-L18) |
 
 ## 📦 Observability Surfaces
 
 | Surface | What it emits | Why it matters | Source |
 |---|---|---|---|
-| `WatcherService` | Observation snapshots and alert classes. | Provides operational evidence without becoming semantic truth. | [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16) |
-| Phase 059 alert families | Unknown policy, invalid backing, wrong-family proof, replay, expiry, and boundary violations. | Makes typed object failures observable without moving verdict ownership. | [crates/z00z_runtime/watchers/README.md:18-34](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L18-L34) |
-| `z00z_telemetry` | Stable crate-level home for shared observability wiring. | Avoids duplicating observability entrypoints across workspace crates. | [crates/z00z_telemetry/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) [crates/z00z_telemetry/src/lib.rs:1-2](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/src/lib.rs#L1-L2) |
+| `WatcherService` | Observation snapshots and alert classes. | Provides operational evidence without becoming semantic truth. | [crates/z00z_runtime/watchers/src/lib.rs:13-20](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/src/lib.rs#L13-L20) [crates/z00z_runtime/watchers/README.md:11-16](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L16) |
+| Phase 059 alert families | Unknown policy, invalid backing, wrong-family proof, replay, expiry, and boundary violations. | Makes typed object failures observable without moving verdict ownership. | [crates/z00z_runtime/watchers/README.md:18-34](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L18-L34) |
+| `z00z_telemetry` | Stable crate-level home for shared observability wiring. | Avoids duplicating observability entrypoints across workspace crates. | [crates/z00z_telemetry/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12) [crates/z00z_telemetry/src/lib.rs:1-2](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/src/lib.rs#L1-L2) |
 
 ## 📖 References
 
-- [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19)
-- [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31)
-- [crates/z00z_networks/onionnet/src/lib.rs:13-126](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L13-L126)
-- [crates/z00z_runtime/watchers/README.md:11-34](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L34)
-- [crates/z00z_telemetry/README.md:3-12](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12)
+- [crates/z00z_networks/rpc/src/lib.rs:4-19](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/src/lib.rs#L4-L19)
+- [crates/z00z_networks/onionnet/README.md:16-31](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/README.md#L16-L31)
+- [crates/z00z_networks/onionnet/src/lib.rs:13-126](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/onionnet/src/lib.rs#L13-L126)
+- [crates/z00z_runtime/watchers/README.md:11-34](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_runtime/watchers/README.md#L11-L34)
+- [crates/z00z_telemetry/README.md:3-12](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_telemetry/README.md#L3-L12)
 
 ## Related Pages
 
@@ -1485,17 +1485,17 @@ flowchart LR
 
 <doc title="Z00Z Deep Wiki" path="./index.md">
 
-Z00Z is a Cargo workspace that deliberately splits protocol, wallet, storage, runtime, simulator, networking, and observability responsibilities into separate crates instead of treating the repository as one monolithic node package. The workspace manifest and crate-root docs show that the project is organized around stable facades and explicit ownership boundaries. [Cargo.toml:1-76](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L1-L76) [README.md:1-8](https://github.com/vasja34/z00z/blob/z00z-dev/README.md#L1-L8) [crates/z00z_core/README.md:3-17](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L17) [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
+Z00Z is a Cargo workspace that deliberately splits protocol, wallet, storage, runtime, simulator, networking, and observability responsibilities into separate crates instead of treating the repository as one monolithic node package. The workspace manifest and crate-root docs show that the project is organized around stable facades and explicit ownership boundaries. [Cargo.toml:1-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L1-L76) [README.md:1-8](https://github.com/z00z-labs/z00z/blob/z00z-dev/README.md#L1-L8) [crates/z00z_core/README.md:3-17](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L17) [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
 
 ## 🎯 Quick Start
 
 | Command | Why run it | Source |
 |---|---|---|
-| `cargo fmt --check` | Enforce formatting before deeper verification. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
-| `cargo clippy --workspace --release --all-targets --all-features -- -D warnings` | Run the canonical workspace lint gate. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
-| `cargo test --all` | Baseline regression pass for all crates. | [.github/copilot-instructions.md:141-149](https://github.com/vasja34/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) |
-| `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh --max-safe-run` | Run the repository’s release-style verify gate, including optional heavy stages. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
-| `cargo run --package z00z_simulator --bin scenario_1 -- --help` | Inspect the canonical simulator entrypoint. | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) [crates/z00z_simulator/bin/scenario_1.rs:71-73](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L71-L73) |
+| `cargo fmt --check` | Enforce formatting before deeper verification. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
+| `cargo clippy --workspace --release --all-targets --all-features -- -D warnings` | Run the canonical workspace lint gate. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:73-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L73-L76) |
+| `cargo test --all` | Baseline regression pass for all crates. | [.github/copilot-instructions.md:141-149](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/copilot-instructions.md#L141-L149) |
+| `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh --max-safe-run` | Run the repository’s release-style verify gate, including optional heavy stages. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
+| `cargo run --package z00z_simulator --bin scenario_1 -- --help` | Inspect the canonical simulator entrypoint. | [crates/z00z_simulator/Cargo.toml:26-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/Cargo.toml#L26-L36) [crates/z00z_simulator/bin/scenario_1.rs:71-73](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/bin/scenario_1.rs#L71-L73) |
 
 ## 🧭 Architecture Overview
 
@@ -1565,31 +1565,31 @@ sequenceDiagram
 
 | File | Why it matters | Source |
 |---|---|---|
-| `Cargo.toml` | Defines the workspace members and default member set. | [Cargo.toml:3-34](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
-| `crates/z00z_core/src/lib.rs` | Publishes the stable protocol facade. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| `crates/z00z_wallets/src/lib.rs` | Publishes the wallet’s stable entrypoints and re-exports. | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
-| `crates/z00z_storage/src/settlement/mod.rs` | Re-exports the live settlement contract used by runtime and validators. | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
-| `crates/z00z_simulator/src/scenario_1/mod.rs` | Declares the canonical scenario stages and runner surface. | [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37) |
-| `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | Encodes the canonical repository-wide verification sequence. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
+| `Cargo.toml` | Defines the workspace members and default member set. | [Cargo.toml:3-34](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
+| `crates/z00z_core/src/lib.rs` | Publishes the stable protocol facade. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| `crates/z00z_wallets/src/lib.rs` | Publishes the wallet’s stable entrypoints and re-exports. | [crates/z00z_wallets/src/lib.rs:97-156](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/src/lib.rs#L97-L156) |
+| `crates/z00z_storage/src/settlement/mod.rs` | Re-exports the live settlement contract used by runtime and validators. | [crates/z00z_storage/src/settlement/mod.rs:32-93](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/src/settlement/mod.rs#L32-L93) |
+| `crates/z00z_simulator/src/scenario_1/mod.rs` | Declares the canonical scenario stages and runner surface. | [crates/z00z_simulator/src/scenario_1/mod.rs:8-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_simulator/src/scenario_1/mod.rs#L8-L37) |
+| `./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh` | Encodes the canonical repository-wide verification sequence. | [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103) |
 
 ## ⚙️ Tech Stack Summary
 
 | Layer | Primary surface | Notes | Source |
 |---|---|---|---|
-| Workspace orchestration | Cargo workspace | Fourteen default members form the live build surface. | [Cargo.toml:3-34](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
-| Core protocol | `z00z_core` | Assets, genesis, policies, rights, and vouchers live here. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
-| Crypto and shared primitives | `z00z_crypto`, `z00z_utils` | One facade for crypto, one cross-cutting crate for I/O/config/time/logging/RNG. | [crates/z00z_crypto/README.md:7-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L7-L25) [crates/z00z_utils/README.md:3-25](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) |
-| User state and transport edges | `z00z_wallets`, `z00z_networks_rpc` | Wallet owns typed inventory; RPC crate stays transport-only. | [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) [crates/z00z_networks/rpc/README.md:3-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L3-L18) |
-| Durability and verification | `z00z_storage`, `z00z_rollup_node`, runtime crates | Storage owns settlement truth; runtime plans; validators/watchers observe; rollup node composes. | [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_rollup_node/README.md:3-15](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
+| Workspace orchestration | Cargo workspace | Fourteen default members form the live build surface. | [Cargo.toml:3-34](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L3-L34) |
+| Core protocol | `z00z_core` | Assets, genesis, policies, rights, and vouchers live here. | [crates/z00z_core/src/lib.rs:103-132](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/src/lib.rs#L103-L132) |
+| Crypto and shared primitives | `z00z_crypto`, `z00z_utils` | One facade for crypto, one cross-cutting crate for I/O/config/time/logging/RNG. | [crates/z00z_crypto/README.md:7-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_crypto/README.md#L7-L25) [crates/z00z_utils/README.md:3-25](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_utils/README.md#L3-L25) |
+| User state and transport edges | `z00z_wallets`, `z00z_networks_rpc` | Wallet owns typed inventory; RPC crate stays transport-only. | [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37) [crates/z00z_networks/rpc/README.md:3-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_networks/rpc/README.md#L3-L18) |
+| Durability and verification | `z00z_storage`, `z00z_rollup_node`, runtime crates | Storage owns settlement truth; runtime plans; validators/watchers observe; rollup node composes. | [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18) [crates/z00z_rollup_node/README.md:3-15](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_rollup_node/README.md#L3-L15) |
 
 ## 📖 References
 
-- [Cargo.toml:1-76](https://github.com/vasja34/z00z/blob/z00z-dev/Cargo.toml#L1-L76)
-- [README.md:1-8](https://github.com/vasja34/z00z/blob/z00z-dev/README.md#L1-L8)
-- [crates/z00z_core/README.md:3-36](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36)
-- [crates/z00z_wallets/README.md:11-37](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
-- [crates/z00z_storage/README.md:4-18](https://github.com/vasja34/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18)
-- [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/vasja34/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
+- [Cargo.toml:1-76](https://github.com/z00z-labs/z00z/blob/z00z-dev/Cargo.toml#L1-L76)
+- [README.md:1-8](https://github.com/z00z-labs/z00z/blob/z00z-dev/README.md#L1-L8)
+- [crates/z00z_core/README.md:3-36](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_core/README.md#L3-L36)
+- [crates/z00z_wallets/README.md:11-37](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_wallets/README.md#L11-L37)
+- [crates/z00z_storage/README.md:4-18](https://github.com/z00z-labs/z00z/blob/z00z-dev/crates/z00z_storage/README.md#L4-L18)
+- [.github/skills/z00z-full-verify-gate/scripts/full_verify.sh:64-103](https://github.com/z00z-labs/z00z/blob/z00z-dev/.github/skills/z00z-full-verify-gate/scripts/full_verify.sh#L64-L103)
 
 ## Related Pages
 

@@ -8191,6 +8191,7 @@ dependencies = [
  "bincode 2.0.1",
  "criterion",
  "ff",
+ "fs2",
  "jmt",
  "nova-snark",
  "proptest",

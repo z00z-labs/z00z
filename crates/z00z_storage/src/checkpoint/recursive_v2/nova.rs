@@ -28,26 +28,50 @@ use nova_snark::{
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::checkpoint::{
+    canonical_transition::CanonicalCheckpointTransitionV2,
     recursive_circuit::{
         RecursiveCircuitProfileV2, RecursiveCircuitSpecV2, RECURSIVE_CIRCUIT_PROFILE_VERSION_V2,
         RECURSIVE_CIRCUIT_SPEC_VERSION_V2,
     },
     recursive_context::RecursiveAuthoritySnapshotV2,
+    recursive_predicate::EvaluatedCheckpointTransitionV2,
     recursive_reject::RecursiveV2Error,
     recursive_semantics::{
-        NET_MERGE_BYTES_V2, UNIQUENESS_CHALLENGE_BYTES_V2, UNIQUENESS_PRECOMMIT_BYTES_V2,
-        UNIQUENESS_PRECOMMIT_VERSION_V2,
+        decode_flow_item, UniquenessSemanticRowV2, UniquenessSetKindV2, NET_MERGE_BYTES_V2,
+        TYPED_CHECKPOINT_COMMITMENT_BYTES_V2, TYPED_CHECKPOINT_COMMITMENT_VERSION_V2,
+        UNIQUENESS_CHALLENGES_PER_SET_V2, UNIQUENESS_CHALLENGE_BITS_V2,
+        UNIQUENESS_CHALLENGE_BYTES_V2, UNIQUENESS_PRECOMMIT_BYTES_V2,
+        UNIQUENESS_PRECOMMIT_VERSION_V2, UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
+        UNIQUENESS_SEMANTIC_ROW_LIMBS_V2, UNIQUENESS_SORTED_ROW_BYTES_V2,
+    },
+    recursive_statement::{
+        RecursiveCheckpointPublicInputV2, RecursiveDeclaredWorkV2, RecursiveFinalizedIvcStateV2,
+        RecursivePreUniquenessContextV2, RecursiveVerifierInputBindingV2,
     },
 };
 
 use crate::checkpoint::recursive_trace::{
-    decode_hash_control, decode_trace_chunk_control, HashControlBindingV2, HashControlSchemaV2,
-    HashControlStageV2, RecursiveTraceChunkControlV2, RecursiveTraceEventV2,
-    RecursiveTraceOpcodeV2, SOURCE_RECORD_HASH_LABEL_V2, TRACE_CANONICAL_CHUNK_BYTES_V2,
-    TRACE_EVENT_HEADER_BYTES_V2,
+    decode_hash_control, decode_source_memory_write_control, decode_trace_chunk_control,
+    HashControlBindingV2, HashControlSchemaV2, HashControlStageV2, RecursiveTraceChunkControlV2,
+    RecursiveTraceEventCountsV2, RecursiveTraceEventV2, RecursiveTraceOpcodeV2,
+    UniquenessListHashJobV2, UniquenessTranscriptHashJobV2, SOURCE_RECORD_HASH_LABEL_V2,
+    TRACE_CANONICAL_CHUNK_BYTES_V2, TRACE_EVENT_HEADER_BYTES_V2,
 };
-use z00z_crypto::SHA256_IV_V2;
-use z00z_crypto::{CheckpointSha256BlockStreamV2, CheckpointShaRole};
+use crate::settlement::{
+    derive_settlement_root_v2, keys::hierarchy_parent_key_poseidon2_words_v1,
+    noop_update_trace_digest, RootGeneration, JMT_CIRCUIT_HEADER_BYTES_V2,
+    JMT_CIRCUIT_MICRO_OP_VERSION_V2, JMT_CIRCUIT_OPERATION_BEGIN_V2, JMT_CIRCUIT_OPERATION_END_V2,
+    JMT_CIRCUIT_OPERATION_PROOF_END_V2, JMT_CIRCUIT_OPERATION_PROOF_V2,
+    JMT_CIRCUIT_OPERATION_SIBLING_V2, JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2,
+    JMT_CIRCUIT_OPERATION_VALUE_V2, JMT_CIRCUIT_UPDATE_BEGIN_V2, JMT_CIRCUIT_UPDATE_END_V2,
+    JMT_SPARSE_PLACEHOLDER_HASH_V2, JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+    JMT_UPDATE_TRACE_KIND_NOOP_V2, JMT_UPDATE_TRACE_VERSION_V2,
+};
+use z00z_crypto::{
+    poseidon2_goldilocks_params_v1, POSEIDON2_GOLDILOCKS_MODULUS_V1, POSEIDON2_GOLDILOCKS_RATE_V1,
+    POSEIDON2_GOLDILOCKS_WIDTH_V1, SHA256_IV_V2,
+};
+use z00z_crypto::{CheckpointSha256BlockStreamV2, CheckpointSha256BlockV2, CheckpointShaRole};
 
 type Scalar = pallas::Scalar;
 type NovaSnark<E> = RelaxedR1CSSNARK<E, EvaluationEngine<E>>;
@@ -75,22 +99,43 @@ type NovaVerifierKey = VerifierKey<
 >;
 
 const DIGEST_LIMBS: usize = 16;
-const ANCHOR_DIGESTS: usize = 9;
-const ANCHOR_CELLS: usize = DIGEST_LIMBS * ANCHOR_DIGESTS;
+const ANCHOR_DIGESTS: usize = 15;
+const ANCHOR_DIGEST_CELLS: usize = DIGEST_LIMBS * ANCHOR_DIGESTS;
+const ANCHOR_SCALAR_START: usize = ANCHOR_DIGEST_CELLS;
+const ANCHOR_SCALAR_COUNT: usize = 6;
+const ANCHOR_SEMANTIC_COUNT_START: usize = ANCHOR_SCALAR_START + ANCHOR_SCALAR_COUNT;
+const ANCHOR_SEMANTIC_COUNT_COUNT: usize = 8;
+const ANCHOR_OPCODE_COUNT_START: usize = ANCHOR_SEMANTIC_COUNT_START + ANCHOR_SEMANTIC_COUNT_COUNT;
+const ANCHOR_OPCODE_COUNT_COUNT: usize = 17;
+const ANCHOR_CELLS: usize = ANCHOR_OPCODE_COUNT_START + ANCHOR_OPCODE_COUNT_COUNT;
 const CHAIN_START: usize = ANCHOR_CELLS;
-const CHAIN_END: usize = 212;
+// The writer/reader window is authenticated by the already constrained source
+// cursor and both source/global SHA-256 contexts. No Merkle root or append
+// frontier is retained: those values had no independent authority endpoint and
+// duplicated the ordered transcript relation at prohibitive augmented-setup
+// cost.
+const SOURCE_MEMORY_PENDING_BYTES: usize = TRACE_CANONICAL_CHUNK_BYTES_V2;
 const SOURCE_TRACE_ORDINAL_CELL: usize = CHAIN_START;
 const SOURCE_TRACE_BYTE_COUNT_CELL: usize = SOURCE_TRACE_ORDINAL_CELL + 1;
 const SOURCE_EVENT_DIGEST_START: usize = CHAIN_START + 3;
 const SOURCE_EVENT_DIGEST_END: usize = SOURCE_EVENT_DIGEST_START + DIGEST_LIMBS;
-const SOURCE_TRACE_ROOT_START: usize = SOURCE_EVENT_DIGEST_END;
-const SOURCE_TRACE_ROOT_END: usize = SOURCE_TRACE_ROOT_START + DIGEST_LIMBS;
+const SOURCE_MEMORY_PENDING_ACTIVE_CELL: usize = SOURCE_EVENT_DIGEST_END;
+const SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL: usize = SOURCE_MEMORY_PENDING_ACTIVE_CELL + 1;
+const SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL: usize =
+    SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL + 1;
+const SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL: usize = SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL + 1;
+const SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL: usize = SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL + 1;
+const SOURCE_MEMORY_PENDING_BYTES_START: usize = SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL + 1;
+const SOURCE_MEMORY_PENDING_BYTES_END: usize =
+    SOURCE_MEMORY_PENDING_BYTES_START + SOURCE_MEMORY_PENDING_BYTES;
+const CHAIN_END: usize = SOURCE_MEMORY_PENDING_BYTES_END;
+const _: () = assert!(SOURCE_MEMORY_PENDING_BYTES_END == CHAIN_END);
 const PHASE_CELL: usize = CHAIN_END;
 const PRIOR_OPCODE_CELL: usize = PHASE_CELL + 1;
 const ORDINAL_CELL: usize = PRIOR_OPCODE_CELL + 1;
 const DONE_CELL: usize = ORDINAL_CELL + 1;
 const COUNTERS_START: usize = DONE_CELL + 1;
-const COUNTERS_END: usize = 240;
+const COUNTERS_END: usize = CHAIN_END + 28;
 // The reserved counter family carries the one canonical, in-circuit hash
 // control schedule.  These cells do not create a second trace or SHA owner:
 // their witness is decoded from `recursive_trace`'s derived controls.
@@ -131,11 +176,20 @@ const REPLAY_PARSE_ACTIVE_CELL: usize = REPLAY_OUTPUT_COUNT_CELL + 1;
 const REPLAY_PARSE_HEADER_CELL: usize = REPLAY_PARSE_ACTIVE_CELL + 1;
 const REPLAY_PARSE_STAGE_CELL: usize = REPLAY_PARSE_HEADER_CELL + 1;
 const REPLAY_PARSE_REMAINING_CELL: usize = REPLAY_PARSE_STAGE_CELL + 1;
+// One replay row remains live only until its immediately adjacent commit-pass
+// Original row is decoded. This O(1) hand-off binds the uniqueness/net stream
+// to authenticated replay bytes without an endpoint-free Merkle memory or a
+// second event tape.
+const REPLAY_PENDING_ACTIVE_CELL: usize = REPLAY_PARSE_REMAINING_CELL + 1;
+const REPLAY_PENDING_SET_CELL: usize = REPLAY_PENDING_ACTIVE_CELL + 1;
+const REPLAY_PENDING_SEMANTIC_ROW_START: usize = REPLAY_PENDING_SET_CELL + 1;
+const REPLAY_PENDING_SEMANTIC_ROW_END: usize =
+    REPLAY_PENDING_SEMANTIC_ROW_START + UNIQUENESS_SEMANTIC_ROW_BYTES_V2;
 // `UniquenessPrecommit` is decoded from the same source-record `TraceChunk`
 // feeder as replay payloads. These cells are only bounded parser state plus
 // exact little-endian field limbs; they do not introduce a byte tape, a
 // second codec, or a second SHA/source owner.
-const PRECOMMIT_PARSE_ACTIVE_CELL: usize = REPLAY_PARSE_REMAINING_CELL + 1;
+const PRECOMMIT_PARSE_ACTIVE_CELL: usize = REPLAY_PENDING_SEMANTIC_ROW_END;
 const PRECOMMIT_PARSE_HEADER_CELL: usize = PRECOMMIT_PARSE_ACTIVE_CELL + 1;
 const PRECOMMIT_PARSE_OFFSET_CELL: usize = PRECOMMIT_PARSE_HEADER_CELL + 1;
 const PRECOMMIT_PARSE_LOW_BYTE_CELL: usize = PRECOMMIT_PARSE_OFFSET_CELL + 1;
@@ -150,54 +204,251 @@ const PRECOMMIT_DIGEST_LIMB_START: usize = PRECOMMIT_OUTPUT_COUNT_LIMB_END;
 const PRECOMMIT_DIGEST_LIMB_END: usize = PRECOMMIT_DIGEST_LIMB_START + PRECOMMIT_DIGEST_LIMB_COUNT;
 const PRECOMMIT_COMMITMENT_DIGEST_LIMB_START: usize =
     PRECOMMIT_DIGEST_LIMB_START + DIGEST_LIMBS * 4;
+// `UniquenessSorted` rows retain only the cardinalities, each set's preceding
+// identifier, and the preceding identifier in the globally merged order. They
+// prove typed rows, per-set permutation, strict byte-lexicographic order, and
+// the sole same-path spent/output replacement exception without a list tape.
+const SORTED_PARSE_ACTIVE_CELL: usize = PRECOMMIT_DIGEST_LIMB_END;
+const SORTED_PARSE_PASS_CELL: usize = SORTED_PARSE_ACTIVE_CELL + 1;
+const SORTED_PARSE_SET_CELL: usize = SORTED_PARSE_PASS_CELL + 1;
+const SORTED_PARSE_LIST_CELL: usize = SORTED_PARSE_SET_CELL + 1;
+const SORTED_PARSE_ROW_START: usize = SORTED_PARSE_LIST_CELL + 1;
+const SORTED_PARSE_ROW_END: usize = SORTED_PARSE_ROW_START + UNIQUENESS_SEMANTIC_ROW_BYTES_V2;
+const SORTED_ROW_TERMINAL_OFFSET: usize = 32 + 4;
+const ORIGINAL_SPENT_COUNT_CELL: usize = SORTED_PARSE_ROW_END;
+const ORIGINAL_OUTPUT_COUNT_CELL: usize = ORIGINAL_SPENT_COUNT_CELL + 1;
+const SORTED_SPENT_COUNT_CELL: usize = ORIGINAL_OUTPUT_COUNT_CELL + 1;
+const SORTED_OUTPUT_COUNT_CELL: usize = SORTED_SPENT_COUNT_CELL + 1;
+const SORTED_SPENT_LAST_ACTIVE_CELL: usize = SORTED_OUTPUT_COUNT_CELL + 1;
+const SORTED_OUTPUT_LAST_ACTIVE_CELL: usize = SORTED_SPENT_LAST_ACTIVE_CELL + 1;
+const SORTED_GLOBAL_LAST_ACTIVE_CELL: usize = SORTED_OUTPUT_LAST_ACTIVE_CELL + 1;
+const SORTED_GLOBAL_LAST_SET_CELL: usize = SORTED_GLOBAL_LAST_ACTIVE_CELL + 1;
+const SORTED_IDENTIFIER_BYTES_V2: usize = 32;
+const SORTED_SPENT_LAST_START: usize = SORTED_GLOBAL_LAST_SET_CELL + 1;
+const SORTED_SPENT_LAST_END: usize = SORTED_SPENT_LAST_START + SORTED_IDENTIFIER_BYTES_V2;
+const SORTED_OUTPUT_LAST_START: usize = SORTED_SPENT_LAST_END;
+const SORTED_OUTPUT_LAST_END: usize = SORTED_OUTPUT_LAST_START + SORTED_IDENTIFIER_BYTES_V2;
+const SORTED_GLOBAL_LAST_START: usize = SORTED_OUTPUT_LAST_END;
+const SORTED_GLOBAL_LAST_END: usize = SORTED_GLOBAL_LAST_START + UNIQUENESS_SEMANTIC_ROW_BYTES_V2;
+const SORTED_END: usize = SORTED_GLOBAL_LAST_END;
 // `UniquenessChallenge` consumes the precommit digest directly from the
 // authenticated state above and materializes only its own challenge digest.
 // Its four bounded parser cells retain no byte tape or parallel source owner.
-const CHALLENGE_PARSE_ACTIVE_CELL: usize = PRECOMMIT_DIGEST_LIMB_END;
+const CHALLENGE_PARSE_ACTIVE_CELL: usize = SORTED_END;
 const CHALLENGE_PARSE_HEADER_CELL: usize = CHALLENGE_PARSE_ACTIVE_CELL + 1;
 const CHALLENGE_PARSE_OFFSET_CELL: usize = CHALLENGE_PARSE_HEADER_CELL + 1;
 const CHALLENGE_PARSE_LOW_BYTE_CELL: usize = CHALLENGE_PARSE_OFFSET_CELL + 1;
 const CHALLENGE_COMMITTED_PRECOMMIT_BYTES: usize = 1 + 32;
-const CHALLENGE_DIGEST_BYTES_START: usize = CHALLENGE_COMMITTED_PRECOMMIT_BYTES;
-const CHALLENGE_DIGEST_LIMB_COUNT: usize =
-    (UNIQUENESS_CHALLENGE_BYTES_V2 - CHALLENGE_DIGEST_BYTES_START) / 2;
+const CHALLENGE_CONTEXT_BYTES_START: usize = CHALLENGE_COMMITTED_PRECOMMIT_BYTES;
+const CHALLENGE_CONTEXT_DIGEST_COUNT: usize = 3;
+const CHALLENGE_CONTEXT_LIMB_COUNT: usize = DIGEST_LIMBS * CHALLENGE_CONTEXT_DIGEST_COUNT;
+const CHALLENGE_OUTPUT_COUNT: usize = UNIQUENESS_CHALLENGES_PER_SET_V2 * 2;
+const CHALLENGE_WORDS_PER_OUTPUT: usize = 4;
+const CHALLENGE_OUTPUT_BYTES_START: usize =
+    CHALLENGE_CONTEXT_BYTES_START + CHALLENGE_CONTEXT_DIGEST_COUNT * 32;
 const CHALLENGE_DIGEST_LIMB_START: usize = CHALLENGE_PARSE_LOW_BYTE_CELL + 1;
-const CHALLENGE_DIGEST_LIMB_END: usize = CHALLENGE_DIGEST_LIMB_START + CHALLENGE_DIGEST_LIMB_COUNT;
+const CHALLENGE_DIGEST_LIMB_END: usize = CHALLENGE_DIGEST_LIMB_START + CHALLENGE_CONTEXT_LIMB_COUNT;
+const CHALLENGE_WORD_START: usize = CHALLENGE_DIGEST_LIMB_END;
+const CHALLENGE_WORD_END: usize =
+    CHALLENGE_WORD_START + CHALLENGE_OUTPUT_COUNT * CHALLENGE_WORDS_PER_OUTPUT;
+const CHALLENGE_FULL_DIGEST_LIMB_START: usize = CHALLENGE_WORD_END;
+const CHALLENGE_FULL_DIGEST_LIMB_END: usize =
+    CHALLENGE_FULL_DIGEST_LIMB_START + CHALLENGE_OUTPUT_COUNT * DIGEST_LIMBS;
+// Two independent `(alpha, beta)` pairs are accumulated for the original and
+// sorted form of each identifier set. Products are full Pallas scalars: unlike
+// bounded parser cells, they must never be truncated to a host `u64`.
+const UNIQUENESS_PRODUCT_COUNT: usize = 8;
+const UNIQUENESS_PRODUCT_START: usize = CHALLENGE_FULL_DIGEST_LIMB_END;
+const UNIQUENESS_PRODUCT_END: usize = UNIQUENESS_PRODUCT_START + UNIQUENESS_PRODUCT_COUNT;
+const SPENT_ORIGINAL_PRODUCT_0: usize = UNIQUENESS_PRODUCT_START;
+const SPENT_SORTED_PRODUCT_0: usize = SPENT_ORIGINAL_PRODUCT_0 + 1;
+const SPENT_ORIGINAL_PRODUCT_1: usize = SPENT_SORTED_PRODUCT_0 + 1;
+const SPENT_SORTED_PRODUCT_1: usize = SPENT_ORIGINAL_PRODUCT_1 + 1;
+const OUTPUT_ORIGINAL_PRODUCT_0: usize = SPENT_SORTED_PRODUCT_1 + 1;
+const OUTPUT_SORTED_PRODUCT_0: usize = OUTPUT_ORIGINAL_PRODUCT_0 + 1;
+const OUTPUT_ORIGINAL_PRODUCT_1: usize = OUTPUT_SORTED_PRODUCT_0 + 1;
+const OUTPUT_SORTED_PRODUCT_1: usize = OUTPUT_ORIGINAL_PRODUCT_1 + 1;
 // This boundary is derived from the exact canonical codec allocations above.
 // Keeping it structural prevents a future payload-field addition from silently
 // aliasing the independently reserved net/JMT state families.
-const UNIQUENESS_END: usize = CHALLENGE_DIGEST_LIMB_END;
+const UNIQUENESS_END: usize = UNIQUENESS_PRODUCT_END;
 // `NetMerge` materializes its canonical digest from the same source feeder.
 // The four parser cells are bounded state, not an alternative record/byte
-// owner. The semantic SHA relation remains a later constraint over these
-// authenticated limbs; this parser does not treat a native digest assertion
-// as that relation.
+// owner. The authenticated row parser and the SHA-derived uniqueness
+// transcript feed the complete semantic Net and Net-to-terminal-JMT relations;
+// no native digest assertion substitutes for either relation.
 const NET_START: usize = UNIQUENESS_END;
 const NET_PARSE_ACTIVE_CELL: usize = NET_START;
-const NET_PARSE_HEADER_CELL: usize = NET_PARSE_ACTIVE_CELL + 1;
-const NET_PARSE_OFFSET_CELL: usize = NET_PARSE_HEADER_CELL + 1;
-const NET_PARSE_LOW_BYTE_CELL: usize = NET_PARSE_OFFSET_CELL + 1;
-const NET_DIGEST_BYTES_START: usize = 1;
-const NET_DIGEST_LIMB_COUNT: usize = (NET_MERGE_BYTES_V2 - NET_DIGEST_BYTES_START) / 2;
-const NET_DIGEST_LIMB_START: usize = NET_PARSE_LOW_BYTE_CELL + 1;
-const NET_DIGEST_LIMB_END: usize = NET_DIGEST_LIMB_START + NET_DIGEST_LIMB_COUNT;
-const NET_END: usize = NET_DIGEST_LIMB_END;
+const NET_KIND_CELL: usize = NET_PARSE_ACTIVE_CELL + 1;
+const NET_PARSE_ROW_START: usize = NET_KIND_CELL + 1;
+const NET_PARSE_ROW_END: usize = NET_PARSE_ROW_START + UNIQUENESS_SEMANTIC_ROW_BYTES_V2;
+const NET_PARSE_NEW_HASH_START: usize = NET_PARSE_ROW_END;
+const NET_PARSE_NEW_HASH_END: usize = NET_PARSE_NEW_HASH_START + 32;
+const NET_PENDING_SPENT_ACTIVE_CELL: usize = NET_PARSE_NEW_HASH_END;
+const NET_PENDING_OUTPUT_ACTIVE_CELL: usize = NET_PENDING_SPENT_ACTIVE_CELL + 1;
+const NET_PENDING_SPENT_ROW_START: usize = NET_PENDING_OUTPUT_ACTIVE_CELL + 1;
+const NET_PENDING_SPENT_ROW_END: usize =
+    NET_PENDING_SPENT_ROW_START + UNIQUENESS_SEMANTIC_ROW_BYTES_V2;
+const NET_PENDING_OUTPUT_ROW_START: usize = NET_PENDING_SPENT_ROW_END;
+const NET_PENDING_OUTPUT_ROW_END: usize =
+    NET_PENDING_OUTPUT_ROW_START + UNIQUENESS_SEMANTIC_ROW_BYTES_V2;
+const NET_EFFECT_COUNT_CELL: usize = NET_PENDING_OUTPUT_ROW_END;
+const NET_MUTATION_COUNT_CELL: usize = NET_EFFECT_COUNT_CELL + 1;
+const NET_CLOSED_CELL: usize = NET_MUTATION_COUNT_CELL + 1;
+const NET_END: usize = NET_CLOSED_CELL + 1;
 const JMT_START: usize = NET_END;
-const JMT_END: usize = JMT_START + 160;
+// The canonical JMT envelope header is decoded directly from the first
+// authenticated `JmtUpdate` source record. Its body has one separate bounded
+// `JmtMicroOp` representation; these cells retain only the fixed header and
+// declared update count, never an envelope-sized arena or native verdict.
+const JMT_HEADER_PROGRESS_CELL: usize = JMT_START;
+const JMT_KIND_CELL: usize = JMT_HEADER_PROGRESS_CELL + 1;
+const JMT_TRACE_DIGEST_START: usize = JMT_KIND_CELL + 1;
+const JMT_TRACE_DIGEST_END: usize = JMT_TRACE_DIGEST_START + DIGEST_LIMBS;
+const JMT_UPDATE_COUNT_LIMB_START: usize = JMT_TRACE_DIGEST_END;
+const JMT_UPDATE_COUNT_LIMB_END: usize = JMT_UPDATE_COUNT_LIMB_START + 2;
+const JMT_HEADER_STATE_END: usize = JMT_UPDATE_COUNT_LIMB_END;
+// Streaming state for the canonical circuit micro-operation records.  It is
+// deliberately O(1): proof siblings and value bytes are consumed from the
+// authenticated 64-byte source window and never retained as a path arena.
+const JMT_MICRO_STAGE_CELL: usize = JMT_HEADER_STATE_END;
+const JMT_MICRO_COMPLETED_UPDATE_CELL: usize = JMT_HEADER_STATE_END + 1;
+const JMT_MICRO_CURRENT_UPDATE_CELL: usize = JMT_HEADER_STATE_END + 2;
+const JMT_MICRO_NEXT_OPERATION_CELL: usize = JMT_HEADER_STATE_END + 3;
+const JMT_MICRO_RECORD_KIND_CELL: usize = JMT_HEADER_STATE_END + 4;
+const JMT_MICRO_PROOF_STAGE_CELL: usize = JMT_HEADER_STATE_END + 5;
+const JMT_MICRO_VALUE_NEXT_CHUNK_CELL: usize = JMT_HEADER_STATE_END + 6;
+const JMT_MICRO_VALUE_CHUNK_COUNT_CELL: usize = JMT_HEADER_STATE_END + 7;
+// Offset +8 remains reserved so historical state layouts cannot alias the
+// typed tree coordinates below.
+const JMT_MICRO_TREE_TAG_CELL: usize = JMT_HEADER_STATE_END + 9;
+const JMT_MICRO_TREE_DEFINITION_START: usize = JMT_HEADER_STATE_END + 10;
+const JMT_MICRO_TREE_DEFINITION_END: usize = JMT_HEADER_STATE_END + 42;
+const JMT_MICRO_TREE_SERIAL_CELL: usize = JMT_HEADER_STATE_END + 42;
+const JMT_MICRO_TREE_TERMINAL_START: usize = JMT_HEADER_STATE_END + 43;
+const JMT_MICRO_TREE_TERMINAL_END: usize = JMT_HEADER_STATE_END + 75;
+const JMT_MICRO_OLD_VERSION_CELL: usize = JMT_HEADER_STATE_END + 75;
+const JMT_MICRO_NEW_VERSION_CELL: usize = JMT_HEADER_STATE_END + 76;
+const JMT_MICRO_OLD_ROOT_START: usize = JMT_HEADER_STATE_END + 77;
+const JMT_MICRO_OLD_ROOT_END: usize = JMT_HEADER_STATE_END + 109;
+const JMT_MICRO_NEW_ROOT_START: usize = JMT_HEADER_STATE_END + 109;
+const JMT_MICRO_NEW_ROOT_END: usize = JMT_HEADER_STATE_END + 141;
+const JMT_MICRO_EXPECTED_OPERATION_CELL: usize = JMT_HEADER_STATE_END + 141;
+const JMT_MICRO_OPERATION_KEY_START: usize = JMT_HEADER_STATE_END + 142;
+const JMT_MICRO_OPERATION_KEY_END: usize = JMT_HEADER_STATE_END + 174;
+const JMT_MICRO_VALUE_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 174;
+const JMT_MICRO_VALUE_LENGTH_CELL: usize = JMT_HEADER_STATE_END + 175;
+const JMT_MICRO_PROOF_LEAF_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 176;
+const JMT_MICRO_PROOF_LEAF_DATA_START: usize = JMT_HEADER_STATE_END + 177;
+const JMT_MICRO_PROOF_LEAF_DATA_END: usize = JMT_HEADER_STATE_END + 241;
+const JMT_MICRO_EXPECTED_SIBLING_CELL: usize = JMT_HEADER_STATE_END + 241;
+const JMT_MICRO_NEXT_SIBLING_CELL: usize = JMT_HEADER_STATE_END + 242;
+const JMT_MICRO_SIBLING_TYPE_CELL: usize = JMT_HEADER_STATE_END + 243;
+const JMT_MICRO_SIBLING_DIRECTION_CELL: usize = JMT_HEADER_STATE_END + 244;
+const JMT_MICRO_PREVIOUS_OPERATION_KEY_START: usize = JMT_HEADER_STATE_END + 245;
+const JMT_MICRO_PREVIOUS_OPERATION_KEY_END: usize = JMT_HEADER_STATE_END + 277;
+const JMT_MICRO_MUTATION_CASE_CELL: usize = JMT_HEADER_STATE_END + 277;
+const JMT_MICRO_EXPECTED_SPLIT_CELL: usize = JMT_HEADER_STATE_END + 278;
+const JMT_MICRO_NEXT_SPLIT_CELL: usize = JMT_HEADER_STATE_END + 279;
+const JMT_MICRO_NEW_PARENT_STARTED_CELL: usize = JMT_HEADER_STATE_END + 280;
+const JMT_MICRO_COALESCED_LEAF_SEEN_CELL: usize = JMT_HEADER_STATE_END + 281;
+const JMT_MICRO_NEW_PARENT_ACTIVE_CELL: usize = JMT_HEADER_STATE_END + 282;
+const JMT_MICRO_PRIOR_OPERATION_ROOT_START: usize = JMT_HEADER_STATE_END + 283;
+const JMT_MICRO_PRIOR_VALUE_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 291;
+const JMT_MICRO_PRIOR_VALUE_LENGTH_CELL: usize = JMT_HEADER_STATE_END + 292;
+const JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL: usize = JMT_HEADER_STATE_END + 293;
+const JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL: usize = JMT_HEADER_STATE_END + 294;
+const JMT_PRIOR_VALUE_HASH_START: usize = JMT_HEADER_STATE_END + 295;
+const JMT_MICRO_VALUE_KIND_CELL: usize = JMT_HEADER_STATE_END + 303;
+// Offsets +304..+309 remain reserved for bounded hierarchy counters.
+const JMT_RAW_CHAIN_START: usize = JMT_HEADER_STATE_END + 310;
+const JMT_VALUE_HASH_START: usize = JMT_HEADER_STATE_END + 318;
+const JMT_OLD_LEAF_HASH_START: usize = JMT_HEADER_STATE_END + 326;
+const JMT_SIBLING_HASH_START: usize = JMT_HEADER_STATE_END + 334;
+const JMT_OLD_CURRENT_HASH_START: usize = JMT_HEADER_STATE_END + 342;
+const JMT_NEW_CURRENT_HASH_START: usize = JMT_HEADER_STATE_END + 350;
+const JMT_MICRO_STATE_END: usize = JMT_HEADER_STATE_END + 358;
+const JMT_END: usize = JMT_MICRO_STATE_END;
 const HIERARCHY_START: usize = JMT_END;
-const HIERARCHY_END: usize = HIERARCHY_START + 68;
+// `PromoteChildRoot` is a fixed 65-byte source record. Its definition root is
+// retained for the later settlement-root relation, while its trace digest is
+// compared immediately to the envelope-header digest above.
+const HIERARCHY_PROGRESS_CELL: usize = HIERARCHY_START;
+const HIERARCHY_DEFINITION_ROOT_START: usize = HIERARCHY_PROGRESS_CELL + 1;
+const HIERARCHY_DEFINITION_ROOT_END: usize = HIERARCHY_DEFINITION_ROOT_START + DIGEST_LIMBS;
+// The hierarchy stage and previous role are retained byte-for-byte so update
+// roles are proven in the one canonical terminal -> bucket -> serial ->
+// definition -> optional path-index order. This state is independent of the
+// native BTreeMap verifier and therefore rejects duplicate/reordered roles in
+// the recursive relation itself.
+const HIERARCHY_STAGE_CELL: usize = HIERARCHY_DEFINITION_ROOT_END;
+const HIERARCHY_PREVIOUS_ROLE_START: usize = HIERARCHY_STAGE_CELL + 1;
+const HIERARCHY_ROLE_BYTES: usize = 32 + 4 + 32;
+const HIERARCHY_PREVIOUS_ROLE_END: usize = HIERARCHY_PREVIOUS_ROLE_START + HIERARCHY_ROLE_BYTES;
+const HIERARCHY_PARENT_DEFINITION_START: usize = HIERARCHY_PREVIOUS_ROLE_END;
+const HIERARCHY_PARENT_DEFINITION_END: usize = HIERARCHY_PARENT_DEFINITION_START + 32;
+const HIERARCHY_PARENT_SERIAL_START: usize = HIERARCHY_PARENT_DEFINITION_END;
+const HIERARCHY_PARENT_SERIAL_END: usize = HIERARCHY_PARENT_SERIAL_START + 4;
+const HIERARCHY_PARENT_PRIOR_ROOT_START: usize = HIERARCHY_PARENT_SERIAL_END;
+const HIERARCHY_PARENT_PRIOR_ROOT_END: usize = HIERARCHY_PARENT_PRIOR_ROOT_START + 32;
+const HIERARCHY_PARENT_NEW_ROOT_START: usize = HIERARCHY_PARENT_PRIOR_ROOT_END;
+const HIERARCHY_CHILD_PRODUCT_START: usize = HIERARCHY_PARENT_NEW_ROOT_START + 32;
+const HIERARCHY_PRODUCT_LEVELS: usize = 3;
+const HIERARCHY_PRODUCT_PAIRS: usize = 2;
+const HIERARCHY_PRODUCT_COUNT: usize = HIERARCHY_PRODUCT_LEVELS * HIERARCHY_PRODUCT_PAIRS;
+const HIERARCHY_PARENT_PRODUCT_START: usize =
+    HIERARCHY_CHILD_PRODUCT_START + HIERARCHY_PRODUCT_COUNT;
+const HIERARCHY_CHILD_COUNT_START: usize = HIERARCHY_PARENT_PRODUCT_START + HIERARCHY_PRODUCT_COUNT;
+const HIERARCHY_PARENT_COUNT_START: usize = HIERARCHY_CHILD_COUNT_START + HIERARCHY_PRODUCT_LEVELS;
+const HIERARCHY_ROW_BYTES: usize = 1 + 32 + 4 + 32 + 32 + 32;
+const HIERARCHY_STATE_END: usize = HIERARCHY_START + 204;
+const HIERARCHY_END: usize = HIERARCHY_START + 204;
 const COMMITMENTS_START: usize = HIERARCHY_END;
 const COMMITMENTS_END: usize = COMMITMENTS_START + 96;
+const FINALIZE_POST_SETTLEMENT_ROOT_HEX_START: usize = COMMITMENTS_START;
+const FINALIZE_POST_SETTLEMENT_ROOT_HEX_END: usize = FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + 64;
+const TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL: usize = FINALIZE_POST_SETTLEMENT_ROOT_HEX_END;
+const TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL: usize =
+    TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL + 1;
+// Net effects are globally terminal-id sorted while terminal JMT operations
+// are grouped by hierarchy path.  Two independently challenged products bind
+// the complete mutation rows across that unavoidable order change.  These
+// cells have one owner below; the adjacent typed-commitment parser never
+// writes them.
+const NET_JMT_NET_PRODUCT_START: usize = TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL + 1;
+const NET_JMT_JMT_PRODUCT_START: usize = NET_JMT_NET_PRODUCT_START + 2;
+const NET_JMT_TERMINAL_OPERATION_COUNT_CELL: usize = NET_JMT_JMT_PRODUCT_START + 2;
+const NET_JMT_STATE_END: usize = NET_JMT_TERMINAL_OPERATION_COUNT_CELL + 1;
+const NET_JMT_ROW_BYTES: usize = 32 + 4 + 32 + 32 + 32;
+const _: () = assert!(NET_JMT_STATE_END <= COMMITMENTS_END);
 const EXPECTED_FINALS_START: usize = COMMITMENTS_END;
-const EXPECTED_TRACE_ROOT_START: usize = EXPECTED_FINALS_START;
-const EXPECTED_TRACE_ROOT_END: usize = EXPECTED_TRACE_ROOT_START + DIGEST_LIMBS;
-const EXPECTED_TRACE_DIGEST_START: usize = EXPECTED_TRACE_ROOT_END;
+const EXPECTED_TRACE_DIGEST_START: usize = EXPECTED_FINALS_START;
 const EXPECTED_TRACE_DIGEST_END: usize = EXPECTED_TRACE_DIGEST_START + DIGEST_LIMBS;
+// `X_h` and its predecessor endpoint are public invariant digests. They are
+// loaded into z0 by the typed public-input owner, preserved by every fold, and
+// compared again when the portable envelope is admitted. Expected z_h is not
+// stored here and therefore cannot become a circular caller-selected input.
+const PUBLIC_INPUT_DIGEST_START: usize = EXPECTED_TRACE_DIGEST_END;
+const PUBLIC_INPUT_DIGEST_END: usize = PUBLIC_INPUT_DIGEST_START + DIGEST_LIMBS;
+const PRIOR_FINALIZED_STATE_DIGEST_START: usize = PUBLIC_INPUT_DIGEST_END;
+const PRIOR_FINALIZED_STATE_DIGEST_END: usize = PRIOR_FINALIZED_STATE_DIGEST_START + DIGEST_LIMBS;
+const EXPECTED_POST_SETTLEMENT_ROOT_START: usize = PRIOR_FINALIZED_STATE_DIGEST_END;
+const EXPECTED_POST_SETTLEMENT_ROOT_END: usize = EXPECTED_POST_SETTLEMENT_ROOT_START + DIGEST_LIMBS;
+const EXPECTED_POST_DEFINITION_ROOT_START: usize = EXPECTED_POST_SETTLEMENT_ROOT_END;
+const EXPECTED_POST_DEFINITION_ROOT_END: usize = EXPECTED_POST_DEFINITION_ROOT_START + DIGEST_LIMBS;
+const EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START: usize = EXPECTED_POST_DEFINITION_ROOT_END;
+const EXPECTED_TYPED_CHECKPOINT_COMMITMENT_END: usize =
+    EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START + 4 * DIGEST_LIMBS;
+const EXPECTED_STATEMENT_IDENTITY_START: usize = EXPECTED_TYPED_CHECKPOINT_COMMITMENT_END;
+const EXPECTED_STATEMENT_IDENTITY_END: usize = EXPECTED_STATEMENT_IDENTITY_START + 3 * DIGEST_LIMBS;
+const CONSUMED_OPCODE_COUNT_START: usize = EXPECTED_STATEMENT_IDENTITY_END;
+const CONSUMED_OPCODE_COUNT_END: usize = CONSUMED_OPCODE_COUNT_START + ANCHOR_OPCODE_COUNT_COUNT;
 // S1 owns exactly two fixed-width byte contexts.  The source context feeds
 // one source-record transcript; the global context consumes those same bytes
 // under the whole-trace framing.  Neither context contains an event tape,
 // source-record arena, or a second spool.
-const BYTE_CONTEXT_START: usize = EXPECTED_FINALS_START + 80;
+const BYTE_CONTEXT_START: usize = EXPECTED_FINALS_START + 224;
+const _: () = assert!(CONSUMED_OPCODE_COUNT_END <= BYTE_CONTEXT_START);
 const BYTE_CONTEXT_COUNTERS: usize = 14;
 const BYTE_CONTEXT_ACTIVE_OFFSET: usize = 0;
 const BYTE_CONTEXT_SOURCE_ORDINAL_OFFSET: usize = 1;
@@ -226,7 +477,11 @@ const BYTE_CONTEXT_BUFFER_START_OFFSET: usize = BYTE_CONTEXT_CHAINING_END_OFFSET
 // blocks; it is never copied into the running state.  Afterwards a context
 // retains at most a <64-byte tail plus one 64-byte canonical feeder chunk.
 // 128 bytes is therefore a proof-theoretic fixed bound, not a payload arena.
-const BYTE_CONTEXT_BUFFER_BYTES: usize = TRACE_CANONICAL_CHUNK_BYTES_V2 * 2;
+// The semantic uniqueness row appends a framed 100-byte tuple after the
+// already-buffered list prefix. Three fixed chunks keep this O(1) and avoid an
+// alternate row tape while still allowing the shared SHA context to flush its
+// exact FIPS blocks on the following derived controls.
+const BYTE_CONTEXT_BUFFER_BYTES: usize = TRACE_CANONICAL_CHUNK_BYTES_V2 * 3;
 const BYTE_CONTEXT_BUFFER_END_OFFSET: usize =
     BYTE_CONTEXT_BUFFER_START_OFFSET + BYTE_CONTEXT_BUFFER_BYTES;
 // A source context retains exactly one fixed canonical header across the
@@ -238,7 +493,12 @@ const BYTE_CONTEXT_HEADER_END_OFFSET: usize =
 const BYTE_CONTEXT_WIDTH: usize = BYTE_CONTEXT_HEADER_END_OFFSET;
 const SOURCE_BYTE_CONTEXT_START: usize = BYTE_CONTEXT_START;
 const GLOBAL_BYTE_CONTEXT_START: usize = SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_WIDTH;
-const RUNNING_STATE_ARITY_V2: usize = GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_WIDTH;
+const UNIQUENESS_LIST_NEXT_JOB_CELL: usize = GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_WIDTH;
+const UNIQUENESS_LIST_BYTE_CONTEXT_START: usize = UNIQUENESS_LIST_NEXT_JOB_CELL + 1;
+const UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL: usize =
+    UNIQUENESS_LIST_BYTE_CONTEXT_START + BYTE_CONTEXT_WIDTH;
+const UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START: usize = UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL + 1;
+const RUNNING_STATE_ARITY_V2: usize = UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START + BYTE_CONTEXT_WIDTH;
 
 /// The only circuit control phases. Numeric values are part of the private
 /// circuit specification and are selected algebraically, never by a host
@@ -285,14 +545,15 @@ enum ReplayParserStageV2 {
     TerminalLenLow = 8,
     TerminalLenHigh = 9,
     TerminalData = 10,
-    Leaf = 11,
-    FirstDefinition = 12,
-    FirstSerial = 13,
-    FirstObject = 14,
+    LeafValueHash = 11,
+    Leaf = 12,
+    FirstDefinition = 13,
+    FirstSerial = 14,
+    FirstObject = 15,
 }
 
 impl ReplayParserStageV2 {
-    const ALL: [Self; 15] = [
+    const ALL: [Self; 16] = [
         Self::Op,
         Self::TxLenLow,
         Self::TxLenHigh,
@@ -304,6 +565,7 @@ impl ReplayParserStageV2 {
         Self::TerminalLenLow,
         Self::TerminalLenHigh,
         Self::TerminalData,
+        Self::LeafValueHash,
         Self::Leaf,
         Self::FirstDefinition,
         Self::FirstSerial,
@@ -376,7 +638,7 @@ impl ControlTransitionRejectionV2 {
 /// The one production opcode/phase/done table.  Hash controls are explicit
 /// self-loop edges for every live phase; they never arise from a generic
 /// no-op rule.  There are deliberately no `input_done = true` rows.
-const CONTROL_TRANSITION_TABLE_V2: [ControlTransitionV2; 47] = [
+const CONTROL_TRANSITION_TABLE_V2: [ControlTransitionV2; 64] = [
     ControlTransitionV2::new(
         ControlPhaseV2::Idle,
         false,
@@ -408,12 +670,54 @@ const CONTROL_TRANSITION_TABLE_V2: [ControlTransitionV2; 47] = [
     ControlTransitionV2::new(
         ControlPhaseV2::Precommit,
         false,
+        RecursiveTraceOpcodeV2::ReplayInput,
+        ControlPhaseV2::Precommit,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Precommit,
+        false,
+        RecursiveTraceOpcodeV2::ReplayOutput,
+        ControlPhaseV2::Precommit,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Precommit,
+        false,
+        RecursiveTraceOpcodeV2::UniquenessSorted,
+        ControlPhaseV2::Precommit,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Challenge,
+        false,
+        RecursiveTraceOpcodeV2::UniquenessSorted,
+        ControlPhaseV2::Challenge,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Precommit,
+        false,
         RecursiveTraceOpcodeV2::UniquenessChallenge,
         ControlPhaseV2::Challenge,
         false,
     ),
     ControlTransitionV2::new(
         ControlPhaseV2::Challenge,
+        false,
+        RecursiveTraceOpcodeV2::NetMerge,
+        ControlPhaseV2::Net,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Net,
+        false,
+        RecursiveTraceOpcodeV2::UniquenessSorted,
+        ControlPhaseV2::Net,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Net,
         false,
         RecursiveTraceOpcodeV2::NetMerge,
         ControlPhaseV2::Net,
@@ -436,12 +740,26 @@ const CONTROL_TRANSITION_TABLE_V2: [ControlTransitionV2; 47] = [
     ControlTransitionV2::new(
         ControlPhaseV2::Jmt,
         false,
+        RecursiveTraceOpcodeV2::JmtMicroOp,
+        ControlPhaseV2::Jmt,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Jmt,
+        false,
         RecursiveTraceOpcodeV2::PromoteChildRoot,
         ControlPhaseV2::Promote,
         false,
     ),
     ControlTransitionV2::new(
         ControlPhaseV2::Promote,
+        false,
+        RecursiveTraceOpcodeV2::CommitTypedEvent,
+        ControlPhaseV2::Commit,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Commit,
         false,
         RecursiveTraceOpcodeV2::CommitTypedEvent,
         ControlPhaseV2::Commit,
@@ -681,6 +999,65 @@ const CONTROL_TRANSITION_TABLE_V2: [ControlTransitionV2; 47] = [
         ControlPhaseV2::Commit,
         false,
     ),
+    // A source-memory write is a distinct authenticated append edge. It is
+    // immediately consumed by its matching TraceChunk through the one pending
+    // window; the R1CS relation below forbids it from becoming a no-op.
+    ControlTransitionV2::new(
+        ControlPhaseV2::Idle,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Idle,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Replay,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Replay,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Precommit,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Precommit,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Challenge,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Challenge,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Net,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Net,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Jmt,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Jmt,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Promote,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Promote,
+        false,
+    ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::Commit,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::Commit,
+        false,
+    ),
     // The final canonical source record is included in the one global trace
     // transcript.  Its local hash controls and chunks therefore run after
     // FINALIZE_BLOCK, followed by exactly one schema-bound global END_HASH.
@@ -713,6 +1090,13 @@ const CONTROL_TRANSITION_TABLE_V2: [ControlTransitionV2; 47] = [
         ControlPhaseV2::TraceClosure,
         false,
     ),
+    ControlTransitionV2::new(
+        ControlPhaseV2::TraceClosure,
+        false,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
+        ControlPhaseV2::TraceClosure,
+        false,
+    ),
 ];
 
 fn control_transition(
@@ -736,14 +1120,14 @@ fn control_transition(
 /// constraints; unconnected families remain a T2 blocker, never a fallback.
 #[derive(Clone)]
 pub(crate) struct CheckpointRunningStateV2 {
-    cells: [u64; RUNNING_STATE_ARITY_V2],
+    cells: [Scalar; RUNNING_STATE_ARITY_V2],
 }
 
 impl CheckpointRunningStateV2 {
     fn initial(anchors: &CheckpointNovaAnchorsV2) -> Self {
-        let mut cells = [0_u64; RUNNING_STATE_ARITY_V2];
-        for (index, limb) in anchors.limbs.iter().enumerate() {
-            cells[index] = u64::from(*limb);
+        let mut cells = [Scalar::from(0_u64); RUNNING_STATE_ARITY_V2];
+        for (index, value) in anchors.cells.iter().enumerate() {
+            cells[index] = Scalar::from(*value);
         }
         Self { cells }
     }
@@ -755,10 +1139,10 @@ impl CheckpointRunningStateV2 {
         done: bool,
     ) -> Self {
         let mut state = Self::initial(anchors);
-        state.cells[PHASE_CELL] = phase as u64;
-        state.cells[ORDINAL_CELL] = ordinal;
-        state.cells[SOURCE_TRACE_ORDINAL_CELL] = ordinal;
-        state.cells[DONE_CELL] = u64::from(done);
+        state.cells[PHASE_CELL] = Scalar::from(phase as u64);
+        state.cells[ORDINAL_CELL] = Scalar::from(ordinal);
+        state.cells[SOURCE_TRACE_ORDINAL_CELL] = Scalar::from(ordinal);
+        state.cells[DONE_CELL] = Scalar::from(u64::from(done));
         state
     }
 
@@ -766,41 +1150,22 @@ impl CheckpointRunningStateV2 {
         for (state_index, limb) in
             (SOURCE_EVENT_DIGEST_START..SOURCE_EVENT_DIGEST_END).zip(event.payload_digest_limbs)
         {
-            self.cells[state_index] = u64::from(limb);
+            self.cells[state_index] = Scalar::from(u64::from(limb));
         }
         self
     }
 
     fn with_trace_authority(mut self, authority: &NovaTraceRootAuthorityV2) -> Self {
-        for (state_index, root_limb) in
-            (EXPECTED_TRACE_ROOT_START..EXPECTED_TRACE_ROOT_END).zip(authority.expected_final_root)
-        {
-            self.cells[state_index] = root_limb;
-        }
         for (state_index, digest_limb) in (EXPECTED_TRACE_DIGEST_START..EXPECTED_TRACE_DIGEST_END)
             .zip(authority.expected_trace_digest)
         {
-            self.cells[state_index] = u64::from(digest_limb);
-        }
-        self
-    }
-
-    #[cfg(test)]
-    fn with_trace_root_limb(mut self, index: usize, value: u64) -> Self {
-        self.cells[SOURCE_TRACE_ROOT_START + index] = value;
-        self
-    }
-
-    #[cfg(test)]
-    fn with_trace_root(mut self, root: [u64; DIGEST_LIMBS]) -> Self {
-        for (state_index, root_limb) in (SOURCE_TRACE_ROOT_START..SOURCE_TRACE_ROOT_END).zip(root) {
-            self.cells[state_index] = root_limb;
+            self.cells[state_index] = Scalar::from(u64::from(digest_limb));
         }
         self
     }
 
     fn scalars(&self) -> Vec<Scalar> {
-        self.cells.iter().copied().map(Scalar::from).collect()
+        self.cells.to_vec()
     }
 }
 
@@ -808,15 +1173,13 @@ impl CheckpointRunningStateV2 {
 /// trace accumulator. It is state, never a host-side acceptance result.
 #[derive(Clone, Copy)]
 pub(crate) struct NovaTraceRootAuthorityV2 {
-    expected_final_root: [u64; DIGEST_LIMBS],
     expected_trace_digest: [u16; DIGEST_LIMBS],
 }
 
 impl NovaTraceRootAuthorityV2 {
-    fn new(expected_final_root: [u64; DIGEST_LIMBS]) -> Self {
+    fn new(expected_trace_digest: [u16; DIGEST_LIMBS]) -> Self {
         Self {
-            expected_final_root,
-            expected_trace_digest: [0_u16; DIGEST_LIMBS],
+            expected_trace_digest,
         }
     }
 }
@@ -824,23 +1187,73 @@ impl NovaTraceRootAuthorityV2 {
 /// The invariant digest limbs that every Nova state binds on every step.
 #[derive(Clone)]
 pub(crate) struct CheckpointNovaAnchorsV2 {
-    limbs: [u16; ANCHOR_CELLS],
+    cells: [u64; ANCHOR_CELLS],
 }
 
 impl CheckpointNovaAnchorsV2 {
-    fn zero() -> Self {
-        Self {
-            limbs: [0_u16; ANCHOR_CELLS],
+    fn from_pre_uniqueness_context(context: RecursivePreUniquenessContextV2) -> Self {
+        let mut cells = [0_u64; ANCHOR_CELLS];
+        for (digest_index, digest) in context.digest_parts().into_iter().enumerate() {
+            for (limb_index, limb) in digest_limbs(digest).into_iter().enumerate() {
+                cells[digest_index * DIGEST_LIMBS + limb_index] = u64::from(limb);
+            }
         }
+        cells[ANCHOR_SCALAR_START..ANCHOR_SCALAR_START + ANCHOR_SCALAR_COUNT]
+            .copy_from_slice(&context.scalar_parts());
+        cells[ANCHOR_SEMANTIC_COUNT_START
+            ..ANCHOR_SEMANTIC_COUNT_START + ANCHOR_SEMANTIC_COUNT_COUNT]
+            .copy_from_slice(&context.declared_work().semantic_counts());
+        cells[ANCHOR_OPCODE_COUNT_START..ANCHOR_CELLS]
+            .copy_from_slice(&context.declared_work().event_counts().counts());
+        Self { cells }
     }
 
     #[cfg(test)]
     fn for_test() -> Self {
-        let mut limbs = [0_u16; ANCHOR_CELLS];
-        for (index, limb) in limbs.iter_mut().enumerate() {
-            *limb = u16::try_from(index + 1).expect("fixed anchor limb fits in u16");
-        }
-        Self { limbs }
+        let work = RecursiveDeclaredWorkV2::new(
+            RecursiveTraceEventCountsV2::default(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+        .expect("empty test work is coherent");
+        let old_definition_root = JMT_SPARSE_PLACEHOLDER_HASH_V2;
+        let old_settlement_root = *derive_settlement_root_v2(
+            RootGeneration::SettlementV2,
+            7,
+            [11; 32],
+            old_definition_root,
+        )
+        .expect("test SettlementV2 pre-root")
+        .as_bytes();
+        let context = RecursivePreUniquenessContextV2::from_parts(
+            [1; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+            1,
+            0,
+            7,
+            1,
+            1,
+            old_settlement_root,
+            old_definition_root,
+            [4; 32],
+            noop_update_trace_digest(),
+            [5; 32],
+            [6; 32],
+            [7; 32],
+            RecursiveTraceOpcodeV2::grammar_digest(),
+            [8; 32],
+            work,
+        )
+        .expect("test context is coherent");
+        Self::from_pre_uniqueness_context(context)
     }
 }
 
@@ -889,8 +1302,10 @@ pub(crate) struct NovaTypedSourceEventV2 {
     next_payload_digest_limbs: [u16; DIGEST_LIMBS],
     hash_control: HashControlWitnessV2,
     sha_compression: ShaCompressionLaneWitnessV2,
+    source_memory_write: TraceChunkWitnessV2,
     trace_chunk: TraceChunkWitnessV2,
     source_identity: SourceRecordIdentityWitnessV2,
+    replay_semantic_row: [u8; UNIQUENESS_SEMANTIC_ROW_BYTES_V2],
 }
 
 impl NovaTypedSourceEventV2 {
@@ -898,10 +1313,12 @@ impl NovaTypedSourceEventV2 {
         phase: ControlPhaseV2,
         event: &RecursiveTraceEventV2,
     ) -> Result<Self, RecursiveV2Error> {
-        let (hash_control, sha_compression, trace_chunk) = match event.opcode() {
+        let (hash_control, sha_compression, source_memory_write, trace_chunk) = match event.opcode()
+        {
             opcode if opcode.is_source_record() => (
                 HashControlWitnessV2::from_source_record(event)?,
                 ShaCompressionLaneWitnessV2::inactive(),
+                TraceChunkWitnessV2::inactive(),
                 TraceChunkWitnessV2::inactive(),
             ),
             RecursiveTraceOpcodeV2::BeginHash
@@ -922,16 +1339,25 @@ impl NovaTypedSourceEventV2 {
                     HashControlWitnessV2::from_control(&control),
                     sha_compression,
                     TraceChunkWitnessV2::inactive(),
+                    TraceChunkWitnessV2::inactive(),
                 )
             }
+            RecursiveTraceOpcodeV2::SourceMemoryWrite => (
+                HashControlWitnessV2::inactive(),
+                ShaCompressionLaneWitnessV2::inactive(),
+                TraceChunkWitnessV2::from_control(decode_source_memory_write_control(event)?),
+                TraceChunkWitnessV2::inactive(),
+            ),
             RecursiveTraceOpcodeV2::TraceChunk => (
                 HashControlWitnessV2::inactive(),
                 ShaCompressionLaneWitnessV2::inactive(),
+                TraceChunkWitnessV2::inactive(),
                 TraceChunkWitnessV2::from_control(decode_trace_chunk_control(event)?),
             ),
             _ => (
                 HashControlWitnessV2::inactive(),
                 ShaCompressionLaneWitnessV2::inactive(),
+                TraceChunkWitnessV2::inactive(),
                 TraceChunkWitnessV2::inactive(),
             ),
         };
@@ -939,6 +1365,15 @@ impl NovaTypedSourceEventV2 {
             SourceRecordIdentityWitnessV2::from_source_record(event)?
         } else {
             SourceRecordIdentityWitnessV2::inactive()
+        };
+        let replay_semantic_row = if matches!(
+            event.opcode(),
+            RecursiveTraceOpcodeV2::ReplayInput | RecursiveTraceOpcodeV2::ReplayOutput
+        ) {
+            UniquenessSemanticRowV2::from_canonical_flow_item(&decode_flow_item(event.payload())?)
+                .canonical_bytes()
+        } else {
+            [0_u8; UNIQUENESS_SEMANTIC_ROW_BYTES_V2]
         };
         Ok(Self {
             phase,
@@ -948,8 +1383,10 @@ impl NovaTypedSourceEventV2 {
             next_payload_digest_limbs: [0_u16; DIGEST_LIMBS],
             hash_control,
             sha_compression,
+            source_memory_write,
             trace_chunk,
             source_identity,
+            replay_semantic_row,
         })
     }
 
@@ -968,8 +1405,10 @@ impl NovaTypedSourceEventV2 {
             next_payload_digest_limbs: [0_u16; DIGEST_LIMBS],
             hash_control: HashControlWitnessV2::inactive(),
             sha_compression: ShaCompressionLaneWitnessV2::inactive(),
+            source_memory_write: TraceChunkWitnessV2::inactive(),
             trace_chunk: TraceChunkWitnessV2::inactive(),
             source_identity: SourceRecordIdentityWitnessV2::inactive(),
+            replay_semantic_row: [0_u8; UNIQUENESS_SEMANTIC_ROW_BYTES_V2],
         }
     }
 
@@ -997,6 +1436,9 @@ struct HashControlWitnessV2 {
     trace_padding_bytes: u64,
     trace_bit_length: u64,
     trace_eof: bool,
+    uniqueness_list_job: u8,
+    uniqueness_list_count: u32,
+    uniqueness_transcript_job: u8,
     message_bytes: u64,
     block_count: u64,
     block_index: u64,
@@ -1018,6 +1460,9 @@ impl HashControlWitnessV2 {
             trace_padding_bytes: 0,
             trace_bit_length: 0,
             trace_eof: false,
+            uniqueness_list_job: 0,
+            uniqueness_list_count: 0,
+            uniqueness_transcript_job: 0,
             message_bytes: 0,
             block_count: 0,
             block_index: 0,
@@ -1039,6 +1484,8 @@ impl HashControlWitnessV2 {
 
     fn from_control(control: &HashControlBindingV2) -> Self {
         let source = control.source;
+        let uniqueness_list = control.uniqueness_list;
+        let uniqueness_transcript = control.uniqueness_transcript;
         let (block_index, byte_offset, final_block) = control
             .block
             .map(|block| (block.index, block.byte_offset, block.final_block))
@@ -1055,11 +1502,23 @@ impl HashControlWitnessV2 {
                 .unwrap_or(control.source_ordinal),
             source_hash: control.binding,
             source_record_bytes: 0,
-            trace_event_count: control.trace.map(|trace| trace.event_count).unwrap_or(0),
+            trace_event_count: control
+                .trace
+                .map(|trace| trace.event_count)
+                .or_else(|| uniqueness_list.map(|binding| binding.trace_event_count))
+                .or_else(|| uniqueness_transcript.map(|binding| binding.trace_event_count))
+                .unwrap_or(0),
             trace_byte_count: control.trace.map(|trace| trace.byte_count).unwrap_or(0),
             trace_padding_bytes: control.trace.map(|trace| trace.padding_bytes).unwrap_or(0),
             trace_bit_length: control.trace.map(|trace| trace.bit_length).unwrap_or(0),
             trace_eof: control.trace.map(|trace| trace.eof).unwrap_or(false),
+            uniqueness_list_job: uniqueness_list
+                .map(|binding| binding.job as u8)
+                .unwrap_or(0),
+            uniqueness_list_count: uniqueness_list.map(|binding| binding.count).unwrap_or(0),
+            uniqueness_transcript_job: uniqueness_transcript
+                .map(|binding| binding.job as u8)
+                .unwrap_or(0),
             message_bytes: control.message_bytes,
             block_count: control.block_count,
             block_index,
@@ -1137,6 +1596,26 @@ impl TraceChunkWitnessV2 {
             bytes: control.bytes,
         }
     }
+
+    /// Merge the two mutually exclusive opcode witnesses without branching on
+    /// the selected event class. Construction keeps one side canonical-zero;
+    /// the circuit allocates and constrains only the resulting fixed lane.
+    fn merge_disjoint(&self, other: &Self) -> Self {
+        let mut bytes = [0_u8; TRACE_CANONICAL_CHUNK_BYTES_V2];
+        for (output, (left, right)) in bytes
+            .iter_mut()
+            .zip(self.bytes.iter().zip(other.bytes.iter()))
+        {
+            *output = *left | *right;
+        }
+        Self {
+            source_ordinal: self.source_ordinal | other.source_ordinal,
+            chunk_ordinal: self.chunk_ordinal | other.chunk_ordinal,
+            chunk_count: self.chunk_count | other.chunk_count,
+            byte_count: self.byte_count | other.byte_count,
+            bytes,
+        }
+    }
 }
 
 struct AllocatedTraceChunkV2 {
@@ -1152,19 +1631,19 @@ fn allocate_trace_chunk<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     witness: &TraceChunkWitnessV2,
 ) -> Result<AllocatedTraceChunkV2, SynthesisError> {
-    let source_ordinal = allocate_constant(
+    let source_ordinal = allocate_witness_u64(
         cs.namespace(|| "trace_chunk_source_ordinal"),
         witness.source_ordinal,
     )?;
-    let chunk_ordinal = allocate_constant(
+    let chunk_ordinal = allocate_witness_u64(
         cs.namespace(|| "trace_chunk_ordinal"),
         u64::from(witness.chunk_ordinal),
     )?;
-    let chunk_count = allocate_constant(
+    let chunk_count = allocate_witness_u64(
         cs.namespace(|| "trace_chunk_count"),
         u64::from(witness.chunk_count),
     )?;
-    let byte_count = allocate_constant(
+    let byte_count = allocate_witness_u64(
         cs.namespace(|| "trace_chunk_byte_count"),
         u64::from(witness.byte_count),
     )?;
@@ -1205,8 +1684,9 @@ fn allocate_trace_chunk<CS: ConstraintSystem<Scalar>>(
     );
 
     let mut bytes = Vec::with_capacity(TRACE_CANONICAL_CHUNK_BYTES_V2);
+    let mut prior_tail: Option<AllocatedNum<Scalar>> = None;
     for (index, value) in witness.bytes.into_iter().enumerate() {
-        let byte = allocate_constant(
+        let byte = allocate_witness_u64(
             cs.namespace(|| format!("trace_chunk_byte_{index}")),
             u64::from(value),
         )?;
@@ -1215,19 +1695,35 @@ fn allocate_trace_chunk<CS: ConstraintSystem<Scalar>>(
             &byte,
             8,
         )?;
-        // Every candidate count at or before this offset makes this byte tail
-        // data and therefore forces zero.  This stays in R1CS even though the
-        // decoder also rejects non-zero tails.
-        for (count_index, selector) in byte_count_selectors.iter().enumerate() {
-            if count_index <= index {
-                enforce_gated_constant(
-                    cs.namespace(|| format!("trace_chunk_zero_tail_{index}_{count_index}")),
-                    selector,
-                    &byte,
-                    0,
-                );
-            }
-        }
+        // The one-hot count selectors make this cumulative value boolean: it
+        // becomes one exactly when this offset is outside the declared prefix.
+        // Carrying the prefix sum in one cell per byte avoids a quadratic
+        // selector matrix while proving the identical zero-tail relation.
+        let is_tail =
+            AllocatedNum::alloc(cs.namespace(|| format!("trace_chunk_tail_{index}")), || {
+                Ok(Scalar::from(u64::from(
+                    witness.byte_count as usize <= index,
+                )))
+            })?;
+        cs.enforce(
+            || format!("trace_chunk_tail_prefix_{index}"),
+            |lc| {
+                let lc = lc + byte_count_selectors[index].get_variable() - is_tail.get_variable();
+                match prior_tail.as_ref() {
+                    Some(previous) => lc + previous.get_variable(),
+                    None => lc,
+                }
+            },
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+        cs.enforce(
+            || format!("trace_chunk_zero_tail_{index}"),
+            |lc| lc + byte.get_variable(),
+            |lc| lc + is_tail.get_variable(),
+            |lc| lc,
+        );
+        prior_tail = Some(is_tail);
         bytes.push(byte);
     }
     Ok(AllocatedTraceChunkV2 {
@@ -1298,15 +1794,15 @@ fn allocate_source_record_identity<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     witness: &SourceRecordIdentityWitnessV2,
 ) -> Result<AllocatedSourceRecordIdentityV2, SynthesisError> {
-    let opcode = allocate_constant(
+    let opcode = allocate_witness_u64(
         cs.namespace(|| "source_record_identity_opcode"),
         u64::from(witness.opcode),
     )?;
-    let ordinal = allocate_constant(
+    let ordinal = allocate_witness_u64(
         cs.namespace(|| "source_record_identity_ordinal"),
         witness.ordinal,
     )?;
-    let payload_len = allocate_constant(
+    let payload_len = allocate_witness_u64(
         cs.namespace(|| "source_record_identity_payload_len"),
         u64::from(witness.payload_len),
     )?;
@@ -1327,7 +1823,7 @@ fn allocate_source_record_identity<CS: ConstraintSystem<Scalar>>(
     )?;
     let mut object_id = Vec::with_capacity(witness.object_id.len());
     for (index, byte) in witness.object_id.into_iter().enumerate() {
-        let byte = allocate_constant(
+        let byte = allocate_witness_u64(
             cs.namespace(|| format!("source_record_identity_object_id_{index}")),
             u64::from(byte),
         )?;
@@ -1480,6 +1976,9 @@ struct AllocatedHashControlV2 {
     trace_padding_bytes: AllocatedNum<Scalar>,
     trace_bit_length: AllocatedNum<Scalar>,
     trace_eof: AllocatedNum<Scalar>,
+    uniqueness_list_job: AllocatedNum<Scalar>,
+    uniqueness_list_count: AllocatedNum<Scalar>,
+    uniqueness_transcript_job: AllocatedNum<Scalar>,
     message_bytes: AllocatedNum<Scalar>,
     block_count: AllocatedNum<Scalar>,
     block_index: AllocatedNum<Scalar>,
@@ -1498,6 +1997,14 @@ impl AllocatedHashControlV2 {
 
     fn trace_schema_selector(&self) -> &AllocatedBit {
         &self.schema_selectors[1]
+    }
+
+    fn uniqueness_list_schema_selector(&self) -> &AllocatedBit {
+        &self.schema_selectors[2]
+    }
+
+    fn uniqueness_transcript_schema_selector(&self) -> &AllocatedBit {
+        &self.schema_selectors[3]
     }
 
     fn source_selector(&self) -> &AllocatedBit {
@@ -1521,12 +2028,14 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     witness: &HashControlWitnessV2,
 ) -> Result<AllocatedHashControlV2, SynthesisError> {
-    let schema = allocate_constant(cs.namespace(|| "schema"), u64::from(witness.schema))?;
+    let schema = allocate_witness_u64(cs.namespace(|| "schema"), u64::from(witness.schema))?;
     let schema_value = schema.get_value().map(scalar_u64);
-    let mut schema_selectors = Vec::with_capacity(2);
+    let mut schema_selectors = Vec::with_capacity(4);
     for schema_candidate in [
         HashControlSchemaV2::SourceRecord as u64,
         HashControlSchemaV2::TracePrecommit as u64,
+        HashControlSchemaV2::UniquenessList as u64,
+        HashControlSchemaV2::UniquenessTranscript as u64,
     ] {
         schema_selectors.push(AllocatedBit::alloc(
             cs.namespace(|| format!("schema_selector_{schema_candidate}")),
@@ -1540,13 +2049,15 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
         |index| match index {
             0 => HashControlSchemaV2::SourceRecord as u64,
             1 => HashControlSchemaV2::TracePrecommit as u64,
+            2 => HashControlSchemaV2::UniquenessList as u64,
+            3 => HashControlSchemaV2::UniquenessTranscript as u64,
             _ => unreachable!("fixed hash-control schema selector"),
         },
         "hash_control_schema",
     );
-    range_bits(cs.namespace(|| "schema_range"), &schema, 2)?;
+    range_bits(cs.namespace(|| "schema_range"), &schema, 3)?;
 
-    let stage = allocate_constant(cs.namespace(|| "stage"), u64::from(witness.stage))?;
+    let stage = allocate_witness_u64(cs.namespace(|| "stage"), u64::from(witness.stage))?;
     let stage_value = stage.get_value().map(scalar_u64);
     let mut stage_selectors = Vec::with_capacity(5);
     for stage_value_candidate in 0_u64..=4 {
@@ -1564,43 +2075,68 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
     );
     range_bits(cs.namespace(|| "stage_range"), &stage, 3)?;
 
-    let role = allocate_constant(cs.namespace(|| "role"), u64::from(witness.role))?;
+    let role = allocate_witness_u64(cs.namespace(|| "role"), u64::from(witness.role))?;
     let source_ordinal =
-        allocate_constant(cs.namespace(|| "source_ordinal"), witness.source_ordinal)?;
-    let source_record_bytes = allocate_constant(
+        allocate_witness_u64(cs.namespace(|| "source_ordinal"), witness.source_ordinal)?;
+    let source_record_bytes = allocate_witness_u64(
         cs.namespace(|| "source_record_bytes"),
         witness.source_record_bytes,
     )?;
-    let trace_event_count = allocate_constant(
+    let trace_event_count = allocate_witness_u64(
         cs.namespace(|| "trace_event_count"),
         witness.trace_event_count,
     )?;
-    let trace_byte_count = allocate_constant(
+    let trace_byte_count = allocate_witness_u64(
         cs.namespace(|| "trace_byte_count"),
         witness.trace_byte_count,
     )?;
-    let trace_padding_bytes = allocate_constant(
+    let trace_padding_bytes = allocate_witness_u64(
         cs.namespace(|| "trace_padding_bytes"),
         witness.trace_padding_bytes,
     )?;
-    let trace_bit_length = allocate_constant(
+    let trace_bit_length = allocate_witness_u64(
         cs.namespace(|| "trace_bit_length"),
         witness.trace_bit_length,
     )?;
-    let trace_eof = allocate_constant(cs.namespace(|| "trace_eof"), u64::from(witness.trace_eof))?;
-    let message_bytes = allocate_constant(cs.namespace(|| "message_bytes"), witness.message_bytes)?;
-    let block_count = allocate_constant(cs.namespace(|| "block_count"), witness.block_count)?;
-    let block_index = allocate_constant(cs.namespace(|| "block_index"), witness.block_index)?;
-    let byte_offset = allocate_constant(cs.namespace(|| "byte_offset"), witness.byte_offset)?;
-    let final_block = allocate_constant(
+    let trace_eof =
+        allocate_witness_u64(cs.namespace(|| "trace_eof"), u64::from(witness.trace_eof))?;
+    let uniqueness_list_job = allocate_witness_u64(
+        cs.namespace(|| "uniqueness_list_job"),
+        u64::from(witness.uniqueness_list_job),
+    )?;
+    let uniqueness_list_count = allocate_witness_u64(
+        cs.namespace(|| "uniqueness_list_count"),
+        u64::from(witness.uniqueness_list_count),
+    )?;
+    let uniqueness_transcript_job = allocate_witness_u64(
+        cs.namespace(|| "uniqueness_transcript_job"),
+        u64::from(witness.uniqueness_transcript_job),
+    )?;
+    let message_bytes =
+        allocate_witness_u64(cs.namespace(|| "message_bytes"), witness.message_bytes)?;
+    let block_count = allocate_witness_u64(cs.namespace(|| "block_count"), witness.block_count)?;
+    let block_index = allocate_witness_u64(cs.namespace(|| "block_index"), witness.block_index)?;
+    let byte_offset = allocate_witness_u64(cs.namespace(|| "byte_offset"), witness.byte_offset)?;
+    let final_block = allocate_witness_u64(
         cs.namespace(|| "final_block"),
         u64::from(witness.final_block),
     )?;
     range_bits(cs.namespace(|| "role_range"), &role, 8)?;
     for (index, selector) in stage_selectors.iter().enumerate().skip(1) {
+        let trace_role_schema = allocate_bit_or(
+            cs.namespace(|| format!("control_trace_role_schema_{index}")),
+            &schema_selectors[0],
+            &schema_selectors[1],
+            "value",
+        )?;
+        let source_or_trace = AllocatedBit::and(
+            cs.namespace(|| format!("control_trace_role_gate_{index}")),
+            selector,
+            &trace_role_schema,
+        )?;
         enforce_gated_constant(
             cs.namespace(|| format!("control_trace_role_{index}")),
-            &selector,
+            &source_or_trace,
             &role,
             TRACE_HASH_ROLE_TAG_V2,
         );
@@ -1634,6 +2170,21 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
         64,
     )?;
     range_bits(cs.namespace(|| "trace_eof_range"), &trace_eof, 1)?;
+    range_bits(
+        cs.namespace(|| "uniqueness_list_job_range"),
+        &uniqueness_list_job,
+        2,
+    )?;
+    range_bits(
+        cs.namespace(|| "uniqueness_list_count_range"),
+        &uniqueness_list_count,
+        32,
+    )?;
+    range_bits(
+        cs.namespace(|| "uniqueness_transcript_job_range"),
+        &uniqueness_transcript_job,
+        4,
+    )?;
     range_bits(cs.namespace(|| "message_bytes_range"), &message_bytes, 64)?;
     range_bits(cs.namespace(|| "block_count_range"), &block_count, 21)?;
     range_bits(cs.namespace(|| "block_index_range"), &block_index, 21)?;
@@ -1642,7 +2193,7 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
 
     let mut source_hash_bytes = Vec::with_capacity(32);
     for (index, byte) in witness.source_hash.into_iter().enumerate() {
-        let byte = allocate_constant(
+        let byte = allocate_witness_u64(
             cs.namespace(|| format!("source_hash_byte_{index}")),
             u64::from(byte),
         )?;
@@ -1659,7 +2210,7 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
             witness.source_hash[index * 2],
             witness.source_hash[index * 2 + 1],
         ];
-        let limb = allocate_constant(
+        let limb = allocate_witness_u64(
             cs.namespace(|| format!("source_hash_limb_{index}")),
             u64::from(u16::from_le_bytes(bytes)),
         )?;
@@ -1697,12 +2248,94 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
         trace_padding_bytes,
         trace_bit_length,
         trace_eof,
+        uniqueness_list_job,
+        uniqueness_list_count,
+        uniqueness_transcript_job,
         message_bytes,
         block_count,
         block_index,
         byte_offset,
         final_block,
     };
+    for (schema_index, selector) in allocated.schema_selectors[..2].iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("non_uniqueness_schema_job_zero_{schema_index}")),
+            selector,
+            &allocated.uniqueness_list_job,
+            0,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("non_uniqueness_schema_count_zero_{schema_index}")),
+            selector,
+            &allocated.uniqueness_list_count,
+            0,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("non_transcript_schema_job_zero_{schema_index}")),
+            selector,
+            &allocated.uniqueness_transcript_job,
+            0,
+        );
+    }
+    let uniqueness_schema = allocated.uniqueness_list_schema_selector();
+    cs.enforce(
+        || "uniqueness_list_role_matches_job",
+        |lc| lc + uniqueness_schema.get_variable(),
+        |lc| {
+            lc + allocated.role.get_variable()
+                - allocated.uniqueness_list_job.get_variable()
+                - (Scalar::from(2_u64), CS::one())
+        },
+        |lc| lc,
+    );
+    for (index, value) in [
+        &allocated.source_record_bytes,
+        &allocated.trace_byte_count,
+        &allocated.trace_padding_bytes,
+        &allocated.trace_bit_length,
+        &allocated.trace_eof,
+        &allocated.uniqueness_transcript_job,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        enforce_gated_constant(
+            cs.namespace(|| format!("uniqueness_list_unused_field_zero_{index}")),
+            uniqueness_schema,
+            value,
+            0,
+        );
+    }
+    let transcript_schema = allocated.uniqueness_transcript_schema_selector();
+    cs.enforce(
+        || "uniqueness_transcript_role_matches_job",
+        |lc| lc + transcript_schema.get_variable(),
+        |lc| {
+            lc + allocated.role.get_variable()
+                - allocated.uniqueness_transcript_job.get_variable()
+                - (Scalar::from(6_u64), CS::one())
+        },
+        |lc| lc,
+    );
+    for (index, value) in [
+        &allocated.source_record_bytes,
+        &allocated.trace_byte_count,
+        &allocated.trace_padding_bytes,
+        &allocated.trace_bit_length,
+        &allocated.trace_eof,
+        &allocated.uniqueness_list_job,
+        &allocated.uniqueness_list_count,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        enforce_gated_constant(
+            cs.namespace(|| format!("uniqueness_transcript_unused_field_zero_{index}")),
+            transcript_schema,
+            value,
+            0,
+        );
+    }
     // A non-hash event has no implicit source-record schedule.  Force every
     // decoded control value to its unique zero representation so an ordinary
     // grammar edge (including the live TraceChunk opcode) cannot smuggle a
@@ -1716,6 +2349,9 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
         &allocated.trace_padding_bytes,
         &allocated.trace_bit_length,
         &allocated.trace_eof,
+        &allocated.uniqueness_list_job,
+        &allocated.uniqueness_list_count,
+        &allocated.uniqueness_transcript_job,
         &allocated.message_bytes,
         &allocated.block_count,
         &allocated.block_index,
@@ -1746,6 +2382,9 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
         &allocated.trace_padding_bytes,
         &allocated.trace_bit_length,
         &allocated.trace_eof,
+        &allocated.uniqueness_list_job,
+        &allocated.uniqueness_list_count,
+        &allocated.uniqueness_transcript_job,
         &allocated.message_bytes,
         &allocated.block_count,
         &allocated.block_index,
@@ -1800,7 +2439,7 @@ fn allocate_hash_control<CS: ConstraintSystem<Scalar>>(
     {
         enforce_gated_constant(
             cs.namespace(|| format!("control_source_record_bytes_zero_{selector_index}")),
-            &selector,
+            selector,
             &allocated.source_record_bytes,
             0,
         );
@@ -1842,13 +2481,12 @@ impl NovaStepWitnessV2 {
 /// allocated on every synthesis.
 #[derive(Clone)]
 pub(crate) struct CheckpointNovaCircuitV2 {
-    anchors: CheckpointNovaAnchorsV2,
     witness: NovaStepWitnessV2,
 }
 
 impl CheckpointNovaCircuitV2 {
-    fn new(anchors: CheckpointNovaAnchorsV2, witness: NovaStepWitnessV2) -> Self {
-        Self { anchors, witness }
+    fn new(_anchors: CheckpointNovaAnchorsV2, witness: NovaStepWitnessV2) -> Self {
+        Self { witness }
     }
 }
 
@@ -1868,29 +2506,29 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             ));
         }
 
-        for (index, anchor) in self.anchors.limbs.iter().enumerate() {
-            enforce_constant(
-                cs.namespace(|| format!("anchor_{index}")),
-                &z[index],
-                *anchor,
-            );
+        // Anchors are the verifier-supplied public `z_0` prefix.  They remain
+        // range constrained and are preserved by every step, but their values
+        // must never enter R1CS coefficients: one authority-pinned PP serves
+        // every block/input of this fixed relation.
+        for index in 0..ANCHOR_CELLS {
             range_bits(
                 cs.namespace(|| format!("anchor_range_{index}")),
                 &z[index],
-                16,
+                if index < ANCHOR_DIGEST_CELLS { 16 } else { 64 },
             )?;
         }
+        enforce_declared_work_anchor_relations(cs.namespace(|| "declared_work_anchors"), z)?;
         constrain_state_ranges(cs, z)?;
 
-        let event_phase = allocate_constant(
+        let event_phase = allocate_witness_u64(
             cs.namespace(|| "source_event_phase"),
             self.witness.event.phase as u64,
         )?;
-        let event_opcode = allocate_constant(
+        let event_opcode = allocate_witness_u64(
             cs.namespace(|| "source_event_opcode"),
             self.witness.event.opcode as u8 as u64,
         )?;
-        let event_ordinal = allocate_constant(
+        let event_ordinal = allocate_witness_u64(
             cs.namespace(|| "source_event_ordinal"),
             self.witness.event.ordinal,
         )?;
@@ -1910,6 +2548,46 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             &z[PHASE_CELL],
             &event_phase,
         );
+        let initial_zero = allocate_constant(cs.namespace(|| "initial_step_zero"), 0)?;
+        let trace_begin_opcode = allocate_constant(
+            cs.namespace(|| "initial_step_trace_begin_opcode"),
+            RecursiveTraceOpcodeV2::BeginHash as u8 as u64,
+        )?;
+        let ordinal_is_zero = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "initial_step_ordinal_is_zero"),
+            &z[ORDINAL_CELL],
+            &initial_zero,
+        )?;
+        let phase_is_idle = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "initial_step_phase_is_idle"),
+            &event_phase,
+            &initial_zero,
+        )?;
+        let opcode_is_trace_begin = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "initial_step_opcode_is_trace_begin"),
+            &event_opcode,
+            &trace_begin_opcode,
+        )?;
+        let initial_idle = AllocatedBit::and(
+            cs.namespace(|| "initial_step_idle"),
+            &ordinal_is_zero,
+            &phase_is_idle,
+        )?;
+        let initial_step = AllocatedBit::and(
+            cs.namespace(|| "initial_step"),
+            &initial_idle,
+            &opcode_is_trace_begin,
+        )?;
+        let not_initial_step = AllocatedBit::alloc(
+            cs.namespace(|| "not_initial_step"),
+            initial_step.get_value().map(|value| !value),
+        )?;
+        cs.enforce(
+            || "initial_step_complement",
+            |lc| lc + initial_step.get_variable() + not_initial_step.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + CS::one(),
+        );
         let mut source_digest_limbs = Vec::with_capacity(DIGEST_LIMBS);
         let mut next_source_digest_limbs = Vec::with_capacity(DIGEST_LIMBS);
         for (index, ((state_index, limb), next_limb)) in (SOURCE_EVENT_DIGEST_START
@@ -1918,7 +2596,7 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             .zip(self.witness.event.next_payload_digest_limbs)
             .enumerate()
         {
-            let event_limb = allocate_constant(
+            let event_limb = allocate_witness_u64(
                 cs.namespace(|| format!("source_event_digest_{index}")),
                 u64::from(limb),
             )?;
@@ -1927,13 +2605,20 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
                 &event_limb,
                 16,
             )?;
-            enforce_equal(
+            enforce_gated_equal(
                 cs.namespace(|| format!("source_event_digest_matches_state_{index}")),
+                &not_initial_step,
                 &z[state_index],
                 &event_limb,
             );
+            enforce_gated_constant(
+                cs.namespace(|| format!("initial_source_event_digest_zero_{index}")),
+                &initial_step,
+                &z[state_index],
+                0,
+            );
             source_digest_limbs.push(event_limb);
-            let next_event_limb = allocate_constant(
+            let next_event_limb = allocate_witness_u64(
                 cs.namespace(|| format!("next_source_event_digest_{index}")),
                 u64::from(next_limb),
             )?;
@@ -1956,14 +2641,37 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             &event_opcode,
             &trace_chunk_opcode,
         )?;
-        let trace_chunk = allocate_trace_chunk(
-            cs.namespace(|| "trace_chunk"),
-            &self.witness.event.trace_chunk,
+        let source_memory_write_opcode = allocate_constant(
+            cs.namespace(|| "source_memory_write_opcode"),
+            RecursiveTraceOpcodeV2::SourceMemoryWrite as u8 as u64,
         )?;
-        enforce_trace_chunk_representation(
-            cs.namespace(|| "trace_chunk_representation"),
+        let source_memory_write_selector = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "source_memory_write_opcode_selector"),
+            &event_opcode,
+            &source_memory_write_opcode,
+        )?;
+        let source_chunk_selector = allocate_bit_or(
+            cs.namespace(|| "source_chunk_selector"),
+            &source_memory_write_selector,
             &trace_chunk_selector,
-            &trace_chunk,
+            "source_chunk",
+        )?;
+        // SourceMemoryWrite and TraceChunk are mutually exclusive opcodes with
+        // the same fixed representation. Allocate that representation once;
+        // the two selectors decide whether this row writes or reads the
+        // pending state. This preserves one fixed shape and avoids a duplicate
+        // inactive 64-byte lane on every Nova step.
+        let source_chunk_witness = self
+            .witness
+            .event
+            .source_memory_write
+            .merge_disjoint(&self.witness.event.trace_chunk);
+        let source_chunk =
+            allocate_trace_chunk(cs.namespace(|| "source_chunk"), &source_chunk_witness)?;
+        enforce_trace_chunk_representation(
+            cs.namespace(|| "source_chunk_representation"),
+            &source_chunk_selector,
+            &source_chunk,
         );
         let source_opcode = AllocatedBit::alloc(
             cs.namespace(|| "source_opcode_selector"),
@@ -2177,9 +2885,6 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
                         &gate,
                         Scalar::from(opcode as u8 as u64),
                     );
-                    if edge.next_done && opcode == RecursiveTraceOpcodeV2::FinalizeBlock {
-                        final_gate = Some(gate);
-                    }
                 }
             }
         }
@@ -2203,8 +2908,8 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
         )?;
 
         let out_phase =
-            allocate_constant(cs.namespace(|| "out_phase"), self.witness.next_phase as u64)?;
-        let out_opcode = allocate_constant(
+            allocate_witness_u64(cs.namespace(|| "out_phase"), self.witness.next_phase as u64)?;
+        let out_opcode = allocate_witness_u64(
             cs.namespace(|| "out_prior_opcode"),
             self.witness.event.opcode as u8 as u64,
         )?;
@@ -2215,7 +2920,7 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             &z[ORDINAL_CELL],
             "out_ordinal_value",
         )?;
-        let out_done = allocate_constant(
+        let out_done = allocate_witness_u64(
             cs.namespace(|| "out_done"),
             u64::from(self.witness.next_done),
         )?;
@@ -2246,23 +2951,34 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             z,
             &opcode_selectors,
             &trace_chunk_selector,
-            &trace_chunk,
+            &source_chunk,
             &hash_control,
+            &source_identity,
+            &self.witness.event.replay_semantic_row,
         )?;
         let precommit_payload = synthesize_uniqueness_precommit_payload(
             cs.namespace(|| "uniqueness_precommit_payload"),
             z,
             &opcode_selectors,
             &trace_chunk_selector,
-            &trace_chunk,
+            &source_chunk,
             &hash_control,
+        )?;
+        let sorted_payload = synthesize_uniqueness_sorted_payload(
+            cs.namespace(|| "uniqueness_sorted_payload"),
+            z,
+            &opcode_selectors,
+            &trace_chunk_selector,
+            &source_chunk,
+            &hash_control,
+            &replay_payload,
         )?;
         let challenge_payload = synthesize_uniqueness_challenge_payload(
             cs.namespace(|| "uniqueness_challenge_payload"),
             z,
             &opcode_selectors,
             &trace_chunk_selector,
-            &trace_chunk,
+            &source_chunk,
             &hash_control,
         )?;
         let net_payload = synthesize_net_merge_payload(
@@ -2270,8 +2986,39 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             z,
             &opcode_selectors,
             &trace_chunk_selector,
-            &trace_chunk,
+            &source_chunk,
             &hash_control,
+            &sorted_payload,
+        )?;
+        let jmt_hierarchy_payload = synthesize_jmt_hierarchy_payload(
+            cs.namespace(|| "jmt_hierarchy_payload"),
+            z,
+            &opcode_selectors,
+            &trace_chunk_selector,
+            &source_chunk,
+            &hash_control,
+        )?;
+        let net_jmt_permutation = synthesize_net_jmt_permutation(
+            cs.namespace(|| "net_jmt_permutation"),
+            z,
+            &opcode_selectors,
+            &net_payload,
+            &jmt_hierarchy_payload,
+        )?;
+        let finalize_settlement_payload = synthesize_finalize_settlement_payload(
+            cs.namespace(|| "finalize_settlement_payload"),
+            z,
+            &opcode_selectors,
+            &trace_chunk_selector,
+            &source_chunk,
+            &hash_control,
+        )?;
+        let uniqueness_products = synthesize_uniqueness_products(
+            cs.namespace(|| "uniqueness_products"),
+            z,
+            &opcode_selectors,
+            &sorted_payload,
+            &net_payload,
         )?;
         let sha_outputs = synthesize_sha_compression_lane(
             cs.namespace(|| "sha_compression_lane"),
@@ -2280,14 +3027,41 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             &hash_control,
             &self.witness.event.sha_compression,
         )?;
+        let source_memory_outputs = synthesize_source_memory_window(
+            cs.namespace(|| "source_memory_window"),
+            z,
+            &source_opcode,
+            &source_memory_write_selector,
+            &trace_chunk_selector,
+            &source_chunk,
+            &hash_control,
+        )?;
         let schedule_outputs = synthesize_hash_control_schedule(
             cs.namespace(|| "hash_control_schedule"),
             z,
             &event_ordinal,
             &hash_control,
             &trace_chunk_selector,
-            &trace_chunk,
+            &source_chunk,
             &source_header,
+            &sha_outputs,
+        )?;
+        let uniqueness_list_hash_outputs = synthesize_uniqueness_list_hash_context(
+            cs.namespace(|| "uniqueness_list_hash_context"),
+            z,
+            &event_ordinal,
+            &opcode_selectors,
+            &hash_control,
+            &sorted_payload,
+            &sha_outputs,
+        )?;
+        let uniqueness_transcript_hash_outputs = synthesize_uniqueness_transcript_hash_context(
+            cs.namespace(|| "uniqueness_transcript_hash_context"),
+            z,
+            &event_ordinal,
+            &opcode_selectors,
+            &hash_control,
+            &sorted_payload,
             &sha_outputs,
         )?;
 
@@ -2295,6 +3069,46 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             SynthesisError::Unsatisfiable("finalize transition missing from table".to_owned())
         })?;
         let zero = allocate_constant(cs.namespace(|| "finalize_source_bytes_zero"), 0)?;
+        enforce_gated_constant(
+            cs.namespace(|| "finalize_requires_all_semantic_hash_jobs"),
+            &final_gate,
+            &z[UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL],
+            UniquenessTranscriptHashJobV2::ALL.len() as u64,
+        );
+        let mut consumed_opcode_outputs = Vec::with_capacity(ANCHOR_OPCODE_COUNT_COUNT);
+        for (index, selector) in opcode_selectors.iter().enumerate() {
+            let state_index = CONSUMED_OPCODE_COUNT_START + index;
+            let incremented = allocate_incremented(
+                cs.namespace(|| format!("consumed_opcode_{index}_incremented")),
+                &z[state_index],
+                &format!("consumed_opcode_{index}_incremented"),
+            )?;
+            range_bits(
+                cs.namespace(|| format!("consumed_opcode_{index}_incremented_range")),
+                &incremented,
+                64,
+            )?;
+            let next = select_bit_num(
+                cs.namespace(|| format!("consumed_opcode_{index}_next")),
+                selector,
+                &incremented,
+                &z[state_index],
+                "value",
+            )?;
+            enforce_gated_equal(
+                cs.namespace(|| format!("consumed_opcode_{index}_matches_declared")),
+                &final_gate,
+                &next,
+                &z[ANCHOR_OPCODE_COUNT_START + index],
+            );
+            consumed_opcode_outputs.push(select_bit_num(
+                cs.namespace(|| format!("consumed_opcode_{index}_final_clear")),
+                &final_gate,
+                &zero,
+                &next,
+                "value",
+            )?);
+        }
         let replayed_source_bytes_empty = nova_snark::gadgets::utils::alloc_num_equals(
             cs.namespace(|| "finalize_replayed_source_bytes_empty"),
             &z[SOURCE_TRACE_BYTE_COUNT_CELL],
@@ -2313,6 +3127,9 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
         output[SOURCE_TRACE_ORDINAL_CELL] = schedule_outputs.source_trace_ordinal;
         output[SOURCE_TRACE_BYTE_COUNT_CELL] = schedule_outputs.source_trace_byte_count;
         output[DONE_CELL] = out_done;
+        for (index, value) in consumed_opcode_outputs.into_iter().enumerate() {
+            output[CONSUMED_OPCODE_COUNT_START + index] = value;
+        }
         // The schema-bound global TRACE END is the only final event.  It clears
         // the replay grammar together with the byte contexts so finalized Idle
         // cannot retain a replay prefix for a later proof step.
@@ -2355,6 +3172,15 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
                 "value",
             )?;
         }
+        for (state_index, value) in sorted_payload.cells {
+            output[state_index] = select_bit_num(
+                cs.namespace(|| format!("final_uniqueness_sorted_payload_{state_index}")),
+                &final_gate,
+                &zero,
+                &value,
+                "value",
+            )?;
+        }
         for (state_index, value) in challenge_payload.cells {
             output[state_index] = select_bit_num(
                 cs.namespace(|| format!("final_uniqueness_challenge_payload_{state_index}")),
@@ -2373,38 +3199,71 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
                 "value",
             )?;
         }
+        for (state_index, value) in jmt_hierarchy_payload.cells {
+            output[state_index] = select_bit_num(
+                cs.namespace(|| format!("final_jmt_hierarchy_payload_{state_index}")),
+                &final_gate,
+                &zero,
+                &value,
+                "value",
+            )?;
+        }
+        for (state_index, value) in net_jmt_permutation.cells {
+            output[state_index] = select_bit_num(
+                cs.namespace(|| format!("final_net_jmt_permutation_{state_index}")),
+                &final_gate,
+                &zero,
+                &value,
+                "value",
+            )?;
+        }
+        for (state_index, value) in finalize_settlement_payload.cells {
+            output[state_index] = select_bit_num(
+                cs.namespace(|| format!("final_settlement_payload_{state_index}")),
+                &final_gate,
+                &zero,
+                &value,
+                "value",
+            )?;
+        }
+        for (state_index, value) in uniqueness_products.cells {
+            output[state_index] = select_bit_num(
+                cs.namespace(|| format!("final_uniqueness_product_{state_index}")),
+                &final_gate,
+                &zero,
+                &value,
+                "value",
+            )?;
+        }
         for (state_index, value) in schedule_outputs.cells {
+            output[state_index] = value;
+        }
+        for (state_index, value) in uniqueness_list_hash_outputs.cells {
+            output[state_index] = value;
+        }
+        for (state_index, value) in uniqueness_transcript_hash_outputs.cells {
+            output[state_index] = value;
+        }
+        for (state_index, value) in source_memory_outputs.cells {
             output[state_index] = value;
         }
         for (state_index, next_event_limb) in next_source_digest_limbs {
             output[state_index] = next_event_limb;
         }
-        for (index, ((root_index, expected_root_index), event_limb)) in (SOURCE_TRACE_ROOT_START
-            ..SOURCE_TRACE_ROOT_END)
-            .zip(EXPECTED_TRACE_ROOT_START..EXPECTED_TRACE_ROOT_END)
-            .zip(source_digest_limbs)
-            .enumerate()
-        {
-            let next_root = AllocatedNum::alloc(
-                cs.namespace(|| format!("source_trace_root_{index}")),
-                || match (z[root_index].get_value(), event_limb.get_value()) {
-                    (Some(current), Some(digest_limb)) => Ok(current + digest_limb),
-                    _ => Err(SynthesisError::AssignmentMissing),
-                },
+        // z0 starts from a public Idle endpoint, so the private look-ahead
+        // digest/cursors must not leak into or underdetermine z_h.  Clear the
+        // whole non-memory chain prefix only on the unique final trace END;
+        // the next block will bootstrap its global TRACE BeginHash witness from a
+        // zero prefix under the `initial_step` relation above.
+        for index in CHAIN_START..SOURCE_MEMORY_PENDING_ACTIVE_CELL {
+            let current = output[index].clone();
+            output[index] = select_bit_num(
+                cs.namespace(|| format!("final_chain_prefix_{index}")),
+                &final_gate,
+                &zero,
+                &current,
+                "value",
             )?;
-            enforce_sum(
-                cs.namespace(|| format!("source_trace_root_successor_{index}")),
-                &next_root,
-                &z[root_index],
-                &event_limb,
-            );
-            cs.enforce(
-                || format!("final_trace_root_matches_authority_{index}"),
-                |lc| lc + final_gate.get_variable(),
-                |lc| lc + next_root.get_variable() - z[expected_root_index].get_variable(),
-                |lc| lc,
-            );
-            output[root_index] = next_root;
         }
         // TraceClosure's schema-bound global END_HASH is the final consuming
         // event. Check the successor, not the pre-END input, so the last FIPS
@@ -2421,7 +3280,7 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
     }
 }
 
-fn opcode_list() -> [RecursiveTraceOpcodeV2; 14] {
+fn opcode_list() -> [RecursiveTraceOpcodeV2; 17] {
     [
         RecursiveTraceOpcodeV2::BeginBlock,
         RecursiveTraceOpcodeV2::ReplayInput,
@@ -2436,7 +3295,10 @@ fn opcode_list() -> [RecursiveTraceOpcodeV2; 14] {
         RecursiveTraceOpcodeV2::PromoteChildRoot,
         RecursiveTraceOpcodeV2::CommitTypedEvent,
         RecursiveTraceOpcodeV2::FinalizeBlock,
+        RecursiveTraceOpcodeV2::SourceMemoryWrite,
         RecursiveTraceOpcodeV2::TraceChunk,
+        RecursiveTraceOpcodeV2::UniquenessSorted,
+        RecursiveTraceOpcodeV2::JmtMicroOp,
     ]
 }
 
@@ -2473,7 +3335,6 @@ fn synthesize_replay_grammar<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "outputs_mode"),
         ReplayModeV2::Outputs as u64,
     )?;
-    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
     let mode_is_inputs = nova_snark::gadgets::utils::alloc_num_equals(
         cs.namespace(|| "mode_is_inputs"),
         &z[REPLAY_MODE_CELL],
@@ -2530,46 +3391,14 @@ fn synthesize_replay_grammar<CS: ConstraintSystem<Scalar>>(
         1,
     );
 
-    let input_is_empty = nova_snark::gadgets::utils::alloc_num_equals(
-        cs.namespace(|| "input_count_is_empty"),
-        &z[REPLAY_INPUT_COUNT_CELL],
-        &zero,
-    )?;
-    let output_is_empty = nova_snark::gadgets::utils::alloc_num_equals(
-        cs.namespace(|| "output_count_is_empty"),
-        &z[REPLAY_OUTPUT_COUNT_CELL],
-        &zero,
-    )?;
-    // The native grammar allows a no-op precommit only while still in the
-    // input prefix.  Otherwise precommit follows at least one output.  In both
-    // cases the two replay sets are jointly empty or jointly nonempty.
-    let empty_input_prefix = AllocatedBit::and(
-        cs.namespace(|| "empty_input_prefix"),
-        &mode_is_inputs,
-        &input_is_empty,
-    )?;
-    let precommit_mode = allocate_bit_or(
-        cs.namespace(|| "precommit_legal_mode"),
-        &mode_is_outputs,
-        &empty_input_prefix,
-        "value",
-    )?;
-    let precommit_mode_num = bit_as_num(
-        cs.namespace(|| "precommit_legal_mode_num"),
-        &precommit_mode,
-        "value",
-    )?;
+    // Delete-only, insert-only, replacement, and empty transitions are all
+    // legal Net inputs. Replay ordering is closed by the mode grammar; no
+    // false equality between the two set cardinalities is imposed here.
     enforce_gated_constant(
         cs.namespace(|| "precommit_requires_closed_replay_prefix"),
         uniqueness_precommit,
-        &precommit_mode_num,
+        &input_or_output_num,
         1,
-    );
-    cs.enforce(
-        || "precommit_requires_jointly_empty_or_nonempty_sets",
-        |lc| lc + uniqueness_precommit.get_variable(),
-        |lc| lc + input_is_empty.get_variable() - output_is_empty.get_variable(),
-        |lc| lc,
     );
 
     let next_input_count = AllocatedNum::alloc(cs.namespace(|| "next_input_count"), || {
@@ -2672,6 +3501,9 @@ fn synthesize_replay_grammar<CS: ConstraintSystem<Scalar>>(
 
 struct ReplayPayloadOutputsV2 {
     cells: Vec<(usize, AllocatedNum<Scalar>)>,
+    pending_active: AllocatedNum<Scalar>,
+    pending_set: AllocatedNum<Scalar>,
+    pending_semantic_row: Vec<AllocatedNum<Scalar>>,
 }
 
 fn replay_parser_stage_selectors<CS: ConstraintSystem<Scalar>>(
@@ -2746,6 +3578,150 @@ fn enforce_gated_byte_set<CS: ConstraintSystem<Scalar>>(
             "replay parser alphabet is empty".to_owned(),
         ));
     }
+    if allowed == [0, 1] {
+        let value = AllocatedBit::alloc(
+            cs.namespace(|| format!("{label}_boolean")),
+            byte.get_value().map(|value| value == Scalar::from(1_u64)),
+        )?;
+        cs.enforce(
+            || format!("{label}_active_boolean"),
+            |lc| lc + gate.get_variable(),
+            |lc| lc + byte.get_variable() - value.get_variable(),
+            |lc| lc,
+        );
+        return Ok(());
+    }
+    if allowed == b"0123456789abcdef" {
+        let raw = byte.get_value().map(scalar_u64);
+        let nibble_value = raw.map(|value| {
+            if (u64::from(b'0')..=u64::from(b'9')).contains(&value) {
+                value - u64::from(b'0')
+            } else if (u64::from(b'a')..=u64::from(b'f')).contains(&value) {
+                value - u64::from(b'a') + 10
+            } else {
+                0
+            }
+        });
+        let mut bits = Vec::with_capacity(4);
+        for index in 0..4 {
+            bits.push(AllocatedBit::alloc(
+                cs.namespace(|| format!("{label}_nibble_bit_{index}")),
+                nibble_value.map(|value| ((value >> index) & 1) == 1),
+            )?);
+        }
+        let upper_or = allocate_bit_or(
+            cs.namespace(|| format!("{label}_upper_or")),
+            &bits[2],
+            &bits[1],
+            "value",
+        )?;
+        let alpha = AllocatedBit::and(
+            cs.namespace(|| format!("{label}_alpha")),
+            &bits[3],
+            &upper_or,
+        )?;
+        cs.enforce(
+            || format!("{label}_active_hex"),
+            |lc| lc + gate.get_variable(),
+            |lc| {
+                lc + byte.get_variable()
+                    - (Scalar::from(48_u64), CS::one())
+                    - bits[0].get_variable()
+                    - (Scalar::from(2_u64), bits[1].get_variable())
+                    - (Scalar::from(4_u64), bits[2].get_variable())
+                    - (Scalar::from(8_u64), bits[3].get_variable())
+                    - (Scalar::from(39_u64), alpha.get_variable())
+            },
+            |lc| lc,
+        );
+        return Ok(());
+    }
+    if allowed.len() == 94
+        && allowed.first() == Some(&33)
+        && allowed.last() == Some(&126)
+        && allowed.windows(2).all(|pair| pair[1] == pair[0] + 1)
+    {
+        // Printable non-space ASCII is `33 + delta`, `delta <= 93`.
+        // Seven boolean bits plus a fixed comparator replace 94 equality
+        // gadgets on every canonical chunk byte.
+        let delta = AllocatedNum::alloc(cs.namespace(|| format!("{label}_delta")), || {
+            if gate.get_value().ok_or(SynthesisError::AssignmentMissing)? {
+                let value = scalar_u64(byte.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(Scalar::from(value.saturating_sub(33)))
+            } else {
+                Ok(Scalar::from(0_u64))
+            }
+        })?;
+        let raw_delta = delta.get_value().map(scalar_u64);
+        let mut bits = Vec::with_capacity(7);
+        for index in 0..7 {
+            bits.push(AllocatedBit::alloc(
+                cs.namespace(|| format!("{label}_delta_bit_{index}")),
+                raw_delta.map(|value| ((value >> index) & 1) == 1),
+            )?);
+        }
+        cs.enforce(
+            || format!("{label}_delta_bits"),
+            |lc| {
+                let mut relation = lc - delta.get_variable();
+                let mut coefficient = Scalar::from(1_u64);
+                for bit in &bits {
+                    relation = relation + (coefficient, bit.get_variable());
+                    coefficient = coefficient.double();
+                }
+                relation
+            },
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+        cs.enforce(
+            || format!("{label}_active_delta"),
+            |lc| lc + gate.get_variable(),
+            |lc| {
+                lc + delta.get_variable() + (Scalar::from(33_u64), CS::one()) - byte.get_variable()
+            },
+            |lc| lc,
+        );
+
+        let mut prefix_equal: Option<AllocatedBit> = None;
+        for bit_index in (0..7).rev() {
+            let constant_bit = ((93_u8 >> bit_index) & 1) == 1;
+            if !constant_bit {
+                let violation = match &prefix_equal {
+                    Some(prefix) => AllocatedBit::and(
+                        cs.namespace(|| format!("{label}_gt_violation_{bit_index}")),
+                        prefix,
+                        &bits[bit_index],
+                    )?,
+                    None => bits[bit_index].clone(),
+                };
+                cs.enforce(
+                    || format!("{label}_not_greater_{bit_index}"),
+                    |lc| lc + gate.get_variable(),
+                    |lc| lc + violation.get_variable(),
+                    |lc| lc,
+                );
+            }
+            let equal = if constant_bit {
+                bits[bit_index].clone()
+            } else {
+                allocate_bit_not(
+                    cs.namespace(|| format!("{label}_equal_bit_{bit_index}")),
+                    &bits[bit_index],
+                    "value",
+                )?
+            };
+            prefix_equal = Some(match prefix_equal {
+                Some(prefix) => AllocatedBit::and(
+                    cs.namespace(|| format!("{label}_equal_prefix_{bit_index}")),
+                    &prefix,
+                    &equal,
+                )?,
+                None => equal,
+            });
+        }
+        return Ok(());
+    }
     let mut matches = Vec::with_capacity(allowed.len());
     for value in allowed {
         let candidate = allocate_constant(
@@ -2787,52 +3763,6 @@ fn enforce_gated_byte_set<CS: ConstraintSystem<Scalar>>(
     Ok(())
 }
 
-/// Materialize lowercase hexadecimal ASCII from one constrained nibble. This
-/// derives terminal-ID text from the source header object ID in R1CS rather
-/// than accepting a second terminal-ID or decoded object witness.
-fn lower_hex_ascii<CS: ConstraintSystem<Scalar>>(
-    mut cs: CS,
-    nibble: &AllocatedNum<Scalar>,
-    label: &str,
-) -> Result<AllocatedNum<Scalar>, SynthesisError> {
-    range_bits(cs.namespace(|| format!("{label}_range")), nibble, 4)?;
-    let alphabet = b"0123456789abcdef";
-    let value = AllocatedNum::alloc(cs.namespace(|| label), || {
-        let index = usize::try_from(scalar_u64(
-            nibble
-                .get_value()
-                .ok_or(SynthesisError::AssignmentMissing)?,
-        ))
-        .map_err(|_| SynthesisError::Unsatisfiable("hex nibble index overflow".to_owned()))?;
-        alphabet
-            .get(index)
-            .copied()
-            .map(|byte| Scalar::from(u64::from(byte)))
-            .ok_or_else(|| SynthesisError::Unsatisfiable("hex nibble exceeds alphabet".to_owned()))
-    })?;
-    let mut selectors = Vec::with_capacity(alphabet.len());
-    for (index, byte) in alphabet.iter().copied().enumerate() {
-        let candidate = allocate_constant(
-            cs.namespace(|| format!("{label}_nibble_{index}")),
-            index as u64,
-        )?;
-        let selector = nova_snark::gadgets::utils::alloc_num_equals(
-            cs.namespace(|| format!("{label}_nibble_selector_{index}")),
-            nibble,
-            &candidate,
-        )?;
-        enforce_gated_constant(
-            cs.namespace(|| format!("{label}_ascii_{index}")),
-            &selector,
-            &value,
-            u64::from(byte),
-        );
-        selectors.push(selector);
-    }
-    enforce_one_hot(&mut cs, &selectors, &format!("{label}_nibble_one_hot"));
-    Ok(value)
-}
-
 fn source_object_hex_bytes<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     z: &[AllocatedNum<Scalar>],
@@ -2841,55 +3771,392 @@ fn source_object_hex_bytes<CS: ConstraintSystem<Scalar>>(
     for index in 0..DIGEST_LIMBS * 2 {
         let source_byte =
             &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_HEADER_START_OFFSET + 1 + 8 + index];
-        let high =
-            AllocatedNum::alloc(cs.namespace(|| format!("object_hex_high_{index}")), || {
-                let byte = scalar_u64(
-                    source_byte
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                Ok(Scalar::from(byte >> 4))
-            })?;
-        let low = AllocatedNum::alloc(cs.namespace(|| format!("object_hex_low_{index}")), || {
-            let byte = scalar_u64(
-                source_byte
-                    .get_value()
-                    .ok_or(SynthesisError::AssignmentMissing)?,
-            );
-            Ok(Scalar::from(byte & 0x0f))
-        })?;
-        range_bits(
-            cs.namespace(|| format!("object_hex_high_range_{index}")),
-            &high,
-            4,
-        )?;
-        range_bits(
-            cs.namespace(|| format!("object_hex_low_range_{index}")),
-            &low,
-            4,
-        )?;
+        let raw = source_byte.get_value().map(scalar_u64);
+        let mut bits = Vec::with_capacity(8);
+        for bit in 0..8 {
+            bits.push(AllocatedBit::alloc(
+                cs.namespace(|| format!("object_byte_{index}_bit_{bit}")),
+                raw.map(|byte| ((byte >> bit) & 1) == 1),
+            )?);
+        }
         cs.enforce(
-            || format!("object_hex_nibble_relation_{index}"),
+            || format!("object_byte_{index}_bits"),
             |lc| {
-                lc + source_byte.get_variable()
-                    - (Scalar::from(16_u64), high.get_variable())
-                    - low.get_variable()
+                let mut relation = lc - source_byte.get_variable();
+                let mut coefficient = Scalar::from(1_u64);
+                for bit in &bits {
+                    relation = relation + (coefficient, bit.get_variable());
+                    coefficient = coefficient.double();
+                }
+                relation
             },
             |lc| lc + CS::one(),
             |lc| lc,
         );
-        output.push(lower_hex_ascii(
-            cs.namespace(|| format!("object_hex_high_ascii_{index}")),
-            &high,
-            "value",
-        )?);
-        output.push(lower_hex_ascii(
-            cs.namespace(|| format!("object_hex_low_ascii_{index}")),
-            &low,
-            "value",
-        )?);
+        for (name, nibble) in [("high", &bits[4..8]), ("low", &bits[0..4])] {
+            // For a constrained nibble, ASCII is `48+n` for 0..9 and
+            // `87+n` for 10..15. `alpha = b3 && (b2 || b1)` is exactly the
+            // `n >= 10` predicate over four bits, avoiding a 16-way selector.
+            let upper_or = allocate_bit_or(
+                cs.namespace(|| format!("object_hex_{name}_{index}_upper_or")),
+                &nibble[2],
+                &nibble[1],
+                "value",
+            )?;
+            let alpha = AllocatedBit::and(
+                cs.namespace(|| format!("object_hex_{name}_{index}_alpha")),
+                &nibble[3],
+                &upper_or,
+            )?;
+            let ascii = AllocatedNum::alloc(
+                cs.namespace(|| format!("object_hex_{name}_{index}_ascii")),
+                || {
+                    let byte = scalar_u64(
+                        source_byte
+                            .get_value()
+                            .ok_or(SynthesisError::AssignmentMissing)?,
+                    );
+                    let value = if name == "high" {
+                        byte >> 4
+                    } else {
+                        byte & 0x0f
+                    };
+                    Ok(Scalar::from(value + if value < 10 { 48 } else { 87 }))
+                },
+            )?;
+            cs.enforce(
+                || format!("object_hex_{name}_{index}_ascii_relation"),
+                |lc| {
+                    lc + ascii.get_variable()
+                        - (Scalar::from(48_u64), CS::one())
+                        - nibble[0].get_variable()
+                        - (Scalar::from(2_u64), nibble[1].get_variable())
+                        - (Scalar::from(4_u64), nibble[2].get_variable())
+                        - (Scalar::from(8_u64), nibble[3].get_variable())
+                        - (Scalar::from(39_u64), alpha.get_variable())
+                },
+                |lc| lc + CS::one(),
+                |lc| lc,
+            );
+            output.push(ascii);
+        }
     }
     Ok(output)
+}
+
+/// Derive canonical lowercase hexadecimal text from already range-constrained
+/// raw bytes. This is used only to compare replay's canonical text field with
+/// the fixed-width semantic row loaded at the replay source boundary.
+fn raw_bytes_to_lower_hex_ascii<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    raw_bytes: &[AllocatedNum<Scalar>],
+) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+    let mut output = Vec::with_capacity(raw_bytes.len() * 2);
+    for (index, raw_byte) in raw_bytes.iter().enumerate() {
+        let raw = raw_byte.get_value().map(scalar_u64);
+        let mut bits = Vec::with_capacity(8);
+        for bit in 0..8 {
+            bits.push(AllocatedBit::alloc(
+                cs.namespace(|| format!("raw_byte_{index}_bit_{bit}")),
+                raw.map(|byte| ((byte >> bit) & 1) == 1),
+            )?);
+        }
+        cs.enforce(
+            || format!("raw_byte_{index}_bits"),
+            |lc| {
+                let mut relation = lc - raw_byte.get_variable();
+                let mut coefficient = Scalar::from(1_u64);
+                for bit in &bits {
+                    relation = relation + (coefficient, bit.get_variable());
+                    coefficient = coefficient.double();
+                }
+                relation
+            },
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+        for (name, nibble) in [("high", &bits[4..8]), ("low", &bits[0..4])] {
+            let upper_or = allocate_bit_or(
+                cs.namespace(|| format!("raw_hex_{name}_{index}_upper_or")),
+                &nibble[2],
+                &nibble[1],
+                "value",
+            )?;
+            let alpha = AllocatedBit::and(
+                cs.namespace(|| format!("raw_hex_{name}_{index}_alpha")),
+                &nibble[3],
+                &upper_or,
+            )?;
+            let ascii = AllocatedNum::alloc(
+                cs.namespace(|| format!("raw_hex_{name}_{index}_ascii")),
+                || {
+                    let byte = scalar_u64(
+                        raw_byte
+                            .get_value()
+                            .ok_or(SynthesisError::AssignmentMissing)?,
+                    );
+                    let nibble = if name == "high" {
+                        byte >> 4
+                    } else {
+                        byte & 0x0f
+                    };
+                    Ok(Scalar::from(nibble + if nibble < 10 { 48 } else { 87 }))
+                },
+            )?;
+            cs.enforce(
+                || format!("raw_hex_{name}_{index}_ascii_relation"),
+                |lc| {
+                    lc + ascii.get_variable()
+                        - (Scalar::from(48_u64), CS::one())
+                        - nibble[0].get_variable()
+                        - (Scalar::from(2_u64), nibble[1].get_variable())
+                        - (Scalar::from(4_u64), nibble[2].get_variable())
+                        - (Scalar::from(8_u64), nibble[3].get_variable())
+                        - (Scalar::from(39_u64), alpha.get_variable())
+                },
+                |lc| lc + CS::one(),
+                |lc| lc,
+            );
+            output.push(ascii);
+        }
+    }
+    Ok(output)
+}
+
+struct FinalizeSettlementPayloadOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+}
+
+/// Decode the two SettlementV2 roots from the sole canonical FinalizeBlock
+/// record. The pre-root text is compared immediately with the immutable
+/// authority anchor. The post-root text is retained in 64 bounded ASCII cells
+/// until the independently constrained SettlementRoot SHA job completes.
+fn synthesize_finalize_settlement_payload<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    opcode_selectors: &[AllocatedBit],
+    trace_chunk_selector: &AllocatedBit,
+    trace_chunk: &AllocatedTraceChunkV2,
+    control: &AllocatedHashControlV2,
+) -> Result<FinalizeSettlementPayloadOutputsV2, SynthesisError> {
+    let finalize_source = opcode_selectors
+        .get(usize::from(RecursiveTraceOpcodeV2::FinalizeBlock as u8 - 1))
+        .ok_or_else(|| SynthesisError::Unsatisfiable("finalize selector missing".to_owned()))?;
+    let expected_record_bytes = allocate_constant(
+        cs.namespace(|| "finalize_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + 284) as u64,
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "finalize_record_has_canonical_width"),
+        finalize_source,
+        &control.source_record_bytes,
+        &expected_record_bytes,
+    );
+    for index in FINALIZE_POST_SETTLEMENT_ROOT_HEX_START..FINALIZE_POST_SETTLEMENT_ROOT_HEX_END {
+        enforce_gated_constant(
+            cs.namespace(|| format!("finalize_requires_clean_post_root_{index}")),
+            finalize_source,
+            &z[index],
+            0,
+        );
+    }
+
+    let finalize_opcode = allocate_constant(
+        cs.namespace(|| "finalize_opcode"),
+        RecursiveTraceOpcodeV2::FinalizeBlock as u8 as u64,
+    )?;
+    let source_is_finalize = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_finalize"),
+        &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_HEADER_START_OFFSET],
+        &finalize_opcode,
+    )?;
+    let finalize_chunk = AllocatedBit::and(
+        cs.namespace(|| "finalize_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_finalize,
+    )?;
+    let mut chunk_gates = Vec::with_capacity(6);
+    for ordinal in 0_u64..6 {
+        let candidate = allocate_constant(
+            cs.namespace(|| format!("finalize_chunk_ordinal_{ordinal}")),
+            ordinal,
+        )?;
+        let is_ordinal = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("finalize_chunk_is_{ordinal}")),
+            &trace_chunk.chunk_ordinal,
+            &candidate,
+        )?;
+        chunk_gates.push(AllocatedBit::and(
+            cs.namespace(|| format!("finalize_chunk_gate_{ordinal}")),
+            &finalize_chunk,
+            &is_ordinal,
+        )?);
+    }
+    for (ordinal, gate) in chunk_gates.iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("finalize_chunk_{ordinal}_count")),
+            gate,
+            &trace_chunk.chunk_count,
+            6,
+        );
+    }
+    for ordinal in 0..5 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("finalize_full_chunk_{ordinal}")),
+            &chunk_gates[ordinal],
+            &trace_chunk.byte_count,
+            64,
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "finalize_tail_chunk"),
+        &chunk_gates[5],
+        &trace_chunk.byte_count,
+        9,
+    );
+
+    // Exact fixed-width lowercase-hex length prefixes.
+    for (label, gate, offset, value) in [
+        ("pre_len_low", &chunk_gates[2], 61, 64_u64),
+        ("pre_len_high", &chunk_gates[2], 62, 0_u64),
+        ("post_len_low", &chunk_gates[3], 63, 64_u64),
+        ("post_len_high", &chunk_gates[4], 0, 0_u64),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("finalize_{label}")),
+            gate,
+            &trace_chunk.bytes[offset],
+            value,
+        );
+    }
+
+    let pre_root = digest_limb_state_bytes(
+        cs.namespace(|| "finalize_pre_root_anchor"),
+        z,
+        DIGEST_LIMBS * 4,
+        "finalize_pre_root_anchor",
+    )?;
+    let pre_hex =
+        raw_bytes_to_lower_hex_ascii(cs.namespace(|| "finalize_pre_root_hex"), &pre_root)?;
+    enforce_gated_equal(
+        cs.namespace(|| "finalize_pre_root_hex_0"),
+        &chunk_gates[2],
+        &trace_chunk.bytes[63],
+        &pre_hex[0],
+    );
+    for index in 1..64 {
+        enforce_gated_equal(
+            cs.namespace(|| format!("finalize_pre_root_hex_{index}")),
+            &chunk_gates[3],
+            &trace_chunk.bytes[index - 1],
+            &pre_hex[index],
+        );
+    }
+
+    let hex_alphabet = b"0123456789abcdef";
+    let mut outputs =
+        z[FINALIZE_POST_SETTLEMENT_ROOT_HEX_START..FINALIZE_POST_SETTLEMENT_ROOT_HEX_END].to_vec();
+    for index in 0..63 {
+        let byte = &trace_chunk.bytes[index + 1];
+        enforce_gated_byte_set(
+            cs.namespace(|| format!("finalize_post_root_hex_alphabet_{index}")),
+            &chunk_gates[4],
+            byte,
+            hex_alphabet,
+            "value",
+        )?;
+        outputs[index] = select_bit_num(
+            cs.namespace(|| format!("finalize_post_root_hex_store_{index}")),
+            &chunk_gates[4],
+            byte,
+            &outputs[index],
+            "value",
+        )?;
+    }
+    enforce_gated_byte_set(
+        cs.namespace(|| "finalize_post_root_hex_alphabet_63"),
+        &chunk_gates[5],
+        &trace_chunk.bytes[0],
+        hex_alphabet,
+        "value",
+    )?;
+    outputs[63] = select_bit_num(
+        cs.namespace(|| "finalize_post_root_hex_store_63"),
+        &chunk_gates[5],
+        &trace_chunk.bytes[0],
+        &outputs[63],
+        "value",
+    )?;
+    Ok(FinalizeSettlementPayloadOutputsV2 {
+        cells: outputs
+            .into_iter()
+            .enumerate()
+            .map(|(offset, value)| (FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + offset, value))
+            .collect(),
+    })
+}
+
+/// Select `bytes[len - remaining]` under `gate`, with `remaining` constrained
+/// to the canonical one-based field remainder. Widths are fixed powers of two
+/// (4/32/64), so a binary selector tree avoids a wide one-hot table.
+fn select_forward_byte_from_remaining<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    gate: &AllocatedBit,
+    remaining: &AllocatedNum<Scalar>,
+    bytes: &[AllocatedNum<Scalar>],
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    if bytes.is_empty() || !bytes.len().is_power_of_two() {
+        return Err(SynthesisError::Unsatisfiable(
+            "remaining-byte selector requires a nonempty power-of-two width".to_owned(),
+        ));
+    }
+    let bit_width = bytes.len().ilog2() as usize;
+    let remaining_value = remaining.get_value().map(scalar_u64);
+    let gate_value = gate.get_value();
+    let mut position_bits = Vec::with_capacity(bit_width);
+    for bit_index in 0..bit_width {
+        position_bits.push(AllocatedBit::alloc(
+            cs.namespace(|| format!("position_bit_{bit_index}")),
+            match (gate_value, remaining_value) {
+                (Some(true), Some(value)) => {
+                    Some(((value.saturating_sub(1) >> bit_index) & 1) == 1)
+                }
+                (Some(false), _) => Some(false),
+                _ => None,
+            },
+        )?);
+    }
+    cs.enforce(
+        || "remaining_position_relation",
+        |lc| lc + gate.get_variable(),
+        |lc| {
+            let mut relation = lc + remaining.get_variable() - CS::one();
+            let mut coefficient = Scalar::from(1_u64);
+            for bit in &position_bits {
+                relation = relation - (coefficient, bit.get_variable());
+                coefficient = coefficient.double();
+            }
+            relation
+        },
+        |lc| lc,
+    );
+    let mut candidates = bytes.iter().rev().cloned().collect::<Vec<_>>();
+    for (depth, position_bit) in position_bits.iter().enumerate() {
+        let mut selected = Vec::with_capacity(candidates.len() / 2);
+        for (pair_index, pair) in candidates.chunks_exact(2).enumerate() {
+            selected.push(select_bit_num_compact(
+                cs.namespace(|| format!("select_{depth}_{pair_index}")),
+                position_bit,
+                &pair[1],
+                &pair[0],
+                "value",
+            )?);
+        }
+        candidates = selected;
+    }
+    candidates.first().cloned().ok_or_else(|| {
+        SynthesisError::Unsatisfiable("remaining-byte selector produced no byte".to_owned())
+    })
 }
 
 /// Decode `CanonicalFlowItemV2` directly from the meaningful canonical bytes
@@ -2903,6 +4170,8 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
     trace_chunk_selector: &AllocatedBit,
     trace_chunk: &AllocatedTraceChunkV2,
     control: &AllocatedHashControlV2,
+    source_identity: &AllocatedSourceRecordIdentityV2,
+    semantic_row_witness: &[u8; UNIQUENESS_SEMANTIC_ROW_BYTES_V2],
 ) -> Result<ReplayPayloadOutputsV2, SynthesisError> {
     let selector = |opcode: RecursiveTraceOpcodeV2| {
         opcode_selectors
@@ -2966,6 +4235,63 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
         source_header_opcode,
         &replay_output_code,
     )?;
+    enforce_gated_constant(
+        cs.namespace(|| "replay_source_requires_no_pending_row"),
+        &replay_source,
+        &z[REPLAY_PENDING_ACTIVE_CELL],
+        0,
+    );
+    let mut semantic_row = Vec::with_capacity(UNIQUENESS_SEMANTIC_ROW_BYTES_V2);
+    for (index, witness_byte) in semantic_row_witness.iter().copied().enumerate() {
+        let byte = AllocatedNum::alloc(
+            cs.namespace(|| format!("semantic_row_byte_{index}")),
+            || Ok(Scalar::from(u64::from(witness_byte))),
+        )?;
+        range_bits(
+            cs.namespace(|| format!("semantic_row_byte_{index}_range")),
+            &byte,
+            8,
+        )?;
+        semantic_row.push(byte);
+    }
+    for index in 0..SORTED_IDENTIFIER_BYTES_V2 {
+        enforce_gated_equal(
+            cs.namespace(|| format!("semantic_terminal_matches_source_object_{index}")),
+            &replay_source,
+            &semantic_row[SORTED_ROW_TERMINAL_OFFSET + index],
+            &source_identity.object_id[index],
+        );
+    }
+    let semantic_definition_hex = raw_bytes_to_lower_hex_ascii(
+        cs.namespace(|| "semantic_definition_hex"),
+        &z[REPLAY_PENDING_SEMANTIC_ROW_START..REPLAY_PENDING_SEMANTIC_ROW_START + 32],
+    )?;
+    let pending_active = select_bit_num(
+        cs.namespace(|| "pending_active_after_replay_source"),
+        &replay_source,
+        &one,
+        &z[REPLAY_PENDING_ACTIVE_CELL],
+        "value",
+    )?;
+    let replay_output_set =
+        bit_as_num(cs.namespace(|| "replay_output_set"), replay_output, "value")?;
+    let pending_set = select_bit_num(
+        cs.namespace(|| "pending_set_after_replay_source"),
+        &replay_source,
+        &replay_output_set,
+        &z[REPLAY_PENDING_SET_CELL],
+        "value",
+    )?;
+    let mut pending_semantic_row = Vec::with_capacity(UNIQUENESS_SEMANTIC_ROW_BYTES_V2);
+    for (index, byte) in semantic_row.iter().enumerate() {
+        pending_semantic_row.push(select_bit_num(
+            cs.namespace(|| format!("pending_semantic_row_{index}_after_replay_source")),
+            &replay_source,
+            byte,
+            &z[REPLAY_PENDING_SEMANTIC_ROW_START + index],
+            "value",
+        )?);
+    }
 
     let parser_active = allocate_state_bit(
         cs.namespace(|| "parser_active"),
@@ -3160,9 +4486,21 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                                 .ok_or(SynthesisError::AssignmentMissing)?,
                         ) == 1
                         {
-                            ReplayParserStageV2::Leaf as u64
+                            ReplayParserStageV2::LeafValueHash as u64
                         } else {
                             ReplayParserStageV2::TerminalData as u64
+                        }
+                    }
+                    value if value == ReplayParserStageV2::LeafValueHash as u64 => {
+                        if scalar_u64(
+                            remaining
+                                .get_value()
+                                .ok_or(SynthesisError::AssignmentMissing)?,
+                        ) == 1
+                        {
+                            ReplayParserStageV2::Leaf as u64
+                        } else {
+                            ReplayParserStageV2::LeafValueHash as u64
                         }
                     }
                     value if value == ReplayParserStageV2::Leaf as u64 => {
@@ -3221,6 +4559,13 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                     }
                     value if value == ReplayParserStageV2::TerminalLenHigh as u64 => 64,
                     value if value == ReplayParserStageV2::TerminalData as u64 => {
+                        if current == 1 {
+                            32
+                        } else {
+                            current.saturating_sub(1)
+                        }
+                    }
+                    value if value == ReplayParserStageV2::LeafValueHash as u64 => {
                         current.saturating_sub(1)
                     }
                     _ => 0,
@@ -3260,7 +4605,8 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                 ReplayParserStageV2::TxData
                 | ReplayParserStageV2::DefinitionData
                 | ReplayParserStageV2::Serial
-                | ReplayParserStageV2::TerminalData => {
+                | ReplayParserStageV2::TerminalData
+                | ReplayParserStageV2::LeafValueHash => {
                     let (last_stage, continuing_stage) = match parser_stage {
                         ReplayParserStageV2::TxData => (
                             ReplayParserStageV2::DefinitionLenLow,
@@ -3274,9 +4620,14 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                             ReplayParserStageV2::TerminalLenLow,
                             ReplayParserStageV2::Serial,
                         ),
-                        ReplayParserStageV2::TerminalData => {
-                            (ReplayParserStageV2::Leaf, ReplayParserStageV2::TerminalData)
-                        }
+                        ReplayParserStageV2::TerminalData => (
+                            ReplayParserStageV2::LeafValueHash,
+                            ReplayParserStageV2::TerminalData,
+                        ),
+                        ReplayParserStageV2::LeafValueHash => (
+                            ReplayParserStageV2::Leaf,
+                            ReplayParserStageV2::LeafValueHash,
+                        ),
                         _ => unreachable!("only dynamic replay parser stages are selected"),
                     };
                     let last_stage_value = allocate_constant(
@@ -3321,7 +4672,8 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                         ReplayParserStageV2::TxData
                         | ReplayParserStageV2::DefinitionData
                         | ReplayParserStageV2::Serial
-                        | ReplayParserStageV2::TerminalData => {
+                        | ReplayParserStageV2::TerminalData
+                        | ReplayParserStageV2::LeafValueHash => {
                             unreachable!("dynamic replay parser stage handled above")
                         }
                     };
@@ -3491,6 +4843,20 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                         |lc| lc,
                     );
                     if parser_stage == ReplayParserStageV2::DefinitionData {
+                        let expected = select_forward_byte_from_remaining(
+                            cs.namespace(|| format!("byte_{index}_definition_semantic_byte")),
+                            &gate,
+                            &remaining,
+                            &semantic_definition_hex,
+                        )?;
+                        enforce_gated_equal(
+                            cs.namespace(|| {
+                                format!("byte_{index}_definition_matches_semantic_row")
+                            }),
+                            &gate,
+                            byte,
+                            &expected,
+                        );
                         let serial_width = allocate_constant(
                             cs.namespace(|| format!("byte_{index}_serial_width")),
                             4,
@@ -3528,63 +4894,151 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                             &after_last,
                         );
                     } else {
+                        let leaf_hash_width = allocate_constant(
+                            cs.namespace(|| format!("byte_{index}_leaf_hash_width")),
+                            32,
+                        )?;
+                        let decrement = AllocatedNum::alloc(
+                            cs.namespace(|| format!("byte_{index}_terminal_decrement")),
+                            || {
+                                let value = scalar_u64(
+                                    remaining
+                                        .get_value()
+                                        .ok_or(SynthesisError::AssignmentMissing)?,
+                                );
+                                Ok(Scalar::from(value.saturating_sub(1)))
+                            },
+                        )?;
                         cs.enforce(
-                            || format!("byte_{index}_terminal_remaining"),
+                            || format!("byte_{index}_terminal_decrement_relation"),
                             |lc| lc + gate.get_variable(),
                             |lc| {
-                                lc + payload_remaining.get_variable() + CS::one()
-                                    - remaining.get_variable()
+                                lc + decrement.get_variable() + CS::one() - remaining.get_variable()
                             },
                             |lc| lc,
                         );
-                        let mut positions = Vec::with_capacity(DIGEST_LIMBS * 4);
-                        for candidate in 1..=DIGEST_LIMBS * 4 {
-                            let value = allocate_constant(
+                        let after_last = select_bit_num(
+                            cs.namespace(|| format!("byte_{index}_terminal_remaining_last")),
+                            &remaining_is_one,
+                            &leaf_hash_width,
+                            &decrement,
+                            "value",
+                        )?;
+                        enforce_gated_equal(
+                            cs.namespace(|| format!("byte_{index}_terminal_remaining")),
+                            &gate,
+                            &payload_remaining,
+                            &after_last,
+                        );
+                        // `remaining-1` is a six-bit index into the reversed
+                        // source object-ID text. A compact binary selector tree
+                        // proves the same direct byte equality as the former
+                        // 64-way equality matrix without allocating 64
+                        // `alloc_num_equals` gadgets for every chunk byte.
+                        let remaining_value = remaining.get_value().map(scalar_u64);
+                        let gate_value = gate.get_value();
+                        let mut position_bits = Vec::with_capacity(6);
+                        for bit_index in 0..6 {
+                            position_bits.push(AllocatedBit::alloc(
                                 cs.namespace(|| {
-                                    format!("byte_{index}_terminal_position_{candidate}")
+                                    format!("byte_{index}_terminal_position_bit_{bit_index}")
                                 }),
-                                candidate as u64,
-                            )?;
-                            positions.push(nova_snark::gadgets::utils::alloc_num_equals(
-                                cs.namespace(|| {
-                                    format!("byte_{index}_terminal_position_selector_{candidate}")
-                                }),
-                                &remaining,
-                                &value,
+                                match (gate_value, remaining_value) {
+                                    (Some(true), Some(value)) => {
+                                        Some(((value.saturating_sub(1) >> bit_index) & 1) == 1)
+                                    }
+                                    (Some(false), _) => Some(false),
+                                    _ => None,
+                                },
                             )?);
                         }
                         cs.enforce(
-                            || format!("byte_{index}_terminal_position_complete"),
+                            || format!("byte_{index}_terminal_position_relation"),
                             |lc| lc + gate.get_variable(),
                             |lc| {
-                                let mut relation = lc - CS::one();
-                                for position in &positions {
-                                    relation = relation + position.get_variable();
+                                let mut relation = lc + remaining.get_variable() - CS::one();
+                                let mut coefficient = Scalar::from(1_u64);
+                                for bit in &position_bits {
+                                    relation = relation - (coefficient, bit.get_variable());
+                                    coefficient = coefficient.double();
                                 }
                                 relation
                             },
                             |lc| lc,
                         );
-                        for (position, expected) in positions.into_iter().enumerate() {
-                            let position_gate = AllocatedBit::and(
-                                cs.namespace(|| {
-                                    format!("byte_{index}_terminal_position_gate_{position}")
-                                }),
-                                &gate,
-                                &expected,
-                            )?;
-                            enforce_gated_equal(
-                                cs.namespace(|| {
-                                    format!("byte_{index}_terminal_matches_object_{position}")
-                                }),
-                                &position_gate,
-                                byte,
-                                &object_hex[DIGEST_LIMBS * 4 - position - 1],
-                            );
+                        let mut candidates = object_hex.iter().rev().cloned().collect::<Vec<_>>();
+                        for (depth, position_bit) in position_bits.iter().enumerate() {
+                            let mut selected = Vec::with_capacity(candidates.len() / 2);
+                            for (pair_index, pair) in candidates.chunks_exact(2).enumerate() {
+                                selected.push(select_bit_num_compact(
+                                    cs.namespace(|| {
+                                        format!("byte_{index}_terminal_select_{depth}_{pair_index}")
+                                    }),
+                                    position_bit,
+                                    &pair[1],
+                                    &pair[0],
+                                    "value",
+                                )?);
+                            }
+                            candidates = selected;
                         }
+                        let expected = candidates.first().ok_or_else(|| {
+                            SynthesisError::Unsatisfiable(
+                                "terminal selector tree produced no byte".to_owned(),
+                            )
+                        })?;
+                        enforce_gated_equal(
+                            cs.namespace(|| format!("byte_{index}_terminal_matches_object")),
+                            &gate,
+                            byte,
+                            expected,
+                        );
                     }
                 }
+                ReplayParserStageV2::LeafValueHash => {
+                    let expected = select_forward_byte_from_remaining(
+                        cs.namespace(|| format!("byte_{index}_leaf_hash_semantic_byte")),
+                        &gate,
+                        &remaining,
+                        &z[REPLAY_PENDING_SEMANTIC_ROW_START + 68
+                            ..REPLAY_PENDING_SEMANTIC_ROW_START + 100],
+                    )?;
+                    enforce_gated_equal(
+                        cs.namespace(|| format!("byte_{index}_leaf_hash_matches_semantic_row")),
+                        &gate,
+                        byte,
+                        &expected,
+                    );
+                    cs.enforce(
+                        || format!("byte_{index}_leaf_value_hash_nonempty"),
+                        |lc| lc + gate.get_variable(),
+                        |lc| lc + remaining_is_zero.get_variable(),
+                        |lc| lc,
+                    );
+                    cs.enforce(
+                        || format!("byte_{index}_leaf_value_hash_remaining"),
+                        |lc| lc + gate.get_variable(),
+                        |lc| {
+                            lc + payload_remaining.get_variable() + CS::one()
+                                - remaining.get_variable()
+                        },
+                        |lc| lc,
+                    );
+                }
                 ReplayParserStageV2::Serial => {
+                    let expected = select_forward_byte_from_remaining(
+                        cs.namespace(|| format!("byte_{index}_serial_semantic_byte")),
+                        &gate,
+                        &remaining,
+                        &z[REPLAY_PENDING_SEMANTIC_ROW_START + 32
+                            ..REPLAY_PENDING_SEMANTIC_ROW_START + 36],
+                    )?;
+                    enforce_gated_equal(
+                        cs.namespace(|| format!("byte_{index}_serial_matches_semantic_row")),
+                        &gate,
+                        byte,
+                        &expected,
+                    );
                     cs.enforce(
                         || format!("byte_{index}_serial_nonempty"),
                         |lc| lc + gate.get_variable(),
@@ -3747,6 +5201,9 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
             (REPLAY_PARSE_STAGE_CELL, output_stage),
             (REPLAY_PARSE_REMAINING_CELL, output_remaining),
         ],
+        pending_active,
+        pending_set,
+        pending_semantic_row,
     })
 }
 
@@ -3772,33 +5229,41 @@ fn synthesize_uniqueness_precommit_payload<CS: ConstraintSystem<Scalar>>(
     trace_chunk: &AllocatedTraceChunkV2,
     control: &AllocatedHashControlV2,
 ) -> Result<UniquenessPrecommitPayloadOutputsV2, SynthesisError> {
-    let selector = |opcode: RecursiveTraceOpcodeV2| {
-        opcode_selectors
-            .get(usize::from(opcode as u8).saturating_sub(1))
-            .ok_or_else(|| {
-                SynthesisError::Unsatisfiable(
-                    "uniqueness precommit opcode selector missing".to_owned(),
-                )
-            })
-    };
-    let precommit_source = selector(RecursiveTraceOpcodeV2::UniquenessPrecommit)?;
+    let precommit_source = opcode_selectors
+        .get(usize::from(
+            RecursiveTraceOpcodeV2::UniquenessPrecommit as u8 - 1,
+        ))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("uniqueness precommit opcode selector missing".to_owned())
+        })?;
     let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
-    let one = allocate_constant(cs.namespace(|| "one"), 1)?;
-    let header_width = allocate_constant(
-        cs.namespace(|| "canonical_header_width"),
-        TRACE_EVENT_HEADER_BYTES_V2 as u64,
+    let expected_record_bytes = allocate_constant(
+        cs.namespace(|| "canonical_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + UNIQUENESS_PRECOMMIT_BYTES_V2) as u64,
     )?;
-    let payload_width = allocate_constant(
-        cs.namespace(|| "canonical_precommit_payload_width"),
-        UNIQUENESS_PRECOMMIT_BYTES_V2 as u64,
-    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "source_record_has_canonical_fixed_width"),
+        precommit_source,
+        &control.source_record_bytes,
+        &expected_record_bytes,
+    );
 
     let field_indices =
         (PRECOMMIT_SPENT_COUNT_LIMB_START..PRECOMMIT_DIGEST_LIMB_END).collect::<Vec<_>>();
-    let mut field_high_positions = vec![2_usize, 4, 6, 8];
-    field_high_positions
-        .extend((PRECOMMIT_DIGEST_BYTES_START + 1..UNIQUENESS_PRECOMMIT_BYTES_V2).step_by(2));
-    if field_indices.len() != field_high_positions.len()
+    let low_positions = std::iter::once(1_usize)
+        .chain(std::iter::once(3))
+        .chain(std::iter::once(5))
+        .chain(std::iter::once(7))
+        .chain((PRECOMMIT_DIGEST_BYTES_START..UNIQUENESS_PRECOMMIT_BYTES_V2).step_by(2))
+        .collect::<Vec<_>>();
+    let high_positions = std::iter::once(2_usize)
+        .chain(std::iter::once(4))
+        .chain(std::iter::once(6))
+        .chain(std::iter::once(8))
+        .chain((PRECOMMIT_DIGEST_BYTES_START + 1..UNIQUENESS_PRECOMMIT_BYTES_V2).step_by(2))
+        .collect::<Vec<_>>();
+    if field_indices.len() != low_positions.len()
+        || low_positions.len() != high_positions.len()
         || PRECOMMIT_DIGEST_LIMB_COUNT != DIGEST_LIMBS * 5
     {
         return Err(SynthesisError::Unsatisfiable(
@@ -3806,31 +5271,37 @@ fn synthesize_uniqueness_precommit_payload<CS: ConstraintSystem<Scalar>>(
         ));
     }
 
-    for (label, index) in [
-        (
-            "precommit_source_requires_inactive_parser",
-            PRECOMMIT_PARSE_ACTIVE_CELL,
-        ),
-        (
-            "precommit_source_requires_empty_header",
-            PRECOMMIT_PARSE_HEADER_CELL,
-        ),
-        (
-            "precommit_source_requires_zero_offset",
-            PRECOMMIT_PARSE_OFFSET_CELL,
-        ),
-        (
-            "precommit_source_requires_empty_low_byte",
-            PRECOMMIT_PARSE_LOW_BYTE_CELL,
-        ),
+    for index in [
+        PRECOMMIT_PARSE_ACTIVE_CELL,
+        PRECOMMIT_PARSE_HEADER_CELL,
+        PRECOMMIT_PARSE_OFFSET_CELL,
+        PRECOMMIT_PARSE_LOW_BYTE_CELL,
     ] {
-        enforce_gated_constant(cs.namespace(|| label), &precommit_source, &z[index], 0);
+        enforce_gated_constant(
+            cs.namespace(|| format!("source_requires_zero_parser_{index}")),
+            precommit_source,
+            &z[index],
+            0,
+        );
     }
     for index in &field_indices {
         enforce_gated_constant(
-            cs.namespace(|| format!("precommit_source_requires_zero_field_{index}")),
-            &precommit_source,
+            cs.namespace(|| format!("source_requires_zero_field_{index}")),
+            precommit_source,
             &z[*index],
+            0,
+        );
+    }
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(SORTED_END)
+        .skip(SORTED_PARSE_ACTIVE_CELL)
+    {
+        enforce_gated_constant(
+            cs.namespace(|| format!("source_requires_empty_sorted_state_{index}")),
+            precommit_source,
+            cell,
             0,
         );
     }
@@ -3845,16 +5316,116 @@ fn synthesize_uniqueness_precommit_payload<CS: ConstraintSystem<Scalar>>(
         source_header_opcode,
         &precommit_opcode,
     )?;
-    let parser_active = allocate_state_bit(
-        cs.namespace(|| "parser_active"),
-        &z[PRECOMMIT_PARSE_ACTIVE_CELL],
+    let precommit_chunk = AllocatedBit::and(
+        cs.namespace(|| "precommit_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_precommit,
     )?;
+
+    const RECORD_BYTES: usize = TRACE_EVENT_HEADER_BYTES_V2 + UNIQUENESS_PRECOMMIT_BYTES_V2;
+    const CHUNK_COUNT: usize = RECORD_BYTES.div_ceil(TRACE_CANONICAL_CHUNK_BYTES_V2);
+    let mut chunk_gates = Vec::with_capacity(CHUNK_COUNT);
+    let mut chunk_selector_sum = nova_snark::frontend::LinearCombination::zero();
+    for chunk in 0..CHUNK_COUNT {
+        let ordinal = allocate_constant(
+            cs.namespace(|| format!("chunk_{chunk}_ordinal")),
+            chunk as u64,
+        )?;
+        let selector = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("chunk_{chunk}_selector")),
+            &trace_chunk.chunk_ordinal,
+            &ordinal,
+        )?;
+        chunk_selector_sum = chunk_selector_sum + selector.get_variable();
+        let gate = AllocatedBit::and(
+            cs.namespace(|| format!("chunk_{chunk}_gate")),
+            &precommit_chunk,
+            &selector,
+        )?;
+        let expected_byte_count = if chunk + 1 == CHUNK_COUNT {
+            RECORD_BYTES - chunk * TRACE_CANONICAL_CHUNK_BYTES_V2
+        } else {
+            TRACE_CANONICAL_CHUNK_BYTES_V2
+        };
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_byte_count")),
+            &gate,
+            &trace_chunk.byte_count,
+            expected_byte_count as u64,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_count")),
+            &gate,
+            &trace_chunk.chunk_count,
+            CHUNK_COUNT as u64,
+        );
+        chunk_gates.push(gate);
+    }
     cs.enforce(
-        || "active_parser_has_precommit_source_kind",
-        |lc| lc + parser_active.get_variable(),
-        |lc| lc + source_is_precommit.get_variable() - CS::one(),
+        || "precommit_chunk_ordinal_is_complete",
+        |lc| lc + precommit_chunk.get_variable(),
+        |lc| lc + &chunk_selector_sum - CS::one(),
         |lc| lc,
     );
+
+    let version_record_offset = TRACE_EVENT_HEADER_BYTES_V2;
+    let version_chunk = version_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+    let version_byte = version_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2;
+    enforce_gated_constant(
+        cs.namespace(|| "version"),
+        &chunk_gates[version_chunk],
+        &trace_chunk.bytes[version_byte],
+        u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
+    );
+
+    let mut cells = Vec::with_capacity(field_indices.len());
+    for ((state_index, low_position), high_position) in
+        field_indices.iter().zip(low_positions).zip(high_positions)
+    {
+        let low_record_offset = TRACE_EVENT_HEADER_BYTES_V2 + low_position;
+        let high_record_offset = TRACE_EVENT_HEADER_BYTES_V2 + high_position;
+        let chunk = low_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+        if chunk != high_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2 {
+            return Err(SynthesisError::Unsatisfiable(
+                "fixed precommit limb crosses a canonical chunk".to_owned(),
+            ));
+        }
+        let low = &trace_chunk.bytes[low_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+        let high = &trace_chunk.bytes[high_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+        let parsed = AllocatedNum::alloc(
+            cs.namespace(|| format!("field_{state_index}_parsed")),
+            || {
+                let low = scalar_u64(low.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                let high = scalar_u64(high.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(Scalar::from(low + high * 256))
+            },
+        )?;
+        cs.enforce(
+            || format!("field_{state_index}_little_endian"),
+            |lc| lc + chunk_gates[chunk].get_variable(),
+            |lc| {
+                lc + parsed.get_variable()
+                    - low.get_variable()
+                    - (Scalar::from(256_u64), high.get_variable())
+            },
+            |lc| lc,
+        );
+        let cleared = select_bit_num(
+            cs.namespace(|| format!("field_{state_index}_clear")),
+            precommit_source,
+            &zero,
+            &z[*state_index],
+            "value",
+        )?;
+        let output = select_bit_num(
+            cs.namespace(|| format!("field_{state_index}_output")),
+            &chunk_gates[chunk],
+            &parsed,
+            &cleared,
+            "value",
+        )?;
+        cells.push((*state_index, output));
+    }
 
     let source_end = AllocatedBit::and(
         cs.namespace(|| "source_end"),
@@ -3866,453 +5437,1538 @@ fn synthesize_uniqueness_precommit_payload<CS: ConstraintSystem<Scalar>>(
         &source_end,
         &source_is_precommit,
     )?;
-    for (label, index, expected) in [
-        (
-            "precommit_end_requires_parser_closed",
-            PRECOMMIT_PARSE_ACTIVE_CELL,
-            0,
-        ),
-        (
-            "precommit_end_requires_header_consumed",
-            PRECOMMIT_PARSE_HEADER_CELL,
-            0,
-        ),
-        (
-            "precommit_end_requires_exact_payload_width",
-            PRECOMMIT_PARSE_OFFSET_CELL,
-            UNIQUENESS_PRECOMMIT_BYTES_V2 as u64,
-        ),
-        (
-            "precommit_end_requires_empty_low_byte",
-            PRECOMMIT_PARSE_LOW_BYTE_CELL,
-            0,
-        ),
+    for index in [
+        PRECOMMIT_PARSE_ACTIVE_CELL,
+        PRECOMMIT_PARSE_HEADER_CELL,
+        PRECOMMIT_PARSE_OFFSET_CELL,
+        PRECOMMIT_PARSE_LOW_BYTE_CELL,
     ] {
         enforce_gated_constant(
-            cs.namespace(|| label),
+            cs.namespace(|| format!("end_requires_zero_parser_{index}")),
             &precommit_source_end,
             &z[index],
-            expected,
+            0,
         );
     }
+    for index in [
+        PRECOMMIT_SPENT_COUNT_LIMB_START + 1,
+        PRECOMMIT_OUTPUT_COUNT_LIMB_START + 1,
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("count_high_zero_{index}")),
+            &precommit_source_end,
+            &z[index],
+            0,
+        );
+    }
+    Ok(UniquenessPrecommitPayloadOutputsV2 { cells })
+}
+
+/// Successors for the bounded sorted-ID verifier state.
+///
+/// This state is deliberately limited to cardinalities, one active flag, and
+/// the immediately preceding identifier for each set.  It proves the typed
+/// source rows and strict byte order without retaining an externally sorted
+/// list or accepting a native sorting verdict.
+struct UniquenessSortedPayloadOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+    output_set_tag: AllocatedBit,
+    commit_original_spent_row: AllocatedBit,
+    commit_original_output_row: AllocatedBit,
+    commit_sorted_spent_row: AllocatedBit,
+    commit_sorted_output_row: AllocatedBit,
+    original_spent_row: AllocatedBit,
+    original_output_row: AllocatedBit,
+    sorted_spent_row: AllocatedBit,
+    sorted_output_row: AllocatedBit,
+    semantic_row_bytes: Vec<AllocatedNum<Scalar>>,
+    semantic_row_limbs: Vec<AllocatedNum<Scalar>>,
+}
+
+/// Decode one fixed-width `UniquenessSorted` row from the only authenticated
+/// source window and enforce its set membership and strict byte-lexicographic
+/// order. The global order admits equality only for exact same-path
+/// spent-to-output replacement; the P/U SHA
+/// derivation remains a separate T2 obligation.
+fn synthesize_uniqueness_sorted_payload<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    opcode_selectors: &[AllocatedBit],
+    trace_chunk_selector: &AllocatedBit,
+    trace_chunk: &AllocatedTraceChunkV2,
+    control: &AllocatedHashControlV2,
+    replay: &ReplayPayloadOutputsV2,
+) -> Result<UniquenessSortedPayloadOutputsV2, SynthesisError> {
+    let sorted_source = opcode_selectors
+        .get(usize::from(
+            RecursiveTraceOpcodeV2::UniquenessSorted as u8 - 1,
+        ))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("uniqueness sorted opcode selector missing".to_owned())
+        })?;
+    let challenge_source = opcode_selectors
+        .get(usize::from(
+            RecursiveTraceOpcodeV2::UniquenessChallenge as u8 - 1,
+        ))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("uniqueness challenge selector missing".to_owned())
+        })?;
+    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
+    let one = allocate_constant(cs.namespace(|| "one"), 1)?;
+    let expected_record_bytes = allocate_constant(
+        cs.namespace(|| "canonical_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + UNIQUENESS_SORTED_ROW_BYTES_V2) as u64,
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "source_record_has_canonical_fixed_width"),
+        sorted_source,
+        &control.source_record_bytes,
+        &expected_record_bytes,
+    );
+
+    let source_header_opcode = &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_HEADER_START_OFFSET];
+    let sorted_opcode = allocate_constant(
+        cs.namespace(|| "sorted_opcode"),
+        RecursiveTraceOpcodeV2::UniquenessSorted as u8 as u64,
+    )?;
+    let source_is_sorted = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_uniqueness_sorted"),
+        source_header_opcode,
+        &sorted_opcode,
+    )?;
+    let sorted_chunk = AllocatedBit::and(
+        cs.namespace(|| "sorted_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_sorted,
+    )?;
+    const RECORD_BYTES: usize = TRACE_EVENT_HEADER_BYTES_V2 + UNIQUENESS_SORTED_ROW_BYTES_V2;
+    const CHUNK_COUNT: usize = RECORD_BYTES.div_ceil(TRACE_CANONICAL_CHUNK_BYTES_V2);
+    const ROW_RECORD_OFFSET: usize = TRACE_EVENT_HEADER_BYTES_V2 + 4;
+    const _: () = assert!(CHUNK_COUNT == 3);
+    const _: () = assert!(ROW_RECORD_OFFSET < TRACE_CANONICAL_CHUNK_BYTES_V2);
+
+    let mut chunk_gates = Vec::with_capacity(CHUNK_COUNT);
+    let mut chunk_selector_sum = nova_snark::frontend::LinearCombination::zero();
+    for chunk in 0..CHUNK_COUNT {
+        let ordinal = allocate_constant(
+            cs.namespace(|| format!("chunk_{chunk}_ordinal")),
+            chunk as u64,
+        )?;
+        let selector = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("chunk_{chunk}_selector")),
+            &trace_chunk.chunk_ordinal,
+            &ordinal,
+        )?;
+        chunk_selector_sum = chunk_selector_sum + selector.get_variable();
+        let gate = AllocatedBit::and(
+            cs.namespace(|| format!("chunk_{chunk}_gate")),
+            &sorted_chunk,
+            &selector,
+        )?;
+        let byte_count = if chunk + 1 == CHUNK_COUNT {
+            RECORD_BYTES - chunk * TRACE_CANONICAL_CHUNK_BYTES_V2
+        } else {
+            TRACE_CANONICAL_CHUNK_BYTES_V2
+        };
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_byte_count")),
+            &gate,
+            &trace_chunk.byte_count,
+            byte_count as u64,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_count")),
+            &gate,
+            &trace_chunk.chunk_count,
+            CHUNK_COUNT as u64,
+        );
+        chunk_gates.push(gate);
+    }
+    cs.enforce(
+        || "sorted_chunk_ordinal_is_complete",
+        |lc| lc + sorted_chunk.get_variable(),
+        |lc| lc + &chunk_selector_sum - CS::one(),
+        |lc| lc,
+    );
+    let row_gate = chunk_gates
+        .last()
+        .ok_or_else(|| SynthesisError::Unsatisfiable("sorted row has no chunks".to_owned()))?;
+
+    let version_offset = TRACE_EVENT_HEADER_BYTES_V2;
+    enforce_gated_constant(
+        cs.namespace(|| "version"),
+        &chunk_gates[version_offset / TRACE_CANONICAL_CHUNK_BYTES_V2],
+        &trace_chunk.bytes[version_offset],
+        u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
+    );
+    let pass_offset = version_offset + 1;
+    let commit_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "commit_pass_tag"),
+        &trace_chunk.bytes[pass_offset],
+        &zero,
+    )?;
+    let product_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "product_pass_tag"),
+        &trace_chunk.bytes[pass_offset],
+        &one,
+    )?;
+    cs.enforce(
+        || "pass_tag_is_exact_commit_or_product",
+        |lc| lc + chunk_gates[0].get_variable(),
+        |lc| lc + commit_tag.get_variable() + product_tag.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let set_offset = pass_offset + 1;
+    let spent_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "spent_set_tag"),
+        &trace_chunk.bytes[set_offset],
+        &zero,
+    )?;
+    let output_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "output_set_tag"),
+        &trace_chunk.bytes[set_offset],
+        &one,
+    )?;
+    cs.enforce(
+        || "set_tag_is_exact_spent_or_output",
+        |lc| lc + chunk_gates[0].get_variable(),
+        |lc| lc + spent_tag.get_variable() + output_tag.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let list_offset = set_offset + 1;
+    let original_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "original_list_tag"),
+        &trace_chunk.bytes[list_offset],
+        &zero,
+    )?;
+    let sorted_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "sorted_list_tag"),
+        &trace_chunk.bytes[list_offset],
+        &one,
+    )?;
+    cs.enforce(
+        || "list_tag_is_exact_original_or_sorted",
+        |lc| lc + chunk_gates[0].get_variable(),
+        |lc| lc + original_tag.get_variable() + sorted_tag.get_variable() - CS::one(),
+        |lc| lc,
+    );
+
+    let parser_active = allocate_state_bit(
+        cs.namespace(|| "parser_active"),
+        &z[SORTED_PARSE_ACTIVE_CELL],
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "second_chunk_requires_first_chunk"),
+        &chunk_gates[1],
+        &z[SORTED_PARSE_ACTIVE_CELL],
+        1,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "third_chunk_requires_second_chunk"),
+        &chunk_gates[2],
+        &z[SORTED_PARSE_ACTIVE_CELL],
+        1,
+    );
+    let parsed_spent_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "parsed_spent_set_tag"),
+        &z[SORTED_PARSE_SET_CELL],
+        &zero,
+    )?;
+    let parsed_commit_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "parsed_commit_pass_tag"),
+        &z[SORTED_PARSE_PASS_CELL],
+        &zero,
+    )?;
+    let parsed_product_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "parsed_product_pass_tag"),
+        &z[SORTED_PARSE_PASS_CELL],
+        &one,
+    )?;
+    cs.enforce(
+        || "parsed_pass_tag_is_exact_commit_or_product",
+        |lc| lc + parser_active.get_variable(),
+        |lc| lc + parsed_commit_tag.get_variable() + parsed_product_tag.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let parsed_output_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "parsed_output_set_tag"),
+        &z[SORTED_PARSE_SET_CELL],
+        &one,
+    )?;
+    cs.enforce(
+        || "parsed_set_tag_is_exact_spent_or_output",
+        |lc| lc + parser_active.get_variable(),
+        |lc| lc + parsed_spent_tag.get_variable() + parsed_output_tag.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let parsed_original_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "parsed_original_list_tag"),
+        &z[SORTED_PARSE_LIST_CELL],
+        &zero,
+    )?;
+    let parsed_sorted_tag = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "parsed_sorted_list_tag"),
+        &z[SORTED_PARSE_LIST_CELL],
+        &one,
+    )?;
+    cs.enforce(
+        || "parsed_list_tag_is_exact_original_or_sorted",
+        |lc| lc + parser_active.get_variable(),
+        |lc| lc + parsed_original_tag.get_variable() + parsed_sorted_tag.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let spent_set_row = AllocatedBit::and(
+        cs.namespace(|| "spent_set_row"),
+        row_gate,
+        &parsed_spent_tag,
+    )?;
+    let output_set_row = AllocatedBit::and(
+        cs.namespace(|| "output_set_row"),
+        row_gate,
+        &parsed_output_tag,
+    )?;
+    let original_row = AllocatedBit::and(
+        cs.namespace(|| "original_row"),
+        row_gate,
+        &parsed_original_tag,
+    )?;
+    let sorted_row =
+        AllocatedBit::and(cs.namespace(|| "sorted_row"), row_gate, &parsed_sorted_tag)?;
+    let raw_original_spent_row = AllocatedBit::and(
+        cs.namespace(|| "original_spent_row"),
+        &spent_set_row,
+        &original_row,
+    )?;
+    let raw_original_output_row = AllocatedBit::and(
+        cs.namespace(|| "original_output_row"),
+        &output_set_row,
+        &original_row,
+    )?;
+    let raw_sorted_spent_row = AllocatedBit::and(
+        cs.namespace(|| "sorted_spent_row"),
+        &spent_set_row,
+        &sorted_row,
+    )?;
+    let raw_sorted_output_row = AllocatedBit::and(
+        cs.namespace(|| "sorted_output_row"),
+        &output_set_row,
+        &sorted_row,
+    )?;
+    let commit_original_spent_row = AllocatedBit::and(
+        cs.namespace(|| "commit_original_spent_row"),
+        &raw_original_spent_row,
+        &parsed_commit_tag,
+    )?;
+    let commit_original_output_row = AllocatedBit::and(
+        cs.namespace(|| "commit_original_output_row"),
+        &raw_original_output_row,
+        &parsed_commit_tag,
+    )?;
+    let commit_sorted_spent_row = AllocatedBit::and(
+        cs.namespace(|| "commit_sorted_spent_row"),
+        &raw_sorted_spent_row,
+        &parsed_commit_tag,
+    )?;
+    let commit_sorted_output_row = AllocatedBit::and(
+        cs.namespace(|| "commit_sorted_output_row"),
+        &raw_sorted_output_row,
+        &parsed_commit_tag,
+    )?;
+    let original_spent_row = AllocatedBit::and(
+        cs.namespace(|| "product_original_spent_row"),
+        &raw_original_spent_row,
+        &parsed_product_tag,
+    )?;
+    let original_output_row = AllocatedBit::and(
+        cs.namespace(|| "product_original_output_row"),
+        &raw_original_output_row,
+        &parsed_product_tag,
+    )?;
+    let sorted_spent_row = AllocatedBit::and(
+        cs.namespace(|| "product_sorted_spent_row"),
+        &raw_sorted_spent_row,
+        &parsed_product_tag,
+    )?;
+    let sorted_output_row = AllocatedBit::and(
+        cs.namespace(|| "product_sorted_output_row"),
+        &raw_sorted_output_row,
+        &parsed_product_tag,
+    )?;
+    let product_sorted_row = AllocatedBit::and(
+        cs.namespace(|| "product_sorted_row"),
+        &sorted_row,
+        &parsed_product_tag,
+    )?;
+
+    let semantic_row = (0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2)
+        .map(|index| {
+            let record_offset = ROW_RECORD_OFFSET + index;
+            let chunk = record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+            if chunk + 1 < CHUNK_COUNT {
+                z[SORTED_PARSE_ROW_START + index].clone()
+            } else {
+                trace_chunk.bytes[record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2].clone()
+            }
+        })
+        .collect::<Vec<_>>();
+    let identifier = semantic_row
+        [SORTED_ROW_TERMINAL_OFFSET..SORTED_ROW_TERMINAL_OFFSET + SORTED_IDENTIFIER_BYTES_V2]
+        .to_vec();
+    let mut semantic_row_limbs = Vec::with_capacity(UNIQUENESS_SEMANTIC_ROW_BYTES_V2 / 2);
+    for limb in 0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2 / 2 {
+        let low = &semantic_row[limb * 2];
+        let high = &semantic_row[limb * 2 + 1];
+        let parsed =
+            AllocatedNum::alloc(cs.namespace(|| format!("semantic_row_limb_{limb}")), || {
+                let low = scalar_u64(low.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                let high = scalar_u64(high.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(Scalar::from(low + high * 256))
+            })?;
+        cs.enforce(
+            || format!("semantic_row_limb_{limb}_little_endian"),
+            |lc| {
+                lc + parsed.get_variable()
+                    - low.get_variable()
+                    - (Scalar::from(256_u64), high.get_variable())
+            },
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+        range_bits(
+            cs.namespace(|| format!("semantic_row_limb_{limb}_range")),
+            &parsed,
+            16,
+        )?;
+        semantic_row_limbs.push(parsed);
+    }
+
+    let replay_input_source = opcode_selectors
+        .get(usize::from(RecursiveTraceOpcodeV2::ReplayInput as u8 - 1))
+        .ok_or_else(|| SynthesisError::Unsatisfiable("replay input selector missing".to_owned()))?;
+    let replay_output_source = opcode_selectors
+        .get(usize::from(RecursiveTraceOpcodeV2::ReplayOutput as u8 - 1))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("replay output selector missing".to_owned())
+        })?;
+    let replay_source = allocate_bit_or(
+        cs.namespace(|| "replay_source"),
+        replay_input_source,
+        replay_output_source,
+        "value",
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "replay_source_requires_no_pending_original"),
+        &replay_source,
+        &z[REPLAY_PENDING_ACTIVE_CELL],
+        0,
+    );
     for (label, index) in [
+        ("replay_source_before_spent_sorted", SORTED_SPENT_COUNT_CELL),
         (
-            "precommit_spent_count_high_zero",
-            PRECOMMIT_SPENT_COUNT_LIMB_START + 1,
-        ),
-        (
-            "precommit_output_count_high_zero",
-            PRECOMMIT_OUTPUT_COUNT_LIMB_START + 1,
+            "replay_source_before_output_sorted",
+            SORTED_OUTPUT_COUNT_CELL,
         ),
     ] {
-        enforce_gated_constant(cs.namespace(|| label), &precommit_source_end, &z[index], 0);
+        enforce_gated_constant(cs.namespace(|| label), &replay_source, &z[index], 0);
+    }
+
+    let source_end = AllocatedBit::and(
+        cs.namespace(|| "source_end"),
+        control.end_selector(),
+        control.source_schema_selector(),
+    )?;
+    let replay_input_opcode = allocate_constant(
+        cs.namespace(|| "replay_input_opcode"),
+        RecursiveTraceOpcodeV2::ReplayInput as u8 as u64,
+    )?;
+    let replay_output_opcode = allocate_constant(
+        cs.namespace(|| "replay_output_opcode"),
+        RecursiveTraceOpcodeV2::ReplayOutput as u8 as u64,
+    )?;
+    let source_is_replay_input = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_replay_input"),
+        source_header_opcode,
+        &replay_input_opcode,
+    )?;
+    let source_is_replay_output = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_replay_output"),
+        source_header_opcode,
+        &replay_output_opcode,
+    )?;
+    let source_is_replay = allocate_bit_or(
+        cs.namespace(|| "source_is_replay"),
+        &source_is_replay_input,
+        &source_is_replay_output,
+        "value",
+    )?;
+    let replay_source_end = AllocatedBit::and(
+        cs.namespace(|| "replay_source_end"),
+        &source_end,
+        &source_is_replay,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "replay_end_requires_pending_original"),
+        &replay_source_end,
+        &z[REPLAY_PENDING_ACTIVE_CELL],
+        1,
+    );
+    let commit_original_row = allocate_bit_or(
+        cs.namespace(|| "commit_original_row"),
+        &commit_original_spent_row,
+        &commit_original_output_row,
+        "value",
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "commit_original_requires_pending_replay"),
+        &commit_original_row,
+        &z[REPLAY_PENDING_ACTIVE_CELL],
+        1,
+    );
+    let parsed_output_set = bit_as_num(
+        cs.namespace(|| "parsed_output_set"),
+        &parsed_output_tag,
+        "value",
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "commit_original_set_matches_replay"),
+        &commit_original_row,
+        &parsed_output_set,
+        &z[REPLAY_PENDING_SET_CELL],
+    );
+    for (index, semantic_byte) in semantic_row.iter().enumerate() {
+        enforce_gated_equal(
+            cs.namespace(|| format!("commit_original_semantic_row_matches_replay_{index}")),
+            &commit_original_row,
+            semantic_byte,
+            &z[REPLAY_PENDING_SEMANTIC_ROW_START + index],
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "challenge_requires_no_pending_replay"),
+        challenge_source,
+        &z[REPLAY_PENDING_ACTIVE_CELL],
+        0,
+    );
+
+    let pending_active_output = select_bit_num(
+        cs.namespace(|| "pending_active_output"),
+        &commit_original_row,
+        &zero,
+        &replay.pending_active,
+        "value",
+    )?;
+    let pending_set_output = select_bit_num(
+        cs.namespace(|| "pending_set_output"),
+        &commit_original_row,
+        &zero,
+        &replay.pending_set,
+        "value",
+    )?;
+    let mut pending_semantic_row_outputs = Vec::with_capacity(UNIQUENESS_SEMANTIC_ROW_BYTES_V2);
+    for (index, replay_byte) in replay.pending_semantic_row.iter().enumerate() {
+        pending_semantic_row_outputs.push(select_bit_num(
+            cs.namespace(|| format!("pending_semantic_row_{index}_output")),
+            &commit_original_row,
+            &zero,
+            replay_byte,
+            "value",
+        )?);
+    }
+
+    let spent_last_active = allocate_state_bit(
+        cs.namespace(|| "spent_last_active"),
+        &z[SORTED_SPENT_LAST_ACTIVE_CELL],
+    )?;
+    let output_last_active = allocate_state_bit(
+        cs.namespace(|| "output_last_active"),
+        &z[SORTED_OUTPUT_LAST_ACTIVE_CELL],
+    )?;
+    let global_last_active = allocate_state_bit(
+        cs.namespace(|| "global_last_active"),
+        &z[SORTED_GLOBAL_LAST_ACTIVE_CELL],
+    )?;
+    let global_last_set = allocate_state_bit(
+        cs.namespace(|| "global_last_set"),
+        &z[SORTED_GLOBAL_LAST_SET_CELL],
+    )?;
+
+    let spent_less = strict_byte_lex_less(
+        cs.namespace(|| "spent_strict_order"),
+        &z[SORTED_SPENT_LAST_START..SORTED_SPENT_LAST_END],
+        &identifier,
+    )?;
+    let output_less = strict_byte_lex_less(
+        cs.namespace(|| "output_strict_order"),
+        &z[SORTED_OUTPUT_LAST_START..SORTED_OUTPUT_LAST_END],
+        &identifier,
+    )?;
+    let global_less = strict_byte_lex_less(
+        cs.namespace(|| "global_strict_order"),
+        &z[SORTED_GLOBAL_LAST_START + SORTED_ROW_TERMINAL_OFFSET
+            ..SORTED_GLOBAL_LAST_START + SORTED_ROW_TERMINAL_OFFSET + SORTED_IDENTIFIER_BYTES_V2],
+        &identifier,
+    )?;
+    let mut same_path_bits =
+        Vec::with_capacity(SORTED_ROW_TERMINAL_OFFSET + SORTED_IDENTIFIER_BYTES_V2);
+    for (index, current) in semantic_row
+        .iter()
+        .take(SORTED_ROW_TERMINAL_OFFSET + SORTED_IDENTIFIER_BYTES_V2)
+        .enumerate()
+    {
+        same_path_bits.push(nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("global_same_path_byte_{index}")),
+            &z[SORTED_GLOBAL_LAST_START + index],
+            current,
+        )?);
+    }
+    let mut same_path = same_path_bits[0].clone();
+    for (index, equal) in same_path_bits.iter().enumerate().skip(1) {
+        same_path = AllocatedBit::and(
+            cs.namespace(|| format!("global_same_path_prefix_{index}")),
+            &same_path,
+            equal,
+        )?;
+    }
+    let global_last_was_spent = allocate_bit_not(
+        cs.namespace(|| "global_last_was_spent"),
+        &global_last_set,
+        "value",
+    )?;
+    let spent_then_output = AllocatedBit::and(
+        cs.namespace(|| "global_spent_then_output"),
+        &global_last_was_spent,
+        &parsed_output_tag,
+    )?;
+    let same_path_replacement = AllocatedBit::and(
+        cs.namespace(|| "global_same_path_replacement"),
+        &spent_then_output,
+        &same_path,
+    )?;
+    let global_order_valid = allocate_bit_or(
+        cs.namespace(|| "global_order_valid"),
+        &global_less,
+        &same_path_replacement,
+        "value",
+    )?;
+    let spent_continuation = AllocatedBit::and(
+        cs.namespace(|| "spent_continuation"),
+        &raw_sorted_spent_row,
+        &spent_last_active,
+    )?;
+    let output_continuation = AllocatedBit::and(
+        cs.namespace(|| "output_continuation"),
+        &raw_sorted_output_row,
+        &output_last_active,
+    )?;
+    let global_continuation = AllocatedBit::and(
+        cs.namespace(|| "global_continuation"),
+        &product_sorted_row,
+        &global_last_active,
+    )?;
+    let spent_less_num = bit_as_num(cs.namespace(|| "spent_less_num"), &spent_less, "value")?;
+    let output_less_num = bit_as_num(cs.namespace(|| "output_less_num"), &output_less, "value")?;
+    let global_order_valid_num = bit_as_num(
+        cs.namespace(|| "global_order_valid_num"),
+        &global_order_valid,
+        "value",
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "spent_identifier_strictly_increases"),
+        &spent_continuation,
+        &spent_less_num,
+        1,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "output_identifier_strictly_increases"),
+        &output_continuation,
+        &output_less_num,
+        1,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "global_identifier_increases_or_same_path_replaces"),
+        &global_continuation,
+        &global_order_valid_num,
+        1,
+    );
+
+    let original_spent_incremented = allocate_incremented(
+        cs.namespace(|| "original_spent_count_incremented"),
+        &z[ORIGINAL_SPENT_COUNT_CELL],
+        "value",
+    )?;
+    let original_output_incremented = allocate_incremented(
+        cs.namespace(|| "original_output_count_incremented"),
+        &z[ORIGINAL_OUTPUT_COUNT_CELL],
+        "value",
+    )?;
+    let sorted_spent_incremented = allocate_incremented(
+        cs.namespace(|| "sorted_spent_count_incremented"),
+        &z[SORTED_SPENT_COUNT_CELL],
+        "value",
+    )?;
+    let sorted_output_incremented = allocate_incremented(
+        cs.namespace(|| "sorted_output_count_incremented"),
+        &z[SORTED_OUTPUT_COUNT_CELL],
+        "value",
+    )?;
+    for (label, value) in [
+        (
+            "original_spent_count_incremented_range",
+            &original_spent_incremented,
+        ),
+        (
+            "original_output_count_incremented_range",
+            &original_output_incremented,
+        ),
+        (
+            "sorted_spent_count_incremented_range",
+            &sorted_spent_incremented,
+        ),
+        (
+            "sorted_output_count_incremented_range",
+            &sorted_output_incremented,
+        ),
+    ] {
+        range_bits(cs.namespace(|| label), value, 32)?;
+    }
+    let original_spent_count = select_bit_num(
+        cs.namespace(|| "original_spent_count_output"),
+        &raw_original_spent_row,
+        &original_spent_incremented,
+        &z[ORIGINAL_SPENT_COUNT_CELL],
+        "value",
+    )?;
+    let original_output_count = select_bit_num(
+        cs.namespace(|| "original_output_count_output"),
+        &raw_original_output_row,
+        &original_output_incremented,
+        &z[ORIGINAL_OUTPUT_COUNT_CELL],
+        "value",
+    )?;
+    let spent_count = select_bit_num(
+        cs.namespace(|| "sorted_spent_count_output"),
+        &raw_sorted_spent_row,
+        &sorted_spent_incremented,
+        &z[SORTED_SPENT_COUNT_CELL],
+        "value",
+    )?;
+    let output_count = select_bit_num(
+        cs.namespace(|| "sorted_output_count_output"),
+        &raw_sorted_output_row,
+        &sorted_output_incremented,
+        &z[SORTED_OUTPUT_COUNT_CELL],
+        "value",
+    )?;
+    let spent_active = select_bit_num(
+        cs.namespace(|| "spent_active_output"),
+        &raw_sorted_spent_row,
+        &one,
+        &z[SORTED_SPENT_LAST_ACTIVE_CELL],
+        "value",
+    )?;
+    let output_active = select_bit_num(
+        cs.namespace(|| "output_active_output"),
+        &raw_sorted_output_row,
+        &one,
+        &z[SORTED_OUTPUT_LAST_ACTIVE_CELL],
+        "value",
+    )?;
+    let global_active = select_bit_num(
+        cs.namespace(|| "global_active_output"),
+        &product_sorted_row,
+        &one,
+        &z[SORTED_GLOBAL_LAST_ACTIVE_CELL],
+        "value",
+    )?;
+
+    let parser_active_after_source = select_bit_num(
+        cs.namespace(|| "parser_active_after_source"),
+        sorted_source,
+        &zero,
+        &z[SORTED_PARSE_ACTIVE_CELL],
+        "value",
+    )?;
+    let parser_active_after_first_chunk = select_bit_num(
+        cs.namespace(|| "parser_active_after_first_chunk"),
+        &chunk_gates[0],
+        &one,
+        &parser_active_after_source,
+        "value",
+    )?;
+    let parser_active_after_second_chunk = select_bit_num(
+        cs.namespace(|| "parser_active_after_second_chunk"),
+        &chunk_gates[1],
+        &one,
+        &parser_active_after_first_chunk,
+        "value",
+    )?;
+    let parser_active_output = select_bit_num(
+        cs.namespace(|| "parser_active_output"),
+        &chunk_gates[2],
+        &zero,
+        &parser_active_after_second_chunk,
+        "value",
+    )?;
+    let parser_pass_after_source = select_bit_num(
+        cs.namespace(|| "parser_pass_after_source"),
+        sorted_source,
+        &zero,
+        &z[SORTED_PARSE_PASS_CELL],
+        "value",
+    )?;
+    let parser_pass_after_first_chunk = select_bit_num(
+        cs.namespace(|| "parser_pass_after_first_chunk"),
+        &chunk_gates[0],
+        &trace_chunk.bytes[pass_offset],
+        &parser_pass_after_source,
+        "value",
+    )?;
+    let parser_pass_output = select_bit_num(
+        cs.namespace(|| "parser_pass_output"),
+        &chunk_gates[2],
+        &zero,
+        &parser_pass_after_first_chunk,
+        "value",
+    )?;
+    let parser_set_after_source = select_bit_num(
+        cs.namespace(|| "parser_set_after_source"),
+        sorted_source,
+        &zero,
+        &z[SORTED_PARSE_SET_CELL],
+        "value",
+    )?;
+    let parser_set_after_first_chunk = select_bit_num(
+        cs.namespace(|| "parser_set_after_first_chunk"),
+        &chunk_gates[0],
+        &trace_chunk.bytes[set_offset],
+        &parser_set_after_source,
+        "value",
+    )?;
+    let parser_set_output = select_bit_num(
+        cs.namespace(|| "parser_set_output"),
+        &chunk_gates[2],
+        &zero,
+        &parser_set_after_first_chunk,
+        "value",
+    )?;
+    let parser_list_after_source = select_bit_num(
+        cs.namespace(|| "parser_list_after_source"),
+        sorted_source,
+        &zero,
+        &z[SORTED_PARSE_LIST_CELL],
+        "value",
+    )?;
+    let parser_list_after_first_chunk = select_bit_num(
+        cs.namespace(|| "parser_list_after_first_chunk"),
+        &chunk_gates[0],
+        &trace_chunk.bytes[list_offset],
+        &parser_list_after_source,
+        "value",
+    )?;
+    let parser_list_output = select_bit_num(
+        cs.namespace(|| "parser_list_output"),
+        &chunk_gates[2],
+        &zero,
+        &parser_list_after_first_chunk,
+        "value",
+    )?;
+
+    let spent_precommit_count = nova_snark::frontend::LinearCombination::zero()
+        + z[PRECOMMIT_SPENT_COUNT_LIMB_START].get_variable()
+        + (
+            Scalar::from(1_u64 << 16),
+            z[PRECOMMIT_SPENT_COUNT_LIMB_START + 1].get_variable(),
+        );
+    let output_precommit_count = nova_snark::frontend::LinearCombination::zero()
+        + z[PRECOMMIT_OUTPUT_COUNT_LIMB_START].get_variable()
+        + (
+            Scalar::from(1_u64 << 16),
+            z[PRECOMMIT_OUTPUT_COUNT_LIMB_START + 1].get_variable(),
+        );
+    for (label, value, expected) in [
+        (
+            "challenge_original_spent_count_matches_precommit",
+            &z[ORIGINAL_SPENT_COUNT_CELL],
+            &spent_precommit_count,
+        ),
+        (
+            "challenge_original_output_count_matches_precommit",
+            &z[ORIGINAL_OUTPUT_COUNT_CELL],
+            &output_precommit_count,
+        ),
+        (
+            "challenge_sorted_spent_count_matches_precommit",
+            &z[SORTED_SPENT_COUNT_CELL],
+            &spent_precommit_count,
+        ),
+        (
+            "challenge_sorted_output_count_matches_precommit",
+            &z[SORTED_OUTPUT_COUNT_CELL],
+            &output_precommit_count,
+        ),
+    ] {
+        enforce_gated_lc_equal(cs.namespace(|| label), challenge_source, expected, value);
     }
     enforce_gated_equal(
-        cs.namespace(|| "precommit_spent_count_matches_replay_input_count"),
-        &precommit_source_end,
+        cs.namespace(|| "challenge_spent_count_matches_replay_input_count"),
+        challenge_source,
         &z[PRECOMMIT_SPENT_COUNT_LIMB_START],
         &z[REPLAY_INPUT_COUNT_CELL],
     );
     enforce_gated_equal(
-        cs.namespace(|| "precommit_output_count_matches_replay_output_count"),
-        &precommit_source_end,
+        cs.namespace(|| "challenge_output_count_matches_replay_output_count"),
+        challenge_source,
         &z[PRECOMMIT_OUTPUT_COUNT_LIMB_START],
         &z[REPLAY_OUTPUT_COUNT_CELL],
     );
+    enforce_gated_constant(
+        cs.namespace(|| "challenge_requires_closed_sorted_parser"),
+        challenge_source,
+        &z[SORTED_PARSE_ACTIVE_CELL],
+        0,
+    );
+    let global_set_after_row = select_bit_num(
+        cs.namespace(|| "global_last_set_after_row"),
+        &product_sorted_row,
+        &parsed_output_set,
+        &z[SORTED_GLOBAL_LAST_SET_CELL],
+        "value",
+    )?;
+    let global_set_output = select_bit_num(
+        cs.namespace(|| "reset_global_last_set"),
+        challenge_source,
+        &zero,
+        &global_set_after_row,
+        "value",
+    )?;
 
-    let mut active = z[PRECOMMIT_PARSE_ACTIVE_CELL].clone();
-    let mut header_left = z[PRECOMMIT_PARSE_HEADER_CELL].clone();
-    let mut offset = z[PRECOMMIT_PARSE_OFFSET_CELL].clone();
-    let mut low_byte = z[PRECOMMIT_PARSE_LOW_BYTE_CELL].clone();
-    let mut fields = field_indices
-        .iter()
-        .map(|index| z[*index].clone())
-        .collect::<Vec<_>>();
-    let low_positions = std::iter::once(1_usize)
-        .chain(std::iter::once(3))
-        .chain(std::iter::once(5))
-        .chain(std::iter::once(7))
-        .chain((PRECOMMIT_DIGEST_BYTES_START..UNIQUENESS_PRECOMMIT_BYTES_V2).step_by(2))
-        .collect::<Vec<_>>();
-    let high_positions = field_high_positions.clone();
-    if low_positions.len() != high_positions.len() {
-        return Err(SynthesisError::Unsatisfiable(
-            "canonical uniqueness precommit byte-pair layout mismatch".to_owned(),
+    let mut cells = vec![
+        (REPLAY_PENDING_ACTIVE_CELL, pending_active_output),
+        (REPLAY_PENDING_SET_CELL, pending_set_output),
+        (SORTED_PARSE_ACTIVE_CELL, parser_active_output),
+        (SORTED_PARSE_PASS_CELL, parser_pass_output),
+        (SORTED_PARSE_SET_CELL, parser_set_output),
+        (SORTED_PARSE_LIST_CELL, parser_list_output),
+        (
+            ORIGINAL_SPENT_COUNT_CELL,
+            select_bit_num(
+                cs.namespace(|| "reset_original_spent_count"),
+                challenge_source,
+                &zero,
+                &original_spent_count,
+                "value",
+            )?,
+        ),
+        (
+            ORIGINAL_OUTPUT_COUNT_CELL,
+            select_bit_num(
+                cs.namespace(|| "reset_original_output_count"),
+                challenge_source,
+                &zero,
+                &original_output_count,
+                "value",
+            )?,
+        ),
+        (
+            SORTED_SPENT_COUNT_CELL,
+            select_bit_num(
+                cs.namespace(|| "reset_sorted_spent_count"),
+                challenge_source,
+                &zero,
+                &spent_count,
+                "value",
+            )?,
+        ),
+        (
+            SORTED_OUTPUT_COUNT_CELL,
+            select_bit_num(
+                cs.namespace(|| "reset_sorted_output_count"),
+                challenge_source,
+                &zero,
+                &output_count,
+                "value",
+            )?,
+        ),
+        (
+            SORTED_SPENT_LAST_ACTIVE_CELL,
+            select_bit_num(
+                cs.namespace(|| "reset_spent_last_active"),
+                challenge_source,
+                &zero,
+                &spent_active,
+                "value",
+            )?,
+        ),
+        (
+            SORTED_OUTPUT_LAST_ACTIVE_CELL,
+            select_bit_num(
+                cs.namespace(|| "reset_output_last_active"),
+                challenge_source,
+                &zero,
+                &output_active,
+                "value",
+            )?,
+        ),
+        (
+            SORTED_GLOBAL_LAST_ACTIVE_CELL,
+            select_bit_num(
+                cs.namespace(|| "reset_global_last_active"),
+                challenge_source,
+                &zero,
+                &global_active,
+                "value",
+            )?,
+        ),
+        (SORTED_GLOBAL_LAST_SET_CELL, global_set_output),
+    ];
+    cells.extend(
+        pending_semantic_row_outputs
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| (REPLAY_PENDING_SEMANTIC_ROW_START + index, value)),
+    );
+    for index in 0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2 {
+        let after_source = select_bit_num(
+            cs.namespace(|| format!("parser_row_{index}_after_source")),
+            sorted_source,
+            &zero,
+            &z[SORTED_PARSE_ROW_START + index],
+            "value",
+        )?;
+        let record_offset = ROW_RECORD_OFFSET + index;
+        let chunk = record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+        let captured = if chunk + 1 < CHUNK_COUNT {
+            select_bit_num(
+                cs.namespace(|| format!("parser_row_{index}_capture")),
+                &chunk_gates[chunk],
+                &trace_chunk.bytes[record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2],
+                &after_source,
+                "value",
+            )?
+        } else {
+            after_source
+        };
+        cells.push((
+            SORTED_PARSE_ROW_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("parser_row_{index}_output")),
+                &chunk_gates[2],
+                &zero,
+                &captured,
+                "value",
+            )?,
         ));
     }
-
-    for index in 0..TRACE_CANONICAL_CHUNK_BYTES_V2 {
-        let visible = trace_chunk_byte_visible(
-            cs.namespace(|| format!("byte_{index}_visible")),
-            trace_chunk,
-            index,
-        )?;
-        let selected = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_selected")),
-            trace_chunk_selector,
-            &visible,
-        )?;
-        let active_bit =
-            allocate_state_bit(cs.namespace(|| format!("byte_{index}_active")), &active)?;
-        let consuming = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_consuming")),
-            &selected,
-            &active_bit,
-        )?;
-        let header_is_zero = nova_snark::gadgets::utils::alloc_num_equals(
-            cs.namespace(|| format!("byte_{index}_header_is_zero")),
-            &header_left,
-            &zero,
-        )?;
-        let header_not_zero = allocate_bit_not(
-            cs.namespace(|| format!("byte_{index}_header_not_zero")),
-            &header_is_zero,
-            "value",
-        )?;
-        let header_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_header_gate")),
-            &consuming,
-            &header_not_zero,
-        )?;
-        let payload_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_payload_gate")),
-            &consuming,
-            &header_is_zero,
-        )?;
-        let header_after = AllocatedNum::alloc(
-            cs.namespace(|| format!("byte_{index}_header_after")),
-            || {
-                let value = scalar_u64(
-                    header_left
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                Ok(Scalar::from(value.saturating_sub(1)))
-            },
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_header_decrement"),
-            |lc| lc + header_gate.get_variable(),
-            |lc| lc + header_after.get_variable() + CS::one() - header_left.get_variable(),
-            |lc| lc,
-        );
-        header_left = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_header_output")),
-            &header_gate,
-            &header_after,
-            &header_left,
-            "value",
-        )?;
-
-        let mut position_selectors = Vec::with_capacity(UNIQUENESS_PRECOMMIT_BYTES_V2);
-        for position in 0..UNIQUENESS_PRECOMMIT_BYTES_V2 {
-            let value = allocate_constant(
-                cs.namespace(|| format!("byte_{index}_payload_position_{position}")),
-                position as u64,
-            )?;
-            position_selectors.push(nova_snark::gadgets::utils::alloc_num_equals(
-                cs.namespace(|| format!("byte_{index}_payload_position_selector_{position}")),
-                &offset,
-                &value,
-            )?);
-        }
-        cs.enforce(
-            || format!("byte_{index}_payload_position_complete"),
-            |lc| lc + payload_gate.get_variable(),
-            |lc| {
-                let mut relation = lc - CS::one();
-                for selector in &position_selectors {
-                    relation = relation + selector.get_variable();
-                }
-                relation
-            },
-            |lc| lc,
-        );
-
-        let byte = &trace_chunk.bytes[index];
-        let offset_value = offset.get_value().map(scalar_u64);
-        let offset_after = AllocatedNum::alloc(
-            cs.namespace(|| format!("byte_{index}_offset_after")),
-            || {
-                let value = scalar_u64(
-                    offset
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                let next = value.checked_add(1).ok_or_else(|| {
-                    SynthesisError::Unsatisfiable(
-                        "uniqueness precommit payload offset overflow".to_owned(),
-                    )
-                })?;
-                Ok(Scalar::from(next))
-            },
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_payload_offset_increment"),
-            |lc| lc + payload_gate.get_variable(),
-            |lc| lc + offset_after.get_variable() - offset.get_variable() - CS::one(),
-            |lc| lc,
-        );
-        offset = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_offset_output")),
-            &payload_gate,
-            &offset_after,
-            &offset,
-            "value",
-        )?;
-
-        let low_position = AllocatedBit::alloc(
-            cs.namespace(|| format!("byte_{index}_is_low_position")),
-            offset_value.map(|value| low_positions.contains(&(value as usize))),
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_low_position_relation"),
-            |lc| {
-                let mut relation = lc + low_position.get_variable();
-                for position in &low_positions {
-                    relation = relation - position_selectors[*position].get_variable();
-                }
-                relation
-            },
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
-        let high_position = AllocatedBit::alloc(
-            cs.namespace(|| format!("byte_{index}_is_high_position")),
-            offset_value.map(|value| high_positions.contains(&(value as usize))),
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_high_position_relation"),
-            |lc| {
-                let mut relation = lc + high_position.get_variable();
-                for position in &high_positions {
-                    relation = relation - position_selectors[*position].get_variable();
-                }
-                relation
-            },
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
-        let low_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_low_gate")),
-            &payload_gate,
-            &low_position,
-        )?;
-        let high_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_high_gate")),
-            &payload_gate,
-            &high_position,
-        )?;
-        let low_after = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_low_after_low_position")),
-            &low_gate,
-            byte,
-            &low_byte,
-            "value",
-        )?;
-        low_byte = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_low_after_high_position")),
-            &high_gate,
-            &zero,
-            &low_after,
-            "value",
-        )?;
-
-        let parsed_limb =
-            AllocatedNum::alloc(cs.namespace(|| format!("byte_{index}_parsed_limb")), || {
-                let low = scalar_u64(
-                    low_after
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                let high = scalar_u64(byte.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-                let value = low
-                    .checked_add(high.checked_mul(256).ok_or_else(|| {
-                        SynthesisError::Unsatisfiable(
-                            "uniqueness precommit limb overflow".to_owned(),
-                        )
-                    })?)
-                    .ok_or_else(|| {
-                        SynthesisError::Unsatisfiable(
-                            "uniqueness precommit limb overflow".to_owned(),
-                        )
-                    })?;
-                Ok(Scalar::from(value))
-            })?;
-        cs.enforce(
-            || format!("byte_{index}_parsed_limb_relation"),
-            |lc| lc + high_gate.get_variable(),
-            |lc| {
-                lc + parsed_limb.get_variable()
-                    - low_after.get_variable()
-                    - (Scalar::from(256_u64), byte.get_variable())
-            },
-            |lc| lc,
-        );
-        for ((field, position), state_index) in fields
-            .iter_mut()
-            .zip(&field_high_positions)
-            .zip(&field_indices)
-        {
-            let field_gate = AllocatedBit::and(
-                cs.namespace(|| format!("byte_{index}_field_gate_{state_index}")),
-                &payload_gate,
-                &position_selectors[*position],
-            )?;
-            let prior_field = field.clone();
-            *field = select_bit_num(
-                cs.namespace(|| format!("byte_{index}_field_output_{state_index}")),
-                &field_gate,
-                &parsed_limb,
-                &prior_field,
+    for (index, byte) in identifier.iter().enumerate() {
+        cells.push((
+            SORTED_SPENT_LAST_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("spent_last_byte_{index}")),
+                &raw_sorted_spent_row,
+                byte,
+                &z[SORTED_SPENT_LAST_START + index],
                 "value",
+            )?,
+        ));
+        cells.push((
+            SORTED_OUTPUT_LAST_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("output_last_byte_{index}")),
+                &raw_sorted_output_row,
+                byte,
+                &z[SORTED_OUTPUT_LAST_START + index],
+                "value",
+            )?,
+        ));
+    }
+    for (index, byte) in semantic_row.iter().enumerate() {
+        cells.push((
+            SORTED_GLOBAL_LAST_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("global_last_semantic_byte_{index}")),
+                &product_sorted_row,
+                byte,
+                &z[SORTED_GLOBAL_LAST_START + index],
+                "value",
+            )?,
+        ));
+    }
+    let sorted_source_end = AllocatedBit::and(
+        cs.namespace(|| "sorted_source_end"),
+        &source_end,
+        &source_is_sorted,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "end_requires_parser_closed"),
+        &sorted_source_end,
+        &z[SORTED_PARSE_ACTIVE_CELL],
+        0,
+    );
+    Ok(UniquenessSortedPayloadOutputsV2 {
+        cells,
+        output_set_tag: parsed_output_tag,
+        commit_original_spent_row,
+        commit_original_output_row,
+        commit_sorted_spent_row,
+        commit_sorted_output_row,
+        original_spent_row,
+        original_output_row,
+        sorted_spent_row,
+        sorted_output_row,
+        semantic_row_bytes: semantic_row,
+        semantic_row_limbs,
+    })
+}
+
+/// Return `true` only when `previous < candidate` in canonical byte order.
+/// Every byte is range-constrained and every prefix/equality/greater-than bit
+/// is an R1CS relation, so this is not a host comparison witness.
+fn strict_byte_lex_less<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    previous: &[AllocatedNum<Scalar>],
+    candidate: &[AllocatedNum<Scalar>],
+) -> Result<AllocatedBit, SynthesisError> {
+    if previous.len() != candidate.len() || previous.is_empty() {
+        return Err(SynthesisError::Unsatisfiable(
+            "byte-lex comparison requires equally sized nonempty identifiers".to_owned(),
+        ));
+    }
+    let mut prefix_equal = allocate_constant_bit(cs.namespace(|| "prefix_equal_initial"), true)?;
+    let mut less = allocate_constant_bit(cs.namespace(|| "less_initial"), false)?;
+    for (index, (previous_byte, candidate_byte)) in previous.iter().zip(candidate).enumerate() {
+        let greater = strict_u8_less(
+            cs.namespace(|| format!("byte_{index}_greater")),
+            previous_byte,
+            candidate_byte,
+        )?;
+        let pivot = AllocatedBit::and(
+            cs.namespace(|| format!("byte_{index}_pivot")),
+            &prefix_equal,
+            &greater,
+        )?;
+        less = allocate_bit_or(
+            cs.namespace(|| format!("byte_{index}_less")),
+            &less,
+            &pivot,
+            "value",
+        )?;
+        let equal = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("byte_{index}_equal")),
+            previous_byte,
+            candidate_byte,
+        )?;
+        prefix_equal = AllocatedBit::and(
+            cs.namespace(|| format!("byte_{index}_prefix_equal")),
+            &prefix_equal,
+            &equal,
+        )?;
+    }
+    Ok(less)
+}
+
+/// Return `true` exactly when the bounded byte `candidate` is greater than
+/// `previous`.  The carry equation is valid only for two range-constrained
+/// bytes and therefore cannot be satisfied by a field alias.
+fn strict_u8_less<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    previous: &AllocatedNum<Scalar>,
+    candidate: &AllocatedNum<Scalar>,
+) -> Result<AllocatedBit, SynthesisError> {
+    range_bits(cs.namespace(|| "previous_range"), previous, 8)?;
+    range_bits(cs.namespace(|| "candidate_range"), candidate, 8)?;
+    let greater = AllocatedBit::alloc(
+        cs.namespace(|| "greater"),
+        match (previous.get_value(), candidate.get_value()) {
+            (Some(previous), Some(candidate)) => Some(scalar_u64(candidate) > scalar_u64(previous)),
+            _ => None,
+        },
+    )?;
+    let remainder = AllocatedNum::alloc(cs.namespace(|| "remainder"), || {
+        let previous = scalar_u64(
+            previous
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let candidate = scalar_u64(
+            candidate
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let greater_value = candidate > previous;
+        Ok(Scalar::from(
+            candidate + 255 - previous - if greater_value { 256 } else { 0 },
+        ))
+    })?;
+    range_bits(cs.namespace(|| "remainder_range"), &remainder, 8)?;
+    cs.enforce(
+        || "greater_carry_relation",
+        |lc| {
+            lc + candidate.get_variable() + (Scalar::from(255_u64), CS::one())
+                - previous.get_variable()
+                - remainder.get_variable()
+                - (Scalar::from(256_u64), greater.get_variable())
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    Ok(greater)
+}
+
+fn scalar_power_of_two(bits: usize) -> Scalar {
+    let mut value = Scalar::from(1_u64);
+    for _ in 0..bits {
+        value += value;
+    }
+    value
+}
+
+/// Map one canonical challenge digest to `2 + u248_le(d[0..31])`.
+///
+/// The input words were reconstructed directly from the authenticated source
+/// bytes and range-checked as 64/64/64/56 bits. Since the result is below
+/// `2^248 + 2 < p`, this linear relation is injective and performs no modular
+/// reduction or host-side truncation.
+fn allocate_uniqueness_challenge<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    challenge_index: usize,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let words = (0..CHALLENGE_WORDS_PER_OUTPUT)
+        .map(|word| &z[CHALLENGE_WORD_START + challenge_index * CHALLENGE_WORDS_PER_OUTPUT + word])
+        .collect::<Vec<_>>();
+    let coefficients = [
+        Scalar::from(1_u64),
+        scalar_power_of_two(64),
+        scalar_power_of_two(128),
+        scalar_power_of_two(192),
+    ];
+    let challenge = AllocatedNum::alloc(cs.namespace(|| "mapped"), || {
+        let mut value = Scalar::from(2_u64);
+        for (word, coefficient) in words.iter().zip(coefficients) {
+            value += word.get_value().ok_or(SynthesisError::AssignmentMissing)? * coefficient;
+        }
+        Ok(value)
+    })?;
+    cs.enforce(
+        || "two_plus_u248_little_endian",
+        |lc| {
+            let mut relation = lc + challenge.get_variable() - (Scalar::from(2_u64), CS::one());
+            for (word, coefficient) in words.iter().zip(coefficients) {
+                relation = relation - (coefficient, word.get_variable());
+            }
+            relation
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    Ok(challenge)
+}
+
+/// Evaluate the complete fixed semantic row's little-endian `u16` limbs as
+/// `sum(limb_j * beta^j)` using a fixed Horner chain.
+fn allocate_identifier_polynomial<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    beta: &AllocatedNum<Scalar>,
+    limbs: &[AllocatedNum<Scalar>],
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    if limbs.len() != UNIQUENESS_SEMANTIC_ROW_LIMBS_V2 {
+        return Err(SynthesisError::Unsatisfiable(
+            "uniqueness semantic row has the wrong u16 limb count".to_owned(),
+        ));
+    }
+    let last = limbs
+        .len()
+        .checked_sub(1)
+        .ok_or_else(|| SynthesisError::Unsatisfiable("empty semantic row".to_owned()))?;
+    let mut accumulator = limbs[last].clone();
+    for limb in (0..last).rev() {
+        let prior = accumulator.clone();
+        accumulator = AllocatedNum::alloc(cs.namespace(|| format!("limb_{limb}_horner")), || {
+            Ok(prior.get_value().ok_or(SynthesisError::AssignmentMissing)?
+                * beta.get_value().ok_or(SynthesisError::AssignmentMissing)?
+                + limbs[limb]
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?)
+        })?;
+        cs.enforce(
+            || format!("limb_{limb}_horner_relation"),
+            |lc| lc + prior.get_variable(),
+            |lc| lc + beta.get_variable(),
+            |lc| lc + accumulator.get_variable() - limbs[limb].get_variable(),
+        );
+    }
+    Ok(accumulator)
+}
+
+/// Evaluate an already range-constrained, fixed-width byte row using a
+/// challenge-selected Horner basis.  Callers own the exact codec width.
+fn allocate_fixed_byte_polynomial<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    beta: &AllocatedNum<Scalar>,
+    bytes: &[AllocatedNum<Scalar>],
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let last = bytes
+        .len()
+        .checked_sub(1)
+        .ok_or_else(|| SynthesisError::Unsatisfiable("empty byte row".to_owned()))?;
+    let mut accumulator = bytes[last].clone();
+    for byte in (0..last).rev() {
+        let prior = accumulator.clone();
+        accumulator = AllocatedNum::alloc(cs.namespace(|| format!("byte_{byte}_horner")), || {
+            Ok(prior.get_value().ok_or(SynthesisError::AssignmentMissing)?
+                * beta.get_value().ok_or(SynthesisError::AssignmentMissing)?
+                + bytes[byte]
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?)
+        })?;
+        cs.enforce(
+            || format!("byte_{byte}_horner_relation"),
+            |lc| lc + prior.get_variable(),
+            |lc| lc + beta.get_variable(),
+            |lc| lc + accumulator.get_variable() - bytes[byte].get_variable(),
+        );
+    }
+    Ok(accumulator)
+}
+
+/// Evaluate one fixed-width hierarchy transition row as a byte polynomial.
+///
+/// The row is exactly
+/// `level || definition || serial_le || bucket || old_root || new_root`.
+/// Keeping the codec fixed here makes the two challenge products an exact
+/// multiset equality, rather than a hash of an ambiguously framed tuple.
+fn allocate_hierarchy_row_polynomial<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    beta: &AllocatedNum<Scalar>,
+    bytes: &[AllocatedNum<Scalar>],
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    if bytes.len() != HIERARCHY_ROW_BYTES {
+        return Err(SynthesisError::Unsatisfiable(
+            "hierarchy transition row has the wrong byte count".to_owned(),
+        ));
+    }
+    allocate_fixed_byte_polynomial(cs.namespace(|| "fixed_row"), beta, bytes)
+}
+
+fn allocate_grand_product_factor<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    alpha: &AllocatedNum<Scalar>,
+    encoded_identifier: &AllocatedNum<Scalar>,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let factor = AllocatedNum::alloc(cs.namespace(|| "factor"), || {
+        Ok(alpha.get_value().ok_or(SynthesisError::AssignmentMissing)?
+            - encoded_identifier
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?)
+    })?;
+    cs.enforce(
+        || "alpha_minus_identifier_polynomial",
+        |lc| lc + factor.get_variable() - alpha.get_variable() + encoded_identifier.get_variable(),
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    Ok(factor)
+}
+
+fn update_grand_product<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    gate: &AllocatedBit,
+    prior: &AllocatedNum<Scalar>,
+    factor: &AllocatedNum<Scalar>,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let multiplied = AllocatedNum::alloc(cs.namespace(|| "multiplied"), || {
+        Ok(prior.get_value().ok_or(SynthesisError::AssignmentMissing)?
+            * factor
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?)
+    })?;
+    cs.enforce(
+        || "product_times_factor",
+        |lc| lc + prior.get_variable(),
+        |lc| lc + factor.get_variable(),
+        |lc| lc + multiplied.get_variable(),
+    );
+    select_bit_num(
+        cs.namespace(|| "selected"),
+        gate,
+        &multiplied,
+        prior,
+        "value",
+    )
+}
+
+struct UniquenessProductOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+}
+
+/// Own the complete challenge-map and original/sorted grand-product state.
+/// No other payload relation writes these eight cells.
+fn synthesize_uniqueness_products<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    opcode_selectors: &[AllocatedBit],
+    sorted: &UniquenessSortedPayloadOutputsV2,
+    net: &NetMergePayloadOutputsV2,
+) -> Result<UniquenessProductOutputsV2, SynthesisError> {
+    let challenge_source = opcode_selectors
+        .get(usize::from(
+            RecursiveTraceOpcodeV2::UniquenessChallenge as u8 - 1,
+        ))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("uniqueness challenge selector missing".to_owned())
+        })?;
+    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
+    let one = allocate_constant(cs.namespace(|| "one"), 1)?;
+    let challenges = (0..CHALLENGE_OUTPUT_COUNT)
+        .map(|index| {
+            allocate_uniqueness_challenge(cs.namespace(|| format!("challenge_{index}")), z, index)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut products = (UNIQUENESS_PRODUCT_START..UNIQUENESS_PRODUCT_END)
+        .map(|state_index| {
+            enforce_gated_constant(
+                cs.namespace(|| format!("challenge_requires_zero_product_{state_index}")),
+                challenge_source,
+                &z[state_index],
+                0,
+            );
+            select_bit_num(
+                cs.namespace(|| format!("product_{state_index}_initialize")),
+                challenge_source,
+                &one,
+                &z[state_index],
+                "value",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let product_layout = [
+        (
+            SPENT_ORIGINAL_PRODUCT_0,
+            SPENT_SORTED_PRODUCT_0,
+            OUTPUT_ORIGINAL_PRODUCT_0,
+            OUTPUT_SORTED_PRODUCT_0,
+        ),
+        (
+            SPENT_ORIGINAL_PRODUCT_1,
+            SPENT_SORTED_PRODUCT_1,
+            OUTPUT_ORIGINAL_PRODUCT_1,
+            OUTPUT_SORTED_PRODUCT_1,
+        ),
+    ];
+    for (pair, (spent_original, spent_sorted, output_original, output_sorted)) in
+        product_layout.into_iter().enumerate()
+    {
+        let spent_alpha = &challenges[pair * 2];
+        let spent_beta = &challenges[pair * 2 + 1];
+        let output_alpha = &challenges[UNIQUENESS_CHALLENGES_PER_SET_V2 + pair * 2];
+        let output_beta = &challenges[UNIQUENESS_CHALLENGES_PER_SET_V2 + pair * 2 + 1];
+        let alpha = select_bit_num(
+            cs.namespace(|| format!("pair_{pair}_set_alpha")),
+            &sorted.output_set_tag,
+            output_alpha,
+            spent_alpha,
+            "value",
+        )?;
+        let beta = select_bit_num(
+            cs.namespace(|| format!("pair_{pair}_set_beta")),
+            &sorted.output_set_tag,
+            output_beta,
+            spent_beta,
+            "value",
+        )?;
+        let encoded_identifier = allocate_identifier_polynomial(
+            cs.namespace(|| format!("pair_{pair}_semantic_row")),
+            &beta,
+            &sorted.semantic_row_limbs,
+        )?;
+        let factor = allocate_grand_product_factor(
+            cs.namespace(|| format!("pair_{pair}_factor")),
+            &alpha,
+            &encoded_identifier,
+        )?;
+        for (state_index, gate, label) in [
+            (spent_original, &sorted.original_spent_row, "spent_original"),
+            (spent_sorted, &sorted.sorted_spent_row, "spent_sorted"),
+            (
+                output_original,
+                &sorted.original_output_row,
+                "output_original",
+            ),
+            (output_sorted, &sorted.sorted_output_row, "output_sorted"),
+        ] {
+            let offset = state_index - UNIQUENESS_PRODUCT_START;
+            products[offset] = update_grand_product(
+                cs.namespace(|| format!("pair_{pair}_{label}")),
+                gate,
+                &products[offset],
+                &factor,
             )?;
         }
+    }
 
-        let version_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_version_gate")),
-            &payload_gate,
-            &position_selectors[0],
-        )?;
-        enforce_gated_constant(
-            cs.namespace(|| format!("byte_{index}_version")),
-            &version_gate,
-            byte,
-            u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
-        );
-        let final_payload_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_final_payload_gate")),
-            &payload_gate,
-            &position_selectors[UNIQUENESS_PRECOMMIT_BYTES_V2 - 1],
-        )?;
-        let final_chunk_width = allocate_constant(
-            cs.namespace(|| format!("byte_{index}_final_chunk_width")),
-            (index + 1) as u64,
-        )?;
+    for (pair, (spent_original, spent_sorted, output_original, output_sorted)) in
+        product_layout.into_iter().enumerate()
+    {
         enforce_gated_equal(
-            cs.namespace(|| format!("byte_{index}_payload_has_no_trailing_bytes")),
-            &final_payload_gate,
-            &trace_chunk.byte_count,
-            &final_chunk_width,
+            cs.namespace(|| format!("pair_{pair}_spent_original_equals_sorted")),
+            &net.close_row,
+            &products[spent_original - UNIQUENESS_PRODUCT_START],
+            &products[spent_sorted - UNIQUENESS_PRODUCT_START],
         );
-        active = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_active_output")),
-            &final_payload_gate,
-            &zero,
-            &active,
-            "value",
-        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("pair_{pair}_output_original_equals_sorted")),
+            &net.close_row,
+            &products[output_original - UNIQUENESS_PRODUCT_START],
+            &products[output_sorted - UNIQUENESS_PRODUCT_START],
+        );
     }
 
-    let source_active = select_bit_num(
-        cs.namespace(|| "source_active_output"),
-        &precommit_source,
-        &one,
-        &z[PRECOMMIT_PARSE_ACTIVE_CELL],
-        "value",
-    )?;
-    let source_header = select_bit_num(
-        cs.namespace(|| "source_header_output"),
-        &precommit_source,
-        &header_width,
-        &z[PRECOMMIT_PARSE_HEADER_CELL],
-        "value",
-    )?;
-    let source_offset = select_bit_num(
-        cs.namespace(|| "source_offset_output"),
-        &precommit_source,
-        &zero,
-        &z[PRECOMMIT_PARSE_OFFSET_CELL],
-        "value",
-    )?;
-    let source_low_byte = select_bit_num(
-        cs.namespace(|| "source_low_byte_output"),
-        &precommit_source,
-        &zero,
-        &z[PRECOMMIT_PARSE_LOW_BYTE_CELL],
-        "value",
-    )?;
-    let output_active = select_bit_num(
-        cs.namespace(|| "trace_active_output"),
-        trace_chunk_selector,
-        &active,
-        &source_active,
-        "value",
-    )?;
-    let output_header = select_bit_num(
-        cs.namespace(|| "trace_header_output"),
-        trace_chunk_selector,
-        &header_left,
-        &source_header,
-        "value",
-    )?;
-    let output_offset = select_bit_num(
-        cs.namespace(|| "trace_offset_output"),
-        trace_chunk_selector,
-        &offset,
-        &source_offset,
-        "value",
-    )?;
-    let output_low_byte = select_bit_num(
-        cs.namespace(|| "trace_low_byte_output"),
-        trace_chunk_selector,
-        &low_byte,
-        &source_low_byte,
-        "value",
-    )?;
-    let mut cells = vec![
-        (PRECOMMIT_PARSE_ACTIVE_CELL, output_active),
-        (PRECOMMIT_PARSE_HEADER_CELL, output_header),
-        (PRECOMMIT_PARSE_OFFSET_CELL, output_offset),
-        (PRECOMMIT_PARSE_LOW_BYTE_CELL, output_low_byte),
-    ];
-    for (state_index, field) in field_indices.iter().zip(fields) {
-        let source_field = select_bit_num(
-            cs.namespace(|| format!("source_field_output_{state_index}")),
-            &precommit_source,
-            &zero,
-            &z[*state_index],
-            "value",
-        )?;
-        let output_field = select_bit_num(
-            cs.namespace(|| format!("trace_field_output_{state_index}")),
-            trace_chunk_selector,
-            &field,
-            &source_field,
-            "value",
-        )?;
-        range_bits(
-            cs.namespace(|| format!("output_field_range_{state_index}")),
-            &output_field,
-            16,
-        )?;
-        cells.push((*state_index, output_field));
-    }
-    for (label, value, bits) in [
-        ("output_active_range", &cells[0].1, 1),
-        ("output_header_range", &cells[1].1, 6),
-        ("output_offset_range", &cells[2].1, 8),
-        ("output_low_byte_range", &cells[3].1, 8),
-    ] {
-        range_bits(cs.namespace(|| label), value, bits)?;
-    }
-    // Keep the canonical width as an allocated constant in the relation so a
-    // future codec edit cannot silently alter only the end-of-record check.
-    enforce_gated_equal(
-        cs.namespace(|| "precommit_payload_width_is_canonical"),
-        &precommit_source_end,
-        &z[PRECOMMIT_PARSE_OFFSET_CELL],
-        &payload_width,
+    let cells = (UNIQUENESS_PRODUCT_START..UNIQUENESS_PRODUCT_END)
+        .zip(products)
+        .map(|(state_index, product)| {
+            Ok((
+                state_index,
+                select_bit_num(
+                    cs.namespace(|| format!("product_{state_index}_net_clear")),
+                    &net.close_row,
+                    &zero,
+                    &product,
+                    "value",
+                )?,
+            ))
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    Ok(UniquenessProductOutputsV2 { cells })
+}
+
+fn allocate_constant_bit<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    value: bool,
+) -> Result<AllocatedBit, SynthesisError> {
+    let bit = AllocatedBit::alloc(cs.namespace(|| "constant_bit"), Some(value))?;
+    cs.enforce(
+        || "constant_bit_relation",
+        |lc| {
+            if value {
+                lc + bit.get_variable() - CS::one()
+            } else {
+                lc + bit.get_variable()
+            }
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
     );
-    Ok(UniquenessPrecommitPayloadOutputsV2 { cells })
+    Ok(bit)
 }
 
 /// The challenge record is decoded from the same canonical source-byte feeder
 /// as its precommit.  In particular, the first 32 payload bytes must equal the
 /// already materialized `precommit_digest` limbs; no host decoder, witness
 /// digest, or parallel byte stream can substitute for that equality.  The
-/// final 32 bytes are retained only as challenge material for the later
-/// SHA-derived challenge-map relation.
+/// remaining bytes retain `P`, both set-specific `U` values, and all eight
+/// challenge digests for the later constrained SHA and challenge-map relation.
 struct UniquenessChallengePayloadOutputsV2 {
     cells: Vec<(usize, AllocatedNum<Scalar>)>,
 }
@@ -4325,78 +6981,81 @@ fn synthesize_uniqueness_challenge_payload<CS: ConstraintSystem<Scalar>>(
     trace_chunk: &AllocatedTraceChunkV2,
     control: &AllocatedHashControlV2,
 ) -> Result<UniquenessChallengePayloadOutputsV2, SynthesisError> {
-    let selector = |opcode: RecursiveTraceOpcodeV2| {
-        opcode_selectors
-            .get(usize::from(opcode as u8).saturating_sub(1))
-            .ok_or_else(|| {
-                SynthesisError::Unsatisfiable(
-                    "uniqueness challenge opcode selector missing".to_owned(),
-                )
-            })
-    };
-    let challenge_source = selector(RecursiveTraceOpcodeV2::UniquenessChallenge)?;
+    let challenge_source = opcode_selectors
+        .get(usize::from(
+            RecursiveTraceOpcodeV2::UniquenessChallenge as u8 - 1,
+        ))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("uniqueness challenge opcode selector missing".to_owned())
+        })?;
     let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
-    let one = allocate_constant(cs.namespace(|| "one"), 1)?;
-    let header_width = allocate_constant(
-        cs.namespace(|| "canonical_header_width"),
-        TRACE_EVENT_HEADER_BYTES_V2 as u64,
+    let expected_record_bytes = allocate_constant(
+        cs.namespace(|| "canonical_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + UNIQUENESS_CHALLENGE_BYTES_V2) as u64,
     )?;
-    let payload_width = allocate_constant(
-        cs.namespace(|| "canonical_challenge_payload_width"),
-        UNIQUENESS_CHALLENGE_BYTES_V2 as u64,
-    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "source_record_has_canonical_fixed_width"),
+        challenge_source,
+        &control.source_record_bytes,
+        &expected_record_bytes,
+    );
 
     let field_indices =
         (CHALLENGE_DIGEST_LIMB_START..CHALLENGE_DIGEST_LIMB_END).collect::<Vec<_>>();
-    let field_high_positions = (CHALLENGE_DIGEST_BYTES_START + 1..UNIQUENESS_CHALLENGE_BYTES_V2)
-        .step_by(2)
-        .collect::<Vec<_>>();
-    let committed_precommit_high_positions = (2..CHALLENGE_DIGEST_BYTES_START)
-        .step_by(2)
-        .collect::<Vec<_>>();
+    let word_indices = (CHALLENGE_WORD_START..CHALLENGE_WORD_END).collect::<Vec<_>>();
+    let full_digest_indices =
+        (CHALLENGE_FULL_DIGEST_LIMB_START..CHALLENGE_FULL_DIGEST_LIMB_END).collect::<Vec<_>>();
     let committed_precommit_indices = (PRECOMMIT_COMMITMENT_DIGEST_LIMB_START
         ..PRECOMMIT_COMMITMENT_DIGEST_LIMB_START + DIGEST_LIMBS)
         .collect::<Vec<_>>();
-    if field_indices.len() != field_high_positions.len()
-        || field_indices.len() != DIGEST_LIMBS
-        || committed_precommit_high_positions.len() != DIGEST_LIMBS
+    if field_indices.len() != CHALLENGE_CONTEXT_LIMB_COUNT
+        || word_indices.len() != CHALLENGE_OUTPUT_COUNT * CHALLENGE_WORDS_PER_OUTPUT
+        || full_digest_indices.len() != CHALLENGE_OUTPUT_COUNT * DIGEST_LIMBS
         || committed_precommit_indices.len() != DIGEST_LIMBS
-        || CHALLENGE_DIGEST_LIMB_COUNT != DIGEST_LIMBS
+        || UNIQUENESS_CHALLENGE_BYTES_V2
+            != CHALLENGE_OUTPUT_BYTES_START + CHALLENGE_OUTPUT_COUNT * 32
     {
         return Err(SynthesisError::Unsatisfiable(
             "canonical uniqueness challenge field layout mismatch".to_owned(),
         ));
     }
-
-    for (label, index) in [
-        (
-            "challenge_source_requires_inactive_parser",
-            CHALLENGE_PARSE_ACTIVE_CELL,
-        ),
-        (
-            "challenge_source_requires_empty_header",
-            CHALLENGE_PARSE_HEADER_CELL,
-        ),
-        (
-            "challenge_source_requires_zero_offset",
-            CHALLENGE_PARSE_OFFSET_CELL,
-        ),
-        (
-            "challenge_source_requires_empty_low_byte",
-            CHALLENGE_PARSE_LOW_BYTE_CELL,
-        ),
+    for index in [
+        CHALLENGE_PARSE_ACTIVE_CELL,
+        CHALLENGE_PARSE_HEADER_CELL,
+        CHALLENGE_PARSE_OFFSET_CELL,
+        CHALLENGE_PARSE_LOW_BYTE_CELL,
     ] {
-        enforce_gated_constant(cs.namespace(|| label), &challenge_source, &z[index], 0);
+        enforce_gated_constant(
+            cs.namespace(|| format!("source_requires_zero_parser_{index}")),
+            challenge_source,
+            &z[index],
+            0,
+        );
     }
     for index in &field_indices {
         enforce_gated_constant(
-            cs.namespace(|| format!("challenge_source_requires_zero_field_{index}")),
-            &challenge_source,
+            cs.namespace(|| format!("source_requires_zero_field_{index}")),
+            challenge_source,
             &z[*index],
             0,
         );
     }
-
+    for index in &word_indices {
+        enforce_gated_constant(
+            cs.namespace(|| format!("source_requires_zero_word_{index}")),
+            challenge_source,
+            &z[*index],
+            0,
+        );
+    }
+    for index in &full_digest_indices {
+        enforce_gated_constant(
+            cs.namespace(|| format!("source_requires_zero_full_digest_{index}")),
+            challenge_source,
+            &z[*index],
+            0,
+        );
+    }
     let source_header_opcode = &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_HEADER_START_OFFSET];
     let challenge_opcode = allocate_constant(
         cs.namespace(|| "challenge_opcode"),
@@ -4407,17 +7066,314 @@ fn synthesize_uniqueness_challenge_payload<CS: ConstraintSystem<Scalar>>(
         source_header_opcode,
         &challenge_opcode,
     )?;
-    let parser_active = allocate_state_bit(
-        cs.namespace(|| "parser_active"),
-        &z[CHALLENGE_PARSE_ACTIVE_CELL],
+    let challenge_chunk = AllocatedBit::and(
+        cs.namespace(|| "challenge_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_challenge,
     )?;
+
+    const RECORD_BYTES: usize = TRACE_EVENT_HEADER_BYTES_V2 + UNIQUENESS_CHALLENGE_BYTES_V2;
+    const CHUNK_COUNT: usize = RECORD_BYTES.div_ceil(TRACE_CANONICAL_CHUNK_BYTES_V2);
+    let mut chunk_gates = Vec::with_capacity(CHUNK_COUNT);
+    let mut chunk_selector_sum = nova_snark::frontend::LinearCombination::zero();
+    for chunk in 0..CHUNK_COUNT {
+        let ordinal = allocate_constant(
+            cs.namespace(|| format!("chunk_{chunk}_ordinal")),
+            chunk as u64,
+        )?;
+        let selector = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("chunk_{chunk}_selector")),
+            &trace_chunk.chunk_ordinal,
+            &ordinal,
+        )?;
+        chunk_selector_sum = chunk_selector_sum + selector.get_variable();
+        let gate = AllocatedBit::and(
+            cs.namespace(|| format!("chunk_{chunk}_gate")),
+            &challenge_chunk,
+            &selector,
+        )?;
+        let expected_byte_count = if chunk + 1 == CHUNK_COUNT {
+            RECORD_BYTES - chunk * TRACE_CANONICAL_CHUNK_BYTES_V2
+        } else {
+            TRACE_CANONICAL_CHUNK_BYTES_V2
+        };
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_byte_count")),
+            &gate,
+            &trace_chunk.byte_count,
+            expected_byte_count as u64,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_count")),
+            &gate,
+            &trace_chunk.chunk_count,
+            CHUNK_COUNT as u64,
+        );
+        chunk_gates.push(gate);
+    }
     cs.enforce(
-        || "active_parser_has_challenge_source_kind",
-        |lc| lc + parser_active.get_variable(),
-        |lc| lc + source_is_challenge.get_variable() - CS::one(),
+        || "challenge_chunk_ordinal_is_complete",
+        |lc| lc + challenge_chunk.get_variable(),
+        |lc| lc + &chunk_selector_sum - CS::one(),
         |lc| lc,
     );
 
+    let version_record_offset = TRACE_EVENT_HEADER_BYTES_V2;
+    enforce_gated_constant(
+        cs.namespace(|| "version"),
+        &chunk_gates[version_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2],
+        &trace_chunk.bytes[version_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2],
+        u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
+    );
+
+    for (limb, state_index) in committed_precommit_indices.iter().enumerate() {
+        let low_record_offset = TRACE_EVENT_HEADER_BYTES_V2 + 1 + limb * 2;
+        let high_record_offset = low_record_offset + 1;
+        let chunk = low_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+        if chunk != high_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2 {
+            return Err(SynthesisError::Unsatisfiable(
+                "fixed challenge precommit limb crosses a canonical chunk".to_owned(),
+            ));
+        }
+        let low = &trace_chunk.bytes[low_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+        let high = &trace_chunk.bytes[high_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+        cs.enforce(
+            || format!("committed_precommit_limb_{limb}_matches"),
+            |lc| lc + chunk_gates[chunk].get_variable(),
+            |lc| {
+                lc + z[*state_index].get_variable()
+                    - low.get_variable()
+                    - (Scalar::from(256_u64), high.get_variable())
+            },
+            |lc| lc,
+        );
+    }
+
+    let mut cells = Vec::with_capacity(
+        CHALLENGE_CONTEXT_LIMB_COUNT + CHALLENGE_OUTPUT_COUNT * CHALLENGE_WORDS_PER_OUTPUT,
+    );
+    for (limb, state_index) in field_indices.iter().enumerate() {
+        let low_record_offset =
+            TRACE_EVENT_HEADER_BYTES_V2 + CHALLENGE_CONTEXT_BYTES_START + limb * 2;
+        let high_record_offset = low_record_offset + 1;
+        let chunk = low_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+        if chunk != high_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2 {
+            return Err(SynthesisError::Unsatisfiable(
+                "fixed challenge digest limb crosses a canonical chunk".to_owned(),
+            ));
+        }
+        let low = &trace_chunk.bytes[low_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+        let high = &trace_chunk.bytes[high_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+        let parsed = AllocatedNum::alloc(
+            cs.namespace(|| format!("field_{state_index}_parsed")),
+            || {
+                let low = scalar_u64(low.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                let high = scalar_u64(high.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(Scalar::from(low + high * 256))
+            },
+        )?;
+        cs.enforce(
+            || format!("field_{state_index}_little_endian"),
+            |lc| lc + chunk_gates[chunk].get_variable(),
+            |lc| {
+                lc + parsed.get_variable()
+                    - low.get_variable()
+                    - (Scalar::from(256_u64), high.get_variable())
+            },
+            |lc| lc,
+        );
+        let cleared = select_bit_num(
+            cs.namespace(|| format!("field_{state_index}_clear")),
+            challenge_source,
+            &zero,
+            &z[*state_index],
+            "value",
+        )?;
+        let output = select_bit_num(
+            cs.namespace(|| format!("field_{state_index}_output")),
+            &chunk_gates[chunk],
+            &parsed,
+            &cleared,
+            "value",
+        )?;
+        cells.push((*state_index, output));
+    }
+
+    // Retain all 256 output bits for the independent SHA transcript proof.
+    // The product map below deliberately consumes only the low 248 bits, but
+    // dropping the last byte here would let a different SHA output share the
+    // same field challenge.
+    for challenge_index in 0..CHALLENGE_OUTPUT_COUNT {
+        for limb in 0..DIGEST_LIMBS {
+            let state_index =
+                CHALLENGE_FULL_DIGEST_LIMB_START + challenge_index * DIGEST_LIMBS + limb;
+            let low_record_offset = TRACE_EVENT_HEADER_BYTES_V2
+                + CHALLENGE_OUTPUT_BYTES_START
+                + challenge_index * 32
+                + limb * 2;
+            let high_record_offset = low_record_offset + 1;
+            let chunk = low_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+            if chunk != high_record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2 {
+                return Err(SynthesisError::Unsatisfiable(
+                    "challenge output limb crosses a canonical chunk".to_owned(),
+                ));
+            }
+            let low = &trace_chunk.bytes[low_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+            let high = &trace_chunk.bytes[high_record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2];
+            let parsed = AllocatedNum::alloc(
+                cs.namespace(|| format!("full_digest_{challenge_index}_{limb}_parsed")),
+                || {
+                    let low = scalar_u64(low.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                    let high =
+                        scalar_u64(high.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                    Ok(Scalar::from(low + high * 256))
+                },
+            )?;
+            cs.enforce(
+                || format!("full_digest_{challenge_index}_{limb}_little_endian"),
+                |lc| lc + chunk_gates[chunk].get_variable(),
+                |lc| {
+                    lc + parsed.get_variable()
+                        - low.get_variable()
+                        - (Scalar::from(256_u64), high.get_variable())
+                },
+                |lc| lc,
+            );
+            range_bits(
+                cs.namespace(|| format!("full_digest_{challenge_index}_{limb}_range")),
+                &parsed,
+                16,
+            )?;
+            let cleared = select_bit_num(
+                cs.namespace(|| format!("full_digest_{challenge_index}_{limb}_clear")),
+                challenge_source,
+                &zero,
+                &z[state_index],
+                "value",
+            )?;
+            let output = select_bit_num(
+                cs.namespace(|| format!("full_digest_{challenge_index}_{limb}_output")),
+                &chunk_gates[chunk],
+                &parsed,
+                &cleared,
+                "value",
+            )?;
+            cells.push((state_index, output));
+        }
+    }
+
+    // Retain the low 248 digest bits as four bounded little-endian words.
+    // The later product relation maps them as
+    // `2 + word_0 + 2^64*word_1 + 2^128*word_2 + 2^192*word_3`.
+    // Keeping u64 words preserves the fixed host state representation without
+    // reducing or aliasing a challenge field element.
+    for challenge_index in 0..CHALLENGE_OUTPUT_COUNT {
+        for word_index in 0..CHALLENGE_WORDS_PER_OUTPUT {
+            let state_index =
+                CHALLENGE_WORD_START + challenge_index * CHALLENGE_WORDS_PER_OUTPUT + word_index;
+            let base = select_bit_num(
+                cs.namespace(|| format!("challenge_{challenge_index}_word_{word_index}_base")),
+                challenge_source,
+                &zero,
+                &z[state_index],
+                "value",
+            )?;
+            let word_bytes = if word_index + 1 == CHALLENGE_WORDS_PER_OUTPUT {
+                7
+            } else {
+                8
+            };
+            let mut partials = Vec::with_capacity(CHUNK_COUNT);
+            for (chunk, chunk_gate) in chunk_gates.iter().enumerate() {
+                let mut byte_terms = Vec::new();
+                for local_byte in 0..word_bytes {
+                    let digest_byte = word_index * 8 + local_byte;
+                    let record_offset = TRACE_EVENT_HEADER_BYTES_V2
+                        + CHALLENGE_OUTPUT_BYTES_START
+                        + challenge_index * 32
+                        + digest_byte;
+                    if record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2 == chunk {
+                        byte_terms.push((
+                            local_byte,
+                            trace_chunk.bytes[record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2]
+                                .clone(),
+                        ));
+                    }
+                }
+                let partial = AllocatedNum::alloc(
+                    cs.namespace(|| {
+                        format!(
+                            "challenge_{challenge_index}_word_{word_index}_chunk_{chunk}_partial"
+                        )
+                    }),
+                    || {
+                        if !chunk_gate
+                            .get_value()
+                            .ok_or(SynthesisError::AssignmentMissing)?
+                        {
+                            return Ok(Scalar::from(0_u64));
+                        }
+                        let mut value = 0_u64;
+                        for (local_byte, byte) in &byte_terms {
+                            let byte = scalar_u64(
+                                byte.get_value().ok_or(SynthesisError::AssignmentMissing)?,
+                            );
+                            value |= byte << (local_byte * 8);
+                        }
+                        Ok(Scalar::from(value))
+                    },
+                )?;
+                enforce_inactive_zero(
+                    cs.namespace(|| {
+                        format!(
+                            "challenge_{challenge_index}_word_{word_index}_chunk_{chunk}_inactive"
+                        )
+                    }),
+                    chunk_gate,
+                    &partial,
+                );
+                cs.enforce(
+                    || format!("challenge_{challenge_index}_word_{word_index}_chunk_{chunk}_map"),
+                    |lc| lc + chunk_gate.get_variable(),
+                    |lc| {
+                        let mut relation = lc + partial.get_variable();
+                        for (local_byte, byte) in &byte_terms {
+                            relation = relation
+                                - (Scalar::from(1_u64 << (local_byte * 8)), byte.get_variable());
+                        }
+                        relation
+                    },
+                    |lc| lc,
+                );
+                partials.push(partial);
+            }
+            let output = AllocatedNum::alloc(
+                cs.namespace(|| format!("challenge_{challenge_index}_word_{word_index}_output")),
+                || {
+                    let mut value = base.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                    for partial in &partials {
+                        value += partial
+                            .get_value()
+                            .ok_or(SynthesisError::AssignmentMissing)?;
+                    }
+                    Ok(value)
+                },
+            )?;
+            cs.enforce(
+                || format!("challenge_{challenge_index}_word_{word_index}_output_relation"),
+                |lc| {
+                    let mut relation = lc + output.get_variable() - base.get_variable();
+                    for partial in &partials {
+                        relation = relation - partial.get_variable();
+                    }
+                    relation
+                },
+                |lc| lc + CS::one(),
+                |lc| lc,
+            );
+            cells.push((state_index, output));
+        }
+    }
     let source_end = AllocatedBit::and(
         cs.namespace(|| "source_end"),
         control.end_selector(),
@@ -4428,434 +7384,19 @@ fn synthesize_uniqueness_challenge_payload<CS: ConstraintSystem<Scalar>>(
         &source_end,
         &source_is_challenge,
     )?;
-    for (label, index, expected) in [
-        (
-            "challenge_end_requires_parser_closed",
-            CHALLENGE_PARSE_ACTIVE_CELL,
-            0,
-        ),
-        (
-            "challenge_end_requires_header_consumed",
-            CHALLENGE_PARSE_HEADER_CELL,
-            0,
-        ),
-        (
-            "challenge_end_requires_exact_payload_width",
-            CHALLENGE_PARSE_OFFSET_CELL,
-            UNIQUENESS_CHALLENGE_BYTES_V2 as u64,
-        ),
-        (
-            "challenge_end_requires_empty_low_byte",
-            CHALLENGE_PARSE_LOW_BYTE_CELL,
-            0,
-        ),
+    for index in [
+        CHALLENGE_PARSE_ACTIVE_CELL,
+        CHALLENGE_PARSE_HEADER_CELL,
+        CHALLENGE_PARSE_OFFSET_CELL,
+        CHALLENGE_PARSE_LOW_BYTE_CELL,
     ] {
         enforce_gated_constant(
-            cs.namespace(|| label),
+            cs.namespace(|| format!("end_requires_zero_parser_{index}")),
             &challenge_source_end,
             &z[index],
-            expected,
+            0,
         );
     }
-
-    let mut active = z[CHALLENGE_PARSE_ACTIVE_CELL].clone();
-    let mut header_left = z[CHALLENGE_PARSE_HEADER_CELL].clone();
-    let mut offset = z[CHALLENGE_PARSE_OFFSET_CELL].clone();
-    let mut low_byte = z[CHALLENGE_PARSE_LOW_BYTE_CELL].clone();
-    let mut fields = field_indices
-        .iter()
-        .map(|index| z[*index].clone())
-        .collect::<Vec<_>>();
-    let low_positions = (1..UNIQUENESS_CHALLENGE_BYTES_V2)
-        .step_by(2)
-        .collect::<Vec<_>>();
-    let high_positions = (2..UNIQUENESS_CHALLENGE_BYTES_V2)
-        .step_by(2)
-        .collect::<Vec<_>>();
-    if low_positions.len() != high_positions.len() {
-        return Err(SynthesisError::Unsatisfiable(
-            "canonical uniqueness challenge byte-pair layout mismatch".to_owned(),
-        ));
-    }
-
-    for index in 0..TRACE_CANONICAL_CHUNK_BYTES_V2 {
-        let visible = trace_chunk_byte_visible(
-            cs.namespace(|| format!("byte_{index}_visible")),
-            trace_chunk,
-            index,
-        )?;
-        let selected = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_selected")),
-            trace_chunk_selector,
-            &visible,
-        )?;
-        let active_bit =
-            allocate_state_bit(cs.namespace(|| format!("byte_{index}_active")), &active)?;
-        let consuming = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_consuming")),
-            &selected,
-            &active_bit,
-        )?;
-        let header_is_zero = nova_snark::gadgets::utils::alloc_num_equals(
-            cs.namespace(|| format!("byte_{index}_header_is_zero")),
-            &header_left,
-            &zero,
-        )?;
-        let header_not_zero = allocate_bit_not(
-            cs.namespace(|| format!("byte_{index}_header_not_zero")),
-            &header_is_zero,
-            "value",
-        )?;
-        let header_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_header_gate")),
-            &consuming,
-            &header_not_zero,
-        )?;
-        let payload_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_payload_gate")),
-            &consuming,
-            &header_is_zero,
-        )?;
-        let header_after = AllocatedNum::alloc(
-            cs.namespace(|| format!("byte_{index}_header_after")),
-            || {
-                let value = scalar_u64(
-                    header_left
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                Ok(Scalar::from(value.saturating_sub(1)))
-            },
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_header_decrement"),
-            |lc| lc + header_gate.get_variable(),
-            |lc| lc + header_after.get_variable() + CS::one() - header_left.get_variable(),
-            |lc| lc,
-        );
-        header_left = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_header_output")),
-            &header_gate,
-            &header_after,
-            &header_left,
-            "value",
-        )?;
-
-        let mut position_selectors = Vec::with_capacity(UNIQUENESS_CHALLENGE_BYTES_V2);
-        for position in 0..UNIQUENESS_CHALLENGE_BYTES_V2 {
-            let value = allocate_constant(
-                cs.namespace(|| format!("byte_{index}_payload_position_{position}")),
-                position as u64,
-            )?;
-            position_selectors.push(nova_snark::gadgets::utils::alloc_num_equals(
-                cs.namespace(|| format!("byte_{index}_payload_position_selector_{position}")),
-                &offset,
-                &value,
-            )?);
-        }
-        cs.enforce(
-            || format!("byte_{index}_payload_position_complete"),
-            |lc| lc + payload_gate.get_variable(),
-            |lc| {
-                let mut relation = lc - CS::one();
-                for selector in &position_selectors {
-                    relation = relation + selector.get_variable();
-                }
-                relation
-            },
-            |lc| lc,
-        );
-
-        let byte = &trace_chunk.bytes[index];
-        let offset_value = offset.get_value().map(scalar_u64);
-        let offset_after = AllocatedNum::alloc(
-            cs.namespace(|| format!("byte_{index}_offset_after")),
-            || {
-                let value = scalar_u64(
-                    offset
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                let next = value.checked_add(1).ok_or_else(|| {
-                    SynthesisError::Unsatisfiable(
-                        "uniqueness challenge payload offset overflow".to_owned(),
-                    )
-                })?;
-                Ok(Scalar::from(next))
-            },
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_payload_offset_increment"),
-            |lc| lc + payload_gate.get_variable(),
-            |lc| lc + offset_after.get_variable() - offset.get_variable() - CS::one(),
-            |lc| lc,
-        );
-        offset = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_offset_output")),
-            &payload_gate,
-            &offset_after,
-            &offset,
-            "value",
-        )?;
-
-        let low_position = AllocatedBit::alloc(
-            cs.namespace(|| format!("byte_{index}_is_low_position")),
-            offset_value.map(|value| low_positions.contains(&(value as usize))),
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_low_position_relation"),
-            |lc| {
-                let mut relation = lc + low_position.get_variable();
-                for position in &low_positions {
-                    relation = relation - position_selectors[*position].get_variable();
-                }
-                relation
-            },
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
-        let high_position = AllocatedBit::alloc(
-            cs.namespace(|| format!("byte_{index}_is_high_position")),
-            offset_value.map(|value| high_positions.contains(&(value as usize))),
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_high_position_relation"),
-            |lc| {
-                let mut relation = lc + high_position.get_variable();
-                for position in &high_positions {
-                    relation = relation - position_selectors[*position].get_variable();
-                }
-                relation
-            },
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
-        let low_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_low_gate")),
-            &payload_gate,
-            &low_position,
-        )?;
-        let high_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_high_gate")),
-            &payload_gate,
-            &high_position,
-        )?;
-        let low_after = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_low_after_low_position")),
-            &low_gate,
-            byte,
-            &low_byte,
-            "value",
-        )?;
-        low_byte = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_low_after_high_position")),
-            &high_gate,
-            &zero,
-            &low_after,
-            "value",
-        )?;
-
-        let parsed_limb =
-            AllocatedNum::alloc(cs.namespace(|| format!("byte_{index}_parsed_limb")), || {
-                let low = scalar_u64(
-                    low_after
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                let high = scalar_u64(byte.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-                let value = low
-                    .checked_add(high.checked_mul(256).ok_or_else(|| {
-                        SynthesisError::Unsatisfiable(
-                            "uniqueness challenge limb overflow".to_owned(),
-                        )
-                    })?)
-                    .ok_or_else(|| {
-                        SynthesisError::Unsatisfiable(
-                            "uniqueness challenge limb overflow".to_owned(),
-                        )
-                    })?;
-                Ok(Scalar::from(value))
-            })?;
-        cs.enforce(
-            || format!("byte_{index}_parsed_limb_relation"),
-            |lc| lc + high_gate.get_variable(),
-            |lc| {
-                lc + parsed_limb.get_variable()
-                    - low_after.get_variable()
-                    - (Scalar::from(256_u64), byte.get_variable())
-            },
-            |lc| lc,
-        );
-        for (limb, (position, state_index)) in committed_precommit_high_positions
-            .iter()
-            .zip(&committed_precommit_indices)
-            .enumerate()
-        {
-            let committed_precommit_gate = AllocatedBit::and(
-                cs.namespace(|| format!("byte_{index}_committed_precommit_gate_{limb}")),
-                &payload_gate,
-                &position_selectors[*position],
-            )?;
-            cs.enforce(
-                || format!("byte_{index}_committed_precommit_limb_{limb}_matches"),
-                |lc| lc + committed_precommit_gate.get_variable(),
-                |lc| lc + parsed_limb.get_variable() - z[*state_index].get_variable(),
-                |lc| lc,
-            );
-        }
-        for ((field, position), state_index) in fields
-            .iter_mut()
-            .zip(&field_high_positions)
-            .zip(&field_indices)
-        {
-            let field_gate = AllocatedBit::and(
-                cs.namespace(|| format!("byte_{index}_field_gate_{state_index}")),
-                &payload_gate,
-                &position_selectors[*position],
-            )?;
-            let prior_field = field.clone();
-            *field = select_bit_num(
-                cs.namespace(|| format!("byte_{index}_field_output_{state_index}")),
-                &field_gate,
-                &parsed_limb,
-                &prior_field,
-                "value",
-            )?;
-        }
-
-        let version_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_version_gate")),
-            &payload_gate,
-            &position_selectors[0],
-        )?;
-        enforce_gated_constant(
-            cs.namespace(|| format!("byte_{index}_version")),
-            &version_gate,
-            byte,
-            u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
-        );
-        let final_payload_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_final_payload_gate")),
-            &payload_gate,
-            &position_selectors[UNIQUENESS_CHALLENGE_BYTES_V2 - 1],
-        )?;
-        let final_chunk_width = allocate_constant(
-            cs.namespace(|| format!("byte_{index}_final_chunk_width")),
-            (index + 1) as u64,
-        )?;
-        enforce_gated_equal(
-            cs.namespace(|| format!("byte_{index}_payload_has_no_trailing_bytes")),
-            &final_payload_gate,
-            &trace_chunk.byte_count,
-            &final_chunk_width,
-        );
-        active = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_active_output")),
-            &final_payload_gate,
-            &zero,
-            &active,
-            "value",
-        )?;
-    }
-
-    let source_active = select_bit_num(
-        cs.namespace(|| "source_active_output"),
-        &challenge_source,
-        &one,
-        &z[CHALLENGE_PARSE_ACTIVE_CELL],
-        "value",
-    )?;
-    let source_header = select_bit_num(
-        cs.namespace(|| "source_header_output"),
-        &challenge_source,
-        &header_width,
-        &z[CHALLENGE_PARSE_HEADER_CELL],
-        "value",
-    )?;
-    let source_offset = select_bit_num(
-        cs.namespace(|| "source_offset_output"),
-        &challenge_source,
-        &zero,
-        &z[CHALLENGE_PARSE_OFFSET_CELL],
-        "value",
-    )?;
-    let source_low_byte = select_bit_num(
-        cs.namespace(|| "source_low_byte_output"),
-        &challenge_source,
-        &zero,
-        &z[CHALLENGE_PARSE_LOW_BYTE_CELL],
-        "value",
-    )?;
-    let output_active = select_bit_num(
-        cs.namespace(|| "trace_active_output"),
-        trace_chunk_selector,
-        &active,
-        &source_active,
-        "value",
-    )?;
-    let output_header = select_bit_num(
-        cs.namespace(|| "trace_header_output"),
-        trace_chunk_selector,
-        &header_left,
-        &source_header,
-        "value",
-    )?;
-    let output_offset = select_bit_num(
-        cs.namespace(|| "trace_offset_output"),
-        trace_chunk_selector,
-        &offset,
-        &source_offset,
-        "value",
-    )?;
-    let output_low_byte = select_bit_num(
-        cs.namespace(|| "trace_low_byte_output"),
-        trace_chunk_selector,
-        &low_byte,
-        &source_low_byte,
-        "value",
-    )?;
-    let mut cells = vec![
-        (CHALLENGE_PARSE_ACTIVE_CELL, output_active),
-        (CHALLENGE_PARSE_HEADER_CELL, output_header),
-        (CHALLENGE_PARSE_OFFSET_CELL, output_offset),
-        (CHALLENGE_PARSE_LOW_BYTE_CELL, output_low_byte),
-    ];
-    for (state_index, field) in field_indices.iter().zip(fields) {
-        let source_field = select_bit_num(
-            cs.namespace(|| format!("source_field_output_{state_index}")),
-            &challenge_source,
-            &zero,
-            &z[*state_index],
-            "value",
-        )?;
-        let output_field = select_bit_num(
-            cs.namespace(|| format!("trace_field_output_{state_index}")),
-            trace_chunk_selector,
-            &field,
-            &source_field,
-            "value",
-        )?;
-        range_bits(
-            cs.namespace(|| format!("output_field_range_{state_index}")),
-            &output_field,
-            16,
-        )?;
-        cells.push((*state_index, output_field));
-    }
-    for (label, value, bits) in [
-        ("output_active_range", &cells[0].1, 1),
-        ("output_header_range", &cells[1].1, 6),
-        ("output_offset_range", &cells[2].1, 8),
-        ("output_low_byte_range", &cells[3].1, 8),
-    ] {
-        range_bits(cs.namespace(|| label), value, bits)?;
-    }
-    enforce_gated_equal(
-        cs.namespace(|| "challenge_payload_width_is_canonical"),
-        &challenge_source_end,
-        &z[CHALLENGE_PARSE_OFFSET_CELL],
-        &payload_width,
-    );
     Ok(UniquenessChallengePayloadOutputsV2 { cells })
 }
 
@@ -4866,12 +7407,16 @@ fn synthesize_uniqueness_challenge_payload<CS: ConstraintSystem<Scalar>>(
 /// prove the later semantic SHA preimage relation.
 struct NetMergePayloadOutputsV2 {
     cells: Vec<(usize, AllocatedNum<Scalar>)>,
+    close_row: AllocatedBit,
+    mutation_row: AllocatedBit,
+    mutation_bytes: Vec<AllocatedNum<Scalar>>,
 }
 
-/// Decode the frozen 33-byte `NetMerge` grammar from meaningful canonical
-/// `TraceChunk` bytes.  The authoritative semantic encoder remains the only
-/// native codec owner; this relation only constrains the matching source bytes
-/// and their fixed little-endian digest representation in the running state.
+/// Decode and enforce one fixed-width semantic Net row. Product-sorted rows
+/// populate at most one spent and one output row in O(1) state; the immediately
+/// following Net row must materialize exactly Delete/Insert/Replace/Unchanged.
+/// A distinct Close row binds the final effect count and is the only row that
+/// may hand control to JMT.
 fn synthesize_net_merge_payload<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     z: &[AllocatedNum<Scalar>],
@@ -4879,60 +7424,46 @@ fn synthesize_net_merge_payload<CS: ConstraintSystem<Scalar>>(
     trace_chunk_selector: &AllocatedBit,
     trace_chunk: &AllocatedTraceChunkV2,
     control: &AllocatedHashControlV2,
+    sorted: &UniquenessSortedPayloadOutputsV2,
 ) -> Result<NetMergePayloadOutputsV2, SynthesisError> {
-    let selector = |opcode: RecursiveTraceOpcodeV2| {
-        opcode_selectors
-            .get(usize::from(opcode as u8).saturating_sub(1))
-            .ok_or_else(|| {
-                SynthesisError::Unsatisfiable("net merge opcode selector missing".to_owned())
-            })
-    };
-    let net_source = selector(RecursiveTraceOpcodeV2::NetMerge)?;
+    let net_source = opcode_selectors
+        .get(usize::from(RecursiveTraceOpcodeV2::NetMerge as u8 - 1))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("net merge opcode selector missing".to_owned())
+        })?;
+    let jmt_source = opcode_selectors
+        .get(usize::from(RecursiveTraceOpcodeV2::JmtUpdate as u8 - 1))
+        .ok_or_else(|| SynthesisError::Unsatisfiable("JMT opcode selector missing".to_owned()))?;
     let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
     let one = allocate_constant(cs.namespace(|| "one"), 1)?;
-    let header_width = allocate_constant(
-        cs.namespace(|| "canonical_header_width"),
-        TRACE_EVENT_HEADER_BYTES_V2 as u64,
+    let expected_record_bytes = allocate_constant(
+        cs.namespace(|| "canonical_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + NET_MERGE_BYTES_V2) as u64,
     )?;
-    let payload_width = allocate_constant(
-        cs.namespace(|| "canonical_net_merge_payload_width"),
-        NET_MERGE_BYTES_V2 as u64,
-    )?;
-    let field_indices = (NET_DIGEST_LIMB_START..NET_DIGEST_LIMB_END).collect::<Vec<_>>();
-    let field_high_positions = (NET_DIGEST_BYTES_START + 1..NET_MERGE_BYTES_V2)
-        .step_by(2)
-        .collect::<Vec<_>>();
-    let low_positions = (NET_DIGEST_BYTES_START..NET_MERGE_BYTES_V2)
-        .step_by(2)
-        .collect::<Vec<_>>();
-    if field_indices.len() != field_high_positions.len()
-        || field_indices.len() != low_positions.len()
-        || NET_DIGEST_LIMB_COUNT != DIGEST_LIMBS
-    {
-        return Err(SynthesisError::Unsatisfiable(
-            "canonical net merge field layout mismatch".to_owned(),
-        ));
-    }
-
-    for (label, index) in [
-        ("net_source_requires_inactive_parser", NET_PARSE_ACTIVE_CELL),
-        ("net_source_requires_empty_header", NET_PARSE_HEADER_CELL),
-        ("net_source_requires_zero_offset", NET_PARSE_OFFSET_CELL),
-        (
-            "net_source_requires_empty_low_byte",
-            NET_PARSE_LOW_BYTE_CELL,
-        ),
-    ] {
-        enforce_gated_constant(cs.namespace(|| label), &net_source, &z[index], 0);
-    }
-    for index in &field_indices {
-        enforce_gated_constant(
-            cs.namespace(|| format!("net_source_requires_zero_field_{index}")),
-            &net_source,
-            &z[*index],
-            0,
-        );
-    }
+    enforce_gated_equal(
+        cs.namespace(|| "source_record_has_canonical_fixed_width"),
+        net_source,
+        &control.source_record_bytes,
+        &expected_record_bytes,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "net_source_requires_closed_parser"),
+        net_source,
+        &z[NET_PARSE_ACTIVE_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "net_source_requires_open_net"),
+        net_source,
+        &z[NET_CLOSED_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_requires_closed_net"),
+        jmt_source,
+        &z[NET_CLOSED_CELL],
+        1,
+    );
 
     let source_header_opcode = &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_HEADER_START_OFFSET];
     let net_opcode = allocate_constant(
@@ -4944,14 +7475,663 @@ fn synthesize_net_merge_payload<CS: ConstraintSystem<Scalar>>(
         source_header_opcode,
         &net_opcode,
     )?;
-    let parser_active =
-        allocate_state_bit(cs.namespace(|| "parser_active"), &z[NET_PARSE_ACTIVE_CELL])?;
+    let net_chunk = AllocatedBit::and(
+        cs.namespace(|| "net_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_net,
+    )?;
+    const RECORD_BYTES: usize = TRACE_EVENT_HEADER_BYTES_V2 + NET_MERGE_BYTES_V2;
+    const CHUNK_COUNT: usize = RECORD_BYTES.div_ceil(TRACE_CANONICAL_CHUNK_BYTES_V2);
+    const KIND_RECORD_OFFSET: usize = TRACE_EVENT_HEADER_BYTES_V2 + 1;
+    const ROW_RECORD_OFFSET: usize = TRACE_EVENT_HEADER_BYTES_V2 + 2;
+    const NEW_HASH_RECORD_OFFSET: usize = ROW_RECORD_OFFSET + UNIQUENESS_SEMANTIC_ROW_BYTES_V2;
+    const _: () = assert!(CHUNK_COUNT == 3);
+
+    let mut chunk_gates = Vec::with_capacity(CHUNK_COUNT);
+    let mut chunk_selector_sum = nova_snark::frontend::LinearCombination::zero();
+    for chunk in 0..CHUNK_COUNT {
+        let ordinal = allocate_constant(
+            cs.namespace(|| format!("chunk_{chunk}_ordinal")),
+            chunk as u64,
+        )?;
+        let selector = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("chunk_{chunk}_selector")),
+            &trace_chunk.chunk_ordinal,
+            &ordinal,
+        )?;
+        chunk_selector_sum = chunk_selector_sum + selector.get_variable();
+        let gate = AllocatedBit::and(
+            cs.namespace(|| format!("chunk_{chunk}_gate")),
+            &net_chunk,
+            &selector,
+        )?;
+        let byte_count = if chunk + 1 == CHUNK_COUNT {
+            RECORD_BYTES - chunk * TRACE_CANONICAL_CHUNK_BYTES_V2
+        } else {
+            TRACE_CANONICAL_CHUNK_BYTES_V2
+        };
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_byte_count")),
+            &gate,
+            &trace_chunk.byte_count,
+            byte_count as u64,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_count")),
+            &gate,
+            &trace_chunk.chunk_count,
+            CHUNK_COUNT as u64,
+        );
+        chunk_gates.push(gate);
+    }
     cs.enforce(
-        || "active_parser_has_net_source_kind",
-        |lc| lc + parser_active.get_variable(),
-        |lc| lc + source_is_net.get_variable() - CS::one(),
+        || "net_chunk_ordinal_is_complete",
+        |lc| lc + net_chunk.get_variable(),
+        |lc| lc + &chunk_selector_sum - CS::one(),
         |lc| lc,
     );
+    enforce_gated_constant(
+        cs.namespace(|| "version"),
+        &chunk_gates[0],
+        &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2],
+        u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "first_chunk_requires_inactive_parser"),
+        &chunk_gates[0],
+        &z[NET_PARSE_ACTIVE_CELL],
+        0,
+    );
+    for (chunk, gate) in chunk_gates.iter().enumerate().skip(1) {
+        enforce_gated_constant(
+            cs.namespace(|| format!("chunk_{chunk}_requires_active_parser")),
+            gate,
+            &z[NET_PARSE_ACTIVE_CELL],
+            1,
+        );
+    }
+
+    let parser_after_source = select_bit_num(
+        cs.namespace(|| "parser_after_source"),
+        net_source,
+        &zero,
+        &z[NET_PARSE_ACTIVE_CELL],
+        "value",
+    )?;
+    let parser_after_first = select_bit_num(
+        cs.namespace(|| "parser_after_first_chunk"),
+        &chunk_gates[0],
+        &one,
+        &parser_after_source,
+        "value",
+    )?;
+    let parser_after_second = select_bit_num(
+        cs.namespace(|| "parser_after_second_chunk"),
+        &chunk_gates[1],
+        &one,
+        &parser_after_first,
+        "value",
+    )?;
+    let parser_output = select_bit_num(
+        cs.namespace(|| "parser_output"),
+        &chunk_gates[2],
+        &zero,
+        &parser_after_second,
+        "value",
+    )?;
+    let kind_after_source = select_bit_num(
+        cs.namespace(|| "kind_after_source"),
+        net_source,
+        &zero,
+        &z[NET_KIND_CELL],
+        "value",
+    )?;
+    let kind_after_first = select_bit_num(
+        cs.namespace(|| "kind_after_first_chunk"),
+        &chunk_gates[0],
+        &trace_chunk.bytes[KIND_RECORD_OFFSET],
+        &kind_after_source,
+        "value",
+    )?;
+    let kind_output = select_bit_num(
+        cs.namespace(|| "kind_output"),
+        &chunk_gates[2],
+        &zero,
+        &kind_after_first,
+        "value",
+    )?;
+
+    let semantic_row_bytes = (0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2)
+        .map(|index| {
+            let record_offset = ROW_RECORD_OFFSET + index;
+            if record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2 < 2 {
+                z[NET_PARSE_ROW_START + index].clone()
+            } else {
+                trace_chunk.bytes[record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2].clone()
+            }
+        })
+        .collect::<Vec<_>>();
+    let new_leaf_hash_bytes = (0..32)
+        .map(|index| {
+            let record_offset = NEW_HASH_RECORD_OFFSET + index;
+            trace_chunk.bytes[record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2].clone()
+        })
+        .collect::<Vec<_>>();
+    let row_gate = chunk_gates[2].clone();
+    let mut kind_selectors = Vec::with_capacity(5);
+    for kind in 0..=4_u64 {
+        let constant = allocate_constant(cs.namespace(|| format!("kind_{kind}")), kind)?;
+        kind_selectors.push(nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("kind_{kind}_selector")),
+            &z[NET_KIND_CELL],
+            &constant,
+        )?);
+    }
+    let mut kind_sum = nova_snark::frontend::LinearCombination::zero();
+    for selector in &kind_selectors {
+        kind_sum = kind_sum + selector.get_variable();
+    }
+    cs.enforce(
+        || "kind_is_canonical",
+        |lc| lc + row_gate.get_variable(),
+        |lc| lc + &kind_sum - CS::one(),
+        |lc| lc,
+    );
+    let close_row = AllocatedBit::and(cs.namespace(|| "close_row"), &row_gate, &kind_selectors[0])?;
+    let effect_kind = allocate_bit_or(
+        cs.namespace(|| "effect_kind_1_2"),
+        &kind_selectors[1],
+        &kind_selectors[2],
+        "value",
+    )?;
+    let effect_kind_3_4 = allocate_bit_or(
+        cs.namespace(|| "effect_kind_3_4"),
+        &kind_selectors[3],
+        &kind_selectors[4],
+        "value",
+    )?;
+    let any_effect_kind = allocate_bit_or(
+        cs.namespace(|| "any_effect_kind"),
+        &effect_kind,
+        &effect_kind_3_4,
+        "value",
+    )?;
+    let effect_row = AllocatedBit::and(cs.namespace(|| "effect_row"), &row_gate, &any_effect_kind)?;
+    let mutation_kind = allocate_bit_or(
+        cs.namespace(|| "mutation_kind"),
+        &effect_kind,
+        &kind_selectors[3],
+        "value",
+    )?;
+    let mutation_row =
+        AllocatedBit::and(cs.namespace(|| "mutation_row"), &row_gate, &mutation_kind)?;
+
+    let spent_active = allocate_state_bit(
+        cs.namespace(|| "pending_spent_active"),
+        &z[NET_PENDING_SPENT_ACTIVE_CELL],
+    )?;
+    let output_active = allocate_state_bit(
+        cs.namespace(|| "pending_output_active"),
+        &z[NET_PENDING_OUTPUT_ACTIVE_CELL],
+    )?;
+    let closed = allocate_state_bit(cs.namespace(|| "net_closed"), &z[NET_CLOSED_CELL])?;
+    let sorted_product_row = allocate_bit_or(
+        cs.namespace(|| "sorted_product_row"),
+        &sorted.sorted_spent_row,
+        &sorted.sorted_output_row,
+        "value",
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "sorted_product_requires_open_net"),
+        &sorted_product_row,
+        &z[NET_CLOSED_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "sorted_spent_requires_no_pending_spent"),
+        &sorted.sorted_spent_row,
+        &z[NET_PENDING_SPENT_ACTIVE_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "sorted_spent_requires_no_pending_output"),
+        &sorted.sorted_spent_row,
+        &z[NET_PENDING_OUTPUT_ACTIVE_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "sorted_output_requires_no_pending_output"),
+        &sorted.sorted_output_row,
+        &z[NET_PENDING_OUTPUT_ACTIVE_CELL],
+        0,
+    );
+
+    let not_spent = allocate_bit_not(cs.namespace(|| "not_spent"), &spent_active, "value")?;
+    let not_output = allocate_bit_not(cs.namespace(|| "not_output"), &output_active, "value")?;
+    let delete_expected = AllocatedBit::and(
+        cs.namespace(|| "delete_expected"),
+        &spent_active,
+        &not_output,
+    )?;
+    let insert_expected = AllocatedBit::and(
+        cs.namespace(|| "insert_expected"),
+        &not_spent,
+        &output_active,
+    )?;
+    let both_expected = AllocatedBit::and(
+        cs.namespace(|| "both_expected"),
+        &spent_active,
+        &output_active,
+    )?;
+    let any_pending = allocate_bit_or(
+        cs.namespace(|| "any_pending"),
+        &spent_active,
+        &output_active,
+        "value",
+    )?;
+    let any_pending_num = bit_as_num(cs.namespace(|| "any_pending_num"), &any_pending, "value")?;
+    enforce_gated_constant(
+        cs.namespace(|| "effect_requires_pending_rows"),
+        &effect_row,
+        &any_pending_num,
+        1,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "close_requires_no_pending_spent"),
+        &close_row,
+        &z[NET_PENDING_SPENT_ACTIVE_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "close_requires_no_pending_output"),
+        &close_row,
+        &z[NET_PENDING_OUTPUT_ACTIVE_CELL],
+        0,
+    );
+
+    let mut leaf_equal = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "leaf_equal_0"),
+        &z[NET_PENDING_SPENT_ROW_START + 68],
+        &z[NET_PENDING_OUTPUT_ROW_START + 68],
+    )?;
+    for index in 1..32 {
+        let equal = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("leaf_equal_{index}")),
+            &z[NET_PENDING_SPENT_ROW_START + 68 + index],
+            &z[NET_PENDING_OUTPUT_ROW_START + 68 + index],
+        )?;
+        leaf_equal = AllocatedBit::and(
+            cs.namespace(|| format!("leaf_equal_prefix_{index}")),
+            &leaf_equal,
+            &equal,
+        )?;
+    }
+    let leaf_changed = allocate_bit_not(cs.namespace(|| "leaf_changed"), &leaf_equal, "value")?;
+    let replace_expected = AllocatedBit::and(
+        cs.namespace(|| "replace_expected"),
+        &both_expected,
+        &leaf_changed,
+    )?;
+    let unchanged_expected = AllocatedBit::and(
+        cs.namespace(|| "unchanged_expected"),
+        &both_expected,
+        &leaf_equal,
+    )?;
+    for (kind, expected) in [
+        (1_u64, &delete_expected),
+        (2, &insert_expected),
+        (3, &replace_expected),
+        (4, &unchanged_expected),
+    ] {
+        let gate = AllocatedBit::and(
+            cs.namespace(|| format!("kind_{kind}_expected_gate")),
+            &effect_row,
+            expected,
+        )?;
+        enforce_gated_constant(
+            cs.namespace(|| format!("kind_{kind}_is_exact")),
+            &gate,
+            &z[NET_KIND_CELL],
+            kind,
+        );
+    }
+
+    let effect_has_spent = AllocatedBit::and(
+        cs.namespace(|| "effect_has_spent"),
+        &effect_row,
+        &spent_active,
+    )?;
+    let effect_has_output = AllocatedBit::and(
+        cs.namespace(|| "effect_has_output"),
+        &effect_row,
+        &output_active,
+    )?;
+    for (index, byte) in semantic_row_bytes.iter().enumerate() {
+        enforce_gated_equal(
+            cs.namespace(|| format!("effect_old_row_{index}")),
+            &effect_has_spent,
+            byte,
+            &z[NET_PENDING_SPENT_ROW_START + index],
+        );
+        if index < 68 {
+            enforce_gated_equal(
+                cs.namespace(|| format!("effect_output_path_{index}")),
+                &effect_has_output,
+                byte,
+                &z[NET_PENDING_OUTPUT_ROW_START + index],
+            );
+        }
+    }
+    let insert_effect = AllocatedBit::and(
+        cs.namespace(|| "insert_effect"),
+        &effect_row,
+        &insert_expected,
+    )?;
+    for index in 0..32 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("insert_old_hash_zero_{index}")),
+            &insert_effect,
+            &semantic_row_bytes[68 + index],
+            0,
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("effect_new_hash_{index}")),
+            &effect_has_output,
+            &new_leaf_hash_bytes[index],
+            &z[NET_PENDING_OUTPUT_ROW_START + 68 + index],
+        );
+        let delete_effect = AllocatedBit::and(
+            cs.namespace(|| format!("delete_effect_{index}")),
+            &effect_row,
+            &delete_expected,
+        )?;
+        enforce_gated_constant(
+            cs.namespace(|| format!("delete_new_hash_zero_{index}")),
+            &delete_effect,
+            &new_leaf_hash_bytes[index],
+            0,
+        );
+    }
+    for index in 32..36 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("close_serial_zero_{index}")),
+            &close_row,
+            &semantic_row_bytes[index],
+            0,
+        );
+    }
+    for (label, bytes, limb_start) in [
+        (
+            "precommit",
+            &semantic_row_bytes[0..32],
+            PRECOMMIT_COMMITMENT_DIGEST_LIMB_START,
+        ),
+        (
+            "context",
+            &semantic_row_bytes[36..68],
+            CHALLENGE_DIGEST_LIMB_START,
+        ),
+        (
+            "spent_u",
+            &semantic_row_bytes[68..100],
+            CHALLENGE_DIGEST_LIMB_START + DIGEST_LIMBS,
+        ),
+        (
+            "output_u",
+            new_leaf_hash_bytes.as_slice(),
+            CHALLENGE_DIGEST_LIMB_START + DIGEST_LIMBS * 2,
+        ),
+    ] {
+        for limb in 0..DIGEST_LIMBS {
+            let low = &bytes[limb * 2];
+            let high = &bytes[limb * 2 + 1];
+            let parsed = AllocatedNum::alloc(
+                cs.namespace(|| format!("close_{label}_limb_{limb}")),
+                || {
+                    let low = scalar_u64(low.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                    let high =
+                        scalar_u64(high.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                    Ok(Scalar::from(low + high * 256))
+                },
+            )?;
+            cs.enforce(
+                || format!("close_{label}_limb_{limb}_little_endian"),
+                |lc| {
+                    lc + parsed.get_variable()
+                        - low.get_variable()
+                        - (Scalar::from(256_u64), high.get_variable())
+                },
+                |lc| lc + CS::one(),
+                |lc| lc,
+            );
+            enforce_gated_equal(
+                cs.namespace(|| format!("close_{label}_limb_{limb}_matches_transcript")),
+                &close_row,
+                &parsed,
+                &z[limb_start + limb],
+            );
+        }
+    }
+
+    let spent_precommit_count = nova_snark::frontend::LinearCombination::zero()
+        + z[PRECOMMIT_SPENT_COUNT_LIMB_START].get_variable()
+        + (
+            Scalar::from(1_u64 << 16),
+            z[PRECOMMIT_SPENT_COUNT_LIMB_START + 1].get_variable(),
+        );
+    let output_precommit_count = nova_snark::frontend::LinearCombination::zero()
+        + z[PRECOMMIT_OUTPUT_COUNT_LIMB_START].get_variable()
+        + (
+            Scalar::from(1_u64 << 16),
+            z[PRECOMMIT_OUTPUT_COUNT_LIMB_START + 1].get_variable(),
+        );
+    for (label, state_index, expected) in [
+        (
+            "original_spent_count_matches_precommit",
+            ORIGINAL_SPENT_COUNT_CELL,
+            &spent_precommit_count,
+        ),
+        (
+            "original_output_count_matches_precommit",
+            ORIGINAL_OUTPUT_COUNT_CELL,
+            &output_precommit_count,
+        ),
+        (
+            "sorted_spent_count_matches_precommit",
+            SORTED_SPENT_COUNT_CELL,
+            &spent_precommit_count,
+        ),
+        (
+            "sorted_output_count_matches_precommit",
+            SORTED_OUTPUT_COUNT_CELL,
+            &output_precommit_count,
+        ),
+    ] {
+        enforce_gated_lc_equal(
+            cs.namespace(|| label),
+            &close_row,
+            expected,
+            &z[state_index],
+        );
+    }
+
+    let effect_count_incremented = allocate_incremented(
+        cs.namespace(|| "effect_count_incremented"),
+        &z[NET_EFFECT_COUNT_CELL],
+        "value",
+    )?;
+    range_bits(
+        cs.namespace(|| "effect_count_incremented_range"),
+        &effect_count_incremented,
+        64,
+    )?;
+    let effect_count_after_row = select_bit_num(
+        cs.namespace(|| "effect_count_after_row"),
+        &effect_row,
+        &effect_count_incremented,
+        &z[NET_EFFECT_COUNT_CELL],
+        "value",
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "close_effect_count_matches_declared"),
+        &close_row,
+        &effect_count_after_row,
+        &z[ANCHOR_SEMANTIC_COUNT_START + 3],
+    );
+    let mutation_count_incremented = allocate_incremented(
+        cs.namespace(|| "mutation_count_incremented"),
+        &z[NET_MUTATION_COUNT_CELL],
+        "value",
+    )?;
+    range_bits(
+        cs.namespace(|| "mutation_count_incremented_range"),
+        &mutation_count_incremented,
+        64,
+    )?;
+    let mutation_count_after_row = select_bit_num(
+        cs.namespace(|| "mutation_count_after_row"),
+        &mutation_row,
+        &mutation_count_incremented,
+        &z[NET_MUTATION_COUNT_CELL],
+        "value",
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "close_mutation_count_matches_declared_jmt_updates"),
+        &close_row,
+        &mutation_count_after_row,
+        &z[ANCHOR_SEMANTIC_COUNT_START + 4],
+    );
+
+    let spent_active_after_row = select_bit_num(
+        cs.namespace(|| "spent_active_after_sorted_row"),
+        &sorted.sorted_spent_row,
+        &one,
+        &z[NET_PENDING_SPENT_ACTIVE_CELL],
+        "value",
+    )?;
+    let output_active_after_row = select_bit_num(
+        cs.namespace(|| "output_active_after_sorted_row"),
+        &sorted.sorted_output_row,
+        &one,
+        &z[NET_PENDING_OUTPUT_ACTIVE_CELL],
+        "value",
+    )?;
+    let spent_active_output = select_bit_num(
+        cs.namespace(|| "spent_active_output"),
+        &effect_row,
+        &zero,
+        &spent_active_after_row,
+        "value",
+    )?;
+    let output_active_output = select_bit_num(
+        cs.namespace(|| "output_active_output"),
+        &effect_row,
+        &zero,
+        &output_active_after_row,
+        "value",
+    )?;
+    let closed_output = select_bit_num(
+        cs.namespace(|| "closed_output"),
+        &close_row,
+        &one,
+        &z[NET_CLOSED_CELL],
+        "value",
+    )?;
+
+    let mut cells = vec![
+        (NET_PARSE_ACTIVE_CELL, parser_output),
+        (NET_KIND_CELL, kind_output),
+        (NET_PENDING_SPENT_ACTIVE_CELL, spent_active_output),
+        (NET_PENDING_OUTPUT_ACTIVE_CELL, output_active_output),
+        (NET_EFFECT_COUNT_CELL, effect_count_after_row),
+        (NET_MUTATION_COUNT_CELL, mutation_count_after_row),
+        (NET_CLOSED_CELL, closed_output),
+    ];
+    for index in 0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2 {
+        let after_source = select_bit_num(
+            cs.namespace(|| format!("parse_row_{index}_after_source")),
+            net_source,
+            &zero,
+            &z[NET_PARSE_ROW_START + index],
+            "value",
+        )?;
+        let record_offset = ROW_RECORD_OFFSET + index;
+        let chunk = record_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+        let captured = if chunk < 2 {
+            select_bit_num(
+                cs.namespace(|| format!("parse_row_{index}_capture")),
+                &chunk_gates[chunk],
+                &trace_chunk.bytes[record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2],
+                &after_source,
+                "value",
+            )?
+        } else {
+            after_source
+        };
+        cells.push((
+            NET_PARSE_ROW_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("parse_row_{index}_output")),
+                &chunk_gates[2],
+                &zero,
+                &captured,
+                "value",
+            )?,
+        ));
+        let spent_after_row = select_bit_num(
+            cs.namespace(|| format!("pending_spent_row_{index}_after_sorted")),
+            &sorted.sorted_spent_row,
+            &sorted.semantic_row_bytes[index],
+            &z[NET_PENDING_SPENT_ROW_START + index],
+            "value",
+        )?;
+        cells.push((
+            NET_PENDING_SPENT_ROW_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("pending_spent_row_{index}_output")),
+                &effect_row,
+                &zero,
+                &spent_after_row,
+                "value",
+            )?,
+        ));
+        let output_after_row = select_bit_num(
+            cs.namespace(|| format!("pending_output_row_{index}_after_sorted")),
+            &sorted.sorted_output_row,
+            &sorted.semantic_row_bytes[index],
+            &z[NET_PENDING_OUTPUT_ROW_START + index],
+            "value",
+        )?;
+        cells.push((
+            NET_PENDING_OUTPUT_ROW_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("pending_output_row_{index}_output")),
+                &effect_row,
+                &zero,
+                &output_after_row,
+                "value",
+            )?,
+        ));
+    }
+    for index in 0..32 {
+        let after_source = select_bit_num(
+            cs.namespace(|| format!("parse_new_hash_{index}_after_source")),
+            net_source,
+            &zero,
+            &z[NET_PARSE_NEW_HASH_START + index],
+            "value",
+        )?;
+        cells.push((
+            NET_PARSE_NEW_HASH_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("parse_new_hash_{index}_output")),
+                &chunk_gates[2],
+                &zero,
+                &after_source,
+                "value",
+            )?,
+        ));
+    }
 
     let source_end = AllocatedBit::and(
         cs.namespace(|| "source_end"),
@@ -4963,387 +8143,6529 @@ fn synthesize_net_merge_payload<CS: ConstraintSystem<Scalar>>(
         &source_end,
         &source_is_net,
     )?;
-    for (label, index, expected) in [
-        ("net_end_requires_parser_closed", NET_PARSE_ACTIVE_CELL, 0),
-        ("net_end_requires_header_consumed", NET_PARSE_HEADER_CELL, 0),
-        (
-            "net_end_requires_exact_payload_width",
-            NET_PARSE_OFFSET_CELL,
-            NET_MERGE_BYTES_V2 as u64,
-        ),
-        (
-            "net_end_requires_empty_low_byte",
-            NET_PARSE_LOW_BYTE_CELL,
-            0,
-        ),
-    ] {
-        enforce_gated_constant(cs.namespace(|| label), &net_source_end, &z[index], expected);
+    enforce_gated_constant(
+        cs.namespace(|| "end_requires_closed_parser"),
+        &net_source_end,
+        &z[NET_PARSE_ACTIVE_CELL],
+        0,
+    );
+    let _ = closed;
+    let mut mutation_bytes = semantic_row_bytes;
+    mutation_bytes.extend(new_leaf_hash_bytes);
+    if mutation_bytes.len() != NET_JMT_ROW_BYTES {
+        return Err(SynthesisError::Unsatisfiable(
+            "Net/JMT mutation row has the wrong byte count".to_owned(),
+        ));
+    }
+    Ok(NetMergePayloadOutputsV2 {
+        cells,
+        close_row,
+        mutation_row,
+        mutation_bytes,
+    })
+}
+
+/// Streaming outputs for the fixed JMT-envelope header and hierarchy
+/// promotion record.
+///
+/// The header portion binds the authenticated envelope kind, trace digest, and
+/// update count to declared work, then the same owner consumes every
+/// update-proof/path micro-operation and the hierarchy promotion. Neither its
+/// streaming state nor the native decoder is a verifier shortcut.
+struct JmtHierarchyPayloadOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+    operation_end_row: AllocatedBit,
+}
+
+fn allocate_u16_from_le_bytes<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    low: &AllocatedNum<Scalar>,
+    high: &AllocatedNum<Scalar>,
+    label: &str,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let value = AllocatedNum::alloc(cs.namespace(|| label), || {
+        let low = scalar_u64(low.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+        let high = scalar_u64(high.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+        Ok(Scalar::from(low + high * 256))
+    })?;
+    cs.enforce(
+        || format!("{label}_little_endian"),
+        |lc| {
+            lc + value.get_variable()
+                - low.get_variable()
+                - (Scalar::from(256_u64), high.get_variable())
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    range_bits(cs.namespace(|| format!("{label}_range")), &value, 16)?;
+    Ok(value)
+}
+
+fn allocate_u32_from_le_bytes<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    bytes: [&AllocatedNum<Scalar>; 4],
+    label: &str,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let value = AllocatedNum::alloc(cs.namespace(|| label), || {
+        let mut decoded = [0_u8; 4];
+        for (index, byte) in bytes.iter().enumerate() {
+            decoded[index] = u8::try_from(scalar_u64(
+                byte.get_value().ok_or(SynthesisError::AssignmentMissing)?,
+            ))
+            .map_err(|_| SynthesisError::Unsatisfiable(format!("{label} byte is not u8")))?;
+        }
+        Ok(Scalar::from(u64::from(u32::from_le_bytes(decoded))))
+    })?;
+    cs.enforce(
+        || format!("{label}_little_endian"),
+        |lc| {
+            lc + value.get_variable()
+                - bytes[0].get_variable()
+                - (Scalar::from(1_u64 << 8), bytes[1].get_variable())
+                - (Scalar::from(1_u64 << 16), bytes[2].get_variable())
+                - (Scalar::from(1_u64 << 24), bytes[3].get_variable())
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    range_bits(cs.namespace(|| format!("{label}_range")), &value, 32)?;
+    Ok(value)
+}
+
+fn allocate_u64_from_le_bytes<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    bytes: [&AllocatedNum<Scalar>; 8],
+    label: &str,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let value = AllocatedNum::alloc(cs.namespace(|| format!("{label}_value")), || {
+        let mut raw = [0_u8; 8];
+        for (index, byte) in bytes.iter().enumerate() {
+            raw[index] = u8::try_from(scalar_u64(
+                byte.get_value().ok_or(SynthesisError::AssignmentMissing)?,
+            ))
+            .map_err(|_| SynthesisError::Unsatisfiable(format!("{label} byte overflow")))?;
+        }
+        Ok(Scalar::from(u64::from_le_bytes(raw)))
+    })?;
+    let mut relation = nova_snark::frontend::LinearCombination::zero() - value.get_variable();
+    for (index, byte) in bytes.into_iter().enumerate() {
+        relation = relation + (Scalar::from(1_u64 << (index * 8)), byte.get_variable());
+    }
+    cs.enforce(
+        || format!("{label}_reconstruct"),
+        |lc| lc + CS::one(),
+        |_| relation,
+        |lc| lc,
+    );
+    Ok(value)
+}
+
+fn enforce_num_at_most_constant<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    value: &AllocatedNum<Scalar>,
+    maximum: u64,
+    bits: usize,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    range_bits(cs.namespace(|| format!("{label}_value_range")), value, bits)?;
+    let remainder = AllocatedNum::alloc(cs.namespace(|| format!("{label}_remainder")), || {
+        let value = scalar_u64(value.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+        let remainder = maximum.checked_sub(value).ok_or_else(|| {
+            SynthesisError::Unsatisfiable(format!("{label} exceeds canonical maximum"))
+        })?;
+        Ok(Scalar::from(remainder))
+    })?;
+    range_bits(
+        cs.namespace(|| format!("{label}_remainder_range")),
+        &remainder,
+        bits,
+    )?;
+    cs.enforce(
+        || format!("{label}_maximum_relation"),
+        |lc| lc + value.get_variable() + remainder.get_variable(),
+        |lc| lc + CS::one(),
+        |lc| lc + (Scalar::from(maximum), CS::one()),
+    );
+    Ok(())
+}
+
+const HIERARCHY_KEY_POSEIDON_WORDS_V1: usize = 13;
+
+fn goldilocks_linear<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    terms: &[(&AllocatedNum<Scalar>, u64)],
+    constant: u64,
+    label: &str,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let witness = || {
+        let total =
+            terms
+                .iter()
+                .try_fold(u128::from(constant), |total, (value, coefficient)| {
+                    let value =
+                        scalar_u64(value.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                    total
+                        .checked_add(u128::from(value) * u128::from(*coefficient))
+                        .ok_or_else(|| {
+                            SynthesisError::Unsatisfiable(format!("{label} integer overflow"))
+                        })
+                })?;
+        let modulus = u128::from(POSEIDON2_GOLDILOCKS_MODULUS_V1);
+        Ok((
+            u64::try_from(total / modulus)
+                .map_err(|_| SynthesisError::Unsatisfiable(format!("{label} quotient overflow")))?,
+            u64::try_from(total % modulus)
+                .map_err(|_| SynthesisError::Unsatisfiable(format!("{label} residue overflow")))?,
+        ))
+    };
+    let quotient = AllocatedNum::alloc(cs.namespace(|| format!("{label}_quotient")), || {
+        Ok(Scalar::from(witness()?.0))
+    })?;
+    let output = AllocatedNum::alloc(cs.namespace(|| format!("{label}_output")), || {
+        Ok(Scalar::from(witness()?.1))
+    })?;
+    range_bits(
+        cs.namespace(|| format!("{label}_quotient_range")),
+        &quotient,
+        64,
+    )?;
+    range_bits(
+        cs.namespace(|| format!("{label}_output_range")),
+        &output,
+        64,
+    )?;
+    cs.enforce(
+        || format!("{label}_goldilocks_relation"),
+        |lc| {
+            let mut relation = lc + (Scalar::from(constant), CS::one())
+                - (
+                    Scalar::from(POSEIDON2_GOLDILOCKS_MODULUS_V1),
+                    quotient.get_variable(),
+                )
+                - output.get_variable();
+            for (value, coefficient) in terms {
+                relation = relation + (Scalar::from(*coefficient), value.get_variable());
+            }
+            relation
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    Ok(output)
+}
+
+fn goldilocks_mul<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    left: &AllocatedNum<Scalar>,
+    right: &AllocatedNum<Scalar>,
+    label: &str,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let witness = || {
+        let left_value = scalar_u64(left.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+        let right_value = scalar_u64(right.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+        let product = u128::from(left_value) * u128::from(right_value);
+        let modulus = u128::from(POSEIDON2_GOLDILOCKS_MODULUS_V1);
+        Ok((
+            u64::try_from(product / modulus)
+                .map_err(|_| SynthesisError::Unsatisfiable(format!("{label} quotient overflow")))?,
+            u64::try_from(product % modulus)
+                .map_err(|_| SynthesisError::Unsatisfiable(format!("{label} residue overflow")))?,
+        ))
+    };
+    let quotient = AllocatedNum::alloc(cs.namespace(|| format!("{label}_quotient")), || {
+        Ok(Scalar::from(witness()?.0))
+    })?;
+    let output = AllocatedNum::alloc(cs.namespace(|| format!("{label}_output")), || {
+        Ok(Scalar::from(witness()?.1))
+    })?;
+    range_bits(
+        cs.namespace(|| format!("{label}_quotient_range")),
+        &quotient,
+        64,
+    )?;
+    range_bits(
+        cs.namespace(|| format!("{label}_output_range")),
+        &output,
+        64,
+    )?;
+    cs.enforce(
+        || format!("{label}_goldilocks_product"),
+        |lc| lc + left.get_variable(),
+        |lc| lc + right.get_variable(),
+        |lc| {
+            lc + (
+                Scalar::from(POSEIDON2_GOLDILOCKS_MODULUS_V1),
+                quotient.get_variable(),
+            ) + output.get_variable()
+        },
+    );
+    Ok(output)
+}
+
+fn goldilocks_pow7<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    value: &AllocatedNum<Scalar>,
+    label: &str,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let square = goldilocks_mul(
+        cs.namespace(|| format!("{label}_square")),
+        value,
+        value,
+        &format!("{label}_square"),
+    )?;
+    let cube = goldilocks_mul(
+        cs.namespace(|| format!("{label}_cube")),
+        &square,
+        value,
+        &format!("{label}_cube"),
+    )?;
+    let sixth = goldilocks_mul(
+        cs.namespace(|| format!("{label}_sixth")),
+        &cube,
+        &cube,
+        &format!("{label}_sixth"),
+    )?;
+    goldilocks_mul(
+        cs.namespace(|| format!("{label}_seventh")),
+        &sixth,
+        value,
+        &format!("{label}_seventh"),
+    )
+}
+
+fn hierarchy_poseidon_external_matrix_v1(
+) -> [[u64; POSEIDON2_GOLDILOCKS_WIDTH_V1]; POSEIDON2_GOLDILOCKS_WIDTH_V1] {
+    fn apply_hl(chunk: &mut [u64; 4]) {
+        let input = *chunk;
+        chunk[0] = 5 * input[0] + 7 * input[1] + input[2] + 3 * input[3];
+        chunk[1] = 4 * input[0] + 6 * input[1] + input[2] + input[3];
+        chunk[2] = input[0] + 3 * input[1] + 5 * input[2] + 7 * input[3];
+        chunk[3] = input[0] + input[1] + 4 * input[2] + 6 * input[3];
     }
 
-    let mut active = z[NET_PARSE_ACTIVE_CELL].clone();
-    let mut header_left = z[NET_PARSE_HEADER_CELL].clone();
-    let mut offset = z[NET_PARSE_OFFSET_CELL].clone();
-    let mut low_byte = z[NET_PARSE_LOW_BYTE_CELL].clone();
-    let mut fields = field_indices
-        .iter()
-        .map(|index| z[*index].clone())
-        .collect::<Vec<_>>();
+    let mut matrix = [[0_u64; POSEIDON2_GOLDILOCKS_WIDTH_V1]; POSEIDON2_GOLDILOCKS_WIDTH_V1];
+    for column in 0..POSEIDON2_GOLDILOCKS_WIDTH_V1 {
+        let mut state = [0_u64; POSEIDON2_GOLDILOCKS_WIDTH_V1];
+        state[column] = 1;
+        let (first, second) = state.split_at_mut(4);
+        apply_hl(first.try_into().expect("fixed first Poseidon chunk"));
+        apply_hl(second.try_into().expect("fixed second Poseidon chunk"));
+        let sums = [
+            state[0] + state[4],
+            state[1] + state[5],
+            state[2] + state[6],
+            state[3] + state[7],
+        ];
+        for row in 0..POSEIDON2_GOLDILOCKS_WIDTH_V1 {
+            state[row] += sums[row % 4];
+            matrix[row][column] = state[row];
+        }
+    }
+    matrix
+}
 
-    for index in 0..TRACE_CANONICAL_CHUNK_BYTES_V2 {
-        let visible = trace_chunk_byte_visible(
-            cs.namespace(|| format!("byte_{index}_visible")),
-            trace_chunk,
-            index,
-        )?;
-        let selected = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_selected")),
-            trace_chunk_selector,
-            &visible,
-        )?;
-        let active_bit =
-            allocate_state_bit(cs.namespace(|| format!("byte_{index}_active")), &active)?;
-        let consuming = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_consuming")),
-            &selected,
-            &active_bit,
-        )?;
-        let header_is_zero = nova_snark::gadgets::utils::alloc_num_equals(
-            cs.namespace(|| format!("byte_{index}_header_is_zero")),
-            &header_left,
-            &zero,
-        )?;
-        let header_not_zero = allocate_bit_not(
-            cs.namespace(|| format!("byte_{index}_header_not_zero")),
-            &header_is_zero,
-            "value",
-        )?;
-        let header_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_header_gate")),
-            &consuming,
-            &header_not_zero,
-        )?;
-        let payload_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_payload_gate")),
-            &consuming,
-            &header_is_zero,
-        )?;
-        let header_after = AllocatedNum::alloc(
-            cs.namespace(|| format!("byte_{index}_header_after")),
-            || {
-                let value = scalar_u64(
-                    header_left
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                Ok(Scalar::from(value.saturating_sub(1)))
-            },
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_header_decrement"),
-            |lc| lc + header_gate.get_variable(),
-            |lc| lc + header_after.get_variable() + CS::one() - header_left.get_variable(),
-            |lc| lc,
-        );
-        header_left = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_header_output")),
-            &header_gate,
-            &header_after,
-            &header_left,
-            "value",
-        )?;
+fn hierarchy_poseidon_external_linear<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    state: &[AllocatedNum<Scalar>],
+    label: &str,
+) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+    let matrix = hierarchy_poseidon_external_matrix_v1();
+    (0..POSEIDON2_GOLDILOCKS_WIDTH_V1)
+        .map(|row| {
+            let terms = state
+                .iter()
+                .zip(matrix[row])
+                .map(|(value, coefficient)| (value, coefficient))
+                .collect::<Vec<_>>();
+            goldilocks_linear(
+                cs.namespace(|| format!("{label}_row_{row}")),
+                &terms,
+                0,
+                &format!("{label}_row_{row}"),
+            )
+        })
+        .collect()
+}
 
-        let mut position_selectors = Vec::with_capacity(NET_MERGE_BYTES_V2);
-        for position in 0..NET_MERGE_BYTES_V2 {
-            let value = allocate_constant(
-                cs.namespace(|| format!("byte_{index}_payload_position_{position}")),
-                position as u64,
+fn hierarchy_poseidon_permutation<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    mut state: Vec<AllocatedNum<Scalar>>,
+    label: &str,
+) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+    if state.len() != POSEIDON2_GOLDILOCKS_WIDTH_V1 {
+        return Err(SynthesisError::Unsatisfiable(
+            "hierarchy Poseidon2 state width mismatch".to_owned(),
+        ));
+    }
+    let params = poseidon2_goldilocks_params_v1();
+    state = hierarchy_poseidon_external_linear(
+        cs.namespace(|| format!("{label}_initial_linear")),
+        &state,
+        &format!("{label}_initial_linear"),
+    )?;
+    for (round, constants) in params.external_round_constants()[0].into_iter().enumerate() {
+        let mut sboxes = Vec::with_capacity(POSEIDON2_GOLDILOCKS_WIDTH_V1);
+        for (lane, (value, constant)) in state.iter().zip(constants).enumerate() {
+            let added = goldilocks_linear(
+                cs.namespace(|| format!("{label}_initial_round_{round}_add_{lane}")),
+                &[(value, 1)],
+                constant,
+                &format!("{label}_initial_round_{round}_add_{lane}"),
             )?;
-            position_selectors.push(nova_snark::gadgets::utils::alloc_num_equals(
-                cs.namespace(|| format!("byte_{index}_payload_position_selector_{position}")),
-                &offset,
-                &value,
+            sboxes.push(goldilocks_pow7(
+                cs.namespace(|| format!("{label}_initial_round_{round}_sbox_{lane}")),
+                &added,
+                &format!("{label}_initial_round_{round}_sbox_{lane}"),
             )?);
         }
-        cs.enforce(
-            || format!("byte_{index}_payload_position_complete"),
-            |lc| lc + payload_gate.get_variable(),
-            |lc| {
-                let mut relation = lc - CS::one();
-                for selector in &position_selectors {
-                    relation = relation + selector.get_variable();
-                }
-                relation
-            },
-            |lc| lc,
-        );
-
-        let byte = &trace_chunk.bytes[index];
-        let offset_value = offset.get_value().map(scalar_u64);
-        let offset_after = AllocatedNum::alloc(
-            cs.namespace(|| format!("byte_{index}_offset_after")),
-            || {
-                let value = scalar_u64(
-                    offset
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                let next = value.checked_add(1).ok_or_else(|| {
-                    SynthesisError::Unsatisfiable("net merge payload offset overflow".to_owned())
-                })?;
-                Ok(Scalar::from(next))
-            },
+        state = hierarchy_poseidon_external_linear(
+            cs.namespace(|| format!("{label}_initial_round_{round}_linear")),
+            &sboxes,
+            &format!("{label}_initial_round_{round}_linear"),
         )?;
-        cs.enforce(
-            || format!("byte_{index}_payload_offset_increment"),
-            |lc| lc + payload_gate.get_variable(),
-            |lc| lc + offset_after.get_variable() - offset.get_variable() - CS::one(),
-            |lc| lc,
-        );
-        offset = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_offset_output")),
-            &payload_gate,
-            &offset_after,
-            &offset,
-            "value",
+    }
+    let diagonal = params.internal_matrix_diagonal();
+    for (round, constant) in params.internal_round_constants().into_iter().enumerate() {
+        let added = goldilocks_linear(
+            cs.namespace(|| format!("{label}_internal_round_{round}_add")),
+            &[(&state[0], 1)],
+            constant,
+            &format!("{label}_internal_round_{round}_add"),
         )?;
-
-        let low_position = AllocatedBit::alloc(
-            cs.namespace(|| format!("byte_{index}_is_low_position")),
-            offset_value.map(|value| low_positions.contains(&(value as usize))),
+        let sbox = goldilocks_pow7(
+            cs.namespace(|| format!("{label}_internal_round_{round}_sbox")),
+            &added,
+            &format!("{label}_internal_round_{round}_sbox"),
         )?;
-        cs.enforce(
-            || format!("byte_{index}_low_position_relation"),
-            |lc| {
-                let mut relation = lc + low_position.get_variable();
-                for position in &low_positions {
-                    relation = relation - position_selectors[*position].get_variable();
-                }
-                relation
-            },
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
-        let high_position = AllocatedBit::alloc(
-            cs.namespace(|| format!("byte_{index}_is_high_position")),
-            offset_value.map(|value| field_high_positions.contains(&(value as usize))),
-        )?;
-        cs.enforce(
-            || format!("byte_{index}_high_position_relation"),
-            |lc| {
-                let mut relation = lc + high_position.get_variable();
-                for position in &field_high_positions {
-                    relation = relation - position_selectors[*position].get_variable();
-                }
-                relation
-            },
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
-        let low_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_low_gate")),
-            &payload_gate,
-            &low_position,
-        )?;
-        let high_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_high_gate")),
-            &payload_gate,
-            &high_position,
-        )?;
-        let low_after = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_low_after_low_position")),
-            &low_gate,
-            byte,
-            &low_byte,
-            "value",
-        )?;
-        low_byte = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_low_after_high_position")),
-            &high_gate,
-            &zero,
-            &low_after,
-            "value",
-        )?;
-        let parsed_limb =
-            AllocatedNum::alloc(cs.namespace(|| format!("byte_{index}_parsed_limb")), || {
-                let low = scalar_u64(
-                    low_after
-                        .get_value()
-                        .ok_or(SynthesisError::AssignmentMissing)?,
-                );
-                let high = scalar_u64(byte.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-                let value = low
-                    .checked_add(high.checked_mul(256).ok_or_else(|| {
-                        SynthesisError::Unsatisfiable("net merge limb overflow".to_owned())
-                    })?)
-                    .ok_or_else(|| {
-                        SynthesisError::Unsatisfiable("net merge limb overflow".to_owned())
-                    })?;
-                Ok(Scalar::from(value))
-            })?;
-        cs.enforce(
-            || format!("byte_{index}_parsed_limb_relation"),
-            |lc| lc + high_gate.get_variable(),
-            |lc| {
-                lc + parsed_limb.get_variable()
-                    - low_after.get_variable()
-                    - (Scalar::from(256_u64), byte.get_variable())
-            },
-            |lc| lc,
-        );
-        for ((field, position), state_index) in fields
-            .iter_mut()
-            .zip(&field_high_positions)
-            .zip(&field_indices)
-        {
-            let field_gate = AllocatedBit::and(
-                cs.namespace(|| format!("byte_{index}_field_gate_{state_index}")),
-                &payload_gate,
-                &position_selectors[*position],
+        let mut sbox_state = state.clone();
+        sbox_state[0] = sbox;
+        let sum_terms = sbox_state
+            .iter()
+            .map(|value| (value, 1_u64))
+            .collect::<Vec<_>>();
+        let mut next = Vec::with_capacity(POSEIDON2_GOLDILOCKS_WIDTH_V1);
+        for lane in 0..POSEIDON2_GOLDILOCKS_WIDTH_V1 {
+            let mut terms = sum_terms.clone();
+            terms.push((&sbox_state[lane], diagonal[lane]));
+            next.push(goldilocks_linear(
+                cs.namespace(|| format!("{label}_internal_round_{round}_linear_{lane}")),
+                &terms,
+                0,
+                &format!("{label}_internal_round_{round}_linear_{lane}"),
+            )?);
+        }
+        state = next;
+    }
+    for (round, constants) in params.external_round_constants()[1].into_iter().enumerate() {
+        let mut sboxes = Vec::with_capacity(POSEIDON2_GOLDILOCKS_WIDTH_V1);
+        for (lane, (value, constant)) in state.iter().zip(constants).enumerate() {
+            let added = goldilocks_linear(
+                cs.namespace(|| format!("{label}_terminal_round_{round}_add_{lane}")),
+                &[(value, 1)],
+                constant,
+                &format!("{label}_terminal_round_{round}_add_{lane}"),
             )?;
-            let prior_field = field.clone();
-            *field = select_bit_num(
-                cs.namespace(|| format!("byte_{index}_field_output_{state_index}")),
-                &field_gate,
-                &parsed_limb,
-                &prior_field,
+            sboxes.push(goldilocks_pow7(
+                cs.namespace(|| format!("{label}_terminal_round_{round}_sbox_{lane}")),
+                &added,
+                &format!("{label}_terminal_round_{round}_sbox_{lane}"),
+            )?);
+        }
+        state = hierarchy_poseidon_external_linear(
+            cs.namespace(|| format!("{label}_terminal_round_{round}_linear")),
+            &sboxes,
+            &format!("{label}_terminal_round_{round}_linear"),
+        )?;
+    }
+    Ok(state)
+}
+
+fn hierarchy_key_frame_coefficients_v1(
+    definition: bool,
+) -> (
+    [u64; HIERARCHY_KEY_POSEIDON_WORDS_V1],
+    [[u64; 32]; HIERARCHY_KEY_POSEIDON_WORDS_V1],
+    [[u64; 4]; HIERARCHY_KEY_POSEIDON_WORDS_V1],
+) {
+    let base: [u64; HIERARCHY_KEY_POSEIDON_WORDS_V1] =
+        hierarchy_parent_key_poseidon2_words_v1(definition, [0_u8; 32], 0)
+            .try_into()
+            .expect("hierarchy key framing has frozen thirteen-word geometry");
+    let mut definition_coefficients = [[0_u64; 32]; HIERARCHY_KEY_POSEIDON_WORDS_V1];
+    for byte in 0..32 {
+        let mut definition_id = [0_u8; 32];
+        definition_id[byte] = 1;
+        let basis = hierarchy_parent_key_poseidon2_words_v1(definition, definition_id, 0);
+        for word in 0..HIERARCHY_KEY_POSEIDON_WORDS_V1 {
+            definition_coefficients[word][byte] = basis[word]
+                .checked_sub(base[word])
+                .expect("definition byte occupies an additive frame position");
+        }
+    }
+    let mut serial_coefficients = [[0_u64; 4]; HIERARCHY_KEY_POSEIDON_WORDS_V1];
+    if !definition {
+        for byte in 0..4 {
+            let mut serial = [0_u8; 4];
+            serial[byte] = 1;
+            let basis = hierarchy_parent_key_poseidon2_words_v1(
+                false,
+                [0_u8; 32],
+                u32::from_le_bytes(serial),
+            );
+            for word in 0..HIERARCHY_KEY_POSEIDON_WORDS_V1 {
+                serial_coefficients[word][byte] = basis[word]
+                    .checked_sub(base[word])
+                    .expect("serial byte occupies an additive frame position");
+            }
+        }
+    }
+    (base, definition_coefficients, serial_coefficients)
+}
+
+fn hierarchy_key_frame_witness_v1(
+    definition_gate: &AllocatedBit,
+    serial_gate: &AllocatedBit,
+    definition_bytes: &[AllocatedNum<Scalar>],
+    serial_bytes: &[AllocatedNum<Scalar>],
+) -> Result<Option<Vec<u64>>, SynthesisError> {
+    let (Some(definition_active), Some(serial_active)) =
+        (definition_gate.get_value(), serial_gate.get_value())
+    else {
+        return Ok(None);
+    };
+    if definition_active && serial_active {
+        return Err(SynthesisError::Unsatisfiable(
+            "hierarchy key circuit selected two key domains".to_owned(),
+        ));
+    }
+    let Some(definition_values) = definition_bytes
+        .iter()
+        .map(AllocatedNum::get_value)
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Ok(None);
+    };
+    let Some(serial_values) = serial_bytes
+        .iter()
+        .map(AllocatedNum::get_value)
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Ok(None);
+    };
+    let definition_id = definition_values
+        .into_iter()
+        .map(|value| {
+            u8::try_from(scalar_u64(value)).map_err(|_| {
+                SynthesisError::Unsatisfiable(
+                    "hierarchy definition identifier byte overflow".to_owned(),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?
+        .try_into()
+        .expect("hierarchy definition byte width checked");
+    let serial_id = serial_values
+        .into_iter()
+        .map(|value| {
+            u8::try_from(scalar_u64(value)).map_err(|_| {
+                SynthesisError::Unsatisfiable("hierarchy serial byte overflow".to_owned())
+            })
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?
+        .try_into()
+        .expect("hierarchy serial byte width checked");
+    Ok(Some(hierarchy_parent_key_poseidon2_words_v1(
+        // Inactive steps use the definition frame. Only the two domain gates
+        // can bind the resulting digest.
+        !serial_active,
+        definition_id,
+        u32::from_le_bytes(serial_id),
+    )))
+}
+
+/// Prove the exact project-owned hierarchy-key derivation for the active
+/// Definition or Serial JMT operation. The one selected frame feeds one
+/// width-eight Goldilocks Poseidon2 sponge; no native verdict or second key
+/// codec enters the relation.
+fn synthesize_hierarchy_parent_key_poseidon2<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    definition_gate: &AllocatedBit,
+    serial_gate: &AllocatedBit,
+    definition_bytes: &[AllocatedNum<Scalar>],
+    serial_bytes: &[AllocatedNum<Scalar>],
+    expected_key_bytes: &[AllocatedNum<Scalar>],
+) -> Result<(), SynthesisError> {
+    if definition_bytes.len() != 32 || serial_bytes.len() != 4 || expected_key_bytes.len() != 32 {
+        return Err(SynthesisError::Unsatisfiable(
+            "hierarchy key circuit input width mismatch".to_owned(),
+        ));
+    }
+    let frame_witness = hierarchy_key_frame_witness_v1(
+        definition_gate,
+        serial_gate,
+        definition_bytes,
+        serial_bytes,
+    )?;
+    let (definition_base, definition_coefficients, _) = hierarchy_key_frame_coefficients_v1(true);
+    let (serial_base, serial_definition_coefficients, serial_coefficients) =
+        hierarchy_key_frame_coefficients_v1(false);
+    let mut frame_words = Vec::with_capacity(HIERARCHY_KEY_POSEIDON_WORDS_V1);
+    for word in 0..HIERARCHY_KEY_POSEIDON_WORDS_V1 {
+        let frame_word = AllocatedNum::alloc(
+            cs.namespace(|| format!("hierarchy_key_frame_word_{word}")),
+            || {
+                Ok(Scalar::from(
+                    *frame_witness
+                        .as_ref()
+                        .and_then(|frame| frame.get(word))
+                        .ok_or(SynthesisError::AssignmentMissing)?,
+                ))
+            },
+        )?;
+        range_bits(
+            cs.namespace(|| format!("hierarchy_key_frame_word_{word}_range")),
+            &frame_word,
+            64,
+        )?;
+        for (label, gate, base, definition_coefficients, serial_coefficients) in [
+            (
+                "definition",
+                definition_gate,
+                definition_base[word],
+                &definition_coefficients[word],
+                &[0_u64; 4],
+            ),
+            (
+                "serial",
+                serial_gate,
+                serial_base[word],
+                &serial_definition_coefficients[word],
+                &serial_coefficients[word],
+            ),
+        ] {
+            cs.enforce(
+                || format!("hierarchy_{label}_frame_word_{word}"),
+                |lc| lc + gate.get_variable(),
+                |lc| {
+                    let mut relation =
+                        lc + frame_word.get_variable() - (Scalar::from(base), CS::one());
+                    for (byte, coefficient) in definition_bytes.iter().zip(definition_coefficients)
+                    {
+                        relation = relation - (Scalar::from(*coefficient), byte.get_variable());
+                    }
+                    for (byte, coefficient) in serial_bytes.iter().zip(serial_coefficients) {
+                        relation = relation - (Scalar::from(*coefficient), byte.get_variable());
+                    }
+                    relation
+                },
+                |lc| lc,
+            );
+        }
+        frame_words.push(frame_word);
+    }
+
+    let zero = AllocatedNum::alloc(cs.namespace(|| "hierarchy_key_zero"), || {
+        Ok(Scalar::from(0_u64))
+    })?;
+    enforce_u64_constant(cs.namespace(|| "hierarchy_key_zero_relation"), &zero, 0);
+    let mut state = vec![zero; POSEIDON2_GOLDILOCKS_WIDTH_V1];
+    state[..POSEIDON2_GOLDILOCKS_RATE_V1]
+        .clone_from_slice(&frame_words[..POSEIDON2_GOLDILOCKS_RATE_V1]);
+    state = hierarchy_poseidon_permutation(
+        cs.namespace(|| "hierarchy_key_poseidon_first"),
+        state,
+        "hierarchy_key_poseidon_first",
+    )?;
+    for lane in 0..HIERARCHY_KEY_POSEIDON_WORDS_V1 - POSEIDON2_GOLDILOCKS_RATE_V1 {
+        state[lane] = goldilocks_linear(
+            cs.namespace(|| format!("hierarchy_key_second_absorb_{lane}")),
+            &[
+                (&state[lane], 1),
+                (&frame_words[POSEIDON2_GOLDILOCKS_RATE_V1 + lane], 1),
+            ],
+            0,
+            &format!("hierarchy_key_second_absorb_{lane}"),
+        )?;
+    }
+    state = hierarchy_poseidon_permutation(
+        cs.namespace(|| "hierarchy_key_poseidon_final"),
+        state,
+        "hierarchy_key_poseidon_final",
+    )?;
+    let active = allocate_bit_or(
+        cs.namespace(|| "hierarchy_key_active"),
+        definition_gate,
+        serial_gate,
+        "value",
+    )?;
+    for (word, value) in state.iter().take(4).enumerate() {
+        let bytes = decompose_le_bytes(
+            cs.namespace(|| format!("hierarchy_key_output_word_{word}")),
+            value,
+            8,
+            &format!("hierarchy_key_output_word_{word}"),
+        )?;
+        for (byte, output) in bytes.iter().enumerate() {
+            enforce_gated_equal(
+                cs.namespace(|| format!("hierarchy_key_output_byte_{word}_{byte}")),
+                &active,
+                output,
+                &expected_key_bytes[word * 8 + byte],
+            );
+        }
+    }
+    Ok(())
+}
+
+fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    opcode_selectors: &[AllocatedBit],
+    trace_chunk_selector: &AllocatedBit,
+    trace_chunk: &AllocatedTraceChunkV2,
+    control: &AllocatedHashControlV2,
+) -> Result<JmtHierarchyPayloadOutputsV2, SynthesisError> {
+    let selector = |opcode: RecursiveTraceOpcodeV2| {
+        opcode_selectors
+            .get(usize::from(opcode as u8).saturating_sub(1))
+            .ok_or_else(|| SynthesisError::Unsatisfiable("JMT opcode selector missing".to_owned()))
+    };
+    let jmt_source = selector(RecursiveTraceOpcodeV2::JmtUpdate)?;
+    let jmt_micro_source = selector(RecursiveTraceOpcodeV2::JmtMicroOp)?;
+    let promote_source = selector(RecursiveTraceOpcodeV2::PromoteChildRoot)?;
+    let commit_source = selector(RecursiveTraceOpcodeV2::CommitTypedEvent)?;
+    let finalize_source = selector(RecursiveTraceOpcodeV2::FinalizeBlock)?;
+    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
+    let expected_jmt_header_record_bytes = allocate_constant(
+        cs.namespace(|| "jmt_header_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + JMT_CIRCUIT_HEADER_BYTES_V2) as u64,
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_source_is_exact_fixed_header"),
+        jmt_source,
+        &control.source_record_bytes,
+        &expected_jmt_header_record_bytes,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_source_is_unique_header"),
+        jmt_source,
+        &z[JMT_HEADER_PROGRESS_CELL],
+        0,
+    );
+
+    for index in HIERARCHY_START..HIERARCHY_STATE_END {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_source_requires_clean_hierarchy_{index}")),
+            jmt_source,
+            &z[index],
+            0,
+        );
+    }
+
+    let progress_selectors = [0_u64, 1, 2]
+        .into_iter()
+        .map(|value| {
+            let candidate = allocate_constant(
+                cs.namespace(|| format!("jmt_header_progress_{value}")),
+                value,
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_header_progress_is_{value}")),
+                &z[JMT_HEADER_PROGRESS_CELL],
+                &candidate,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &z[JMT_HEADER_PROGRESS_CELL],
+        &progress_selectors,
+        |index| index as u64,
+        "jmt_header_progress",
+    );
+    let initial_jmt_source = AllocatedBit::and(
+        cs.namespace(|| "initial_jmt_source"),
+        jmt_source,
+        &progress_selectors[0],
+    )?;
+    for index in JMT_START..JMT_MICRO_STATE_END {
+        enforce_gated_constant(
+            cs.namespace(|| format!("initial_jmt_source_requires_clean_state_{index}")),
+            &initial_jmt_source,
+            &z[index],
+            0,
+        );
+    }
+    let hierarchy_progress_selectors = [0_u64, 1, 2]
+        .into_iter()
+        .map(|value| {
+            let candidate = allocate_constant(
+                cs.namespace(|| format!("hierarchy_progress_{value}")),
+                value,
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("hierarchy_progress_is_{value}")),
+                &z[HIERARCHY_PROGRESS_CELL],
+                &candidate,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &z[HIERARCHY_PROGRESS_CELL],
+        &hierarchy_progress_selectors,
+        |index| index as u64,
+        "hierarchy_progress",
+    );
+
+    enforce_gated_constant(
+        cs.namespace(|| "promote_requires_complete_jmt_header"),
+        promote_source,
+        &z[JMT_HEADER_PROGRESS_CELL],
+        2,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_micro_source_requires_complete_header"),
+        jmt_micro_source,
+        &z[JMT_HEADER_PROGRESS_CELL],
+        2,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_micro_source_requires_mutating_kind"),
+        jmt_micro_source,
+        &z[JMT_KIND_CELL],
+        u64::from(JMT_UPDATE_TRACE_KIND_MUTATING_V2),
+    );
+    for (label, gate) in [("commit", commit_source), ("finalize", finalize_source)] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("{label}_requires_complete_hierarchy")),
+            gate,
+            &z[HIERARCHY_PROGRESS_CELL],
+            2,
+        );
+    }
+    let expected_promote_record_bytes = allocate_constant(
+        cs.namespace(|| "promote_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + 1 + 32 + 32) as u64,
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "promote_source_record_has_canonical_width"),
+        promote_source,
+        &control.source_record_bytes,
+        &expected_promote_record_bytes,
+    );
+
+    let source_header_opcode = &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_HEADER_START_OFFSET];
+    let jmt_opcode = allocate_constant(
+        cs.namespace(|| "jmt_opcode"),
+        RecursiveTraceOpcodeV2::JmtUpdate as u8 as u64,
+    )?;
+    let promote_opcode = allocate_constant(
+        cs.namespace(|| "promote_opcode"),
+        RecursiveTraceOpcodeV2::PromoteChildRoot as u8 as u64,
+    )?;
+    let jmt_micro_opcode = allocate_constant(
+        cs.namespace(|| "jmt_micro_opcode"),
+        RecursiveTraceOpcodeV2::JmtMicroOp as u8 as u64,
+    )?;
+    let commit_opcode = allocate_constant(
+        cs.namespace(|| "commit_typed_opcode"),
+        RecursiveTraceOpcodeV2::CommitTypedEvent as u8 as u64,
+    )?;
+    let source_is_jmt = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_jmt"),
+        source_header_opcode,
+        &jmt_opcode,
+    )?;
+    let source_is_promote = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_promote"),
+        source_header_opcode,
+        &promote_opcode,
+    )?;
+    let source_is_jmt_micro = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_jmt_micro"),
+        source_header_opcode,
+        &jmt_micro_opcode,
+    )?;
+    let source_is_commit = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "source_is_commit_typed"),
+        source_header_opcode,
+        &commit_opcode,
+    )?;
+    let jmt_chunk = AllocatedBit::and(
+        cs.namespace(|| "jmt_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_jmt,
+    )?;
+    let promote_chunk = AllocatedBit::and(
+        cs.namespace(|| "promote_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_promote,
+    )?;
+    let jmt_micro_chunk = AllocatedBit::and(
+        cs.namespace(|| "jmt_micro_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_jmt_micro,
+    )?;
+    let commit_chunk = AllocatedBit::and(
+        cs.namespace(|| "commit_typed_trace_chunk"),
+        trace_chunk_selector,
+        &source_is_commit,
+    )?;
+    let chunk_zero = allocate_constant(cs.namespace(|| "chunk_zero"), 0)?;
+    let chunk_one = allocate_constant(cs.namespace(|| "chunk_one"), 1)?;
+    let chunk_is_zero = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "chunk_is_zero"),
+        &trace_chunk.chunk_ordinal,
+        &chunk_zero,
+    )?;
+    let chunk_is_one = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "chunk_is_one"),
+        &trace_chunk.chunk_ordinal,
+        &chunk_one,
+    )?;
+
+    // `CommitTypedEvent` has exactly one meaning: the four fixed
+    // checkpoint-core commitments. Flow items use only ReplayInput/ReplayOutput.
+    // The two-chunk record kind order is part of the R1CS relation and its
+    // digest bytes are compared directly with the `X_h`-derived public state.
+    // No host-decoded digest or statement-only alias can satisfy this path.
+    let commit_first_chunk = AllocatedBit::and(
+        cs.namespace(|| "commit_typed_first_chunk"),
+        &commit_chunk,
+        &chunk_is_zero,
+    )?;
+    let commit_version = &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2];
+    let typed_version = allocate_constant(
+        cs.namespace(|| "typed_checkpoint_commitment_version"),
+        u64::from(TYPED_CHECKPOINT_COMMITMENT_VERSION_V2),
+    )?;
+    let commit_is_typed = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "commit_is_typed_checkpoint_commitment"),
+        commit_version,
+        &typed_version,
+    )?;
+    cs.enforce(
+        || "commit_first_byte_is_typed_checkpoint_commitment",
+        |lc| lc + commit_first_chunk.get_variable(),
+        |lc| lc + commit_is_typed.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let typed_commit_chunk = AllocatedBit::and(
+        cs.namespace(|| "typed_checkpoint_commitment_chunk"),
+        &commit_first_chunk,
+        &commit_is_typed,
+    )?;
+    let typed_commitment_active = allocate_state_bit(
+        cs.namespace(|| "typed_checkpoint_commitment_active"),
+        &z[TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL],
+    )?;
+    let commit_second_chunk = AllocatedBit::and(
+        cs.namespace(|| "commit_typed_second_chunk"),
+        &commit_chunk,
+        &chunk_is_one,
+    )?;
+    let typed_commit_continuation = AllocatedBit::and(
+        cs.namespace(|| "typed_checkpoint_commitment_continuation"),
+        &commit_second_chunk,
+        &typed_commitment_active,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "typed_checkpoint_commitment_starts_inactive"),
+        &typed_commit_chunk,
+        &z[TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL],
+        0,
+    );
+    let commit_source_end = AllocatedBit::and(
+        cs.namespace(|| "commit_typed_source_end"),
+        control.end_selector(),
+        &source_is_commit,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "commit_typed_source_end_requires_complete_record"),
+        &commit_source_end,
+        &z[TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "typed_checkpoint_commitment_chunk_count"),
+        &typed_commit_chunk,
+        &trace_chunk.chunk_count,
+        2,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "typed_checkpoint_commitment_first_byte_count"),
+        &typed_commit_chunk,
+        &trace_chunk.byte_count,
+        TRACE_CANONICAL_CHUNK_BYTES_V2 as u64,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "typed_checkpoint_commitment_second_chunk_count"),
+        &typed_commit_continuation,
+        &trace_chunk.chunk_count,
+        2,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "typed_checkpoint_commitment_second_byte_count"),
+        &typed_commit_continuation,
+        &trace_chunk.byte_count,
+        (TRACE_EVENT_HEADER_BYTES_V2 + TYPED_CHECKPOINT_COMMITMENT_BYTES_V2
+            - TRACE_CANONICAL_CHUNK_BYTES_V2) as u64,
+    );
+    let typed_progress_selectors = (0_u64..=4)
+        .map(|progress| {
+            let value = allocate_constant(
+                cs.namespace(|| format!("typed_commitment_progress_{progress}")),
+                progress,
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("typed_commitment_progress_is_{progress}")),
+                &z[TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL],
+                &value,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &z[TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL],
+        &typed_progress_selectors,
+        |index| index as u64,
+        "typed_checkpoint_commitment_progress",
+    );
+    let typed_kind = &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 1];
+    let expected_typed_kind = allocate_incremented(
+        cs.namespace(|| "expected_typed_checkpoint_commitment_kind"),
+        &z[TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL],
+        "value",
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "typed_checkpoint_commitment_kind_order"),
+        &typed_commit_chunk,
+        typed_kind,
+        &expected_typed_kind,
+    );
+    let first_typed_commitment = AllocatedBit::and(
+        cs.namespace(|| "first_typed_checkpoint_commitment"),
+        &typed_commit_chunk,
+        &typed_progress_selectors[0],
+    )?;
+    cs.enforce(
+        || "four_typed_commitments_are_only_commit_events",
+        |lc| lc + first_typed_commitment.get_variable(),
+        |lc| {
+            lc + z[CONSUMED_OPCODE_COUNT_START
+                + usize::from(RecursiveTraceOpcodeV2::CommitTypedEvent as u8 - 1)]
+            .get_variable()
+                + (Scalar::from(3_u64), CS::one())
+                - z[ANCHOR_OPCODE_COUNT_START
+                    + usize::from(RecursiveTraceOpcodeV2::CommitTypedEvent as u8 - 1)]
+                .get_variable()
+        },
+        |lc| lc,
+    );
+    let expected_commitment_bytes = [
+        ("delta", EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START),
+        (
+            "witness",
+            EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START + DIGEST_LIMBS,
+        ),
+        (
+            "journal",
+            EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START + 2 * DIGEST_LIMBS,
+        ),
+        (
+            "link",
+            EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START + 3 * DIGEST_LIMBS,
+        ),
+    ]
+    .into_iter()
+    .map(|(label, start)| {
+        digest_limb_state_bytes(
+            cs.namespace(|| format!("typed_checkpoint_commitment_{label}_bytes")),
+            z,
+            start,
+            &format!("typed_checkpoint_commitment_{label}"),
+        )
+    })
+    .collect::<Result<Vec<_>, SynthesisError>>()?;
+    for (kind_index, expected) in expected_commitment_bytes.iter().enumerate() {
+        let first_kind_gate = AllocatedBit::and(
+            cs.namespace(|| format!("typed_checkpoint_commitment_kind_{}", kind_index + 1)),
+            &typed_commit_chunk,
+            &typed_progress_selectors[kind_index],
+        )?;
+        let continuation_kind_gate = AllocatedBit::and(
+            cs.namespace(|| {
+                format!(
+                    "typed_checkpoint_commitment_continuation_kind_{}",
+                    kind_index + 1
+                )
+            }),
+            &typed_commit_continuation,
+            &typed_progress_selectors[kind_index],
+        )?;
+        for (byte_index, expected_byte) in expected.iter().enumerate() {
+            let record_offset = TRACE_EVENT_HEADER_BYTES_V2 + 2 + byte_index;
+            let gate = if record_offset < TRACE_CANONICAL_CHUNK_BYTES_V2 {
+                &first_kind_gate
+            } else {
+                &continuation_kind_gate
+            };
+            enforce_gated_equal(
+                cs.namespace(|| {
+                    format!(
+                        "typed_checkpoint_commitment_{}_byte_{byte_index}",
+                        kind_index + 1
+                    )
+                }),
+                gate,
+                &trace_chunk.bytes[record_offset % TRACE_CANONICAL_CHUNK_BYTES_V2],
+                expected_byte,
+            );
+        }
+    }
+    let typed_progress_incremented = allocate_incremented(
+        cs.namespace(|| "typed_checkpoint_commitment_progress_incremented"),
+        &z[TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL],
+        "value",
+    )?;
+
+    let jmt_needs_chunk_zero = AllocatedBit::and(
+        cs.namespace(|| "jmt_needs_chunk_zero"),
+        &jmt_chunk,
+        &progress_selectors[0],
+    )?;
+    let jmt_needs_chunk_one = AllocatedBit::and(
+        cs.namespace(|| "jmt_needs_chunk_one"),
+        &jmt_chunk,
+        &progress_selectors[1],
+    )?;
+    cs.enforce(
+        || "jmt_header_starts_in_first_chunk",
+        |lc| lc + jmt_needs_chunk_zero.get_variable(),
+        |lc| lc + chunk_is_zero.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    cs.enforce(
+        || "jmt_header_finishes_in_second_chunk",
+        |lc| lc + jmt_needs_chunk_one.get_variable(),
+        |lc| lc + chunk_is_one.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let jmt_chunk_zero = AllocatedBit::and(
+        cs.namespace(|| "jmt_header_chunk_zero"),
+        &jmt_needs_chunk_zero,
+        &chunk_is_zero,
+    )?;
+    let jmt_chunk_one = AllocatedBit::and(
+        cs.namespace(|| "jmt_header_chunk_one"),
+        &jmt_needs_chunk_one,
+        &chunk_is_one,
+    )?;
+    let minimum_second_chunk = allocate_constant(cs.namespace(|| "minimum_second_chunk"), 19)?;
+    let second_chunk_is_large_enough = strict_u8_less(
+        cs.namespace(|| "jmt_second_chunk_has_header"),
+        &minimum_second_chunk,
+        &trace_chunk.byte_count,
+    )?;
+    cs.enforce(
+        || "jmt_second_chunk_contains_complete_header",
+        |lc| lc + jmt_chunk_one.get_variable(),
+        |lc| lc + second_chunk_is_large_enough.get_variable() - CS::one(),
+        |lc| lc,
+    );
+
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_envelope_version"),
+        &jmt_chunk_zero,
+        &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2],
+        u64::from(JMT_UPDATE_TRACE_VERSION_V2),
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_root_generation"),
+        &jmt_chunk_zero,
+        &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 1],
+        u64::from(RootGeneration::SettlementV2.version()),
+    );
+    let kind_byte = &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 2];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_envelope_kind"),
+        &jmt_chunk_zero,
+        kind_byte,
+        &[
+            JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+            JMT_UPDATE_TRACE_KIND_NOOP_V2,
+        ],
+        "jmt_envelope_kind",
+    )?;
+
+    let mut cells = Vec::with_capacity(
+        (JMT_MICRO_STATE_END - JMT_START) + (HIERARCHY_STATE_END - HIERARCHY_START),
+    );
+    cells.push((
+        TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL,
+        select_bit_num(
+            cs.namespace(|| "typed_checkpoint_commitment_progress_output"),
+            &typed_commit_continuation,
+            &typed_progress_incremented,
+            &z[TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL],
+            "value",
+        )?,
+    ));
+    let typed_active_after_start = select_bit_num(
+        cs.namespace(|| "typed_checkpoint_commitment_active_after_start"),
+        &typed_commit_chunk,
+        &chunk_one,
+        &z[TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL],
+        "value",
+    )?;
+    cells.push((
+        TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL,
+        select_bit_num(
+            cs.namespace(|| "typed_checkpoint_commitment_active_output"),
+            &typed_commit_continuation,
+            &zero,
+            &typed_active_after_start,
+            "value",
+        )?,
+    ));
+    enforce_gated_constant(
+        cs.namespace(|| "finalize_requires_all_typed_checkpoint_commitments"),
+        finalize_source,
+        &z[TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL],
+        4,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "finalize_requires_closed_typed_checkpoint_commitment"),
+        finalize_source,
+        &z[TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL],
+        0,
+    );
+    let progress_after_zero = select_bit_num(
+        cs.namespace(|| "jmt_progress_after_zero"),
+        &jmt_chunk_zero,
+        &chunk_one,
+        &z[JMT_HEADER_PROGRESS_CELL],
+        "value",
+    )?;
+    let chunk_two = allocate_constant(cs.namespace(|| "chunk_two"), 2)?;
+    let jmt_progress = select_bit_num(
+        cs.namespace(|| "jmt_progress_after_one"),
+        &jmt_chunk_one,
+        &chunk_two,
+        &progress_after_zero,
+        "value",
+    )?;
+    cells.push((JMT_HEADER_PROGRESS_CELL, jmt_progress));
+    cells.push((
+        JMT_KIND_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_kind_output"),
+            &jmt_chunk_zero,
+            kind_byte,
+            &z[JMT_KIND_CELL],
+            "value",
+        )?,
+    ));
+
+    for limb in 0..DIGEST_LIMBS {
+        let (gate, low, high) = if limb < DIGEST_LIMBS / 2 {
+            let offset = TRACE_EVENT_HEADER_BYTES_V2 + 3 + limb * 2;
+            (
+                &jmt_chunk_zero,
+                &trace_chunk.bytes[offset],
+                &trace_chunk.bytes[offset + 1],
+            )
+        } else {
+            let offset = (limb - DIGEST_LIMBS / 2) * 2;
+            (
+                &jmt_chunk_one,
+                &trace_chunk.bytes[offset],
+                &trace_chunk.bytes[offset + 1],
+            )
+        };
+        let parsed = allocate_u16_from_le_bytes(
+            cs.namespace(|| format!("jmt_trace_digest_{limb}")),
+            low,
+            high,
+            &format!("jmt_trace_digest_{limb}"),
+        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_trace_digest_{limb}_matches_pre_context")),
+            gate,
+            &parsed,
+            &z[7 * DIGEST_LIMBS + limb],
+        );
+        cells.push((
+            JMT_TRACE_DIGEST_START + limb,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_trace_digest_{limb}_output")),
+                gate,
+                &parsed,
+                &z[JMT_TRACE_DIGEST_START + limb],
+                "value",
+            )?,
+        ));
+    }
+    let count_low = allocate_u16_from_le_bytes(
+        cs.namespace(|| "jmt_update_count_low"),
+        &trace_chunk.bytes[16],
+        &trace_chunk.bytes[17],
+        "jmt_update_count_low",
+    )?;
+    let count_high = allocate_u16_from_le_bytes(
+        cs.namespace(|| "jmt_update_count_high"),
+        &trace_chunk.bytes[18],
+        &trace_chunk.bytes[19],
+        "jmt_update_count_high",
+    )?;
+    cs.enforce(
+        || "jmt_update_count_matches_declared_work",
+        |lc| lc + jmt_chunk_one.get_variable(),
+        |lc| {
+            lc + count_low.get_variable() + (Scalar::from(1_u64 << 16), count_high.get_variable())
+                - z[ANCHOR_SEMANTIC_COUNT_START + 5].get_variable()
+        },
+        |lc| lc,
+    );
+    let count_is_zero = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_update_count_is_zero"),
+        &z[ANCHOR_SEMANTIC_COUNT_START + 5],
+        &zero,
+    )?;
+    let noop_kind = allocate_constant(
+        cs.namespace(|| "noop_kind"),
+        u64::from(JMT_UPDATE_TRACE_KIND_NOOP_V2),
+    )?;
+    let kind_is_noop = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_kind_is_noop"),
+        &z[JMT_KIND_CELL],
+        &noop_kind,
+    )?;
+    cs.enforce(
+        || "jmt_noop_kind_matches_zero_update_count",
+        |lc| lc + jmt_chunk_one.get_variable(),
+        |lc| lc + kind_is_noop.get_variable() - count_is_zero.get_variable(),
+        |lc| lc,
+    );
+    for (index, value) in [count_low, count_high].into_iter().enumerate() {
+        cells.push((
+            JMT_UPDATE_COUNT_LIMB_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_update_count_{index}_output")),
+                &jmt_chunk_one,
+                &value,
+                &z[JMT_UPDATE_COUNT_LIMB_START + index],
+                "value",
+            )?,
+        ));
+    }
+
+    // The first chunk of every circuit micro-op record carries the fixed
+    // version/kind/update/op prefix.  Constrain that prefix directly from the
+    // authenticated source window and advance only four O(1) parser cells;
+    // value and proof bytes remain streamed for the raw-SHA/path submachine.
+    let micro_chunk_zero = AllocatedBit::and(
+        cs.namespace(|| "jmt_micro_chunk_zero"),
+        &jmt_micro_chunk,
+        &chunk_is_zero,
+    )?;
+    let minimum_micro_prefix = allocate_constant(cs.namespace(|| "minimum_micro_prefix"), 50)?;
+    let micro_prefix_is_complete = strict_u8_less(
+        cs.namespace(|| "jmt_micro_prefix_is_complete"),
+        &minimum_micro_prefix,
+        &trace_chunk.byte_count,
+    )?;
+    cs.enforce(
+        || "jmt_micro_first_chunk_contains_prefix",
+        |lc| lc + micro_chunk_zero.get_variable(),
+        |lc| lc + micro_prefix_is_complete.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_micro_version"),
+        &micro_chunk_zero,
+        &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2],
+        u64::from(JMT_CIRCUIT_MICRO_OP_VERSION_V2),
+    );
+    let micro_kind = &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 1];
+    let micro_kinds = [
+        JMT_CIRCUIT_UPDATE_BEGIN_V2,
+        JMT_CIRCUIT_OPERATION_BEGIN_V2,
+        JMT_CIRCUIT_OPERATION_VALUE_V2,
+        JMT_CIRCUIT_OPERATION_PROOF_V2,
+        JMT_CIRCUIT_OPERATION_END_V2,
+        JMT_CIRCUIT_UPDATE_END_V2,
+        JMT_CIRCUIT_OPERATION_SIBLING_V2,
+        JMT_CIRCUIT_OPERATION_PROOF_END_V2,
+        JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2,
+    ];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_micro_kind"),
+        &micro_chunk_zero,
+        micro_kind,
+        &micro_kinds,
+        "jmt_micro_kind",
+    )?;
+    let micro_kind_selectors = micro_kinds
+        .into_iter()
+        .map(|kind| {
+            let kind_value = kind;
+            let kind = allocate_constant(
+                cs.namespace(|| format!("jmt_micro_kind_{kind_value}")),
+                u64::from(kind_value),
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_micro_kind_is_{kind_value}")),
+                micro_kind,
+                &kind,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    let micro_kind_gates = micro_kind_selectors
+        .iter()
+        .enumerate()
+        .map(|(index, kind)| {
+            AllocatedBit::and(
+                cs.namespace(|| format!("jmt_micro_kind_gate_{index}")),
+                &micro_chunk_zero,
+                kind,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    let update_index = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_micro_update_index"),
+        [
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 2],
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 3],
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 4],
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 5],
+        ],
+        "jmt_micro_update_index",
+    )?;
+    let operation_index = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_micro_operation_index"),
+        [
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 6],
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 7],
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 8],
+            &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 9],
+        ],
+        "jmt_micro_operation_index",
+    )?;
+    let operation_record = allocate_bit_or(
+        cs.namespace(|| "jmt_micro_operation_record_0"),
+        &micro_kind_gates[1],
+        &micro_kind_gates[2],
+        "value",
+    )?;
+    let operation_record = allocate_bit_or(
+        cs.namespace(|| "jmt_micro_operation_record_1"),
+        &operation_record,
+        &micro_kind_gates[3],
+        "value",
+    )?;
+    let operation_record = allocate_bit_or(
+        cs.namespace(|| "jmt_micro_operation_record_2"),
+        &operation_record,
+        &micro_kind_gates[4],
+        "value",
+    )?;
+    let operation_record = allocate_bit_or(
+        cs.namespace(|| "jmt_micro_operation_record_3"),
+        &operation_record,
+        &micro_kind_gates[6],
+        "value",
+    )?;
+    let operation_record = allocate_bit_or(
+        cs.namespace(|| "jmt_micro_operation_record_4"),
+        &operation_record,
+        &micro_kind_gates[7],
+        "value",
+    )?;
+    let operation_record = allocate_bit_or(
+        cs.namespace(|| "jmt_micro_operation_record_5"),
+        &operation_record,
+        &micro_kind_gates[8],
+        "value",
+    )?;
+    let minimum_operation_prefix =
+        allocate_constant(cs.namespace(|| "minimum_operation_prefix"), 54)?;
+    let operation_prefix_is_complete = strict_u8_less(
+        cs.namespace(|| "jmt_micro_operation_prefix_is_complete"),
+        &minimum_operation_prefix,
+        &trace_chunk.byte_count,
+    )?;
+    cs.enforce(
+        || "jmt_micro_operation_record_contains_index",
+        |lc| lc + operation_record.get_variable(),
+        |lc| lc + operation_prefix_is_complete.get_variable() - CS::one(),
+        |lc| lc,
+    );
+
+    // A micro source retains only its discriminator between canonical chunks.
+    // The payload fields below are read at their frozen byte offsets; no
+    // host-decoded mirror or variable proof arena enters the relation.
+    let micro_source_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_micro_source_end"),
+        control.end_selector(),
+        &source_is_jmt_micro,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_micro_source_starts_without_record"),
+        jmt_micro_source,
+        &z[JMT_MICRO_RECORD_KIND_CELL],
+        0,
+    );
+    let record_kind_values = [
+        0_u8,
+        JMT_CIRCUIT_UPDATE_BEGIN_V2,
+        JMT_CIRCUIT_OPERATION_BEGIN_V2,
+        JMT_CIRCUIT_OPERATION_VALUE_V2,
+        JMT_CIRCUIT_OPERATION_PROOF_V2,
+        JMT_CIRCUIT_OPERATION_END_V2,
+        JMT_CIRCUIT_UPDATE_END_V2,
+        JMT_CIRCUIT_OPERATION_SIBLING_V2,
+        JMT_CIRCUIT_OPERATION_PROOF_END_V2,
+        JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2,
+    ];
+    let record_kind_selectors = record_kind_values
+        .into_iter()
+        .map(|kind| {
+            let expected = allocate_constant(
+                cs.namespace(|| format!("jmt_record_kind_{kind}")),
+                u64::from(kind),
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_record_kind_is_{kind}")),
+                &z[JMT_MICRO_RECORD_KIND_CELL],
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &z[JMT_MICRO_RECORD_KIND_CELL],
+        &record_kind_selectors,
+        |index| u64::from(record_kind_values[index]),
+        "jmt_record_kind",
+    );
+    cs.enforce(
+        || "jmt_micro_end_requires_live_record",
+        |lc| lc + micro_source_end.get_variable(),
+        |lc| lc + record_kind_selectors[0].get_variable(),
+        |lc| lc,
+    );
+    let record_kind_after_start = select_bit_num(
+        cs.namespace(|| "jmt_record_kind_after_start"),
+        &micro_chunk_zero,
+        micro_kind,
+        &z[JMT_MICRO_RECORD_KIND_CELL],
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_RECORD_KIND_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_record_kind_after_end"),
+            &micro_source_end,
+            &zero,
+            &record_kind_after_start,
+            "value",
+        )?,
+    ));
+
+    let chunk_three = allocate_constant(cs.namespace(|| "chunk_three"), 3)?;
+    let chunk_four = allocate_constant(cs.namespace(|| "chunk_four"), 4)?;
+    let chunk_five = allocate_constant(cs.namespace(|| "chunk_five"), 5)?;
+    let chunk_six = allocate_constant(cs.namespace(|| "chunk_six"), 6)?;
+    let chunk_is_two = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "chunk_is_two"),
+        &trace_chunk.chunk_ordinal,
+        &chunk_two,
+    )?;
+    let chunk_is_three = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "chunk_is_three"),
+        &trace_chunk.chunk_ordinal,
+        &chunk_three,
+    )?;
+    let chunk_is_four = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "chunk_is_four"),
+        &trace_chunk.chunk_ordinal,
+        &chunk_four,
+    )?;
+    let chunk_is_five = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "chunk_is_five"),
+        &trace_chunk.chunk_ordinal,
+        &chunk_five,
+    )?;
+    let chunk_is_six = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "chunk_is_six"),
+        &trace_chunk.chunk_ordinal,
+        &chunk_six,
+    )?;
+    let chunk_selectors = [
+        &chunk_is_zero,
+        &chunk_is_one,
+        &chunk_is_two,
+        &chunk_is_three,
+        &chunk_is_four,
+        &chunk_is_five,
+        &chunk_is_six,
+    ];
+    let mut active_kind_gates = Vec::with_capacity(micro_kind_gates.len());
+    let mut kind_chunk_gates = Vec::with_capacity(micro_kind_gates.len());
+    for (index, first_chunk_gate) in micro_kind_gates.iter().enumerate() {
+        let retained = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_retained_kind_{index}")),
+            &jmt_micro_chunk,
+            &record_kind_selectors[index + 1],
+        )?;
+        let active = allocate_bit_or(
+            cs.namespace(|| format!("jmt_active_kind_{index}")),
+            first_chunk_gate,
+            &retained,
+            "value",
+        )?;
+        let mut chunks = Vec::with_capacity(chunk_selectors.len());
+        for (chunk, selector) in chunk_selectors.iter().enumerate() {
+            chunks.push(AllocatedBit::and(
+                cs.namespace(|| format!("jmt_kind_{index}_chunk_{chunk}")),
+                &active,
+                selector,
+            )?);
+        }
+        active_kind_gates.push(active);
+        kind_chunk_gates.push(chunks);
+    }
+
+    // Fixed canonical widths include the 45-byte source-record header.
+    for (kind_index, chunk_count, final_bytes) in [
+        (0_usize, 4_u64, 12_u64),
+        (1, 2, 33),
+        (2, 2, 64),
+        (3, 5, 64),
+        (4, 1, 55),
+        (5, 1, 51),
+        (6, 7, 64),
+        (7, 1, 55),
+        (8, 5, 64),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_kind_{kind_index}_chunk_count")),
+            &active_kind_gates[kind_index],
+            &trace_chunk.chunk_count,
+            chunk_count,
+        );
+        for chunk in 0..usize::try_from(chunk_count).map_err(|_| {
+            SynthesisError::Unsatisfiable("JMT chunk count exceeds usize".to_owned())
+        })? {
+            enforce_gated_constant(
+                cs.namespace(|| format!("jmt_kind_{kind_index}_chunk_{chunk}_bytes")),
+                &kind_chunk_gates[kind_index][chunk],
+                &trace_chunk.byte_count,
+                if chunk + 1 == chunk_count as usize {
+                    final_bytes
+                } else {
+                    64
+                },
+            );
+        }
+    }
+
+    // UpdateBegin: fixed tree coordinates, versions, roots, and operation
+    // count. Byte-valued coordinates remain byte-valued in state.
+    let update_chunks = &kind_chunk_gates[0];
+    let tree_tag = &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 6];
+    cells.push((
+        JMT_MICRO_TREE_TAG_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_tree_tag_output"),
+            &update_chunks[0],
+            tree_tag,
+            &z[JMT_MICRO_TREE_TAG_CELL],
+            "value",
+        )?,
+    ));
+    for (label, state_start, payload_start, length) in [
+        (
+            "tree_definition",
+            JMT_MICRO_TREE_DEFINITION_START,
+            7_usize,
+            32_usize,
+        ),
+        ("tree_terminal", JMT_MICRO_TREE_TERMINAL_START, 43, 32),
+        ("old_root", JMT_MICRO_OLD_ROOT_START, 91, 32),
+        ("new_root", JMT_MICRO_NEW_ROOT_START, 123, 32),
+    ] {
+        for index in 0..length {
+            let canonical_offset = TRACE_EVENT_HEADER_BYTES_V2 + payload_start + index;
+            let chunk = canonical_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+            let offset = canonical_offset % TRACE_CANONICAL_CHUNK_BYTES_V2;
+            cells.push((
+                state_start + index,
+                select_bit_num(
+                    cs.namespace(|| format!("jmt_{label}_{index}_output")),
+                    &update_chunks[chunk],
+                    &trace_chunk.bytes[offset],
+                    &z[state_start + index],
+                    "value",
+                )?,
+            ));
+        }
+    }
+    let tree_serial = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_tree_serial"),
+        [
+            &trace_chunk.bytes[20],
+            &trace_chunk.bytes[21],
+            &trace_chunk.bytes[22],
+            &trace_chunk.bytes[23],
+        ],
+        "jmt_tree_serial",
+    )?;
+    cells.push((
+        JMT_MICRO_TREE_SERIAL_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_tree_serial_output"),
+            &update_chunks[1],
+            &tree_serial,
+            &z[JMT_MICRO_TREE_SERIAL_CELL],
+            "value",
+        )?,
+    ));
+    let old_version = allocate_u64_from_le_bytes(
+        cs.namespace(|| "jmt_old_version"),
+        [
+            &trace_chunk.bytes[56],
+            &trace_chunk.bytes[57],
+            &trace_chunk.bytes[58],
+            &trace_chunk.bytes[59],
+            &trace_chunk.bytes[60],
+            &trace_chunk.bytes[61],
+            &trace_chunk.bytes[62],
+            &trace_chunk.bytes[63],
+        ],
+        "jmt_old_version",
+    )?;
+    let new_version = allocate_u64_from_le_bytes(
+        cs.namespace(|| "jmt_new_version"),
+        [
+            &trace_chunk.bytes[0],
+            &trace_chunk.bytes[1],
+            &trace_chunk.bytes[2],
+            &trace_chunk.bytes[3],
+            &trace_chunk.bytes[4],
+            &trace_chunk.bytes[5],
+            &trace_chunk.bytes[6],
+            &trace_chunk.bytes[7],
+        ],
+        "jmt_new_version",
+    )?;
+    for (state, value, gate, label) in [
+        (
+            JMT_MICRO_OLD_VERSION_CELL,
+            old_version,
+            &update_chunks[1],
+            "old_version",
+        ),
+        (
+            JMT_MICRO_NEW_VERSION_CELL,
+            new_version,
+            &update_chunks[2],
+            "new_version",
+        ),
+    ] {
+        cells.push((
+            state,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_{label}_output")),
+                gate,
+                &value,
+                &z[state],
+                "value",
+            )?,
+        ));
+    }
+    let expected_operations = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_expected_operations"),
+        [
+            &trace_chunk.bytes[8],
+            &trace_chunk.bytes[9],
+            &trace_chunk.bytes[10],
+            &trace_chunk.bytes[11],
+        ],
+        "jmt_expected_operations",
+    )?;
+    cells.push((
+        JMT_MICRO_EXPECTED_OPERATION_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_expected_operations_output"),
+            &update_chunks[3],
+            &expected_operations,
+            &z[JMT_MICRO_EXPECTED_OPERATION_CELL],
+            "value",
+        )?,
+    ));
+
+    // OperationBegin: exact key/value-presence/length tuple.
+    let operation_chunks = &kind_chunk_gates[1];
+    for index in 0..32_usize {
+        let canonical_offset = TRACE_EVENT_HEADER_BYTES_V2 + 10 + index;
+        let chunk = canonical_offset / TRACE_CANONICAL_CHUNK_BYTES_V2;
+        let offset = canonical_offset % TRACE_CANONICAL_CHUNK_BYTES_V2;
+        cells.push((
+            JMT_MICRO_OPERATION_KEY_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_operation_key_{index}_output")),
+                &operation_chunks[chunk],
+                &trace_chunk.bytes[offset],
+                &z[JMT_MICRO_OPERATION_KEY_START + index],
+                "value",
+            )?,
+        ));
+    }
+    let value_present = &trace_chunk.bytes[23];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_value_present"),
+        &operation_chunks[1],
+        value_present,
+        &[0, 1],
+        "jmt_value_present",
+    )?;
+    let value_length = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_value_length"),
+        [
+            &trace_chunk.bytes[24],
+            &trace_chunk.bytes[25],
+            &trace_chunk.bytes[26],
+            &trace_chunk.bytes[27],
+        ],
+        "jmt_value_length",
+    )?;
+    for (state, value, label) in [
+        (JMT_MICRO_VALUE_PRESENT_CELL, value_present, "present"),
+        (JMT_MICRO_VALUE_LENGTH_CELL, &value_length, "length"),
+    ] {
+        cells.push((
+            state,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_value_{label}_output")),
+                &operation_chunks[1],
+                value,
+                &z[state],
+                "value",
+            )?,
+        ));
+    }
+    let prior_value_present = &trace_chunk.bytes[28];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_prior_value_present"),
+        &operation_chunks[1],
+        prior_value_present,
+        &[0, 1],
+        "jmt_prior_value_present",
+    )?;
+    let prior_value_length = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_prior_value_length"),
+        [
+            &trace_chunk.bytes[29],
+            &trace_chunk.bytes[30],
+            &trace_chunk.bytes[31],
+            &trace_chunk.bytes[32],
+        ],
+        "jmt_prior_value_length",
+    )?;
+    for (state, value, label) in [
+        (
+            JMT_MICRO_PRIOR_VALUE_PRESENT_CELL,
+            prior_value_present,
+            "present",
+        ),
+        (
+            JMT_MICRO_PRIOR_VALUE_LENGTH_CELL,
+            &prior_value_length,
+            "length",
+        ),
+    ] {
+        cells.push((
+            state,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_prior_value_{label}_output")),
+                &operation_chunks[1],
+                value,
+                &z[state],
+                "value",
+            )?,
+        ));
+    }
+
+    // ProofBegin and Sibling expose fixed 64-byte coordinates. Null variants
+    // must carry an all-zero coordinate, closing the canonical alias.
+    let proof_chunks = &kind_chunk_gates[3];
+    let leaf_present = &trace_chunk.bytes[55];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_leaf_present"),
+        &proof_chunks[0],
+        leaf_present,
+        &[0, 1],
+        "jmt_leaf_present",
+    )?;
+    cells.push((
+        JMT_MICRO_PROOF_LEAF_PRESENT_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_leaf_present_output"),
+            &proof_chunks[0],
+            leaf_present,
+            &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+            "value",
+        )?,
+    ));
+    let sibling_count = allocate_u16_from_le_bytes(
+        cs.namespace(|| "jmt_sibling_count"),
+        &trace_chunk.bytes[56],
+        &trace_chunk.bytes[57],
+        "jmt_sibling_count",
+    )?;
+    cells.push((
+        JMT_MICRO_EXPECTED_SIBLING_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_sibling_count_output"),
+            &proof_chunks[0],
+            &sibling_count,
+            &z[JMT_MICRO_EXPECTED_SIBLING_CELL],
+            "value",
+        )?,
+    ));
+    let mutation_case = &trace_chunk.bytes[58];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_mutation_case"),
+        &proof_chunks[0],
+        mutation_case,
+        &[1, 2, 3, 4, 5, 6],
+        "jmt_mutation_case",
+    )?;
+    cells.push((
+        JMT_MICRO_MUTATION_CASE_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_mutation_case_output"),
+            &proof_chunks[0],
+            mutation_case,
+            &z[JMT_MICRO_MUTATION_CASE_CELL],
+            "value",
+        )?,
+    ));
+    let split_count = allocate_u16_from_le_bytes(
+        cs.namespace(|| "jmt_split_count"),
+        &trace_chunk.bytes[59],
+        &trace_chunk.bytes[60],
+        "jmt_split_count",
+    )?;
+    cells.push((
+        JMT_MICRO_EXPECTED_SPLIT_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_split_count_output"),
+            &proof_chunks[0],
+            &split_count,
+            &z[JMT_MICRO_EXPECTED_SPLIT_CELL],
+            "value",
+        )?,
+    ));
+    for offset in 61..64 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_proof_reserved_zero_{offset}")),
+            &proof_chunks[0],
+            &trace_chunk.bytes[offset],
+            0,
+        );
+    }
+    for (index, source) in (13..45).enumerate() {
+        cells.push((
+            JMT_MICRO_PROOF_LEAF_DATA_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_leaf_key_{index}_output")),
+                &proof_chunks[1],
+                &trace_chunk.bytes[source],
+                &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+                "value",
+            )?,
+        ));
+    }
+    for index in 0..32_usize {
+        let (gate, source) = if index < 19 {
+            (&proof_chunks[1], 45 + index)
+        } else {
+            (&proof_chunks[2], index - 19)
+        };
+        cells.push((
+            JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_leaf_value_{index}_output")),
+                gate,
+                &trace_chunk.bytes[source],
+                &z[JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index],
+                "value",
+            )?,
+        ));
+    }
+    let sibling_chunks = &kind_chunk_gates[6];
+    let sibling_index = allocate_u16_from_le_bytes(
+        cs.namespace(|| "jmt_sibling_index"),
+        &trace_chunk.bytes[55],
+        &trace_chunk.bytes[56],
+        "jmt_sibling_index",
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_sibling_index_order"),
+        &sibling_chunks[0],
+        &sibling_index,
+        &z[JMT_MICRO_NEXT_SIBLING_CELL],
+    );
+    let sibling_type = &trace_chunk.bytes[57];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_sibling_type"),
+        &sibling_chunks[0],
+        sibling_type,
+        &[0, 1, 2],
+        "jmt_sibling_type",
+    )?;
+    let sibling_type_output = select_bit_num(
+        cs.namespace(|| "jmt_sibling_type_output"),
+        &sibling_chunks[0],
+        sibling_type,
+        &z[JMT_MICRO_SIBLING_TYPE_CELL],
+        "value",
+    )?;
+    let sibling_direction = &trace_chunk.bytes[58];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_sibling_direction"),
+        &sibling_chunks[0],
+        sibling_direction,
+        &[0, 1],
+        "jmt_sibling_direction",
+    )?;
+    let sibling_direction_output = select_bit_num(
+        cs.namespace(|| "jmt_sibling_direction_output"),
+        &sibling_chunks[0],
+        sibling_direction,
+        &z[JMT_MICRO_SIBLING_DIRECTION_CELL],
+        "value",
+    )?;
+    let new_parent_active = &trace_chunk.bytes[59];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_new_parent_active"),
+        &sibling_chunks[0],
+        new_parent_active,
+        &[0, 1],
+        "jmt_new_parent_active",
+    )?;
+    let new_parent_active_after_proof = select_bit_num(
+        cs.namespace(|| "jmt_new_parent_active_after_proof"),
+        &proof_chunks[0],
+        &zero,
+        &z[JMT_MICRO_NEW_PARENT_ACTIVE_CELL],
+        "value",
+    )?;
+    let new_parent_active_after_sibling = select_bit_num(
+        cs.namespace(|| "jmt_new_parent_active_after_sibling"),
+        &sibling_chunks[0],
+        new_parent_active,
+        &new_parent_active_after_proof,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_NEW_PARENT_ACTIVE_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_new_parent_active_after_operation"),
+            &micro_kind_gates[4],
+            &zero,
+            &new_parent_active_after_sibling,
+            "value",
+        )?,
+    ));
+    for offset in 60..64 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_sibling_reserved_zero_{offset}")),
+            &sibling_chunks[0],
+            &trace_chunk.bytes[offset],
+            0,
+        );
+    }
+    let sibling_bit_index = AllocatedNum::alloc(cs.namespace(|| "jmt_sibling_bit_index"), || {
+        let count = scalar_u64(
+            z[JMT_MICRO_EXPECTED_SIBLING_CELL]
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let next = scalar_u64(
+            z[JMT_MICRO_NEXT_SIBLING_CELL]
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        Ok(Scalar::from(count.saturating_sub(next.saturating_add(1))))
+    })?;
+    range_bits(
+        cs.namespace(|| "jmt_sibling_bit_index_range"),
+        &sibling_bit_index,
+        8,
+    )?;
+    cs.enforce(
+        || "jmt_sibling_bit_index_relation",
+        |lc| lc + sibling_chunks[0].get_variable(),
+        |lc| {
+            lc + z[JMT_MICRO_EXPECTED_SIBLING_CELL].get_variable()
+                - z[JMT_MICRO_NEXT_SIBLING_CELL].get_variable()
+                - CS::one()
+                - sibling_bit_index.get_variable()
+        },
+        |lc| lc,
+    );
+    let sibling_bit_selectors = (0_u64..256)
+        .map(|bit_index| {
+            let expected = allocate_constant(
+                cs.namespace(|| format!("jmt_sibling_bit_index_{bit_index}")),
+                bit_index,
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_sibling_bit_index_is_{bit_index}")),
+                &sibling_bit_index,
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &sibling_bit_index,
+        &sibling_bit_selectors,
+        |index| index as u64,
+        "jmt_sibling_bit_index",
+    );
+    let direction_leaf_present = allocate_state_bit(
+        cs.namespace(|| "jmt_direction_leaf_present_state"),
+        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+    )?;
+    let mut operation_key_bits = Vec::with_capacity(256);
+    for index in 0..32 {
+        let byte = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_old_path_key_byte_{index}")),
+            &direction_leaf_present,
+            &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+            &z[JMT_MICRO_OPERATION_KEY_START + index],
+            "value",
+        )?;
+        operation_key_bits.extend(allocated_num_bits_be(
+            cs.namespace(|| format!("jmt_operation_key_byte_{index}_bits")),
+            &byte,
+            8,
+        )?);
+    }
+    for (index, (selector, key_bit)) in sibling_bit_selectors
+        .iter()
+        .zip(operation_key_bits.iter())
+        .enumerate()
+    {
+        let active = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_sibling_direction_bit_{index}_active")),
+            &sibling_chunks[0],
+            selector,
+        )?;
+        cs.enforce(
+            || format!("jmt_sibling_direction_matches_key_bit_{index}"),
+            |lc| lc + active.get_variable(),
+            |lc| {
+                lc + sibling_direction.get_variable() - &key_bit.lc(CS::one(), Scalar::from(1_u64))
+            },
+            |lc| lc,
+        );
+    }
+    let split_chunks = &kind_chunk_gates[8];
+    let split_index = allocate_u16_from_le_bytes(
+        cs.namespace(|| "jmt_split_index"),
+        &trace_chunk.bytes[55],
+        &trace_chunk.bytes[56],
+        "jmt_split_index",
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_split_index_order"),
+        &split_chunks[0],
+        &split_index,
+        &z[JMT_MICRO_NEXT_SPLIT_CELL],
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_original_siblings_follow_split_prelude"),
+        &sibling_chunks[0],
+        &z[JMT_MICRO_NEXT_SPLIT_CELL],
+        &z[JMT_MICRO_EXPECTED_SPLIT_CELL],
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_split_prelude_precedes_original_siblings"),
+        &split_chunks[0],
+        &z[JMT_MICRO_NEXT_SIBLING_CELL],
+        0,
+    );
+    let split_sibling_type = &trace_chunk.bytes[57];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_split_sibling_type"),
+        &split_chunks[0],
+        split_sibling_type,
+        &[0, 2],
+        "jmt_split_sibling_type",
+    )?;
+    let split_direction = &trace_chunk.bytes[58];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_split_direction"),
+        &split_chunks[0],
+        split_direction,
+        &[0, 1],
+        "jmt_split_direction",
+    )?;
+    for offset in 59..64 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_split_reserved_zero_{offset}")),
+            &split_chunks[0],
+            &trace_chunk.bytes[offset],
+            0,
+        );
+    }
+    cells.push((
+        JMT_MICRO_SIBLING_TYPE_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_split_sibling_type_output"),
+            &split_chunks[0],
+            split_sibling_type,
+            &sibling_type_output,
+            "value",
+        )?,
+    ));
+    cells.push((
+        JMT_MICRO_SIBLING_DIRECTION_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_split_direction_output"),
+            &split_chunks[0],
+            split_direction,
+            &sibling_direction_output,
+            "value",
+        )?,
+    ));
+
+    let split_is_first = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_split_is_first"),
+        &z[JMT_MICRO_NEXT_SPLIT_CELL],
+        &zero,
+    )?;
+    let split_first_chunk = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_first_chunk"),
+        &split_chunks[0],
+        &split_is_first,
+    )?;
+    let split_is_later = allocate_bit_not(
+        cs.namespace(|| "jmt_split_is_later"),
+        &split_is_first,
+        "value",
+    )?;
+    let split_later_chunk = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_later_chunk"),
+        &split_chunks[0],
+        &split_is_later,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_first_split_sibling_is_former_leaf"),
+        &split_first_chunk,
+        split_sibling_type,
+        2,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_later_split_sibling_is_null"),
+        &split_later_chunk,
+        split_sibling_type,
+        0,
+    );
+
+    let split_bit_index = AllocatedNum::alloc(cs.namespace(|| "jmt_split_bit_index"), || {
+        let split = scalar_u64(
+            z[JMT_MICRO_EXPECTED_SPLIT_CELL]
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let siblings = scalar_u64(
+            z[JMT_MICRO_EXPECTED_SIBLING_CELL]
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let next = scalar_u64(
+            z[JMT_MICRO_NEXT_SPLIT_CELL]
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        Ok(Scalar::from(
+            split
+                .saturating_add(siblings)
+                .saturating_sub(next.saturating_add(1)),
+        ))
+    })?;
+    range_bits(
+        cs.namespace(|| "jmt_split_bit_index_range"),
+        &split_bit_index,
+        8,
+    )?;
+    cs.enforce(
+        || "jmt_split_bit_index_relation",
+        |lc| lc + split_chunks[0].get_variable(),
+        |lc| {
+            lc + z[JMT_MICRO_EXPECTED_SPLIT_CELL].get_variable()
+                + z[JMT_MICRO_EXPECTED_SIBLING_CELL].get_variable()
+                - z[JMT_MICRO_NEXT_SPLIT_CELL].get_variable()
+                - CS::one()
+                - split_bit_index.get_variable()
+        },
+        |lc| lc,
+    );
+    let split_bit_selectors = (0_u64..256)
+        .map(|bit_index| {
+            let expected = allocate_constant(
+                cs.namespace(|| format!("jmt_split_bit_index_{bit_index}")),
+                bit_index,
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_split_bit_index_is_{bit_index}")),
+                &split_bit_index,
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &split_bit_index,
+        &split_bit_selectors,
+        |index| index as u64,
+        "jmt_split_bit_index",
+    );
+    let mut split_operation_key_bits = Vec::with_capacity(256);
+    for index in 0..32 {
+        split_operation_key_bits.extend(allocated_num_bits_be(
+            cs.namespace(|| format!("jmt_split_operation_key_byte_{index}_bits")),
+            &z[JMT_MICRO_OPERATION_KEY_START + index],
+            8,
+        )?);
+    }
+    let mut prefix_equal = Boolean::constant(true);
+    for (index, ((selector, old_key_bit), new_key_bit)) in split_bit_selectors
+        .iter()
+        .zip(operation_key_bits.iter())
+        .zip(split_operation_key_bits.iter())
+        .enumerate()
+    {
+        let differs = Boolean::xor(
+            cs.namespace(|| format!("jmt_split_key_bit_differs_{index}")),
+            old_key_bit,
+            new_key_bit,
+        )?;
+        let first_difference = Boolean::and(
+            cs.namespace(|| format!("jmt_split_first_difference_{index}")),
+            &prefix_equal,
+            &differs,
+        )?;
+        let selected_first = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_split_selected_first_{index}")),
+            &split_first_chunk,
+            selector,
+        )?;
+        cs.enforce(
+            || format!("jmt_split_count_matches_common_prefix_{index}"),
+            |lc| lc + selected_first.get_variable(),
+            |lc| lc + &first_difference.lc(CS::one(), Scalar::from(1_u64)) - CS::one(),
+            |lc| lc,
+        );
+        let direction_active = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_split_direction_bit_{index}_active")),
+            &split_chunks[0],
+            selector,
+        )?;
+        cs.enforce(
+            || format!("jmt_split_direction_matches_key_bit_{index}"),
+            |lc| lc + direction_active.get_variable(),
+            |lc| {
+                lc + split_direction.get_variable()
+                    - &new_key_bit.lc(CS::one(), Scalar::from(1_u64))
+            },
+            |lc| lc,
+        );
+        prefix_equal = Boolean::and(
+            cs.namespace(|| format!("jmt_split_prefix_equal_after_{index}")),
+            &prefix_equal,
+            &differs.not(),
+        )?;
+    }
+
+    // Every value record is one aligned raw FIPS block.  The source header and
+    // 19-byte micro prefix fill chunk zero exactly; chunk one is the sole value
+    // preimage block consumed by the raw-SHA lane.
+    let value_chunks = &kind_chunk_gates[2];
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_value_first_chunk_full"),
+        &value_chunks[0],
+        &trace_chunk.byte_count,
+        64,
+    );
+    let value_chunk_index = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_value_chunk_index"),
+        [
+            &trace_chunk.bytes[55],
+            &trace_chunk.bytes[56],
+            &trace_chunk.bytes[57],
+            &trace_chunk.bytes[58],
+        ],
+        "jmt_value_chunk_index",
+    )?;
+    let declared_value_chunks = allocate_u32_from_le_bytes(
+        cs.namespace(|| "jmt_declared_value_chunks"),
+        [
+            &trace_chunk.bytes[59],
+            &trace_chunk.bytes[60],
+            &trace_chunk.bytes[61],
+            &trace_chunk.bytes[62],
+        ],
+        "jmt_declared_value_chunks",
+    )?;
+    let value_kind = &trace_chunk.bytes[63];
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_value_kind"),
+        &value_chunks[0],
+        value_kind,
+        &[0, 1],
+        "jmt_value_kind",
+    )?;
+    let prior_kind = allocate_constant(cs.namespace(|| "jmt_prior_value_kind"), 1)?;
+    let value_kind_is_prior_current = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_value_kind_is_prior_current"),
+        value_kind,
+        &prior_kind,
+    )?;
+    let active_value_next_chunk = select_bit_num_compact(
+        cs.namespace(|| "jmt_active_value_next_chunk"),
+        &value_kind_is_prior_current,
+        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        "value",
+    )?;
+    let active_value_chunk_count = select_bit_num_compact(
+        cs.namespace(|| "jmt_active_value_chunk_count"),
+        &value_kind_is_prior_current,
+        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+        "value",
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_value_chunk_index_order"),
+        &value_chunks[0],
+        &value_chunk_index,
+        &active_value_next_chunk,
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_value_chunk_count_matches_operation"),
+        &value_chunks[0],
+        &declared_value_chunks,
+        &active_value_chunk_count,
+    );
+    let prior_value_record = AllocatedBit::and(
+        cs.namespace(|| "jmt_prior_value_record"),
+        &value_chunks[0],
+        &value_kind_is_prior_current,
+    )?;
+    let value_kind_is_new_current = allocate_bit_not(
+        cs.namespace(|| "jmt_value_kind_is_new_current"),
+        &value_kind_is_prior_current,
+        "value",
+    )?;
+    let new_value_record = AllocatedBit::and(
+        cs.namespace(|| "jmt_new_value_record"),
+        &value_chunks[0],
+        &value_kind_is_new_current,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_prior_records_precede_new_records"),
+        &prior_value_record,
+        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        0,
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_new_records_follow_all_prior_records"),
+        &new_value_record,
+        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_prior_value_record_requires_present_value"),
+        &prior_value_record,
+        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+        1,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_new_value_record_requires_present_value"),
+        &new_value_record,
+        &z[JMT_MICRO_VALUE_PRESENT_CELL],
+        1,
+    );
+    cells.push((
+        JMT_MICRO_VALUE_KIND_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_value_kind_output"),
+            &value_chunks[0],
+            value_kind,
+            &z[JMT_MICRO_VALUE_KIND_CELL],
+            "value",
+        )?,
+    ));
+
+    let leaf_present_state = allocate_state_bit(
+        cs.namespace(|| "jmt_leaf_present_state"),
+        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+    )?;
+    let proof_raw_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_raw_first"),
+        &proof_chunks[1],
+        &leaf_present_state,
+    )?;
+    let proof_raw_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_raw_second"),
+        &proof_chunks[2],
+        &leaf_present_state,
+    )?;
+    let value_present_for_new_leaf = allocate_state_bit(
+        cs.namespace(|| "jmt_value_present_for_new_leaf"),
+        &z[JMT_MICRO_VALUE_PRESENT_CELL],
+    )?;
+    let proof_new_leaf_raw_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_new_leaf_raw_first"),
+        &proof_chunks[3],
+        &value_present_for_new_leaf,
+    )?;
+    let proof_new_leaf_raw_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_new_leaf_raw_second"),
+        &proof_chunks[4],
+        &value_present_for_new_leaf,
+    )?;
+    let mutation_case_selectors = (1_u64..=6)
+        .map(|case| {
+            let expected =
+                allocate_constant(cs.namespace(|| format!("jmt_mutation_case_{case}")), case)?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_mutation_case_is_{case}")),
+                &z[JMT_MICRO_MUTATION_CASE_CELL],
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    let sibling_internal = {
+        let expected = allocate_constant(cs.namespace(|| "jmt_sibling_internal_tag"), 1)?;
+        nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "jmt_sibling_is_internal"),
+            &z[JMT_MICRO_SIBLING_TYPE_CELL],
+            &expected,
+        )?
+    };
+    let sibling_leaf = {
+        let expected = allocate_constant(cs.namespace(|| "jmt_sibling_leaf_tag"), 2)?;
+        nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "jmt_sibling_is_leaf"),
+            &z[JMT_MICRO_SIBLING_TYPE_CELL],
+            &expected,
+        )?
+    };
+    let sibling_nonnull = allocate_bit_or(
+        cs.namespace(|| "jmt_sibling_nonnull"),
+        &sibling_internal,
+        &sibling_leaf,
+        "value",
+    )?;
+    let sibling_raw_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_raw_first"),
+        &sibling_chunks[1],
+        &sibling_nonnull,
+    )?;
+    let sibling_raw_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_raw_second"),
+        &sibling_chunks[2],
+        &sibling_nonnull,
+    )?;
+    let split_leaf_raw_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_leaf_raw_first"),
+        &split_chunks[1],
+        &split_is_first,
+    )?;
+    let split_leaf_raw_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_leaf_raw_second"),
+        &split_chunks[2],
+        &split_is_first,
+    )?;
+    let split_null_raw_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_null_raw_first"),
+        &split_chunks[1],
+        &split_is_later,
+    )?;
+    let split_null_raw_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_null_raw_second"),
+        &split_chunks[2],
+        &split_is_later,
+    )?;
+    // Split-prelude parents are always active: they lift the new leaf through
+    // the exact common-prefix gap before the original sparse proof begins.
+    let split_parent_raw_first = split_chunks[3].clone();
+    let split_parent_raw_second = split_chunks[4].clone();
+    // Chunks three and four are the exact raw-SHA preimage of the parent
+    // derived from the current old-path hash and the sibling hash. They are
+    // present even for a null sibling, whose hash is the pinned placeholder.
+    let sibling_parent_raw_first = sibling_chunks[3].clone();
+    let sibling_parent_raw_second = sibling_chunks[4].clone();
+    let new_parent_active_state = allocate_state_bit(
+        cs.namespace(|| "jmt_new_parent_active_state"),
+        &z[JMT_MICRO_NEW_PARENT_ACTIVE_CELL],
+    )?;
+    let new_parent_started_state = allocate_state_bit(
+        cs.namespace(|| "jmt_new_parent_started_state"),
+        &z[JMT_MICRO_NEW_PARENT_STARTED_CELL],
+    )?;
+    let coalesced_leaf_seen_state = allocate_state_bit(
+        cs.namespace(|| "jmt_coalesced_leaf_seen_state"),
+        &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+    )?;
+    let current_sibling_internal = {
+        let expected = allocate_constant(cs.namespace(|| "jmt_current_sibling_internal_tag"), 1)?;
+        nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "jmt_current_sibling_is_internal"),
+            sibling_type,
+            &expected,
+        )?
+    };
+    let current_sibling_leaf = {
+        let expected = allocate_constant(cs.namespace(|| "jmt_current_sibling_leaf_tag"), 2)?;
+        nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| "jmt_current_sibling_is_leaf"),
+            sibling_type,
+            &expected,
+        )?
+    };
+    let current_sibling_nonnull = allocate_bit_or(
+        cs.namespace(|| "jmt_current_sibling_nonnull"),
+        &current_sibling_internal,
+        &current_sibling_leaf,
+        "value",
+    )?;
+    let parent_not_started = allocate_bit_not(
+        cs.namespace(|| "jmt_parent_not_started"),
+        &new_parent_started_state,
+        "value",
+    )?;
+    let coalesced_leaf_not_seen = allocate_bit_not(
+        cs.namespace(|| "jmt_coalesced_leaf_not_seen"),
+        &coalesced_leaf_seen_state,
+        "value",
+    )?;
+    let insert_or_update = allocate_bit_or(
+        cs.namespace(|| "jmt_insert_or_update_case"),
+        &mutation_case_selectors[0],
+        &mutation_case_selectors[1],
+        "value",
+    )?;
+    let inserting_case = allocate_bit_or(
+        cs.namespace(|| "jmt_inserting_case"),
+        &insert_or_update,
+        &mutation_case_selectors[2],
+        "value",
+    )?;
+    let preserve_waiting = AllocatedBit::and(
+        cs.namespace(|| "jmt_preserve_waiting"),
+        &mutation_case_selectors[4],
+        &parent_not_started,
+    )?;
+    let preserve_starts = AllocatedBit::and(
+        cs.namespace(|| "jmt_preserve_starts"),
+        &preserve_waiting,
+        &current_sibling_internal,
+    )?;
+    let preserve_continues = AllocatedBit::and(
+        cs.namespace(|| "jmt_preserve_continues"),
+        &mutation_case_selectors[4],
+        &new_parent_started_state,
+    )?;
+    let preserve_active = allocate_bit_or(
+        cs.namespace(|| "jmt_preserve_active"),
+        &preserve_starts,
+        &preserve_continues,
+        "value",
+    )?;
+    let coalesce_waiting_for_parent = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesce_waiting_for_parent_0"),
+        &mutation_case_selectors[5],
+        &parent_not_started,
+    )?;
+    let coalesce_waiting_for_parent = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesce_waiting_for_parent_1"),
+        &coalesce_waiting_for_parent,
+        &coalesced_leaf_seen_state,
+    )?;
+    let coalesce_starts_parent = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesce_starts_parent"),
+        &coalesce_waiting_for_parent,
+        &current_sibling_nonnull,
+    )?;
+    let coalesce_continues = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesce_continues"),
+        &mutation_case_selectors[5],
+        &new_parent_started_state,
+    )?;
+    let coalesce_active = allocate_bit_or(
+        cs.namespace(|| "jmt_coalesce_active"),
+        &coalesce_starts_parent,
+        &coalesce_continues,
+        "value",
+    )?;
+    let expected_active = allocate_bit_or(
+        cs.namespace(|| "jmt_expected_active_0"),
+        &inserting_case,
+        &preserve_active,
+        "value",
+    )?;
+    let expected_active = allocate_bit_or(
+        cs.namespace(|| "jmt_expected_active_1"),
+        &expected_active,
+        &coalesce_active,
+        "value",
+    )?;
+    cs.enforce(
+        || "jmt_new_parent_active_is_semantic",
+        |lc| lc + sibling_chunks[0].get_variable(),
+        |lc| lc + new_parent_active.get_variable() - expected_active.get_variable(),
+        |lc| lc,
+    );
+    let delete_to_empty_has_node = AllocatedBit::and(
+        cs.namespace(|| "jmt_delete_to_empty_has_node"),
+        &mutation_case_selectors[3],
+        &current_sibling_nonnull,
+    )?;
+    let preserve_waiting_has_leaf = AllocatedBit::and(
+        cs.namespace(|| "jmt_preserve_waiting_has_leaf"),
+        &preserve_waiting,
+        &current_sibling_leaf,
+    )?;
+    let coalesce_before_leaf = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesce_before_leaf_0"),
+        &mutation_case_selectors[5],
+        &parent_not_started,
+    )?;
+    let coalesce_before_leaf = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesce_before_leaf_1"),
+        &coalesce_before_leaf,
+        &coalesced_leaf_not_seen,
+    )?;
+    let coalesce_before_leaf_has_internal = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesce_before_leaf_has_internal"),
+        &coalesce_before_leaf,
+        &current_sibling_internal,
+    )?;
+    for (label, forbidden) in [
+        ("delete_to_empty_nonnull", &delete_to_empty_has_node),
+        ("preserve_first_nonnull_leaf", &preserve_waiting_has_leaf),
+        (
+            "coalesce_first_nonnull_internal",
+            &coalesce_before_leaf_has_internal,
+        ),
+    ] {
+        cs.enforce(
+            || format!("jmt_forbid_{label}"),
+            |lc| lc + sibling_chunks[0].get_variable(),
+            |lc| lc + forbidden.get_variable(),
+            |lc| lc,
+        );
+    }
+    let first_coalesced_leaf = AllocatedBit::and(
+        cs.namespace(|| "jmt_first_coalesced_leaf"),
+        &coalesce_before_leaf,
+        &current_sibling_leaf,
+    )?;
+    let started_after_sibling = allocate_bit_or(
+        cs.namespace(|| "jmt_started_after_sibling"),
+        &new_parent_started_state,
+        &expected_active,
+        "value",
+    )?;
+    let coalesced_after_sibling = allocate_bit_or(
+        cs.namespace(|| "jmt_coalesced_after_sibling"),
+        &coalesced_leaf_seen_state,
+        &first_coalesced_leaf,
+        "value",
+    )?;
+    let started_after_sibling = bit_as_num(
+        cs.namespace(|| "jmt_started_after_sibling_num"),
+        &started_after_sibling,
+        "value",
+    )?;
+    let coalesced_after_sibling = bit_as_num(
+        cs.namespace(|| "jmt_coalesced_after_sibling_num"),
+        &coalesced_after_sibling,
+        "value",
+    )?;
+    let started_after_proof = select_bit_num(
+        cs.namespace(|| "jmt_started_after_proof"),
+        &proof_chunks[0],
+        &z[JMT_MICRO_VALUE_PRESENT_CELL],
+        &z[JMT_MICRO_NEW_PARENT_STARTED_CELL],
+        "value",
+    )?;
+    let started_after_record = select_bit_num(
+        cs.namespace(|| "jmt_started_after_sibling_record"),
+        &sibling_chunks[0],
+        &started_after_sibling,
+        &started_after_proof,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_NEW_PARENT_STARTED_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_started_after_operation"),
+            &micro_kind_gates[4],
+            &zero,
+            &started_after_record,
+            "value",
+        )?,
+    ));
+    let coalesced_after_proof = select_bit_num(
+        cs.namespace(|| "jmt_coalesced_after_proof"),
+        &proof_chunks[0],
+        &zero,
+        &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+        "value",
+    )?;
+    let coalesced_after_record = select_bit_num(
+        cs.namespace(|| "jmt_coalesced_after_sibling_record"),
+        &sibling_chunks[0],
+        &coalesced_after_sibling,
+        &coalesced_after_proof,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_COALESCED_LEAF_SEEN_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_coalesced_after_operation"),
+            &micro_kind_gates[4],
+            &zero,
+            &coalesced_after_record,
+            "value",
+        )?,
+    ));
+    let sibling_new_parent_raw_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_new_parent_raw_first"),
+        &sibling_chunks[5],
+        &new_parent_active_state,
+    )?;
+    let sibling_new_parent_raw_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_new_parent_raw_second"),
+        &sibling_chunks[6],
+        &new_parent_active_state,
+    )?;
+    let value_raw = value_chunks[1].clone();
+    let value_kind_is_prior_state = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_value_kind_is_prior_state"),
+        &z[JMT_MICRO_VALUE_KIND_CELL],
+        &prior_kind,
+    )?;
+    let value_kind_is_new_state = allocate_bit_not(
+        cs.namespace(|| "jmt_value_kind_is_new_state"),
+        &value_kind_is_prior_state,
+        "value",
+    )?;
+    let active_raw_value_next_chunk = select_bit_num_compact(
+        cs.namespace(|| "jmt_active_raw_value_next_chunk"),
+        &value_kind_is_prior_state,
+        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        "value",
+    )?;
+    let active_raw_value_chunk_count = select_bit_num_compact(
+        cs.namespace(|| "jmt_active_raw_value_chunk_count"),
+        &value_kind_is_prior_state,
+        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+        "value",
+    )?;
+    let active_raw_value_length = select_bit_num_compact(
+        cs.namespace(|| "jmt_active_raw_value_length"),
+        &value_kind_is_prior_state,
+        &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+        &z[JMT_MICRO_VALUE_LENGTH_CELL],
+        "value",
+    )?;
+    let value_block_is_zero = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_value_block_is_zero"),
+        &active_raw_value_next_chunk,
+        &zero,
+    )?;
+    let value_raw_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_raw_first"),
+        &value_raw,
+        &value_block_is_zero,
+    )?;
+    let value_block_nonzero = allocate_bit_not(
+        cs.namespace(|| "jmt_value_block_nonzero"),
+        &value_block_is_zero,
+        "value",
+    )?;
+    let value_raw_continuation = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_raw_continuation"),
+        &value_raw,
+        &value_block_nonzero,
+    )?;
+    let raw_start = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_start_0"),
+        &value_raw_first,
+        &proof_raw_first,
+        "value",
+    )?;
+    let raw_start = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_start_1"),
+        &raw_start,
+        &sibling_raw_first,
+        "value",
+    )?;
+    let raw_start = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_start_2"),
+        &raw_start,
+        &sibling_parent_raw_first,
+        "value",
+    )?;
+    let raw_start = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_start_3"),
+        &raw_start,
+        &proof_new_leaf_raw_first,
+        "value",
+    )?;
+    let raw_start = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_start_4"),
+        &raw_start,
+        &sibling_new_parent_raw_first,
+        "value",
+    )?;
+    let raw_start = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_start_5"),
+        &raw_start,
+        &split_parent_raw_first,
+        "value",
+    )?;
+    let raw_continuation = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_continuation_0"),
+        &value_raw_continuation,
+        &proof_raw_second,
+        "value",
+    )?;
+    let raw_continuation = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_continuation_1"),
+        &raw_continuation,
+        &sibling_raw_second,
+        "value",
+    )?;
+    let raw_continuation = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_continuation_2"),
+        &raw_continuation,
+        &sibling_parent_raw_second,
+        "value",
+    )?;
+    let raw_continuation = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_continuation_3"),
+        &raw_continuation,
+        &proof_new_leaf_raw_second,
+        "value",
+    )?;
+    let raw_continuation = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_continuation_4"),
+        &raw_continuation,
+        &sibling_new_parent_raw_second,
+        "value",
+    )?;
+    let raw_continuation = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_continuation_5"),
+        &raw_continuation,
+        &split_parent_raw_second,
+        "value",
+    )?;
+    let raw_active = allocate_bit_or(
+        cs.namespace(|| "jmt_raw_active"),
+        &raw_start,
+        &raw_continuation,
+        "value",
+    )?;
+
+    // Fixed leaf/internal domains and FIPS tails are constrained directly on
+    // the sole aligned raw blocks.
+    for (index, expected) in b"JMT::LeafNode".iter().copied().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_leaf_domain_{index}")),
+            &proof_raw_first,
+            &trace_chunk.bytes[index],
+            u64::from(expected),
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_new_leaf_domain_{index}")),
+            &proof_new_leaf_raw_first,
+            &trace_chunk.bytes[index],
+            u64::from(expected),
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_leaf_padding_marker"),
+        &proof_raw_second,
+        &trace_chunk.bytes[13],
+        0x80,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_new_leaf_padding_marker"),
+        &proof_new_leaf_raw_second,
+        &trace_chunk.bytes[13],
+        0x80,
+    );
+    for index in 14..62 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_leaf_padding_zero_{index}")),
+            &proof_raw_second,
+            &trace_chunk.bytes[index],
+            0,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_new_leaf_padding_zero_{index}")),
+            &proof_new_leaf_raw_second,
+            &trace_chunk.bytes[index],
+            0,
+        );
+    }
+    for (index, expected) in 616_u64.to_be_bytes().into_iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_leaf_bit_length_{index}")),
+            &proof_raw_second,
+            &trace_chunk.bytes[56 + index],
+            u64::from(expected),
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_new_leaf_bit_length_{index}")),
+            &proof_new_leaf_raw_second,
+            &trace_chunk.bytes[56 + index],
+            u64::from(expected),
+        );
+    }
+    for index in 0..32 {
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_new_leaf_key_{index}")),
+            &proof_new_leaf_raw_first,
+            &trace_chunk.bytes[13 + index],
+            &z[JMT_MICRO_OPERATION_KEY_START + index],
+        );
+    }
+    let mut value_hash_bytes = Vec::with_capacity(32);
+    for word in 0..8 {
+        let mut bytes = decompose_le_bytes(
+            cs.namespace(|| format!("jmt_value_hash_word_{word}_bytes")),
+            &z[JMT_VALUE_HASH_START + word],
+            4,
+            "jmt_value_hash_word",
+        )?;
+        bytes.reverse();
+        value_hash_bytes.extend(bytes);
+    }
+    for (index, byte) in value_hash_bytes.iter().enumerate() {
+        let (gate, raw) = if index < 19 {
+            (&proof_new_leaf_raw_first, &trace_chunk.bytes[45 + index])
+        } else {
+            (&proof_new_leaf_raw_second, &trace_chunk.bytes[index - 19])
+        };
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_new_leaf_value_hash_{index}")),
+            gate,
+            raw,
+            byte,
+        );
+    }
+    for (index, expected) in b"JMT::LeafNode".iter().copied().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_split_former_leaf_domain_{index}")),
+            &split_leaf_raw_first,
+            &trace_chunk.bytes[index],
+            u64::from(expected),
+        );
+    }
+    for index in 0..32 {
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_split_former_leaf_key_{index}")),
+            &split_leaf_raw_first,
+            &trace_chunk.bytes[13 + index],
+            &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+        );
+        let (gate, raw) = if index < 19 {
+            (&split_leaf_raw_first, &trace_chunk.bytes[45 + index])
+        } else {
+            (&split_leaf_raw_second, &trace_chunk.bytes[index - 19])
+        };
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_split_former_leaf_value_{index}")),
+            gate,
+            raw,
+            &z[JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index],
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_split_former_leaf_padding_marker"),
+        &split_leaf_raw_second,
+        &trace_chunk.bytes[13],
+        0x80,
+    );
+    for index in 14..56 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_split_former_leaf_padding_zero_{index}")),
+            &split_leaf_raw_second,
+            &trace_chunk.bytes[index],
+            0,
+        );
+    }
+    for (index, expected) in 616_u64.to_be_bytes().into_iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_split_former_leaf_bit_length_{index}")),
+            &split_leaf_raw_second,
+            &trace_chunk.bytes[56 + index],
+            u64::from(expected),
+        );
+    }
+    let sibling_internal_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_internal_first"),
+        &sibling_chunks[1],
+        &sibling_internal,
+    )?;
+    let sibling_internal_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_internal_second"),
+        &sibling_chunks[2],
+        &sibling_internal,
+    )?;
+    let sibling_leaf_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_leaf_first"),
+        &sibling_chunks[1],
+        &sibling_leaf,
+    )?;
+    let sibling_leaf_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_leaf_second"),
+        &sibling_chunks[2],
+        &sibling_leaf,
+    )?;
+    for (label, gate, domain) in [
+        (
+            "internal",
+            &sibling_internal_first,
+            &b"JMT::IntrnalNode"[..],
+        ),
+        ("leaf", &sibling_leaf_first, &b"JMT::LeafNode"[..]),
+    ] {
+        for (index, expected) in domain.iter().copied().enumerate() {
+            enforce_gated_constant(
+                cs.namespace(|| format!("jmt_sibling_{label}_domain_{index}")),
+                gate,
+                &trace_chunk.bytes[index],
+                u64::from(expected),
+            );
+        }
+    }
+    for (label, gate, marker, bit_length) in [
+        ("internal", &sibling_internal_second, 16_usize, 640_u64),
+        ("leaf", &sibling_leaf_second, 13, 616),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_sibling_{label}_padding_marker")),
+            gate,
+            &trace_chunk.bytes[marker],
+            0x80,
+        );
+        for index in marker + 1..56 {
+            enforce_gated_constant(
+                cs.namespace(|| format!("jmt_sibling_{label}_padding_zero_{index}")),
+                gate,
+                &trace_chunk.bytes[index],
+                0,
+            );
+        }
+        for (index, expected) in bit_length.to_be_bytes().into_iter().enumerate() {
+            enforce_gated_constant(
+                cs.namespace(|| format!("jmt_sibling_{label}_bit_length_{index}")),
+                gate,
+                &trace_chunk.bytes[56 + index],
+                u64::from(expected),
+            );
+        }
+    }
+    for (index, expected) in b"JMT::IntrnalNode".iter().copied().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_old_parent_domain_{index}")),
+            &sibling_parent_raw_first,
+            &trace_chunk.bytes[index],
+            u64::from(expected),
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_new_parent_domain_{index}")),
+            &sibling_new_parent_raw_first,
+            &trace_chunk.bytes[index],
+            u64::from(expected),
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_split_parent_domain_{index}")),
+            &split_parent_raw_first,
+            &trace_chunk.bytes[index],
+            u64::from(expected),
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_old_parent_padding_marker"),
+        &sibling_parent_raw_second,
+        &trace_chunk.bytes[16],
+        0x80,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_new_parent_padding_marker"),
+        &sibling_new_parent_raw_second,
+        &trace_chunk.bytes[16],
+        0x80,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_split_parent_padding_marker"),
+        &split_parent_raw_second,
+        &trace_chunk.bytes[16],
+        0x80,
+    );
+    for index in 17..56 {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_old_parent_padding_zero_{index}")),
+            &sibling_parent_raw_second,
+            &trace_chunk.bytes[index],
+            0,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_new_parent_padding_zero_{index}")),
+            &sibling_new_parent_raw_second,
+            &trace_chunk.bytes[index],
+            0,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_split_parent_padding_zero_{index}")),
+            &split_parent_raw_second,
+            &trace_chunk.bytes[index],
+            0,
+        );
+    }
+    for (index, expected) in 640_u64.to_be_bytes().into_iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_old_parent_bit_length_{index}")),
+            &sibling_parent_raw_second,
+            &trace_chunk.bytes[56 + index],
+            u64::from(expected),
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_new_parent_bit_length_{index}")),
+            &sibling_new_parent_raw_second,
+            &trace_chunk.bytes[56 + index],
+            u64::from(expected),
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_split_parent_bit_length_{index}")),
+            &split_parent_raw_second,
+            &trace_chunk.bytes[56 + index],
+            u64::from(expected),
+        );
+    }
+    let sibling_direction_state = allocate_state_bit(
+        cs.namespace(|| "jmt_sibling_direction_state"),
+        &z[JMT_MICRO_SIBLING_DIRECTION_CELL],
+    )?;
+    for word in 0..8 {
+        let left = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_old_parent_left_word_{word}")),
+            &sibling_direction_state,
+            &z[JMT_SIBLING_HASH_START + word],
+            &z[JMT_OLD_CURRENT_HASH_START + word],
+            "value",
+        )?;
+        let right = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_old_parent_right_word_{word}")),
+            &sibling_direction_state,
+            &z[JMT_OLD_CURRENT_HASH_START + word],
+            &z[JMT_SIBLING_HASH_START + word],
+            "value",
+        )?;
+        let left_offset = 16 + word * 4;
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_old_parent_left_word_{word}_raw")),
+            &sibling_parent_raw_first,
+            &source_hash_word_lc(&trace_chunk.bytes[left_offset..left_offset + 4], 0),
+            &left,
+        );
+        let (right_gate, right_offset) = if word < 4 {
+            (&sibling_parent_raw_first, 48 + word * 4)
+        } else {
+            (&sibling_parent_raw_second, (word - 4) * 4)
+        };
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_old_parent_right_word_{word}_raw")),
+            right_gate,
+            &source_hash_word_lc(&trace_chunk.bytes[right_offset..right_offset + 4], 0),
+            &right,
+        );
+        let new_left = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_new_parent_left_word_{word}")),
+            &sibling_direction_state,
+            &z[JMT_SIBLING_HASH_START + word],
+            &z[JMT_NEW_CURRENT_HASH_START + word],
+            "value",
+        )?;
+        let new_right = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_new_parent_right_word_{word}")),
+            &sibling_direction_state,
+            &z[JMT_NEW_CURRENT_HASH_START + word],
+            &z[JMT_SIBLING_HASH_START + word],
+            "value",
+        )?;
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_new_parent_left_word_{word}_raw")),
+            &sibling_new_parent_raw_first,
+            &source_hash_word_lc(&trace_chunk.bytes[left_offset..left_offset + 4], 0),
+            &new_left,
+        );
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_new_parent_right_word_{word}_raw")),
+            if word < 4 {
+                &sibling_new_parent_raw_first
+            } else {
+                &sibling_new_parent_raw_second
+            },
+            &source_hash_word_lc(&trace_chunk.bytes[right_offset..right_offset + 4], 0),
+            &new_right,
+        );
+        let placeholder_word = u32::from_be_bytes(
+            JMT_SPARSE_PLACEHOLDER_HASH_V2[word * 4..word * 4 + 4]
+                .try_into()
+                .expect("fixed placeholder word"),
+        );
+        let placeholder_word = allocate_constant(
+            cs.namespace(|| format!("jmt_split_placeholder_word_{word}")),
+            u64::from(placeholder_word),
+        )?;
+        let split_sibling_hash = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_split_sibling_hash_{word}")),
+            &split_is_first,
+            &z[JMT_OLD_LEAF_HASH_START + word],
+            &placeholder_word,
+            "value",
+        )?;
+        let split_left = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_split_parent_left_word_{word}")),
+            &sibling_direction_state,
+            &split_sibling_hash,
+            &z[JMT_NEW_CURRENT_HASH_START + word],
+            "value",
+        )?;
+        let split_right = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_split_parent_right_word_{word}")),
+            &sibling_direction_state,
+            &z[JMT_NEW_CURRENT_HASH_START + word],
+            &split_sibling_hash,
+            "value",
+        )?;
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_split_parent_left_word_{word}_raw")),
+            &split_parent_raw_first,
+            &source_hash_word_lc(&trace_chunk.bytes[left_offset..left_offset + 4], 0),
+            &split_left,
+        );
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_split_parent_right_word_{word}_raw")),
+            if word < 4 {
+                &split_parent_raw_first
+            } else {
+                &split_parent_raw_second
+            },
+            &source_hash_word_lc(&trace_chunk.bytes[right_offset..right_offset + 4], 0),
+            &split_right,
+        );
+    }
+    let leaf_absent_state = allocate_bit_not(
+        cs.namespace(|| "jmt_proof_leaf_absent_state"),
+        &leaf_present_state,
+        "value",
+    )?;
+    let proof_absent_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_absent_first"),
+        &proof_chunks[1],
+        &leaf_absent_state,
+    )?;
+    let proof_absent_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_absent_second"),
+        &proof_chunks[2],
+        &leaf_absent_state,
+    )?;
+    let value_absent_for_new_leaf = allocate_bit_not(
+        cs.namespace(|| "jmt_value_absent_for_new_leaf"),
+        &value_present_for_new_leaf,
+        "value",
+    )?;
+    let proof_new_absent_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_new_absent_first"),
+        &proof_chunks[3],
+        &value_absent_for_new_leaf,
+    )?;
+    let proof_new_absent_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_new_absent_second"),
+        &proof_chunks[4],
+        &value_absent_for_new_leaf,
+    )?;
+    let sibling_null_state = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_sibling_null_state"),
+        &z[JMT_MICRO_SIBLING_TYPE_CELL],
+        &zero,
+    )?;
+    let sibling_null_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_null_first"),
+        &sibling_chunks[1],
+        &sibling_null_state,
+    )?;
+    let sibling_null_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_null_second"),
+        &sibling_chunks[2],
+        &sibling_null_state,
+    )?;
+    let new_parent_inactive_state = allocate_bit_not(
+        cs.namespace(|| "jmt_new_parent_inactive_state"),
+        &new_parent_active_state,
+        "value",
+    )?;
+    let sibling_new_parent_inactive_first = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_new_parent_inactive_first"),
+        &sibling_chunks[5],
+        &new_parent_inactive_state,
+    )?;
+    let sibling_new_parent_inactive_second = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_new_parent_inactive_second"),
+        &sibling_chunks[6],
+        &new_parent_inactive_state,
+    )?;
+    for (label, gate) in [
+        ("proof_absent_first", &proof_absent_first),
+        ("proof_absent_second", &proof_absent_second),
+        ("sibling_null_first", &sibling_null_first),
+        ("sibling_null_second", &sibling_null_second),
+        ("proof_new_absent_first", &proof_new_absent_first),
+        ("proof_new_absent_second", &proof_new_absent_second),
+        (
+            "sibling_new_parent_inactive_first",
+            &sibling_new_parent_inactive_first,
+        ),
+        (
+            "sibling_new_parent_inactive_second",
+            &sibling_new_parent_inactive_second,
+        ),
+        ("split_null_first", &split_null_raw_first),
+        ("split_null_second", &split_null_raw_second),
+    ] {
+        for index in 0..64 {
+            enforce_gated_constant(
+                cs.namespace(|| format!("jmt_{label}_zero_{index}")),
+                gate,
+                &trace_chunk.bytes[index],
+                0,
+            );
+        }
+    }
+
+    let value_full_blocks = AllocatedNum::alloc(cs.namespace(|| "jmt_value_full_blocks"), || {
+        Ok(Scalar::from(
+            scalar_u64(
+                active_raw_value_length
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            ) / 64,
+        ))
+    })?;
+    let value_remainder = AllocatedNum::alloc(cs.namespace(|| "jmt_value_remainder"), || {
+        Ok(Scalar::from(
+            scalar_u64(
+                active_raw_value_length
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            ) % 64,
+        ))
+    })?;
+    range_bits(
+        cs.namespace(|| "jmt_value_full_blocks_range"),
+        &value_full_blocks,
+        11,
+    )?;
+    range_bits(
+        cs.namespace(|| "jmt_value_remainder_range"),
+        &value_remainder,
+        6,
+    )?;
+    cs.enforce(
+        || "jmt_value_division_relation",
+        |lc| {
+            lc + (Scalar::from(64_u64), value_full_blocks.get_variable())
+                + value_remainder.get_variable()
+                - active_raw_value_length.get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    let value_data_block = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_value_is_data_tail_block"),
+        &active_raw_value_next_chunk,
+        &value_full_blocks,
+    )?;
+    let value_data_block_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_data_tail_block_gate"),
+        &value_raw,
+        &value_data_block,
+    )?;
+    let value_last_index = AllocatedNum::alloc(cs.namespace(|| "jmt_value_last_index"), || {
+        Ok(Scalar::from(
+            scalar_u64(
+                active_raw_value_chunk_count
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            )
+            .saturating_sub(1),
+        ))
+    })?;
+    range_bits(
+        cs.namespace(|| "jmt_value_last_index_range"),
+        &value_last_index,
+        11,
+    )?;
+    cs.enforce(
+        || "jmt_value_last_index_relation",
+        |lc| lc + value_raw.get_variable(),
+        |lc| {
+            lc + value_last_index.get_variable() + CS::one()
+                - active_raw_value_chunk_count.get_variable()
+        },
+        |lc| lc,
+    );
+    let value_final_block = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_value_final_block"),
+        &active_raw_value_next_chunk,
+        &value_last_index,
+    )?;
+    let value_data_final = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_data_final"),
+        &value_data_block_gate,
+        &value_final_block,
+    )?;
+    let value_not_final_block = allocate_bit_not(
+        cs.namespace(|| "jmt_value_data_not_final_bit"),
+        &value_final_block,
+        "value",
+    )?;
+    let value_data_not_final = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_data_not_final"),
+        &value_data_block_gate,
+        &value_not_final_block,
+    )?;
+    let value_length_only_final = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_length_only_final_0"),
+        &value_raw,
+        &value_final_block,
+    )?;
+    let value_not_data_block = allocate_bit_not(
+        cs.namespace(|| "jmt_value_not_data_block"),
+        &value_data_block,
+        "value",
+    )?;
+    let value_length_only_final = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_length_only_final_1"),
+        &value_length_only_final,
+        &value_not_data_block,
+    )?;
+    let value_bit_length = AllocatedNum::alloc(cs.namespace(|| "jmt_value_bit_length"), || {
+        Ok(Scalar::from(
+            scalar_u64(
+                active_raw_value_length
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            ) * 8,
+        ))
+    })?;
+    cs.enforce(
+        || "jmt_value_bit_length_relation",
+        |lc| {
+            lc + (Scalar::from(8_u64), active_raw_value_length.get_variable())
+                - value_bit_length.get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    let mut value_bit_length_bytes = decompose_le_bytes(
+        cs.namespace(|| "jmt_value_bit_length_bytes"),
+        &value_bit_length,
+        8,
+        "jmt_value_bit_length",
+    )?;
+    value_bit_length_bytes.reverse();
+    let remainder_selectors = (0_u64..64)
+        .map(|remainder| {
+            let expected = allocate_constant(
+                cs.namespace(|| format!("jmt_value_remainder_{remainder}")),
+                remainder,
+            )?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_value_remainder_is_{remainder}")),
+                &value_remainder,
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &value_remainder,
+        &remainder_selectors,
+        |index| index as u64,
+        "jmt_value_remainder",
+    );
+    for (remainder, remainder_selector) in remainder_selectors.iter().enumerate() {
+        let tail_gate = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_value_tail_gate_{remainder}")),
+            &value_data_block_gate,
+            remainder_selector,
+        )?;
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_value_padding_marker_{remainder}")),
+            &tail_gate,
+            &trace_chunk.bytes[remainder],
+            0x80,
+        );
+        let final_tail_gate = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_value_final_tail_gate_{remainder}")),
+            &value_data_final,
+            remainder_selector,
+        )?;
+        let nonfinal_tail_gate = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_value_nonfinal_tail_gate_{remainder}")),
+            &value_data_not_final,
+            remainder_selector,
+        )?;
+        for position in remainder + 1..64 {
+            if position >= 56 {
+                enforce_gated_equal(
+                    cs.namespace(|| format!("jmt_value_length_{remainder}_{position}")),
+                    &final_tail_gate,
+                    &trace_chunk.bytes[position],
+                    &value_bit_length_bytes[position - 56],
+                );
+            } else {
+                enforce_gated_constant(
+                    cs.namespace(|| format!("jmt_value_final_zero_{remainder}_{position}")),
+                    &final_tail_gate,
+                    &trace_chunk.bytes[position],
+                    0,
+                );
+            }
+            enforce_gated_constant(
+                cs.namespace(|| format!("jmt_value_nonfinal_zero_{remainder}_{position}")),
+                &nonfinal_tail_gate,
+                &trace_chunk.bytes[position],
+                0,
+            );
+        }
+    }
+    for position in 0..64 {
+        if position >= 56 {
+            enforce_gated_equal(
+                cs.namespace(|| format!("jmt_value_length_only_length_{position}")),
+                &value_length_only_final,
+                &trace_chunk.bytes[position],
+                &value_bit_length_bytes[position - 56],
+            );
+        } else {
+            enforce_gated_constant(
+                cs.namespace(|| format!("jmt_value_length_only_zero_{position}")),
+                &value_length_only_final,
+                &trace_chunk.bytes[position],
+                0,
+            );
+        }
+    }
+
+    let mut raw_block_bits = Vec::with_capacity(512);
+    for (index, byte) in trace_chunk.bytes.iter().enumerate() {
+        raw_block_bits.extend(allocated_num_bits_be(
+            cs.namespace(|| format!("jmt_raw_block_byte_{index}")),
+            byte,
+            8,
+        )?);
+    }
+    let mut raw_before_nums = Vec::with_capacity(8);
+    let mut raw_before_words = Vec::with_capacity(8);
+    for (index, iv) in SHA256_IV_V2.into_iter().enumerate() {
+        let iv = allocate_constant(
+            cs.namespace(|| format!("jmt_raw_iv_{index}")),
+            u64::from(iv),
+        )?;
+        let before = select_bit_num(
+            cs.namespace(|| format!("jmt_raw_before_{index}")),
+            &raw_start,
+            &iv,
+            &z[JMT_RAW_CHAIN_START + index],
+            "value",
+        )?;
+        raw_before_words.push(allocated_num_to_uint32(
+            cs.namespace(|| format!("jmt_raw_before_word_{index}")),
+            &before,
+        )?);
+        raw_before_nums.push(before);
+    }
+    let compressed = sha256_compression_function(
+        cs.namespace(|| "jmt_raw_sha_compression"),
+        &raw_block_bits,
+        &raw_before_words,
+    )?;
+    let mut raw_after = Vec::with_capacity(8);
+    for index in 0..8 {
+        let after = AllocatedNum::alloc(cs.namespace(|| format!("jmt_raw_after_{index}")), || {
+            let mut block = [0_u8; 64];
+            for (position, byte) in trace_chunk.bytes.iter().enumerate() {
+                block[position] = u8::try_from(scalar_u64(
+                    byte.get_value().ok_or(SynthesisError::AssignmentMissing)?,
+                ))
+                .map_err(|_| {
+                    SynthesisError::Unsatisfiable("JMT raw block byte overflow".to_owned())
+                })?;
+            }
+            let mut before = [0_u32; 8];
+            for (position, word) in raw_before_nums.iter().enumerate() {
+                before[position] = u32::try_from(scalar_u64(
+                    word.get_value().ok_or(SynthesisError::AssignmentMissing)?,
+                ))
+                .map_err(|_| {
+                    SynthesisError::Unsatisfiable("JMT raw chaining word overflow".to_owned())
+                })?;
+            }
+            Ok(Scalar::from(u64::from(
+                CheckpointSha256BlockV2::transition_parts(&block, &before)[index],
+            )))
+        })?;
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_raw_after_matches_fips_{index}")),
+            &raw_active,
+            &uint32_lc::<CS>(&compressed[index]),
+            &after,
+        );
+        cells.push((
+            JMT_RAW_CHAIN_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_raw_chain_output_{index}")),
+                &raw_active,
+                &after,
+                &z[JMT_RAW_CHAIN_START + index],
+                "value",
+            )?,
+        ));
+        raw_after.push(after);
+    }
+    let value_next = allocate_incremented(
+        cs.namespace(|| "jmt_value_next_for_final"),
+        &active_raw_value_next_chunk,
+        "value",
+    )?;
+    let value_is_final = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_value_is_final"),
+        &value_next,
+        &active_raw_value_chunk_count,
+    )?;
+    let value_final_raw = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_final_raw"),
+        &value_raw,
+        &value_is_final,
+    )?;
+    let prior_value_final_raw = AllocatedBit::and(
+        cs.namespace(|| "jmt_prior_value_final_raw"),
+        &value_final_raw,
+        &value_kind_is_prior_state,
+    )?;
+    let new_value_final_raw = AllocatedBit::and(
+        cs.namespace(|| "jmt_new_value_final_raw"),
+        &value_final_raw,
+        &value_kind_is_new_state,
+    )?;
+    let coalesced_leaf_hash_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesced_leaf_hash_gate_0"),
+        &sibling_raw_second,
+        &mutation_case_selectors[5],
+    )?;
+    let coalesced_leaf_hash_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_coalesced_leaf_hash_gate_1"),
+        &coalesced_leaf_hash_gate,
+        &new_parent_inactive_state,
+    )?;
+    for (index, after) in raw_after.iter().enumerate() {
+        for (start, gate, label) in [
+            (
+                JMT_PRIOR_VALUE_HASH_START,
+                &prior_value_final_raw,
+                "prior_value",
+            ),
+            (JMT_VALUE_HASH_START, &new_value_final_raw, "value"),
+            (JMT_OLD_LEAF_HASH_START, &proof_raw_second, "old_leaf"),
+        ] {
+            cells.push((
+                start + index,
+                select_bit_num(
+                    cs.namespace(|| format!("jmt_{label}_hash_output_{index}")),
+                    gate,
+                    after,
+                    &z[start + index],
+                    "value",
+                )?,
+            ));
+        }
+        let placeholder_word = u32::from_be_bytes(
+            JMT_SPARSE_PLACEHOLDER_HASH_V2[index * 4..index * 4 + 4]
+                .try_into()
+                .expect("fixed placeholder word"),
+        );
+        let placeholder_word = allocate_constant(
+            cs.namespace(|| format!("jmt_placeholder_word_{index}")),
+            u64::from(placeholder_word),
+        )?;
+        let sibling_hash = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_sibling_hash_or_placeholder_{index}")),
+            &sibling_nonnull,
+            after,
+            &placeholder_word,
+            "value",
+        )?;
+        cells.push((
+            JMT_SIBLING_HASH_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_sibling_hash_output_{index}")),
+                &sibling_chunks[2],
+                &sibling_hash,
+                &z[JMT_SIBLING_HASH_START + index],
+                "value",
+            )?,
+        ));
+        let proof_hash = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_old_proof_hash_or_placeholder_{index}")),
+            &leaf_present_state,
+            after,
+            &placeholder_word,
+            "value",
+        )?;
+        let old_current_after_proof = select_bit_num(
+            cs.namespace(|| format!("jmt_old_current_after_proof_{index}")),
+            &proof_chunks[2],
+            &proof_hash,
+            &z[JMT_OLD_CURRENT_HASH_START + index],
+            "value",
+        )?;
+        cells.push((
+            JMT_OLD_CURRENT_HASH_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_old_current_after_parent_{index}")),
+                &sibling_parent_raw_second,
+                after,
+                &old_current_after_proof,
+                "value",
+            )?,
+        ));
+        let new_proof_hash = select_bit_num_compact(
+            cs.namespace(|| format!("jmt_new_proof_hash_or_placeholder_{index}")),
+            &value_present_for_new_leaf,
+            after,
+            &placeholder_word,
+            "value",
+        )?;
+        let new_current_after_proof = select_bit_num(
+            cs.namespace(|| format!("jmt_new_current_after_proof_{index}")),
+            &proof_chunks[4],
+            &new_proof_hash,
+            &z[JMT_NEW_CURRENT_HASH_START + index],
+            "value",
+        )?;
+        let new_current_after_coalesce = select_bit_num(
+            cs.namespace(|| format!("jmt_new_current_after_coalesce_{index}")),
+            &coalesced_leaf_hash_gate,
+            after,
+            &new_current_after_proof,
+            "value",
+        )?;
+        let new_current_after_split = select_bit_num(
+            cs.namespace(|| format!("jmt_new_current_after_split_parent_{index}")),
+            &split_parent_raw_second,
+            after,
+            &new_current_after_coalesce,
+            "value",
+        )?;
+        cells.push((
+            JMT_NEW_CURRENT_HASH_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_new_current_after_parent_{index}")),
+                &sibling_new_parent_raw_second,
+                after,
+                &new_current_after_split,
+                "value",
+            )?,
+        ));
+    }
+    let proof_is_first_operation = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_proof_is_first_operation"),
+        &z[JMT_MICRO_NEXT_OPERATION_CELL],
+        &zero,
+    )?;
+    let proof_checks_initial_root = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_checks_initial_root"),
+        &micro_kind_gates[7],
+        &proof_is_first_operation,
+    )?;
+    let proof_is_subsequent_operation = allocate_bit_not(
+        cs.namespace(|| "jmt_proof_is_subsequent_operation"),
+        &proof_is_first_operation,
+        "value",
+    )?;
+    let proof_checks_prior_operation = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_checks_prior_operation"),
+        &micro_kind_gates[7],
+        &proof_is_subsequent_operation,
+    )?;
+    for word in 0..8 {
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_old_root_matches_proof_path_{word}")),
+            &proof_checks_initial_root,
+            &source_hash_word_lc(&z[JMT_MICRO_OLD_ROOT_START..JMT_MICRO_OLD_ROOT_END], word),
+            &z[JMT_OLD_CURRENT_HASH_START + word],
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_old_root_matches_prior_operation_{word}")),
+            &proof_checks_prior_operation,
+            &z[JMT_OLD_CURRENT_HASH_START + word],
+            &z[JMT_MICRO_PRIOR_OPERATION_ROOT_START + word],
+        );
+    }
+
+    let micro_stage_selectors = [0_u64, 1, 2]
+        .into_iter()
+        .map(|stage| {
+            let stage_num =
+                allocate_constant(cs.namespace(|| format!("jmt_micro_stage_{stage}")), stage)?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_micro_stage_is_{stage}")),
+                &z[JMT_MICRO_STAGE_CELL],
+                &stage_num,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &z[JMT_MICRO_STAGE_CELL],
+        &micro_stage_selectors,
+        |index| index as u64,
+        "jmt_micro_stage",
+    );
+    for (index, state) in [
+        &z[JMT_MICRO_COMPLETED_UPDATE_CELL],
+        &z[JMT_MICRO_CURRENT_UPDATE_CELL],
+        &z[JMT_MICRO_NEXT_OPERATION_CELL],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        range_bits(
+            cs.namespace(|| format!("jmt_micro_counter_{index}_range")),
+            state,
+            32,
+        )?;
+    }
+    for (index, state, bits) in [
+        (0_usize, &z[JMT_MICRO_TREE_SERIAL_CELL], 32_usize),
+        (1, &z[JMT_MICRO_OLD_VERSION_CELL], 64),
+        (2, &z[JMT_MICRO_NEW_VERSION_CELL], 64),
+        (3, &z[JMT_MICRO_EXPECTED_OPERATION_CELL], 10),
+        (4, &z[JMT_MICRO_VALUE_LENGTH_CELL], 17),
+        (5, &z[JMT_MICRO_EXPECTED_SIBLING_CELL], 9),
+        (6, &z[JMT_MICRO_NEXT_SIBLING_CELL], 9),
+        (7, &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL], 11),
+        (8, &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL], 11),
+        (9, &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL], 17),
+        (10, &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL], 11),
+        (11, &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL], 11),
+    ] {
+        range_bits(
+            cs.namespace(|| format!("jmt_semantic_state_{index}_range")),
+            state,
+            bits,
+        )?;
+    }
+    for (index, state) in z
+        .iter()
+        .enumerate()
+        .take(JMT_MICRO_STATE_END)
+        .skip(JMT_MICRO_TREE_DEFINITION_START)
+        .filter(|(index, _)| {
+            (JMT_MICRO_TREE_DEFINITION_START..JMT_MICRO_TREE_DEFINITION_END).contains(index)
+                || (JMT_MICRO_TREE_TERMINAL_START..JMT_MICRO_TREE_TERMINAL_END).contains(index)
+                || (JMT_MICRO_OLD_ROOT_START..JMT_MICRO_OLD_ROOT_END).contains(index)
+                || (JMT_MICRO_NEW_ROOT_START..JMT_MICRO_NEW_ROOT_END).contains(index)
+                || (JMT_MICRO_OPERATION_KEY_START..JMT_MICRO_OPERATION_KEY_END).contains(index)
+                || (JMT_MICRO_PROOF_LEAF_DATA_START..JMT_MICRO_PROOF_LEAF_DATA_END).contains(index)
+                || (JMT_MICRO_PREVIOUS_OPERATION_KEY_START..JMT_MICRO_PREVIOUS_OPERATION_KEY_END)
+                    .contains(index)
+        })
+    {
+        range_bits(
+            cs.namespace(|| format!("jmt_semantic_byte_{index}_range")),
+            state,
+            8,
+        )?;
+    }
+
+    let update_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_update_record_end"),
+        &micro_source_end,
+        &record_kind_selectors[1],
+    )?;
+    let operation_begin_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_operation_begin_record_end"),
+        &micro_source_end,
+        &record_kind_selectors[2],
+    )?;
+    let proof_begin_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_proof_begin_record_end"),
+        &micro_source_end,
+        &record_kind_selectors[4],
+    )?;
+    let value_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_record_end"),
+        &micro_source_end,
+        &record_kind_selectors[3],
+    )?;
+    let sibling_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_sibling_record_end"),
+        &micro_source_end,
+        &record_kind_selectors[7],
+    )?;
+    let split_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_record_end"),
+        &micro_source_end,
+        &record_kind_selectors[9],
+    )?;
+
+    enforce_gated_byte_set(
+        cs.namespace(|| "jmt_tree_tag_set"),
+        &update_record_end,
+        &z[JMT_MICRO_TREE_TAG_CELL],
+        &[1, 2, 3, 4, 5],
+        "jmt_tree_tag",
+    )?;
+    let tree_tag_selectors = [1_u64, 2, 3, 4, 5]
+        .into_iter()
+        .map(|tag| {
+            let expected = allocate_constant(cs.namespace(|| format!("jmt_tree_tag_{tag}")), tag)?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_tree_tag_is_{tag}")),
+                &z[JMT_MICRO_TREE_TAG_CELL],
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    // The definition tree is the hierarchy's sole top-level mutable JMT.  Its
+    // canonical role bytes are all zero and the strict per-stage role order
+    // below therefore permits exactly one definition update.  Anchor that
+    // update's authenticated old root to the immutable pre-state definition
+    // root carried by P/X_h; otherwise a valid proof for an unrelated tree
+    // could be promoted and re-hashed into a self-consistent settlement root.
+    let definition_update_begin = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_definition_update_begin"),
+        &update_record_end,
+        &tree_tag_selectors[0],
+    )?;
+    for limb in 0..DIGEST_LIMBS {
+        let parsed = allocate_u16_from_le_bytes(
+            cs.namespace(|| format!("hierarchy_definition_old_root_{limb}")),
+            &z[JMT_MICRO_OLD_ROOT_START + limb * 2],
+            &z[JMT_MICRO_OLD_ROOT_START + limb * 2 + 1],
+            &format!("hierarchy_definition_old_root_{limb}"),
+        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("hierarchy_definition_old_root_anchor_{limb}")),
+            &definition_update_begin,
+            &parsed,
+            &z[5 * DIGEST_LIMBS + limb],
+        );
+    }
+    let hierarchy_stage_selectors = (0_u64..=5)
+        .map(|stage| {
+            let expected =
+                allocate_constant(cs.namespace(|| format!("hierarchy_stage_{stage}")), stage)?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("hierarchy_stage_is_{stage}")),
+                &z[HIERARCHY_STAGE_CELL],
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &z[HIERARCHY_STAGE_CELL],
+        &hierarchy_stage_selectors,
+        |index| index as u64,
+        "hierarchy_stage",
+    );
+    // Tree tags are definition=1, serial=2, bucket=3, terminal=4,
+    // path-index=5. Their semantic stages run in the reverse hierarchy order.
+    let current_hierarchy_stage =
+        AllocatedNum::alloc(cs.namespace(|| "current_hierarchy_stage"), || {
+            let tag = scalar_u64(
+                z[JMT_MICRO_TREE_TAG_CELL]
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            );
+            Ok(Scalar::from(match tag {
+                4 => 1,
+                3 => 2,
+                2 => 3,
+                1 => 4,
+                5 => 5,
+                // The retained tree cells are zero before the first update;
+                // the active UpdateBegin gate below is what forbids tag zero.
+                _ => 0,
+            }))
+        })?;
+    cs.enforce(
+        || "current_hierarchy_stage_relation",
+        |lc| lc + update_record_end.get_variable(),
+        |lc| {
+            lc + current_hierarchy_stage.get_variable()
+                - (Scalar::from(4_u64), tree_tag_selectors[0].get_variable())
+                - (Scalar::from(3_u64), tree_tag_selectors[1].get_variable())
+                - (Scalar::from(2_u64), tree_tag_selectors[2].get_variable())
+                - tree_tag_selectors[3].get_variable()
+                - (Scalar::from(5_u64), tree_tag_selectors[4].get_variable())
+        },
+        |lc| lc,
+    );
+    let terminal_predecessor = allocate_bit_or(
+        cs.namespace(|| "terminal_hierarchy_predecessor"),
+        &hierarchy_stage_selectors[0],
+        &hierarchy_stage_selectors[1],
+        "value",
+    )?;
+    let bucket_predecessor = allocate_bit_or(
+        cs.namespace(|| "bucket_hierarchy_predecessor"),
+        &hierarchy_stage_selectors[1],
+        &hierarchy_stage_selectors[2],
+        "value",
+    )?;
+    let serial_predecessor = allocate_bit_or(
+        cs.namespace(|| "serial_hierarchy_predecessor"),
+        &hierarchy_stage_selectors[2],
+        &hierarchy_stage_selectors[3],
+        "value",
+    )?;
+    for (label, tag, predecessor) in [
+        ("terminal", &tree_tag_selectors[3], &terminal_predecessor),
+        ("bucket", &tree_tag_selectors[2], &bucket_predecessor),
+        ("serial", &tree_tag_selectors[1], &serial_predecessor),
+        (
+            "definition",
+            &tree_tag_selectors[0],
+            &hierarchy_stage_selectors[3],
+        ),
+        (
+            "path_index",
+            &tree_tag_selectors[4],
+            &hierarchy_stage_selectors[4],
+        ),
+    ] {
+        let gate = AllocatedBit::and(
+            cs.namespace(|| format!("{label}_hierarchy_stage_gate")),
+            &update_record_end,
+            tag,
+        )?;
+        cs.enforce(
+            || format!("{label}_hierarchy_predecessor_relation"),
+            |lc| lc + gate.get_variable(),
+            |lc| lc + predecessor.get_variable() - CS::one(),
+            |lc| lc,
+        );
+    }
+    let same_hierarchy_stage = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "same_hierarchy_stage"),
+        &z[HIERARCHY_STAGE_CELL],
+        &current_hierarchy_stage,
+    )?;
+    let same_hierarchy_stage_gate = AllocatedBit::and(
+        cs.namespace(|| "same_hierarchy_stage_gate"),
+        &update_record_end,
+        &same_hierarchy_stage,
+    )?;
+    let mut tree_serial_bytes = decompose_le_bytes(
+        cs.namespace(|| "hierarchy_tree_serial_bytes"),
+        &z[JMT_MICRO_TREE_SERIAL_CELL],
+        4,
+        "hierarchy_tree_serial",
+    )?;
+    tree_serial_bytes.reverse();
+    let current_role_bytes = z[JMT_MICRO_TREE_DEFINITION_START..JMT_MICRO_TREE_DEFINITION_END]
+        .iter()
+        .cloned()
+        .chain(tree_serial_bytes)
+        .chain(
+            z[JMT_MICRO_TREE_TERMINAL_START..JMT_MICRO_TREE_TERMINAL_END]
+                .iter()
+                .cloned(),
+        )
+        .collect::<Vec<_>>();
+    let role_is_strictly_ordered = strict_byte_lex_less(
+        cs.namespace(|| "hierarchy_role_strict_order"),
+        &z[HIERARCHY_PREVIOUS_ROLE_START..HIERARCHY_PREVIOUS_ROLE_END],
+        &current_role_bytes,
+    )?;
+    cs.enforce(
+        || "hierarchy_roles_are_strictly_ordered_within_stage",
+        |lc| lc + same_hierarchy_stage_gate.get_variable(),
+        |lc| lc + role_is_strictly_ordered.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    cells.push((
+        HIERARCHY_STAGE_CELL,
+        select_bit_num(
+            cs.namespace(|| "hierarchy_stage_output"),
+            &update_record_end,
+            &current_hierarchy_stage,
+            &z[HIERARCHY_STAGE_CELL],
+            "value",
+        )?,
+    ));
+    for (offset, current) in current_role_bytes.iter().enumerate() {
+        cells.push((
+            HIERARCHY_PREVIOUS_ROLE_START + offset,
+            select_bit_num(
+                cs.namespace(|| format!("hierarchy_previous_role_output_{offset}")),
+                &update_record_end,
+                current,
+                &z[HIERARCHY_PREVIOUS_ROLE_START + offset],
+                "value",
+            )?,
+        ));
+    }
+    let definition_update_end = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_definition_update_end"),
+        &micro_kind_gates[5],
+        &tree_tag_selectors[0],
+    )?;
+    let mut hierarchy_definition_after_update = Vec::with_capacity(DIGEST_LIMBS);
+    for limb in 0..DIGEST_LIMBS {
+        let parsed = allocate_u16_from_le_bytes(
+            cs.namespace(|| format!("hierarchy_verified_definition_root_{limb}")),
+            &z[JMT_MICRO_NEW_ROOT_START + limb * 2],
+            &z[JMT_MICRO_NEW_ROOT_START + limb * 2 + 1],
+            &format!("hierarchy_verified_definition_root_{limb}"),
+        )?;
+        hierarchy_definition_after_update.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_definition_after_update_{limb}")),
+            &definition_update_end,
+            &parsed,
+            &z[HIERARCHY_DEFINITION_ROOT_START + limb],
+            "value",
+        )?);
+    }
+    let definition_zero_tag = allocate_bit_or(
+        cs.namespace(|| "jmt_definition_zero_tag"),
+        &tree_tag_selectors[0],
+        &tree_tag_selectors[4],
+        "value",
+    )?;
+    let definition_zero_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_definition_zero_gate"),
+        &update_record_end,
+        &definition_zero_tag,
+    )?;
+    let serial_zero_tag = allocate_bit_or(
+        cs.namespace(|| "jmt_serial_zero_tag_0"),
+        &definition_zero_tag,
+        &tree_tag_selectors[1],
+        "value",
+    )?;
+    let serial_zero_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_serial_zero_gate"),
+        &update_record_end,
+        &serial_zero_tag,
+    )?;
+    let terminal_live_tag = allocate_bit_or(
+        cs.namespace(|| "jmt_terminal_live_tag_0"),
+        &tree_tag_selectors[0],
+        &tree_tag_selectors[1],
+        "value",
+    )?;
+    let terminal_live_tag = allocate_bit_or(
+        cs.namespace(|| "jmt_terminal_live_tag_1"),
+        &terminal_live_tag,
+        &tree_tag_selectors[2],
+        "value",
+    )?;
+    let terminal_live_tag = allocate_bit_or(
+        cs.namespace(|| "jmt_terminal_live_tag_2"),
+        &terminal_live_tag,
+        &tree_tag_selectors[4],
+        "value",
+    )?;
+    let terminal_zero_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_terminal_zero_gate"),
+        &update_record_end,
+        &terminal_live_tag,
+    )?;
+    for index in JMT_MICRO_TREE_DEFINITION_START..JMT_MICRO_TREE_DEFINITION_END {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_definition_unused_zero_{index}")),
+            &definition_zero_gate,
+            &z[index],
+            0,
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_serial_unused_zero"),
+        &serial_zero_gate,
+        &z[JMT_MICRO_TREE_SERIAL_CELL],
+        0,
+    );
+    for index in JMT_MICRO_TREE_TERMINAL_START..JMT_MICRO_TREE_TERMINAL_END {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_terminal_unused_zero_{index}")),
+            &terminal_zero_gate,
+            &z[index],
+            0,
+        );
+    }
+
+    let old_version_zero = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_old_version_zero"),
+        &z[JMT_MICRO_OLD_VERSION_CELL],
+        &zero,
+    )?;
+    let new_version_zero = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_new_version_zero"),
+        &z[JMT_MICRO_NEW_VERSION_CELL],
+        &zero,
+    )?;
+    let both_versions_zero = AllocatedBit::and(
+        cs.namespace(|| "jmt_both_versions_zero"),
+        &old_version_zero,
+        &new_version_zero,
+    )?;
+    let incremented_version = allocate_incremented(
+        cs.namespace(|| "jmt_incremented_version"),
+        &z[JMT_MICRO_OLD_VERSION_CELL],
+        "value",
+    )?;
+    let versions_increment = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_versions_increment"),
+        &incremented_version,
+        &z[JMT_MICRO_NEW_VERSION_CELL],
+    )?;
+    let version_pair_canonical = allocate_bit_or(
+        cs.namespace(|| "jmt_version_pair_canonical"),
+        &both_versions_zero,
+        &versions_increment,
+        "value",
+    )?;
+    cs.enforce(
+        || "jmt_update_version_pair_canonical",
+        |lc| lc + update_record_end.get_variable(),
+        |lc| lc + version_pair_canonical.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_operation_count_bound"),
+        &z[JMT_MICRO_EXPECTED_OPERATION_CELL],
+        1_000,
+        10,
+        "jmt_operation_count",
+    )?;
+    let operation_count_zero = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_operation_count_zero"),
+        &z[JMT_MICRO_EXPECTED_OPERATION_CELL],
+        &zero,
+    )?;
+    cs.enforce(
+        || "jmt_update_operation_count_nonzero",
+        |lc| lc + update_record_end.get_variable(),
+        |lc| lc + operation_count_zero.get_variable(),
+        |lc| lc,
+    );
+
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_value_length_bound"),
+        &z[JMT_MICRO_VALUE_LENGTH_CELL],
+        64 * 1024,
+        17,
+        "jmt_value_length",
+    )?;
+    let value_absent = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_value_absent"),
+        &z[JMT_MICRO_VALUE_PRESENT_CELL],
+        &zero,
+    )?;
+    let absent_value_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_absent_value_gate"),
+        &operation_begin_record_end,
+        &value_absent,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_absent_value_has_zero_length"),
+        &absent_value_gate,
+        &z[JMT_MICRO_VALUE_LENGTH_CELL],
+        0,
+    );
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_prior_value_length_bound"),
+        &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+        64 * 1024,
+        17,
+        "jmt_prior_value_length",
+    )?;
+    let prior_value_absent = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_prior_value_absent"),
+        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+        &zero,
+    )?;
+    let absent_prior_value_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_absent_prior_value_gate"),
+        &operation_begin_record_end,
+        &prior_value_absent,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_absent_prior_value_has_zero_length"),
+        &absent_prior_value_gate,
+        &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+        0,
+    );
+    let operation_is_first = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_operation_is_first"),
+        &z[JMT_MICRO_NEXT_OPERATION_CELL],
+        &zero,
+    )?;
+    let operation_is_not_first = allocate_bit_not(
+        cs.namespace(|| "jmt_operation_is_not_first"),
+        &operation_is_first,
+        "value",
+    )?;
+    let operation_order_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_operation_order_gate"),
+        &operation_begin_record_end,
+        &operation_is_not_first,
+    )?;
+    let operation_key_is_strictly_ordered = strict_byte_lex_less(
+        cs.namespace(|| "jmt_operation_key_strict_order"),
+        &z[JMT_MICRO_PREVIOUS_OPERATION_KEY_START..JMT_MICRO_PREVIOUS_OPERATION_KEY_END],
+        &z[JMT_MICRO_OPERATION_KEY_START..JMT_MICRO_OPERATION_KEY_END],
+    )?;
+    cs.enforce(
+        || "jmt_operation_keys_are_strictly_ordered",
+        |lc| lc + operation_order_gate.get_variable(),
+        |lc| lc + operation_key_is_strictly_ordered.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let raw_value_block_count =
+        AllocatedNum::alloc(cs.namespace(|| "jmt_raw_value_block_count"), || {
+            let length = scalar_u64(
+                z[JMT_MICRO_VALUE_LENGTH_CELL]
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            );
+            Ok(Scalar::from(
+                length.checked_add(72).ok_or_else(|| {
+                    SynthesisError::Unsatisfiable("JMT value length overflow".to_owned())
+                })? / 64,
+            ))
+        })?;
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_raw_value_block_count_bound"),
+        &raw_value_block_count,
+        1_025,
+        11,
+        "jmt_raw_value_block_count",
+    )?;
+    let raw_value_padding = AllocatedNum::alloc(cs.namespace(|| "jmt_raw_value_padding"), || {
+        let length = scalar_u64(
+            z[JMT_MICRO_VALUE_LENGTH_CELL]
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let blocks = scalar_u64(
+            raw_value_block_count
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        Ok(Scalar::from(blocks * 64 - length))
+    })?;
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_raw_value_padding_bound"),
+        &raw_value_padding,
+        72,
+        7,
+        "jmt_raw_value_padding",
+    )?;
+    let padding_minus_nine =
+        AllocatedNum::alloc(cs.namespace(|| "jmt_raw_value_padding_minus_nine"), || {
+            let padding = scalar_u64(
+                raw_value_padding
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            );
+            Ok(Scalar::from(padding.checked_sub(9).ok_or_else(|| {
+                SynthesisError::Unsatisfiable("JMT SHA padding shorter than nine bytes".to_owned())
+            })?))
+        })?;
+    range_bits(
+        cs.namespace(|| "jmt_raw_value_padding_minus_nine_range"),
+        &padding_minus_nine,
+        6,
+    )?;
+    cs.enforce(
+        || "jmt_raw_value_block_geometry",
+        |lc| {
+            lc + (Scalar::from(64_u64), raw_value_block_count.get_variable())
+                - z[JMT_MICRO_VALUE_LENGTH_CELL].get_variable()
+                - raw_value_padding.get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    cs.enforce(
+        || "jmt_raw_value_padding_minimum",
+        |lc| {
+            lc + padding_minus_nine.get_variable() + (Scalar::from(9_u64), CS::one())
+                - raw_value_padding.get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    let value_present_state = allocate_state_bit(
+        cs.namespace(|| "jmt_value_present_state"),
+        &z[JMT_MICRO_VALUE_PRESENT_CELL],
+    )?;
+    let expected_value_chunks = select_bit_num(
+        cs.namespace(|| "jmt_expected_value_blocks"),
+        &value_present_state,
+        &raw_value_block_count,
+        &zero,
+        "value",
+    )?;
+    let raw_prior_value_block_count =
+        AllocatedNum::alloc(cs.namespace(|| "jmt_raw_prior_value_block_count"), || {
+            let length = scalar_u64(
+                z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL]
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            );
+            Ok(Scalar::from(
+                length.checked_add(72).ok_or_else(|| {
+                    SynthesisError::Unsatisfiable("JMT prior value length overflow".to_owned())
+                })? / 64,
+            ))
+        })?;
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_raw_prior_value_block_count_bound"),
+        &raw_prior_value_block_count,
+        1_025,
+        11,
+        "jmt_raw_prior_value_block_count",
+    )?;
+    let raw_prior_value_padding =
+        AllocatedNum::alloc(cs.namespace(|| "jmt_raw_prior_value_padding"), || {
+            let length = scalar_u64(
+                z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL]
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            );
+            let blocks = scalar_u64(
+                raw_prior_value_block_count
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            );
+            Ok(Scalar::from(blocks * 64 - length))
+        })?;
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_raw_prior_value_padding_bound"),
+        &raw_prior_value_padding,
+        72,
+        7,
+        "jmt_raw_prior_value_padding",
+    )?;
+    let prior_padding_minus_nine = AllocatedNum::alloc(
+        cs.namespace(|| "jmt_raw_prior_value_padding_minus_nine"),
+        || {
+            let padding = scalar_u64(
+                raw_prior_value_padding
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            );
+            Ok(Scalar::from(padding.checked_sub(9).ok_or_else(|| {
+                SynthesisError::Unsatisfiable(
+                    "JMT prior SHA padding shorter than nine bytes".to_owned(),
+                )
+            })?))
+        },
+    )?;
+    range_bits(
+        cs.namespace(|| "jmt_raw_prior_value_padding_minus_nine_range"),
+        &prior_padding_minus_nine,
+        6,
+    )?;
+    cs.enforce(
+        || "jmt_raw_prior_value_block_geometry",
+        |lc| {
+            lc + (
+                Scalar::from(64_u64),
+                raw_prior_value_block_count.get_variable(),
+            ) - z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL].get_variable()
+                - raw_prior_value_padding.get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    cs.enforce(
+        || "jmt_raw_prior_value_padding_minimum",
+        |lc| {
+            lc + prior_padding_minus_nine.get_variable() + (Scalar::from(9_u64), CS::one())
+                - raw_prior_value_padding.get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    let prior_value_present_state = allocate_state_bit(
+        cs.namespace(|| "jmt_prior_value_present_state"),
+        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+    )?;
+    let expected_prior_value_chunks = select_bit_num(
+        cs.namespace(|| "jmt_expected_prior_value_blocks"),
+        &prior_value_present_state,
+        &raw_prior_value_block_count,
+        &zero,
+        "value",
+    )?;
+
+    // Parent values are consumed from the same authenticated raw-value blocks
+    // used by the JMT value-hash relation. The fixed codecs are Definition=64,
+    // Serial=68, Bucket=132 bytes; terminal/path-index values are not parent
+    // promotion leaves.
+    let definition_or_serial_parent = allocate_bit_or(
+        cs.namespace(|| "definition_or_serial_parent"),
+        &tree_tag_selectors[0],
+        &tree_tag_selectors[1],
+        "value",
+    )?;
+    let hierarchy_parent_tag = allocate_bit_or(
+        cs.namespace(|| "hierarchy_parent_tag"),
+        &definition_or_serial_parent,
+        &tree_tag_selectors[2],
+        "value",
+    )?;
+    for (label, tag, expected_length) in [
+        ("definition", &tree_tag_selectors[0], 64_u64),
+        ("serial", &tree_tag_selectors[1], 68),
+        ("bucket", &tree_tag_selectors[2], 132),
+    ] {
+        let begin = AllocatedBit::and(
+            cs.namespace(|| format!("{label}_parent_operation_begin")),
+            &operation_begin_record_end,
+            tag,
+        )?;
+        let prior_begin = AllocatedBit::and(
+            cs.namespace(|| format!("{label}_prior_parent_value")),
+            &begin,
+            &prior_value_present_state,
+        )?;
+        let new_begin = AllocatedBit::and(
+            cs.namespace(|| format!("{label}_new_parent_value")),
+            &begin,
+            &value_present_state,
+        )?;
+        enforce_gated_constant(
+            cs.namespace(|| format!("{label}_prior_parent_value_length")),
+            &prior_begin,
+            &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+            expected_length,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("{label}_new_parent_value_length")),
+            &new_begin,
+            &z[JMT_MICRO_VALUE_LENGTH_CELL],
+            expected_length,
+        );
+    }
+    let parent_operation_begin = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_parent_operation_begin"),
+        &operation_begin_record_end,
+        &hierarchy_parent_tag,
+    )?;
+    let raw_prior_parent = AllocatedBit::and(
+        cs.namespace(|| "raw_prior_parent_value"),
+        &value_raw,
+        &value_kind_is_prior_state,
+    )?;
+    let raw_new_parent = AllocatedBit::and(
+        cs.namespace(|| "raw_new_parent_value"),
+        &value_raw,
+        &value_kind_is_new_state,
+    )?;
+    let block_one = allocate_constant(cs.namespace(|| "hierarchy_value_block_one"), 1)?;
+    let block_two = allocate_constant(cs.namespace(|| "hierarchy_value_block_two"), 2)?;
+    let hierarchy_value_block_one = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "hierarchy_value_block_is_one"),
+        &active_raw_value_next_chunk,
+        &block_one,
+    )?;
+    let hierarchy_value_block_two = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "hierarchy_value_block_is_two"),
+        &active_raw_value_next_chunk,
+        &block_two,
+    )?;
+    let hierarchy_value_block_selectors = [
+        value_block_is_zero.clone(),
+        hierarchy_value_block_one,
+        hierarchy_value_block_two,
+    ];
+    let mut prior_root_outputs = Vec::with_capacity(32);
+    let mut new_root_outputs = Vec::with_capacity(32);
+    for index in 0..32 {
+        let placeholder = allocate_constant(
+            cs.namespace(|| format!("hierarchy_placeholder_root_byte_{index}")),
+            u64::from(JMT_SPARSE_PLACEHOLDER_HASH_V2[index]),
+        )?;
+        let prior_initial = select_bit_num(
+            cs.namespace(|| format!("hierarchy_prior_root_initial_value_{index}")),
+            &prior_value_present_state,
+            &zero,
+            &placeholder,
+            "value",
+        )?;
+        let new_initial = select_bit_num(
+            cs.namespace(|| format!("hierarchy_new_root_initial_value_{index}")),
+            &value_present_state,
+            &zero,
+            &placeholder,
+            "value",
+        )?;
+        let mut prior_output = select_bit_num(
+            cs.namespace(|| format!("hierarchy_prior_root_after_begin_{index}")),
+            &parent_operation_begin,
+            &prior_initial,
+            &z[HIERARCHY_PARENT_PRIOR_ROOT_START + index],
+            "value",
+        )?;
+        let mut new_output = select_bit_num(
+            cs.namespace(|| format!("hierarchy_new_root_after_begin_{index}")),
+            &parent_operation_begin,
+            &new_initial,
+            &z[HIERARCHY_PARENT_NEW_ROOT_START + index],
+            "value",
+        )?;
+        // Child-root byte offsets in the three frozen parent codecs.
+        for (label, tag, absolute) in [
+            ("definition", &tree_tag_selectors[0], 32 + index),
+            ("serial", &tree_tag_selectors[1], 36 + index),
+            ("bucket", &tree_tag_selectors[2], 68 + index),
+        ] {
+            let block = absolute / 64;
+            let offset = absolute % 64;
+            let prior_tag = AllocatedBit::and(
+                cs.namespace(|| format!("{label}_prior_root_tag_{index}")),
+                &raw_prior_parent,
+                tag,
+            )?;
+            let prior_gate = AllocatedBit::and(
+                cs.namespace(|| format!("{label}_prior_root_block_{index}")),
+                &prior_tag,
+                &hierarchy_value_block_selectors[block],
+            )?;
+            prior_output = select_bit_num(
+                cs.namespace(|| format!("{label}_prior_root_capture_{index}")),
+                &prior_gate,
+                &trace_chunk.bytes[offset],
+                &prior_output,
+                "value",
+            )?;
+            let new_tag = AllocatedBit::and(
+                cs.namespace(|| format!("{label}_new_root_tag_{index}")),
+                &raw_new_parent,
+                tag,
+            )?;
+            let new_gate = AllocatedBit::and(
+                cs.namespace(|| format!("{label}_new_root_block_{index}")),
+                &new_tag,
+                &hierarchy_value_block_selectors[block],
+            )?;
+            new_output = select_bit_num(
+                cs.namespace(|| format!("{label}_new_root_capture_{index}")),
+                &new_gate,
+                &trace_chunk.bytes[offset],
+                &new_output,
                 "value",
             )?;
         }
-
-        let version_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_version_gate")),
-            &payload_gate,
-            &position_selectors[0],
+        prior_root_outputs.push(prior_output);
+        new_root_outputs.push(new_output);
+    }
+    for (index, output) in prior_root_outputs.into_iter().enumerate() {
+        cells.push((HIERARCHY_PARENT_PRIOR_ROOT_START + index, output));
+    }
+    for (index, output) in new_root_outputs.into_iter().enumerate() {
+        cells.push((HIERARCHY_PARENT_NEW_ROOT_START + index, output));
+    }
+    let prior_value_absent_state = allocate_bit_not(
+        cs.namespace(|| "hierarchy_prior_value_absent"),
+        &prior_value_present_state,
+        "value",
+    )?;
+    let raw_parent_side = allocate_bit_or(
+        cs.namespace(|| "hierarchy_raw_parent_side"),
+        &raw_prior_parent,
+        &raw_new_parent,
+        "value",
+    )?;
+    let raw_new_without_prior = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_raw_new_without_prior"),
+        &raw_new_parent,
+        &prior_value_absent_state,
+    )?;
+    let raw_new_with_prior = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_raw_new_with_prior"),
+        &raw_new_parent,
+        &prior_value_present_state,
+    )?;
+    let mut parent_definition_outputs = Vec::with_capacity(32);
+    for index in 0..32 {
+        let initialized = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_definition_after_begin_{index}")),
+            &parent_operation_begin,
+            &zero,
+            &z[HIERARCHY_PARENT_DEFINITION_START + index],
+            "value",
         )?;
-        enforce_gated_constant(
-            cs.namespace(|| format!("byte_{index}_version")),
-            &version_gate,
-            byte,
-            u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
-        );
-        let final_payload_gate = AllocatedBit::and(
-            cs.namespace(|| format!("byte_{index}_final_payload_gate")),
-            &payload_gate,
-            &position_selectors[NET_MERGE_BYTES_V2 - 1],
+        let prior_definition_tag = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_prior_definition_tag_{index}")),
+            &raw_prior_parent,
+            &tree_tag_selectors[0],
         )?;
-        let final_chunk_width = allocate_constant(
-            cs.namespace(|| format!("byte_{index}_final_chunk_width")),
-            (index + 1) as u64,
+        let prior_definition_gate = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_prior_definition_block_{index}")),
+            &prior_definition_tag,
+            &hierarchy_value_block_selectors[0],
+        )?;
+        let after_prior = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_definition_after_prior_{index}")),
+            &prior_definition_gate,
+            &trace_chunk.bytes[index],
+            &initialized,
+            "value",
+        )?;
+        let new_definition_tag = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_new_definition_tag_{index}")),
+            &raw_new_without_prior,
+            &tree_tag_selectors[0],
+        )?;
+        let new_definition_gate = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_new_definition_block_{index}")),
+            &new_definition_tag,
+            &hierarchy_value_block_selectors[0],
+        )?;
+        let output = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_definition_after_new_{index}")),
+            &new_definition_gate,
+            &trace_chunk.bytes[index],
+            &after_prior,
+            "value",
+        )?;
+        let repeated_definition_tag = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_repeated_definition_tag_{index}")),
+            &raw_new_with_prior,
+            &tree_tag_selectors[0],
+        )?;
+        let repeated_definition_gate = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_repeated_definition_block_{index}")),
+            &repeated_definition_tag,
+            &hierarchy_value_block_selectors[0],
         )?;
         enforce_gated_equal(
-            cs.namespace(|| format!("byte_{index}_payload_has_no_trailing_bytes")),
-            &final_payload_gate,
-            &trace_chunk.byte_count,
-            &final_chunk_width,
+            cs.namespace(|| format!("hierarchy_definition_old_new_coordinate_{index}")),
+            &repeated_definition_gate,
+            &trace_chunk.bytes[index],
+            &z[HIERARCHY_PARENT_DEFINITION_START + index],
         );
-        active = select_bit_num(
-            cs.namespace(|| format!("byte_{index}_active_output")),
-            &final_payload_gate,
+        parent_definition_outputs.push(output);
+    }
+    for (index, output) in parent_definition_outputs.into_iter().enumerate() {
+        cells.push((HIERARCHY_PARENT_DEFINITION_START + index, output));
+    }
+    let mut parent_serial_outputs = Vec::with_capacity(4);
+    for index in 0..4 {
+        let initialized = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_serial_after_begin_{index}")),
+            &parent_operation_begin,
             &zero,
-            &active,
+            &z[HIERARCHY_PARENT_SERIAL_START + index],
             "value",
         )?;
+        let prior_serial_tag = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_prior_serial_tag_{index}")),
+            &raw_prior_parent,
+            &tree_tag_selectors[1],
+        )?;
+        let prior_serial_gate = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_prior_serial_block_{index}")),
+            &prior_serial_tag,
+            &hierarchy_value_block_selectors[0],
+        )?;
+        let after_prior = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_serial_after_prior_{index}")),
+            &prior_serial_gate,
+            &trace_chunk.bytes[32 + index],
+            &initialized,
+            "value",
+        )?;
+        let new_serial_tag = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_new_serial_tag_{index}")),
+            &raw_new_without_prior,
+            &tree_tag_selectors[1],
+        )?;
+        let new_serial_gate = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_new_serial_block_{index}")),
+            &new_serial_tag,
+            &hierarchy_value_block_selectors[0],
+        )?;
+        let output = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_serial_after_new_{index}")),
+            &new_serial_gate,
+            &trace_chunk.bytes[32 + index],
+            &after_prior,
+            "value",
+        )?;
+        let repeated_serial_tag = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_repeated_serial_tag_{index}")),
+            &raw_new_with_prior,
+            &tree_tag_selectors[1],
+        )?;
+        let repeated_serial_gate = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_repeated_serial_block_{index}")),
+            &repeated_serial_tag,
+            &hierarchy_value_block_selectors[0],
+        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("hierarchy_serial_old_new_coordinate_{index}")),
+            &repeated_serial_gate,
+            &trace_chunk.bytes[32 + index],
+            &z[HIERARCHY_PARENT_SERIAL_START + index],
+        );
+        parent_serial_outputs.push(output);
+    }
+    for (index, output) in parent_serial_outputs.into_iter().enumerate() {
+        cells.push((HIERARCHY_PARENT_SERIAL_START + index, output));
     }
 
-    let source_active = select_bit_num(
-        cs.namespace(|| "source_active_output"),
-        &net_source,
-        &one,
-        &z[NET_PARSE_ACTIVE_CELL],
+    // Bucket and serial parent leaf coordinates are not merely parsed: every
+    // byte is equal to the active tree role and operation key. The Definition
+    // and Serial key preimages retained above feed the exact key-derivation
+    // relation implemented in the next hierarchy slice.
+    let serial_or_bucket_parent = allocate_bit_or(
+        cs.namespace(|| "hierarchy_serial_or_bucket_parent"),
+        &tree_tag_selectors[1],
+        &tree_tag_selectors[2],
         "value",
     )?;
-    let source_header = select_bit_num(
-        cs.namespace(|| "source_header_output"),
-        &net_source,
-        &header_width,
-        &z[NET_PARSE_HEADER_CELL],
-        "value",
+    let role_definition_raw = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_role_definition_raw"),
+        &raw_parent_side,
+        &serial_or_bucket_parent,
     )?;
-    let source_offset = select_bit_num(
-        cs.namespace(|| "source_offset_output"),
-        &net_source,
-        &zero,
-        &z[NET_PARSE_OFFSET_CELL],
-        "value",
+    let role_definition_block = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_role_definition_block"),
+        &role_definition_raw,
+        &hierarchy_value_block_selectors[0],
     )?;
-    let source_low_byte = select_bit_num(
-        cs.namespace(|| "source_low_byte_output"),
-        &net_source,
-        &zero,
-        &z[NET_PARSE_LOW_BYTE_CELL],
-        "value",
+    for index in 0..32 {
+        enforce_gated_equal(
+            cs.namespace(|| format!("hierarchy_parent_definition_matches_role_{index}")),
+            &role_definition_block,
+            &trace_chunk.bytes[index],
+            &z[JMT_MICRO_TREE_DEFINITION_START + index],
+        );
+    }
+    let role_serial_le_bytes = decompose_le_bytes(
+        cs.namespace(|| "hierarchy_role_serial_le_bytes"),
+        &z[JMT_MICRO_TREE_SERIAL_CELL],
+        4,
+        "hierarchy_role_serial",
     )?;
-    let output_active = select_bit_num(
-        cs.namespace(|| "trace_active_output"),
-        trace_chunk_selector,
-        &active,
-        &source_active,
-        "value",
+    // Definition/Serial tree-role coordinates name the parent tree and omit
+    // the child leaf coordinate. Derive the JMT key only at OperationEnd,
+    // after the canonical parent value has supplied that definition/serial
+    // coordinate and the raw-value relation has authenticated it.
+    let definition_key_gate = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_definition_key_gate"),
+        &micro_kind_gates[4],
+        &tree_tag_selectors[0],
     )?;
-    let output_header = select_bit_num(
-        cs.namespace(|| "trace_header_output"),
-        trace_chunk_selector,
-        &header_left,
-        &source_header,
-        "value",
+    let serial_key_gate = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_serial_key_gate"),
+        &micro_kind_gates[4],
+        &tree_tag_selectors[1],
     )?;
-    let output_offset = select_bit_num(
-        cs.namespace(|| "trace_offset_output"),
-        trace_chunk_selector,
-        &offset,
-        &source_offset,
-        "value",
+    let key_definition_bytes = (0..32)
+        .map(|index| {
+            select_bit_num(
+                cs.namespace(|| format!("hierarchy_key_definition_byte_{index}")),
+                &serial_key_gate,
+                &z[JMT_MICRO_TREE_DEFINITION_START + index],
+                &z[HIERARCHY_PARENT_DEFINITION_START + index],
+                "value",
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    synthesize_hierarchy_parent_key_poseidon2(
+        cs.namespace(|| "hierarchy_parent_key_poseidon2"),
+        &definition_key_gate,
+        &serial_key_gate,
+        &key_definition_bytes,
+        &z[HIERARCHY_PARENT_SERIAL_START..HIERARCHY_PARENT_SERIAL_END],
+        &z[JMT_MICRO_OPERATION_KEY_START..JMT_MICRO_OPERATION_KEY_END],
     )?;
-    let output_low_byte = select_bit_num(
-        cs.namespace(|| "trace_low_byte_output"),
-        trace_chunk_selector,
-        &low_byte,
-        &source_low_byte,
-        "value",
+    let bucket_raw = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_bucket_parent_raw"),
+        &raw_parent_side,
+        &tree_tag_selectors[2],
     )?;
-    let mut cells = vec![
-        (NET_PARSE_ACTIVE_CELL, output_active),
-        (NET_PARSE_HEADER_CELL, output_header),
-        (NET_PARSE_OFFSET_CELL, output_offset),
-        (NET_PARSE_LOW_BYTE_CELL, output_low_byte),
+    let bucket_block_zero = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_bucket_parent_block_zero"),
+        &bucket_raw,
+        &hierarchy_value_block_selectors[0],
+    )?;
+    for index in 0..4 {
+        enforce_gated_equal(
+            cs.namespace(|| format!("hierarchy_bucket_serial_matches_role_{index}")),
+            &bucket_block_zero,
+            &trace_chunk.bytes[32 + index],
+            &role_serial_le_bytes[index],
+        );
+    }
+    for index in 0..32 {
+        let absolute = 36 + index;
+        let block = absolute / 64;
+        let offset = absolute % 64;
+        let gate = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_bucket_key_block_{index}")),
+            &bucket_raw,
+            &hierarchy_value_block_selectors[block],
+        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("hierarchy_bucket_key_matches_operation_{index}")),
+            &gate,
+            &trace_chunk.bytes[offset],
+            &z[JMT_MICRO_OPERATION_KEY_START + index],
+        );
+    }
+
+    // Bind every changed terminal/bucket/serial child transition to exactly
+    // one consuming bucket/serial/definition parent operation.  The two
+    // independently challenged products prove multiset equality; the exact
+    // per-level counts reject unused children and duplicate consumers.
+    let child_transition_gates = [
+        AllocatedBit::and(
+            cs.namespace(|| "hierarchy_terminal_child_transition"),
+            &micro_kind_gates[5],
+            &tree_tag_selectors[3],
+        )?,
+        AllocatedBit::and(
+            cs.namespace(|| "hierarchy_bucket_child_transition"),
+            &micro_kind_gates[5],
+            &tree_tag_selectors[2],
+        )?,
+        AllocatedBit::and(
+            cs.namespace(|| "hierarchy_serial_child_transition"),
+            &micro_kind_gates[5],
+            &tree_tag_selectors[1],
+        )?,
     ];
-    for (state_index, field) in field_indices.iter().zip(fields) {
-        let source_field = select_bit_num(
-            cs.namespace(|| format!("source_field_output_{state_index}")),
-            &net_source,
+    let mut update_roots_are_equal = allocate_constant_bit(
+        cs.namespace(|| "hierarchy_update_roots_equal_initial"),
+        true,
+    )?;
+    for index in 0..32 {
+        let byte_equal = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("hierarchy_update_root_byte_equal_{index}")),
+            &z[JMT_MICRO_OLD_ROOT_START + index],
+            &z[JMT_MICRO_NEW_ROOT_START + index],
+        )?;
+        update_roots_are_equal = AllocatedBit::and(
+            cs.namespace(|| format!("hierarchy_update_root_prefix_equal_{index}")),
+            &update_roots_are_equal,
+            &byte_equal,
+        )?;
+    }
+    let terminal_or_bucket_update = allocate_bit_or(
+        cs.namespace(|| "hierarchy_terminal_or_bucket_update"),
+        &tree_tag_selectors[3],
+        &tree_tag_selectors[2],
+        "value",
+    )?;
+    let serial_or_definition_update = allocate_bit_or(
+        cs.namespace(|| "hierarchy_serial_or_definition_update"),
+        &tree_tag_selectors[1],
+        &tree_tag_selectors[0],
+        "value",
+    )?;
+    let changed_hierarchy_update = allocate_bit_or(
+        cs.namespace(|| "hierarchy_changed_update_tag"),
+        &terminal_or_bucket_update,
+        &serial_or_definition_update,
+        "value",
+    )?;
+    let changed_hierarchy_update_end = AllocatedBit::and(
+        cs.namespace(|| "hierarchy_changed_update_end"),
+        &micro_kind_gates[5],
+        &changed_hierarchy_update,
+    )?;
+    cs.enforce(
+        || "hierarchy_updates_are_strict_transitions",
+        |lc| lc + changed_hierarchy_update_end.get_variable(),
+        |lc| lc + update_roots_are_equal.get_variable(),
+        |lc| lc,
+    );
+    let parent_transition_gates = [
+        AllocatedBit::and(
+            cs.namespace(|| "hierarchy_bucket_parent_transition"),
+            &micro_kind_gates[4],
+            &tree_tag_selectors[2],
+        )?,
+        AllocatedBit::and(
+            cs.namespace(|| "hierarchy_serial_parent_transition"),
+            &micro_kind_gates[4],
+            &tree_tag_selectors[1],
+        )?,
+        AllocatedBit::and(
+            cs.namespace(|| "hierarchy_definition_parent_transition"),
+            &micro_kind_gates[4],
+            &tree_tag_selectors[0],
+        )?,
+    ];
+    let hierarchy_one = allocate_constant(cs.namespace(|| "hierarchy_one"), 1)?;
+    let hierarchy_two = allocate_constant(cs.namespace(|| "hierarchy_two"), 2)?;
+    let child_level_after_bucket = select_bit_num(
+        cs.namespace(|| "hierarchy_child_level_after_bucket"),
+        &tree_tag_selectors[2],
+        &hierarchy_one,
+        &zero,
+        "value",
+    )?;
+    let child_level = select_bit_num(
+        cs.namespace(|| "hierarchy_child_level"),
+        &tree_tag_selectors[1],
+        &hierarchy_two,
+        &child_level_after_bucket,
+        "value",
+    )?;
+    let parent_level_after_serial = select_bit_num(
+        cs.namespace(|| "hierarchy_parent_level_after_serial"),
+        &tree_tag_selectors[1],
+        &hierarchy_one,
+        &zero,
+        "value",
+    )?;
+    let parent_level = select_bit_num(
+        cs.namespace(|| "hierarchy_parent_level"),
+        &tree_tag_selectors[0],
+        &hierarchy_two,
+        &parent_level_after_serial,
+        "value",
+    )?;
+    let child_has_serial = allocate_bit_or(
+        cs.namespace(|| "hierarchy_child_has_serial"),
+        &tree_tag_selectors[2],
+        &tree_tag_selectors[3],
+        "value",
+    )?;
+    let mut child_row = Vec::with_capacity(HIERARCHY_ROW_BYTES);
+    child_row.push(child_level);
+    child_row.extend(
+        z[JMT_MICRO_TREE_DEFINITION_START..JMT_MICRO_TREE_DEFINITION_END]
+            .iter()
+            .cloned(),
+    );
+    for (index, serial_byte) in role_serial_le_bytes.iter().enumerate() {
+        child_row.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_child_serial_{index}")),
+            &child_has_serial,
+            serial_byte,
             &zero,
-            &z[*state_index],
+            "value",
+        )?);
+    }
+    for index in 0..32 {
+        child_row.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_child_bucket_{index}")),
+            &tree_tag_selectors[3],
+            &z[JMT_MICRO_TREE_TERMINAL_START + index],
+            &zero,
+            "value",
+        )?);
+    }
+    child_row.extend(
+        z[JMT_MICRO_OLD_ROOT_START..JMT_MICRO_OLD_ROOT_END]
+            .iter()
+            .cloned(),
+    );
+    child_row.extend(
+        z[JMT_MICRO_NEW_ROOT_START..JMT_MICRO_NEW_ROOT_END]
+            .iter()
+            .cloned(),
+    );
+
+    let mut parent_row = Vec::with_capacity(HIERARCHY_ROW_BYTES);
+    parent_row.push(parent_level);
+    for index in 0..32 {
+        parent_row.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_row_definition_{index}")),
+            &tree_tag_selectors[0],
+            &z[HIERARCHY_PARENT_DEFINITION_START + index],
+            &z[JMT_MICRO_TREE_DEFINITION_START + index],
+            "value",
+        )?);
+    }
+    for (index, role_serial) in role_serial_le_bytes.iter().enumerate() {
+        let serial_parent = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_row_serial_parent_{index}")),
+            &tree_tag_selectors[1],
+            &z[HIERARCHY_PARENT_SERIAL_START + index],
+            &zero,
             "value",
         )?;
-        let output_field = select_bit_num(
-            cs.namespace(|| format!("trace_field_output_{state_index}")),
-            trace_chunk_selector,
-            &field,
-            &source_field,
+        parent_row.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_row_serial_{index}")),
+            &tree_tag_selectors[2],
+            role_serial,
+            &serial_parent,
             "value",
+        )?);
+    }
+    for index in 0..32 {
+        parent_row.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_row_bucket_{index}")),
+            &tree_tag_selectors[2],
+            &z[JMT_MICRO_OPERATION_KEY_START + index],
+            &zero,
+            "value",
+        )?);
+    }
+    parent_row.extend(
+        z[HIERARCHY_PARENT_PRIOR_ROOT_START..HIERARCHY_PARENT_PRIOR_ROOT_END]
+            .iter()
+            .cloned(),
+    );
+    parent_row.extend(
+        z[HIERARCHY_PARENT_NEW_ROOT_START..HIERARCHY_PARENT_NEW_ROOT_START + 32]
+            .iter()
+            .cloned(),
+    );
+
+    let hierarchy_challenges = (0..4)
+        .map(|index| {
+            allocate_uniqueness_challenge(
+                cs.namespace(|| format!("hierarchy_challenge_{index}")),
+                z,
+                index,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    let mut hierarchy_child_products = Vec::with_capacity(HIERARCHY_PRODUCT_COUNT);
+    let mut hierarchy_parent_products = Vec::with_capacity(HIERARCHY_PRODUCT_COUNT);
+    for offset in 0..HIERARCHY_PRODUCT_COUNT {
+        hierarchy_child_products.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_child_product_{offset}_initialize")),
+            &initial_jmt_source,
+            &hierarchy_one,
+            &z[HIERARCHY_CHILD_PRODUCT_START + offset],
+            "value",
+        )?);
+        hierarchy_parent_products.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_product_{offset}_initialize")),
+            &initial_jmt_source,
+            &hierarchy_one,
+            &z[HIERARCHY_PARENT_PRODUCT_START + offset],
+            "value",
+        )?);
+    }
+    for pair in 0..HIERARCHY_PRODUCT_PAIRS {
+        let alpha = &hierarchy_challenges[pair * 2];
+        let beta = &hierarchy_challenges[pair * 2 + 1];
+        let child_polynomial = allocate_hierarchy_row_polynomial(
+            cs.namespace(|| format!("hierarchy_child_row_{pair}")),
+            beta,
+            &child_row,
+        )?;
+        let parent_polynomial = allocate_hierarchy_row_polynomial(
+            cs.namespace(|| format!("hierarchy_parent_row_{pair}")),
+            beta,
+            &parent_row,
+        )?;
+        let child_factor = allocate_grand_product_factor(
+            cs.namespace(|| format!("hierarchy_child_factor_{pair}")),
+            alpha,
+            &child_polynomial,
+        )?;
+        let parent_factor = allocate_grand_product_factor(
+            cs.namespace(|| format!("hierarchy_parent_factor_{pair}")),
+            alpha,
+            &parent_polynomial,
+        )?;
+        for level in 0..HIERARCHY_PRODUCT_LEVELS {
+            let offset = level * HIERARCHY_PRODUCT_PAIRS + pair;
+            hierarchy_child_products[offset] = update_grand_product(
+                cs.namespace(|| format!("hierarchy_child_product_{level}_{pair}")),
+                &child_transition_gates[level],
+                &hierarchy_child_products[offset],
+                &child_factor,
+            )?;
+            hierarchy_parent_products[offset] = update_grand_product(
+                cs.namespace(|| format!("hierarchy_parent_product_{level}_{pair}")),
+                &parent_transition_gates[level],
+                &hierarchy_parent_products[offset],
+                &parent_factor,
+            )?;
+        }
+    }
+    let mut hierarchy_child_counts = Vec::with_capacity(HIERARCHY_PRODUCT_LEVELS);
+    let mut hierarchy_parent_counts = Vec::with_capacity(HIERARCHY_PRODUCT_LEVELS);
+    for level in 0..HIERARCHY_PRODUCT_LEVELS {
+        range_bits(
+            cs.namespace(|| format!("hierarchy_child_count_{level}_range")),
+            &z[HIERARCHY_CHILD_COUNT_START + level],
+            32,
         )?;
         range_bits(
-            cs.namespace(|| format!("output_field_range_{state_index}")),
-            &output_field,
-            16,
+            cs.namespace(|| format!("hierarchy_parent_count_{level}_range")),
+            &z[HIERARCHY_PARENT_COUNT_START + level],
+            32,
         )?;
-        cells.push((*state_index, output_field));
+        let child_initial = select_bit_num(
+            cs.namespace(|| format!("hierarchy_child_count_{level}_initialize")),
+            &initial_jmt_source,
+            &zero,
+            &z[HIERARCHY_CHILD_COUNT_START + level],
+            "value",
+        )?;
+        let parent_initial = select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_count_{level}_initialize")),
+            &initial_jmt_source,
+            &zero,
+            &z[HIERARCHY_PARENT_COUNT_START + level],
+            "value",
+        )?;
+        let child_incremented = allocate_incremented(
+            cs.namespace(|| format!("hierarchy_child_count_{level}_increment")),
+            &child_initial,
+            "value",
+        )?;
+        let parent_incremented = allocate_incremented(
+            cs.namespace(|| format!("hierarchy_parent_count_{level}_increment")),
+            &parent_initial,
+            "value",
+        )?;
+        hierarchy_child_counts.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_child_count_{level}_output")),
+            &child_transition_gates[level],
+            &child_incremented,
+            &child_initial,
+            "value",
+        )?);
+        hierarchy_parent_counts.push(select_bit_num(
+            cs.namespace(|| format!("hierarchy_parent_count_{level}_output")),
+            &parent_transition_gates[level],
+            &parent_incremented,
+            &parent_initial,
+            "value",
+        )?);
     }
-    for (label, value, bits) in [
-        ("output_active_range", &cells[0].1, 1),
-        ("output_header_range", &cells[1].1, 6),
-        ("output_offset_range", &cells[2].1, 6),
-        ("output_low_byte_range", &cells[3].1, 8),
+    for (offset, output) in hierarchy_child_products.iter().enumerate() {
+        cells.push((HIERARCHY_CHILD_PRODUCT_START + offset, output.clone()));
+    }
+    for (offset, output) in hierarchy_parent_products.iter().enumerate() {
+        cells.push((HIERARCHY_PARENT_PRODUCT_START + offset, output.clone()));
+    }
+    for (level, output) in hierarchy_child_counts.iter().enumerate() {
+        cells.push((HIERARCHY_CHILD_COUNT_START + level, output.clone()));
+    }
+    for (level, output) in hierarchy_parent_counts.iter().enumerate() {
+        cells.push((HIERARCHY_PARENT_COUNT_START + level, output.clone()));
+    }
+
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_sibling_count_bound"),
+        &z[JMT_MICRO_EXPECTED_SIBLING_CELL],
+        256,
+        9,
+        "jmt_sibling_count",
+    )?;
+    let leaf_absent = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_leaf_absent"),
+        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+        &zero,
+    )?;
+    let leaf_absent_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_leaf_absent_gate"),
+        &proof_begin_record_end,
+        &leaf_absent,
+    )?;
+    for index in JMT_MICRO_PROOF_LEAF_DATA_START..JMT_MICRO_PROOF_LEAF_DATA_END {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_absent_leaf_zero_{index}")),
+            &leaf_absent_gate,
+            &z[index],
+            0,
+        );
+    }
+    let mut old_leaf_key_equals_operation = allocate_constant_bit(
+        cs.namespace(|| "jmt_old_leaf_key_equals_operation_initial"),
+        true,
+    )?;
+    for index in 0..32 {
+        let equal = nova_snark::gadgets::utils::alloc_num_equals(
+            cs.namespace(|| format!("jmt_old_leaf_key_equals_operation_{index}")),
+            &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+            &z[JMT_MICRO_OPERATION_KEY_START + index],
+        )?;
+        old_leaf_key_equals_operation = AllocatedBit::and(
+            cs.namespace(|| format!("jmt_old_leaf_key_prefix_equal_{index}")),
+            &old_leaf_key_equals_operation,
+            &equal,
+        )?;
+    }
+    let leaf_present_for_case = allocate_state_bit(
+        cs.namespace(|| "jmt_leaf_present_for_case"),
+        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+    )?;
+    let old_leaf_is_operation = AllocatedBit::and(
+        cs.namespace(|| "jmt_old_leaf_is_operation"),
+        &leaf_present_for_case,
+        &old_leaf_key_equals_operation,
+    )?;
+    cs.enforce(
+        || "jmt_prior_value_presence_matches_old_leaf",
+        |lc| lc + proof_begin_record_end.get_variable(),
+        |lc| lc + prior_value_present_state.get_variable() - old_leaf_is_operation.get_variable(),
+        |lc| lc,
+    );
+    let authenticated_prior_value_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_authenticated_prior_value_gate"),
+        &proof_begin_record_end,
+        &prior_value_present_state,
+    )?;
+    let mut prior_value_hash_bytes = Vec::with_capacity(32);
+    for word in 0..8 {
+        let mut bytes = decompose_le_bytes(
+            cs.namespace(|| format!("jmt_prior_value_hash_word_{word}_bytes")),
+            &z[JMT_PRIOR_VALUE_HASH_START + word],
+            4,
+            "jmt_prior_value_hash_word",
+        )?;
+        bytes.reverse();
+        prior_value_hash_bytes.extend(bytes);
+    }
+    for (index, byte) in prior_value_hash_bytes.iter().enumerate() {
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_prior_value_hash_matches_old_leaf_{index}")),
+            &authenticated_prior_value_gate,
+            byte,
+            &z[JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index],
+        );
+    }
+    let value_present_for_case = allocate_state_bit(
+        cs.namespace(|| "jmt_value_present_for_case"),
+        &z[JMT_MICRO_VALUE_PRESENT_CELL],
+    )?;
+    let leaf_key_differs = allocate_bit_not(
+        cs.namespace(|| "jmt_old_leaf_key_differs"),
+        &old_leaf_key_equals_operation,
+        "value",
+    )?;
+    let leaf_absent_for_case = allocate_bit_not(
+        cs.namespace(|| "jmt_leaf_absent_for_case"),
+        &leaf_present_for_case,
+        "value",
+    )?;
+    let value_absent_for_case = allocate_bit_not(
+        cs.namespace(|| "jmt_value_absent_for_case"),
+        &value_present_for_case,
+        "value",
+    )?;
+    let empty_insert = AllocatedBit::and(
+        cs.namespace(|| "jmt_empty_insert_shape"),
+        &value_present_for_case,
+        &leaf_absent_for_case,
+    )?;
+    let value_and_leaf = AllocatedBit::and(
+        cs.namespace(|| "jmt_value_and_leaf"),
+        &value_present_for_case,
+        &leaf_present_for_case,
+    )?;
+    let existing_update = AllocatedBit::and(
+        cs.namespace(|| "jmt_existing_update_shape"),
+        &value_and_leaf,
+        &old_leaf_key_equals_operation,
+    )?;
+    let split_insert = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_insert_shape"),
+        &value_and_leaf,
+        &leaf_key_differs,
+    )?;
+    let delete_leaf = AllocatedBit::and(
+        cs.namespace(|| "jmt_delete_leaf_shape_0"),
+        &value_absent_for_case,
+        &leaf_present_for_case,
+    )?;
+    let delete_leaf = AllocatedBit::and(
+        cs.namespace(|| "jmt_delete_leaf_shape_1"),
+        &delete_leaf,
+        &old_leaf_key_equals_operation,
+    )?;
+    let delete_case = allocate_bit_or(
+        cs.namespace(|| "jmt_delete_case_0"),
+        &mutation_case_selectors[3],
+        &mutation_case_selectors[4],
+        "value",
+    )?;
+    let delete_case = allocate_bit_or(
+        cs.namespace(|| "jmt_delete_case_1"),
+        &delete_case,
+        &mutation_case_selectors[5],
+        "value",
+    )?;
+    for (label, selected, shape) in [
+        ("empty_insert", &mutation_case_selectors[0], &empty_insert),
+        (
+            "existing_update",
+            &mutation_case_selectors[1],
+            &existing_update,
+        ),
+        ("split_insert", &mutation_case_selectors[2], &split_insert),
+        ("delete", &delete_case, &delete_leaf),
     ] {
-        range_bits(cs.namespace(|| label), value, bits)?;
+        cs.enforce(
+            || format!("jmt_{label}_case_shape"),
+            |lc| lc + proof_begin_record_end.get_variable(),
+            |lc| lc + selected.get_variable() - shape.get_variable(),
+            |lc| lc,
+        );
+    }
+    let inserting_proof_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_inserting_proof_end"),
+        &micro_kind_gates[7],
+        &inserting_case,
+    )?;
+    let delete_empty_proof_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_delete_empty_proof_end"),
+        &micro_kind_gates[7],
+        &mutation_case_selectors[3],
+    )?;
+    let delete_preserve_proof_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_delete_preserve_proof_end"),
+        &micro_kind_gates[7],
+        &mutation_case_selectors[4],
+    )?;
+    let delete_coalesce_proof_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_delete_coalesce_proof_end"),
+        &micro_kind_gates[7],
+        &mutation_case_selectors[5],
+    )?;
+    for (label, gate, started, coalesced) in [
+        ("inserting", &inserting_proof_end, 1_u64, 0_u64),
+        ("delete_empty", &delete_empty_proof_end, 0, 0),
+        ("delete_preserve", &delete_preserve_proof_end, 1, 0),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_{label}_parent_started")),
+            gate,
+            &z[JMT_MICRO_NEW_PARENT_STARTED_CELL],
+            started,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("jmt_{label}_coalesced_leaf")),
+            gate,
+            &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+            coalesced,
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_delete_coalesce_saw_leaf"),
+        &delete_coalesce_proof_end,
+        &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+        1,
+    );
+    enforce_num_at_most_constant(
+        cs.namespace(|| "jmt_split_count_bound"),
+        &z[JMT_MICRO_EXPECTED_SPLIT_CELL],
+        256,
+        9,
+        "jmt_split_count",
+    )?;
+    let split_count_zero = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "jmt_split_count_zero"),
+        &z[JMT_MICRO_EXPECTED_SPLIT_CELL],
+        &zero,
+    )?;
+    let split_case_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_split_case_gate"),
+        &proof_begin_record_end,
+        &mutation_case_selectors[2],
+    )?;
+    cs.enforce(
+        || "jmt_split_case_has_prelude",
+        |lc| lc + split_case_gate.get_variable(),
+        |lc| lc + split_count_zero.get_variable(),
+        |lc| lc,
+    );
+    let not_split_case = allocate_bit_not(
+        cs.namespace(|| "jmt_not_split_case"),
+        &mutation_case_selectors[2],
+        "value",
+    )?;
+    let not_split_gate = AllocatedBit::and(
+        cs.namespace(|| "jmt_not_split_case_gate"),
+        &proof_begin_record_end,
+        &not_split_case,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_non_split_has_no_prelude"),
+        &not_split_gate,
+        &z[JMT_MICRO_EXPECTED_SPLIT_CELL],
+        0,
+    );
+    let proof_stage_selectors = [0_u64, 1, 2]
+        .into_iter()
+        .map(|stage| {
+            let expected =
+                allocate_constant(cs.namespace(|| format!("jmt_proof_stage_{stage}")), stage)?;
+            nova_snark::gadgets::utils::alloc_num_equals(
+                cs.namespace(|| format!("jmt_proof_stage_is_{stage}")),
+                &z[JMT_MICRO_PROOF_STAGE_CELL],
+                &expected,
+            )
+        })
+        .collect::<Result<Vec<_>, SynthesisError>>()?;
+    enforce_selector_value(
+        &mut cs,
+        &z[JMT_MICRO_PROOF_STAGE_CELL],
+        &proof_stage_selectors,
+        |index| index as u64,
+        "jmt_proof_stage",
+    );
+    for (label, gate, stage) in [
+        ("operation_begin", &micro_kind_gates[1], 0_usize),
+        ("operation_value", &micro_kind_gates[2], 0),
+        ("proof_begin", &micro_kind_gates[3], 0),
+        ("sibling", &micro_kind_gates[6], 1),
+        ("split_sibling", &micro_kind_gates[8], 1),
+        ("proof_end", &micro_kind_gates[7], 1),
+        ("operation_end", &micro_kind_gates[4], 2),
+    ] {
+        cs.enforce(
+            || format!("jmt_{label}_proof_stage"),
+            |lc| lc + gate.get_variable(),
+            |lc| lc + proof_stage_selectors[stage].get_variable() - CS::one(),
+            |lc| lc,
+        );
     }
     enforce_gated_equal(
-        cs.namespace(|| "net_payload_width_is_canonical"),
-        &net_source_end,
-        &z[NET_PARSE_OFFSET_CELL],
-        &payload_width,
+        cs.namespace(|| "jmt_proof_end_has_all_siblings"),
+        &micro_kind_gates[7],
+        &z[JMT_MICRO_NEXT_SIBLING_CELL],
+        &z[JMT_MICRO_EXPECTED_SIBLING_CELL],
     );
-    Ok(NetMergePayloadOutputsV2 { cells })
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_proof_end_has_all_split_siblings"),
+        &micro_kind_gates[7],
+        &z[JMT_MICRO_NEXT_SPLIT_CELL],
+        &z[JMT_MICRO_EXPECTED_SPLIT_CELL],
+    );
+
+    // UpdateBegin/UpdateEnd surround zero or more complete operations; only
+    // Value/Proof may repeat inside one operation.
+    for (label, gate, expected_stage) in [
+        ("update_begin", &micro_kind_gates[0], 0_usize),
+        ("operation_begin", &micro_kind_gates[1], 1),
+        ("operation_value", &micro_kind_gates[2], 2),
+        ("operation_proof", &micro_kind_gates[3], 2),
+        ("operation_end", &micro_kind_gates[4], 2),
+        ("update_end", &micro_kind_gates[5], 1),
+        ("operation_sibling", &micro_kind_gates[6], 2),
+        ("operation_proof_end", &micro_kind_gates[7], 2),
+        ("operation_split_sibling", &micro_kind_gates[8], 2),
+    ] {
+        cs.enforce(
+            || format!("jmt_micro_{label}_stage"),
+            |lc| lc + gate.get_variable(),
+            |lc| lc + micro_stage_selectors[expected_stage].get_variable() - CS::one(),
+            |lc| lc,
+        );
+    }
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_micro_update_begin_index"),
+        &micro_kind_gates[0],
+        &update_index,
+        &z[JMT_MICRO_COMPLETED_UPDATE_CELL],
+    );
+    for (index, gate) in micro_kind_gates.iter().enumerate().skip(1) {
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_micro_update_index_matches_{index}")),
+            gate,
+            &update_index,
+            &z[JMT_MICRO_CURRENT_UPDATE_CELL],
+        );
+    }
+    for index in [1_usize, 2, 3, 4, 6, 7, 8] {
+        let gate = &micro_kind_gates[index];
+        enforce_gated_equal(
+            cs.namespace(|| format!("jmt_micro_operation_index_matches_{index}")),
+            gate,
+            &operation_index,
+            &z[JMT_MICRO_NEXT_OPERATION_CELL],
+        );
+    }
+
+    let one_num = allocate_constant(cs.namespace(|| "jmt_micro_one"), 1)?;
+    let two_num = allocate_constant(cs.namespace(|| "jmt_micro_two"), 2)?;
+    let next_operation = allocate_incremented(
+        cs.namespace(|| "jmt_micro_next_operation_increment"),
+        &z[JMT_MICRO_NEXT_OPERATION_CELL],
+        "value",
+    )?;
+    let completed_update = allocate_incremented(
+        cs.namespace(|| "jmt_micro_completed_update_increment"),
+        &z[JMT_MICRO_COMPLETED_UPDATE_CELL],
+        "value",
+    )?;
+    let stage_after_update_begin = select_bit_num(
+        cs.namespace(|| "jmt_micro_stage_after_update_begin"),
+        &micro_kind_gates[0],
+        &one_num,
+        &z[JMT_MICRO_STAGE_CELL],
+        "value",
+    )?;
+    let stage_after_operation_begin = select_bit_num(
+        cs.namespace(|| "jmt_micro_stage_after_operation_begin"),
+        &micro_kind_gates[1],
+        &two_num,
+        &stage_after_update_begin,
+        "value",
+    )?;
+    let stage_after_operation_end = select_bit_num(
+        cs.namespace(|| "jmt_micro_stage_after_operation_end"),
+        &micro_kind_gates[4],
+        &one_num,
+        &stage_after_operation_begin,
+        "value",
+    )?;
+    let micro_stage = select_bit_num(
+        cs.namespace(|| "jmt_micro_stage_after_update_end"),
+        &micro_kind_gates[5],
+        &zero,
+        &stage_after_operation_end,
+        "value",
+    )?;
+    cells.push((JMT_MICRO_STAGE_CELL, micro_stage));
+    cells.push((
+        JMT_MICRO_CURRENT_UPDATE_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_micro_current_update_output"),
+            &micro_kind_gates[0],
+            &update_index,
+            &z[JMT_MICRO_CURRENT_UPDATE_CELL],
+            "value",
+        )?,
+    ));
+    let next_after_update_begin = select_bit_num(
+        cs.namespace(|| "jmt_micro_next_after_update_begin"),
+        &micro_kind_gates[0],
+        &zero,
+        &z[JMT_MICRO_NEXT_OPERATION_CELL],
+        "value",
+    )?;
+    let next_after_operation_end = select_bit_num(
+        cs.namespace(|| "jmt_micro_next_after_operation_end"),
+        &micro_kind_gates[4],
+        &next_operation,
+        &next_after_update_begin,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_NEXT_OPERATION_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_micro_next_after_update_end"),
+            &micro_kind_gates[5],
+            &zero,
+            &next_after_operation_end,
+            "value",
+        )?,
+    ));
+    cells.push((
+        JMT_MICRO_COMPLETED_UPDATE_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_micro_completed_update_output"),
+            &micro_kind_gates[5],
+            &completed_update,
+            &z[JMT_MICRO_COMPLETED_UPDATE_CELL],
+            "value",
+        )?,
+    ));
+    for index in 0..32 {
+        let previous_after_operation = select_bit_num(
+            cs.namespace(|| format!("jmt_previous_operation_key_after_operation_{index}")),
+            &micro_kind_gates[4],
+            &z[JMT_MICRO_OPERATION_KEY_START + index],
+            &z[JMT_MICRO_PREVIOUS_OPERATION_KEY_START + index],
+            "value",
+        )?;
+        cells.push((
+            JMT_MICRO_PREVIOUS_OPERATION_KEY_START + index,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_previous_operation_key_after_update_{index}")),
+                &micro_kind_gates[5],
+                &zero,
+                &previous_after_operation,
+                "value",
+            )?,
+        ));
+    }
+    for word in 0..8 {
+        let prior_after_operation = select_bit_num(
+            cs.namespace(|| format!("jmt_prior_operation_root_after_operation_{word}")),
+            &micro_kind_gates[4],
+            &z[JMT_NEW_CURRENT_HASH_START + word],
+            &z[JMT_MICRO_PRIOR_OPERATION_ROOT_START + word],
+            "value",
+        )?;
+        cells.push((
+            JMT_MICRO_PRIOR_OPERATION_ROOT_START + word,
+            select_bit_num(
+                cs.namespace(|| format!("jmt_prior_operation_root_after_update_{word}")),
+                &micro_kind_gates[5],
+                &zero,
+                &prior_after_operation,
+                "value",
+            )?,
+        ));
+    }
+
+    let proof_stage_after_begin = select_bit_num(
+        cs.namespace(|| "jmt_proof_stage_after_begin"),
+        &micro_kind_gates[3],
+        &one_num,
+        &z[JMT_MICRO_PROOF_STAGE_CELL],
+        "value",
+    )?;
+    let proof_stage_after_end = select_bit_num(
+        cs.namespace(|| "jmt_proof_stage_after_end"),
+        &micro_kind_gates[7],
+        &two_num,
+        &proof_stage_after_begin,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_PROOF_STAGE_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_proof_stage_after_operation_end"),
+            &micro_kind_gates[4],
+            &zero,
+            &proof_stage_after_end,
+            "value",
+        )?,
+    ));
+    let next_sibling_incremented = allocate_incremented(
+        cs.namespace(|| "jmt_next_sibling_incremented"),
+        &z[JMT_MICRO_NEXT_SIBLING_CELL],
+        "value",
+    )?;
+    let next_sibling_after_begin = select_bit_num(
+        cs.namespace(|| "jmt_next_sibling_after_begin"),
+        &micro_kind_gates[3],
+        &zero,
+        &z[JMT_MICRO_NEXT_SIBLING_CELL],
+        "value",
+    )?;
+    let next_sibling_after_record = select_bit_num(
+        cs.namespace(|| "jmt_next_sibling_after_record"),
+        &sibling_record_end,
+        &next_sibling_incremented,
+        &next_sibling_after_begin,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_NEXT_SIBLING_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_next_sibling_after_operation_end"),
+            &micro_kind_gates[4],
+            &zero,
+            &next_sibling_after_record,
+            "value",
+        )?,
+    ));
+    let next_split_incremented = allocate_incremented(
+        cs.namespace(|| "jmt_next_split_incremented"),
+        &z[JMT_MICRO_NEXT_SPLIT_CELL],
+        "value",
+    )?;
+    let next_split_after_begin = select_bit_num(
+        cs.namespace(|| "jmt_next_split_after_begin"),
+        &micro_kind_gates[3],
+        &zero,
+        &z[JMT_MICRO_NEXT_SPLIT_CELL],
+        "value",
+    )?;
+    let next_split_after_record = select_bit_num(
+        cs.namespace(|| "jmt_next_split_after_record"),
+        &split_record_end,
+        &next_split_incremented,
+        &next_split_after_begin,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_NEXT_SPLIT_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_next_split_after_operation_end"),
+            &micro_kind_gates[4],
+            &zero,
+            &next_split_after_record,
+            "value",
+        )?,
+    ));
+    let next_value_chunk = allocate_incremented(
+        cs.namespace(|| "jmt_next_value_chunk"),
+        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        "value",
+    )?;
+    let next_prior_value_chunk = allocate_incremented(
+        cs.namespace(|| "jmt_next_prior_value_chunk"),
+        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        "value",
+    )?;
+    let prior_value_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_prior_value_record_end"),
+        &value_record_end,
+        &value_kind_is_prior_state,
+    )?;
+    let new_value_record_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_new_value_record_end"),
+        &value_record_end,
+        &value_kind_is_new_state,
+    )?;
+    let value_count_after_begin = select_bit_num(
+        cs.namespace(|| "jmt_value_count_after_begin"),
+        &operation_begin_record_end,
+        &expected_value_chunks,
+        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_VALUE_CHUNK_COUNT_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_value_count_after_operation_end"),
+            &micro_kind_gates[4],
+            &zero,
+            &value_count_after_begin,
+            "value",
+        )?,
+    ));
+    let prior_value_count_after_begin = select_bit_num(
+        cs.namespace(|| "jmt_prior_value_count_after_begin"),
+        &operation_begin_record_end,
+        &expected_prior_value_chunks,
+        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_prior_value_count_after_operation_end"),
+            &micro_kind_gates[4],
+            &zero,
+            &prior_value_count_after_begin,
+            "value",
+        )?,
+    ));
+    let value_next_after_begin = select_bit_num(
+        cs.namespace(|| "jmt_value_next_after_begin"),
+        &operation_begin_record_end,
+        &zero,
+        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        "value",
+    )?;
+    let value_next_after_record = select_bit_num(
+        cs.namespace(|| "jmt_value_next_after_record"),
+        &new_value_record_end,
+        &next_value_chunk,
+        &value_next_after_begin,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_VALUE_NEXT_CHUNK_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_value_next_after_operation_end"),
+            &micro_kind_gates[4],
+            &zero,
+            &value_next_after_record,
+            "value",
+        )?,
+    ));
+    let prior_value_next_after_begin = select_bit_num(
+        cs.namespace(|| "jmt_prior_value_next_after_begin"),
+        &operation_begin_record_end,
+        &zero,
+        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        "value",
+    )?;
+    let prior_value_next_after_record = select_bit_num(
+        cs.namespace(|| "jmt_prior_value_next_after_record"),
+        &prior_value_record_end,
+        &next_prior_value_chunk,
+        &prior_value_next_after_begin,
+        "value",
+    )?;
+    cells.push((
+        JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL,
+        select_bit_num(
+            cs.namespace(|| "jmt_prior_value_next_after_operation_end"),
+            &micro_kind_gates[4],
+            &zero,
+            &prior_value_next_after_record,
+            "value",
+        )?,
+    ));
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_proof_begin_requires_all_value_records"),
+        &micro_kind_gates[3],
+        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_proof_begin_requires_all_prior_value_records"),
+        &micro_kind_gates[3],
+        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "jmt_update_end_operation_count"),
+        &micro_kind_gates[5],
+        &z[JMT_MICRO_NEXT_OPERATION_CELL],
+        &z[JMT_MICRO_EXPECTED_OPERATION_CELL],
+    );
+    for word in 0..8 {
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("jmt_update_new_root_matches_operations_{word}")),
+            &micro_kind_gates[5],
+            &source_hash_word_lc(&z[JMT_MICRO_NEW_ROOT_START..JMT_MICRO_NEW_ROOT_END], word),
+            &z[JMT_MICRO_PRIOR_OPERATION_ROOT_START + word],
+        );
+    }
+
+    enforce_gated_constant(
+        cs.namespace(|| "promote_requires_closed_jmt_micro_machine"),
+        promote_source,
+        &z[JMT_MICRO_STAGE_CELL],
+        0,
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "promote_requires_all_jmt_updates"),
+        promote_source,
+        &z[JMT_MICRO_COMPLETED_UPDATE_CELL],
+        &z[ANCHOR_SEMANTIC_COUNT_START + 5],
+    );
+
+    let promote_needs_chunk_zero = AllocatedBit::and(
+        cs.namespace(|| "promote_needs_chunk_zero"),
+        &promote_chunk,
+        &hierarchy_progress_selectors[0],
+    )?;
+    let promote_needs_chunk_one = AllocatedBit::and(
+        cs.namespace(|| "promote_needs_chunk_one"),
+        &promote_chunk,
+        &hierarchy_progress_selectors[1],
+    )?;
+    cs.enforce(
+        || "promote_starts_in_first_chunk",
+        |lc| lc + promote_needs_chunk_zero.get_variable(),
+        |lc| lc + chunk_is_zero.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    cs.enforce(
+        || "promote_finishes_in_second_chunk",
+        |lc| lc + promote_needs_chunk_one.get_variable(),
+        |lc| lc + chunk_is_one.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    let promote_chunk_zero = AllocatedBit::and(
+        cs.namespace(|| "promote_chunk_zero"),
+        &promote_needs_chunk_zero,
+        &chunk_is_zero,
+    )?;
+    let promote_chunk_one = AllocatedBit::and(
+        cs.namespace(|| "promote_chunk_one"),
+        &promote_needs_chunk_one,
+        &chunk_is_one,
+    )?;
+    for (gate, byte_count) in [(&promote_chunk_zero, 64_u64), (&promote_chunk_one, 46_u64)] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("promote_byte_count_{byte_count}")),
+            gate,
+            &trace_chunk.byte_count,
+            byte_count,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("promote_chunk_count_{byte_count}")),
+            gate,
+            &trace_chunk.chunk_count,
+            2,
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "promote_version"),
+        &promote_chunk_zero,
+        &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2],
+        u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2),
+    );
+    let hierarchy_after_zero = select_bit_num(
+        cs.namespace(|| "hierarchy_progress_after_zero"),
+        &promote_chunk_zero,
+        &chunk_one,
+        &z[HIERARCHY_PROGRESS_CELL],
+        "value",
+    )?;
+    let hierarchy_progress = select_bit_num(
+        cs.namespace(|| "hierarchy_progress_after_one"),
+        &promote_chunk_one,
+        &chunk_two,
+        &hierarchy_after_zero,
+        "value",
+    )?;
+    cells.push((HIERARCHY_PROGRESS_CELL, hierarchy_progress));
+    let kind_is_mutating = allocate_bit_not(
+        cs.namespace(|| "jmt_kind_is_mutating"),
+        &kind_is_noop,
+        "value",
+    )?;
+    let completed_hierarchy_stage = allocate_bit_or(
+        cs.namespace(|| "completed_hierarchy_stage"),
+        &hierarchy_stage_selectors[4],
+        &hierarchy_stage_selectors[5],
+        "value",
+    )?;
+    let mutating_promote_source = AllocatedBit::and(
+        cs.namespace(|| "mutating_promote_source"),
+        promote_source,
+        &kind_is_mutating,
+    )?;
+    cs.enforce(
+        || "mutating_promote_requires_definition_stage",
+        |lc| lc + mutating_promote_source.get_variable(),
+        |lc| lc + completed_hierarchy_stage.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    for level in 0..HIERARCHY_PRODUCT_LEVELS {
+        enforce_gated_equal(
+            cs.namespace(|| format!("hierarchy_level_{level}_child_parent_count")),
+            &mutating_promote_source,
+            &hierarchy_child_counts[level],
+            &hierarchy_parent_counts[level],
+        );
+        for pair in 0..HIERARCHY_PRODUCT_PAIRS {
+            let offset = level * HIERARCHY_PRODUCT_PAIRS + pair;
+            enforce_gated_equal(
+                cs.namespace(|| format!("hierarchy_level_{level}_child_parent_product_{pair}")),
+                &mutating_promote_source,
+                &hierarchy_child_products[offset],
+                &hierarchy_parent_products[offset],
+            );
+        }
+    }
+    let noop_promote_source = AllocatedBit::and(
+        cs.namespace(|| "noop_promote_source"),
+        promote_source,
+        &kind_is_noop,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "noop_promote_requires_empty_hierarchy_stage"),
+        &noop_promote_source,
+        &z[HIERARCHY_STAGE_CELL],
+        0,
+    );
+    for limb in 0..DIGEST_LIMBS {
+        let (gate, low, high) = if limb < 9 {
+            let offset = TRACE_EVENT_HEADER_BYTES_V2 + 1 + limb * 2;
+            (
+                &promote_chunk_zero,
+                &trace_chunk.bytes[offset],
+                &trace_chunk.bytes[offset + 1],
+            )
+        } else {
+            let offset = (limb - 9) * 2;
+            (
+                &promote_chunk_one,
+                &trace_chunk.bytes[offset],
+                &trace_chunk.bytes[offset + 1],
+            )
+        };
+        let parsed = allocate_u16_from_le_bytes(
+            cs.namespace(|| format!("definition_root_{limb}")),
+            low,
+            high,
+            &format!("definition_root_{limb}"),
+        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("promote_root_matches_public_input_{limb}")),
+            gate,
+            &parsed,
+            &z[EXPECTED_POST_DEFINITION_ROOT_START + limb],
+        );
+        let mutating_promote_chunk = AllocatedBit::and(
+            cs.namespace(|| format!("mutating_promote_root_chunk_{limb}")),
+            gate,
+            &kind_is_mutating,
+        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("promote_root_matches_verified_definition_{limb}")),
+            &mutating_promote_chunk,
+            &parsed,
+            &z[HIERARCHY_DEFINITION_ROOT_START + limb],
+        );
+        let noop_promote_chunk = AllocatedBit::and(
+            cs.namespace(|| format!("noop_promote_root_chunk_{limb}")),
+            gate,
+            &kind_is_noop,
+        )?;
+        cells.push((
+            HIERARCHY_DEFINITION_ROOT_START + limb,
+            select_bit_num(
+                cs.namespace(|| format!("definition_root_{limb}_output")),
+                &noop_promote_chunk,
+                &parsed,
+                &hierarchy_definition_after_update[limb],
+                "value",
+            )?,
+        ));
+    }
+    for limb in 0..DIGEST_LIMBS {
+        let offset = 14 + limb * 2;
+        let parsed = allocate_u16_from_le_bytes(
+            cs.namespace(|| format!("promote_trace_digest_{limb}")),
+            &trace_chunk.bytes[offset],
+            &trace_chunk.bytes[offset + 1],
+            &format!("promote_trace_digest_{limb}"),
+        )?;
+        enforce_gated_equal(
+            cs.namespace(|| format!("promote_trace_digest_{limb}_matches_envelope")),
+            &promote_chunk_one,
+            &parsed,
+            &z[JMT_TRACE_DIGEST_START + limb],
+        );
+    }
+
+    let source_end = AllocatedBit::and(
+        cs.namespace(|| "source_end"),
+        control.end_selector(),
+        control.source_schema_selector(),
+    )?;
+    let promote_source_end = AllocatedBit::and(
+        cs.namespace(|| "promote_source_end"),
+        &source_end,
+        &source_is_promote,
+    )?;
+    let jmt_source_end = AllocatedBit::and(
+        cs.namespace(|| "jmt_source_end"),
+        &source_end,
+        &source_is_jmt,
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "jmt_end_requires_complete_header"),
+        &jmt_source_end,
+        &z[JMT_HEADER_PROGRESS_CELL],
+        2,
+    );
+    let noop_source_end = AllocatedBit::and(
+        cs.namespace(|| "noop_jmt_source_end"),
+        &jmt_source_end,
+        &kind_is_noop,
+    )?;
+    let canonical_noop_record_bytes = allocate_constant(
+        cs.namespace(|| "canonical_noop_record_bytes"),
+        (TRACE_EVENT_HEADER_BYTES_V2 + 1 + 1 + 1 + 32 + 4) as u64,
+    )?;
+    enforce_gated_equal(
+        cs.namespace(|| "noop_jmt_has_no_trailing_update_bytes"),
+        &noop_source_end,
+        &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_CANONICAL_BYTES_OFFSET],
+        &canonical_noop_record_bytes,
+    );
+    for (limb, expected) in digest_limbs(noop_update_trace_digest())
+        .into_iter()
+        .enumerate()
+    {
+        enforce_gated_constant(
+            cs.namespace(|| format!("noop_jmt_trace_digest_{limb}")),
+            &noop_source_end,
+            &z[JMT_TRACE_DIGEST_START + limb],
+            u64::from(expected),
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "promote_end_requires_complete_payload"),
+        &promote_source_end,
+        &z[HIERARCHY_PROGRESS_CELL],
+        2,
+    );
+    Ok(JmtHierarchyPayloadOutputsV2 {
+        cells,
+        operation_end_row: micro_kind_gates[4].clone(),
+    })
+}
+
+struct NetJmtPermutationOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+}
+
+/// Bind every mutating Net row to exactly one terminal-tree JMT operation.
+///
+/// Net is globally sorted by terminal id, while the HJMT scheduler groups
+/// terminal operations by `(definition, serial, bucket)`.  Direct adjacency
+/// would therefore reject valid transitions.  The source precommit fixes all
+/// rows before the four SHA-derived challenges exist; two independent
+/// `(alpha, beta)` pairs then prove multiset equality for the complete fixed
+/// codec `definition || serial_le || terminal || old_hash || new_hash`.
+fn synthesize_net_jmt_permutation<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    opcode_selectors: &[AllocatedBit],
+    net: &NetMergePayloadOutputsV2,
+    jmt: &JmtHierarchyPayloadOutputsV2,
+) -> Result<NetJmtPermutationOutputsV2, SynthesisError> {
+    let selector = |opcode: RecursiveTraceOpcodeV2| {
+        opcode_selectors
+            .get(usize::from(opcode as u8).saturating_sub(1))
+            .ok_or_else(|| SynthesisError::Unsatisfiable("Net/JMT selector missing".to_owned()))
+    };
+    let challenge_source = selector(RecursiveTraceOpcodeV2::UniquenessChallenge)?;
+    let promote_source = selector(RecursiveTraceOpcodeV2::PromoteChildRoot)?;
+    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
+    let one = allocate_constant(cs.namespace(|| "one"), 1)?;
+
+    for state_index in NET_JMT_NET_PRODUCT_START..NET_JMT_STATE_END {
+        enforce_gated_constant(
+            cs.namespace(|| format!("challenge_requires_clean_state_{state_index}")),
+            challenge_source,
+            &z[state_index],
+            0,
+        );
+    }
+
+    let terminal_tag = allocate_constant(cs.namespace(|| "terminal_tree_tag"), 4)?;
+    let terminal_tree = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "terminal_tree"),
+        &z[JMT_MICRO_TREE_TAG_CELL],
+        &terminal_tag,
+    )?;
+    let terminal_operation = AllocatedBit::and(
+        cs.namespace(|| "terminal_operation_end"),
+        &jmt.operation_end_row,
+        &terminal_tree,
+    )?;
+
+    let mut jmt_bytes = Vec::with_capacity(NET_JMT_ROW_BYTES);
+    jmt_bytes.extend_from_slice(&z[JMT_MICRO_TREE_DEFINITION_START..JMT_MICRO_TREE_DEFINITION_END]);
+    jmt_bytes.extend(decompose_le_bytes(
+        cs.namespace(|| "terminal_tree_serial_bytes"),
+        &z[JMT_MICRO_TREE_SERIAL_CELL],
+        4,
+        "terminal_tree_serial",
+    )?);
+    jmt_bytes.extend_from_slice(&z[JMT_MICRO_OPERATION_KEY_START..JMT_MICRO_OPERATION_KEY_END]);
+    let prior_present = allocate_state_bit(
+        cs.namespace(|| "prior_value_present"),
+        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+    )?;
+    let value_present = allocate_state_bit(
+        cs.namespace(|| "value_present"),
+        &z[JMT_MICRO_VALUE_PRESENT_CELL],
+    )?;
+    for (label, start, present) in [
+        ("prior", JMT_PRIOR_VALUE_HASH_START, &prior_present),
+        ("new", JMT_VALUE_HASH_START, &value_present),
+    ] {
+        for word in 0..8 {
+            let mut bytes = decompose_le_bytes(
+                cs.namespace(|| format!("{label}_hash_word_{word}")),
+                &z[start + word],
+                4,
+                &format!("{label}_hash_word_{word}"),
+            )?;
+            bytes.reverse();
+            for (byte_index, byte) in bytes.into_iter().enumerate() {
+                jmt_bytes.push(select_bit_num(
+                    cs.namespace(|| format!("{label}_hash_word_{word}_byte_{byte_index}")),
+                    present,
+                    &byte,
+                    &zero,
+                    "value",
+                )?);
+            }
+        }
+    }
+    if net.mutation_bytes.len() != NET_JMT_ROW_BYTES || jmt_bytes.len() != NET_JMT_ROW_BYTES {
+        return Err(SynthesisError::Unsatisfiable(
+            "Net/JMT permutation row width mismatch".to_owned(),
+        ));
+    }
+
+    // Pair zero uses the spent challenge domain and pair one uses the output
+    // challenge domain.  Both domains are fixed by the same precommit but are
+    // derived with distinct SHA role bytes.
+    let challenge_layout = [(0_usize, 1_usize), (4_usize, 5_usize)];
+    let mut net_products = Vec::with_capacity(challenge_layout.len());
+    let mut jmt_products = Vec::with_capacity(challenge_layout.len());
+    for (pair, (alpha_index, beta_index)) in challenge_layout.into_iter().enumerate() {
+        let alpha = allocate_uniqueness_challenge(
+            cs.namespace(|| format!("pair_{pair}_alpha")),
+            z,
+            alpha_index,
+        )?;
+        let beta = allocate_uniqueness_challenge(
+            cs.namespace(|| format!("pair_{pair}_beta")),
+            z,
+            beta_index,
+        )?;
+        let net_encoded = allocate_fixed_byte_polynomial(
+            cs.namespace(|| format!("pair_{pair}_net_row")),
+            &beta,
+            &net.mutation_bytes,
+        )?;
+        let jmt_encoded = allocate_fixed_byte_polynomial(
+            cs.namespace(|| format!("pair_{pair}_jmt_row")),
+            &beta,
+            &jmt_bytes,
+        )?;
+        let net_factor = allocate_grand_product_factor(
+            cs.namespace(|| format!("pair_{pair}_net_factor")),
+            &alpha,
+            &net_encoded,
+        )?;
+        let jmt_factor = allocate_grand_product_factor(
+            cs.namespace(|| format!("pair_{pair}_jmt_factor")),
+            &alpha,
+            &jmt_encoded,
+        )?;
+        let net_prior = select_bit_num(
+            cs.namespace(|| format!("pair_{pair}_net_initialize")),
+            challenge_source,
+            &one,
+            &z[NET_JMT_NET_PRODUCT_START + pair],
+            "value",
+        )?;
+        let jmt_prior = select_bit_num(
+            cs.namespace(|| format!("pair_{pair}_jmt_initialize")),
+            challenge_source,
+            &one,
+            &z[NET_JMT_JMT_PRODUCT_START + pair],
+            "value",
+        )?;
+        net_products.push(update_grand_product(
+            cs.namespace(|| format!("pair_{pair}_net_product")),
+            &net.mutation_row,
+            &net_prior,
+            &net_factor,
+        )?);
+        jmt_products.push(update_grand_product(
+            cs.namespace(|| format!("pair_{pair}_jmt_product")),
+            &terminal_operation,
+            &jmt_prior,
+            &jmt_factor,
+        )?);
+    }
+
+    let count_prior = select_bit_num(
+        cs.namespace(|| "terminal_operation_count_initialize"),
+        challenge_source,
+        &zero,
+        &z[NET_JMT_TERMINAL_OPERATION_COUNT_CELL],
+        "value",
+    )?;
+    let count_incremented = allocate_incremented(
+        cs.namespace(|| "terminal_operation_count_incremented"),
+        &count_prior,
+        "value",
+    )?;
+    range_bits(
+        cs.namespace(|| "terminal_operation_count_incremented_range"),
+        &count_incremented,
+        64,
+    )?;
+    let terminal_operation_count = select_bit_num(
+        cs.namespace(|| "terminal_operation_count"),
+        &terminal_operation,
+        &count_incremented,
+        &count_prior,
+        "value",
+    )?;
+
+    for pair in 0..challenge_layout.len() {
+        enforce_gated_equal(
+            cs.namespace(|| format!("pair_{pair}_net_equals_terminal_jmt")),
+            promote_source,
+            &net_products[pair],
+            &jmt_products[pair],
+        );
+    }
+    enforce_gated_equal(
+        cs.namespace(|| "terminal_operation_count_matches_net_mutations"),
+        promote_source,
+        &terminal_operation_count,
+        &z[NET_MUTATION_COUNT_CELL],
+    );
+
+    let mut cells = Vec::with_capacity(5);
+    for pair in 0..challenge_layout.len() {
+        cells.push((
+            NET_JMT_NET_PRODUCT_START + pair,
+            select_bit_num(
+                cs.namespace(|| format!("pair_{pair}_net_clear")),
+                promote_source,
+                &zero,
+                &net_products[pair],
+                "value",
+            )?,
+        ));
+        cells.push((
+            NET_JMT_JMT_PRODUCT_START + pair,
+            select_bit_num(
+                cs.namespace(|| format!("pair_{pair}_jmt_clear")),
+                promote_source,
+                &zero,
+                &jmt_products[pair],
+                "value",
+            )?,
+        ));
+    }
+    cells.push((
+        NET_JMT_TERMINAL_OPERATION_COUNT_CELL,
+        select_bit_num(
+            cs.namespace(|| "terminal_operation_count_clear"),
+            promote_source,
+            &zero,
+            &terminal_operation_count,
+            "value",
+        )?,
+    ));
+    Ok(NetJmtPermutationOutputsV2 { cells })
 }
 
 struct ShaCompressionOutputsV2 {
@@ -5361,7 +14683,7 @@ fn synthesize_sha_compression_lane<CS: ConstraintSystem<Scalar>>(
     control: &AllocatedHashControlV2,
     witness: &ShaCompressionLaneWitnessV2,
 ) -> Result<ShaCompressionOutputsV2, SynthesisError> {
-    let lane_ordinal = allocate_constant(cs.namespace(|| "ordinal"), witness.ordinal)?;
+    let lane_ordinal = allocate_witness_u64(cs.namespace(|| "ordinal"), witness.ordinal)?;
     enforce_inactive_zero(
         cs.namespace(|| "inactive_ordinal_zero"),
         sha_block_selector,
@@ -5369,10 +14691,19 @@ fn synthesize_sha_compression_lane<CS: ConstraintSystem<Scalar>>(
     );
     let source_block_index = &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
     let trace_block_index = &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
+    let uniqueness_list_block_index =
+        &z[UNIQUENESS_LIST_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
+    let uniqueness_transcript_block_index =
+        &z[UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
     let selected_block_index = select_hash_schema_value(
         cs.namespace(|| "selected_context_block_index"),
         &control.schema_selectors,
-        [source_block_index, trace_block_index],
+        [
+            source_block_index,
+            trace_block_index,
+            uniqueness_list_block_index,
+            uniqueness_transcript_block_index,
+        ],
     )?;
     enforce_gated_equal(
         cs.namespace(|| "active_ordinal_matches_selected_context"),
@@ -5386,7 +14717,7 @@ fn synthesize_sha_compression_lane<CS: ConstraintSystem<Scalar>>(
         .zip(witness.block)
         .enumerate()
     {
-        let byte = allocate_constant(
+        let byte = allocate_witness_u64(
             cs.namespace(|| format!("block_byte_{index}")),
             u64::from(byte),
         )?;
@@ -5411,7 +14742,7 @@ fn synthesize_sha_compression_lane<CS: ConstraintSystem<Scalar>>(
         .zip(witness.chaining_after)
         .enumerate()
     {
-        let before = allocate_constant(
+        let before = allocate_witness_u64(
             cs.namespace(|| format!("chaining_before_{index}")),
             u64::from(before),
         )?;
@@ -5424,10 +14755,19 @@ fn synthesize_sha_compression_lane<CS: ConstraintSystem<Scalar>>(
             &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_CHAINING_START_OFFSET + index];
         let trace_chain =
             &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_CHAINING_START_OFFSET + index];
+        let uniqueness_list_chain =
+            &z[UNIQUENESS_LIST_BYTE_CONTEXT_START + BYTE_CONTEXT_CHAINING_START_OFFSET + index];
+        let uniqueness_transcript_chain = &z
+            [UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START + BYTE_CONTEXT_CHAINING_START_OFFSET + index];
         let selected_chain = select_hash_schema_value(
             cs.namespace(|| format!("selected_context_chaining_{index}")),
             &control.schema_selectors,
-            [source_chain, trace_chain],
+            [
+                source_chain,
+                trace_chain,
+                uniqueness_list_chain,
+                uniqueness_transcript_chain,
+            ],
         )?;
         enforce_gated_equal(
             cs.namespace(|| format!("active_chaining_before_matches_context_{index}")),
@@ -5441,7 +14781,7 @@ fn synthesize_sha_compression_lane<CS: ConstraintSystem<Scalar>>(
             &before,
         )?);
 
-        let after = allocate_constant(
+        let after = allocate_witness_u64(
             cs.namespace(|| format!("chaining_after_{index}")),
             u64::from(after),
         )?;
@@ -5483,6 +14823,1649 @@ struct HashScheduleOutputsV2 {
     source_trace_ordinal: AllocatedNum<Scalar>,
     source_trace_byte_count: AllocatedNum<Scalar>,
     cells: Vec<(usize, AllocatedNum<Scalar>)>,
+}
+
+/// Successors for the four first-pass identifier-list SHA transcripts.
+///
+/// The native expander supplies only the inspected SHA controls.  This
+/// relation reconstructs every role prefix and length prefix, appends the
+/// identifier bytes decoded from the authenticated `UniquenessSorted` rows,
+/// and binds the final chaining state to the corresponding precommit digest.
+/// No native hash verdict or alternate identifier tape is admitted.
+struct UniquenessListHashOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+}
+
+fn synthesize_uniqueness_list_hash_context<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    event_ordinal: &AllocatedNum<Scalar>,
+    opcode_selectors: &[AllocatedBit],
+    control: &AllocatedHashControlV2,
+    sorted: &UniquenessSortedPayloadOutputsV2,
+    sha: &ShaCompressionOutputsV2,
+) -> Result<UniquenessListHashOutputsV2, SynthesisError> {
+    let start = UNIQUENESS_LIST_BYTE_CONTEXT_START;
+    let schema = control.uniqueness_list_schema_selector();
+    let begin = AllocatedBit::and(
+        cs.namespace(|| "uniqueness_list_begin"),
+        control.begin_selector(),
+        schema,
+    )?;
+    let block = AllocatedBit::and(
+        cs.namespace(|| "uniqueness_list_block"),
+        control.block_selector(),
+        schema,
+    )?;
+    let end = AllocatedBit::and(
+        cs.namespace(|| "uniqueness_list_end"),
+        control.end_selector(),
+        schema,
+    )?;
+    let challenge_source = opcode_selectors
+        .get(usize::from(
+            RecursiveTraceOpcodeV2::UniquenessChallenge as u8 - 1,
+        ))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("uniqueness challenge opcode selector missing".to_owned())
+        })?;
+    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
+    let one = allocate_constant(cs.namespace(|| "one"), 1)?;
+
+    let job_value = control.uniqueness_list_job.get_value().map(scalar_u64);
+    let mut job_selectors = Vec::with_capacity(UniquenessListHashJobV2::ALL.len());
+    for job in UniquenessListHashJobV2::ALL {
+        job_selectors.push(AllocatedBit::alloc(
+            cs.namespace(|| format!("job_selector_{}", job as u8)),
+            job_value.map(|current| current == u64::from(job as u8)),
+        )?);
+    }
+    enforce_selector_value(
+        &mut cs,
+        &control.uniqueness_list_job,
+        &job_selectors,
+        |index| index as u64,
+        "uniqueness_list_job",
+    );
+    let mut job_schema_gates = Vec::with_capacity(job_selectors.len());
+    for (index, selector) in job_selectors.iter().enumerate() {
+        job_schema_gates.push(AllocatedBit::and(
+            cs.namespace(|| format!("job_schema_gate_{index}")),
+            schema,
+            selector,
+        )?);
+    }
+
+    let spent_count = nova_snark::frontend::LinearCombination::zero()
+        + z[PRECOMMIT_SPENT_COUNT_LIMB_START].get_variable()
+        + (
+            Scalar::from(1_u64 << 16),
+            z[PRECOMMIT_SPENT_COUNT_LIMB_START + 1].get_variable(),
+        );
+    let output_count = nova_snark::frontend::LinearCombination::zero()
+        + z[PRECOMMIT_OUTPUT_COUNT_LIMB_START].get_variable()
+        + (
+            Scalar::from(1_u64 << 16),
+            z[PRECOMMIT_OUTPUT_COUNT_LIMB_START + 1].get_variable(),
+        );
+    let digest_offsets = [0_usize, DIGEST_LIMBS * 2, DIGEST_LIMBS, DIGEST_LIMBS * 3];
+    for (job_index, gate) in job_schema_gates.iter().enumerate() {
+        let expected_count = if matches!(job_index, 0 | 2) {
+            &spent_count
+        } else {
+            &output_count
+        };
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("job_{job_index}_count_matches_precommit")),
+            gate,
+            expected_count,
+            &control.uniqueness_list_count,
+        );
+        for (limb, actual) in control.source_hash_limbs.iter().enumerate() {
+            enforce_gated_equal(
+                cs.namespace(|| format!("job_{job_index}_digest_limb_{limb}")),
+                gate,
+                actual,
+                &z[PRECOMMIT_DIGEST_LIMB_START + digest_offsets[job_index] + limb],
+            );
+        }
+    }
+
+    // The uniqueness controls are derived inside the sole live whole-trace
+    // transcript. Their synthetic source ordinal is fixed after the source
+    // event count and cannot be chosen independently by the prover.
+    enforce_gated_equal(
+        cs.namespace(|| "trace_event_count_matches_global_context"),
+        schema,
+        &control.trace_event_count,
+        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_CHUNK_COUNT_OFFSET],
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "uniqueness_list_requires_global_context"),
+        schema,
+        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_ACTIVE_OFFSET],
+        1,
+    );
+    cs.enforce(
+        || "synthetic_source_ordinal",
+        |lc| lc + schema.get_variable(),
+        |lc| {
+            lc + control.source_ordinal.get_variable()
+                - control.trace_event_count.get_variable()
+                - control.uniqueness_list_job.get_variable()
+                - CS::one()
+        },
+        |lc| lc,
+    );
+
+    let prefixes = UniquenessListHashJobV2::ALL
+        .map(|job| CheckpointSha256BlockStreamV2::framed_role_prefix(job.role()));
+    let maximum_static_len = prefixes
+        .iter()
+        .map(|prefix| prefix.len() + 12)
+        .max()
+        .ok_or_else(|| SynthesisError::Unsatisfiable("missing uniqueness SHA role".to_owned()))?;
+    if maximum_static_len > BYTE_CONTEXT_BUFFER_BYTES {
+        return Err(SynthesisError::Unsatisfiable(
+            "uniqueness SHA framing exceeds fixed context".to_owned(),
+        ));
+    }
+    let count_bytes = decompose_le_bytes(
+        cs.namespace(|| "uniqueness_list_count_bytes"),
+        &control.uniqueness_list_count,
+        4,
+        "uniqueness_list_count",
+    )?;
+    let static_len = AllocatedNum::alloc(cs.namespace(|| "selected_static_length"), || {
+        let job = usize::try_from(scalar_u64(
+            control
+                .uniqueness_list_job
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        ))
+        .map_err(|_| SynthesisError::Unsatisfiable("uniqueness job overflow".to_owned()))?;
+        prefixes
+            .get(job)
+            .and_then(|prefix| u64::try_from(prefix.len() + 12).ok())
+            .map(Scalar::from)
+            .ok_or_else(|| SynthesisError::Unsatisfiable("uniqueness job missing".to_owned()))
+    })?;
+    for (job_index, selector) in job_selectors.iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("job_{job_index}_static_length")),
+            selector,
+            &static_len,
+            u64::try_from(prefixes[job_index].len() + 12).map_err(|_| {
+                SynthesisError::Unsatisfiable("uniqueness static length overflow".to_owned())
+            })?,
+        );
+    }
+    constrain_bounded_u8(
+        cs.namespace(|| "selected_static_length_bound"),
+        &static_len,
+        BYTE_CONTEXT_BUFFER_BYTES,
+    )?;
+
+    let count_value = control.uniqueness_list_count.get_value().map(scalar_u64);
+    let mut static_frame = Vec::with_capacity(maximum_static_len);
+    for byte_index in 0..maximum_static_len {
+        let byte = AllocatedNum::alloc(
+            cs.namespace(|| format!("static_frame_byte_{byte_index}")),
+            || {
+                let job = usize::try_from(scalar_u64(
+                    control
+                        .uniqueness_list_job
+                        .get_value()
+                        .ok_or(SynthesisError::AssignmentMissing)?,
+                ))
+                .map_err(|_| SynthesisError::Unsatisfiable("uniqueness job overflow".to_owned()))?;
+                let prefix = prefixes.get(job).ok_or_else(|| {
+                    SynthesisError::Unsatisfiable("uniqueness job missing".to_owned())
+                })?;
+                let value = if byte_index < prefix.len() {
+                    prefix[byte_index]
+                } else if byte_index < prefix.len() + 8 {
+                    4_u64.to_le_bytes()[byte_index - prefix.len()]
+                } else if byte_index < prefix.len() + 12 {
+                    let shift = (byte_index - prefix.len() - 8) * 8;
+                    ((count_value.ok_or(SynthesisError::AssignmentMissing)? >> shift) & 0xff) as u8
+                } else {
+                    0
+                };
+                Ok(Scalar::from(u64::from(value)))
+            },
+        )?;
+        range_bits(
+            cs.namespace(|| format!("static_frame_byte_{byte_index}_range")),
+            &byte,
+            8,
+        )?;
+        for (job_index, selector) in job_selectors.iter().enumerate() {
+            let prefix = &prefixes[job_index];
+            if byte_index < prefix.len() {
+                enforce_gated_constant(
+                    cs.namespace(|| format!("static_frame_job_{job_index}_byte_{byte_index}")),
+                    selector,
+                    &byte,
+                    u64::from(prefix[byte_index]),
+                );
+            } else if byte_index < prefix.len() + 8 {
+                enforce_gated_constant(
+                    cs.namespace(|| format!("static_frame_job_{job_index}_length_{byte_index}")),
+                    selector,
+                    &byte,
+                    u64::from(4_u64.to_le_bytes()[byte_index - prefix.len()]),
+                );
+            } else if byte_index < prefix.len() + 12 {
+                enforce_gated_equal(
+                    cs.namespace(|| format!("static_frame_job_{job_index}_count_{byte_index}")),
+                    selector,
+                    &byte,
+                    &count_bytes[byte_index - prefix.len() - 8],
+                );
+            } else {
+                enforce_gated_constant(
+                    cs.namespace(|| format!("static_frame_job_{job_index}_zero_{byte_index}")),
+                    selector,
+                    &byte,
+                    0,
+                );
+            }
+        }
+        static_frame.push(byte);
+    }
+
+    // Every list has one count part and `count` complete semantic-row parts.
+    cs.enforce(
+        || "uniqueness_list_message_geometry",
+        |lc| lc + schema.get_variable(),
+        |lc| {
+            lc + control.message_bytes.get_variable()
+                - static_len.get_variable()
+                - (
+                    Scalar::from((8 + UNIQUENESS_SEMANTIC_ROW_BYTES_V2) as u64),
+                    control.uniqueness_list_count.get_variable(),
+                )
+        },
+        |lc| lc,
+    );
+    let padding_bytes = AllocatedNum::alloc(cs.namespace(|| "padding_bytes"), || {
+        if schema.get_value() != Some(true) {
+            return Ok(Scalar::from(0_u64));
+        }
+        let blocks = scalar_u64(
+            control
+                .block_count
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let message = scalar_u64(
+            control
+                .message_bytes
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        blocks
+            .checked_mul(64)
+            .and_then(|value| value.checked_sub(message))
+            .and_then(|value| value.checked_sub(9))
+            .filter(|value| *value < 64)
+            .map(Scalar::from)
+            .ok_or_else(|| {
+                SynthesisError::Unsatisfiable("invalid uniqueness SHA geometry".to_owned())
+            })
+    })?;
+    range_bits(cs.namespace(|| "padding_bytes_range"), &padding_bytes, 6)?;
+    cs.enforce(
+        || "uniqueness_list_fips_geometry",
+        |lc| lc + schema.get_variable(),
+        |lc| {
+            lc + (Scalar::from(64_u64), control.block_count.get_variable())
+                - control.message_bytes.get_variable()
+                - padding_bytes.get_variable()
+                - (Scalar::from(9_u64), CS::one())
+        },
+        |lc| lc,
+    );
+
+    let context_job = &z[start + BYTE_CONTEXT_NEXT_CHUNK_OFFSET];
+    enforce_gated_equal(
+        cs.namespace(|| "begin_job_is_next_job"),
+        &begin,
+        &control.uniqueness_list_job,
+        &z[UNIQUENESS_LIST_NEXT_JOB_CELL],
+    );
+    for (label, selector) in [("block", &block), ("end", &end)] {
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_job_matches_context")),
+            selector,
+            &control.uniqueness_list_job,
+            context_job,
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "begin_requires_inactive_context"),
+        &begin,
+        &z[start + BYTE_CONTEXT_ACTIVE_OFFSET],
+        0,
+    );
+    for (label, selector) in [("block", &block), ("end", &end)] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("{label}_requires_active_context")),
+            selector,
+            &z[start + BYTE_CONTEXT_ACTIVE_OFFSET],
+            1,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("{label}_requires_started_context")),
+            selector,
+            &z[start + BYTE_CONTEXT_STARTED_OFFSET],
+            1,
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_message_matches_context")),
+            selector,
+            &control.message_bytes,
+            &z[start + BYTE_CONTEXT_MESSAGE_BYTES_OFFSET],
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_block_count_matches_context")),
+            selector,
+            &control.block_count,
+            &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_source_ordinal_matches_context")),
+            selector,
+            &control.source_ordinal,
+            &z[start + BYTE_CONTEXT_SOURCE_ORDINAL_OFFSET],
+        );
+    }
+    enforce_gated_hash_control_ordinal(
+        cs.namespace(|| "begin_control_ordinal"),
+        &begin,
+        event_ordinal,
+        &control.source_ordinal,
+        &zero,
+        false,
+    );
+    enforce_gated_hash_control_ordinal(
+        cs.namespace(|| "block_control_ordinal"),
+        &block,
+        event_ordinal,
+        &control.source_ordinal,
+        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        true,
+    );
+    enforce_gated_hash_control_ordinal(
+        cs.namespace(|| "end_control_ordinal"),
+        &end,
+        event_ordinal,
+        &control.source_ordinal,
+        &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
+        true,
+    );
+
+    let mut context_values = z[start..start + BYTE_CONTEXT_WIDTH].to_vec();
+    let iv = SHA256_IV_V2
+        .into_iter()
+        .enumerate()
+        .map(|(index, word)| {
+            allocate_constant(cs.namespace(|| format!("sha_iv_{index}")), u64::from(word))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let empty_list = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "empty_list"),
+        &control.uniqueness_list_count,
+        &zero,
+    )?;
+    let empty_list_num = bit_as_num(cs.namespace(|| "empty_list_num"), &empty_list, "value")?;
+    for offset in 0..BYTE_CONTEXT_WIDTH {
+        let state_index = start + offset;
+        let initial =
+            if offset == BYTE_CONTEXT_ACTIVE_OFFSET || offset == BYTE_CONTEXT_STARTED_OFFSET {
+                &one
+            } else if offset == BYTE_CONTEXT_SOURCE_ORDINAL_OFFSET {
+                &control.source_ordinal
+            } else if offset == BYTE_CONTEXT_CANONICAL_BYTES_OFFSET
+                || offset == BYTE_CONTEXT_CHUNK_COUNT_OFFSET
+            {
+                &control.uniqueness_list_count
+            } else if offset == BYTE_CONTEXT_MESSAGE_BYTES_OFFSET {
+                &control.message_bytes
+            } else if offset == BYTE_CONTEXT_NEXT_CHUNK_OFFSET {
+                &control.uniqueness_list_job
+            } else if offset == BYTE_CONTEXT_BUFFER_LEN_OFFSET {
+                &static_len
+            } else if offset == BYTE_CONTEXT_EOF_OFFSET {
+                &empty_list_num
+            } else if offset == BYTE_CONTEXT_BLOCK_COUNT_OFFSET {
+                &control.block_count
+            } else if (BYTE_CONTEXT_CHAINING_START_OFFSET..BYTE_CONTEXT_CHAINING_END_OFFSET)
+                .contains(&offset)
+            {
+                &iv[offset - BYTE_CONTEXT_CHAINING_START_OFFSET]
+            } else if (BYTE_CONTEXT_BUFFER_START_OFFSET..BYTE_CONTEXT_BUFFER_END_OFFSET)
+                .contains(&offset)
+            {
+                static_frame
+                    .get(offset - BYTE_CONTEXT_BUFFER_START_OFFSET)
+                    .unwrap_or(&zero)
+            } else {
+                &zero
+            };
+        context_values[offset] = select_bit_num(
+            cs.namespace(|| format!("begin_context_{offset}")),
+            &begin,
+            initial,
+            &z[state_index],
+            "value",
+        )?;
+    }
+
+    let commit_rows = [
+        &sorted.commit_original_spent_row,
+        &sorted.commit_original_output_row,
+        &sorted.commit_sorted_spent_row,
+        &sorted.commit_sorted_output_row,
+    ];
+    let commit_row_left = allocate_bit_or(
+        cs.namespace(|| "commit_row_left"),
+        commit_rows[0],
+        commit_rows[1],
+        "value",
+    )?;
+    let commit_row_right = allocate_bit_or(
+        cs.namespace(|| "commit_row_right"),
+        commit_rows[2],
+        commit_rows[3],
+        "value",
+    )?;
+    let commit_row = allocate_bit_or(
+        cs.namespace(|| "commit_row"),
+        &commit_row_left,
+        &commit_row_right,
+        "value",
+    )?;
+    for (job_index, row) in commit_rows.iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("commit_row_{job_index}_job")),
+            row,
+            context_job,
+            job_index as u64,
+        );
+    }
+    for (name, offset, expected) in [
+        ("active", BYTE_CONTEXT_ACTIVE_OFFSET, 1_u64),
+        ("started", BYTE_CONTEXT_STARTED_OFFSET, 1_u64),
+        ("eof", BYTE_CONTEXT_EOF_OFFSET, 0_u64),
+        ("pending", BYTE_CONTEXT_PENDING_OFFSET, 0_u64),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("commit_row_context_{name}")),
+            &commit_row,
+            &z[start + offset],
+            expected,
+        );
+    }
+    let semantic_part_bytes = UNIQUENESS_SEMANTIC_ROW_BYTES_V2 as u64;
+    let mut identifier_part = Vec::with_capacity(8 + UNIQUENESS_SEMANTIC_ROW_BYTES_V2);
+    for (index, byte) in semantic_part_bytes.to_le_bytes().into_iter().enumerate() {
+        identifier_part.push(allocate_constant(
+            cs.namespace(|| format!("identifier_length_byte_{index}")),
+            u64::from(byte),
+        )?);
+    }
+    identifier_part.extend(sorted.semantic_row_bytes.iter().cloned());
+    let identifier_part_len = allocate_constant(
+        cs.namespace(|| "identifier_part_len"),
+        (8 + UNIQUENESS_SEMANTIC_ROW_BYTES_V2) as u64,
+    )?;
+    let row_append = append_context_bytes(
+        cs.namespace(|| "identifier_append"),
+        z,
+        start,
+        &commit_row,
+        &identifier_part,
+        &identifier_part_len,
+        "identifier_append",
+    )?;
+    for (state_index, update) in row_append {
+        let offset = state_index - start;
+        context_values[offset] = select_bit_num(
+            cs.namespace(|| format!("identifier_append_output_{state_index}")),
+            &commit_row,
+            &update,
+            &context_values[offset],
+            "value",
+        )?;
+    }
+    let consumed_next = allocate_incremented(
+        cs.namespace(|| "consumed_identifier_count"),
+        &z[start + BYTE_CONTEXT_CONSUMED_BYTES_OFFSET],
+        "value",
+    )?;
+    range_bits(
+        cs.namespace(|| "consumed_identifier_count_range"),
+        &consumed_next,
+        32,
+    )?;
+    let consumed_all = nova_snark::gadgets::utils::alloc_num_equals(
+        cs.namespace(|| "consumed_all_identifiers"),
+        &consumed_next,
+        &z[start + BYTE_CONTEXT_CANONICAL_BYTES_OFFSET],
+    )?;
+    let consumed_all_num = bit_as_num(
+        cs.namespace(|| "consumed_all_identifiers_num"),
+        &consumed_all,
+        "value",
+    )?;
+    for (offset, update) in [
+        (BYTE_CONTEXT_CONSUMED_BYTES_OFFSET, consumed_next),
+        (BYTE_CONTEXT_EOF_OFFSET, consumed_all_num),
+    ] {
+        context_values[offset] = select_bit_num(
+            cs.namespace(|| format!("commit_row_counter_output_{offset}")),
+            &commit_row,
+            &update,
+            &context_values[offset],
+            "value",
+        )?;
+    }
+
+    let block_context = consume_context_block(
+        cs.namespace(|| "compression_block"),
+        z,
+        start,
+        &block,
+        false,
+        control,
+        sha,
+        "uniqueness_list",
+    )?;
+    for (state_index, update) in block_context {
+        let offset = state_index - start;
+        context_values[offset] = select_bit_num(
+            cs.namespace(|| format!("block_context_output_{state_index}")),
+            &block,
+            &update,
+            &context_values[offset],
+            "value",
+        )?;
+    }
+
+    for (name, offset, expected) in [
+        ("active", BYTE_CONTEXT_ACTIVE_OFFSET, 1_u64),
+        ("started", BYTE_CONTEXT_STARTED_OFFSET, 1_u64),
+        ("eof", BYTE_CONTEXT_EOF_OFFSET, 1_u64),
+        ("pending", BYTE_CONTEXT_PENDING_OFFSET, 0_u64),
+        ("buffer_len", BYTE_CONTEXT_BUFFER_LEN_OFFSET, 0_u64),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("end_context_{name}")),
+            &end,
+            &z[start + offset],
+            expected,
+        );
+    }
+    enforce_gated_equal(
+        cs.namespace(|| "end_consumed_exact_count"),
+        &end,
+        &z[start + BYTE_CONTEXT_CONSUMED_BYTES_OFFSET],
+        &z[start + BYTE_CONTEXT_CANONICAL_BYTES_OFFSET],
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "end_seen_all_blocks"),
+        &end,
+        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
+    );
+    for word_index in 0..8 {
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("end_digest_word_{word_index}")),
+            &end,
+            &source_hash_word_lc(&control.source_hash_bytes, word_index),
+            &z[start + BYTE_CONTEXT_CHAINING_START_OFFSET + word_index],
+        );
+    }
+    for (offset, value) in context_values.iter_mut().enumerate() {
+        *value = select_bit_num(
+            cs.namespace(|| format!("end_context_clear_{offset}")),
+            &end,
+            &zero,
+            value,
+            "value",
+        )?;
+    }
+
+    let next_job = allocate_incremented(
+        cs.namespace(|| "next_job_incremented"),
+        &z[UNIQUENESS_LIST_NEXT_JOB_CELL],
+        "value",
+    )?;
+    range_bits(cs.namespace(|| "next_job_incremented_range"), &next_job, 3)?;
+    let next_job_output = select_bit_num(
+        cs.namespace(|| "next_job_output"),
+        &end,
+        &next_job,
+        &z[UNIQUENESS_LIST_NEXT_JOB_CELL],
+        "value",
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "challenge_requires_all_list_hashes"),
+        challenge_source,
+        &z[UNIQUENESS_LIST_NEXT_JOB_CELL],
+        UniquenessListHashJobV2::ALL.len() as u64,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "challenge_requires_closed_list_context"),
+        challenge_source,
+        &z[start + BYTE_CONTEXT_ACTIVE_OFFSET],
+        0,
+    );
+
+    let mut cells = Vec::with_capacity(BYTE_CONTEXT_WIDTH + 1);
+    cells.push((UNIQUENESS_LIST_NEXT_JOB_CELL, next_job_output));
+    cells.extend(
+        context_values
+            .into_iter()
+            .enumerate()
+            .map(|(offset, value)| (start + offset, value)),
+    );
+    Ok(UniquenessListHashOutputsV2 { cells })
+}
+
+fn digest_limb_state_bytes<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    start: usize,
+    label: &str,
+) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+    let mut bytes = Vec::with_capacity(32);
+    for limb in 0..DIGEST_LIMBS {
+        bytes.extend(decompose_le_bytes(
+            cs.namespace(|| format!("{label}_limb_{limb}")),
+            &z[start + limb],
+            2,
+            &format!("{label}_limb_{limb}"),
+        )?);
+    }
+    Ok(bytes)
+}
+
+fn u64_state_bytes<CS: ConstraintSystem<Scalar>>(
+    cs: CS,
+    value: &AllocatedNum<Scalar>,
+    label: &str,
+) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+    decompose_le_bytes(cs, value, 8, label)
+}
+
+fn framed_transcript_parts<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    role: CheckpointShaRole,
+    parts: &[Vec<AllocatedNum<Scalar>>],
+    label: &str,
+) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
+    let prefix = CheckpointSha256BlockStreamV2::framed_role_prefix(role);
+    let capacity = prefix
+        .len()
+        .checked_add(parts.iter().try_fold(0_usize, |total, part| {
+            total
+                .checked_add(8)
+                .and_then(|value| value.checked_add(part.len()))
+                .ok_or_else(|| {
+                    SynthesisError::Unsatisfiable("transcript frame overflow".to_owned())
+                })
+        })?)
+        .ok_or_else(|| SynthesisError::Unsatisfiable("transcript frame overflow".to_owned()))?;
+    let mut message = Vec::with_capacity(capacity);
+    for (index, byte) in prefix.into_iter().enumerate() {
+        message.push(allocate_constant(
+            cs.namespace(|| format!("{label}_prefix_{index}")),
+            u64::from(byte),
+        )?);
+    }
+    for (part_index, part) in parts.iter().enumerate() {
+        let length = u64::try_from(part.len()).map_err(|_| {
+            SynthesisError::Unsatisfiable("transcript part length overflow".to_owned())
+        })?;
+        for (byte_index, byte) in length.to_le_bytes().into_iter().enumerate() {
+            message.push(allocate_constant(
+                cs.namespace(|| format!("{label}_part_{part_index}_length_{byte_index}")),
+                u64::from(byte),
+            )?);
+        }
+        message.extend(part.iter().cloned());
+    }
+    Ok(message)
+}
+
+struct UniquenessTranscriptHashOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+}
+
+fn synthesize_uniqueness_transcript_hash_context<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    event_ordinal: &AllocatedNum<Scalar>,
+    opcode_selectors: &[AllocatedBit],
+    control: &AllocatedHashControlV2,
+    sorted: &UniquenessSortedPayloadOutputsV2,
+    sha: &ShaCompressionOutputsV2,
+) -> Result<UniquenessTranscriptHashOutputsV2, SynthesisError> {
+    let start = UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START;
+    let schema = control.uniqueness_transcript_schema_selector();
+    let begin = AllocatedBit::and(
+        cs.namespace(|| "uniqueness_transcript_begin"),
+        control.begin_selector(),
+        schema,
+    )?;
+    let block = AllocatedBit::and(
+        cs.namespace(|| "uniqueness_transcript_block"),
+        control.block_selector(),
+        schema,
+    )?;
+    let end = AllocatedBit::and(
+        cs.namespace(|| "uniqueness_transcript_end"),
+        control.end_selector(),
+        schema,
+    )?;
+    let net_source = opcode_selectors
+        .get(usize::from(RecursiveTraceOpcodeV2::NetMerge as u8 - 1))
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("net merge opcode selector missing".to_owned())
+        })?;
+    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
+    let one = allocate_constant(cs.namespace(|| "one"), 1)?;
+
+    let job_value = control
+        .uniqueness_transcript_job
+        .get_value()
+        .map(scalar_u64);
+    let mut job_selectors = Vec::with_capacity(UniquenessTranscriptHashJobV2::ALL.len());
+    for job in UniquenessTranscriptHashJobV2::ALL {
+        job_selectors.push(AllocatedBit::alloc(
+            cs.namespace(|| format!("job_selector_{}", job as u8)),
+            job_value.map(|current| current == u64::from(job as u8)),
+        )?);
+    }
+    enforce_selector_value(
+        &mut cs,
+        &control.uniqueness_transcript_job,
+        &job_selectors,
+        |index| index as u64,
+        "uniqueness_transcript_job",
+    );
+    let mut job_schema_gates = Vec::with_capacity(job_selectors.len());
+    for (index, selector) in job_selectors.iter().enumerate() {
+        job_schema_gates.push(AllocatedBit::and(
+            cs.namespace(|| format!("job_schema_gate_{index}")),
+            schema,
+            selector,
+        )?);
+    }
+
+    for (job_index, gate) in job_schema_gates.iter().enumerate() {
+        let expected_start = match job_index {
+            0 => DIGEST_LIMBS * 13,
+            1 => DIGEST_LIMBS * 14,
+            2 => CHALLENGE_DIGEST_LIMB_START + DIGEST_LIMBS,
+            3 => CHALLENGE_DIGEST_LIMB_START + DIGEST_LIMBS * 2,
+            4..=11 => CHALLENGE_FULL_DIGEST_LIMB_START + (job_index - 4) * DIGEST_LIMBS,
+            12 => DIGEST_LIMBS * 4,
+            13 => continue,
+            _ => {
+                return Err(SynthesisError::Unsatisfiable(
+                    "transcript job binding is not exhaustive".to_owned(),
+                ))
+            }
+        };
+        for (limb, actual) in control.source_hash_limbs.iter().enumerate() {
+            enforce_gated_equal(
+                cs.namespace(|| format!("job_{job_index}_digest_limb_{limb}")),
+                gate,
+                actual,
+                &z[expected_start + limb],
+            );
+        }
+    }
+    let post_root_hex = raw_bytes_to_lower_hex_ascii(
+        cs.namespace(|| "settlement_post_control_hex"),
+        &control.source_hash_bytes,
+    )?;
+    for (index, byte) in post_root_hex.iter().enumerate() {
+        enforce_gated_equal(
+            cs.namespace(|| format!("settlement_post_control_binding_{index}")),
+            &job_schema_gates[UniquenessTranscriptHashJobV2::SettlementPostRoot as usize],
+            byte,
+            &z[FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + index],
+        );
+    }
+    for (limb, actual) in control.source_hash_limbs.iter().enumerate() {
+        enforce_gated_equal(
+            cs.namespace(|| format!("settlement_post_matches_public_input_{limb}")),
+            &job_schema_gates[UniquenessTranscriptHashJobV2::SettlementPostRoot as usize],
+            actual,
+            &z[EXPECTED_POST_SETTLEMENT_ROOT_START + limb],
+        );
+    }
+    enforce_gated_equal(
+        cs.namespace(|| "trace_event_count_matches_global_context"),
+        schema,
+        &control.trace_event_count,
+        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_CHUNK_COUNT_OFFSET],
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "uniqueness_transcript_requires_global_context"),
+        schema,
+        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_ACTIVE_OFFSET],
+        1,
+    );
+    cs.enforce(
+        || "synthetic_source_ordinal",
+        |lc| lc + schema.get_variable(),
+        |lc| {
+            lc + control.source_ordinal.get_variable()
+                - control.trace_event_count.get_variable()
+                - control.uniqueness_transcript_job.get_variable()
+                - (
+                    Scalar::from(1 + UniquenessListHashJobV2::ALL.len() as u64),
+                    CS::one(),
+                )
+        },
+        |lc| lc,
+    );
+
+    let context = digest_limb_state_bytes(
+        cs.namespace(|| "pre_uniqueness_context"),
+        z,
+        CHALLENGE_DIGEST_LIMB_START,
+        "pre_uniqueness_context",
+    )?;
+    let anchored_context = digest_limb_state_bytes(
+        cs.namespace(|| "anchored_pre_uniqueness_context"),
+        z,
+        DIGEST_LIMBS * 14,
+        "anchored_pre_uniqueness_context",
+    )?;
+    for (job_index, gate) in job_schema_gates.iter().enumerate().skip(2) {
+        for (index, (actual, anchored)) in context.iter().zip(anchored_context.iter()).enumerate() {
+            enforce_gated_equal(
+                cs.namespace(|| format!("job_{job_index}_challenge_context_anchor_{index}")),
+                gate,
+                actual,
+                anchored,
+            );
+        }
+    }
+    let spent_precommit = digest_limb_state_bytes(
+        cs.namespace(|| "spent_set_precommit"),
+        z,
+        CHALLENGE_DIGEST_LIMB_START + DIGEST_LIMBS,
+        "spent_set_precommit",
+    )?;
+    let output_precommit = digest_limb_state_bytes(
+        cs.namespace(|| "output_set_precommit"),
+        z,
+        CHALLENGE_DIGEST_LIMB_START + DIGEST_LIMBS * 2,
+        "output_set_precommit",
+    )?;
+    let spent_original = digest_limb_state_bytes(
+        cs.namespace(|| "spent_original_digest"),
+        z,
+        PRECOMMIT_DIGEST_LIMB_START,
+        "spent_original_digest",
+    )?;
+    let spent_sorted = digest_limb_state_bytes(
+        cs.namespace(|| "spent_sorted_digest"),
+        z,
+        PRECOMMIT_DIGEST_LIMB_START + DIGEST_LIMBS,
+        "spent_sorted_digest",
+    )?;
+    let output_original = digest_limb_state_bytes(
+        cs.namespace(|| "output_original_digest"),
+        z,
+        PRECOMMIT_DIGEST_LIMB_START + DIGEST_LIMBS * 2,
+        "output_original_digest",
+    )?;
+    let output_sorted = digest_limb_state_bytes(
+        cs.namespace(|| "output_sorted_digest"),
+        z,
+        PRECOMMIT_DIGEST_LIMB_START + DIGEST_LIMBS * 3,
+        "output_sorted_digest",
+    )?;
+    let mut spent_count = Vec::with_capacity(4);
+    let mut output_count = Vec::with_capacity(4);
+    for limb in 0..2 {
+        spent_count.extend(decompose_le_bytes(
+            cs.namespace(|| format!("spent_count_limb_{limb}")),
+            &z[PRECOMMIT_SPENT_COUNT_LIMB_START + limb],
+            2,
+            &format!("spent_count_limb_{limb}"),
+        )?);
+        output_count.extend(decompose_le_bytes(
+            cs.namespace(|| format!("output_count_limb_{limb}")),
+            &z[PRECOMMIT_OUTPUT_COUNT_LIMB_START + limb],
+            2,
+            &format!("output_count_limb_{limb}"),
+        )?);
+    }
+    let grammar = RecursiveTraceOpcodeV2::grammar_digest()
+        .into_iter()
+        .enumerate()
+        .map(|(index, byte)| {
+            allocate_constant(
+                cs.namespace(|| format!("grammar_digest_byte_{index}")),
+                u64::from(byte),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let version = decompose_le_bytes(
+        cs.namespace(|| "anchor_context_version"),
+        &z[ANCHOR_SCALAR_START],
+        1,
+        "anchor_context_version",
+    )?;
+    let mut count_parts = Vec::with_capacity(10);
+    count_parts.push(version.clone());
+    for index in 0..ANCHOR_SEMANTIC_COUNT_COUNT {
+        count_parts.push(u64_state_bytes(
+            cs.namespace(|| format!("declared_semantic_count_{index}")),
+            &z[ANCHOR_SEMANTIC_COUNT_START + index],
+            &format!("declared_semantic_count_{index}"),
+        )?);
+    }
+    let mut opcode_count_bytes = Vec::with_capacity(ANCHOR_OPCODE_COUNT_COUNT * 8);
+    for index in 0..ANCHOR_OPCODE_COUNT_COUNT {
+        opcode_count_bytes.extend(u64_state_bytes(
+            cs.namespace(|| format!("declared_opcode_count_{index}")),
+            &z[ANCHOR_OPCODE_COUNT_START + index],
+            &format!("declared_opcode_count_{index}"),
+        )?);
+    }
+    count_parts.push(opcode_count_bytes);
+
+    let anchor_digest = |cs: &mut CS, digest_index: usize, label: &str| {
+        digest_limb_state_bytes(
+            cs.namespace(|| label.to_owned()),
+            z,
+            digest_index * DIGEST_LIMBS,
+            label,
+        )
+    };
+    let mut context_parts = Vec::with_capacity(14);
+    context_parts.push(version);
+    context_parts.push(anchor_digest(&mut cs, 0, "anchor_chain_context")?);
+    context_parts.push(anchor_digest(&mut cs, 1, "anchor_config_digest")?);
+    context_parts.push(anchor_digest(&mut cs, 2, "anchor_policy_digest")?);
+    context_parts.push(anchor_digest(&mut cs, 3, "anchor_authority_digest")?);
+    context_parts.push(u64_state_bytes(
+        cs.namespace(|| "anchor_height"),
+        &z[ANCHOR_SCALAR_START + 1],
+        "anchor_height",
+    )?);
+    context_parts.push(u64_state_bytes(
+        cs.namespace(|| "anchor_predecessor_height"),
+        &z[ANCHOR_SCALAR_START + 2],
+        "anchor_predecessor_height",
+    )?);
+    context_parts.push(decompose_le_bytes(
+        cs.namespace(|| "anchor_layout"),
+        &z[ANCHOR_SCALAR_START + 3],
+        4,
+        "anchor_layout",
+    )?);
+    context_parts.push(u64_state_bytes(
+        cs.namespace(|| "anchor_authority_generation"),
+        &z[ANCHOR_SCALAR_START + 4],
+        "anchor_authority_generation",
+    )?);
+    context_parts.push(decompose_le_bytes(
+        cs.namespace(|| "anchor_noop_execution_input_version"),
+        &z[ANCHOR_SCALAR_START + 5],
+        1,
+        "anchor_noop_execution_input_version",
+    )?);
+    for (digest_index, label) in [
+        (4, "anchor_old_settlement_root"),
+        (5, "anchor_old_definition_root"),
+        (6, "anchor_tx_data_root"),
+        (7, "anchor_update_trace_digest"),
+        (8, "anchor_predicate_digest"),
+        (9, "anchor_profile_digest"),
+        (10, "anchor_spec_digest"),
+        (11, "anchor_trace_grammar_digest"),
+        (12, "anchor_verifier_bundle_digest"),
+        (13, "anchor_count_digest"),
+    ] {
+        context_parts.push(anchor_digest(&mut cs, digest_index, label)?);
+    }
+
+    let mut messages = Vec::with_capacity(UniquenessTranscriptHashJobV2::ALL.len());
+    for (job_index, job) in UniquenessTranscriptHashJobV2::ALL.into_iter().enumerate() {
+        let set = allocate_constant(
+            cs.namespace(|| format!("job_{job_index}_set")),
+            job.set().map_or(0, |set| set as u64),
+        )?;
+        let parts = if job == UniquenessTranscriptHashJobV2::DeclaredCounts {
+            count_parts.clone()
+        } else if job == UniquenessTranscriptHashJobV2::PreUniquenessContext {
+            context_parts.clone()
+        } else if matches!(
+            job,
+            UniquenessTranscriptHashJobV2::SettlementPreRoot
+                | UniquenessTranscriptHashJobV2::SettlementPostRoot
+        ) {
+            let definition_root = if job == UniquenessTranscriptHashJobV2::SettlementPreRoot {
+                anchor_digest(&mut cs, 5, "settlement_pre_definition_root")?
+            } else {
+                digest_limb_state_bytes(
+                    cs.namespace(|| "settlement_post_definition_root"),
+                    z,
+                    HIERARCHY_DEFINITION_ROOT_START,
+                    "settlement_post_definition_root",
+                )?
+            };
+            vec![
+                vec![allocate_constant(
+                    cs.namespace(|| format!("job_{job_index}_settlement_generation")),
+                    u64::from(RootGeneration::SettlementV2.version()),
+                )?],
+                decompose_le_bytes(
+                    cs.namespace(|| format!("job_{job_index}_settlement_layout")),
+                    &z[ANCHOR_SCALAR_START + 3],
+                    4,
+                    &format!("job_{job_index}_settlement_layout"),
+                )?,
+                digest_limb_state_bytes(
+                    cs.namespace(|| format!("job_{job_index}_settlement_policy_digest")),
+                    z,
+                    DIGEST_LIMBS * 2,
+                    &format!("job_{job_index}_settlement_policy_digest"),
+                )?,
+                definition_root,
+            ]
+        } else if let Some((pair, coordinate)) = job.challenge_coordinate() {
+            let pair = allocate_constant(
+                cs.namespace(|| format!("job_{job_index}_pair")),
+                u64::from(pair),
+            )?;
+            let coordinate = allocate_constant(
+                cs.namespace(|| format!("job_{job_index}_coordinate")),
+                u64::from(coordinate),
+            )?;
+            vec![
+                if job.set() == Some(UniquenessSetKindV2::Spent) {
+                    spent_precommit.clone()
+                } else {
+                    output_precommit.clone()
+                },
+                grammar.clone(),
+                vec![set],
+                vec![pair],
+                vec![coordinate],
+            ]
+        } else {
+            let (count, original, sorted_digest) = if job.set() == Some(UniquenessSetKindV2::Spent)
+            {
+                (
+                    spent_count.clone(),
+                    spent_original.clone(),
+                    spent_sorted.clone(),
+                )
+            } else {
+                (
+                    output_count.clone(),
+                    output_original.clone(),
+                    output_sorted.clone(),
+                )
+            };
+            vec![context.clone(), vec![set], count, original, sorted_digest]
+        };
+        messages.push(framed_transcript_parts(
+            cs.namespace(|| format!("job_{job_index}_message")),
+            job.role(),
+            &parts,
+            &format!("job_{job_index}"),
+        )?);
+    }
+    let static_block_counts = messages
+        .iter()
+        .map(|message| message.len() / 64)
+        .collect::<Vec<_>>();
+    let dynamic_block_counts = messages
+        .iter()
+        .map(|message| 1_usize + usize::from(message.len() % 64 >= 56))
+        .collect::<Vec<_>>();
+    let static_block_count =
+        static_block_counts.iter().copied().max().ok_or_else(|| {
+            SynthesisError::Unsatisfiable("missing transcript message".to_owned())
+        })?;
+    if static_block_counts.contains(&0) {
+        return Err(SynthesisError::Unsatisfiable(
+            "transcript message has no static framing block".to_owned(),
+        ));
+    }
+    let maximum_message_len =
+        messages.iter().map(Vec::len).max().ok_or_else(|| {
+            SynthesisError::Unsatisfiable("missing transcript message".to_owned())
+        })?;
+    let message_len = AllocatedNum::alloc(cs.namespace(|| "selected_message_length"), || {
+        let job = usize::try_from(scalar_u64(
+            control
+                .uniqueness_transcript_job
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        ))
+        .map_err(|_| SynthesisError::Unsatisfiable("transcript job overflow".to_owned()))?;
+        messages
+            .get(job)
+            .and_then(|message| u64::try_from(message.len()).ok())
+            .map(Scalar::from)
+            .ok_or_else(|| SynthesisError::Unsatisfiable("transcript job missing".to_owned()))
+    })?;
+    for (job_index, selector) in job_selectors.iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("job_{job_index}_message_length")),
+            selector,
+            &message_len,
+            u64::try_from(messages[job_index].len()).map_err(|_| {
+                SynthesisError::Unsatisfiable("transcript message length overflow".to_owned())
+            })?,
+        );
+    }
+    let selected_static_block_count =
+        AllocatedNum::alloc(cs.namespace(|| "selected_static_block_count"), || {
+            let job = usize::try_from(scalar_u64(
+                control
+                    .uniqueness_transcript_job
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            ))
+            .map_err(|_| SynthesisError::Unsatisfiable("transcript job overflow".to_owned()))?;
+            static_block_counts
+                .get(job)
+                .and_then(|count| u64::try_from(*count).ok())
+                .map(Scalar::from)
+                .ok_or_else(|| SynthesisError::Unsatisfiable("transcript job missing".to_owned()))
+        })?;
+    for (job_index, selector) in job_selectors.iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("job_{job_index}_static_block_count")),
+            selector,
+            &selected_static_block_count,
+            u64::try_from(static_block_counts[job_index]).map_err(|_| {
+                SynthesisError::Unsatisfiable("static block count overflow".to_owned())
+            })?,
+        );
+    }
+    let selected_dynamic_block_count =
+        AllocatedNum::alloc(cs.namespace(|| "selected_dynamic_block_count"), || {
+            let job = usize::try_from(scalar_u64(
+                control
+                    .uniqueness_transcript_job
+                    .get_value()
+                    .ok_or(SynthesisError::AssignmentMissing)?,
+            ))
+            .map_err(|_| SynthesisError::Unsatisfiable("transcript job overflow".to_owned()))?;
+            dynamic_block_counts
+                .get(job)
+                .and_then(|count| u64::try_from(*count).ok())
+                .map(Scalar::from)
+                .ok_or_else(|| SynthesisError::Unsatisfiable("transcript job missing".to_owned()))
+        })?;
+    for (job_index, selector) in job_selectors.iter().enumerate() {
+        enforce_gated_constant(
+            cs.namespace(|| format!("job_{job_index}_dynamic_block_count")),
+            selector,
+            &selected_dynamic_block_count,
+            u64::try_from(dynamic_block_counts[job_index]).map_err(|_| {
+                SynthesisError::Unsatisfiable("dynamic block count overflow".to_owned())
+            })?,
+        );
+    }
+    cs.enforce(
+        || "transcript_block_count_from_static_count",
+        |lc| lc + schema.get_variable(),
+        |lc| {
+            lc + control.block_count.get_variable()
+                - selected_static_block_count.get_variable()
+                - selected_dynamic_block_count.get_variable()
+        },
+        |lc| lc,
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "control_message_length"),
+        schema,
+        &control.message_bytes,
+        &message_len,
+    );
+    let mut selected_message = Vec::with_capacity(maximum_message_len);
+    for byte_index in 0..maximum_message_len {
+        let byte = AllocatedNum::alloc(
+            cs.namespace(|| format!("selected_message_byte_{byte_index}")),
+            || {
+                let job = usize::try_from(scalar_u64(
+                    control
+                        .uniqueness_transcript_job
+                        .get_value()
+                        .ok_or(SynthesisError::AssignmentMissing)?,
+                ))
+                .map_err(|_| SynthesisError::Unsatisfiable("transcript job overflow".to_owned()))?;
+                let value = messages
+                    .get(job)
+                    .and_then(|message| message.get(byte_index))
+                    .map(|value| value.get_value().ok_or(SynthesisError::AssignmentMissing))
+                    .transpose()?
+                    .unwrap_or(zero.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(value)
+            },
+        )?;
+        range_bits(
+            cs.namespace(|| format!("selected_message_byte_{byte_index}_range")),
+            &byte,
+            8,
+        )?;
+        for (job_index, selector) in job_selectors.iter().enumerate() {
+            let expected = messages[job_index].get(byte_index).unwrap_or(&zero);
+            enforce_gated_equal(
+                cs.namespace(|| format!("job_{job_index}_message_byte_{byte_index}")),
+                selector,
+                &byte,
+                expected,
+            );
+        }
+        selected_message.push(byte);
+    }
+    let tail_len = AllocatedNum::alloc(cs.namespace(|| "selected_tail_length"), || {
+        let length = scalar_u64(
+            message_len
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let static_bytes = scalar_u64(
+            selected_static_block_count
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        )
+        .checked_mul(64)
+        .ok_or_else(|| {
+            SynthesisError::Unsatisfiable("transcript static bytes overflow".to_owned())
+        })?;
+        length
+            .checked_sub(static_bytes)
+            .map(Scalar::from)
+            .ok_or_else(|| SynthesisError::Unsatisfiable("transcript tail underflow".to_owned()))
+    })?;
+    cs.enforce(
+        || "selected_tail_length_relation",
+        |lc| {
+            lc + tail_len.get_variable() - message_len.get_variable()
+                + (
+                    Scalar::from(64_u64),
+                    selected_static_block_count.get_variable(),
+                )
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    constrain_bounded_u8(
+        cs.namespace(|| "selected_tail_length_bound"),
+        &tail_len,
+        BYTE_CONTEXT_BUFFER_BYTES,
+    )?;
+    let mut selected_tail = Vec::with_capacity(BYTE_CONTEXT_BUFFER_BYTES);
+    for offset in 0..BYTE_CONTEXT_BUFFER_BYTES {
+        let byte = AllocatedNum::alloc(
+            cs.namespace(|| format!("selected_tail_byte_{offset}")),
+            || {
+                let job = usize::try_from(scalar_u64(
+                    control
+                        .uniqueness_transcript_job
+                        .get_value()
+                        .ok_or(SynthesisError::AssignmentMissing)?,
+                ))
+                .map_err(|_| SynthesisError::Unsatisfiable("transcript job overflow".to_owned()))?;
+                let start = static_block_counts
+                    .get(job)
+                    .and_then(|count| count.checked_mul(64))
+                    .ok_or_else(|| {
+                        SynthesisError::Unsatisfiable("transcript tail offset overflow".to_owned())
+                    })?;
+                let value = messages
+                    .get(job)
+                    .and_then(|message| message.get(start + offset))
+                    .map(|value| value.get_value().ok_or(SynthesisError::AssignmentMissing))
+                    .transpose()?
+                    .unwrap_or(zero.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(value)
+            },
+        )?;
+        range_bits(
+            cs.namespace(|| format!("selected_tail_byte_{offset}_range")),
+            &byte,
+            8,
+        )?;
+        for (job_index, selector) in job_selectors.iter().enumerate() {
+            let start = static_block_counts[job_index] * 64;
+            let expected = messages[job_index].get(start + offset).unwrap_or(&zero);
+            enforce_gated_equal(
+                cs.namespace(|| format!("job_{job_index}_tail_byte_{offset}")),
+                selector,
+                &byte,
+                expected,
+            );
+        }
+        selected_tail.push(byte);
+    }
+    let padding_bytes = AllocatedNum::alloc(cs.namespace(|| "padding_bytes"), || {
+        if schema.get_value() != Some(true) {
+            return Ok(Scalar::from(0_u64));
+        }
+        let blocks = scalar_u64(
+            control
+                .block_count
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let message = scalar_u64(
+            control
+                .message_bytes
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        blocks
+            .checked_mul(64)
+            .and_then(|value| value.checked_sub(message))
+            .and_then(|value| value.checked_sub(9))
+            .filter(|value| *value < 64)
+            .map(Scalar::from)
+            .ok_or_else(|| {
+                SynthesisError::Unsatisfiable("invalid transcript SHA geometry".to_owned())
+            })
+    })?;
+    range_bits(cs.namespace(|| "padding_bytes_range"), &padding_bytes, 6)?;
+    cs.enforce(
+        || "transcript_fips_geometry",
+        |lc| lc + schema.get_variable(),
+        |lc| {
+            lc + (Scalar::from(64_u64), control.block_count.get_variable())
+                - control.message_bytes.get_variable()
+                - padding_bytes.get_variable()
+                - (Scalar::from(9_u64), CS::one())
+        },
+        |lc| lc,
+    );
+
+    let context_job = &z[start + BYTE_CONTEXT_NEXT_CHUNK_OFFSET];
+    enforce_gated_equal(
+        cs.namespace(|| "begin_job_is_next_job"),
+        &begin,
+        &control.uniqueness_transcript_job,
+        &z[UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL],
+    );
+    for (label, selector) in [("block", &block), ("end", &end)] {
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_job_matches_context")),
+            selector,
+            &control.uniqueness_transcript_job,
+            context_job,
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_source_ordinal_matches_context")),
+            selector,
+            &control.source_ordinal,
+            &z[start + BYTE_CONTEXT_SOURCE_ORDINAL_OFFSET],
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_message_matches_context")),
+            selector,
+            &control.message_bytes,
+            &z[start + BYTE_CONTEXT_MESSAGE_BYTES_OFFSET],
+        );
+        enforce_gated_equal(
+            cs.namespace(|| format!("{label}_block_count_matches_context")),
+            selector,
+            &control.block_count,
+            &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
+        );
+    }
+    enforce_gated_constant(
+        cs.namespace(|| "begin_requires_inactive_context"),
+        &begin,
+        &z[start + BYTE_CONTEXT_ACTIVE_OFFSET],
+        0,
+    );
+    for (label, selector) in [("block", &block), ("end", &end)] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("{label}_requires_active_context")),
+            selector,
+            &z[start + BYTE_CONTEXT_ACTIVE_OFFSET],
+            1,
+        );
+        enforce_gated_constant(
+            cs.namespace(|| format!("{label}_requires_started_context")),
+            selector,
+            &z[start + BYTE_CONTEXT_STARTED_OFFSET],
+            1,
+        );
+    }
+    enforce_gated_hash_control_ordinal(
+        cs.namespace(|| "begin_control_ordinal"),
+        &begin,
+        event_ordinal,
+        &control.source_ordinal,
+        &zero,
+        false,
+    );
+    enforce_gated_hash_control_ordinal(
+        cs.namespace(|| "block_control_ordinal"),
+        &block,
+        event_ordinal,
+        &control.source_ordinal,
+        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        true,
+    );
+    enforce_gated_hash_control_ordinal(
+        cs.namespace(|| "end_control_ordinal"),
+        &end,
+        event_ordinal,
+        &control.source_ordinal,
+        &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
+        true,
+    );
+
+    let iv = SHA256_IV_V2
+        .into_iter()
+        .enumerate()
+        .map(|(index, word)| {
+            allocate_constant(cs.namespace(|| format!("sha_iv_{index}")), u64::from(word))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut context_values = z[start..start + BYTE_CONTEXT_WIDTH].to_vec();
+    for offset in 0..BYTE_CONTEXT_WIDTH {
+        let initial = if offset == BYTE_CONTEXT_ACTIVE_OFFSET
+            || offset == BYTE_CONTEXT_STARTED_OFFSET
+            || offset == BYTE_CONTEXT_PENDING_OFFSET
+            || offset == BYTE_CONTEXT_EOF_OFFSET
+        {
+            &one
+        } else if offset == BYTE_CONTEXT_SOURCE_ORDINAL_OFFSET {
+            &control.source_ordinal
+        } else if offset == BYTE_CONTEXT_MESSAGE_BYTES_OFFSET {
+            &control.message_bytes
+        } else if offset == BYTE_CONTEXT_NEXT_CHUNK_OFFSET {
+            &control.uniqueness_transcript_job
+        } else if offset == BYTE_CONTEXT_BUFFER_LEN_OFFSET {
+            &tail_len
+        } else if offset == BYTE_CONTEXT_BLOCK_COUNT_OFFSET {
+            &control.block_count
+        } else if (BYTE_CONTEXT_CHAINING_START_OFFSET..BYTE_CONTEXT_CHAINING_END_OFFSET)
+            .contains(&offset)
+        {
+            &iv[offset - BYTE_CONTEXT_CHAINING_START_OFFSET]
+        } else if (BYTE_CONTEXT_BUFFER_START_OFFSET..BYTE_CONTEXT_BUFFER_END_OFFSET)
+            .contains(&offset)
+        {
+            &selected_tail[offset - BYTE_CONTEXT_BUFFER_START_OFFSET]
+        } else {
+            &zero
+        };
+        context_values[offset] = select_bit_num(
+            cs.namespace(|| format!("begin_context_{offset}")),
+            &begin,
+            initial,
+            &z[start + offset],
+            "value",
+        )?;
+    }
+
+    let pending = allocate_state_bit(
+        cs.namespace(|| "static_pending"),
+        &z[start + BYTE_CONTEXT_PENDING_OFFSET],
+    )?;
+    let not_pending = allocate_bit_not(cs.namespace(|| "not_static_pending"), &pending, "value")?;
+    let static_block = AllocatedBit::and(cs.namespace(|| "static_block"), &block, &pending)?;
+    let dynamic_block = AllocatedBit::and(cs.namespace(|| "dynamic_block"), &block, &not_pending)?;
+    let static_blocks = (0..static_block_count)
+        .map(|index| &selected_message[index * 64..(index + 1) * 64])
+        .collect::<Vec<_>>();
+    let static_updates = consume_static_context_block(
+        cs.namespace(|| "static_compression_block"),
+        z,
+        start,
+        &static_block,
+        control,
+        sha,
+        &static_blocks,
+        Some((&job_selectors, &static_block_counts)),
+        "uniqueness_transcript_static",
+    )?;
+    let dynamic_updates = consume_context_block(
+        cs.namespace(|| "dynamic_compression_block"),
+        z,
+        start,
+        &dynamic_block,
+        false,
+        control,
+        sha,
+        "uniqueness_transcript_dynamic",
+    )?;
+    for (selector, label, updates) in [
+        (&static_block, "static", static_updates),
+        (&dynamic_block, "dynamic", dynamic_updates),
+    ] {
+        for (state_index, update) in updates {
+            let offset = state_index - start;
+            context_values[offset] = select_bit_num(
+                cs.namespace(|| format!("{label}_context_output_{state_index}")),
+                selector,
+                &update,
+                &context_values[offset],
+                "value",
+            )?;
+        }
+    }
+
+    for (name, offset, expected) in [
+        ("active", BYTE_CONTEXT_ACTIVE_OFFSET, 1_u64),
+        ("started", BYTE_CONTEXT_STARTED_OFFSET, 1_u64),
+        ("eof", BYTE_CONTEXT_EOF_OFFSET, 1_u64),
+        ("pending", BYTE_CONTEXT_PENDING_OFFSET, 0_u64),
+        ("buffer_len", BYTE_CONTEXT_BUFFER_LEN_OFFSET, 0_u64),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("end_context_{name}")),
+            &end,
+            &z[start + offset],
+            expected,
+        );
+    }
+    enforce_gated_equal(
+        cs.namespace(|| "end_seen_all_blocks"),
+        &end,
+        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
+    );
+    for word_index in 0..8 {
+        enforce_gated_lc_equal(
+            cs.namespace(|| format!("end_digest_word_{word_index}")),
+            &end,
+            &source_hash_word_lc(&control.source_hash_bytes, word_index),
+            &z[start + BYTE_CONTEXT_CHAINING_START_OFFSET + word_index],
+        );
+    }
+    for (offset, value) in context_values.iter_mut().enumerate() {
+        *value = select_bit_num(
+            cs.namespace(|| format!("end_context_clear_{offset}")),
+            &end,
+            &zero,
+            value,
+            "value",
+        )?;
+    }
+    let next_job = allocate_incremented(
+        cs.namespace(|| "next_job_incremented"),
+        &z[UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL],
+        "value",
+    )?;
+    range_bits(cs.namespace(|| "next_job_incremented_range"), &next_job, 4)?;
+    let next_job_output = select_bit_num(
+        cs.namespace(|| "next_job_output"),
+        &end,
+        &next_job,
+        &z[UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL],
+        "value",
+    )?;
+
+    let product_rows_left = allocate_bit_or(
+        cs.namespace(|| "product_rows_left"),
+        &sorted.original_spent_row,
+        &sorted.original_output_row,
+        "value",
+    )?;
+    let product_rows_right = allocate_bit_or(
+        cs.namespace(|| "product_rows_right"),
+        &sorted.sorted_spent_row,
+        &sorted.sorted_output_row,
+        "value",
+    )?;
+    let product_row = allocate_bit_or(
+        cs.namespace(|| "product_row"),
+        &product_rows_left,
+        &product_rows_right,
+        "value",
+    )?;
+    let product_or_net = allocate_bit_or(
+        cs.namespace(|| "product_or_net"),
+        &product_row,
+        net_source,
+        "value",
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "products_require_all_transcript_hashes"),
+        &product_or_net,
+        &z[UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL],
+        UniquenessTranscriptHashJobV2::UNIQUENESS_JOB_COUNT as u64,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "products_require_closed_transcript_context"),
+        &product_or_net,
+        &z[start + BYTE_CONTEXT_ACTIVE_OFFSET],
+        0,
+    );
+
+    let mut cells = Vec::with_capacity(BYTE_CONTEXT_WIDTH + 1);
+    cells.push((UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL, next_job_output));
+    cells.extend(
+        context_values
+            .into_iter()
+            .enumerate()
+            .map(|(offset, value)| (start + offset, value)),
+    );
+    Ok(UniquenessTranscriptHashOutputsV2 { cells })
 }
 
 /// Materialize the prefix the sole `CheckpointSha256BlockStreamV2` owner
@@ -5653,6 +16636,41 @@ fn select_bit_num<CS: ConstraintSystem<Scalar>>(
         &inverse,
         &value,
         otherwise,
+    );
+    Ok(value)
+}
+
+/// Select one number with the canonical single-equation mux
+/// `s * (selected - otherwise) = value - otherwise`.
+///
+/// This is used for private fixed lookup trees whose selector is already a
+/// constrained [`AllocatedBit`]. State-successor selection retains the more
+/// verbose two-branch helper above because its separate branch names are
+/// useful mutation evidence; a 64-leaf byte lookup would otherwise duplicate
+/// those audit rows at every chunk offset.
+fn select_bit_num_compact<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    selector: &AllocatedBit,
+    selected: &AllocatedNum<Scalar>,
+    otherwise: &AllocatedNum<Scalar>,
+    label: &str,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    let value = AllocatedNum::alloc(cs.namespace(|| label), || {
+        if selector.get_value() == Some(true) {
+            selected
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)
+        } else {
+            otherwise
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)
+        }
+    })?;
+    cs.enforce(
+        || format!("{label}_mux"),
+        |lc| lc + selector.get_variable(),
+        |lc| lc + selected.get_variable() - otherwise.get_variable(),
+        |lc| lc + value.get_variable() - otherwise.get_variable(),
     );
     Ok(value)
 }
@@ -6144,6 +17162,7 @@ fn consume_static_context_block<CS: ConstraintSystem<Scalar>>(
     control: &AllocatedHashControlV2,
     sha: &ShaCompressionOutputsV2,
     static_blocks: &[&[AllocatedNum<Scalar>]],
+    block_limits: Option<(&[AllocatedBit], &[usize])>,
     label: &str,
 ) -> Result<Vec<(usize, AllocatedNum<Scalar>)>, SynthesisError> {
     if static_blocks.is_empty()
@@ -6153,6 +17172,13 @@ fn consume_static_context_block<CS: ConstraintSystem<Scalar>>(
     {
         return Err(SynthesisError::Unsatisfiable(
             "static SHA framing block width mismatch".to_owned(),
+        ));
+    }
+    if block_limits
+        .is_some_and(|(selectors, limits)| selectors.is_empty() || selectors.len() != limits.len())
+    {
+        return Err(SynthesisError::Unsatisfiable(
+            "static SHA block-limit selector mismatch".to_owned(),
         ));
     }
     enforce_gated_constant(
@@ -6242,20 +17268,70 @@ fn consume_static_context_block<CS: ConstraintSystem<Scalar>>(
             .map_err(|_| {
                 SynthesisError::Unsatisfiable("static SHA block index exceeds usize".to_owned())
             })?;
-            Ok(Scalar::from(u64::from(index + 1 < static_blocks.len())))
+            let limit = if let Some((_, limits)) = block_limits {
+                let job = usize::try_from(scalar_u64(
+                    control
+                        .uniqueness_transcript_job
+                        .get_value()
+                        .ok_or(SynthesisError::AssignmentMissing)?,
+                ))
+                .map_err(|_| {
+                    SynthesisError::Unsatisfiable("static SHA job exceeds usize".to_owned())
+                })?;
+                *limits.get(job).ok_or_else(|| {
+                    SynthesisError::Unsatisfiable("static SHA job missing".to_owned())
+                })?
+            } else {
+                static_blocks.len()
+            };
+            Ok(Scalar::from(u64::from(index + 1 < limit)))
         })?;
-    for (index, block_selector) in index_selectors.iter().enumerate() {
-        let gate = AllocatedBit::and(
-            cs.namespace(|| format!("{label}_pending_gate_{index}")),
-            selector,
-            block_selector,
-        )?;
-        enforce_gated_constant(
-            cs.namespace(|| format!("{label}_pending_value_{index}")),
-            &gate,
-            &next_pending,
-            u64::from(index + 1 < static_blocks.len()),
-        );
+    if let Some((job_selectors, limits)) = block_limits {
+        for (job_index, (job_selector, limit)) in
+            job_selectors.iter().zip(limits.iter()).enumerate()
+        {
+            let job_gate = AllocatedBit::and(
+                cs.namespace(|| format!("{label}_job_gate_{job_index}")),
+                selector,
+                job_selector,
+            )?;
+            for (index, block_selector) in index_selectors.iter().enumerate() {
+                let gate = AllocatedBit::and(
+                    cs.namespace(|| format!("{label}_job_{job_index}_index_{index}")),
+                    &job_gate,
+                    block_selector,
+                )?;
+                if index >= *limit {
+                    cs.enforce(
+                        || format!("{label}_job_{job_index}_reject_index_{index}"),
+                        |lc| lc + gate.get_variable(),
+                        |lc| lc + CS::one(),
+                        |lc| lc,
+                    );
+                } else {
+                    enforce_gated_constant(
+                        cs.namespace(|| format!("{label}_job_{job_index}_pending_value_{index}")),
+                        &gate,
+                        &next_pending,
+                        u64::from(index + 1 < *limit),
+                    );
+                }
+            }
+        }
+    } else {
+        for (index, block_selector) in index_selectors.iter().enumerate() {
+            let gate = AllocatedBit::and(
+                cs.namespace(|| format!("{label}_pending_gate_{index}")),
+                selector,
+                block_selector,
+            )?;
+            enforce_gated_constant(
+                cs.namespace(|| format!("{label}_pending_value_{index}")),
+                &gate,
+                &next_pending,
+                u64::from(index + 1 < static_blocks.len()),
+            );
+        }
     }
 
     let mut outputs = Vec::with_capacity(10);
@@ -6276,6 +17352,276 @@ fn consume_static_context_block<CS: ConstraintSystem<Scalar>>(
 /// Bind source records and their derived BEGIN_HASH / SHA_BLOCK* / END_HASH
 /// controls as one fixed R1CS schedule.  The expander remains the sole owner
 /// of the controls; this only consumes its decoded witness values.
+/// Private successor cells for the sole authenticated source window.
+/// They are merged into the running state by the fixed Nova step after the
+/// independent SHA schedule is constrained from the same `TraceChunk` row.
+struct SourceMemoryOutputsV2 {
+    cells: Vec<(usize, AllocatedNum<Scalar>)>,
+}
+
+/// Constrain the stream-authenticated source write/window path.
+///
+/// The only expander emits this write and its following `TraceChunk` from the
+/// same stack-local canonical chunk. The active source cursor authenticates the
+/// write address and order, the pending window supplies direct R1CS equality of
+/// every byte and metadata field to the reader, and that reader is appended to
+/// both constrained SHA-256 contexts. No digest replaces the direct equality.
+fn synthesize_source_memory_window<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+    source_selector: &AllocatedBit,
+    write_selector: &AllocatedBit,
+    read_selector: &AllocatedBit,
+    chunk: &AllocatedTraceChunkV2,
+    control: &AllocatedHashControlV2,
+) -> Result<SourceMemoryOutputsV2, SynthesisError> {
+    let zero = allocate_constant(cs.namespace(|| "zero"), 0)?;
+
+    let pending_active = allocate_state_bit(
+        cs.namespace(|| "pending_active"),
+        &z[SOURCE_MEMORY_PENDING_ACTIVE_CELL],
+    )?;
+    let not_pending = allocate_bit_not(cs.namespace(|| "not_pending"), &pending_active, "value")?;
+    // A pending write has exactly one legal next row. This closes the window
+    // before any SHA, source, or semantic control can interleave.
+    cs.enforce(
+        || "pending_requires_trace_chunk",
+        |lc| lc + pending_active.get_variable(),
+        |lc| lc + CS::one() - read_selector.get_variable(),
+        |lc| lc,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "write_requires_empty_window"),
+        write_selector,
+        &z[SOURCE_MEMORY_PENDING_ACTIVE_CELL],
+        0,
+    );
+    enforce_gated_constant(
+        cs.namespace(|| "read_requires_pending_window"),
+        read_selector,
+        &z[SOURCE_MEMORY_PENDING_ACTIVE_CELL],
+        1,
+    );
+
+    // The source record is the only initializer. The preceding source END
+    // clears the pending window, so another record cannot borrow it.
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(SOURCE_MEMORY_PENDING_BYTES_END)
+        .skip(SOURCE_MEMORY_PENDING_ACTIVE_CELL)
+    {
+        enforce_gated_constant(
+            cs.namespace(|| format!("source_requires_empty_window_{index}")),
+            source_selector,
+            cell,
+            0,
+        );
+    }
+
+    let source_end = AllocatedBit::and(
+        cs.namespace(|| "source_end"),
+        control.end_selector(),
+        control.source_schema_selector(),
+    )?;
+    enforce_gated_constant(
+        cs.namespace(|| "source_end_requires_empty_window"),
+        &source_end,
+        &z[SOURCE_MEMORY_PENDING_ACTIVE_CELL],
+        0,
+    );
+
+    // The writer can only append to the current source record at the exact
+    // next chunk position that the byte context will later consume.
+    for (label, state_index, expected) in [
+        (
+            "source_context_active",
+            SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_ACTIVE_OFFSET,
+            1_u64,
+        ),
+        (
+            "source_context_started",
+            SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_STARTED_OFFSET,
+            1_u64,
+        ),
+        (
+            "source_context_eof",
+            SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_EOF_OFFSET,
+            0_u64,
+        ),
+    ] {
+        enforce_gated_constant(
+            cs.namespace(|| format!("write_{label}")),
+            write_selector,
+            &z[state_index],
+            expected,
+        );
+    }
+    enforce_gated_equal(
+        cs.namespace(|| "write_source_ordinal"),
+        write_selector,
+        &chunk.source_ordinal,
+        &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_SOURCE_ORDINAL_OFFSET],
+    );
+    enforce_gated_equal(
+        cs.namespace(|| "write_chunk_ordinal"),
+        write_selector,
+        &chunk.chunk_ordinal,
+        &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_CHUNK_OFFSET],
+    );
+    range_bits(
+        cs.namespace(|| "write_chunk_ordinal_range"),
+        &chunk.chunk_ordinal,
+        32,
+    )?;
+
+    // The reader is a direct open of the one pending window. This is the S1
+    // byte equality: it covers all metadata, all 64 bytes, and the zero tail.
+    for (label, state_index, value) in [
+        (
+            "source_ordinal",
+            SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL,
+            &chunk.source_ordinal,
+        ),
+        (
+            "chunk_ordinal",
+            SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL,
+            &chunk.chunk_ordinal,
+        ),
+        (
+            "chunk_count",
+            SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL,
+            &chunk.chunk_count,
+        ),
+        (
+            "byte_count",
+            SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL,
+            &chunk.byte_count,
+        ),
+    ] {
+        enforce_gated_equal(
+            cs.namespace(|| format!("read_matches_window_{label}")),
+            read_selector,
+            value,
+            &z[state_index],
+        );
+    }
+    for (index, byte) in chunk.bytes.iter().enumerate() {
+        enforce_gated_equal(
+            cs.namespace(|| format!("read_matches_window_byte_{index}")),
+            read_selector,
+            byte,
+            &z[SOURCE_MEMORY_PENDING_BYTES_START + index],
+        );
+    }
+
+    let mut cells =
+        Vec::with_capacity(SOURCE_MEMORY_PENDING_BYTES_END - SOURCE_MEMORY_PENDING_ACTIVE_CELL);
+    for (label, state_index, write_value) in [
+        (
+            "active",
+            SOURCE_MEMORY_PENDING_ACTIVE_CELL,
+            bit_as_num(
+                cs.namespace(|| "write_pending_active"),
+                write_selector,
+                "value",
+            )?,
+        ),
+        (
+            "source_ordinal",
+            SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL,
+            chunk.source_ordinal.clone(),
+        ),
+        (
+            "chunk_ordinal",
+            SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL,
+            chunk.chunk_ordinal.clone(),
+        ),
+        (
+            "chunk_count",
+            SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL,
+            chunk.chunk_count.clone(),
+        ),
+        (
+            "byte_count",
+            SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL,
+            chunk.byte_count.clone(),
+        ),
+    ] {
+        let after_source = select_bit_num(
+            cs.namespace(|| format!("pending_source_{label}")),
+            source_selector,
+            &zero,
+            &z[state_index],
+            "value",
+        )?;
+        let after_write = select_bit_num(
+            cs.namespace(|| format!("pending_write_{label}")),
+            write_selector,
+            &write_value,
+            &after_source,
+            "value",
+        )?;
+        let after_read = select_bit_num(
+            cs.namespace(|| format!("pending_read_{label}")),
+            read_selector,
+            &zero,
+            &after_write,
+            "value",
+        )?;
+        let value = select_bit_num(
+            cs.namespace(|| format!("pending_end_{label}")),
+            &source_end,
+            &zero,
+            &after_read,
+            "value",
+        )?;
+        cells.push((state_index, value));
+    }
+    for (index, write_byte) in chunk.bytes.iter().enumerate() {
+        let state_index = SOURCE_MEMORY_PENDING_BYTES_START + index;
+        let after_source = select_bit_num(
+            cs.namespace(|| format!("pending_byte_source_{index}")),
+            source_selector,
+            &zero,
+            &z[state_index],
+            "value",
+        )?;
+        let after_write = select_bit_num(
+            cs.namespace(|| format!("pending_byte_write_{index}")),
+            write_selector,
+            write_byte,
+            &after_source,
+            "value",
+        )?;
+        let after_read = select_bit_num(
+            cs.namespace(|| format!("pending_byte_read_{index}")),
+            read_selector,
+            &zero,
+            &after_write,
+            "value",
+        )?;
+        let value = select_bit_num(
+            cs.namespace(|| format!("pending_byte_end_{index}")),
+            &source_end,
+            &zero,
+            &after_read,
+            "value",
+        )?;
+        cells.push((state_index, value));
+    }
+
+    // Keep the allocated complement live: otherwise a malformed source row
+    // could hide a pending window behind an unconstrained witness branch.
+    enforce_gated_constant(
+        cs.namespace(|| "not_pending_matches_empty_window"),
+        &not_pending,
+        &z[SOURCE_MEMORY_PENDING_ACTIVE_CELL],
+        0,
+    );
+    Ok(SourceMemoryOutputsV2 { cells })
+}
+
 fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     z: &[AllocatedNum<Scalar>],
@@ -6404,19 +17750,19 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         &z[SOURCE_TRACE_ORDINAL_CELL],
         &control.source_ordinal,
     );
-    for index in COUNTERS_START..COUNTERS_END {
+    for (index, cell) in z.iter().enumerate().take(COUNTERS_END).skip(COUNTERS_START) {
         enforce_gated_constant(
             cs.namespace(|| format!("source_schedule_input_zero_{index}")),
             source,
-            &z[index],
+            cell,
             0,
         );
     }
-    for index in SHA_ACTIVE_CELL..SHA_END {
+    for (index, cell) in z.iter().enumerate().take(SHA_END).skip(SHA_ACTIVE_CELL) {
         enforce_gated_constant(
             cs.namespace(|| format!("source_sha_input_zero_{index}")),
             source,
-            &z[index],
+            cell,
             0,
         );
     }
@@ -6734,11 +18080,11 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         |lc| lc + empty_block_count.get_variable(),
         |lc| lc,
     );
-    for index in SHA_ACTIVE_CELL..SHA_END {
+    for (index, cell) in z.iter().enumerate().take(SHA_END).skip(SHA_ACTIVE_CELL) {
         enforce_gated_constant(
             cs.namespace(|| format!("begin_sha_input_zero_{index}")),
             &source_begin,
-            &z[index],
+            cell,
             0,
         );
     }
@@ -6942,7 +18288,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         enforce_gated_lc_equal(
             cs.namespace(|| format!("end_digest_matches_chaining_{word_index}")),
             &source_end,
-            &source_hash_word_lc::<CS>(&control.source_hash_bytes, word_index),
+            &source_hash_word_lc(&control.source_hash_bytes, word_index),
             &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_CHAINING_START_OFFSET + word_index],
         );
     }
@@ -6958,7 +18304,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         enforce_gated_lc_equal(
             cs.namespace(|| format!("trace_end_digest_matches_chaining_{word_index}")),
             &trace_end,
-            &source_hash_word_lc::<CS>(&control.source_hash_bytes, word_index),
+            &source_hash_word_lc(&control.source_hash_bytes, word_index),
             &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_CHAINING_START_OFFSET + word_index],
         );
     }
@@ -7009,7 +18355,12 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         select_hash_schema_value(
             cs.namespace(|| format!("{name}_schema")),
             &control.schema_selectors,
-            [&source_value, &z[state_index]],
+            [
+                &source_value,
+                &z[state_index],
+                &z[state_index],
+                &z[state_index],
+            ],
         )
     };
 
@@ -7045,6 +18396,8 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         [
             &z[HASH_SCHEDULE_SOURCE_ORDINAL_CELL],
             &control.source_ordinal,
+            &z[HASH_SCHEDULE_SOURCE_ORDINAL_CELL],
+            &z[HASH_SCHEDULE_SOURCE_ORDINAL_CELL],
         ],
     )?;
     cells.push((
@@ -7108,7 +18461,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         let begin_hash = select_hash_schema_value(
             cs.namespace(|| format!("begin_source_hash_{index}")),
             &control.schema_selectors,
-            [&z[state_index], hash_limb],
+            [&z[state_index], hash_limb, &z[state_index], &z[state_index]],
         )?;
         cells.push((
             state_index,
@@ -7127,7 +18480,12 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
     let begin_schedule_role = select_hash_schema_value(
         cs.namespace(|| "begin_schedule_role"),
         &control.schema_selectors,
-        [&z[HASH_SCHEDULE_ROLE_CELL], &control.role],
+        [
+            &z[HASH_SCHEDULE_ROLE_CELL],
+            &control.role,
+            &z[HASH_SCHEDULE_ROLE_CELL],
+            &z[HASH_SCHEDULE_ROLE_CELL],
+        ],
     )?;
     cells.push((
         HASH_SCHEDULE_ROLE_CELL,
@@ -7202,12 +18560,17 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         let begin_value = select_hash_schema_value(
             cs.namespace(|| format!("source_context_begin_{offset}")),
             &control.schema_selectors,
-            [source_begin_value, &z[state_index]],
+            [
+                source_begin_value,
+                &z[state_index],
+                &z[state_index],
+                &z[state_index],
+            ],
         )?;
         let end_value = select_hash_schema_value(
             cs.namespace(|| format!("source_context_end_{offset}")),
             &control.schema_selectors,
-            [&zero, &z[state_index]],
+            [&zero, &z[state_index], &z[state_index], &z[state_index]],
         )?;
         source_context_values[offset] = stage_value(
             &format!("source_context_output_{offset}"),
@@ -7261,12 +18624,17 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         let begin_value = select_hash_schema_value(
             cs.namespace(|| format!("global_context_begin_{offset}")),
             &control.schema_selectors,
-            [&z[state_index], trace_begin_value],
+            [
+                &z[state_index],
+                trace_begin_value,
+                &z[state_index],
+                &z[state_index],
+            ],
         )?;
         let end_value = select_hash_schema_value(
             cs.namespace(|| format!("global_context_end_{offset}")),
             &control.schema_selectors,
-            [&z[state_index], &zero],
+            [&z[state_index], &zero, &z[state_index], &z[state_index]],
         )?;
         global_context_values[offset] = stage_value(
             &format!("global_context_output_{offset}"),
@@ -7662,6 +19030,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         control,
         sha,
         &source_static_blocks,
+        None,
         "source_static_block",
     )?;
     let trace_static_context = consume_static_context_block(
@@ -7672,6 +19041,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         control,
         sha,
         &trace_static_blocks,
+        None,
         "trace_static_block",
     )?;
     let source_block_context = consume_context_block(
@@ -7927,11 +19297,11 @@ fn select_hash_stage_value<CS: ConstraintSystem<Scalar>>(
     Ok(output)
 }
 
-/// Select a value from the frozen two-schema hash-control grammar.
+/// Select a value from the frozen hash-control grammar.
 fn select_hash_schema_value<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     selectors: &[AllocatedBit],
-    candidates: [&AllocatedNum<Scalar>; 2],
+    candidates: [&AllocatedNum<Scalar>; 4],
 ) -> Result<AllocatedNum<Scalar>, SynthesisError> {
     if selectors.len() != candidates.len() {
         return Err(SynthesisError::Unsatisfiable(
@@ -8002,7 +19372,7 @@ fn enforce_gated_hash_control_ordinal<CS: ConstraintSystem<Scalar>>(
     );
 }
 
-fn source_hash_word_lc<CS: ConstraintSystem<Scalar>>(
+fn source_hash_word_lc(
     hash_bytes: &[AllocatedNum<Scalar>],
     word_index: usize,
 ) -> nova_snark::frontend::LinearCombination<Scalar> {
@@ -8201,22 +19571,38 @@ fn enforce_lc_equal<CS: ConstraintSystem<Scalar>>(
 }
 
 fn allocate_constant<CS: ConstraintSystem<Scalar>>(
-    cs: CS,
+    mut cs: CS,
     value: u64,
 ) -> Result<AllocatedNum<Scalar>, SynthesisError> {
-    AllocatedNum::alloc(cs, || Ok(Scalar::from(value)))
+    let allocated = AllocatedNum::alloc(cs.namespace(|| "constant_witness"), || {
+        Ok(Scalar::from(value))
+    })?;
+    enforce_u64_constant(cs.namespace(|| "constant_relation"), &allocated, value);
+    Ok(allocated)
 }
 
-fn enforce_constant<CS: ConstraintSystem<Scalar>>(
+/// Allocate one private step witness without embedding its value in the R1CS
+/// matrix. All admissibility comes from the caller's explicit range, selector,
+/// equality, transition, or inactive-zero constraints.
+fn allocate_witness_u64<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    value: u64,
+) -> Result<AllocatedNum<Scalar>, SynthesisError> {
+    AllocatedNum::alloc(cs.namespace(|| "private_witness"), || {
+        Ok(Scalar::from(value))
+    })
+}
+
+fn enforce_u64_constant<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     value: &AllocatedNum<Scalar>,
-    expected: u16,
+    expected: u64,
 ) {
     cs.enforce(
-        || "constant value",
+        || "u64 constant value",
         |lc| lc + value.get_variable(),
         |lc| lc + CS::one(),
-        |lc| lc + (Scalar::from(u64::from(expected)), CS::one()),
+        |lc| lc + (Scalar::from(expected), CS::one()),
     );
 }
 
@@ -8331,6 +19717,91 @@ fn scalar_u64(value: Scalar) -> u64 {
     u64::from_le_bytes(low)
 }
 
+fn enforce_declared_work_anchor_relations<CS: ConstraintSystem<Scalar>>(
+    mut cs: CS,
+    z: &[AllocatedNum<Scalar>],
+) -> Result<(), SynthesisError> {
+    let semantic = |index| &z[ANCHOR_SEMANTIC_COUNT_START + index];
+    let opcode = |opcode: RecursiveTraceOpcodeV2| {
+        &z[ANCHOR_OPCODE_COUNT_START + usize::from(opcode as u8 - 1)]
+    };
+    cs.enforce(
+        || "rows_equal_inputs_plus_outputs",
+        |lc| {
+            lc + semantic(0).get_variable()
+                - semantic(1).get_variable()
+                - semantic(2).get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    let row_minus_net = AllocatedNum::alloc(cs.namespace(|| "row_minus_net_effects"), || {
+        let rows = scalar_u64(
+            semantic(0)
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        let net = scalar_u64(
+            semantic(3)
+                .get_value()
+                .ok_or(SynthesisError::AssignmentMissing)?,
+        );
+        rows.checked_sub(net)
+            .map(Scalar::from)
+            .ok_or_else(|| SynthesisError::Unsatisfiable("net effects exceed rows".to_owned()))
+    })?;
+    range_bits(
+        cs.namespace(|| "row_minus_net_effects_range"),
+        &row_minus_net,
+        64,
+    )?;
+    cs.enforce(
+        || "net_effects_do_not_exceed_rows",
+        |lc| {
+            lc + semantic(0).get_variable()
+                - semantic(3).get_variable()
+                - row_minus_net.get_variable()
+        },
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    for (label, left, right) in [
+        (
+            "hash_blocks_equal_sha_opcode",
+            semantic(6),
+            opcode(RecursiveTraceOpcodeV2::ShaBlock),
+        ),
+        (
+            "inputs_equal_replay_input_opcode",
+            semantic(1),
+            opcode(RecursiveTraceOpcodeV2::ReplayInput),
+        ),
+        (
+            "outputs_equal_replay_output_opcode",
+            semantic(2),
+            opcode(RecursiveTraceOpcodeV2::ReplayOutput),
+        ),
+    ] {
+        cs.enforce(
+            || label,
+            |lc| lc + left.get_variable() - right.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+    }
+    let opcode_sum = (0..ANCHOR_OPCODE_COUNT_COUNT).fold(
+        nova_snark::frontend::LinearCombination::zero(),
+        |lc, index| lc + z[ANCHOR_OPCODE_COUNT_START + index].get_variable(),
+    );
+    cs.enforce(
+        || "event_count_equals_opcode_sum",
+        |lc| lc + semantic(7).get_variable() - &opcode_sum,
+        |lc| lc + CS::one(),
+        |lc| lc,
+    );
+    Ok(())
+}
+
 fn digest_limbs(digest: [u8; 32]) -> [u16; DIGEST_LIMBS] {
     let mut limbs = [0_u16; DIGEST_LIMBS];
     for (index, chunk) in digest.chunks_exact(2).enumerate() {
@@ -8348,6 +19819,13 @@ fn constrain_state_ranges<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("digest_limb_{index}")),
             &z[index],
             16,
+        )?;
+    }
+    for index in CONSUMED_OPCODE_COUNT_START..CONSUMED_OPCODE_COUNT_END {
+        range_bits(
+            cs.namespace(|| format!("consumed_opcode_count_{index}")),
+            &z[index],
+            64,
         )?;
     }
     range_bits(
@@ -8373,10 +19851,15 @@ fn constrain_state_ranges<CS: ConstraintSystem<Scalar>>(
         &z[HASH_SCHEDULE_FINAL_BLOCK_CELL],
         1,
     )?;
-    for index in HASH_SCHEDULE_SOURCE_HASH_START..HASH_SCHEDULE_SOURCE_HASH_END {
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(HASH_SCHEDULE_SOURCE_HASH_END)
+        .skip(HASH_SCHEDULE_SOURCE_HASH_START)
+    {
         range_bits(
             cs.namespace(|| format!("hash_schedule_source_hash_{index}")),
-            &z[index],
+            cell,
             16,
         )?;
     }
@@ -8401,6 +19884,8 @@ fn constrain_state_ranges<CS: ConstraintSystem<Scalar>>(
             PRECOMMIT_PARSE_LOW_BYTE_CELL,
             8,
         ),
+        ("replay_pending_active", REPLAY_PENDING_ACTIVE_CELL, 1),
+        ("replay_pending_set", REPLAY_PENDING_SET_CELL, 1),
         (
             "uniqueness_challenge_parser_active",
             CHALLENGE_PARSE_ACTIVE_CELL,
@@ -8422,57 +19907,207 @@ fn constrain_state_ranges<CS: ConstraintSystem<Scalar>>(
             8,
         ),
         ("net_merge_parser_active", NET_PARSE_ACTIVE_CELL, 1),
-        ("net_merge_parser_header", NET_PARSE_HEADER_CELL, 6),
-        ("net_merge_parser_offset", NET_PARSE_OFFSET_CELL, 6),
-        ("net_merge_parser_low_byte", NET_PARSE_LOW_BYTE_CELL, 8),
+        ("net_merge_kind", NET_KIND_CELL, 8),
+        ("net_pending_spent_active", NET_PENDING_SPENT_ACTIVE_CELL, 1),
+        (
+            "net_pending_output_active",
+            NET_PENDING_OUTPUT_ACTIVE_CELL,
+            1,
+        ),
+        ("net_closed", NET_CLOSED_CELL, 1),
     ] {
         range_bits(cs.namespace(|| label), &z[index], bits)?;
+    }
+    for challenge in 0..CHALLENGE_OUTPUT_COUNT {
+        for word in 0..CHALLENGE_WORDS_PER_OUTPUT {
+            let index = CHALLENGE_WORD_START + challenge * CHALLENGE_WORDS_PER_OUTPUT + word;
+            range_bits(
+                cs.namespace(|| format!("challenge_{challenge}_word_{word}")),
+                &z[index],
+                if word + 1 == CHALLENGE_WORDS_PER_OUTPUT {
+                    usize::try_from(UNIQUENESS_CHALLENGE_BITS_V2).map_err(|_| {
+                        SynthesisError::Unsatisfiable(
+                            "challenge bit width does not fit usize".to_owned(),
+                        )
+                    })? - 64 * (CHALLENGE_WORDS_PER_OUTPUT - 1)
+                } else {
+                    64
+                },
+            )?;
+        }
+    }
+    for index in CHALLENGE_FULL_DIGEST_LIMB_START..CHALLENGE_FULL_DIGEST_LIMB_END {
+        range_bits(
+            cs.namespace(|| format!("challenge_full_digest_limb_{index}")),
+            &z[index],
+            16,
+        )?;
+    }
+    for (label, index) in [
+        ("sorted_parser_active", SORTED_PARSE_ACTIVE_CELL),
+        ("sorted_parser_pass", SORTED_PARSE_PASS_CELL),
+        ("sorted_parser_set", SORTED_PARSE_SET_CELL),
+        ("sorted_parser_list", SORTED_PARSE_LIST_CELL),
+        ("sorted_spent_last_active", SORTED_SPENT_LAST_ACTIVE_CELL),
+        ("sorted_output_last_active", SORTED_OUTPUT_LAST_ACTIVE_CELL),
+        ("sorted_global_last_active", SORTED_GLOBAL_LAST_ACTIVE_CELL),
+        ("sorted_global_last_set", SORTED_GLOBAL_LAST_SET_CELL),
+    ] {
+        range_bits(cs.namespace(|| label), &z[index], 1)?;
+    }
+    for (label, index) in [
+        ("sorted_spent_count", SORTED_SPENT_COUNT_CELL),
+        ("sorted_output_count", SORTED_OUTPUT_COUNT_CELL),
+        ("original_spent_count", ORIGINAL_SPENT_COUNT_CELL),
+        ("original_output_count", ORIGINAL_OUTPUT_COUNT_CELL),
+    ] {
+        range_bits(cs.namespace(|| label), &z[index], 32)?;
+    }
+    for range in [
+        REPLAY_PENDING_SEMANTIC_ROW_START..REPLAY_PENDING_SEMANTIC_ROW_END,
+        SORTED_PARSE_ROW_START..SORTED_PARSE_ROW_END,
+        SORTED_SPENT_LAST_START..SORTED_GLOBAL_LAST_END,
+    ] {
+        for index in range {
+            range_bits(
+                cs.namespace(|| format!("sorted_identifier_byte_{index}")),
+                &z[index],
+                8,
+            )?;
+        }
     }
     range_bits(
         cs.namespace(|| "hash_schedule_role"),
         &z[HASH_SCHEDULE_ROLE_CELL],
         8,
     )?;
-    for index in NET_DIGEST_LIMB_START..NET_DIGEST_LIMB_END {
-        range_bits(
-            cs.namespace(|| format!("net_digest_limb_{index}")),
-            &z[index],
-            16,
-        )?;
+    for range in [
+        NET_PARSE_ROW_START..NET_PARSE_NEW_HASH_END,
+        NET_PENDING_SPENT_ROW_START..NET_PENDING_OUTPUT_ROW_END,
+    ] {
+        for index in range {
+            range_bits(
+                cs.namespace(|| format!("net_semantic_byte_{index}")),
+                &z[index],
+                8,
+            )?;
+        }
     }
+    range_bits(
+        cs.namespace(|| "net_effect_count"),
+        &z[NET_EFFECT_COUNT_CELL],
+        64,
+    )?;
+    range_bits(
+        cs.namespace(|| "net_mutation_count"),
+        &z[NET_MUTATION_COUNT_CELL],
+        64,
+    )?;
     range_bits(cs.namespace(|| "sha_active"), &z[SHA_ACTIVE_CELL], 1)?;
     range_bits(
         cs.namespace(|| "sha_block_ordinal"),
         &z[SHA_BLOCK_ORDINAL_CELL],
         64,
     )?;
-    for index in SHA_CHAINING_START..SHA_CHAINING_END {
-        range_bits(
-            cs.namespace(|| format!("sha_chaining_{index}")),
-            &z[index],
-            32,
-        )?;
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(SHA_CHAINING_END)
+        .skip(SHA_CHAINING_START)
+    {
+        range_bits(cs.namespace(|| format!("sha_chaining_{index}")), cell, 32)?;
     }
-    for index in SHA_BLOCK_START..SHA_BLOCK_END {
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(SHA_BLOCK_END)
+        .skip(SHA_BLOCK_START)
+    {
+        range_bits(cs.namespace(|| format!("sha_block_byte_{index}")), cell, 8)?;
+    }
+    range_bits(
+        cs.namespace(|| "source_memory_pending_active"),
+        &z[SOURCE_MEMORY_PENDING_ACTIVE_CELL],
+        1,
+    )?;
+    for (label, index, bits) in [
+        (
+            "source_memory_pending_source_ordinal",
+            SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL,
+            64,
+        ),
+        (
+            "source_memory_pending_chunk_ordinal",
+            SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL,
+            32,
+        ),
+        (
+            "source_memory_pending_chunk_count",
+            SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL,
+            32,
+        ),
+        (
+            "source_memory_pending_byte_count",
+            SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL,
+            7,
+        ),
+    ] {
+        range_bits(cs.namespace(|| label), &z[index], bits)?;
+    }
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(SOURCE_MEMORY_PENDING_BYTES_END)
+        .skip(SOURCE_MEMORY_PENDING_BYTES_START)
+    {
         range_bits(
-            cs.namespace(|| format!("sha_block_byte_{index}")),
-            &z[index],
+            cs.namespace(|| format!("source_memory_pending_byte_{index}")),
+            cell,
             8,
         )?;
     }
+    let memory_pending = &z[SOURCE_MEMORY_PENDING_ACTIVE_CELL];
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(SOURCE_MEMORY_PENDING_BYTES_END)
+        .skip(SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL)
+    {
+        cs.enforce(
+            || format!("source_memory_inactive_window_zero_{index}"),
+            |lc| lc + CS::one() - memory_pending.get_variable(),
+            |lc| lc + cell.get_variable(),
+            |lc| lc,
+        );
+    }
     constrain_byte_context_ranges(cs, z, SOURCE_BYTE_CONTEXT_START, "source")?;
     constrain_byte_context_ranges(cs, z, GLOBAL_BYTE_CONTEXT_START, "global")?;
-    for index in EXPECTED_TRACE_ROOT_START..EXPECTED_TRACE_ROOT_END {
+    range_bits(
+        cs.namespace(|| "uniqueness_list_next_job"),
+        &z[UNIQUENESS_LIST_NEXT_JOB_CELL],
+        3,
+    )?;
+    constrain_byte_context_ranges(cs, z, UNIQUENESS_LIST_BYTE_CONTEXT_START, "uniqueness_list")?;
+    range_bits(
+        cs.namespace(|| "uniqueness_transcript_next_job"),
+        &z[UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL],
+        4,
+    )?;
+    constrain_byte_context_ranges(
+        cs,
+        z,
+        UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START,
+        "uniqueness_transcript",
+    )?;
+    for (index, cell) in z
+        .iter()
+        .enumerate()
+        .take(EXPECTED_STATEMENT_IDENTITY_END)
+        .skip(EXPECTED_TRACE_DIGEST_START)
+    {
         range_bits(
-            cs.namespace(|| format!("expected_trace_root_{index}")),
-            &z[index],
-            64,
-        )?;
-    }
-    for index in EXPECTED_TRACE_DIGEST_START..EXPECTED_TRACE_DIGEST_END {
-        range_bits(
-            cs.namespace(|| format!("expected_trace_digest_{index}")),
-            &z[index],
+            cs.namespace(|| format!("public_invariant_digest_{index}")),
+            cell,
             16,
         )?;
     }
@@ -8606,15 +20241,12 @@ fn constrain_bounded_u8<CS: ConstraintSystem<Scalar>>(
 }
 
 fn digest_cells() -> Vec<usize> {
-    let mut cells = (0..ANCHOR_CELLS).collect::<Vec<_>>();
+    let mut cells = (0..ANCHOR_DIGEST_CELLS).collect::<Vec<_>>();
     for range in [
         SOURCE_EVENT_DIGEST_START..SOURCE_EVENT_DIGEST_END,
-        SOURCE_TRACE_ROOT_END..CHAIN_END,
-        UNIQUENESS_START..UNIQUENESS_END,
-        JMT_START..JMT_END,
-        HIERARCHY_START..HIERARCHY_END,
-        COMMITMENTS_START..COMMITMENTS_END,
-        EXPECTED_TRACE_DIGEST_END..BYTE_CONTEXT_START,
+        JMT_TRACE_DIGEST_START..JMT_TRACE_DIGEST_END,
+        HIERARCHY_DEFINITION_ROOT_START..HIERARCHY_DEFINITION_ROOT_END,
+        CONSUMED_OPCODE_COUNT_END..BYTE_CONTEXT_START,
     ] {
         cells.extend(range);
     }
@@ -8624,9 +20256,9 @@ fn digest_cells() -> Vec<usize> {
 fn transient_cells() -> Vec<usize> {
     let mut cells = Vec::new();
     for range in [
-        COUNTERS_START..EXPECTED_TRACE_ROOT_START,
-        EXPECTED_TRACE_DIGEST_END..RUNNING_STATE_ARITY_V2,
-        SOURCE_TRACE_ROOT_END..CHAIN_END,
+        COUNTERS_START..EXPECTED_TRACE_DIGEST_START,
+        EXPECTED_POST_DEFINITION_ROOT_END..RUNNING_STATE_ARITY_V2,
+        CHAIN_START..CHAIN_END,
     ] {
         cells.extend(range);
     }
@@ -8685,7 +20317,48 @@ pub(crate) fn circuit_shape_digest(
 ) -> Result<[u8; 32], super::super::recursive_reject::RecursiveV2Error> {
     use z00z_crypto::{sha256_256_role, CheckpointShaRole};
 
-    let anchors = CheckpointNovaAnchorsV2::zero();
+    let declared_work = RecursiveDeclaredWorkV2::new(
+        RecursiveTraceEventCountsV2::default(),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )?;
+    let old_definition_root = JMT_SPARSE_PLACEHOLDER_HASH_V2;
+    let old_settlement_root = *derive_settlement_root_v2(
+        RootGeneration::SettlementV2,
+        7,
+        [11; 32],
+        old_definition_root,
+    )
+    .map_err(|_| RecursiveV2Error::Root)?
+    .as_bytes();
+    let shape_context = RecursivePreUniquenessContextV2::from_parts(
+        [1; 32],
+        [10; 32],
+        [11; 32],
+        [12; 32],
+        1,
+        0,
+        7,
+        1,
+        1,
+        old_settlement_root,
+        old_definition_root,
+        [4; 32],
+        [9; 32],
+        [5; 32],
+        [6; 32],
+        [7; 32],
+        RecursiveTraceOpcodeV2::grammar_digest(),
+        [8; 32],
+        declared_work,
+    )?;
+    let anchors = CheckpointNovaAnchorsV2::from_pre_uniqueness_context(shape_context);
     let profile = RecursiveCircuitProfileV2::repository_fixture();
     let source = RecursiveTraceEventV2::new(
         0,
@@ -8698,7 +20371,7 @@ pub(crate) fn circuit_shape_digest(
     let event = NovaTypedSourceEventV2::from_source(ControlPhaseV2::Idle, &source)
         .map_err(|_| super::super::recursive_reject::RecursiveV2Error::Invariant)?;
     let event = event.clone().with_successor(&event);
-    let trace_authority = NovaTraceRootAuthorityV2::new([0_u64; DIGEST_LIMBS]);
+    let trace_authority = NovaTraceRootAuthorityV2::new([0_u16; DIGEST_LIMBS]);
     let state = CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
         .with_source_event(&event)
         .with_trace_authority(&trace_authority);
@@ -8740,7 +20413,7 @@ const MAX_NOVA_COMPRESSED_PROOF_BYTES_V2: usize = 128 * 1024;
 // are prover-local recovery material and are never verifier-bundle payloads.
 const NOVA_BUNDLE_SAFETY_CAP_V2: usize = NOVA_VK_SAFETY_CAP_V2 + 1024;
 const NOVA_PROOF_ENVELOPE_MAGIC_V2: [u8; 8] = *b"Z00ZNPE2";
-const NOVA_PROOF_ENVELOPE_FORMAT_V2: u8 = 1;
+const NOVA_PROOF_ENVELOPE_FORMAT_V2: u8 = 2;
 const NOVA_SCALAR_WIRE_BYTES_V2: usize = 32;
 const NOVA_PUBLIC_STATE_BYTES_V2: usize = RUNNING_STATE_ARITY_V2 * NOVA_SCALAR_WIRE_BYTES_V2;
 // The envelope is exactly one header, two public IVC endpoints, and one
@@ -8753,7 +20426,7 @@ const NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2: usize = 8
     + NOVA_FEATURE_ID_V2.len()
     + 8
     + (3 * 8)
-    + (4 * 32)
+    + (7 * 32)
     + 4
     + 32;
 const NOVA_PROOF_ENVELOPE_SAFETY_CAP_V2: usize = NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
@@ -9165,7 +20838,7 @@ impl NovaProverMaterialV2 {
 
 /// The only owner of decoded Nova verifier objects. It is intentionally
 /// private, immutable, and validated before a compressed proof is decoded.
-#[allow(dead_code)] // Wired to the runner with the remaining semantic relations.
+#[allow(dead_code)] // Wired by the retained mixed-proof runner/artifact closure.
 struct NovaVerifierBundleV2 {
     header: VerifierBundleHeaderV2,
     vk: NovaVerifierKey,
@@ -9248,6 +20921,46 @@ impl NovaVerifierBundleV2 {
     fn digest(&self) -> [u8; 32] {
         self.bundle_digest
     }
+
+    fn verifier_authority(
+        &self,
+    ) -> Result<super::super::recursive_statement::RecursiveVerifierAuthorityV2, RecursiveV2Error>
+    {
+        super::super::recursive_statement::RecursiveVerifierAuthorityV2::new(
+            executable_predicate_digest()?,
+            self.digest(),
+        )
+    }
+
+    fn public_input_binding(&self) -> Result<RecursiveVerifierInputBindingV2, RecursiveV2Error> {
+        RecursiveVerifierInputBindingV2::new(
+            executable_predicate_digest()?,
+            self.header.profile_digest,
+            self.header.spec_digest,
+            self.header.pp_digest,
+            self.header.vk_digest,
+            self.digest(),
+        )
+    }
+
+    fn build_public_input(
+        &self,
+        transition: &CanonicalCheckpointTransitionV2,
+        profile: &RecursiveCircuitProfileV2,
+        evaluated: EvaluatedCheckpointTransitionV2,
+        prior: RecursiveFinalizedIvcStateV2,
+    ) -> Result<RecursiveCheckpointPublicInputV2, RecursiveV2Error> {
+        RecursiveCheckpointPublicInputV2::build(
+            transition.recursive_authority_context(),
+            transition.recursive_checkpoint_binding(),
+            profile,
+            evaluated.statement(),
+            evaluated.trace(),
+            transition.recursive_pre_uniqueness_context()?,
+            self.public_input_binding()?,
+            prior,
+        )
+    }
 }
 
 /// The only logical compressed Nova proof body. It is not a key container,
@@ -9280,6 +20993,9 @@ impl NovaCompressedSnapshotV2 {
 #[allow(dead_code)] // See `NovaProofEnvelopeV2`.
 struct NovaProofEnvelopeHeaderV2 {
     bundle_digest: [u8; 32],
+    public_input_digest: [u8; 32],
+    prior_finalized_state_digest: [u8; 32],
+    successor_finalized_state_digest: [u8; 32],
     initial_state_digest: [u8; 32],
     final_state_digest: [u8; 32],
     proof_digest: [u8; 32],
@@ -9294,6 +21010,9 @@ struct NovaProofEnvelopeHeaderV2 {
 impl NovaProofEnvelopeHeaderV2 {
     fn new(
         bundle_digest: [u8; 32],
+        public_input_digest: [u8; 32],
+        prior_finalized_state_digest: [u8; 32],
+        successor_finalized_state_digest: [u8; 32],
         initial_state: &[u8],
         final_state: &[u8],
         start_height: u64,
@@ -9301,13 +21020,25 @@ impl NovaProofEnvelopeHeaderV2 {
         steps: u64,
         proof_bytes: &[u8],
     ) -> Result<Self, RecursiveV2Error> {
-        if end_height < start_height || steps == 0 {
+        if end_height < start_height
+            || steps == 0
+            || [
+                bundle_digest,
+                public_input_digest,
+                prior_finalized_state_digest,
+                successor_finalized_state_digest,
+            ]
+            .contains(&[0_u8; 32])
+        {
             return Err(RecursiveV2Error::Invariant);
         }
         let proof_payload_bytes =
             u32::try_from(proof_bytes.len()).map_err(|_| RecursiveV2Error::Limit)?;
         let mut header = Self {
             bundle_digest,
+            public_input_digest,
+            prior_finalized_state_digest,
+            successor_finalized_state_digest,
             initial_state_digest: proof_envelope_component_digest(b"initial-state", initial_state),
             final_state_digest: proof_envelope_component_digest(b"final-state", final_state),
             proof_digest: proof_envelope_component_digest(b"compressed-proof", proof_bytes),
@@ -9339,6 +21070,9 @@ impl NovaProofEnvelopeHeaderV2 {
         }
         for digest in [
             self.bundle_digest,
+            self.public_input_digest,
+            self.prior_finalized_state_digest,
+            self.successor_finalized_state_digest,
             self.initial_state_digest,
             self.final_state_digest,
             self.proof_digest,
@@ -9368,6 +21102,9 @@ impl NovaProofEnvelopeHeaderV2 {
         let end_height = take_u64_bundle(bytes, &mut cursor)?;
         let steps = take_u64_bundle(bytes, &mut cursor)?;
         let bundle_digest = take_fixed::<32>(bytes, &mut cursor)?;
+        let public_input_digest = take_fixed::<32>(bytes, &mut cursor)?;
+        let prior_finalized_state_digest = take_fixed::<32>(bytes, &mut cursor)?;
+        let successor_finalized_state_digest = take_fixed::<32>(bytes, &mut cursor)?;
         let initial_state_digest = take_fixed::<32>(bytes, &mut cursor)?;
         let final_state_digest = take_fixed::<32>(bytes, &mut cursor)?;
         let proof_digest = take_fixed::<32>(bytes, &mut cursor)?;
@@ -9376,6 +21113,13 @@ impl NovaProofEnvelopeHeaderV2 {
         if cursor != NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
             || end_height < start_height
             || steps == 0
+            || [
+                bundle_digest,
+                public_input_digest,
+                prior_finalized_state_digest,
+                successor_finalized_state_digest,
+            ]
+            .contains(&[0_u8; 32])
             || project_digest
                 != proof_envelope_project_digest(&bytes[..cursor - project_digest.len()])
         {
@@ -9383,6 +21127,9 @@ impl NovaProofEnvelopeHeaderV2 {
         }
         Ok(Self {
             bundle_digest,
+            public_input_digest,
+            prior_finalized_state_digest,
+            successor_finalized_state_digest,
             initial_state_digest,
             final_state_digest,
             proof_digest,
@@ -9410,6 +21157,7 @@ struct NovaProofEnvelopeV2 {
 impl NovaProofEnvelopeV2 {
     fn new(
         bundle: &NovaVerifierBundleV2,
+        public_input: &RecursiveCheckpointPublicInputV2,
         start_height: u64,
         end_height: u64,
         steps: usize,
@@ -9418,6 +21166,19 @@ impl NovaProofEnvelopeV2 {
         proof_bytes: Vec<u8>,
     ) -> Result<Self, RecursiveV2Error> {
         let steps = u64::try_from(steps).map_err(|_| RecursiveV2Error::Limit)?;
+        let successor = RecursiveFinalizedIvcStateV2::expected_successor(public_input, steps)?;
+        if end_height != public_input.height()
+            || successor.height() != end_height
+            || successor.cumulative_steps() != steps
+            || successor.checkpoint_id().as_bytes() == &[0_u8; 32]
+        {
+            return Err(RecursiveV2Error::Invariant);
+        }
+        if initial_state != expected_public_state(public_input, 0, false)?
+            || final_state != expected_public_state(public_input, steps, true)?
+        {
+            return Err(RecursiveV2Error::Invariant);
+        }
         let initial_bytes = encode_public_state(initial_state)?;
         let final_bytes = encode_public_state(final_state)?;
         let body = NovaCompressedSnapshotV2::new(proof_bytes)?;
@@ -9427,6 +21188,9 @@ impl NovaProofEnvelopeV2 {
         let _ = bundle.decode_compressed_proof(&body.proof_bytes)?;
         let header = NovaProofEnvelopeHeaderV2::new(
             bundle.digest(),
+            public_input.digest(),
+            public_input.prior_finalized_state_digest(),
+            successor.digest(),
             &initial_bytes,
             &final_bytes,
             start_height,
@@ -9464,12 +21228,25 @@ impl NovaProofEnvelopeV2 {
         Ok(bytes)
     }
 
-    fn load(bytes: &[u8], bundle: &NovaVerifierBundleV2) -> Result<Self, RecursiveV2Error> {
+    fn load(
+        bytes: &[u8],
+        bundle: &NovaVerifierBundleV2,
+        public_input: &RecursiveCheckpointPublicInputV2,
+    ) -> Result<Self, RecursiveV2Error> {
         if bytes.len() > NOVA_PROOF_ENVELOPE_SAFETY_CAP_V2 {
             return Err(RecursiveV2Error::Limit);
         }
         let header = NovaProofEnvelopeHeaderV2::decode(bytes)?;
-        if header.bundle_digest != bundle.digest() {
+        let successor =
+            RecursiveFinalizedIvcStateV2::expected_successor(public_input, header.steps)?;
+        if header.bundle_digest != bundle.digest()
+            || header.public_input_digest != public_input.digest()
+            || header.prior_finalized_state_digest != public_input.prior_finalized_state_digest()
+            || header.successor_finalized_state_digest != successor.digest()
+            || header.end_height != public_input.height()
+            || successor.height() != header.end_height
+            || successor.cumulative_steps() != header.steps
+        {
             return Err(RecursiveV2Error::Authority);
         }
         let public_end = NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
@@ -9510,6 +21287,11 @@ impl NovaProofEnvelopeV2 {
         }
         let initial_state = decode_public_state(initial_bytes)?;
         let final_state = decode_public_state(final_bytes)?;
+        if initial_state != expected_public_state(public_input, 0, false)?
+            || final_state != expected_public_state(public_input, header.steps, true)?
+        {
+            return Err(RecursiveV2Error::Invariant);
+        }
         let body = NovaCompressedSnapshotV2::new(proof_bytes.to_vec())?;
         // Strict bundle validation precedes this proof decode by the load API;
         // the decoder accepts a bounded canonical compressed proof only.
@@ -9522,18 +21304,97 @@ impl NovaProofEnvelopeV2 {
         })
     }
 
-    fn verify(&self, bundle: &NovaVerifierBundleV2) -> Result<Vec<Scalar>, RecursiveV2Error> {
-        if self.header.bundle_digest != bundle.digest() {
+    fn verify(
+        &self,
+        bundle: &NovaVerifierBundleV2,
+        public_input: &RecursiveCheckpointPublicInputV2,
+    ) -> Result<Vec<Scalar>, RecursiveV2Error> {
+        let successor =
+            RecursiveFinalizedIvcStateV2::expected_successor(public_input, self.header.steps)?;
+        if self.header.bundle_digest != bundle.digest()
+            || self.header.public_input_digest != public_input.digest()
+            || self.header.prior_finalized_state_digest
+                != public_input.prior_finalized_state_digest()
+            || self.header.successor_finalized_state_digest != successor.digest()
+        {
             return Err(RecursiveV2Error::Authority);
         }
         let steps = usize::try_from(self.header.steps).map_err(|_| RecursiveV2Error::Limit)?;
         let proof = bundle.decode_compressed_proof(&self.body.proof_bytes)?;
         let output = bundle.verify(&proof, steps, &self.initial_state)?;
-        if output != self.final_state {
+        if output != self.final_state
+            || output != expected_public_state(public_input, self.header.steps, true)?
+        {
             return Err(RecursiveV2Error::Invariant);
         }
         Ok(output)
     }
+}
+
+fn expected_public_state(
+    input: &RecursiveCheckpointPublicInputV2,
+    steps: u64,
+    finalized: bool,
+) -> Result<Vec<Scalar>, RecursiveV2Error> {
+    if finalized != (steps != 0) {
+        return Err(RecursiveV2Error::Invariant);
+    }
+    let binding = input.nova_state_bindings();
+    let mut state = vec![Scalar::from(0_u64); RUNNING_STATE_ARITY_V2];
+    for (digest_index, digest) in binding.anchor_digests.into_iter().enumerate() {
+        for (limb_index, limb) in digest_limbs(digest).into_iter().enumerate() {
+            state[digest_index * DIGEST_LIMBS + limb_index] = Scalar::from(u64::from(limb));
+        }
+    }
+    for (index, value) in binding.anchor_scalars.into_iter().enumerate() {
+        state[ANCHOR_SCALAR_START + index] = Scalar::from(value);
+    }
+    for (index, value) in binding.semantic_counts.into_iter().enumerate() {
+        state[ANCHOR_SEMANTIC_COUNT_START + index] = Scalar::from(value);
+    }
+    for (index, value) in binding.opcode_counts.into_iter().enumerate() {
+        state[ANCHOR_OPCODE_COUNT_START + index] = Scalar::from(value);
+    }
+    for (start, digest) in [
+        (EXPECTED_TRACE_DIGEST_START, binding.expected_trace_digest),
+        (PUBLIC_INPUT_DIGEST_START, binding.public_input_digest),
+        (
+            PRIOR_FINALIZED_STATE_DIGEST_START,
+            binding.prior_finalized_state_digest,
+        ),
+        (
+            EXPECTED_POST_SETTLEMENT_ROOT_START,
+            binding.post_settlement_root,
+        ),
+        (
+            EXPECTED_POST_DEFINITION_ROOT_START,
+            binding.post_definition_root,
+        ),
+    ] {
+        for (index, limb) in digest_limbs(digest).into_iter().enumerate() {
+            state[start + index] = Scalar::from(u64::from(limb));
+        }
+    }
+    for (digest_index, digest) in binding.typed_checkpoint_commitments.into_iter().enumerate() {
+        for (limb_index, limb) in digest_limbs(digest).into_iter().enumerate() {
+            state[EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START
+                + digest_index * DIGEST_LIMBS
+                + limb_index] = Scalar::from(u64::from(limb));
+        }
+    }
+    for (digest_index, digest) in binding.statement_identity_digests.into_iter().enumerate() {
+        for (limb_index, limb) in digest_limbs(digest).into_iter().enumerate() {
+            state[EXPECTED_STATEMENT_IDENTITY_START + digest_index * DIGEST_LIMBS + limb_index] =
+                Scalar::from(u64::from(limb));
+        }
+    }
+    if finalized {
+        state[PHASE_CELL] = Scalar::from(ControlPhaseV2::Idle as u64);
+        state[PRIOR_OPCODE_CELL] = Scalar::from(RecursiveTraceOpcodeV2::EndHash as u8 as u64);
+        state[ORDINAL_CELL] = Scalar::from(steps);
+        state[DONE_CELL] = Scalar::from(1_u64);
+    }
+    Ok(state)
 }
 
 fn encode_public_state(state: &[Scalar]) -> Result<Vec<u8>, RecursiveV2Error> {
@@ -9609,9 +21470,34 @@ fn source_revision_digest() -> [u8; 32] {
         &[
             b"z00z.recursive.v2.nova-owner-source",
             include_bytes!("nova.rs"),
+            include_bytes!("../canonical_transition.rs"),
+            include_bytes!("../recursive_circuit.rs"),
+            include_bytes!("../recursive_context.rs"),
+            include_bytes!("../recursive_predicate.rs"),
+            include_bytes!("../recursive_semantics.rs"),
             include_bytes!("../recursive_trace.rs"),
+            include_bytes!("../recursive_statement.rs"),
+            include_bytes!("../../../../z00z_crypto/src/hash/domains.rs"),
+            include_bytes!("../../../../z00z_crypto/src/hash/sha256_hash.rs"),
         ],
     )
+}
+
+/// Digest of the exact executable predicate selected by a verifier bundle.
+/// It is derived from the transition table, measured R1CS shape, and every
+/// source/domain owner that can change transcript semantics.
+pub(crate) fn executable_predicate_digest() -> Result<[u8; 32], RecursiveV2Error> {
+    use z00z_crypto::{sha256_256_role, CheckpointShaRole};
+
+    Ok(sha256_256_role(
+        CheckpointShaRole::Statement,
+        &[
+            b"z00z.recursive.v2.executable-predicate",
+            &transition_table_digest(),
+            &circuit_shape_digest()?,
+            &source_revision_digest(),
+        ],
+    ))
 }
 
 fn lockfile_digest() -> [u8; 32] {
@@ -9735,29 +21621,37 @@ fn take_u64_bundle(bytes: &[u8], cursor: &mut usize) -> Result<u64, RecursiveV2E
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::BTreeMap,
+        fs::{self, File, OpenOptions},
+        io::Write,
+        path::{Path, PathBuf},
         process::Command,
         sync::{Mutex, OnceLock},
-        time::{Duration, Instant},
+        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
 
     use super::{
         control_transition, measure_shape, nova_resource_preflight,
         nova_resource_preflight_from_shape, opcode_list, setup_public_parameters_after_preflight,
         CheckpointNovaAnchorsV2, CheckpointNovaCircuitV2, CheckpointRunningStateV2, ControlPhaseV2,
-        ControlTransitionRejectionV2, NovaProofEnvelopeHeaderV2, NovaProofEnvelopeV2,
-        NovaProverMaterialV2, NovaResourceLimitsV2, NovaShapeMetricsV2, NovaStepWitnessV2,
-        NovaTraceRootAuthorityV2, NovaTypedSourceEventV2, NovaVerifierBundleV2,
-        RecursiveAuthoritySnapshotV2, RecursiveCircuitProfileV2, RecursiveCircuitSpecV2,
+        ControlTransitionRejectionV2, NovaProofEnvelopeV2, NovaProverMaterialV2,
+        NovaResourceLimitsV2, NovaShapeMetricsV2, NovaStepWitnessV2, NovaTraceRootAuthorityV2,
+        NovaTypedSourceEventV2, NovaVerifierBundleV2, RecursiveAuthoritySnapshotV2,
+        RecursiveCheckpointPublicInputV2, RecursiveCircuitProfileV2, RecursiveCircuitSpecV2,
         RecursiveV2Error, Scalar, VerifierBundleBindingV2, VerifierBundleHeaderV2,
         CONTROL_TRANSITION_TABLE_V2, MAX_NOVA_COMPRESSED_PROOF_BYTES_V2, NOVA_BUNDLE_SAFETY_CAP_V2,
         NOVA_PALLAS_AFFINE_WIRE_BYTES_V2, NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2,
         NOVA_RESOURCE_LIMITS_V2, NOVA_VK_SAFETY_CAP_V2, NOVA_WORKER_SAFETY_CAP_V2,
         RUNNING_STATE_ARITY_V2, VERIFIER_BUNDLE_HEADER_BYTES_V2,
     };
+    use ff::PrimeField;
+    use fs2::FileExt;
     use nova_snark::{
         frontend::{
-            gadgets::num::AllocatedNum, shape_cs::ShapeCS, test_cs::TestConstraintSystem,
-            ConstraintSystem,
+            gadgets::{boolean::AllocatedBit, num::AllocatedNum},
+            shape_cs::ShapeCS,
+            test_cs::TestConstraintSystem,
+            ConstraintSystem, Index, LinearCombination, SynthesisError, Variable,
         },
         nova::{CompressedSNARK, RecursiveSNARK},
         provider::{ipa_pc::EvaluationEngine, PallasEngine, VestaEngine},
@@ -9767,6 +21661,7 @@ mod tests {
     use sha2::{
         compress256,
         digest::generic_array::{typenum::U64, GenericArray},
+        Digest, Sha256,
     };
     use tempfile::TempDir;
 
@@ -9774,17 +21669,24 @@ mod tests {
         checkpoint::{
             recursive_context::RecursiveSnapshotHandleV2,
             recursive_semantics::{
-                decode_uniqueness_precommit, encode_flow_item, encode_net_merge,
-                encode_uniqueness_challenge, encode_uniqueness_precommit,
+                decode_uniqueness_challenge, decode_uniqueness_precommit, encode_flow_header,
+                encode_flow_header_with_v2_roots, encode_flow_item, encode_net_effect,
+                encode_net_merge, encode_uniqueness_challenge, encode_uniqueness_precommit,
+                encode_uniqueness_sorted_row, NetEffectV2, UniquenessListKindV2, UniquenessPassV2,
+                UniquenessSemanticRowV2, UniquenessSetKindV2,
             },
             recursive_trace::{
-                decode_hash_control, structural_event_id, HashControlSchemaV2, HashControlStageV2,
+                decode_hash_control, emit_settlement_transcript_hash_controls_for_test,
+                structural_event_id, HashControlSchemaV2, HashControlStageV2,
                 RecursiveTraceEventV2, RecursiveTraceOpcodeV2, RecursiveTransitionTraceSourceV2,
+                UniquenessTranscriptHashJobV2,
             },
         },
         settlement::{
-            derive_settlement_root_v2, RootGeneration, ScopeFlow, ScopeFlowItem, ScopeLeafKind,
-            ScopeOpKind, ScopeRootFlow, ScopeSeen,
+            derive_settlement_root_v2, hierarchy_circuit_transcript_for_test,
+            jmt_mutation_case_circuit_transcripts_for_test, RootGeneration, ScopeFlow,
+            ScopeFlowItem, ScopeLeafKind, ScopeOpKind, ScopeRootFlow, ScopeSeen,
+            SettlementStateRoot,
         },
         snapshot::PrepSnapshotId,
     };
@@ -9798,6 +21700,104 @@ mod tests {
         Snark<VestaEngine>,
     >;
 
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct ShapeNamespaceCostV2 {
+        constraints: u64,
+        nonzeros: u64,
+    }
+
+    /// Shape-only constraint system that attributes exact R1CS rows/nonzeros
+    /// to the first circuit namespace. It never evaluates witness values and
+    /// cannot enter the prover; its retained test prevents resource work from
+    /// optimizing an intuitively large lane while missing the actual hotspot.
+    struct ShapeProfileCsV2 {
+        inner: ShapeCS<PallasEngine>,
+        namespaces: Vec<String>,
+        costs: BTreeMap<String, ShapeNamespaceCostV2>,
+    }
+
+    impl ShapeProfileCsV2 {
+        fn new() -> Self {
+            Self {
+                inner: ShapeCS::new(),
+                namespaces: Vec::new(),
+                costs: BTreeMap::new(),
+            }
+        }
+
+        fn namespace_costs(&self) -> &BTreeMap<String, ShapeNamespaceCostV2> {
+            &self.costs
+        }
+    }
+
+    impl ConstraintSystem<Scalar> for ShapeProfileCsV2 {
+        type Root = Self;
+
+        fn alloc<F, A, AR>(&mut self, annotation: A, value: F) -> Result<Variable, SynthesisError>
+        where
+            F: FnOnce() -> Result<Scalar, SynthesisError>,
+            A: FnOnce() -> AR,
+            AR: Into<String>,
+        {
+            self.inner.alloc(annotation, value)
+        }
+
+        fn alloc_input<F, A, AR>(
+            &mut self,
+            annotation: A,
+            value: F,
+        ) -> Result<Variable, SynthesisError>
+        where
+            F: FnOnce() -> Result<Scalar, SynthesisError>,
+            A: FnOnce() -> AR,
+            AR: Into<String>,
+        {
+            self.inner.alloc_input(annotation, value)
+        }
+
+        fn enforce<A, AR, LA, LB, LC>(&mut self, annotation: A, a: LA, b: LB, c: LC)
+        where
+            A: FnOnce() -> AR,
+            AR: Into<String>,
+            LA: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
+            LB: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
+            LC: FnOnce(LinearCombination<Scalar>) -> LinearCombination<Scalar>,
+        {
+            let annotation = annotation().into();
+            let a = a(LinearCombination::zero());
+            let b = b(LinearCombination::zero());
+            let c = c(LinearCombination::zero());
+            let nonzeros = [&a, &b, &c]
+                .into_iter()
+                .flat_map(|combination| combination.iter())
+                .filter(|(_, coefficient)| **coefficient != Scalar::from(0_u64))
+                .count() as u64;
+            let namespace = self.namespaces.first().cloned().unwrap_or(annotation);
+            let cost = self.costs.entry(namespace).or_default();
+            cost.constraints += 1;
+            cost.nonzeros += nonzeros;
+            self.inner.constraints.push((a, b, c));
+        }
+
+        fn push_namespace<NR, N>(&mut self, name: N)
+        where
+            NR: Into<String>,
+            N: FnOnce() -> NR,
+        {
+            self.namespaces.push(name().into());
+        }
+
+        fn pop_namespace(&mut self) {
+            self.namespaces
+                .pop()
+                .expect("shape profiler namespace stack is balanced");
+        }
+
+        fn get_root(&mut self) -> &mut Self::Root {
+            self
+        }
+    }
+
     fn recompute_sha256_chaining_after(block: &[u8; 64], chaining_before: [u32; 8]) -> [u32; 8] {
         let mut chaining_after = chaining_before;
         let block = GenericArray::<u8, U64>::clone_from_slice(block);
@@ -9806,6 +21806,7 @@ mod tests {
     }
 
     const NOVA_WORKER_MARKER_V2: &str = "Z00Z_NOVA_WORKER_V2";
+    const NOVA_SINGLE_FLIGHT_PROBE_MARKER_V2: &str = "Z00Z_NOVA_SINGLE_FLIGHT_PROBE_V2";
     const NOVA_WORKER_TIMEOUT_SECS_V2: u64 = 900;
 
     #[derive(Clone, Copy, Debug)]
@@ -9817,6 +21818,80 @@ mod tests {
     fn real_nova_proof_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    /// Cross-process lease retained by the heavy-worker parent.  OS file locks
+    /// are released when a crashed parent exits, while the persisted owner
+    /// record remains diagnostic input for a competing parent.
+    struct NovaWorkerLeaseV2 {
+        _file: File,
+    }
+
+    fn nova_worker_lock_path() -> PathBuf {
+        let storage_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = storage_dir
+            .parent()
+            .and_then(Path::parent)
+            .expect("z00z_storage is inside the repository crates directory");
+        root.join("target")
+            .join("workspace")
+            .join("z00z-nova-worker-v2.lock")
+    }
+
+    fn nova_worker_source_digest() -> String {
+        let digest = z00z_crypto::sha256_256_role(
+            z00z_crypto::CheckpointShaRole::Statement,
+            &[
+                b"z00z.recursive.v2.nova-heavy-worker-source",
+                include_bytes!("nova.rs"),
+                include_bytes!("../recursive_trace.rs"),
+            ],
+        );
+        digest.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    fn acquire_nova_worker_lease(test_name: &str) -> Result<Option<NovaWorkerLeaseV2>, String> {
+        if std::env::var_os(NOVA_WORKER_MARKER_V2).is_some() {
+            return Ok(None);
+        }
+
+        let path = nova_worker_lock_path();
+        let parent = path
+            .parent()
+            .ok_or_else(|| "Nova worker lock path has no parent".to_owned())?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("create Nova worker lock directory: {error}"))?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(&path)
+            .map_err(|error| format!("open Nova worker lock {}: {error}", path.display()))?;
+        if let Err(error) = file.try_lock_exclusive() {
+            let owner = fs::read_to_string(&path)
+                .unwrap_or_else(|_| "owner metadata unavailable".to_owned());
+            return Err(format!(
+                "Nova heavy-worker single-flight lock is held at {}: {error}; owner={owner}",
+                path.display()
+            ));
+        }
+
+        let started = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| format!("read Nova worker start time: {error}"))?
+            .as_secs();
+        let metadata = format!(
+            "pid={}\nstarted_unix_secs={started}\nsource_digest={}\ncommand={test_name}\n",
+            std::process::id(),
+            nova_worker_source_digest(),
+        );
+        file.set_len(0)
+            .map_err(|error| format!("truncate Nova worker lock metadata: {error}"))?;
+        file.write_all(metadata.as_bytes())
+            .map_err(|error| format!("write Nova worker lock metadata: {error}"))?;
+        file.sync_data()
+            .map_err(|error| format!("sync Nova worker lock metadata: {error}"))?;
+        Ok(Some(NovaWorkerLeaseV2 { _file: file }))
     }
 
     fn parse_peak_rss_bytes(report: &str) -> Option<u64> {
@@ -9834,14 +21909,18 @@ mod tests {
     /// process. The child executes the unchanged test body; the parent only
     /// accepts its zero exit status plus an actual RSS measurement.
     fn run_bounded_nova_worker() -> Option<NovaWorkerReportV2> {
-        if std::env::var_os(NOVA_WORKER_MARKER_V2).is_some() {
-            return None;
-        }
-
         let test_name = std::thread::current()
             .name()
             .expect("test harness names every real Nova test")
             .to_owned();
+        // The parent holds this OS-visible lease across the entire child run.
+        // A marker-bearing child is deliberately a lease bypass: it executes
+        // under the parent's ownership and must not deadlock by re-locking it.
+        let _lease = acquire_nova_worker_lease(&test_name)
+            .unwrap_or_else(|error| panic!("cannot start bounded Nova worker: {error}"));
+        if std::env::var_os(NOVA_WORKER_MARKER_V2).is_some() {
+            return None;
+        }
         // Cargo can unlink and replace the test binary while this parent
         // process is still live. Its PID-pinned `/proc/<pid>/exe` remains an
         // executable handle to this exact test harness, whereas `current_exe()`
@@ -9886,6 +21965,12 @@ mod tests {
                 time_report
             );
         }
+        if !output.stdout.is_empty() {
+            eprint!("{}", String::from_utf8_lossy(&output.stdout));
+        }
+        if !output.stderr.is_empty() {
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        }
         assert!(
             peak_rss_bytes <= NOVA_WORKER_SAFETY_CAP_V2,
             "bounded Nova worker exceeded its diagnostic safety cap: {peak_rss_bytes} > {NOVA_WORKER_SAFETY_CAP_V2}"
@@ -9905,13 +21990,90 @@ mod tests {
     }
 
     #[test]
+    fn nova_worker_single_flight_probe() {
+        if std::env::var_os(NOVA_SINGLE_FLIGHT_PROBE_MARKER_V2).is_none() {
+            return;
+        }
+        let test_name = std::thread::current()
+            .name()
+            .expect("test harness names every probe")
+            .to_owned();
+        match acquire_nova_worker_lease(&test_name) {
+            // The parent needs an observable nonzero process status to prove
+            // that a second worker cannot enter setup.  Panic only after the
+            // diagnostic contains the held-lease metadata; the spawned probe
+            // is not a normal test success path.
+            Err(error) if error.contains("single-flight lock is held") => {
+                panic!("competing Nova-worker parent rejected: {error}");
+            }
+            Err(error) => panic!("competing parent reported the wrong lock failure: {error}"),
+            Ok(_) => panic!("a competing parent acquired the heavy-worker lease"),
+        }
+    }
+
+    #[test]
+    fn nova_worker_single_flight_rejects_cross_process_parent() {
+        // All parent-side users of the repository-wide worker lease must also
+        // serialize inside this test process.  Otherwise the Rust test harness
+        // can run this deliberate contention probe beside a real-Nova parent,
+        // making the milestone test observe the probe's lease instead of
+        // testing its own bounded child.  The spawned probe remains a separate
+        // process and therefore still exercises the OS-visible file lock.
+        let _guard = real_nova_proof_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let test_name = std::thread::current()
+            .name()
+            .expect("test harness names every parent")
+            .to_owned();
+        let lease = acquire_nova_worker_lease(&test_name)
+            .expect("open parent single-flight lease")
+            .expect("a parent must own a lease");
+        let probe = "checkpoint::recursive_v2::nova::tests::nova_worker_single_flight_probe";
+        let test_binary = format!("/proc/{}/exe", std::process::id());
+        let output = Command::new(test_binary)
+            .arg("--exact")
+            .arg(probe)
+            .arg("--nocapture")
+            .env(NOVA_SINGLE_FLIGHT_PROBE_MARKER_V2, "1")
+            .output()
+            .expect("start competing Nova-worker parent probe");
+        drop(lease);
+        assert!(
+            !output.status.success(),
+            "a second parent must not acquire the heavy-worker lease",
+        );
+        let transcript = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(
+            transcript.contains("single-flight lock is held"),
+            "the competing parent must report the owner-held cross-process lock: {transcript}",
+        );
+        assert!(
+            transcript.contains("source_digest="),
+            "the contention report must retain source identity: {transcript}",
+        );
+    }
+
+    #[test]
     fn verifier_source_identity_binds_nova_and_canonical_trace_owner() {
         let expected = z00z_crypto::sha256_256_role(
             z00z_crypto::CheckpointShaRole::Statement,
             &[
                 b"z00z.recursive.v2.nova-owner-source",
                 include_bytes!("nova.rs"),
+                include_bytes!("../canonical_transition.rs"),
+                include_bytes!("../recursive_circuit.rs"),
+                include_bytes!("../recursive_context.rs"),
+                include_bytes!("../recursive_predicate.rs"),
+                include_bytes!("../recursive_semantics.rs"),
                 include_bytes!("../recursive_trace.rs"),
+                include_bytes!("../recursive_statement.rs"),
+                include_bytes!("../../../../z00z_crypto/src/hash/domains.rs"),
+                include_bytes!("../../../../z00z_crypto/src/hash/sha256_hash.rs"),
             ],
         );
         assert_eq!(super::source_revision_digest(), expected);
@@ -9941,22 +22103,11 @@ mod tests {
         );
     }
 
-    fn mutate_proof_envelope_header(
-        envelope: &[u8],
-        mutate: impl FnOnce(&mut NovaProofEnvelopeHeaderV2),
-    ) -> Vec<u8> {
-        let mut header =
-            NovaProofEnvelopeHeaderV2::decode(envelope).expect("canonical test envelope header");
-        mutate(&mut header);
-        header.project_digest = super::proof_envelope_project_digest(&header.canonical_prefix());
-        let mut mutated = header.encode();
-        mutated.extend_from_slice(&envelope[NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2..]);
-        mutated
-    }
-
     /// Audited control result kept test-only and intentionally independent of
     /// the production table.  Each row is `(phase, done)` in `ControlPhaseV2`
-    /// numeric order, and each column is frozen opcode order 1 through 13.
+    /// numeric order, and each column is frozen core opcode order 1 through 13.
+    /// Source opcodes 14 through 17 are audited independently below because
+    /// they are phase-preserving authenticated-memory records.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum ExpectedControlEdgeV2 {
         Accept {
@@ -10008,7 +22159,7 @@ mod tests {
     };
 
     // This matrix is deliberately not generated from `CONTROL_TRANSITION_TABLE_V2`.
-    // It freezes the action-15 grammar independently, including every rejected
+    // It freezes the core action grammar independently, including every rejected
     // phase/done/opcode tuple and all explicit hash-control self-loops.
     const EXPECTED_CONTROL_EDGE_MATRIX_V2: [[ExpectedControlEdgeV2; 13]; 18] = [
         [
@@ -10032,8 +22183,8 @@ mod tests {
         ],
         [FINALIZED; 13],
         [
-            ILLEGAL, ILLEGAL, ILLEGAL, NET, NET, NET, ILLEGAL, ILLEGAL, ILLEGAL, JMT, ILLEGAL,
-            ILLEGAL, ILLEGAL,
+            ILLEGAL, ILLEGAL, ILLEGAL, NET, NET, NET, ILLEGAL, ILLEGAL, NET, JMT, ILLEGAL, ILLEGAL,
+            ILLEGAL,
         ],
         [FINALIZED; 13],
         [
@@ -10058,7 +22209,7 @@ mod tests {
             ILLEGAL,
             ILLEGAL,
             ILLEGAL,
-            ILLEGAL,
+            COMMIT,
             TRACE_CLOSURE,
         ],
         [FINALIZED; 13],
@@ -10094,6 +22245,46 @@ mod tests {
                     next_done: false,
                 }
             };
+        }
+        if opcode == RecursiveTraceOpcodeV2::SourceMemoryWrite {
+            return if done {
+                ExpectedControlEdgeV2::Reject(ControlTransitionRejectionV2::Finalized)
+            } else {
+                ExpectedControlEdgeV2::Accept {
+                    next_phase: phase,
+                    next_done: false,
+                }
+            };
+        }
+        if opcode == RecursiveTraceOpcodeV2::UniquenessSorted {
+            return if done {
+                ExpectedControlEdgeV2::Reject(ControlTransitionRejectionV2::Finalized)
+            } else if phase == ControlPhaseV2::Precommit {
+                PRECOMMIT
+            } else if phase == ControlPhaseV2::Challenge {
+                CHALLENGE
+            } else if phase == ControlPhaseV2::Net {
+                NET
+            } else {
+                ILLEGAL
+            };
+        }
+        if opcode == RecursiveTraceOpcodeV2::JmtMicroOp {
+            return if done {
+                ExpectedControlEdgeV2::Reject(ControlTransitionRejectionV2::Finalized)
+            } else if phase == ControlPhaseV2::Jmt {
+                JMT
+            } else {
+                ILLEGAL
+            };
+        }
+        if matches!(
+            opcode,
+            RecursiveTraceOpcodeV2::ReplayInput | RecursiveTraceOpcodeV2::ReplayOutput
+        ) && phase == ControlPhaseV2::Precommit
+            && !done
+        {
+            return PRECOMMIT;
         }
         let state_index = (phase as usize) * 2 + usize::from(done);
         let opcode_index = usize::from(opcode as u8) - 1;
@@ -10143,21 +22334,10 @@ mod tests {
         CheckpointNovaCircuitV2::new(anchors, witness)
     }
 
-    fn trace_root_after(
-        prior_root: [u64; super::DIGEST_LIMBS],
-        event: &NovaTypedSourceEventV2,
-    ) -> [u64; super::DIGEST_LIMBS] {
-        std::array::from_fn(|index| {
-            prior_root[index]
-                .checked_add(u64::from(event.payload_digest_limbs[index]))
-                .expect("test trace root remains within u64")
-        })
-    }
-
     fn shape_of(
         circuit: &CheckpointNovaCircuitV2,
         state: &CheckpointRunningStateV2,
-    ) -> (usize, usize, usize) {
+    ) -> (usize, usize, usize, [u8; 32]) {
         let mut cs = ShapeCS::<PallasEngine>::new();
         let inputs = state
             .scalars()
@@ -10168,7 +22348,39 @@ mod tests {
             .synthesize(&mut cs, &inputs)
             .expect("shape synthesis");
         assert_eq!(output.len(), RUNNING_STATE_ARITY_V2);
-        (cs.num_constraints(), cs.num_inputs(), cs.num_aux())
+        let mut matrix = Sha256::new();
+        matrix.update((cs.num_constraints() as u64).to_le_bytes());
+        matrix.update((cs.num_inputs() as u64).to_le_bytes());
+        matrix.update((cs.num_aux() as u64).to_le_bytes());
+        for constraint in &cs.constraints {
+            for (lane, relation) in [
+                (&b'A', &constraint.0),
+                (&b'B', &constraint.1),
+                (&b'C', &constraint.2),
+            ] {
+                matrix.update([*lane]);
+                matrix.update((relation.iter().count() as u64).to_le_bytes());
+                for (variable, coefficient) in relation.iter() {
+                    match variable.get_unchecked() {
+                        Index::Input(index) => {
+                            matrix.update([0]);
+                            matrix.update((index as u64).to_le_bytes());
+                        }
+                        Index::Aux(index) => {
+                            matrix.update([1]);
+                            matrix.update((index as u64).to_le_bytes());
+                        }
+                    }
+                    matrix.update(coefficient.to_repr().as_ref());
+                }
+            }
+        }
+        (
+            cs.num_constraints(),
+            cs.num_inputs(),
+            cs.num_aux(),
+            matrix.finalize().into(),
+        )
     }
 
     fn synthesize_test(
@@ -10193,9 +22405,1461 @@ mod tests {
         assert_eq!(output.len(), RUNNING_STATE_ARITY_V2);
         CheckpointRunningStateV2 {
             cells: std::array::from_fn(|index| {
-                super::scalar_u64(output[index].get_value().expect("concrete test output"))
+                output[index].get_value().expect("concrete test output")
             }),
         }
+    }
+
+    fn canonical_test_source_record(
+        opcode: RecursiveTraceOpcodeV2,
+        ordinal: u64,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        let mut record = Vec::with_capacity(super::TRACE_EVENT_HEADER_BYTES_V2 + payload.len());
+        record.push(opcode as u8);
+        record.extend_from_slice(&ordinal.to_le_bytes());
+        record.extend_from_slice(&[0xA5; 32]);
+        record.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        record.extend_from_slice(payload);
+        assert_eq!(
+            record.len(),
+            super::TRACE_EVENT_HEADER_BYTES_V2 + payload.len()
+        );
+        record
+    }
+
+    fn test_trace_chunks(record: &[u8], source_ordinal: u64) -> Vec<super::TraceChunkWitnessV2> {
+        let chunk_count = record.len().div_ceil(super::TRACE_CANONICAL_CHUNK_BYTES_V2) as u32;
+        record
+            .chunks(super::TRACE_CANONICAL_CHUNK_BYTES_V2)
+            .enumerate()
+            .map(|(chunk_ordinal, chunk)| {
+                let mut bytes = [0_u8; super::TRACE_CANONICAL_CHUNK_BYTES_V2];
+                bytes[..chunk.len()].copy_from_slice(chunk);
+                super::TraceChunkWitnessV2 {
+                    source_ordinal,
+                    chunk_ordinal: chunk_ordinal as u32,
+                    chunk_count,
+                    byte_count: chunk.len() as u8,
+                    bytes,
+                }
+            })
+            .collect()
+    }
+
+    fn synthesize_jmt_hierarchy_chunk(
+        state: &CheckpointRunningStateV2,
+        source_opcode: RecursiveTraceOpcodeV2,
+        trace_chunk: &super::TraceChunkWitnessV2,
+    ) -> (TestConstraintSystem<Scalar>, CheckpointRunningStateV2) {
+        synthesize_jmt_hierarchy_step(
+            state,
+            source_opcode,
+            RecursiveTraceOpcodeV2::TraceChunk,
+            trace_chunk,
+            &super::HashControlWitnessV2::inactive(),
+        )
+    }
+
+    fn synthesize_jmt_hierarchy_step(
+        state: &CheckpointRunningStateV2,
+        source_opcode: RecursiveTraceOpcodeV2,
+        step_opcode: RecursiveTraceOpcodeV2,
+        trace_chunk: &super::TraceChunkWitnessV2,
+        control_witness: &super::HashControlWitnessV2,
+    ) -> (TestConstraintSystem<Scalar>, CheckpointRunningStateV2) {
+        let mut state = state.clone();
+        state.cells[super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_HEADER_START_OFFSET] =
+            Scalar::from(source_opcode as u8 as u64);
+        let mut cs = TestConstraintSystem::<Scalar>::new();
+        let z = state
+            .scalars()
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| {
+                AllocatedNum::alloc(cs.namespace(|| format!("input_{index}")), || Ok(value))
+                    .expect("JMT test input allocation")
+            })
+            .collect::<Vec<_>>();
+        let opcode = AllocatedNum::alloc(cs.namespace(|| "test_step_opcode"), || {
+            Ok(Scalar::from(step_opcode as u8 as u64))
+        })
+        .expect("test step opcode allocation");
+        let opcode_selectors = super::opcode_selectors(&mut cs, &opcode).expect("opcode selectors");
+        let allocated_chunk =
+            super::allocate_trace_chunk(cs.namespace(|| "trace_chunk"), trace_chunk)
+                .expect("trace chunk allocation");
+        let control =
+            super::allocate_hash_control(cs.namespace(|| "hash_control"), control_witness)
+                .expect("hash-control allocation");
+        let trace_chunk_selector =
+            &opcode_selectors[usize::from(RecursiveTraceOpcodeV2::TraceChunk as u8 - 1)];
+        let outputs = super::synthesize_jmt_hierarchy_payload(
+            cs.namespace(|| "jmt_hierarchy_payload"),
+            &z,
+            &opcode_selectors,
+            trace_chunk_selector,
+            &allocated_chunk,
+            &control,
+        )
+        .expect("JMT/hierarchy payload synthesis");
+        for (index, value) in outputs.cells {
+            state.cells[index] = value.get_value().expect("concrete JMT payload output");
+        }
+        (cs, state)
+    }
+
+    fn synthesize_finalize_chunk(
+        state: &CheckpointRunningStateV2,
+        trace_chunk: &super::TraceChunkWitnessV2,
+    ) -> (TestConstraintSystem<Scalar>, CheckpointRunningStateV2) {
+        let mut state = state.clone();
+        state.cells[super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_HEADER_START_OFFSET] =
+            Scalar::from(RecursiveTraceOpcodeV2::FinalizeBlock as u8 as u64);
+        let mut cs = TestConstraintSystem::<Scalar>::new();
+        let z = state
+            .scalars()
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| {
+                AllocatedNum::alloc(cs.namespace(|| format!("input_{index}")), || Ok(value))
+                    .expect("FinalizeBlock test input allocation")
+            })
+            .collect::<Vec<_>>();
+        let opcode = AllocatedNum::alloc(cs.namespace(|| "test_step_opcode"), || {
+            Ok(Scalar::from(
+                RecursiveTraceOpcodeV2::TraceChunk as u8 as u64,
+            ))
+        })
+        .expect("test step opcode allocation");
+        let opcode_selectors = super::opcode_selectors(&mut cs, &opcode).expect("opcode selectors");
+        let allocated_chunk =
+            super::allocate_trace_chunk(cs.namespace(|| "trace_chunk"), trace_chunk)
+                .expect("trace chunk allocation");
+        let control = super::allocate_hash_control(
+            cs.namespace(|| "hash_control"),
+            &super::HashControlWitnessV2::inactive(),
+        )
+        .expect("inactive hash-control allocation");
+        let trace_chunk_selector =
+            &opcode_selectors[usize::from(RecursiveTraceOpcodeV2::TraceChunk as u8 - 1)];
+        let outputs = super::synthesize_finalize_settlement_payload(
+            cs.namespace(|| "finalize_settlement_payload"),
+            &z,
+            &opcode_selectors,
+            trace_chunk_selector,
+            &allocated_chunk,
+            &control,
+        )
+        .expect("FinalizeBlock settlement payload synthesis");
+        for (index, value) in outputs.cells {
+            state.cells[index] = value
+                .get_value()
+                .expect("concrete FinalizeBlock payload output");
+        }
+        (cs, state)
+    }
+
+    fn synthesize_settlement_transcript_step(
+        state: &CheckpointRunningStateV2,
+        event: &NovaTypedSourceEventV2,
+    ) -> (TestConstraintSystem<Scalar>, CheckpointRunningStateV2) {
+        let mut cs = TestConstraintSystem::<Scalar>::new();
+        let z = state
+            .scalars()
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| {
+                AllocatedNum::alloc(cs.namespace(|| format!("input_{index}")), || Ok(value))
+                    .expect("settlement transcript input allocation")
+            })
+            .collect::<Vec<_>>();
+        let event_ordinal =
+            super::allocate_constant(cs.namespace(|| "event_ordinal"), event.ordinal)
+                .expect("event ordinal allocation");
+        let opcode =
+            super::allocate_constant(cs.namespace(|| "event_opcode"), event.opcode as u8 as u64)
+                .expect("event opcode allocation");
+        let opcode_selectors = super::opcode_selectors(&mut cs, &opcode).expect("opcode selectors");
+        let control =
+            super::allocate_hash_control(cs.namespace(|| "hash_control"), &event.hash_control)
+                .expect("settlement transcript hash control");
+        let sha_block_selector =
+            &opcode_selectors[usize::from(RecursiveTraceOpcodeV2::ShaBlock as u8 - 1)];
+        let sha = super::synthesize_sha_compression_lane(
+            cs.namespace(|| "sha_compression"),
+            sha_block_selector,
+            &z,
+            &control,
+            &event.sha_compression,
+        )
+        .expect("settlement transcript SHA lane");
+        let inactive =
+            super::allocate_constant_bit(cs.namespace(|| "inactive_sorted_selector"), false)
+                .expect("inactive sorted selector");
+        let zero =
+            super::allocate_constant(cs.namespace(|| "sorted_zero"), 0).expect("sorted zero");
+        let sorted = super::UniquenessSortedPayloadOutputsV2 {
+            cells: Vec::new(),
+            output_set_tag: inactive.clone(),
+            commit_original_spent_row: inactive.clone(),
+            commit_original_output_row: inactive.clone(),
+            commit_sorted_spent_row: inactive.clone(),
+            commit_sorted_output_row: inactive.clone(),
+            original_spent_row: inactive.clone(),
+            original_output_row: inactive.clone(),
+            sorted_spent_row: inactive.clone(),
+            sorted_output_row: inactive,
+            semantic_row_bytes: vec![zero.clone(); super::UNIQUENESS_SEMANTIC_ROW_BYTES_V2],
+            semantic_row_limbs: vec![zero; super::UNIQUENESS_SEMANTIC_ROW_LIMBS_V2],
+        };
+        let outputs = super::synthesize_uniqueness_transcript_hash_context(
+            cs.namespace(|| "settlement_transcript"),
+            &z,
+            &event_ordinal,
+            &opcode_selectors,
+            &control,
+            &sorted,
+            &sha,
+        )
+        .expect("settlement transcript synthesis");
+        let mut next = state.clone();
+        for (index, value) in outputs.cells {
+            next.cells[index] = value
+                .get_value()
+                .expect("concrete settlement transcript output");
+        }
+        (cs, next)
+    }
+
+    fn settlement_transcript_fixture(
+        job: UniquenessTranscriptHashJobV2,
+    ) -> (
+        CheckpointRunningStateV2,
+        Vec<NovaTypedSourceEventV2>,
+        [u8; 32],
+    ) {
+        let trace_event_count = 40_u64;
+        let context = test_context_for_event_counts(
+            super::RecursiveTraceEventCountsV2::default(),
+            0,
+            [9; 32],
+        );
+        let anchors = CheckpointNovaAnchorsV2::from_pre_uniqueness_context(context);
+        let flow = ScopeFlow {
+            batch_id: "11".repeat(32),
+            shard_id: 7,
+            routing_generation: 9,
+            route_table_digest: "22".repeat(32),
+            items: Vec::new(),
+            root_flow: ScopeRootFlow {
+                prev_root: "33".repeat(32),
+                post_root: "44".repeat(32),
+            },
+        };
+        let precommit = decode_uniqueness_precommit(
+            &encode_uniqueness_precommit(&flow).expect("empty uniqueness precommit"),
+        )
+        .expect("decode empty uniqueness precommit");
+        let post_definition_root = [0x55_u8; 32];
+        let post_settlement_root = *derive_settlement_root_v2(
+            RootGeneration::SettlementV2,
+            7,
+            [11; 32],
+            post_definition_root,
+        )
+        .expect("post SettlementV2 root")
+        .as_bytes();
+        let profile = RecursiveCircuitProfileV2::repository_fixture();
+        let mut controls = Vec::new();
+        emit_settlement_transcript_hash_controls_for_test(
+            job,
+            context,
+            precommit,
+            post_definition_root,
+            post_settlement_root,
+            trace_event_count,
+            &profile,
+            &mut |event| {
+                controls.push(NovaTypedSourceEventV2::from_source(
+                    ControlPhaseV2::TraceClosure,
+                    event,
+                )?);
+                Ok(())
+            },
+        )
+        .expect("canonical settlement transcript controls");
+        let mut state = CheckpointRunningStateV2::initial(&anchors);
+        for (index, limb) in super::digest_limbs(context.digest())
+            .into_iter()
+            .enumerate()
+        {
+            state.cells[super::CHALLENGE_DIGEST_LIMB_START + index] = Scalar::from(u64::from(limb));
+        }
+        state.cells[super::GLOBAL_BYTE_CONTEXT_START + super::BYTE_CONTEXT_ACTIVE_OFFSET] =
+            Scalar::from(1_u64);
+        state.cells[super::GLOBAL_BYTE_CONTEXT_START + super::BYTE_CONTEXT_CHUNK_COUNT_OFFSET] =
+            Scalar::from(trace_event_count);
+        state.cells[super::UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL] = Scalar::from(job as u8 as u64);
+        for (index, limb) in super::digest_limbs(post_definition_root)
+            .into_iter()
+            .enumerate()
+        {
+            state.cells[super::HIERARCHY_DEFINITION_ROOT_START + index] =
+                Scalar::from(u64::from(limb));
+            state.cells[super::EXPECTED_POST_DEFINITION_ROOT_START + index] =
+                Scalar::from(u64::from(limb));
+        }
+        for (index, limb) in super::digest_limbs(post_settlement_root)
+            .into_iter()
+            .enumerate()
+        {
+            state.cells[super::EXPECTED_POST_SETTLEMENT_ROOT_START + index] =
+                Scalar::from(u64::from(limb));
+        }
+        let post_hex = z00z_crypto::expert::encoding::to_hex(&post_settlement_root);
+        for (index, byte) in post_hex.bytes().enumerate() {
+            state.cells[super::FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + index] =
+                Scalar::from(u64::from(byte));
+        }
+        (state, controls, post_settlement_root)
+    }
+
+    fn run_settlement_transcript_until_failure(
+        mut state: CheckpointRunningStateV2,
+        controls: &[NovaTypedSourceEventV2],
+    ) -> Result<CheckpointRunningStateV2, String> {
+        for event in controls {
+            let (cs, next) = synthesize_settlement_transcript_step(&state, event);
+            if !cs.is_satisfied() {
+                return Err(cs
+                    .which_is_unsatisfied()
+                    .unwrap_or("unknown settlement transcript constraint")
+                    .to_owned());
+            }
+            state = next;
+        }
+        Ok(state)
+    }
+
+    #[test]
+    fn settlement_root_sha_jobs_bind_policy_layout_definition_and_finalize_post_root() {
+        for job in [
+            UniquenessTranscriptHashJobV2::SettlementPreRoot,
+            UniquenessTranscriptHashJobV2::SettlementPostRoot,
+        ] {
+            let (state, controls, _) = settlement_transcript_fixture(job);
+            let final_state = run_settlement_transcript_until_failure(state.clone(), &controls)
+                .unwrap_or_else(|failure| panic!("canonical {job:?} transcript failed: {failure}"));
+            assert_eq!(
+                final_state.cells[super::UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL],
+                Scalar::from(job as u8 as u64 + 1)
+            );
+
+            for (label, cell) in [
+                ("policy", 2 * super::DIGEST_LIMBS),
+                ("layout", super::ANCHOR_SCALAR_START + 3),
+                (
+                    "definition",
+                    if job == UniquenessTranscriptHashJobV2::SettlementPreRoot {
+                        5 * super::DIGEST_LIMBS
+                    } else {
+                        super::HIERARCHY_DEFINITION_ROOT_START
+                    },
+                ),
+            ] {
+                let mut changed = state.clone();
+                changed.cells[cell] += Scalar::from(1_u64);
+                let failure = match run_settlement_transcript_until_failure(changed, &controls) {
+                    Err(failure) => failure,
+                    Ok(_) => panic!("changed settlement transcript input must reject"),
+                };
+                assert!(
+                    failure.contains("settlement_transcript"),
+                    "changed {label} must reach the exact transcript/SHA relation, got {failure}"
+                );
+            }
+
+            if job == UniquenessTranscriptHashJobV2::SettlementPostRoot {
+                let mut changed = state;
+                changed.cells[super::FINALIZE_POST_SETTLEMENT_ROOT_HEX_START] =
+                    Scalar::from(u64::from(b'0'));
+                let failure = match run_settlement_transcript_until_failure(changed, &controls) {
+                    Err(failure) => failure,
+                    Ok(_) => panic!("changed FinalizeBlock post-root must reject"),
+                };
+                assert!(
+                    failure.contains("settlement_post_control_binding"),
+                    "post-root mutation must reach its direct SHA-result binding, got {failure}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn finalize_settlement_roots_are_decoded_from_the_canonical_r1cs_window() {
+        let anchors = CheckpointNovaAnchorsV2::for_test();
+        let mut pre_root_bytes = [0_u8; 32];
+        for limb in 0..super::DIGEST_LIMBS {
+            pre_root_bytes[limb * 2..limb * 2 + 2].copy_from_slice(
+                &(anchors.cells[4 * super::DIGEST_LIMBS + limb] as u16).to_le_bytes(),
+            );
+        }
+        let initial = CheckpointRunningStateV2::initial(&anchors);
+        let pre_root = SettlementStateRoot::settlement_v2(pre_root_bytes);
+        let post_root = SettlementStateRoot::settlement_v2([0x44_u8; 32]);
+        let flow = ScopeFlow {
+            batch_id: "11".repeat(32),
+            shard_id: 7,
+            routing_generation: 9,
+            route_table_digest: "22".repeat(32),
+            items: Vec::new(),
+            root_flow: ScopeRootFlow {
+                prev_root: "33".repeat(32),
+                post_root: "44".repeat(32),
+            },
+        };
+        let payload = encode_flow_header_with_v2_roots(&flow, pre_root, post_root)
+            .expect("canonical SettlementV2 FinalizeBlock payload");
+        assert_eq!(payload.len(), 284);
+        let record =
+            canonical_test_source_record(RecursiveTraceOpcodeV2::FinalizeBlock, 7, &payload);
+        let chunks = test_trace_chunks(&record, 7);
+        assert_eq!(chunks.len(), 6);
+
+        let mut state = initial.clone();
+        for (index, chunk) in chunks.iter().enumerate() {
+            let (cs, next) = synthesize_finalize_chunk(&state, chunk);
+            assert!(
+                cs.is_satisfied(),
+                "canonical FinalizeBlock chunk {index} violates {:?}",
+                cs.which_is_unsatisfied()
+            );
+            state = next;
+        }
+        for index in 0..64 {
+            assert_eq!(
+                super::scalar_u64(
+                    state.cells[super::FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + index]
+                ),
+                u64::from(b"44".repeat(32)[index]),
+                "post-root hexadecimal byte {index} must come from the sole canonical window"
+            );
+        }
+
+        let pre_hex = z00z_crypto::expert::encoding::to_hex(&pre_root_bytes).into_bytes();
+        let pre_offset = record
+            .windows(pre_hex.len())
+            .position(|window| window == pre_hex)
+            .expect("canonical pre-root text");
+        let mut changed_pre = record.clone();
+        changed_pre[pre_offset] = b'3';
+        let changed_chunks = test_trace_chunks(&changed_pre, 7);
+        let changed_chunk_index = pre_offset / super::TRACE_CANONICAL_CHUNK_BYTES_V2;
+        let mut state = initial;
+        for (index, chunk) in changed_chunks.iter().enumerate() {
+            let (cs, next) = synthesize_finalize_chunk(&state, chunk);
+            if index == changed_chunk_index {
+                assert!(!cs.is_satisfied(), "changed pre-root text was accepted");
+                assert!(
+                    cs.which_is_unsatisfied()
+                        .is_some_and(|name| name.contains("finalize_pre_root_hex")),
+                    "pre-root mutation must reach the direct authority equality, got {:?}",
+                    cs.which_is_unsatisfied()
+                );
+                return;
+            }
+            assert!(cs.is_satisfied());
+            state = next;
+        }
+        panic!("changed pre-root text did not reach its canonical chunk");
+    }
+
+    #[test]
+    fn jmt_header_and_promoted_root_are_bound_directly_in_r1cs() {
+        let anchors = CheckpointNovaAnchorsV2::for_test();
+        let initial = CheckpointRunningStateV2::initial(&anchors);
+        let trace_digest = super::noop_update_trace_digest();
+
+        let mut jmt_payload = Vec::with_capacity(39);
+        jmt_payload.push(super::JMT_UPDATE_TRACE_VERSION_V2);
+        jmt_payload.push(RootGeneration::SettlementV2.version());
+        jmt_payload.push(super::JMT_UPDATE_TRACE_KIND_NOOP_V2);
+        jmt_payload.extend_from_slice(&trace_digest);
+        jmt_payload.extend_from_slice(&0_u32.to_le_bytes());
+        let jmt_record =
+            canonical_test_source_record(RecursiveTraceOpcodeV2::JmtUpdate, 7, &jmt_payload);
+        assert_eq!(jmt_record.len(), 84);
+        let jmt_chunks = test_trace_chunks(&jmt_record, 7);
+        assert_eq!(jmt_chunks.len(), 2);
+
+        let (first_cs, after_jmt_zero) = synthesize_jmt_hierarchy_chunk(
+            &initial,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            &jmt_chunks[0],
+        );
+        assert!(
+            first_cs.is_satisfied(),
+            "canonical first JMT header chunk violates {}",
+            first_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        let (second_cs, after_jmt) = synthesize_jmt_hierarchy_chunk(
+            &after_jmt_zero,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            &jmt_chunks[1],
+        );
+        assert!(
+            second_cs.is_satisfied(),
+            "canonical second JMT header chunk violates {}",
+            second_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        assert_eq!(
+            after_jmt.cells[super::JMT_HEADER_PROGRESS_CELL],
+            Scalar::from(2_u64)
+        );
+        assert_eq!(
+            after_jmt.cells[super::JMT_KIND_CELL],
+            Scalar::from(u64::from(super::JMT_UPDATE_TRACE_KIND_NOOP_V2))
+        );
+        for limb in super::JMT_UPDATE_COUNT_LIMB_START..super::JMT_UPDATE_COUNT_LIMB_END {
+            assert_eq!(after_jmt.cells[limb], Scalar::from(0_u64));
+        }
+        for (index, expected) in super::digest_limbs(trace_digest).into_iter().enumerate() {
+            assert_eq!(
+                after_jmt.cells[super::JMT_TRACE_DIGEST_START + index],
+                Scalar::from(u64::from(expected))
+            );
+        }
+
+        let mut jmt_end = super::HashControlWitnessV2::inactive();
+        jmt_end.stage = HashControlStageV2::End as u8 + 1;
+        jmt_end.role = super::TRACE_HASH_ROLE_TAG_V2 as u8;
+        let inactive_chunk = super::TraceChunkWitnessV2::inactive();
+        let mut after_jmt_end_state = after_jmt.clone();
+        after_jmt_end_state.cells
+            [super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_CANONICAL_BYTES_OFFSET] =
+            Scalar::from(84_u64);
+        let (jmt_end_cs, _) = synthesize_jmt_hierarchy_step(
+            &after_jmt_end_state,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            RecursiveTraceOpcodeV2::EndHash,
+            &inactive_chunk,
+            &jmt_end,
+        );
+        assert!(
+            jmt_end_cs.is_satisfied(),
+            "canonical no-op JMT END violates {}",
+            jmt_end_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+
+        let mut changed_noop_digest = after_jmt_end_state.clone();
+        changed_noop_digest.cells[super::JMT_TRACE_DIGEST_START] += Scalar::from(1_u64);
+        let (changed_noop_digest_cs, _) = synthesize_jmt_hierarchy_step(
+            &changed_noop_digest,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            RecursiveTraceOpcodeV2::EndHash,
+            &inactive_chunk,
+            &jmt_end,
+        );
+        assert!(!changed_noop_digest_cs.is_satisfied());
+        assert!(
+            changed_noop_digest_cs
+                .which_is_unsatisfied()
+                .is_some_and(|constraint| constraint.contains("noop_jmt_trace_digest_0")),
+            "the no-op digest mutation must reach the fixed-domain gate, got {:?}",
+            changed_noop_digest_cs.which_is_unsatisfied()
+        );
+
+        let mut trailing_noop_state = after_jmt_end_state.clone();
+        trailing_noop_state.cells
+            [super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_CANONICAL_BYTES_OFFSET] =
+            Scalar::from(85_u64);
+        let (trailing_noop_cs, _) = synthesize_jmt_hierarchy_step(
+            &trailing_noop_state,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            RecursiveTraceOpcodeV2::EndHash,
+            &inactive_chunk,
+            &jmt_end,
+        );
+        assert!(!trailing_noop_cs.is_satisfied());
+        assert!(
+            trailing_noop_cs.which_is_unsatisfied().is_some_and(
+                |constraint| constraint.contains("noop_jmt_has_no_trailing_update_bytes")
+            ),
+            "the no-op trailing-byte mutation must reach the exact-width gate, got {:?}",
+            trailing_noop_cs.which_is_unsatisfied()
+        );
+
+        let mut changed_count = jmt_chunks[1].clone();
+        changed_count.bytes[16] = 1;
+        let (changed_count_cs, _) = synthesize_jmt_hierarchy_chunk(
+            &after_jmt_zero,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            &changed_count,
+        );
+        assert!(!changed_count_cs.is_satisfied());
+        assert!(
+            changed_count_cs.which_is_unsatisfied().is_some_and(
+                |constraint| constraint.contains("jmt_update_count_matches_declared_work")
+            ),
+            "the update-count mutation must reach the declared-work gate, got {:?}",
+            changed_count_cs.which_is_unsatisfied()
+        );
+
+        let definition_root = [0x44_u8; 32];
+        let mut after_jmt = after_jmt;
+        for (index, limb) in super::digest_limbs(definition_root).into_iter().enumerate() {
+            after_jmt.cells[super::EXPECTED_POST_DEFINITION_ROOT_START + index] =
+                Scalar::from(u64::from(limb));
+        }
+        let mut promote_payload = Vec::with_capacity(65);
+        promote_payload.push(super::UNIQUENESS_PRECOMMIT_VERSION_V2);
+        promote_payload.extend_from_slice(&definition_root);
+        promote_payload.extend_from_slice(&trace_digest);
+        let promote_record = canonical_test_source_record(
+            RecursiveTraceOpcodeV2::PromoteChildRoot,
+            8,
+            &promote_payload,
+        );
+        assert_eq!(promote_record.len(), 110);
+        let promote_chunks = test_trace_chunks(&promote_record, 8);
+        assert_eq!(promote_chunks.len(), 2);
+
+        let (promote_first_cs, after_promote_zero) = synthesize_jmt_hierarchy_chunk(
+            &after_jmt,
+            RecursiveTraceOpcodeV2::PromoteChildRoot,
+            &promote_chunks[0],
+        );
+        assert!(
+            promote_first_cs.is_satisfied(),
+            "canonical first PromoteChildRoot chunk violates {}",
+            promote_first_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        let (promote_second_cs, after_promote) = synthesize_jmt_hierarchy_chunk(
+            &after_promote_zero,
+            RecursiveTraceOpcodeV2::PromoteChildRoot,
+            &promote_chunks[1],
+        );
+        assert!(
+            promote_second_cs.is_satisfied(),
+            "canonical second PromoteChildRoot chunk violates {}",
+            promote_second_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        assert_eq!(
+            after_promote.cells[super::HIERARCHY_PROGRESS_CELL],
+            Scalar::from(2_u64)
+        );
+        for limb in super::HIERARCHY_DEFINITION_ROOT_START..super::HIERARCHY_DEFINITION_ROOT_END {
+            assert_eq!(after_promote.cells[limb], Scalar::from(0x4444_u64));
+        }
+
+        let mut changed_digest = promote_chunks[1].clone();
+        changed_digest.bytes[14] ^= 1;
+        let (changed_digest_cs, _) = synthesize_jmt_hierarchy_chunk(
+            &after_promote_zero,
+            RecursiveTraceOpcodeV2::PromoteChildRoot,
+            &changed_digest,
+        );
+        assert!(!changed_digest_cs.is_satisfied());
+        assert!(
+            changed_digest_cs.which_is_unsatisfied().is_some_and(
+                |constraint| constraint.contains("promote_trace_digest_0_matches_envelope")
+            ),
+            "the promoted-digest mutation must reach the JMT envelope gate, got {:?}",
+            changed_digest_cs.which_is_unsatisfied()
+        );
+    }
+
+    #[test]
+    fn jmt_new_root_machine_accepts_all_native_mutation_cases() {
+        for (label, header, records) in jmt_mutation_case_circuit_transcripts_for_test() {
+            let update_trace_digest: [u8; 32] = header[3..35]
+                .try_into()
+                .expect("fixed hierarchy digest field");
+            let mut event_counts = super::RecursiveTraceEventCountsV2::default();
+            event_counts
+                .add(RecursiveTraceOpcodeV2::JmtUpdate, 1)
+                .expect("one envelope header record");
+            event_counts
+                .add(RecursiveTraceOpcodeV2::JmtMicroOp, records.len() as u64)
+                .expect("bounded circuit micro-operation records");
+            let anchors = CheckpointNovaAnchorsV2::from_pre_uniqueness_context(
+                test_context_for_event_counts(event_counts, 1, update_trace_digest),
+            );
+            let mut state = CheckpointRunningStateV2::initial(&anchors);
+            let header_record =
+                canonical_test_source_record(RecursiveTraceOpcodeV2::JmtUpdate, 1, &header);
+            for (chunk_index, chunk) in test_trace_chunks(&header_record, 1).iter().enumerate() {
+                let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                    &state,
+                    RecursiveTraceOpcodeV2::JmtUpdate,
+                    chunk,
+                );
+                assert!(
+                    cs.is_satisfied(),
+                    "{label} header chunk {chunk_index} violates {}",
+                    cs.which_is_unsatisfied().unwrap_or("an unknown constraint")
+                );
+                state = next;
+            }
+
+            for (record_index, payload) in records.iter().enumerate() {
+                let ordinal = 2 + record_index as u64;
+                let record = canonical_test_source_record(
+                    RecursiveTraceOpcodeV2::JmtMicroOp,
+                    ordinal,
+                    payload,
+                );
+                for (chunk_index, chunk) in test_trace_chunks(&record, ordinal).iter().enumerate() {
+                    let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                        &state,
+                        RecursiveTraceOpcodeV2::JmtMicroOp,
+                        chunk,
+                    );
+                    assert!(
+                        cs.is_satisfied(),
+                        "{label} micro-op {record_index} chunk {chunk_index} violates {}",
+                        cs.which_is_unsatisfied().unwrap_or("an unknown constraint")
+                    );
+                    state = next;
+                }
+                state.cells[super::SOURCE_BYTE_CONTEXT_START
+                    + super::BYTE_CONTEXT_CANONICAL_BYTES_OFFSET] =
+                    Scalar::from(record.len() as u64);
+                let mut end = super::HashControlWitnessV2::inactive();
+                end.stage = HashControlStageV2::End as u8 + 1;
+                end.role = super::TRACE_HASH_ROLE_TAG_V2 as u8;
+                let (end_cs, next) = synthesize_jmt_hierarchy_step(
+                    &state,
+                    RecursiveTraceOpcodeV2::JmtMicroOp,
+                    RecursiveTraceOpcodeV2::EndHash,
+                    &super::TraceChunkWitnessV2::inactive(),
+                    &end,
+                );
+                assert!(
+                    end_cs.is_satisfied(),
+                    "{label} micro-op {record_index} END violates {}",
+                    end_cs
+                        .which_is_unsatisfied()
+                        .unwrap_or("an unknown constraint")
+                );
+                state = next;
+            }
+            assert_eq!(
+                state.cells[super::JMT_MICRO_STAGE_CELL],
+                Scalar::from(0_u64),
+                "{label} left the update machine open"
+            );
+            assert_eq!(
+                state.cells[super::JMT_MICRO_COMPLETED_UPDATE_CELL],
+                Scalar::from(1_u64),
+                "{label} did not complete its update"
+            );
+        }
+    }
+
+    #[test]
+    fn hierarchy_r1cs_consumes_canonical_roles_parent_values_and_definition_root() {
+        let (header, records, definition_root) = hierarchy_circuit_transcript_for_test();
+        let mut event_counts = super::RecursiveTraceEventCountsV2::default();
+        event_counts
+            .add(RecursiveTraceOpcodeV2::JmtUpdate, 1)
+            .expect("one hierarchy header");
+        event_counts
+            .add(RecursiveTraceOpcodeV2::JmtMicroOp, records.len() as u64)
+            .expect("bounded hierarchy micro records");
+        event_counts
+            .add(RecursiveTraceOpcodeV2::PromoteChildRoot, 1)
+            .expect("one hierarchy promotion");
+        let anchors =
+            CheckpointNovaAnchorsV2::from_pre_uniqueness_context(test_context_for_event_counts(
+                event_counts,
+                4,
+                header[3..35]
+                    .try_into()
+                    .expect("fixed hierarchy digest field"),
+            ));
+        let mut state = CheckpointRunningStateV2::initial(&anchors);
+        for (index, limb) in super::digest_limbs(definition_root).into_iter().enumerate() {
+            state.cells[super::EXPECTED_POST_DEFINITION_ROOT_START + index] =
+                Scalar::from(u64::from(limb));
+        }
+        let header_record =
+            canonical_test_source_record(RecursiveTraceOpcodeV2::JmtUpdate, 1, &header);
+        for chunk in test_trace_chunks(&header_record, 1) {
+            let (cs, next) =
+                synthesize_jmt_hierarchy_chunk(&state, RecursiveTraceOpcodeV2::JmtUpdate, &chunk);
+            assert!(
+                cs.is_satisfied(),
+                "hierarchy header: {:?}",
+                cs.which_is_unsatisfied()
+            );
+            state = next;
+        }
+        let mut rejected_serial_key_mutation = false;
+        let mut rejected_definition_key_mutation = false;
+        let mut rejected_pre_definition_root_mutation = false;
+        for (record_index, payload) in records.iter().enumerate() {
+            let ordinal = 2 + record_index as u64;
+            let record =
+                canonical_test_source_record(RecursiveTraceOpcodeV2::JmtMicroOp, ordinal, payload);
+            let chunks = test_trace_chunks(&record, ordinal);
+            if payload[1] == super::JMT_CIRCUIT_OPERATION_END_V2 {
+                let tree_tag = super::scalar_u64(state.cells[super::JMT_MICRO_TREE_TAG_CELL]);
+                if tree_tag == 1 || tree_tag == 2 {
+                    let mut changed_key_state = state.clone();
+                    changed_key_state.cells[super::JMT_MICRO_OPERATION_KEY_START] +=
+                        Scalar::from(1_u64);
+                    let (changed_key_cs, _) = synthesize_jmt_hierarchy_chunk(
+                        &changed_key_state,
+                        RecursiveTraceOpcodeV2::JmtMicroOp,
+                        &chunks[0],
+                    );
+                    assert!(
+                        !changed_key_cs.is_satisfied(),
+                        "hierarchy tree tag {tree_tag} accepted a changed derived operation key"
+                    );
+                    rejected_definition_key_mutation |= tree_tag == 1;
+                    rejected_serial_key_mutation |= tree_tag == 2;
+                }
+            }
+            for chunk in chunks {
+                let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                    &state,
+                    RecursiveTraceOpcodeV2::JmtMicroOp,
+                    &chunk,
+                );
+                assert!(
+                    cs.is_satisfied(),
+                    "hierarchy record {record_index}: {:?}",
+                    cs.which_is_unsatisfied()
+                );
+                state = next;
+            }
+            state.cells
+                [super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_CANONICAL_BYTES_OFFSET] =
+                Scalar::from(record.len() as u64);
+            let mut end = super::HashControlWitnessV2::inactive();
+            end.stage = HashControlStageV2::End as u8 + 1;
+            end.role = super::TRACE_HASH_ROLE_TAG_V2 as u8;
+            if payload[1] == super::JMT_CIRCUIT_UPDATE_BEGIN_V2
+                && super::scalar_u64(state.cells[super::JMT_MICRO_TREE_TAG_CELL]) == 1
+            {
+                let mut changed_anchor_state = state.clone();
+                changed_anchor_state.cells[5 * super::DIGEST_LIMBS] += Scalar::from(1_u64);
+                let (changed_anchor_cs, _) = synthesize_jmt_hierarchy_step(
+                    &changed_anchor_state,
+                    RecursiveTraceOpcodeV2::JmtMicroOp,
+                    RecursiveTraceOpcodeV2::EndHash,
+                    &super::TraceChunkWitnessV2::inactive(),
+                    &end,
+                );
+                assert!(
+                    !changed_anchor_cs.is_satisfied(),
+                    "definition update accepted an unrelated pre-state definition root"
+                );
+                assert!(
+                    changed_anchor_cs.which_is_unsatisfied().is_some_and(|name| name
+                        .contains("hierarchy_definition_old_root_anchor_0")),
+                    "the pre-definition mutation must reach the direct old-root anchor gate, got {:?}",
+                    changed_anchor_cs.which_is_unsatisfied()
+                );
+                rejected_pre_definition_root_mutation = true;
+            }
+            let (cs, next) = synthesize_jmt_hierarchy_step(
+                &state,
+                RecursiveTraceOpcodeV2::JmtMicroOp,
+                RecursiveTraceOpcodeV2::EndHash,
+                &super::TraceChunkWitnessV2::inactive(),
+                &end,
+            );
+            assert!(
+                cs.is_satisfied(),
+                "hierarchy record {record_index} END: {:?}",
+                cs.which_is_unsatisfied()
+            );
+            state = next;
+        }
+        assert!(rejected_serial_key_mutation);
+        assert!(rejected_definition_key_mutation);
+        assert!(rejected_pre_definition_root_mutation);
+        assert_eq!(
+            state.cells[super::HIERARCHY_STAGE_CELL],
+            Scalar::from(4_u64)
+        );
+
+        let mut promote = Vec::with_capacity(65);
+        promote.push(super::UNIQUENESS_PRECOMMIT_VERSION_V2);
+        promote.extend_from_slice(&definition_root);
+        promote.extend_from_slice(&header[3..35]);
+        let ordinal = 2 + records.len() as u64;
+        let promote_record = canonical_test_source_record(
+            RecursiveTraceOpcodeV2::PromoteChildRoot,
+            ordinal,
+            &promote,
+        );
+        for chunk in test_trace_chunks(&promote_record, ordinal) {
+            let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                &state,
+                RecursiveTraceOpcodeV2::PromoteChildRoot,
+                &chunk,
+            );
+            assert!(
+                cs.is_satisfied(),
+                "hierarchy promotion: {:?}",
+                cs.which_is_unsatisfied()
+            );
+            state = next;
+        }
+        assert_eq!(
+            state.cells[super::HIERARCHY_PROGRESS_CELL],
+            Scalar::from(2_u64)
+        );
+        for (limb, expected) in super::digest_limbs(definition_root).into_iter().enumerate() {
+            assert_eq!(
+                state.cells[super::HIERARCHY_DEFINITION_ROOT_START + limb],
+                Scalar::from(u64::from(expected))
+            );
+        }
+    }
+
+    #[test]
+    fn typed_checkpoint_commitments_bind_x_h_fields_in_canonical_order() {
+        use crate::checkpoint::recursive_semantics::{
+            encode_typed_checkpoint_commitment, TypedCheckpointCommitmentKindV2,
+        };
+
+        let anchors = CheckpointNovaAnchorsV2::for_test();
+        let mut state = CheckpointRunningStateV2::initial(&anchors);
+        let digests = [[0x11; 32], [0x22; 32], [0x33; 32], [0x44; 32]];
+        for (digest_index, digest) in digests.into_iter().enumerate() {
+            for (limb_index, limb) in super::digest_limbs(digest).into_iter().enumerate() {
+                state.cells[super::EXPECTED_TYPED_CHECKPOINT_COMMITMENT_START
+                    + digest_index * super::DIGEST_LIMBS
+                    + limb_index] = Scalar::from(u64::from(limb));
+            }
+        }
+        let commit_count_index = usize::from(RecursiveTraceOpcodeV2::CommitTypedEvent as u8 - 1);
+        state.cells[super::ANCHOR_OPCODE_COUNT_START + commit_count_index] = Scalar::from(4_u64);
+        state.cells[super::CONSUMED_OPCODE_COUNT_START + commit_count_index] = Scalar::from(1_u64);
+
+        let first_payload = encode_typed_checkpoint_commitment(
+            TypedCheckpointCommitmentKindV2::DeltaRoot,
+            digests[0],
+        );
+        let first_record = canonical_test_source_record(
+            RecursiveTraceOpcodeV2::CommitTypedEvent,
+            1,
+            &first_payload,
+        );
+        let first_chunks = test_trace_chunks(&first_record, 1);
+        let (first_chunk_cs, after_first_chunk) = synthesize_jmt_hierarchy_chunk(
+            &state,
+            RecursiveTraceOpcodeV2::CommitTypedEvent,
+            &first_chunks[0],
+        );
+        assert!(first_chunk_cs.is_satisfied());
+        let mut legacy_flow_payload = first_payload.clone();
+        legacy_flow_payload[0] = 1;
+        let legacy_flow_record = canonical_test_source_record(
+            RecursiveTraceOpcodeV2::CommitTypedEvent,
+            1,
+            &legacy_flow_payload,
+        );
+        let (legacy_flow_cs, _) = synthesize_jmt_hierarchy_chunk(
+            &state,
+            RecursiveTraceOpcodeV2::CommitTypedEvent,
+            &test_trace_chunks(&legacy_flow_record, 1)[0],
+        );
+        assert!(
+            !legacy_flow_cs.is_satisfied(),
+            "CommitTypedEvent must not restore the deleted flow-item codec",
+        );
+        let mut changed_digest = first_chunks[1].clone();
+        changed_digest.bytes[0] ^= 1;
+        let (changed_cs, _) = synthesize_jmt_hierarchy_chunk(
+            &after_first_chunk,
+            RecursiveTraceOpcodeV2::CommitTypedEvent,
+            &changed_digest,
+        );
+        assert!(
+            !changed_cs.is_satisfied(),
+            "a typed commitment byte detached from X_h survived"
+        );
+
+        for (kind_index, kind) in TypedCheckpointCommitmentKindV2::ALL.into_iter().enumerate() {
+            let payload = encode_typed_checkpoint_commitment(kind, digests[kind_index]);
+            let record = canonical_test_source_record(
+                RecursiveTraceOpcodeV2::CommitTypedEvent,
+                1 + kind_index as u64,
+                &payload,
+            );
+            for (chunk_index, chunk) in test_trace_chunks(&record, 1 + kind_index as u64)
+                .iter()
+                .enumerate()
+            {
+                let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                    &state,
+                    RecursiveTraceOpcodeV2::CommitTypedEvent,
+                    chunk,
+                );
+                assert!(
+                    cs.is_satisfied(),
+                    "typed commitment {kind_index} chunk {chunk_index}: {:?}",
+                    cs.which_is_unsatisfied(),
+                );
+                state = next;
+            }
+        }
+        assert_eq!(
+            state.cells[super::TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL],
+            Scalar::from(4_u64),
+        );
+        assert_eq!(
+            state.cells[super::TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL],
+            Scalar::from(0_u64),
+        );
+
+        let wrong_order_payload = encode_typed_checkpoint_commitment(
+            TypedCheckpointCommitmentKindV2::WitnessRoot,
+            digests[1],
+        );
+        let wrong_order_record = canonical_test_source_record(
+            RecursiveTraceOpcodeV2::CommitTypedEvent,
+            1,
+            &wrong_order_payload,
+        );
+        let mut fresh = CheckpointRunningStateV2::initial(&anchors);
+        fresh.cells[super::ANCHOR_OPCODE_COUNT_START + commit_count_index] = Scalar::from(4_u64);
+        fresh.cells[super::CONSUMED_OPCODE_COUNT_START + commit_count_index] = Scalar::from(1_u64);
+        let (wrong_order_cs, _) = synthesize_jmt_hierarchy_chunk(
+            &fresh,
+            RecursiveTraceOpcodeV2::CommitTypedEvent,
+            &test_trace_chunks(&wrong_order_record, 1)[0],
+        );
+        assert!(
+            !wrong_order_cs.is_satisfied(),
+            "typed checkpoint commitments must not be reordered",
+        );
+    }
+
+    #[test]
+    fn jmt_new_root_machine_rejects_authenticated_transcript_mutations() {
+        let transcript_is_satisfied = |header: &[u8], records: &[Vec<u8>]| {
+            let update_trace_digest: [u8; 32] = header[3..35]
+                .try_into()
+                .expect("fixed hierarchy digest field");
+            let mut event_counts = super::RecursiveTraceEventCountsV2::default();
+            event_counts
+                .add(RecursiveTraceOpcodeV2::JmtUpdate, 1)
+                .expect("one envelope header record");
+            event_counts
+                .add(RecursiveTraceOpcodeV2::JmtMicroOp, records.len() as u64)
+                .expect("bounded circuit micro-operation records");
+            let anchors = CheckpointNovaAnchorsV2::from_pre_uniqueness_context(
+                test_context_for_event_counts(event_counts, 1, update_trace_digest),
+            );
+            let mut state = CheckpointRunningStateV2::initial(&anchors);
+            let header_record =
+                canonical_test_source_record(RecursiveTraceOpcodeV2::JmtUpdate, 1, header);
+            for chunk in test_trace_chunks(&header_record, 1) {
+                let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                    &state,
+                    RecursiveTraceOpcodeV2::JmtUpdate,
+                    &chunk,
+                );
+                if !cs.is_satisfied() {
+                    return false;
+                }
+                state = next;
+            }
+            for (record_index, payload) in records.iter().enumerate() {
+                let ordinal = 2 + record_index as u64;
+                let record = canonical_test_source_record(
+                    RecursiveTraceOpcodeV2::JmtMicroOp,
+                    ordinal,
+                    payload,
+                );
+                for chunk in test_trace_chunks(&record, ordinal) {
+                    let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                        &state,
+                        RecursiveTraceOpcodeV2::JmtMicroOp,
+                        &chunk,
+                    );
+                    if !cs.is_satisfied() {
+                        return false;
+                    }
+                    state = next;
+                }
+                state.cells[super::SOURCE_BYTE_CONTEXT_START
+                    + super::BYTE_CONTEXT_CANONICAL_BYTES_OFFSET] =
+                    Scalar::from(record.len() as u64);
+                let mut end = super::HashControlWitnessV2::inactive();
+                end.stage = HashControlStageV2::End as u8 + 1;
+                end.role = super::TRACE_HASH_ROLE_TAG_V2 as u8;
+                let (cs, next) = synthesize_jmt_hierarchy_step(
+                    &state,
+                    RecursiveTraceOpcodeV2::JmtMicroOp,
+                    RecursiveTraceOpcodeV2::EndHash,
+                    &super::TraceChunkWitnessV2::inactive(),
+                    &end,
+                );
+                if !cs.is_satisfied() {
+                    return false;
+                }
+                state = next;
+            }
+            state.cells[super::JMT_MICRO_STAGE_CELL] == Scalar::from(0_u64)
+                && state.cells[super::JMT_MICRO_COMPLETED_UPDATE_CELL] == Scalar::from(1_u64)
+        };
+        let transcripts = jmt_mutation_case_circuit_transcripts_for_test();
+        let transcript = |label: &str| {
+            transcripts
+                .iter()
+                .find(|(candidate, _, _)| *candidate == label)
+                .expect("named JMT mutation-case transcript")
+        };
+
+        let (label, header, records) = transcript("split_insert");
+        let proof = records
+            .iter()
+            .position(|record| record[1] == super::JMT_CIRCUIT_OPERATION_PROOF_V2)
+            .expect("split proof begin");
+        let split = records
+            .iter()
+            .position(|record| record[1] == super::JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2)
+            .expect("split prelude");
+        for (mutation, offset) in [
+            ("split_count", (proof, 14_usize)),
+            ("split_direction", (split, 13)),
+            ("former_leaf", (split, 19)),
+            ("split_parent", (split, 147)),
+        ] {
+            let mut candidate = records.clone();
+            candidate[offset.0][offset.1] ^= 1;
+            assert!(
+                !transcript_is_satisfied(header, &candidate),
+                "{label} accepted changed {mutation}"
+            );
+        }
+
+        let (label, header, records) = transcript("delete_preserve_internal");
+        let sibling = records
+            .iter()
+            .position(|record| {
+                record[1] == super::JMT_CIRCUIT_OPERATION_SIBLING_V2 && record[14] == 1
+            })
+            .expect("active preserve sibling");
+        let mut changed_active = records.clone();
+        changed_active[sibling][14] = 0;
+        assert!(
+            !transcript_is_satisfied(header, &changed_active),
+            "{label} accepted a disabled semantic parent"
+        );
+
+        let (label, header, records) = transcript("delete_coalesce_leaf");
+        let proof = records
+            .iter()
+            .position(|record| record[1] == super::JMT_CIRCUIT_OPERATION_PROOF_V2)
+            .expect("coalesce proof begin");
+        let mut changed_case = records.clone();
+        changed_case[proof][13] = 5;
+        assert!(
+            !transcript_is_satisfied(header, &changed_case),
+            "{label} accepted a preserve-internal case alias"
+        );
+
+        let (label, header, records) = transcript("empty_insert");
+        let update = records
+            .iter()
+            .position(|record| record[1] == super::JMT_CIRCUIT_UPDATE_BEGIN_V2)
+            .expect("update begin");
+        let mut changed_new_root = records.clone();
+        changed_new_root[update][123] ^= 1;
+        assert!(
+            !transcript_is_satisfied(header, &changed_new_root),
+            "{label} accepted a changed declared new root"
+        );
+    }
+
+    #[test]
+    fn jmt_micro_operation_framing_is_ordered_and_counted_in_r1cs() {
+        let trace_digest = [0x33_u8; 32];
+        let mut event_counts = super::RecursiveTraceEventCountsV2::default();
+        event_counts
+            .add(RecursiveTraceOpcodeV2::JmtUpdate, 1)
+            .expect("one envelope header record");
+        event_counts
+            .add(RecursiveTraceOpcodeV2::JmtMicroOp, 7)
+            .expect("seven circuit micro-operation records");
+        let anchors = CheckpointNovaAnchorsV2::from_pre_uniqueness_context(
+            test_context_for_event_counts(event_counts, 1, trace_digest),
+        );
+        let initial = CheckpointRunningStateV2::initial(&anchors);
+        let mut header = Vec::with_capacity(39);
+        header.push(super::JMT_UPDATE_TRACE_VERSION_V2);
+        header.push(RootGeneration::SettlementV2.version());
+        header.push(super::JMT_UPDATE_TRACE_KIND_MUTATING_V2);
+        header.extend_from_slice(&trace_digest);
+        header.extend_from_slice(&1_u32.to_le_bytes());
+        let header_record =
+            canonical_test_source_record(RecursiveTraceOpcodeV2::JmtUpdate, 1, &header);
+        let header_chunks = test_trace_chunks(&header_record, 1);
+        let (header_zero_cs, after_header_zero) = synthesize_jmt_hierarchy_chunk(
+            &initial,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            &header_chunks[0],
+        );
+        assert!(header_zero_cs.is_satisfied());
+        let (header_one_cs, mut state) = synthesize_jmt_hierarchy_chunk(
+            &after_header_zero,
+            RecursiveTraceOpcodeV2::JmtUpdate,
+            &header_chunks[1],
+        );
+        assert!(header_one_cs.is_satisfied());
+        let after_header = state.clone();
+
+        let indexed = |kind: u8, update: u32, operation: Option<u32>| {
+            let mut payload = vec![super::JMT_CIRCUIT_MICRO_OP_VERSION_V2, kind];
+            payload.extend_from_slice(&update.to_le_bytes());
+            if let Some(operation) = operation {
+                payload.extend_from_slice(&operation.to_le_bytes());
+            }
+            payload
+        };
+        let operation_key = [7_u8; 32];
+        let value_hash: [u8; 32] = Sha256::digest([]).into();
+        let mut new_leaf_message = Vec::with_capacity(128);
+        new_leaf_message.extend_from_slice(b"JMT::LeafNode");
+        new_leaf_message.extend_from_slice(&operation_key);
+        new_leaf_message.extend_from_slice(&value_hash);
+        let new_root: [u8; 32] = Sha256::digest(&new_leaf_message).into();
+        let bit_length = (new_leaf_message.len() as u64) * 8;
+        new_leaf_message.push(0x80);
+        new_leaf_message.resize(120, 0);
+        new_leaf_message.extend_from_slice(&bit_length.to_be_bytes());
+        let mut update_begin = indexed(super::JMT_CIRCUIT_UPDATE_BEGIN_V2, 0, None);
+        // This focused framing fixture owns one terminal-tree update. Using a
+        // definition-tree tag would require the complete hierarchy predecessor
+        // chain and would duplicate the dedicated hierarchy fixture.
+        update_begin.push(4);
+        update_begin.extend_from_slice(&[0; 32]);
+        update_begin.extend_from_slice(&0_u32.to_le_bytes());
+        update_begin.extend_from_slice(&[0; 32]);
+        update_begin.extend_from_slice(&0_u64.to_le_bytes());
+        update_begin.extend_from_slice(&0_u64.to_le_bytes());
+        update_begin.extend_from_slice(b"SPARSE_MERKLE_PLACEHOLDER_HASH__");
+        update_begin.extend_from_slice(&new_root);
+        update_begin.extend_from_slice(&1_u32.to_le_bytes());
+        let mut operation_begin = indexed(super::JMT_CIRCUIT_OPERATION_BEGIN_V2, 0, Some(0));
+        operation_begin.extend_from_slice(&operation_key);
+        operation_begin.push(1);
+        operation_begin.extend_from_slice(&0_u32.to_le_bytes());
+        operation_begin.push(0);
+        operation_begin.extend_from_slice(&0_u32.to_le_bytes());
+        let mut operation_value = indexed(super::JMT_CIRCUIT_OPERATION_VALUE_V2, 0, Some(0));
+        operation_value.extend_from_slice(&0_u32.to_le_bytes());
+        operation_value.extend_from_slice(&1_u32.to_le_bytes());
+        operation_value.push(0);
+        operation_value.push(0x80);
+        operation_value.extend_from_slice(&[0; 63]);
+        let mut proof_begin = indexed(super::JMT_CIRCUIT_OPERATION_PROOF_V2, 0, Some(0));
+        proof_begin.push(0);
+        proof_begin.extend_from_slice(&0_u16.to_le_bytes());
+        proof_begin.push(1);
+        proof_begin.extend_from_slice(&0_u16.to_le_bytes());
+        proof_begin.extend_from_slice(&[0; 3]);
+        proof_begin.extend_from_slice(&[0; 128]);
+        proof_begin.extend_from_slice(&new_leaf_message);
+        let payloads = [
+            update_begin,
+            operation_begin,
+            operation_value,
+            proof_begin,
+            indexed(super::JMT_CIRCUIT_OPERATION_PROOF_END_V2, 0, Some(0)),
+            indexed(super::JMT_CIRCUIT_OPERATION_END_V2, 0, Some(0)),
+            indexed(super::JMT_CIRCUIT_UPDATE_END_V2, 0, None),
+        ];
+
+        let proof_before_operation =
+            canonical_test_source_record(RecursiveTraceOpcodeV2::JmtMicroOp, 2, &payloads[3]);
+        let proof_before_operation = test_trace_chunks(&proof_before_operation, 2);
+        let (wrong_stage_cs, _) = synthesize_jmt_hierarchy_chunk(
+            &state,
+            RecursiveTraceOpcodeV2::JmtMicroOp,
+            &proof_before_operation[0],
+        );
+        assert!(!wrong_stage_cs.is_satisfied());
+        assert!(wrong_stage_cs
+            .which_is_unsatisfied()
+            .is_some_and(|name| name.contains("jmt_micro_operation_proof_stage")));
+
+        for (index, payload) in payloads.iter().enumerate() {
+            let record = canonical_test_source_record(
+                RecursiveTraceOpcodeV2::JmtMicroOp,
+                2 + index as u64,
+                payload,
+            );
+            let chunks = test_trace_chunks(&record, 2 + index as u64);
+            for (chunk_index, chunk) in chunks.iter().enumerate() {
+                let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                    &state,
+                    RecursiveTraceOpcodeV2::JmtMicroOp,
+                    chunk,
+                );
+                assert!(
+                    cs.is_satisfied(),
+                    "canonical micro-op {index} chunk {chunk_index} violates {}",
+                    cs.which_is_unsatisfied().unwrap_or("an unknown constraint")
+                );
+                state = next;
+            }
+            if index == 0 {
+                assert_eq!(
+                    state.cells[super::JMT_MICRO_EXPECTED_OPERATION_CELL],
+                    Scalar::from(1_u64),
+                    "UpdateBegin operation count must survive its final chunk"
+                );
+            }
+            state.cells
+                [super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_CANONICAL_BYTES_OFFSET] =
+                Scalar::from(record.len() as u64);
+            let mut end = super::HashControlWitnessV2::inactive();
+            end.stage = HashControlStageV2::End as u8 + 1;
+            end.role = super::TRACE_HASH_ROLE_TAG_V2 as u8;
+            let (end_cs, next) = synthesize_jmt_hierarchy_step(
+                &state,
+                RecursiveTraceOpcodeV2::JmtMicroOp,
+                RecursiveTraceOpcodeV2::EndHash,
+                &super::TraceChunkWitnessV2::inactive(),
+                &end,
+            );
+            assert!(
+                end_cs.is_satisfied(),
+                "canonical micro-op {index} END violates {}",
+                end_cs
+                    .which_is_unsatisfied()
+                    .unwrap_or("an unknown constraint")
+            );
+            state = next;
+        }
+        assert_eq!(
+            state.cells[super::JMT_MICRO_STAGE_CELL],
+            Scalar::from(0_u64)
+        );
+        assert_eq!(
+            state.cells[super::JMT_MICRO_COMPLETED_UPDATE_CELL],
+            Scalar::from(1_u64)
+        );
+        assert_eq!(
+            state.cells[super::JMT_MICRO_NEXT_OPERATION_CELL],
+            Scalar::from(0_u64)
+        );
+
+        let mut wrong_index = payloads[1].clone();
+        wrong_index[6..10].copy_from_slice(&1_u32.to_le_bytes());
+        let wrong_index =
+            canonical_test_source_record(RecursiveTraceOpcodeV2::JmtMicroOp, 3, &wrong_index);
+        let wrong_index = test_trace_chunks(&wrong_index, 3);
+        let update_begin =
+            canonical_test_source_record(RecursiveTraceOpcodeV2::JmtMicroOp, 2, &payloads[0]);
+        let update_begin = test_trace_chunks(&update_begin, 2);
+        let mut after_update_begin = after_header.clone();
+        for chunk in &update_begin {
+            let (cs, next) = synthesize_jmt_hierarchy_chunk(
+                &after_update_begin,
+                RecursiveTraceOpcodeV2::JmtMicroOp,
+                chunk,
+            );
+            assert!(cs.is_satisfied());
+            after_update_begin = next;
+        }
+        after_update_begin.cells
+            [super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_CANONICAL_BYTES_OFFSET] =
+            Scalar::from(204_u64);
+        let mut end = super::HashControlWitnessV2::inactive();
+        end.stage = HashControlStageV2::End as u8 + 1;
+        end.role = super::TRACE_HASH_ROLE_TAG_V2 as u8;
+        let (end_cs, after_update_begin) = synthesize_jmt_hierarchy_step(
+            &after_update_begin,
+            RecursiveTraceOpcodeV2::JmtMicroOp,
+            RecursiveTraceOpcodeV2::EndHash,
+            &super::TraceChunkWitnessV2::inactive(),
+            &end,
+        );
+        assert!(end_cs.is_satisfied());
+        let (wrong_index_cs, _) = synthesize_jmt_hierarchy_chunk(
+            &after_update_begin,
+            RecursiveTraceOpcodeV2::JmtMicroOp,
+            &wrong_index[0],
+        );
+        assert!(!wrong_index_cs.is_satisfied());
+        assert!(wrong_index_cs
+            .which_is_unsatisfied()
+            .is_some_and(|name| name.contains("jmt_micro_operation_index_matches_1")));
+    }
+
+    fn test_context_for_event_counts(
+        event_counts: super::RecursiveTraceEventCountsV2,
+        jmt_update_count: u64,
+        update_trace_digest: [u8; 32],
+    ) -> super::RecursivePreUniquenessContextV2 {
+        let input_count = event_counts.count(RecursiveTraceOpcodeV2::ReplayInput);
+        let output_count = event_counts.count(RecursiveTraceOpcodeV2::ReplayOutput);
+        let row_count = input_count + output_count;
+        let work = super::RecursiveDeclaredWorkV2::new(
+            event_counts,
+            row_count,
+            input_count,
+            output_count,
+            row_count,
+            row_count.min(jmt_update_count),
+            jmt_update_count,
+            event_counts.count(RecursiveTraceOpcodeV2::ShaBlock),
+            event_counts.total_count().expect("test count total"),
+        )
+        .expect("test declared work is coherent");
+        let old_definition_root = super::JMT_SPARSE_PLACEHOLDER_HASH_V2;
+        let old_settlement_root = *derive_settlement_root_v2(
+            RootGeneration::SettlementV2,
+            7,
+            [11; 32],
+            old_definition_root,
+        )
+        .expect("test SettlementV2 pre-root")
+        .as_bytes();
+        super::RecursivePreUniquenessContextV2::from_parts(
+            [1; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+            1,
+            0,
+            7,
+            1,
+            1,
+            old_settlement_root,
+            old_definition_root,
+            [4; 32],
+            update_trace_digest,
+            [5; 32],
+            RecursiveCircuitProfileV2::repository_fixture().digest(),
+            [7; 32],
+            RecursiveTraceOpcodeV2::grammar_digest(),
+            [8; 32],
+            work,
+        )
+        .expect("test pre-uniqueness context is coherent")
     }
 
     fn canonical_hash_control_events() -> (
@@ -10204,7 +23868,7 @@ mod tests {
     ) {
         canonical_hash_control_events_for_replay(
             RecursiveTraceOpcodeV2::ReplayInput,
-            ScopeOpKind::Put,
+            ScopeOpKind::Delete,
         )
     }
 
@@ -10240,6 +23904,7 @@ mod tests {
     /// the precommit, so this test path exercises the same source-record bytes
     /// and not a hand-built TraceChunk witness.
     fn canonical_uniqueness_precommit_events() -> (
+        CheckpointNovaAnchorsV2,
         crate::checkpoint::recursive_trace::RecursiveTracePrecommitV2,
         Vec<NovaTypedSourceEventV2>,
         Vec<u8>,
@@ -10254,11 +23919,15 @@ mod tests {
             PrepSnapshotId::new([1; 32]),
             9,
             snapshot_root,
+            [4; 32],
             5,
             1,
             [2; 32],
         )
         .expect("test snapshot");
+        let transcript_context =
+            super::RecursivePreUniquenessContextV2::repository_trace_fixture(snapshot, &profile)
+                .expect("typed test pre-uniqueness context");
         let flow = ScopeFlow {
             batch_id: "11".repeat(32),
             shard_id: 7,
@@ -10271,6 +23940,7 @@ mod tests {
                     definition_id: "33".repeat(32),
                     serial_id: 1,
                     terminal_id: "44".repeat(32),
+                    leaf_value_hash: [0x45; 32],
                     leaf_family: ScopeLeafKind::Terminal,
                     first_seen: ScopeSeen {
                         definition: false,
@@ -10284,6 +23954,21 @@ mod tests {
                     definition_id: "55".repeat(32),
                     serial_id: 2,
                     terminal_id: "66".repeat(32),
+                    leaf_value_hash: [0x67; 32],
+                    leaf_family: ScopeLeafKind::Terminal,
+                    first_seen: ScopeSeen {
+                        definition: true,
+                        serial: true,
+                        object: true,
+                    },
+                },
+                ScopeFlowItem {
+                    tx_id: "put-0001".to_owned(),
+                    op_kind: ScopeOpKind::Put,
+                    definition_id: "77".repeat(32),
+                    serial_id: 3,
+                    terminal_id: "77".repeat(32),
+                    leaf_value_hash: [0x78; 32],
                     leaf_family: ScopeLeafKind::Terminal,
                     first_seen: ScopeSeen {
                         definition: true,
@@ -10306,25 +23991,87 @@ mod tests {
         );
         let precommit = decode_uniqueness_precommit(&precommit_payload)
             .expect("canonical precommit payload must decode for the canonical challenge codec");
-        let challenge_payload = encode_uniqueness_challenge([0xC1; 32], precommit);
+        let grammar_digest = RecursiveTraceOpcodeV2::grammar_digest();
+        let challenge_payload =
+            encode_uniqueness_challenge(transcript_context.digest(), grammar_digest, precommit);
         assert_eq!(
             challenge_payload.len(),
             super::UNIQUENESS_CHALLENGE_BYTES_V2,
             "fixture must use the one canonical challenge codec width"
         );
-        let challenge = challenge_payload[super::CHALLENGE_DIGEST_BYTES_START..]
-            .try_into()
-            .expect("canonical challenge payload contains exactly one digest");
+        let challenge = decode_uniqueness_challenge(
+            &challenge_payload,
+            transcript_context.digest(),
+            grammar_digest,
+            precommit,
+        )
+        .expect("canonical challenge transcript");
         let net_merge_payload = encode_net_merge(precommit, challenge);
         assert_eq!(
             net_merge_payload.len(),
             super::NET_MERGE_BYTES_V2,
             "fixture must use the one canonical net merge codec width"
         );
-        let begin_payload = vec![0xA5_u8; 95];
+        let begin_payload = encode_flow_header(&flow).expect("canonical begin payload");
         let replay_input_payload = encode_flow_item(&flow.items[0]).expect("input payload");
-        let replay_output_payload = encode_flow_item(&flow.items[1]).expect("output payload");
-        let sources = [
+        let first_replay_output_payload =
+            encode_flow_item(&flow.items[1]).expect("first output payload");
+        let second_replay_output_payload =
+            encode_flow_item(&flow.items[2]).expect("second output payload");
+        let row_payload = |pass, set, list, row| encode_uniqueness_sorted_row(pass, set, list, row);
+        let spent_row =
+            UniquenessSemanticRowV2::from_flow_item(&flow.items[0]).expect("spent semantic row");
+        let first_output_row =
+            UniquenessSemanticRowV2::from_flow_item(&flow.items[1]).expect("output semantic row");
+        let second_output_row =
+            UniquenessSemanticRowV2::from_flow_item(&flow.items[2]).expect("output semantic row");
+        let row_values = [
+            (
+                UniquenessSetKindV2::Spent,
+                UniquenessListKindV2::Original,
+                spent_row,
+            ),
+            (
+                UniquenessSetKindV2::Output,
+                UniquenessListKindV2::Original,
+                first_output_row,
+            ),
+            (
+                UniquenessSetKindV2::Output,
+                UniquenessListKindV2::Original,
+                second_output_row,
+            ),
+            (
+                UniquenessSetKindV2::Spent,
+                UniquenessListKindV2::Sorted,
+                spent_row,
+            ),
+            (
+                UniquenessSetKindV2::Output,
+                UniquenessListKindV2::Sorted,
+                first_output_row,
+            ),
+            (
+                UniquenessSetKindV2::Output,
+                UniquenessListKindV2::Sorted,
+                second_output_row,
+            ),
+        ];
+        let commit_rows =
+            row_values.map(|(set, list, id)| row_payload(UniquenessPassV2::Commit, set, list, id));
+        let product_rows =
+            row_values.map(|(set, list, id)| row_payload(UniquenessPassV2::Product, set, list, id));
+        let sorted_source = |ordinal: u64, payload: Vec<u8>| {
+            RecursiveTraceEventV2::new(
+                ordinal,
+                RecursiveTraceOpcodeV2::UniquenessSorted,
+                structural_event_id(RecursiveTraceOpcodeV2::UniquenessSorted, ordinal, &payload),
+                payload,
+                &profile,
+            )
+            .expect("uniqueness commitment row source")
+        };
+        let mut sources = vec![
             RecursiveTraceEventV2::new(
                 0,
                 RecursiveTraceOpcodeV2::BeginBlock,
@@ -10335,26 +24082,10 @@ mod tests {
             .expect("begin source"),
             RecursiveTraceEventV2::new(
                 1,
-                RecursiveTraceOpcodeV2::ReplayInput,
-                [0x44; 32],
-                replay_input_payload,
-                &profile,
-            )
-            .expect("replay input source"),
-            RecursiveTraceEventV2::new(
-                2,
-                RecursiveTraceOpcodeV2::ReplayOutput,
-                [0x66; 32],
-                replay_output_payload,
-                &profile,
-            )
-            .expect("replay output source"),
-            RecursiveTraceEventV2::new(
-                3,
                 RecursiveTraceOpcodeV2::UniquenessPrecommit,
                 structural_event_id(
                     RecursiveTraceOpcodeV2::UniquenessPrecommit,
-                    3,
+                    1,
                     &precommit_payload,
                 ),
                 precommit_payload.clone(),
@@ -10362,50 +24093,197 @@ mod tests {
             )
             .expect("precommit source"),
             RecursiveTraceEventV2::new(
+                2,
+                RecursiveTraceOpcodeV2::ReplayInput,
+                [0x44; 32],
+                replay_input_payload,
+                &profile,
+            )
+            .expect("replay input source"),
+            sorted_source(3, commit_rows[0].clone()),
+            RecursiveTraceEventV2::new(
                 4,
+                RecursiveTraceOpcodeV2::ReplayOutput,
+                [0x66; 32],
+                first_replay_output_payload,
+                &profile,
+            )
+            .expect("first replay output source"),
+            sorted_source(5, commit_rows[1].clone()),
+            RecursiveTraceEventV2::new(
+                6,
+                RecursiveTraceOpcodeV2::ReplayOutput,
+                [0x77; 32],
+                second_replay_output_payload,
+                &profile,
+            )
+            .expect("second replay output source"),
+            sorted_source(7, commit_rows[2].clone()),
+        ];
+        for (index, payload) in commit_rows.into_iter().skip(3).enumerate() {
+            sources.push(sorted_source(8 + index as u64, payload));
+        }
+        let challenge_ordinal = 11;
+        sources.push(
+            RecursiveTraceEventV2::new(
+                challenge_ordinal,
                 RecursiveTraceOpcodeV2::UniquenessChallenge,
                 structural_event_id(
                     RecursiveTraceOpcodeV2::UniquenessChallenge,
-                    4,
+                    challenge_ordinal,
                     &challenge_payload,
                 ),
                 challenge_payload.clone(),
                 &profile,
             )
             .expect("challenge source"),
+        );
+        let mut product_ordinal = 12_u64;
+        for payload in product_rows.iter().take(3) {
+            sources.push(
+                RecursiveTraceEventV2::new(
+                    product_ordinal,
+                    RecursiveTraceOpcodeV2::UniquenessSorted,
+                    structural_event_id(
+                        RecursiveTraceOpcodeV2::UniquenessSorted,
+                        product_ordinal,
+                        payload,
+                    ),
+                    payload.clone(),
+                    &profile,
+                )
+                .expect("uniqueness product row source"),
+            );
+            product_ordinal += 1;
+        }
+        let effects = [
+            NetEffectV2::from_rows(Some(spent_row), None).expect("delete effect"),
+            NetEffectV2::from_rows(None, Some(first_output_row)).expect("insert effect"),
+            NetEffectV2::from_rows(None, Some(second_output_row)).expect("insert effect"),
+        ];
+        for (payload, effect) in product_rows.iter().skip(3).zip(effects) {
+            sources.push(
+                RecursiveTraceEventV2::new(
+                    product_ordinal,
+                    RecursiveTraceOpcodeV2::UniquenessSorted,
+                    structural_event_id(
+                        RecursiveTraceOpcodeV2::UniquenessSorted,
+                        product_ordinal,
+                        payload,
+                    ),
+                    payload.clone(),
+                    &profile,
+                )
+                .expect("uniqueness product-sorted row source"),
+            );
+            product_ordinal += 1;
+            let effect_payload = encode_net_effect(effect);
+            sources.push(
+                RecursiveTraceEventV2::new(
+                    product_ordinal,
+                    RecursiveTraceOpcodeV2::NetMerge,
+                    structural_event_id(
+                        RecursiveTraceOpcodeV2::NetMerge,
+                        product_ordinal,
+                        &effect_payload,
+                    ),
+                    effect_payload,
+                    &profile,
+                )
+                .expect("semantic net effect source"),
+            );
+            product_ordinal += 1;
+        }
+        sources.push(
             RecursiveTraceEventV2::new(
-                5,
+                product_ordinal,
                 RecursiveTraceOpcodeV2::NetMerge,
-                structural_event_id(RecursiveTraceOpcodeV2::NetMerge, 5, &net_merge_payload),
+                structural_event_id(
+                    RecursiveTraceOpcodeV2::NetMerge,
+                    product_ordinal,
+                    &net_merge_payload,
+                ),
                 net_merge_payload.clone(),
                 &profile,
             )
             .expect("net merge source"),
-        ];
-        let temp = TempDir::new().expect("trace tempdir");
-        let mut source =
-            RecursiveTransitionTraceSourceV2::create_in(temp.path(), profile, snapshot)
-                .expect("trace source");
-        source
-            .begin_canonical_precommit()
-            .expect("open source precommit");
-        for event in &sources {
-            source
-                .append_canonical_event(event.clone())
-                .expect("append canonical source record");
-        }
-        let trace_precommit = source.seal_canonical_precommit().expect("seal precommit");
-        let mut expanded = Vec::new();
-        source
-            .event_pass(|event| {
-                expanded.push(event.clone());
-                Ok(())
-            })
-            .expect("expand canonical precommit fixture");
-        assert_eq!(
-            source.finish(snapshot).expect("finish source"),
-            trace_precommit
         );
+        let close_index = sources.len() - 1;
+        let close_ordinal = sources[close_index].ordinal();
+        let expand = |sources: &[RecursiveTraceEventV2],
+                      context: super::RecursivePreUniquenessContextV2| {
+            let temp = TempDir::new().expect("trace tempdir");
+            let mut source =
+                RecursiveTransitionTraceSourceV2::create_in(temp.path(), profile, snapshot)
+                    .expect("trace source");
+            source
+                .bind_pre_uniqueness_context(context)
+                .expect("bind exact test pre-uniqueness context");
+            source
+                .begin_canonical_precommit()
+                .expect("open source precommit");
+            for event in sources {
+                source
+                    .append_canonical_event(event.clone())
+                    .expect("append canonical source record");
+            }
+            let trace_precommit = source.seal_canonical_precommit().expect("seal precommit");
+            let mut expanded = Vec::new();
+            let pass = source
+                .event_pass(|event| {
+                    expanded.push(event.clone());
+                    Ok(())
+                })
+                .expect("expand canonical precommit fixture");
+            assert_eq!(
+                source.finish(snapshot).expect("finish source"),
+                trace_precommit
+            );
+            (trace_precommit, expanded, pass.event_counts())
+        };
+
+        let (_, _, provisional_counts) = expand(&sources, transcript_context);
+        let transcript_context = test_context_for_event_counts(provisional_counts, 3, [9; 32]);
+        let challenge_payload =
+            encode_uniqueness_challenge(transcript_context.digest(), grammar_digest, precommit);
+        let challenge = decode_uniqueness_challenge(
+            &challenge_payload,
+            transcript_context.digest(),
+            grammar_digest,
+            precommit,
+        )
+        .expect("exact declared-work challenge transcript");
+        let net_merge_payload = encode_net_merge(precommit, challenge);
+        sources[11] = RecursiveTraceEventV2::new(
+            11,
+            RecursiveTraceOpcodeV2::UniquenessChallenge,
+            structural_event_id(
+                RecursiveTraceOpcodeV2::UniquenessChallenge,
+                11,
+                &challenge_payload,
+            ),
+            challenge_payload.clone(),
+            &profile,
+        )
+        .expect("exact challenge source");
+        sources[close_index] = RecursiveTraceEventV2::new(
+            close_ordinal,
+            RecursiveTraceOpcodeV2::NetMerge,
+            structural_event_id(
+                RecursiveTraceOpcodeV2::NetMerge,
+                close_ordinal,
+                &net_merge_payload,
+            ),
+            net_merge_payload.clone(),
+            &profile,
+        )
+        .expect("exact net source");
+        let (trace_precommit, expanded, exact_counts) = expand(&sources, transcript_context);
+        assert_eq!(
+            exact_counts, provisional_counts,
+            "P bytes cannot change shape"
+        );
+        let anchors = CheckpointNovaAnchorsV2::from_pre_uniqueness_context(transcript_context);
 
         let mut phase = ControlPhaseV2::Idle;
         let mut events = Vec::with_capacity(expanded.len());
@@ -10426,6 +24304,7 @@ mod tests {
             .expect("full canonical precommit trace");
         *events.last_mut().expect("last event") = last.clone().with_successor(&last);
         (
+            anchors,
             trace_precommit,
             events,
             precommit_payload,
@@ -10440,13 +24319,20 @@ mod tests {
         Vec<CheckpointRunningStateV2>,
         CheckpointRunningStateV2,
     ) {
-        let anchors = CheckpointNovaAnchorsV2::for_test();
         let (precommit, events) = canonical_hash_control_events();
-        let mut trace_authority = NovaTraceRootAuthorityV2::new([0_u64; super::DIGEST_LIMBS]);
-        trace_authority.expected_trace_digest = super::digest_limbs(precommit.trace_digest());
+        let mut counts = super::RecursiveTraceEventCountsV2::default();
+        for event in &events {
+            counts
+                .increment(event.opcode)
+                .expect("canonical test event count");
+        }
+        let anchors = CheckpointNovaAnchorsV2::from_pre_uniqueness_context(
+            test_context_for_event_counts(counts, 0, [9; 32]),
+        );
+        let trace_authority =
+            NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
         let mut state =
             CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
-                .with_source_event(&events[0])
                 .with_trace_authority(&trace_authority);
         let mut states = Vec::with_capacity(events.len());
         for (index, event) in events.iter().enumerate() {
@@ -10461,14 +24347,18 @@ mod tests {
                 event.hash_control.schema,
                 event.hash_control.stage,
                 cs.which_is_unsatisfied().unwrap_or("an unknown constraint"),
-                state.cells[super::GLOBAL_BYTE_CONTEXT_START
-                    + super::BYTE_CONTEXT_CHAINING_START_OFFSET],
+                        super::scalar_u64(
+                            state.cells[super::GLOBAL_BYTE_CONTEXT_START
+                                + super::BYTE_CONTEXT_CHAINING_START_OFFSET],
+                        ),
                 event.sha_compression.chaining_before[0],
                 states
                     .get(1)
                     .map(|state| {
-                        state.cells[super::GLOBAL_BYTE_CONTEXT_START
-                            + super::BYTE_CONTEXT_CHAINING_START_OFFSET]
+                        super::scalar_u64(
+                            state.cells[super::GLOBAL_BYTE_CONTEXT_START
+                                + super::BYTE_CONTEXT_CHAINING_START_OFFSET],
+                        )
                     })
                     .unwrap_or_default(),
             );
@@ -10483,7 +24373,7 @@ mod tests {
     ) {
         global_trace_hash_control_fixture_for_replay(
             RecursiveTraceOpcodeV2::ReplayInput,
-            ScopeOpKind::Put,
+            ScopeOpKind::Delete,
         )
     }
 
@@ -10502,32 +24392,45 @@ mod tests {
             PrepSnapshotId::new([1; 32]),
             9,
             snapshot_root,
+            [4; 32],
             5,
             1,
             [2; 32],
         )
         .expect("test snapshot");
-        let first_payload = vec![0xA5_u8; 95];
         let replay_terminal = [0x5A_u8; 32];
         let replay_tx_id = match replay_opcode {
             RecursiveTraceOpcodeV2::ReplayInput => "fixture-delete",
             RecursiveTraceOpcodeV2::ReplayOutput => "fixture-output",
             _ => unreachable!("the replay fixture requires a replay source opcode"),
         };
-        let second_payload = encode_flow_item(&ScopeFlowItem {
+        let replay_item = ScopeFlowItem {
             tx_id: replay_tx_id.to_owned(),
             op_kind: replay_op_kind,
             definition_id: "11".repeat(32),
             serial_id: 7,
             terminal_id: "5a".repeat(32),
+            leaf_value_hash: [0x5b; 32],
             leaf_family: ScopeLeafKind::Terminal,
             first_seen: ScopeSeen {
                 definition: false,
                 serial: false,
                 object: false,
             },
+        };
+        let second_payload = encode_flow_item(&replay_item).expect("canonical replay payload");
+        let first_payload = encode_flow_header(&ScopeFlow {
+            batch_id: "11".repeat(32),
+            shard_id: 7,
+            routing_generation: 9,
+            route_table_digest: "22".repeat(32),
+            items: vec![replay_item],
+            root_flow: ScopeRootFlow {
+                prev_root: "33".repeat(32),
+                post_root: "44".repeat(32),
+            },
         })
-        .expect("canonical replay payload");
+        .expect("canonical replay header");
         let sources = [
             RecursiveTraceEventV2::new(
                 0,
@@ -10646,18 +24549,34 @@ mod tests {
             .map(|(event, state)| shape_of(&source_circuit(anchors.clone(), event.clone()), state))
             .collect::<Vec<_>>();
         assert!(shapes.windows(2).all(|pair| pair[0] == pair[1]));
-        assert_eq!(final_state.cells[super::ORDINAL_CELL], events.len() as u64);
-        assert_eq!(final_state.cells[super::SOURCE_TRACE_ORDINAL_CELL], 2);
+        assert_eq!(
+            final_state.cells[super::ORDINAL_CELL],
+            Scalar::from(events.len() as u64)
+        );
+        assert_eq!(
+            final_state.cells[super::SOURCE_TRACE_ORDINAL_CELL],
+            Scalar::from(2_u64)
+        );
         for index in super::COUNTERS_START..super::SHA_END {
-            assert_eq!(final_state.cells[index], 0, "END_HASH clears cell {index}");
+            assert_eq!(
+                final_state.cells[index],
+                Scalar::from(0_u64),
+                "END_HASH clears cell {index}"
+            );
         }
         assert_eq!(
             final_state.cells[super::REPLAY_MODE_CELL],
-            super::ReplayModeV2::Inputs as u64,
+            Scalar::from(super::ReplayModeV2::Inputs as u64),
             "the fixture contains no ReplayOutput and must remain in the input prefix"
         );
-        assert_eq!(final_state.cells[super::REPLAY_INPUT_COUNT_CELL], 1);
-        assert_eq!(final_state.cells[super::REPLAY_OUTPUT_COUNT_CELL], 0);
+        assert_eq!(
+            final_state.cells[super::REPLAY_INPUT_COUNT_CELL],
+            Scalar::from(1_u64)
+        );
+        assert_eq!(
+            final_state.cells[super::REPLAY_OUTPUT_COUNT_CELL],
+            Scalar::from(0_u64)
+        );
     }
 
     #[test]
@@ -10668,7 +24587,7 @@ mod tests {
             .position(|event| event.opcode == RecursiveTraceOpcodeV2::ReplayInput)
             .expect("canonical schedule contains a replay input");
         let mut state = states[replay_input].clone();
-        state.cells[super::REPLAY_MODE_CELL] = super::ReplayModeV2::Outputs as u64;
+        state.cells[super::REPLAY_MODE_CELL] = Scalar::from(super::ReplayModeV2::Outputs as u64);
         let circuit = source_circuit(anchors, events[replay_input].clone());
         let (cs, _) = synthesize_test(&circuit, &state);
         assert!(
@@ -10697,8 +24616,8 @@ mod tests {
             .expect("canonical replay item has its first chunk");
         assert_eq!(
             events[replay_chunk].trace_chunk.bytes[super::TRACE_EVENT_HEADER_BYTES_V2],
-            1,
-            "ReplayInput may carry the canonical Put item"
+            2,
+            "ReplayInput carries the canonical Delete item"
         );
 
         let mut malformed = events[replay_chunk].clone();
@@ -10718,17 +24637,16 @@ mod tests {
     }
 
     #[test]
-    fn test_output_delete_trace() {
+    fn test_output_put_trace() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let (precommit, events) = canonical_hash_control_events_for_replay(
             RecursiveTraceOpcodeV2::ReplayOutput,
-            ScopeOpKind::Delete,
+            ScopeOpKind::Put,
         );
-        let mut trace_authority = NovaTraceRootAuthorityV2::new([0_u64; super::DIGEST_LIMBS]);
-        trace_authority.expected_trace_digest = super::digest_limbs(precommit.trace_digest());
+        let trace_authority =
+            NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
         let mut state =
             CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
-                .with_source_event(&events[0])
                 .with_trace_authority(&trace_authority);
         let replay_chunk = events
             .iter()
@@ -10740,15 +24658,15 @@ mod tests {
             .expect("canonical replay output has its first chunk");
         assert_eq!(
             events[replay_chunk].trace_chunk.bytes[super::TRACE_EVENT_HEADER_BYTES_V2],
-            2,
-            "ReplayOutput may carry the canonical Delete item"
+            1,
+            "ReplayOutput carries the canonical Put item"
         );
         for (index, event) in events.iter().enumerate() {
             let circuit = source_circuit(anchors.clone(), event.clone());
             let (cs, output) = synthesize_test(&circuit, &state);
             assert!(
                 cs.is_satisfied(),
-                "canonical ReplayOutput/Delete schedule {index} violates {}",
+                "canonical ReplayOutput/Put schedule {index} violates {}",
                 cs.which_is_unsatisfied().unwrap_or("an unknown constraint"),
             );
             state = state_from_output(&output);
@@ -10794,12 +24712,14 @@ mod tests {
             .iter()
             .position(|event| event.opcode == RecursiveTraceOpcodeV2::ReplayInput)
             .expect("canonical schedule contains the input-prefix state");
-        let replay_output = source_event(
-            ControlPhaseV2::Replay,
+        let (_, output_events) = canonical_hash_control_events_for_replay(
             RecursiveTraceOpcodeV2::ReplayOutput,
-            events[replay_input].ordinal,
-            b"replay-output-prefix-probe",
+            ScopeOpKind::Put,
         );
+        let replay_output = output_events
+            .into_iter()
+            .find(|event| event.opcode == RecursiveTraceOpcodeV2::ReplayOutput)
+            .expect("canonical schedule contains a replay output source");
         let state = states[replay_input]
             .clone()
             .with_source_event(&replay_output);
@@ -10813,53 +24733,76 @@ mod tests {
         let output = state_from_output(&output);
         assert_eq!(
             output.cells[super::REPLAY_MODE_CELL],
-            super::ReplayModeV2::Outputs as u64
+            Scalar::from(super::ReplayModeV2::Outputs as u64)
         );
-        assert_eq!(output.cells[super::REPLAY_INPUT_COUNT_CELL], 0);
-        assert_eq!(output.cells[super::REPLAY_OUTPUT_COUNT_CELL], 1);
+        assert_eq!(
+            output.cells[super::REPLAY_INPUT_COUNT_CELL],
+            Scalar::from(0_u64)
+        );
+        assert_eq!(
+            output.cells[super::REPLAY_OUTPUT_COUNT_CELL],
+            Scalar::from(1_u64)
+        );
     }
 
     #[test]
-    fn precommit_rejects_an_unpaired_replay_set() {
+    fn precommit_allows_a_delete_only_replay_set() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let replay_input = events
             .iter()
             .position(|event| event.opcode == RecursiveTraceOpcodeV2::ReplayInput)
             .expect("canonical schedule contains the input-prefix state");
+        let flow = ScopeFlow {
+            batch_id: "11".repeat(32),
+            shard_id: 7,
+            routing_generation: 9,
+            route_table_digest: "22".repeat(32),
+            items: vec![ScopeFlowItem {
+                tx_id: "delete-only".to_owned(),
+                op_kind: ScopeOpKind::Delete,
+                definition_id: "33".repeat(32),
+                serial_id: 1,
+                terminal_id: "44".repeat(32),
+                leaf_value_hash: [0x45; 32],
+                leaf_family: ScopeLeafKind::Terminal,
+                first_seen: ScopeSeen {
+                    definition: false,
+                    serial: false,
+                    object: false,
+                },
+            }],
+            root_flow: ScopeRootFlow {
+                prev_root: "55".repeat(32),
+                post_root: "66".repeat(32),
+            },
+        };
+        let payload = encode_uniqueness_precommit(&flow)
+            .expect("delete-only replay has a canonical uniqueness precommit");
         let precommit = source_event(
             ControlPhaseV2::Replay,
             RecursiveTraceOpcodeV2::UniquenessPrecommit,
             events[replay_input].ordinal,
-            b"unpaired-replay-precommit",
+            &payload,
         );
         let mut state = states[replay_input].clone().with_source_event(&precommit);
-        state.cells[super::REPLAY_MODE_CELL] = super::ReplayModeV2::Outputs as u64;
-        state.cells[super::REPLAY_INPUT_COUNT_CELL] = 1;
+        state.cells[super::REPLAY_MODE_CELL] = Scalar::from(super::ReplayModeV2::Outputs as u64);
+        state.cells[super::REPLAY_INPUT_COUNT_CELL] = Scalar::from(1_u64);
         let circuit = source_circuit(anchors, precommit);
         let (cs, _) = synthesize_test(&circuit, &state);
         assert!(
-            !cs.is_satisfied(),
-            "precommit cannot bind a spent set without an output set"
-        );
-        assert!(
-            cs.which_is_unsatisfied()
-                .is_some_and(|constraint| constraint.starts_with(
-                    "replay_grammar/precommit_requires_jointly_empty_or_nonempty_sets"
-                )),
-            "the unpaired set must reach the replay-cardinality R1CS gate, got {:?}",
-            cs.which_is_unsatisfied()
+            cs.is_satisfied(),
+            "delete-only replay is a canonical Net transition: {}",
+            cs.which_is_unsatisfied().unwrap_or("unknown constraint")
         );
     }
 
     #[test]
     fn uniqueness_precommit_payload_is_streamed_and_count_bound_in_r1cs() {
-        let anchors = CheckpointNovaAnchorsV2::for_test();
-        let (precommit, events, payload, _, _) = canonical_uniqueness_precommit_events();
-        let mut trace_authority = NovaTraceRootAuthorityV2::new([0_u64; super::DIGEST_LIMBS]);
-        trace_authority.expected_trace_digest = super::digest_limbs(precommit.trace_digest());
+        let (anchors, precommit, events, payload, _, _) = canonical_uniqueness_precommit_events();
+        let trace_authority =
+            NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
         let mut state =
             CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
-                .with_source_event(&events[0])
                 .with_trace_authority(&trace_authority);
         let mut states = Vec::with_capacity(events.len());
         for (index, event) in events.iter().enumerate() {
@@ -10878,14 +24821,14 @@ mod tests {
             .position(|event| {
                 event.opcode == RecursiveTraceOpcodeV2::EndHash
                     && event.hash_control.schema == HashControlSchemaV2::SourceRecord as u8
-                    && event.hash_control.source_ordinal == 3
+                    && event.hash_control.source_ordinal == 1
             })
             .expect("canonical precommit source has an END_HASH");
         let precommit_chunk = events
             .iter()
             .position(|event| {
                 event.opcode == RecursiveTraceOpcodeV2::TraceChunk
-                    && event.trace_chunk.source_ordinal == 3
+                    && event.trace_chunk.source_ordinal == 1
                     && event.trace_chunk.chunk_ordinal == 0
             })
             .expect("canonical precommit source has its first TraceChunk");
@@ -10896,19 +24839,19 @@ mod tests {
         );
         assert_eq!(
             states[precommit_end].cells[super::PRECOMMIT_SPENT_COUNT_LIMB_START],
-            1
+            Scalar::from(1_u64)
         );
         assert_eq!(
             states[precommit_end].cells[super::PRECOMMIT_SPENT_COUNT_LIMB_START + 1],
-            0
+            Scalar::from(0_u64)
         );
         assert_eq!(
             states[precommit_end].cells[super::PRECOMMIT_OUTPUT_COUNT_LIMB_START],
-            1
+            Scalar::from(2_u64)
         );
         assert_eq!(
             states[precommit_end].cells[super::PRECOMMIT_OUTPUT_COUNT_LIMB_START + 1],
-            0
+            Scalar::from(0_u64)
         );
         for (index, bytes) in payload[super::PRECOMMIT_DIGEST_BYTES_START..]
             .chunks_exact(2)
@@ -10916,7 +24859,7 @@ mod tests {
         {
             assert_eq!(
                 states[precommit_end].cells[super::PRECOMMIT_DIGEST_LIMB_START + index],
-                u64::from(u16::from_le_bytes([bytes[0], bytes[1]])),
+                Scalar::from(u64::from(u16::from_le_bytes([bytes[0], bytes[1]]))),
                 "precommit digest limb {index} must come from its canonical payload bytes",
             );
         }
@@ -10937,9 +24880,50 @@ mod tests {
             "the precommit version mutation must fail in the R1CS byte parser, got {version_failure}",
         );
 
-        let mut malformed_count_state = states[precommit_end].clone();
-        malformed_count_state.cells[super::PRECOMMIT_SPENT_COUNT_LIMB_START] = 2;
-        let circuit = source_circuit(anchors, events[precommit_end].clone());
+        let first_original_identifier_chunk = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::TraceChunk
+                    && event.trace_chunk.source_ordinal == 3
+                    && event.trace_chunk.chunk_ordinal == 2
+            })
+            .expect("the adjacent spent Original row has its identifier chunk");
+        for (offset, field) in [
+            (0, "definition"),
+            (32, "serial"),
+            (super::SORTED_ROW_TERMINAL_OFFSET, "terminal"),
+            (68, "leaf-value hash"),
+        ] {
+            let mut mismatched_replay_state = states[first_original_identifier_chunk].clone();
+            mismatched_replay_state.cells[super::REPLAY_PENDING_SEMANTIC_ROW_START + offset] +=
+                Scalar::from(1_u64);
+            let circuit = source_circuit(
+                anchors.clone(),
+                events[first_original_identifier_chunk].clone(),
+            );
+            let (cs, _) = synthesize_test(&circuit, &mismatched_replay_state);
+            assert!(
+                !cs.is_satisfied(),
+                "an adjacent Original row cannot change the replay {field}",
+            );
+            let expected = format!(
+                "uniqueness_sorted_payload/commit_original_semantic_row_matches_replay_{offset}"
+            );
+            assert!(
+                cs.which_is_unsatisfied()
+                    .is_some_and(|constraint| constraint.starts_with(&expected)),
+                "the replay/Original {field} mutation must reach its direct R1CS equality gate, got {:?}",
+                cs.which_is_unsatisfied(),
+            );
+        }
+
+        let challenge_source = events
+            .iter()
+            .position(|event| event.opcode == RecursiveTraceOpcodeV2::UniquenessChallenge)
+            .expect("canonical challenge source");
+        let mut malformed_count_state = states[challenge_source].clone();
+        malformed_count_state.cells[super::PRECOMMIT_SPENT_COUNT_LIMB_START] = Scalar::from(2_u64);
+        let circuit = source_circuit(anchors, events[challenge_source].clone());
         let (cs, _) = synthesize_test(&circuit, &malformed_count_state);
         assert!(
             !cs.is_satisfied(),
@@ -10948,7 +24932,7 @@ mod tests {
         assert!(
             cs.which_is_unsatisfied()
                 .is_some_and(|constraint| constraint.starts_with(
-                    "uniqueness_precommit_payload/precommit_spent_count_matches_replay_input_count"
+                    "uniqueness_sorted_payload/challenge_original_spent_count_matches_precommit"
                 )),
             "the count mutation must reach the direct precommit/replay R1CS gate, got {:?}",
             cs.which_is_unsatisfied(),
@@ -10956,15 +24940,234 @@ mod tests {
     }
 
     #[test]
-    fn uniqueness_challenge_payload_binds_precommit_bytes_in_r1cs() {
-        let anchors = CheckpointNovaAnchorsV2::for_test();
-        let (precommit, events, precommit_payload, challenge_payload, _) =
-            canonical_uniqueness_precommit_events();
-        let mut trace_authority = NovaTraceRootAuthorityV2::new([0_u64; super::DIGEST_LIMBS]);
-        trace_authority.expected_trace_digest = super::digest_limbs(precommit.trace_digest());
+    fn uniqueness_sorted_row_version_is_constrained_from_the_same_memory_window() {
+        let (anchors, precommit, events, _, _, _) = canonical_uniqueness_precommit_events();
+        let trace_authority =
+            NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
         let mut state =
             CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
-                .with_source_event(&events[0])
+                .with_trace_authority(&trace_authority);
+        let mut states = Vec::with_capacity(events.len());
+        for event in &events {
+            states.push(state.clone());
+            let circuit = source_circuit(anchors.clone(), event.clone());
+            let (cs, output) = synthesize_test(&circuit, &state);
+            assert!(
+                cs.is_satisfied(),
+                "the canonical sorted-row fixture violates {}",
+                cs.which_is_unsatisfied().unwrap_or("an unknown constraint"),
+            );
+            state = state_from_output(&output);
+        }
+        let sorted_chunk = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::TraceChunk
+                    && event.trace_chunk.source_ordinal == 8
+                    && event.trace_chunk.chunk_ordinal == 0
+            })
+            .expect("canonical schedule contains the sorted spent row chunk");
+        let writer = sorted_chunk
+            .checked_sub(1)
+            .expect("every TraceChunk has an immediate memory writer");
+        assert_eq!(
+            events[writer].opcode,
+            RecursiveTraceOpcodeV2::SourceMemoryWrite,
+            "the sorted row must use the only authenticated memory window"
+        );
+
+        let version_offset = super::TRACE_EVENT_HEADER_BYTES_V2;
+        let mut changed_writer = events[writer].clone();
+        changed_writer.source_memory_write.bytes[version_offset] ^= 1;
+        let writer_circuit = source_circuit(anchors.clone(), changed_writer);
+        let (writer_cs, writer_output) = synthesize_test(&writer_circuit, &states[writer]);
+        assert!(
+            writer_cs.is_satisfied(),
+            "the controlled mutation must reach the reader parser rather than fail at the writer"
+        );
+
+        let mut changed_reader = events[sorted_chunk].clone();
+        changed_reader.trace_chunk.bytes[version_offset] ^= 1;
+        let reader_state = state_from_output(&writer_output);
+        let reader_circuit = source_circuit(anchors, changed_reader);
+        let (reader_cs, _) = synthesize_test(&reader_circuit, &reader_state);
+        assert!(
+            !reader_cs.is_satisfied(),
+            "a sorted-row version different from the typed codec must fail in R1CS"
+        );
+        assert!(
+            reader_cs
+                .which_is_unsatisfied()
+                .is_some_and(|constraint| constraint.starts_with("uniqueness_sorted_payload/")),
+            "the typed sorted-row parser must reject before later SHA controls, got {:?}",
+            reader_cs.which_is_unsatisfied(),
+        );
+    }
+
+    #[test]
+    fn uniqueness_sorted_rows_bind_order_and_precommit_cardinality_in_r1cs() {
+        let (anchors, precommit, events, _, _, _) = canonical_uniqueness_precommit_events();
+        let trace_authority =
+            NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
+        let mut state =
+            CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
+                .with_trace_authority(&trace_authority);
+        let mut states = Vec::with_capacity(events.len());
+        for event in &events {
+            states.push(state.clone());
+            let circuit = source_circuit(anchors.clone(), event.clone());
+            let (cs, output) = synthesize_test(&circuit, &state);
+            assert!(
+                cs.is_satisfied(),
+                "the canonical sorted-row fixture violates {}",
+                cs.which_is_unsatisfied().unwrap_or("an unknown constraint"),
+            );
+            state = state_from_output(&output);
+        }
+
+        let output_second_chunk = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::TraceChunk
+                    && event.trace_chunk.source_ordinal == 10
+                    && event.trace_chunk.chunk_ordinal == 2
+            })
+            .expect("canonical schedule contains the sorted output's second chunk");
+
+        let mut reversed_order = states[output_second_chunk].clone();
+        reversed_order.cells[super::SORTED_OUTPUT_LAST_ACTIVE_CELL] = Scalar::from(1_u64);
+        for index in super::SORTED_OUTPUT_LAST_START..super::SORTED_OUTPUT_LAST_END {
+            reversed_order.cells[index] = Scalar::from(u64::from(u8::MAX));
+        }
+        let circuit = source_circuit(anchors.clone(), events[output_second_chunk].clone());
+        let (order_cs, _) = synthesize_test(&circuit, &reversed_order);
+        assert!(
+            !order_cs.is_satisfied(),
+            "an output identifier not greater than its prior sorted identifier must reject"
+        );
+        assert!(
+            order_cs
+                .which_is_unsatisfied()
+                .is_some_and(|constraint| constraint
+                    .starts_with("uniqueness_sorted_payload/output_identifier_strictly_increases")),
+            "the byte-lex R1CS gate must reject the reversed order, got {:?}",
+            order_cs.which_is_unsatisfied(),
+        );
+
+        let product_output_second_chunk = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::TraceChunk
+                    && event.trace_chunk.source_ordinal == 19
+                    && event.trace_chunk.chunk_ordinal == 2
+            })
+            .expect("canonical schedule contains the second product-sorted output");
+        let mut same_path_replacement = states[product_output_second_chunk].clone();
+        same_path_replacement.cells[super::SORTED_GLOBAL_LAST_ACTIVE_CELL] = Scalar::from(1_u64);
+        same_path_replacement.cells[super::SORTED_GLOBAL_LAST_SET_CELL] = Scalar::from(0_u64);
+        for index in 0..super::SORTED_ROW_TERMINAL_OFFSET + super::SORTED_IDENTIFIER_BYTES_V2 {
+            same_path_replacement.cells[super::SORTED_GLOBAL_LAST_START + index] =
+                same_path_replacement.cells[super::SORTED_PARSE_ROW_START + index];
+        }
+        let circuit = source_circuit(anchors.clone(), events[product_output_second_chunk].clone());
+        let (replacement_cs, _) = synthesize_test(&circuit, &same_path_replacement);
+        assert!(
+            replacement_cs.is_satisfied(),
+            "a spent/output pair on the exact same storage path is a legal replacement: {}",
+            replacement_cs
+                .which_is_unsatisfied()
+                .unwrap_or("unknown constraint")
+        );
+
+        let mut changed_path = same_path_replacement;
+        changed_path.cells[super::SORTED_GLOBAL_LAST_START] += Scalar::from(1_u64);
+        let circuit = source_circuit(anchors.clone(), events[product_output_second_chunk].clone());
+        let (cross_set_cs, _) = synthesize_test(&circuit, &changed_path);
+        assert!(
+            !cross_set_cs.is_satisfied(),
+            "the same terminal ID on a changed definition/serial path must reject"
+        );
+        assert!(
+            cross_set_cs
+                .which_is_unsatisfied()
+                .is_some_and(|constraint| {
+                    constraint.starts_with(
+                        "uniqueness_sorted_payload/global_identifier_increases_or_same_path_replaces",
+                    )
+                }),
+            "the global replacement gate must reject a changed-path duplicate, got {:?}",
+            cross_set_cs.which_is_unsatisfied(),
+        );
+
+        let net_close_chunk = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::TraceChunk
+                    && event.trace_chunk.source_ordinal == 21
+                    && event.trace_chunk.chunk_ordinal == 2
+            })
+            .expect("canonical schedule contains the final Net Close chunk");
+        let mut wrong_cardinality = states[net_close_chunk].clone();
+        wrong_cardinality.cells[super::SORTED_SPENT_COUNT_CELL] = Scalar::from(2_u64);
+        let circuit = source_circuit(anchors.clone(), events[net_close_chunk].clone());
+        let (count_cs, _) = synthesize_test(&circuit, &wrong_cardinality);
+        assert!(
+            !count_cs.is_satisfied(),
+            "a sorted cardinality different from the authenticated precommit must reject"
+        );
+        assert!(
+            count_cs
+                .which_is_unsatisfied()
+                .is_some_and(|constraint| constraint
+                    .starts_with("net_merge_payload/sorted_spent_count_matches_precommit")),
+            "the precommit/cardinality R1CS gate must reject the mutation, got {:?}",
+            count_cs.which_is_unsatisfied(),
+        );
+
+        for (product, relation) in [
+            (
+                super::SPENT_ORIGINAL_PRODUCT_0,
+                "uniqueness_products/pair_0_spent_original_equals_sorted",
+            ),
+            (
+                super::OUTPUT_ORIGINAL_PRODUCT_0,
+                "uniqueness_products/pair_0_output_original_equals_sorted",
+            ),
+            (
+                super::SPENT_ORIGINAL_PRODUCT_1,
+                "uniqueness_products/pair_1_spent_original_equals_sorted",
+            ),
+            (
+                super::OUTPUT_ORIGINAL_PRODUCT_1,
+                "uniqueness_products/pair_1_output_original_equals_sorted",
+            ),
+        ] {
+            let mut wrong_product = states[net_close_chunk].clone();
+            wrong_product.cells[product] += Scalar::from(1_u64);
+            let circuit = source_circuit(anchors.clone(), events[net_close_chunk].clone());
+            let (product_cs, _) = synthesize_test(&circuit, &wrong_product);
+            assert!(
+                !product_cs.is_satisfied(),
+                "a changed full-field grand product must reject at NetMerge"
+            );
+            assert!(
+                product_cs
+                    .which_is_unsatisfied()
+                    .is_some_and(|constraint| constraint.starts_with(relation)),
+                "the independent product equality must reject the mutation, got {:?}",
+                product_cs.which_is_unsatisfied(),
+            );
+        }
+    }
+
+    #[test]
+    fn uniqueness_challenge_payload_binds_precommit_bytes_in_r1cs() {
+        let (anchors, precommit, events, precommit_payload, challenge_payload, _) =
+            canonical_uniqueness_precommit_events();
+        let trace_authority =
+            NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
+        let mut state =
+            CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
                 .with_trace_authority(&trace_authority);
         let mut states = Vec::with_capacity(events.len());
         for (index, event) in events.iter().enumerate() {
@@ -10984,14 +25187,14 @@ mod tests {
             .position(|event| {
                 event.opcode == RecursiveTraceOpcodeV2::EndHash
                     && event.hash_control.schema == HashControlSchemaV2::SourceRecord as u8
-                    && event.hash_control.source_ordinal == 4
+                    && event.hash_control.source_ordinal == 11
             })
             .expect("canonical challenge source has an END_HASH");
         let challenge_chunk = events
             .iter()
             .position(|event| {
                 event.opcode == RecursiveTraceOpcodeV2::TraceChunk
-                    && event.trace_chunk.source_ordinal == 4
+                    && event.trace_chunk.source_ordinal == 11
                     && event.trace_chunk.chunk_ordinal == 0
             })
             .expect("canonical challenge source has its first TraceChunk");
@@ -11001,20 +25204,137 @@ mod tests {
             "fixture must place the canonical codec version at the challenge payload start",
         );
         assert_eq!(
-            &challenge_payload[1..super::CHALLENGE_DIGEST_BYTES_START],
+            &challenge_payload[1..super::CHALLENGE_CONTEXT_BYTES_START],
             &precommit_payload[super::PRECOMMIT_DIGEST_BYTES_START + 32 * 4..],
             "the fixture must carry the canonical precommit digest, not a second value",
         );
-        for (index, bytes) in challenge_payload[super::CHALLENGE_DIGEST_BYTES_START..]
+        for (index, bytes) in challenge_payload
+            [super::CHALLENGE_CONTEXT_BYTES_START..super::CHALLENGE_OUTPUT_BYTES_START]
             .chunks_exact(2)
             .enumerate()
         {
             assert_eq!(
                 states[challenge_end].cells[super::CHALLENGE_DIGEST_LIMB_START + index],
-                u64::from(u16::from_le_bytes([bytes[0], bytes[1]])),
-                "challenge digest limb {index} must come from its canonical payload bytes",
+                Scalar::from(u64::from(u16::from_le_bytes([bytes[0], bytes[1]]))),
+                "challenge context limb {index} must come from its canonical payload bytes",
             );
         }
+        for challenge in 0..super::CHALLENGE_OUTPUT_COUNT {
+            for limb in 0..super::DIGEST_LIMBS {
+                let byte_start = super::CHALLENGE_OUTPUT_BYTES_START + challenge * 32 + limb * 2;
+                let value = u16::from_le_bytes([
+                    challenge_payload[byte_start],
+                    challenge_payload[byte_start + 1],
+                ]);
+                let state_index = super::CHALLENGE_FULL_DIGEST_LIMB_START
+                    + challenge * super::DIGEST_LIMBS
+                    + limb;
+                assert_eq!(
+                    states[challenge_end].cells[state_index],
+                    Scalar::from(u64::from(value)),
+                    "challenge {challenge} full digest limb {limb} must preserve all 256 bits",
+                );
+            }
+            for word in 0..super::CHALLENGE_WORDS_PER_OUTPUT {
+                let byte_start = super::CHALLENGE_OUTPUT_BYTES_START + challenge * 32 + word * 8;
+                let byte_count = if word + 1 == super::CHALLENGE_WORDS_PER_OUTPUT {
+                    7
+                } else {
+                    8
+                };
+                let mut bytes = [0_u8; 8];
+                bytes[..byte_count]
+                    .copy_from_slice(&challenge_payload[byte_start..byte_start + byte_count]);
+                let state_index = super::CHALLENGE_WORD_START
+                    + challenge * super::CHALLENGE_WORDS_PER_OUTPUT
+                    + word;
+                assert_eq!(
+                    states[challenge_end].cells[state_index],
+                    Scalar::from(u64::from_le_bytes(bytes)),
+                    "challenge {challenge} word {word} must preserve the low 248 digest bits",
+                );
+            }
+        }
+
+        let transcript_block = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::ShaBlock
+                    && event.hash_control.schema == HashControlSchemaV2::UniquenessTranscript as u8
+            })
+            .expect("canonical challenge emits an exact transcript SHA block");
+        let mut altered_transcript_block = events[transcript_block].clone();
+        altered_transcript_block.sha_compression.block[0] ^= 1;
+        altered_transcript_block.sha_compression.chaining_after = recompute_sha256_chaining_after(
+            &altered_transcript_block.sha_compression.block,
+            altered_transcript_block.sha_compression.chaining_before,
+        );
+        let circuit = source_circuit(anchors.clone(), altered_transcript_block);
+        let (transcript_cs, _) = synthesize_test(&circuit, &states[transcript_block]);
+        assert!(
+            !transcript_cs.is_satisfied(),
+            "a transcript SHA witness detached from U/challenge bytes survived"
+        );
+        assert!(
+            transcript_cs
+                .which_is_unsatisfied()
+                .is_some_and(|constraint| {
+                    constraint.starts_with("uniqueness_transcript_hash_context/")
+                        || constraint.starts_with(
+                            "hash_control_schedule/uniqueness_transcript_hash_context/",
+                        )
+                        || constraint.starts_with("sha_compression_lane/")
+                }),
+            "the transcript mutation must reach its exact byte/FIPS relation, got {:?}",
+            transcript_cs.which_is_unsatisfied(),
+        );
+
+        let predicate_message_offset = super::CheckpointSha256BlockStreamV2::framed_role_prefix(
+            super::CheckpointShaRole::UniquenessContext,
+        )
+        .len()
+            + [1_usize, 32, 32, 32, 32, 8, 8, 4, 8, 1, 32, 32, 32, 32]
+                .into_iter()
+                .map(|part_bytes| 8 + part_bytes)
+                .sum::<usize>();
+        let predicate_block_index = u64::try_from(predicate_message_offset / 64)
+            .expect("fixed context block index fits u64");
+        let context_block = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::ShaBlock
+                    && event.hash_control.schema == HashControlSchemaV2::UniquenessTranscript as u8
+                    && event.hash_control.uniqueness_transcript_job
+                        == super::UniquenessTranscriptHashJobV2::PreUniquenessContext as u8
+                    && event.hash_control.block_index == predicate_block_index
+            })
+            .expect("P transcript contains the predicate-digest field block");
+
+        let mut altered_context_block = events[context_block].clone();
+        altered_context_block.sha_compression.block[0] ^= 1;
+        altered_context_block.sha_compression.chaining_after = recompute_sha256_chaining_after(
+            &altered_context_block.sha_compression.block,
+            altered_context_block.sha_compression.chaining_before,
+        );
+        let circuit = source_circuit(anchors.clone(), altered_context_block);
+        let (context_block_cs, _) = synthesize_test(&circuit, &states[context_block]);
+        assert!(
+            !context_block_cs.is_satisfied(),
+            "a mutated P transcript block survived the exact static-byte relation"
+        );
+
+        let predicate_anchor = super::DIGEST_LIMBS * 8;
+        let mut altered_anchors = anchors.clone();
+        altered_anchors.cells[predicate_anchor] ^= 1;
+        let mut altered_anchor_state = states[context_block].clone();
+        altered_anchor_state.cells[predicate_anchor] =
+            Scalar::from(altered_anchors.cells[predicate_anchor]);
+        let circuit = source_circuit(altered_anchors, events[context_block].clone());
+        let (context_field_cs, _) = synthesize_test(&circuit, &altered_anchor_state);
+        assert!(
+            !context_field_cs.is_satisfied(),
+            "a changed predicate_digest anchor survived the constrained P transcript"
+        );
 
         let mut malformed_version = events[challenge_chunk].clone();
         malformed_version.trace_chunk.bytes[super::TRACE_EVENT_HEADER_BYTES_V2] ^= 1;
@@ -11042,9 +25362,9 @@ mod tests {
         );
         assert!(
             cs.which_is_unsatisfied()
-                .is_some_and(|constraint| constraint
-                    .contains("uniqueness_challenge_payload/byte_")
-                    && constraint.contains("committed_precommit_limb_0_matches")),
+                .is_some_and(|constraint| constraint.starts_with(
+                    "uniqueness_challenge_payload/committed_precommit_limb_0_matches"
+                )),
             "the precommit mutation must reach the direct challenge/precommit R1CS gate, got {:?}",
             cs.which_is_unsatisfied(),
         );
@@ -11052,13 +25372,12 @@ mod tests {
 
     #[test]
     fn net_merge_payload_is_streamed_from_canonical_source_bytes_in_r1cs() {
-        let anchors = CheckpointNovaAnchorsV2::for_test();
-        let (precommit, events, _, _, net_merge_payload) = canonical_uniqueness_precommit_events();
-        let mut trace_authority = NovaTraceRootAuthorityV2::new([0_u64; super::DIGEST_LIMBS]);
-        trace_authority.expected_trace_digest = super::digest_limbs(precommit.trace_digest());
+        let (anchors, precommit, events, _, _, net_merge_payload) =
+            canonical_uniqueness_precommit_events();
+        let trace_authority =
+            NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
         let mut state =
             CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
-                .with_source_event(&events[0])
                 .with_trace_authority(&trace_authority);
         let mut states = Vec::with_capacity(events.len());
         for (index, event) in events.iter().enumerate() {
@@ -11078,32 +25397,92 @@ mod tests {
             .position(|event| {
                 event.opcode == RecursiveTraceOpcodeV2::EndHash
                     && event.hash_control.schema == HashControlSchemaV2::SourceRecord as u8
-                    && event.hash_control.source_ordinal == 5
+                    && event.hash_control.source_ordinal == 21
             })
             .expect("canonical net merge source has an END_HASH");
         let net_chunk = events
             .iter()
             .position(|event| {
                 event.opcode == RecursiveTraceOpcodeV2::TraceChunk
-                    && event.trace_chunk.source_ordinal == 5
+                    && event.trace_chunk.source_ordinal == 21
                     && event.trace_chunk.chunk_ordinal == 0
             })
             .expect("canonical net merge source has its first TraceChunk");
+        let net_final_chunk = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::TraceChunk
+                    && event.trace_chunk.source_ordinal == 21
+                    && event.trace_chunk.chunk_ordinal == 2
+            })
+            .expect("canonical net close source has its final TraceChunk");
         assert_eq!(
             events[net_chunk].trace_chunk.bytes[super::TRACE_EVENT_HEADER_BYTES_V2],
             super::UNIQUENESS_PRECOMMIT_VERSION_V2,
             "fixture must place the canonical codec version at the net merge payload start",
         );
-        for (index, bytes) in net_merge_payload[super::NET_DIGEST_BYTES_START..]
-            .chunks_exact(2)
-            .enumerate()
-        {
-            assert_eq!(
-                states[net_end].cells[super::NET_DIGEST_LIMB_START + index],
-                u64::from(u16::from_le_bytes([bytes[0], bytes[1]])),
-                "net merge digest limb {index} must come from its canonical payload bytes",
-            );
-        }
+        assert_eq!(
+            net_merge_payload[1], 0,
+            "the final NetMerge source is the distinct Close row"
+        );
+        assert_eq!(
+            states[net_end].cells[super::NET_EFFECT_COUNT_CELL],
+            Scalar::from(3_u64),
+            "the close row must retain exactly one semantic effect per terminal union row",
+        );
+        assert_eq!(
+            states[net_end].cells[super::NET_CLOSED_CELL],
+            Scalar::from(1_u64),
+            "the close row is the only JMT hand-off",
+        );
+
+        let first_effect_final_chunk = events
+            .iter()
+            .position(|event| {
+                event.opcode == RecursiveTraceOpcodeV2::TraceChunk
+                    && event.trace_chunk.source_ordinal == 16
+                    && event.trace_chunk.chunk_ordinal == 2
+            })
+            .expect("canonical delete effect has its final TraceChunk");
+        let mut wrong_kind = states[first_effect_final_chunk].clone();
+        wrong_kind.cells[super::NET_KIND_CELL] = Scalar::from(2_u64);
+        let circuit = source_circuit(anchors.clone(), events[first_effect_final_chunk].clone());
+        let (kind_cs, _) = synthesize_test(&circuit, &wrong_kind);
+        assert!(
+            !kind_cs.is_satisfied()
+                && kind_cs.which_is_unsatisfied().is_some_and(|constraint| {
+                    constraint.starts_with("net_merge_payload/kind_1_is_exact")
+                }),
+            "delete cannot be relabeled as insert: {:?}",
+            kind_cs.which_is_unsatisfied(),
+        );
+
+        let mut wrong_old_row = states[first_effect_final_chunk].clone();
+        wrong_old_row.cells[super::NET_PENDING_SPENT_ROW_START] += Scalar::from(1_u64);
+        let circuit = source_circuit(anchors.clone(), events[first_effect_final_chunk].clone());
+        let (old_cs, _) = synthesize_test(&circuit, &wrong_old_row);
+        assert!(
+            !old_cs.is_satisfied()
+                && old_cs.which_is_unsatisfied().is_some_and(|constraint| {
+                    constraint.starts_with("net_merge_payload/effect_old_row_0")
+                }),
+            "the delete effect must carry the exact pending old row: {:?}",
+            old_cs.which_is_unsatisfied(),
+        );
+
+        let mut wrong_close_binding = states[net_final_chunk].clone();
+        wrong_close_binding.cells[super::NET_PARSE_ROW_START] += Scalar::from(1_u64);
+        let circuit = source_circuit(anchors.clone(), events[net_final_chunk].clone());
+        let (close_cs, _) = synthesize_test(&circuit, &wrong_close_binding);
+        assert!(
+            !close_cs.is_satisfied()
+                && close_cs.which_is_unsatisfied().is_some_and(|constraint| {
+                    constraint
+                        .starts_with("net_merge_payload/close_precommit_limb_0_matches_transcript")
+                }),
+            "Net Close must bind the exact precommit/challenge transcript: {:?}",
+            close_cs.which_is_unsatisfied(),
+        );
 
         let mut malformed_version = events[net_chunk].clone();
         malformed_version.trace_chunk.bytes[super::TRACE_EVENT_HEADER_BYTES_V2] ^= 1;
@@ -11118,6 +25497,197 @@ mod tests {
         assert!(
             version_failure.contains("net_merge_payload") && version_failure.contains("version"),
             "the net merge version mutation must fail in the R1CS byte parser, got {version_failure}",
+        );
+    }
+
+    #[test]
+    fn net_mutations_are_permuted_into_exact_terminal_jmt_operations() {
+        fn bridge_step(
+            state: &CheckpointRunningStateV2,
+            opcode: RecursiveTraceOpcodeV2,
+            mutation_row: Option<[u8; super::NET_JMT_ROW_BYTES]>,
+            terminal_operation_end: bool,
+        ) -> (TestConstraintSystem<Scalar>, CheckpointRunningStateV2) {
+            let mut cs = TestConstraintSystem::<Scalar>::new();
+            let z = state
+                .scalars()
+                .into_iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    AllocatedNum::alloc(cs.namespace(|| format!("state_{index}")), || Ok(value))
+                        .expect("bridge state allocation")
+                })
+                .collect::<Vec<_>>();
+            let opcode_selectors = (1..=17_u8)
+                .map(|candidate| {
+                    AllocatedBit::alloc(
+                        cs.namespace(|| format!("opcode_{candidate}")),
+                        Some(candidate == opcode as u8),
+                    )
+                    .expect("opcode selector allocation")
+                })
+                .collect::<Vec<_>>();
+            let row = mutation_row.unwrap_or([0_u8; super::NET_JMT_ROW_BYTES]);
+            let mutation_bytes = row
+                .into_iter()
+                .enumerate()
+                .map(|(index, byte)| {
+                    AllocatedNum::alloc(cs.namespace(|| format!("net_byte_{index}")), || {
+                        Ok(Scalar::from(u64::from(byte)))
+                    })
+                    .expect("Net row byte allocation")
+                })
+                .collect::<Vec<_>>();
+            let mutation_row = AllocatedBit::alloc(
+                cs.namespace(|| "mutation_row"),
+                Some(mutation_row.is_some()),
+            )
+            .expect("mutation gate allocation");
+            let close_row =
+                AllocatedBit::alloc(cs.namespace(|| "close_row"), Some(false)).expect("close bit");
+            let operation_end_row = AllocatedBit::alloc(
+                cs.namespace(|| "operation_end_row"),
+                Some(terminal_operation_end),
+            )
+            .expect("operation-end gate allocation");
+            let net = super::NetMergePayloadOutputsV2 {
+                cells: Vec::new(),
+                close_row,
+                mutation_row,
+                mutation_bytes,
+            };
+            let jmt = super::JmtHierarchyPayloadOutputsV2 {
+                cells: Vec::new(),
+                operation_end_row,
+            };
+            let outputs = super::synthesize_net_jmt_permutation(
+                cs.namespace(|| "bridge"),
+                &z,
+                &opcode_selectors,
+                &net,
+                &jmt,
+            )
+            .expect("bridge synthesis");
+            let mut next = state.clone();
+            for (state_index, value) in outputs.cells {
+                next.cells[state_index] = value.get_value().expect("concrete bridge output");
+            }
+            (cs, next)
+        }
+
+        let definition = [0x11_u8; 32];
+        let serial = 0x0102_0304_u32;
+        let terminal = [0x22_u8; 32];
+        let old_hash = [0x33_u8; 32];
+        let new_hash = [0x44_u8; 32];
+        let mut row = [0_u8; super::NET_JMT_ROW_BYTES];
+        row[..32].copy_from_slice(&definition);
+        row[32..36].copy_from_slice(&serial.to_le_bytes());
+        row[36..68].copy_from_slice(&terminal);
+        row[68..100].copy_from_slice(&old_hash);
+        row[100..].copy_from_slice(&new_hash);
+
+        let mut initial = CheckpointRunningStateV2 {
+            cells: [Scalar::from(0_u64); RUNNING_STATE_ARITY_V2],
+        };
+        for index in 0..super::CHALLENGE_OUTPUT_COUNT * super::CHALLENGE_WORDS_PER_OUTPUT {
+            initial.cells[super::CHALLENGE_WORD_START + index] =
+                Scalar::from(17_u64 + index as u64);
+        }
+        let (challenge_cs, after_challenge) = bridge_step(
+            &initial,
+            RecursiveTraceOpcodeV2::UniquenessChallenge,
+            None,
+            false,
+        );
+        assert!(challenge_cs.is_satisfied());
+        for state_index in super::NET_JMT_NET_PRODUCT_START..super::NET_JMT_JMT_PRODUCT_START + 2 {
+            assert_eq!(after_challenge.cells[state_index], Scalar::from(1_u64));
+        }
+
+        let (net_cs, mut after_net) = bridge_step(
+            &after_challenge,
+            RecursiveTraceOpcodeV2::NetMerge,
+            Some(row),
+            false,
+        );
+        assert!(
+            net_cs.is_satisfied(),
+            "canonical Net row violates {}",
+            net_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        after_net.cells[super::NET_MUTATION_COUNT_CELL] = Scalar::from(1_u64);
+        after_net.cells[super::JMT_MICRO_TREE_TAG_CELL] = Scalar::from(4_u64);
+        after_net.cells
+            [super::JMT_MICRO_TREE_DEFINITION_START..super::JMT_MICRO_TREE_DEFINITION_END]
+            .copy_from_slice(&definition.map(|byte| Scalar::from(u64::from(byte))));
+        after_net.cells[super::JMT_MICRO_TREE_SERIAL_CELL] = Scalar::from(u64::from(serial));
+        after_net.cells[super::JMT_MICRO_OPERATION_KEY_START..super::JMT_MICRO_OPERATION_KEY_END]
+            .copy_from_slice(&terminal.map(|byte| Scalar::from(u64::from(byte))));
+        after_net.cells[super::JMT_MICRO_PRIOR_VALUE_PRESENT_CELL] = Scalar::from(1_u64);
+        after_net.cells[super::JMT_MICRO_VALUE_PRESENT_CELL] = Scalar::from(1_u64);
+        for (word, bytes) in old_hash.chunks_exact(4).enumerate() {
+            after_net.cells[super::JMT_PRIOR_VALUE_HASH_START + word] = Scalar::from(u64::from(
+                u32::from_be_bytes(bytes.try_into().expect("old hash word")),
+            ));
+        }
+        for (word, bytes) in new_hash.chunks_exact(4).enumerate() {
+            after_net.cells[super::JMT_VALUE_HASH_START + word] = Scalar::from(u64::from(
+                u32::from_be_bytes(bytes.try_into().expect("new hash word")),
+            ));
+        }
+
+        let (jmt_cs, after_jmt) =
+            bridge_step(&after_net, RecursiveTraceOpcodeV2::JmtMicroOp, None, true);
+        assert!(
+            jmt_cs.is_satisfied(),
+            "matching terminal JMT row violates {}",
+            jmt_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        let (promote_cs, promoted) = bridge_step(
+            &after_jmt,
+            RecursiveTraceOpcodeV2::PromoteChildRoot,
+            None,
+            false,
+        );
+        assert!(
+            promote_cs.is_satisfied(),
+            "matching Net/JMT products violate {}",
+            promote_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        for state_index in super::NET_JMT_NET_PRODUCT_START..super::NET_JMT_STATE_END {
+            assert_eq!(promoted.cells[state_index], Scalar::from(0_u64));
+        }
+
+        let mut changed_jmt_input = after_net;
+        changed_jmt_input.cells[super::JMT_VALUE_HASH_START] += Scalar::from(1_u64);
+        let (changed_jmt_cs, changed_after_jmt) = bridge_step(
+            &changed_jmt_input,
+            RecursiveTraceOpcodeV2::JmtMicroOp,
+            None,
+            true,
+        );
+        assert!(changed_jmt_cs.is_satisfied());
+        let (changed_promote_cs, _) = bridge_step(
+            &changed_after_jmt,
+            RecursiveTraceOpcodeV2::PromoteChildRoot,
+            None,
+            false,
+        );
+        assert!(
+            !changed_promote_cs.is_satisfied()
+                && changed_promote_cs
+                    .which_is_unsatisfied()
+                    .is_some_and(|constraint| constraint
+                        .starts_with("bridge/pair_0_net_equals_terminal_jmt")),
+            "a terminal JMT value hash detached from Net must reject: {:?}",
+            changed_promote_cs.which_is_unsatisfied()
         );
     }
 
@@ -11219,9 +25789,9 @@ mod tests {
         );
 
         // This leaves all outer event/hash-control metadata untouched.  The
-        // altered byte is admitted by the feeder row, then must make the next
-        // selected source/global compression input inconsistent with its
-        // already-derived FIPS witness.
+        // preceding authenticated-memory writer holds the canonical window,
+        // so this reader must now fail at direct byte equality before a later
+        // source/global FIPS compression relation has to consume it.
         let mut payload = events[first_chunk].clone();
         payload.trace_chunk.bytes[first_payload_byte] ^= 1;
         let failure = first_schedule_failure_after_mutation(
@@ -11233,10 +25803,11 @@ mod tests {
             "canonical TraceChunk payload byte",
         );
         assert!(
-            failure.starts_with("hash_control_schedule/source_block_context/")
+            failure.starts_with("source_memory_window/read_matches_window_byte_")
+                || failure.starts_with("hash_control_schedule/source_block_context/")
                 || failure.starts_with("hash_control_schedule/trace_block_context/")
                 || failure.starts_with("sha_compression_lane/"),
-            "chunk payload must reach a selected R1CS compression relation, got {failure}"
+            "chunk payload must reach the direct window or selected R1CS compression relation, got {failure}"
         );
 
         let first_source_ordinal = events[first_chunk].trace_chunk.source_ordinal;
@@ -11267,10 +25838,11 @@ mod tests {
             "short final TraceChunk byte count",
         );
         assert!(
-            failure.starts_with("hash_control_schedule/trace_chunk_source_final_length")
+            failure.starts_with("source_memory_window/read_matches_window_byte_count")
+                || failure.starts_with("hash_control_schedule/trace_chunk_source_final_length")
                 || failure.starts_with("hash_control_schedule/source_block_context/")
                 || failure.starts_with("sha_compression_lane/"),
-            "short final count must fail in the source byte/FIPS relation, got {failure}"
+            "short final count must fail in the direct window or source byte/FIPS relation, got {failure}"
         );
 
         let mut zero_tail = events[final_chunk].clone();
@@ -11284,7 +25856,7 @@ mod tests {
             "TraceChunk zero tail",
         );
         assert!(
-            failure.starts_with("trace_chunk/trace_chunk_zero_tail_"),
+            failure.starts_with("source_chunk/trace_chunk_zero_tail_"),
             "zero-tail mutation must fail in its R1CS tail gate, got {failure}"
         );
 
@@ -11299,8 +25871,9 @@ mod tests {
             "TraceChunk source ordinal",
         );
         assert!(
-            failure.starts_with("hash_control_schedule/trace_chunk_source_ordinal"),
-            "source-ordinal mutation must fail in its R1CS chunk gate, got {failure}"
+            failure.starts_with("source_memory_window/read_matches_window_source_ordinal")
+                || failure.starts_with("hash_control_schedule/trace_chunk_source_ordinal"),
+            "source-ordinal mutation must fail in its R1CS window or chunk gate, got {failure}"
         );
 
         // The feeder is not merely source-local: mutate the first dynamic
@@ -11351,6 +25924,137 @@ mod tests {
                 "{name} dynamic SHA witness must fail in its constrained byte/FIPS lane, got {failure}"
             );
         }
+    }
+
+    #[test]
+    fn test_source_window_binding() {
+        use crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2;
+
+        let (anchors, events, states, _) = canonical_hash_control_fixture();
+        let writer = events
+            .iter()
+            .position(|event| event.opcode == RecursiveTraceOpcodeV2::SourceMemoryWrite)
+            .expect("canonical schedule has a source-memory writer");
+        let reader = writer + 1;
+        assert_eq!(
+            events[reader].opcode,
+            RecursiveTraceOpcodeV2::TraceChunk,
+            "the only reader must immediately follow its source-memory writer"
+        );
+        assert_eq!(
+            events[writer].source_memory_write.source_ordinal,
+            events[reader].trace_chunk.source_ordinal,
+            "writer and reader use one canonical source ordinal"
+        );
+        assert_eq!(
+            events[writer].source_memory_write.chunk_ordinal,
+            events[reader].trace_chunk.chunk_ordinal,
+            "writer and reader use one canonical chunk ordinal"
+        );
+
+        // An unchanged writer creates the one pending window.  A changed
+        // reader must be rejected in this next row, not deferred to SHA or a
+        // native digest comparison.
+        let writer_circuit = source_circuit(anchors.clone(), events[writer].clone());
+        let (writer_cs, writer_output) = synthesize_test(&writer_circuit, &states[writer]);
+        assert!(
+            writer_cs.is_satisfied(),
+            "canonical writer violates {}",
+            writer_cs
+                .which_is_unsatisfied()
+                .unwrap_or("an unknown constraint")
+        );
+        let writer_state = state_from_output(&writer_output);
+        let mut changed_reader = events[reader].clone();
+        changed_reader.trace_chunk.bytes[0] ^= 1;
+        let changed_reader_circuit = source_circuit(anchors.clone(), changed_reader);
+        let (changed_reader_cs, _) = synthesize_test(&changed_reader_circuit, &writer_state);
+        assert!(
+            !changed_reader_cs.is_satisfied(),
+            "a reader byte different from the pending canonical window survived"
+        );
+        assert!(
+            changed_reader_cs
+                .which_is_unsatisfied()
+                .unwrap_or_default()
+                .starts_with("source_memory_window/read_matches_window_byte_"),
+            "reader mismatch must reach direct window equality, got {:?}",
+            changed_reader_cs.which_is_unsatisfied()
+        );
+
+        // Conversely a changed writer can make its own row, but the exact
+        // canonical reader following it cannot open the changed window.
+        let mut changed_writer = events[writer].clone();
+        changed_writer.source_memory_write.bytes[0] ^= 1;
+        let changed_writer_circuit = source_circuit(anchors.clone(), changed_writer);
+        let (changed_writer_cs, changed_writer_output) =
+            synthesize_test(&changed_writer_circuit, &states[writer]);
+        assert!(
+            changed_writer_cs.is_satisfied(),
+            "a writer is intentionally authenticated by its immediate reader, not a host assertion"
+        );
+        let changed_writer_state = state_from_output(&changed_writer_output);
+        let reader_circuit = source_circuit(anchors.clone(), events[reader].clone());
+        let (reader_cs, _) = synthesize_test(&reader_circuit, &changed_writer_state);
+        assert!(
+            !reader_cs.is_satisfied(),
+            "the canonical reader accepted a divergent source-memory writer"
+        );
+        assert!(
+            reader_cs
+                .which_is_unsatisfied()
+                .unwrap_or_default()
+                .starts_with("source_memory_window/read_matches_window_byte_"),
+            "writer/reader divergence must reach direct window equality, got {:?}",
+            reader_cs.which_is_unsatisfied()
+        );
+
+        let mut changed_metadata = events[writer].clone();
+        changed_metadata.source_memory_write.source_ordinal += 1;
+        let metadata_circuit = source_circuit(anchors.clone(), changed_metadata);
+        let (metadata_cs, _) = synthesize_test(&metadata_circuit, &states[writer]);
+        assert!(
+            !metadata_cs.is_satisfied(),
+            "writer source ordinal detached from the active source context"
+        );
+        assert!(
+            metadata_cs
+                .which_is_unsatisfied()
+                .unwrap_or_default()
+                .starts_with("source_memory_window/write_source_ordinal"),
+            "writer metadata mutation must reach its source-context equality, got {:?}",
+            metadata_cs.which_is_unsatisfied()
+        );
+
+        let second_writer = events
+            .iter()
+            .enumerate()
+            .skip(reader + 1)
+            .find_map(|(index, event)| {
+                (event.opcode == RecursiveTraceOpcodeV2::SourceMemoryWrite
+                    && event.source_memory_write.source_ordinal
+                        == events[writer].source_memory_write.source_ordinal)
+                    .then_some(index)
+            })
+            .expect("fixture must contain a second chunk in its first source record");
+        let mut altered_cursor_state = states[second_writer].clone();
+        altered_cursor_state.cells
+            [super::SOURCE_BYTE_CONTEXT_START + super::BYTE_CONTEXT_NEXT_CHUNK_OFFSET] +=
+            Scalar::from(1_u64);
+        let order_circuit = source_circuit(anchors, events[second_writer].clone());
+        let (order_cs, _) = synthesize_test(&order_circuit, &altered_cursor_state);
+        assert!(
+            !order_cs.is_satisfied(),
+            "a writer accepted an address outside the constrained source cursor"
+        );
+        assert!(
+            order_cs
+                .which_is_unsatisfied()
+                .unwrap_or_default()
+                .starts_with("source_memory_window/write_chunk_ordinal"),
+            "address substitution must reach source-cursor equality, got {:?}",
+            order_cs.which_is_unsatisfied()
+        );
     }
 
     #[test]
@@ -11424,10 +26128,93 @@ mod tests {
             "fixed SHA lane ShapeCS metrics: constraints={}, inputs={}, auxiliary={}, nonzeros={}",
             metrics.constraints, metrics.inputs, metrics.auxiliaries, metrics.nonzeros
         );
-        assert_eq!(metrics.constraints, 275_561);
+        assert_eq!(metrics.constraints, 533_905);
         assert_eq!(metrics.inputs, 1);
-        assert_eq!(metrics.auxiliaries, 201_832);
-        assert_eq!(metrics.nonzeros, 1_047_141);
+        assert_eq!(metrics.auxiliaries, 401_549);
+        assert_eq!(metrics.nonzeros, 2_036_951);
+    }
+
+    #[test]
+    fn final_successor_rejects_a_changed_declared_opcode_count() {
+        let (anchors, events, states, _) = canonical_hash_control_fixture();
+        let final_index = events.len() - 1;
+        let replay_input_anchor = super::ANCHOR_OPCODE_COUNT_START
+            + usize::from(RecursiveTraceOpcodeV2::ReplayInput as u8 - 1);
+        let mut altered_anchors = anchors;
+        altered_anchors.cells[replay_input_anchor] += 1;
+        for semantic_index in [0_usize, 1, 3, 7] {
+            altered_anchors.cells[super::ANCHOR_SEMANTIC_COUNT_START + semantic_index] += 1;
+        }
+        let mut altered_state = states[final_index].clone();
+        altered_state.cells[super::UNIQUENESS_TRANSCRIPT_NEXT_JOB_CELL] =
+            Scalar::from(super::UniquenessTranscriptHashJobV2::ALL.len() as u64);
+        altered_state.cells[replay_input_anchor] =
+            Scalar::from(altered_anchors.cells[replay_input_anchor]);
+        for semantic_index in [0_usize, 1, 3, 7] {
+            let state_index = super::ANCHOR_SEMANTIC_COUNT_START + semantic_index;
+            altered_state.cells[state_index] = Scalar::from(altered_anchors.cells[state_index]);
+        }
+        altered_state.cells[super::PHASE_CELL] = Scalar::from(ControlPhaseV2::TraceClosure as u64);
+        let mut final_event = events[final_index].clone();
+        final_event.phase = ControlPhaseV2::TraceClosure;
+        let circuit = source_circuit(altered_anchors, final_event);
+        let (cs, _) = synthesize_test(&circuit, &altered_state);
+        assert!(
+            !cs.is_satisfied(),
+            "a changed declared ReplayInput count survived the sole final successor"
+        );
+        assert!(
+            cs.which_is_unsatisfied().is_some_and(|constraint| {
+                constraint.starts_with("consumed_opcode_1_matches_declared")
+            }),
+            "the mutation must reach the per-opcode final equality, got {:?}",
+            cs.which_is_unsatisfied()
+        );
+    }
+
+    #[test]
+    fn nova_shape_profile_identifies_exact_top_level_resource_owners() {
+        let (anchors, events, states, _) = canonical_hash_control_fixture();
+        let circuit = source_circuit(anchors, events[0].clone());
+        let mut cs = ShapeProfileCsV2::new();
+        let input = states[0]
+            .scalars()
+            .into_iter()
+            .map(|value| AllocatedNum::alloc(&mut cs, || Ok(value)))
+            .collect::<Result<Vec<_>, _>>()
+            .expect("shape-profile public state");
+        let output = circuit
+            .synthesize(&mut cs, &input)
+            .expect("shape-profile synthesis");
+        assert_eq!(output.len(), RUNNING_STATE_ARITY_V2);
+
+        let total = cs.namespace_costs().values().fold(
+            ShapeNamespaceCostV2::default(),
+            |mut total, cost| {
+                total.constraints += cost.constraints;
+                total.nonzeros += cost.nonzeros;
+                total
+            },
+        );
+        eprintln!(
+            "Nova shape profile total: constraints={}, nonzeros={}",
+            total.constraints, total.nonzeros
+        );
+        assert_eq!(total.constraints, 533_905);
+        assert_eq!(total.nonzeros, 2_036_951);
+
+        let mut ranked = cs
+            .namespace_costs()
+            .iter()
+            .map(|(namespace, cost)| (namespace.as_str(), *cost))
+            .collect::<Vec<_>>();
+        ranked.sort_unstable_by_key(|(_, cost)| std::cmp::Reverse(cost.nonzeros));
+        for (namespace, cost) in ranked.into_iter().take(16) {
+            eprintln!(
+                "Nova shape namespace: {namespace}: constraints={}, nonzeros={}",
+                cost.constraints, cost.nonzeros
+            );
+        }
     }
 
     #[test]
@@ -11444,15 +26231,15 @@ mod tests {
         );
         assert_eq!(std::mem::size_of::<super::pallas::Affine>(), 64);
         assert_eq!(std::mem::size_of::<super::pallas::Point>(), 96);
-        assert_eq!(plan.shape.constraints, 275_561);
-        assert_eq!(plan.shape.auxiliaries, 201_832);
-        assert_eq!(plan.shape.nonzeros, 1_047_141);
-        assert_eq!(plan.ck_floor, 1_047_141);
-        assert_eq!(plan.generator_count, 1_048_577);
-        assert_eq!(plan.pp_payload_lower_bound, 82_053_712);
-        assert_eq!(plan.vk_payload_lower_bound, 33_554_464);
-        assert_eq!(plan.bundle_lower_bound, 33_554_918);
-        assert_eq!(plan.pedersen_rss_lower_bound, 201_326_784);
+        assert_eq!(plan.shape.constraints, 533_905);
+        assert_eq!(plan.shape.auxiliaries, 401_549);
+        assert_eq!(plan.shape.nonzeros, 2_036_951);
+        assert_eq!(plan.ck_floor, 2_036_951);
+        assert_eq!(plan.generator_count, 2_097_153);
+        assert_eq!(plan.pp_payload_lower_bound, 161_400_800);
+        assert_eq!(plan.vk_payload_lower_bound, 67_108_896);
+        assert_eq!(plan.bundle_lower_bound, 67_109_350);
+        assert_eq!(plan.pedersen_rss_lower_bound, 402_653_376);
         assert!(plan.pp_payload_lower_bound <= NOVA_RESOURCE_LIMITS_V2.pp_payload_bytes);
         assert!(plan.vk_payload_lower_bound <= NOVA_RESOURCE_LIMITS_V2.vk_payload_bytes);
         assert!(plan.bundle_lower_bound <= NOVA_RESOURCE_LIMITS_V2.bundle_bytes);
@@ -11571,11 +26358,16 @@ mod tests {
                                         opcode,
                                         crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::ReplayInput
                                             | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::ReplayOutput
+                                            | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::UniquenessSorted
                                             | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::BeginHash
                                             | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::ShaBlock
                                             | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::EndHash
+                                            | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::SourceMemoryWrite
                                             | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::TraceChunk
+                                            | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::NetMerge
                                             | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::JmtUpdate
+                                            | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::JmtMicroOp
+                                            | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::CommitTypedEvent
                                     ),
                                     "only explicit action rows may preserve the control phase"
                                 );
@@ -11629,7 +26421,7 @@ mod tests {
         let mut state =
             CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
                 .with_source_event(&event);
-        state.cells[super::DONE_CELL] = 2;
+        state.cells[super::DONE_CELL] = Scalar::from(2_u64);
         let circuit = source_circuit(anchors, event);
         let mut cs = TestConstraintSystem::<Scalar>::new();
         let input = state
@@ -11652,6 +26444,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        feature = "test-params-fast",
+        ignore = "real Nova setup is milestone-only; bootstrap uses semantic/shape preflight"
+    )]
     fn real_nova_verifier_bundle_loads_and_verifies_compressed_proof() {
         let _guard = real_nova_proof_lock()
             .lock()
@@ -11691,8 +26487,10 @@ mod tests {
             usize::try_from(base_shape.constraints).expect("base step constraint count fits usize");
         let base_auxiliaries =
             usize::try_from(base_shape.auxiliaries).expect("base step auxiliary count fits usize");
+        let setup_started = Instant::now();
         let pp = setup_public_parameters_after_preflight(&circuit, &state)
             .expect("resource preflight and public parameters");
+        let setup_elapsed = setup_started.elapsed();
         let augmented_constraints = pp.num_constraints();
         let augmented_variables = pp.num_variables();
         eprintln!(
@@ -11712,19 +26510,29 @@ mod tests {
         );
         let binding = VerifierBundleBindingV2::from_authority(&authority, &profile, &spec, &pp)
             .expect("authority-pinned PP digest");
+        let accumulator_started = Instant::now();
         let mut recursive =
             RecursiveSNARK::new(&pp, &circuit, &state.scalars()).expect("initial recursive proof");
+        let accumulator_elapsed = accumulator_started.elapsed();
+        let first_fold_started = Instant::now();
         recursive.prove_step(&pp, &circuit).expect("real Nova step");
+        let first_fold_elapsed = first_fold_started.elapsed();
+        let remaining_folds_started = Instant::now();
         for event in events.iter().skip(1) {
             let control_circuit = source_circuit(anchors.clone(), event.clone());
             recursive
                 .prove_step(&pp, &control_circuit)
                 .expect("canonical derived hash-control Nova step");
         }
+        let remaining_folds_elapsed = remaining_folds_started.elapsed();
+        let compression_setup_started = Instant::now();
         let (pk, vk) = Proof::setup(&pp).expect("compressed proof keys");
+        let compression_setup_elapsed = compression_setup_started.elapsed();
         let prover = NovaProverMaterialV2::new(pp, pk);
+        let compression_started = Instant::now();
         let proof =
             Proof::prove(&prover.pp, &prover.pk, &recursive).expect("real compressed proof");
+        let compression_elapsed = compression_started.elapsed();
 
         // Measure exact encoded payloads before applying any existing cap. A
         // cap breach is evidence, not a reason to widen a private wire bound.
@@ -11771,6 +26579,7 @@ mod tests {
         );
         assert!(bundle.len() <= NOVA_BUNDLE_SAFETY_CAP_V2);
 
+        let verifier_started = Instant::now();
         let loaded =
             NovaVerifierBundleV2::load(&bundle, binding).expect("strict canonical bundle load");
         assert!(
@@ -11789,74 +26598,79 @@ mod tests {
                 &state.scalars(),
             )
             .expect("loaded verifier accepts real compressed proof");
+        let verifier_elapsed = verifier_started.elapsed();
         assert_eq!(output, expected_final.scalars());
-
-        let envelope = NovaProofEnvelopeV2::new(
-            &loaded,
-            7,
-            7,
-            events.len(),
-            &state.scalars(),
-            &expected_final.scalars(),
-            proof_payload.clone(),
-        )
-        .expect("one portable proof envelope names the loaded bundle by digest");
-        let encoded_envelope = envelope
-            .encode()
-            .expect("canonical proof envelope encoding");
-        let loaded_envelope = NovaProofEnvelopeV2::load(&encoded_envelope, &loaded)
-            .expect("bundle-bound proof envelope loads before verification");
-        assert_eq!(
-            loaded_envelope
-                .verify(&loaded)
-                .expect("bundle-bound envelope verifies the exact endpoints"),
-            expected_final.scalars(),
+        let (trace_precommit, _) = canonical_hash_control_events();
+        let mut public_input_counts = super::RecursiveTraceEventCountsV2::default();
+        for event in &events {
+            public_input_counts
+                .increment(event.opcode)
+                .expect("public-input fixture count");
+        }
+        let public_input_context = test_context_for_event_counts(public_input_counts, 0, [9; 32]);
+        let public_input = RecursiveCheckpointPublicInputV2::nova_envelope_fixture(
+            public_input_context,
+            trace_precommit,
+            loaded
+                .public_input_binding()
+                .expect("loaded bundle public-input identity"),
         );
-        assert_eq!(
-            encoded_envelope.len(),
-            NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
-                + (2 * super::NOVA_PUBLIC_STATE_BYTES_V2)
-                + proof_payload.len(),
-            "the portable envelope carries only fixed public endpoints and one proof body",
+
+        assert!(
+            NovaProofEnvelopeV2::new(
+                &loaded,
+                &public_input,
+                1,
+                1,
+                events.len(),
+                &state.scalars(),
+                &expected_final.scalars(),
+                proof_payload.clone(),
+            )
+            .is_err(),
+            "a partial SHA-control diagnostic must not be framed as a finalized block proof",
+        );
+        let remaining_folds = events.len().saturating_sub(1);
+        let remaining_fold_average_micros = if remaining_folds == 0 {
+            0
+        } else {
+            remaining_folds_elapsed.as_micros() / remaining_folds as u128
+        };
+        eprintln!(
+            "real Nova diagnostic stage metrics: steps={}, setup_ms={}, accumulator_new_ms={}, first_fold_ms={}, remaining_folds={}, remaining_fold_total_ms={}, remaining_fold_average_us={}, compression_setup_ms={}, compression_prove_ms={}, verifier_load_decode_check_ms={}",
+            events.len(),
+            setup_elapsed.as_millis(),
+            accumulator_elapsed.as_millis(),
+            first_fold_elapsed.as_millis(),
+            remaining_folds,
+            remaining_folds_elapsed.as_millis(),
+            remaining_fold_average_micros,
+            compression_setup_elapsed.as_millis(),
+            compression_elapsed.as_millis(),
+            verifier_elapsed.as_millis(),
+        );
+        eprintln!(
+            "real Nova diagnostic bytes: compressed_proof={}, public_state_each={}, production_envelope_header={}, verifier_bundle={}",
+            proof_payload.len(),
+            super::NOVA_PUBLIC_STATE_BYTES_V2,
+            NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2,
+            bundle.len(),
         );
         let mut wrong_final_state = expected_final.scalars();
         wrong_final_state[0] += Scalar::from(1_u64);
         let wrong_endpoint_envelope = NovaProofEnvelopeV2::new(
             &loaded,
-            7,
-            7,
+            &public_input,
+            1,
+            1,
             events.len(),
             &state.scalars(),
             &wrong_final_state,
             proof_payload.clone(),
-        )
-        .expect("a syntactically framed envelope may carry an unverified endpoint claim");
-        let loaded_wrong_endpoint = NovaProofEnvelopeV2::load(
-            &wrong_endpoint_envelope
-                .encode()
-                .expect("wrong endpoint envelope framing"),
-            &loaded,
-        )
-        .expect("correctly framed wrong endpoint reaches real verification");
-        assert!(
-            loaded_wrong_endpoint.verify(&loaded).is_err(),
-            "a digest-consistent final-endpoint substitution must fail real proof verification"
         );
-        let mutated_envelope = mutate_proof_envelope_header(&encoded_envelope, |header| {
-            header.bundle_digest[0] ^= 1;
-        });
         assert!(
-            NovaProofEnvelopeV2::load(&mutated_envelope, &loaded).is_err(),
-            "a proof envelope cannot substitute its verifier bundle"
-        );
-        let mut mutated_body = encoded_envelope.clone();
-        let last = mutated_body
-            .last_mut()
-            .expect("canonical envelope has a nonempty compressed proof body");
-        *last ^= 1;
-        assert!(
-            NovaProofEnvelopeV2::load(&mutated_body, &loaded).is_err(),
-            "a proof-body mutation must reject before verification"
+            wrong_endpoint_envelope.is_err(),
+            "an arbitrary final endpoint must be rejected during envelope construction",
         );
 
         for mutate in [
@@ -11891,6 +26705,9 @@ mod tests {
                 crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::UniquenessPrecommit => {
                     (ControlPhaseV2::Replay, 1)
                 }
+                crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::UniquenessSorted => {
+                    (ControlPhaseV2::Challenge, 3)
+                }
                 crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::UniquenessChallenge => {
                     (ControlPhaseV2::Precommit, 2)
                 }
@@ -11899,6 +26716,9 @@ mod tests {
                 }
                 crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::JmtUpdate => {
                     (ControlPhaseV2::Net, 4)
+                }
+                crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::JmtMicroOp => {
+                    (ControlPhaseV2::Jmt, 5)
                 }
                 crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::PromoteChildRoot => {
                     (ControlPhaseV2::Jmt, 5)
@@ -11914,7 +26734,8 @@ mod tests {
                 | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::EndHash => {
                     (ControlPhaseV2::Replay, 1)
                 }
-                crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::TraceChunk => {
+                crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::SourceMemoryWrite
+                | crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::TraceChunk => {
                     (ControlPhaseV2::Replay, 1)
                 }
             };
@@ -11928,6 +26749,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        feature = "test-params-fast",
+        ignore = "real Nova setup is milestone-only; bootstrap uses semantic/shape preflight"
+    )]
     fn real_nova_proof_binds_one_source_event_after_trace_begin() {
         let _guard = real_nova_proof_lock()
             .lock()
@@ -12074,7 +26899,8 @@ mod tests {
             "the actual R1CS must reject a reordered source event"
         );
 
-        let accumulator_state = state.clone().with_trace_root_limb(0, 1);
+        let mut accumulator_state = state.clone();
+        accumulator_state.cells[super::EXPECTED_TRACE_DIGEST_START] += Scalar::from(1_u64);
         let mut accumulator_tampered =
             RecursiveSNARK::new(&pp, &trace_circuit, &accumulator_state.scalars())
                 .expect("accumulator-tampered TRACE BEGIN");
@@ -12088,7 +26914,7 @@ mod tests {
             accumulator_tampered
                 .verify(&pp, 2, &state.scalars())
                 .is_err(),
-            "the actual verifier must bind the source trace accumulator state"
+            "the actual verifier must bind the authority trace digest"
         );
     }
 
@@ -12141,8 +26967,7 @@ mod tests {
         // transition-table dispatch.
         forged.opcode = crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::BeginHash;
         let initial =
-            CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
-                .with_source_event(&forged);
+            CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false);
         let circuit = source_circuit(anchors, forged);
         let (cs, _) = synthesize_test(&circuit, &initial);
         assert!(
@@ -12185,7 +27010,8 @@ mod tests {
 
         let mut partial_global = initial;
         partial_global.cells
-            [super::GLOBAL_BYTE_CONTEXT_START + super::BYTE_CONTEXT_ACTIVE_OFFSET] = 1;
+            [super::GLOBAL_BYTE_CONTEXT_START + super::BYTE_CONTEXT_ACTIVE_OFFSET] =
+            Scalar::from(1_u64);
         let circuit = source_circuit(anchors, event);
         let (cs, _) = synthesize_test(&circuit, &partial_global);
         assert!(
@@ -12204,20 +27030,44 @@ mod tests {
     #[test]
     fn final_source_record_requires_global_hash_closure() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
+        let mut pre_root_bytes = [0_u8; 32];
+        for limb in 0..super::DIGEST_LIMBS {
+            pre_root_bytes[limb * 2..limb * 2 + 2].copy_from_slice(
+                &(anchors.cells[4 * super::DIGEST_LIMBS + limb] as u16).to_le_bytes(),
+            );
+        }
+        let flow = ScopeFlow {
+            batch_id: "11".repeat(32),
+            shard_id: 7,
+            routing_generation: 9,
+            route_table_digest: "22".repeat(32),
+            items: Vec::new(),
+            root_flow: ScopeRootFlow {
+                prev_root: "33".repeat(32),
+                post_root: "44".repeat(32),
+            },
+        };
+        let final_payload = encode_flow_header_with_v2_roots(
+            &flow,
+            SettlementStateRoot::settlement_v2(pre_root_bytes),
+            SettlementStateRoot::settlement_v2([0x44; 32]),
+        )
+        .expect("canonical FinalizeBlock payload");
         let final_event = source_event(
             ControlPhaseV2::Commit,
             crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::FinalizeBlock,
             0,
-            b"typed-source-final",
+            &final_payload,
         );
-        let prior_root = [7_u64; super::DIGEST_LIMBS];
-        let expected_root = trace_root_after(prior_root, &final_event);
-        let authority = NovaTraceRootAuthorityV2::new(expected_root);
-        let final_state =
+        let authority = NovaTraceRootAuthorityV2::new([0_u16; super::DIGEST_LIMBS]);
+        let mut final_state =
             CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Commit, 0, false)
                 .with_source_event(&final_event)
-                .with_trace_root(prior_root)
                 .with_trace_authority(&authority);
+        // Satisfy the now-live hierarchy prerequisite so this focused mutant
+        // reaches the independent global-trace closure gate it owns.
+        final_state.cells[super::HIERARCHY_PROGRESS_CELL] = Scalar::from(2_u64);
+        final_state.cells[super::TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL] = Scalar::from(4_u64);
         let final_circuit = source_circuit(anchors.clone(), final_event.clone());
         let (cs, _) = synthesize_test(&final_circuit, &final_state);
         assert!(
@@ -12259,7 +27109,7 @@ mod tests {
         let mut local_event = local_end.1.clone();
         local_event.phase = ControlPhaseV2::TraceClosure;
         let mut local_state = states[local_end.0].clone();
-        local_state.cells[super::PHASE_CELL] = ControlPhaseV2::TraceClosure as u64;
+        local_state.cells[super::PHASE_CELL] = Scalar::from(ControlPhaseV2::TraceClosure as u64);
         let local_circuit = source_circuit(anchors.clone(), local_event);
         let (local_cs, local_output) = synthesize_test(&local_circuit, &local_state);
         assert!(
@@ -12272,40 +27122,24 @@ mod tests {
         let local_output = state_from_output(&local_output);
         assert_eq!(
             local_output.cells[super::PHASE_CELL],
-            ControlPhaseV2::TraceClosure as u64
+            Scalar::from(ControlPhaseV2::TraceClosure as u64)
         );
-        assert_eq!(local_output.cells[super::DONE_CELL], 0);
+        assert_eq!(local_output.cells[super::DONE_CELL], Scalar::from(0_u64));
 
         let mut global_event = global_end.1.clone();
         global_event.phase = ControlPhaseV2::TraceClosure;
         let mut global_state = states[global_end.0].clone();
-        global_state.cells[super::PHASE_CELL] = ControlPhaseV2::TraceClosure as u64;
-        let prior_root =
-            std::array::from_fn(|index| global_state.cells[super::SOURCE_TRACE_ROOT_START + index]);
-        let expected_root = trace_root_after(prior_root, &global_event);
-        for (index, limb) in expected_root.into_iter().enumerate() {
-            global_state.cells[super::EXPECTED_TRACE_ROOT_START + index] = limb;
-        }
+        global_state.cells[super::PHASE_CELL] = Scalar::from(ControlPhaseV2::TraceClosure as u64);
         let global_circuit = source_circuit(anchors, global_event);
-        let (global_cs, global_output) = synthesize_test(&global_circuit, &global_state);
+        let (global_cs, _) = synthesize_test(&global_circuit, &global_state);
         assert!(
-            global_cs.is_satisfied(),
-            "the schema-bound global END_HASH must close TraceClosure: {}",
-            global_cs
-                .which_is_unsatisfied()
-                .unwrap_or("unknown constraint")
+            !global_cs.is_satisfied(),
+            "an incomplete semantic schedule must not finalize through the global END_HASH"
         );
-        let global_output = state_from_output(&global_output);
         assert_eq!(
-            global_output.cells[super::PHASE_CELL],
-            ControlPhaseV2::Idle as u64
+            global_cs.which_is_unsatisfied(),
+            Some("finalize_requires_all_semantic_hash_jobs/selected value equals constant"),
+            "the incomplete fixture must reach the semantic-finalization gate"
         );
-        assert_eq!(global_output.cells[super::DONE_CELL], 1);
-        for index in super::transient_cells() {
-            assert_eq!(
-                global_output.cells[index], 0,
-                "global END_HASH must leave no transient cell at {index}"
-            );
-        }
     }
 }

@@ -408,8 +408,8 @@ See [LICENSE](../../LICENSE) file in project root.
 
 ## 🔗 Links
 
-- **Repository:** [vasja34/z00z](https://github.com/vasja34/z00z)
-- **PR:** [#12](https://github.com/vasja34/z00z/pull/12)
+- **Repository:** [z00z-labs/z00z](https://github.com/z00z-labs/z00z)
+- **PR:** [#12](https://github.com/z00z-labs/z00z/pull/12)
 - **Branch:** `z00z-wallet`
 
 ---

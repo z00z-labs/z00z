@@ -115,13 +115,15 @@ impl RecursiveAuthorityContextV2 {
 /// The opaque immutable snapshot handle bound to both trace passes.
 ///
 /// Equality includes the external snapshot ID, storage generation, canonical
-/// V2 root, content digest, and exact counts. Equal caller-supplied IDs alone
-/// are not sufficient to reopen a source under a different handle.
+/// V2 root, immutable pre-definition root, content digest, and exact counts.
+/// Equal caller-supplied IDs alone are not sufficient to reopen a source under
+/// a different handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecursiveSnapshotHandleV2 {
     snapshot_id: PrepSnapshotId,
     storage_generation: u64,
     root: SettlementStateRoot,
+    pre_definition_root: [u8; 32],
     record_count: u64,
     byte_count: u64,
     content_digest: [u8; 32],
@@ -133,6 +135,7 @@ impl RecursiveSnapshotHandleV2 {
         snapshot_id: PrepSnapshotId,
         storage_generation: u64,
         root: SettlementStateRoot,
+        pre_definition_root: [u8; 32],
         record_count: u64,
         byte_count: u64,
         content_digest: [u8; 32],
@@ -144,6 +147,7 @@ impl RecursiveSnapshotHandleV2 {
             snapshot_id,
             storage_generation,
             root,
+            pre_definition_root,
             record_count,
             byte_count,
             content_digest,
@@ -156,13 +160,21 @@ impl RecursiveSnapshotHandleV2 {
         store: &SettlementStore,
         layout: u32,
     ) -> Result<Self, RecursiveV2Error> {
-        let (root, storage_generation, record_count, byte_count, content_digest) = store
+        let (
+            root,
+            pre_definition_root,
+            storage_generation,
+            record_count,
+            byte_count,
+            content_digest,
+        ) = store
             .recursive_v2_snapshot_binding(layout)
             .map_err(|_| RecursiveV2Error::SnapshotChanged)?;
         Self::new(
             snapshot_id,
             storage_generation,
             SettlementStateRoot::settlement_v2(root),
+            pre_definition_root,
             record_count,
             byte_count,
             content_digest,
@@ -182,6 +194,12 @@ impl RecursiveSnapshotHandleV2 {
     #[must_use]
     pub const fn root(&self) -> SettlementStateRoot {
         self.root
+    }
+
+    /// Return the immutable definition-tree root from which `root` was derived.
+    #[must_use]
+    pub const fn pre_definition_root(&self) -> [u8; 32] {
+        self.pre_definition_root
     }
 
     #[must_use]
@@ -210,6 +228,7 @@ impl RecursiveSnapshotHandleV2 {
                 self.snapshot_id.as_bytes(),
                 &generation,
                 self.root.as_bytes(),
+                &self.pre_definition_root,
                 &records,
                 &bytes,
                 &self.content_digest,
@@ -236,6 +255,10 @@ pub(crate) struct RecursiveCheckpointBindingV2 {
     exec_version: u8,
     statement_digest: [u8; 32],
     statement_core_digest: [u8; 32],
+    delta_root: [u8; 32],
+    witness_root: [u8; 32],
+    journal_digest: [u8; 32],
+    prior_recursive_output_root: Option<[u8; 32]>,
     checkpoint_link_digest: [u8; 32],
     pre_settlement_root: SettlementStateRoot,
     post_settlement_root: SettlementStateRoot,
@@ -353,6 +376,10 @@ impl RecursiveCheckpointBindingV2 {
             exec_version: exec.version().as_u8(),
             statement_digest,
             statement_core_digest,
+            delta_root: core.delta_root(),
+            witness_root: core.witness_root(),
+            journal_digest: core.journal_digest(),
+            prior_recursive_output_root: core.prior_recursive_output_root(),
             checkpoint_link_digest: link.link_bind(),
             pre_settlement_root: statement.prev_settlement_root(),
             post_settlement_root: statement.new_settlement_root(),
@@ -430,6 +457,26 @@ impl RecursiveCheckpointBindingV2 {
     #[must_use]
     pub(crate) const fn statement_core_digest(&self) -> [u8; 32] {
         self.statement_core_digest
+    }
+
+    #[must_use]
+    pub(crate) const fn delta_root(&self) -> [u8; 32] {
+        self.delta_root
+    }
+
+    #[must_use]
+    pub(crate) const fn witness_root(&self) -> [u8; 32] {
+        self.witness_root
+    }
+
+    #[must_use]
+    pub(crate) const fn journal_digest(&self) -> [u8; 32] {
+        self.journal_digest
+    }
+
+    #[must_use]
+    pub(crate) const fn prior_recursive_output_root(&self) -> Option<[u8; 32]> {
+        self.prior_recursive_output_root
     }
 
     #[must_use]
@@ -516,6 +563,30 @@ impl RecursiveAuthoritySnapshotV2 {
     #[must_use]
     pub(crate) const fn snapshot(&self) -> RecursiveSnapshotHandleV2 {
         self.snapshot
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_captures_the_definition_root_used_by_the_v2_root() {
+        let store = SettlementStore::new();
+        let snapshot =
+            RecursiveSnapshotHandleV2::from_store(PrepSnapshotId::new([7; 32]), &store, 7)
+                .expect("storage-owned snapshot");
+
+        assert_eq!(
+            snapshot.pre_definition_root(),
+            store.recursive_v2_definition_root()
+        );
+        assert_eq!(
+            snapshot.root(),
+            store
+                .settlement_root_v2(7)
+                .expect("derived settlement root")
+        );
     }
 }
 

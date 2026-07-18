@@ -242,7 +242,7 @@ Run the second `doublecheck` against 069-TODO.md to confirm that all issues are 
 ## 🟩 9. gsd-executor PLAN
 
 ```markdown
-/gsd-execute-phase 069 continue
+/gsd-execute-phase 069 continue 069-051-T2-GAPS.md; delat poka ne realizuesh ves T2 polnostju; povotoraju delat vse do polnoj relaizcii vseh GAPS vsego dokumenta; posle etogo prejti na drugie taski plana 069-051-PLAN.md
 
 Update STATE #sym:Status and ROADMAP
 

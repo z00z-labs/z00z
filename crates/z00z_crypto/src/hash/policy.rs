@@ -267,3 +267,180 @@ pub fn hash_db_record_id(record_type: &str, key: &[u8]) -> WalletHash {
 pub fn hash_cache_key(leaf_hash: &[u8; 32]) -> WalletHash {
     WalletHash::from_blake2b(blake2b_hash(b"z00z/wallet/cache", &[leaf_hash]))
 }
+
+#[cfg(test)]
+mod poseidon2_parameter_parity_tests {
+    use core::convert::TryFrom;
+
+    use p3_field::PrimeField64;
+    use p3_goldilocks::{
+        Goldilocks, Poseidon2ExternalLayerGoldilocksHL, Poseidon2InternalLayerGoldilocks,
+    };
+    use p3_poseidon2::{
+        ExternalLayer, ExternalLayerConstants, ExternalLayerConstructor, InternalLayer,
+        InternalLayerConstructor,
+    };
+
+    use super::{
+        poseidon2_framed_words_v1, poseidon2_goldilocks_params_v1, poseidon2_hash,
+        POSEIDON2_GOLDILOCKS_MODULUS_V1, POSEIDON2_GOLDILOCKS_WIDTH_V1,
+    };
+
+    fn reduce(value: u128) -> u64 {
+        u64::try_from(value % u128::from(POSEIDON2_GOLDILOCKS_MODULUS_V1))
+            .expect("Goldilocks residue")
+    }
+
+    fn external_linear(state: [u64; 8]) -> [u64; 8] {
+        let mut result = [0_u64; 8];
+        for chunk in 0..2 {
+            let input = &state[chunk * 4..chunk * 4 + 4];
+            for (row, coefficients) in [[5_u64, 7, 1, 3], [4, 6, 1, 1], [1, 3, 5, 7], [1, 1, 4, 6]]
+                .iter()
+                .enumerate()
+            {
+                result[chunk * 4 + row] = reduce(
+                    input
+                        .iter()
+                        .zip(coefficients.iter().copied())
+                        .map(|(value, coefficient)| u128::from(*value) * u128::from(coefficient))
+                        .sum(),
+                );
+            }
+        }
+        let sums = [
+            reduce(u128::from(result[0]) + u128::from(result[4])),
+            reduce(u128::from(result[1]) + u128::from(result[5])),
+            reduce(u128::from(result[2]) + u128::from(result[6])),
+            reduce(u128::from(result[3]) + u128::from(result[7])),
+        ];
+        for lane in 0..8 {
+            result[lane] = reduce(u128::from(result[lane]) + u128::from(sums[lane % 4]));
+        }
+        result
+    }
+
+    fn pow7(value: u64) -> u64 {
+        let square = reduce(u128::from(value) * u128::from(value));
+        let cube = reduce(u128::from(square) * u128::from(value));
+        let sixth = reduce(u128::from(cube) * u128::from(cube));
+        reduce(u128::from(sixth) * u128::from(value))
+    }
+
+    fn emulated_permutation(mut state: [u64; 8]) -> [u64; 8] {
+        let params = poseidon2_goldilocks_params_v1();
+        state = external_linear(state);
+        for constants in params.external_round_constants()[0] {
+            for lane in 0..8 {
+                state[lane] = pow7(reduce(
+                    u128::from(state[lane]) + u128::from(constants[lane]),
+                ));
+            }
+            state = external_linear(state);
+        }
+        let diagonal = params.internal_matrix_diagonal();
+        for constant in params.internal_round_constants() {
+            state[0] = pow7(reduce(u128::from(state[0]) + u128::from(constant)));
+            let sum = reduce(state.iter().map(|value| u128::from(*value)).sum());
+            state = core::array::from_fn(|lane| {
+                reduce(u128::from(state[lane]) * u128::from(diagonal[lane]) + u128::from(sum))
+            });
+        }
+        for constants in params.external_round_constants()[1] {
+            for lane in 0..8 {
+                state[lane] = pow7(reduce(
+                    u128::from(state[lane]) + u128::from(constants[lane]),
+                ));
+            }
+            state = external_linear(state);
+        }
+        state
+    }
+
+    #[test]
+    fn exported_parameters_reproduce_each_pinned_poseidon2_layer() {
+        let params = poseidon2_goldilocks_params_v1();
+        let input = [1_u64, 2, 3, 4, 5, 6, 7, 8];
+        let external =
+            Poseidon2ExternalLayerGoldilocksHL::<POSEIDON2_GOLDILOCKS_WIDTH_V1>::new_from_constants(
+                ExternalLayerConstants::new_from_saved_array(
+                    params.external_round_constants(),
+                    Goldilocks::new_array,
+                ),
+            );
+        let internal = Poseidon2InternalLayerGoldilocks::new_from_constants(
+            Goldilocks::new_array(params.internal_round_constants()).to_vec(),
+        );
+        let mut native = input.map(Goldilocks::new);
+        external.permute_state_initial(&mut native);
+        let mut emulated = external_linear(input);
+        for constants in params.external_round_constants()[0] {
+            for lane in 0..8 {
+                emulated[lane] = pow7(reduce(
+                    u128::from(emulated[lane]) + u128::from(constants[lane]),
+                ));
+            }
+            emulated = external_linear(emulated);
+        }
+        assert_eq!(
+            native.map(|value| value.as_canonical_u64()),
+            emulated,
+            "initial external layer"
+        );
+        internal.permute_state(&mut native);
+        let diagonal = params.internal_matrix_diagonal();
+        for constant in params.internal_round_constants() {
+            emulated[0] = pow7(reduce(u128::from(emulated[0]) + u128::from(constant)));
+            let sum = reduce(emulated.iter().map(|value| u128::from(*value)).sum());
+            emulated = core::array::from_fn(|lane| {
+                reduce(u128::from(emulated[lane]) * u128::from(diagonal[lane]) + u128::from(sum))
+            });
+        }
+        assert_eq!(
+            native.map(|value| value.as_canonical_u64()),
+            emulated,
+            "internal layer"
+        );
+        external.permute_state_terminal(&mut native);
+        for constants in params.external_round_constants()[1] {
+            for lane in 0..8 {
+                emulated[lane] = pow7(reduce(
+                    u128::from(emulated[lane]) + u128::from(constants[lane]),
+                ));
+            }
+            emulated = external_linear(emulated);
+        }
+        assert_eq!(
+            native.map(|value| value.as_canonical_u64()),
+            emulated,
+            "terminal external layer"
+        );
+
+        let definition_id = [b'A'; 32];
+        let serial = 0_u32.to_le_bytes();
+        let words = poseidon2_framed_words_v1(
+            b"z00z.storage.key.serial.v1",
+            &[b"", &definition_id, &serial],
+        );
+        assert_eq!(words.len(), 13);
+        let mut sponge = [0_u64; 8];
+        sponge[..7].copy_from_slice(&words[..7]);
+        sponge = emulated_permutation(sponge);
+        for lane in 0..6 {
+            sponge[lane] = reduce(u128::from(sponge[lane]) + u128::from(words[7 + lane]));
+        }
+        sponge = emulated_permutation(sponge);
+        let mut emulated_hash = [0_u8; 32];
+        for (index, word) in sponge[..4].iter().enumerate() {
+            emulated_hash[index * 8..index * 8 + 8].copy_from_slice(&word.to_le_bytes());
+        }
+        assert_eq!(
+            poseidon2_hash(
+                b"z00z.storage.key.serial.v1",
+                &[b"", &definition_id, &serial],
+            ),
+            emulated_hash,
+            "framed sponge"
+        );
+    }
+}

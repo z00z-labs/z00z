@@ -35,6 +35,7 @@ pub enum CheckpointShaRole {
     Link,
     Trace,
     Content,
+    UniquenessCounts,
     UniquenessContext,
     SpentOriginalIds,
     SpentSortedIds,
@@ -55,6 +56,7 @@ pub const ALL_CHECKPOINT_SHA_ROLES_V2: &[CheckpointShaRole] = &[
     CheckpointShaRole::Link,
     CheckpointShaRole::Trace,
     CheckpointShaRole::Content,
+    CheckpointShaRole::UniquenessCounts,
     CheckpointShaRole::UniquenessContext,
     CheckpointShaRole::SpentOriginalIds,
     CheckpointShaRole::SpentSortedIds,
@@ -76,7 +78,8 @@ impl CheckpointShaRole {
             Self::Statement => "z00z.storage.checkpoint.statement.v2",
             Self::Link => "z00z.storage.checkpoint.link.v2",
             Self::Content => "z00z.storage.checkpoint.content.v2",
-            Self::UniquenessContext
+            Self::UniquenessCounts
+            | Self::UniquenessContext
             | Self::SpentOriginalIds
             | Self::SpentSortedIds
             | Self::OutputOriginalIds
@@ -99,6 +102,7 @@ impl CheckpointShaRole {
             Self::Link => "checkpoint_link_v2",
             Self::Trace => "trace_v2",
             Self::Content => "content_v2",
+            Self::UniquenessCounts => "pre_uniqueness_counts_v2",
             Self::UniquenessContext => "pre_uniqueness_context_v2",
             Self::SpentOriginalIds => "spent_original_ids_v2",
             Self::SpentSortedIds => "spent_sorted_ids_v2",
