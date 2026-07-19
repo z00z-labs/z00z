@@ -1,0 +1,39 @@
+# Border Semantics Configuration
+# Purpose-based border styling for visual hierarchy
+# Version: 1.1.0
+# Date: 2025-12-14
+
+border_semantics:
+  # Purpose-based border styling
+  divider:
+    style: "single"
+    usage: "Section separators, headers, footers"
+    examples: ["header border_bottom", "footer border_top"]
+  
+  container:
+    style: "rounded"
+    usage: "Cards, panels, grouped content"
+    examples: ["menu items", "form sections"]
+  
+  focus:
+    style: "double"
+    usage: "Active/focused interactive elements"
+    examples: ["focused input", "selected form field"]
+    thickness: 2  # WASM only
+  
+  emphasis:
+    style: "thick"
+    usage: "Error states, important boundaries, warnings"
+    examples: ["error messages", "selected table row"]
+  
+  subtle:
+    style: "dotted"
+    usage: "Optional sections, help boxes"
+    examples: ["info boxes", "hint panels"]
+
+# Application rules:
+# - Column headers: double (emphasize table structure)
+# - Selected menu items: rounded (container)
+# - Focused inputs: double (focus)
+# - Error fields: thick (emphasis)
+# - Section dividers: single (divider)

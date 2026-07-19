@@ -1,0 +1,83 @@
+# Border Patterns for Accessibility (Color-Blind Users)
+# Version: 1.1.0
+# Multi-Modal Visual Indicators
+# 
+# Purpose: Provides non-color visual cues through different border patterns
+# to ensure accessibility for color-blind users and improve overall UX
+
+border_patterns:
+  error:
+    pattern: "double"
+    color: "#FF0000"
+    usage: "Critical errors, validation failures"
+    example: "╔═════╗"
+    description: "Double line indicates critical attention needed"
+    
+  warning:
+    pattern: "dashed"
+    color: "#FFC300"
+    usage: "Warnings, confirmations needed"
+    example: "┌┄┄┄┄┄┐"
+    description: "Dashed line indicates caution, review needed"
+    
+  info:
+    pattern: "rounded"
+    color: "#FFD60A"
+    usage: "Information, help messages"
+    example: "╭─────╮"
+    description: "Rounded corners for friendly, non-critical information"
+    
+  success:
+    pattern: "single"
+    color: "#00FF00"
+    usage: "Success states, confirmations"
+    example: "┌─────┐"
+    description: "Clean single line for positive outcomes"
+    
+  emphasis:
+    pattern: "thick"
+    color: "#FFC300"
+    usage: "Important sections, highlights"
+    example: "┏━━━━━┓"
+    description: "Thick border for emphasis without alarm"
+    
+  subtle:
+    pattern: "thin"
+    color: "#003566"
+    usage: "Dividers, separators"
+    example: "┌─────┐"
+    description: "Minimal visual weight for organization"
+
+# Pattern-to-Ratatui mapping
+ratatui_border_types:
+  double: "BorderType::Double"
+  dashed: "BorderType::Plain  # Note: Custom dashed implementation needed"
+  rounded: "BorderType::Rounded"
+  single: "BorderType::Plain"
+  thick: "BorderType::Thick"
+  thin: "BorderType::Plain"
+
+# Usage guidelines
+usage_guidelines:
+  - "Always combine pattern with color for redundancy"
+  - "Pattern should convey meaning even without color"
+  - "Use consistently across all UI components"
+  - "Test with grayscale/colorblind simulators"
+  - "Provide text labels as additional context"
+
+# Accessibility notes
+accessibility:
+  wcag_criterion: "1.4.1 Use of Color (Level A)"
+  description: "Color is not used as the only visual means of conveying information"
+  implementation: "Border patterns provide non-color differentiation"
+  testing:
+    - "Verify patterns are distinguishable in grayscale"
+    - "Test with colorblind simulation tools"
+    - "Ensure screen readers announce pattern meaning through aria-labels"
+
+# Implementation examples
+implementation_notes:
+  - "For TUI: Use ratatui::widgets::Block with appropriate BorderType"
+  - "For WASM: Use CSS border-style properties (solid, dashed, double, etc.)"
+  - "Store pattern choice in component state for theme independence"
+  - "Document pattern semantics in component documentation"

@@ -1,0 +1,46 @@
+| RPC method                           | UI/UX quick note                                    |
+| ------------------------------------ | --------------------------------------------------- |
+| `app.exit`                           | clean exit (Exit button / quit flow)                |
+| `app.settings`                       | app settings (global settings)                      |
+| `asset.add`                          | add asset (Add token/asset)                         |
+| `asset.balance`                      | balance (widgets/header, refresh)                   |
+| `asset.details`                      | extended asset info (asset card)                    |
+| `asset.import`                       | import asset into wallet                            |
+| `asset.list`                         | asset list (portfolio)                              |
+| `asset.merge`                        | merge commitments (advanced/asset management UI)     |
+| `asset.metadata`                     | asset metadata (ticker/decimals/...)                |
+| `asset.receive`                      | receive flow (generate receiver card/request)       |
+| `asset.send`                         | send flow                                           |
+| `asset.split`                        | split commitment (advanced UI)                      |
+| `asset.staking`                      | staking                                             |
+| `asset.swap`                         | swap UI                                             |
+| `asset.unstaking`                    | unstake                                             |
+| `backup.create`                      | create backup (export/backup wizard)                |
+| `backup.manager`                     | backup list/management                              |
+| `backup.restore`                     | restore wizard                                      |
+| `backup.settings`                    | backup settings                                     |
+| `key.derive`                         | HD derivation by path (advanced/dev tooling UI)     |
+| `key.export_public`                  | export public key (copy/share)                      |
+| `tx.broadcast`                       | broadcast/publish to network ("Submit to network")  |
+| `tx.build`                           | build transaction (preview/build step)              |
+| `tx.cancel`                          | cancel pending (action in pending list)             |
+| `tx.details`                         | transaction details (drill-down screen)             |
+| `tx.estimate_fee`                    | fee estimation (send/swap/build)                    |
+| `tx.export`                          | export transactions (CSV/JSON), sharing             |
+| `tx.history`                         | transaction history (table/feed)                    |
+| `tx.list_pending`                    | pending list (pending tab)                          |
+| `tx.pending`                         | pending counter (badge/indicator)                   |
+| `tx.send`                            | submit/send transaction                             |
+| `wallet.add`                         | add existing wallet (Import/Add wallet)             |
+| `wallet.create`                      | create wallet (wizard)                              |
+| `wallet.delete`                      | delete wallet (danger zone)                         |
+| `wallet.export`                      | export wallet (encrypted export)                    |
+| `wallet.import`                      | import wallet (file/backup), recovery wizard        |
+| `wallet.list`                        | wallet list (select/switch)                         |
+| `wallet.lock`                        | lock (end session)                                  |
+| `wallet.receiver_card`               | generate receiver card (Receive → QR)               |
+| `wallet.remove`                      | remove wallet from app (detach)                     |
+| `wallet.settings`                    | get/update wallet settings                          |
+| `wallet.session.show_seed_phrase`    | show seed phrase (after unlock + warning)           |
+| `wallet.unlock`                      | unlock (password login, start session)              |
+

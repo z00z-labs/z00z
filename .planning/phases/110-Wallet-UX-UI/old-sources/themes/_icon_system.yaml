@@ -1,0 +1,76 @@
+# Icon System Configuration
+# Handles emoji fallback for environments without emoji font support
+# Version: 2.0.0
+# Date: 2025-12-18
+# Platform: EGUI (Desktop/WASM)
+
+icon_system:
+  mode: "auto_detect"  # Check EGUI emoji font availability on startup
+  
+  detection:
+    # Test sequence
+    test_emoji: "✅"
+    test_method: "render_and_measure"  # Render emoji and check if glyph exists
+    fallback_if_missing: true
+    
+    # Platform checks
+    check_os_emoji_fonts: true  # Noto/Segoe UI/Apple Color Emoji
+    check_font_fallback: true
+    
+  fallback_mappings:
+    # State indicators
+    "✅": "[OK]"
+    "❌": "[ERR]"
+    "⚠️": "[WARN]"
+    "ℹ️": "[INFO]"
+    
+    # Actions
+    "📤": "[SEND]"
+    "📥": "[RECV]"
+    "🛠️": "[TOOL]"
+    "🔑": "[KEY]"
+    "🔐": "[LOCK]"
+    
+    # Navigation
+    "📜": "[HIST]"
+    "📊": "[DATA]"
+    "🏷️": "[LIST]"
+    "👛": "[WLLT]"
+    "🌐": "[NET]"
+    "⚙️": "[CFG]"
+    "🔔": "[NOTF]"
+    
+    # Status
+    "⏳": "[WAIT]"
+    "🚫": "[N/A]"
+    
+  spacing:
+    inline_text: 4      # "📤 Send" - 4px spacing between icon and text (EGUI)
+    standalone: 0       # Large centered icons have no adjacent text
+    list_item_prefix: 8 # "  📤 Send" - 8px indent + icon + 4px spacing
+  
+  large_icons:
+    egui:
+      # EGUI can scale emoji using font size
+      method: "font_scaling"
+      sizes:
+        small: "16sp"    # Small inline icons
+        medium: "24sp"  # Standard UI icons
+        large: "48sp"   # Prominent status icons
+        xlarge: "96sp"  # Full-screen status displays
+      
+      fallback_glyphs:
+        # When emoji fonts unavailable, use these Unicode symbols
+        success: "✓"    # U+2713 CHECK MARK
+        error: "✗"      # U+2717 BALLOT X
+        warning: "!"    # U+0021 EXCLAMATION MARK
+        info: "i"       # U+0069 LATIN SMALL LETTER I
+    
+    wasm:
+      # WASM target uses same EGUI rendering
+      method: "font_scaling"
+      sizes:
+        small: "16sp"
+        medium: "24sp"
+        large: "48sp"
+        xlarge: "96sp"
