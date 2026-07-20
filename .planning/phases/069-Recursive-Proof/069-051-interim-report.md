@@ -1,41 +1,66 @@
 # Phase 069-051 Interim Implementation Audit
 
+## Final superseding closure — 2026-07-20
+
+`069-051-T2` is complete on final source revision
+`50f8f9084d3cf888e0aedf10ebc165a088d977a256d2f031b5773bb00adbc45a`.
+All twenty T2 gaps and the close gate are satisfied: bounded deterministic HJMT
+segments, incremental hierarchy verification, selected resource/backpressure
+caps, private identity-bound PP/PK caching, deterministic replay recovery,
+final proof/Model C/artifacts, authority decisions, release validation, three
+reviews ending in two clean passes, two doublechecks, scoped versioning and a
+clean-clone rerun. T3 alone is unlocked next and has not been implemented. The
+audit snapshot below is retained as chronology; its blocking verdict and stale
+source measurements no longer describe the final T2 tree.
+
+Final validation passed bootstrap first (`2:43.51`), semantic R1CS 36/36
+(`58:58.46`), TestCS 1,727/1,727 (`4:21.58`), artifacts 3/3 (`7:40.84`),
+all-target release build (`2:15.01`) and workspace release tests (`45:00.11`).
+Reviews 3–4 were consecutive clean after the final test-env lock repair, and
+both theorem/stream/concurrency and Model-A/B/C/cache/recovery doublechecks
+passed.
+
 **Audit date:** 2026-07-16  
 **Scope:** complete Phase 069 planning corpus, historical Plans 01–05, corrective Plan 051 T0–T4, current T2 implementation, and downstream Plans 06–13  
 **Primary question:** whether Plan 051 is being implemented consistently and whether T2 can safely proceed or close  
-**Overall verdict:** **RISKY BUT SALVAGEABLE — BLOCKED AT 069-051-T2**
+**Overall verdict:** **SEMANTIC IMPLEMENTATION COMPLETE; T2 ACCEPTANCE BLOCKED**
 
 ## 🚨 Executive Decision
 
-Plan 051 must not be declared implemented and Plan 06 must not start. The current
-work is useful, substantial, and mostly moving toward the intended architecture,
-but it does not yet prove the Plan 051 theorem.
+Plan 051 must not be declared complete and Plan 06 must not start. The findings
+below preserve the 2026-07-16 audit snapshot; the live remediation record at the
+end of this report is the current disposition. The sole Nova circuit now
+contains the complete source/uniqueness/Net/JMT/hierarchy/root/X_h/successor
+relation, but implementation presence is not T2 acceptance evidence.
 
 There are three independent blockers:
 
-1. **Intrinsic theorem blocker:** the Nova step currently constrains the control
-   machine, canonical source/global SHA paths, replay payload parsing, and the
-   uniqueness precommit/challenge prefix, but it does not constrain net-effect,
-   complete uniqueness/permutation, JMT, hierarchy, typed commitments, statement,
-   or final application fields. The reserved state ranges for these families are
-   not semantic implementations.
-2. **T1/T2 boundary blocker:** the native relation and statement still do not
-   explicitly bind the first definition-tree `old_root` to the immutable
-   pre-state definition root. A self-consistent JMT transition ending at the real
-   post-state is not sufficient to prove that it started from the selected
-   pre-state. The statement also remains materially smaller than the frozen
-   Section 13.1/T2 binding contract.
-3. **External and process blocker:** no authority-pinned operating-budget tuple
-   exists, so T2 action 11 cannot select a candidate. At the same time, expensive
-   real-Nova tests are being rerun during intermediate edits, and the current
-   in-process mutex does not serialize separate bootstrap processes. Two full
-   bootstraps and concurrent high-RSS Nova workers were observed in this audit.
-
-The correct response is not another closure review or another unconditional full
-bootstrap. Reopen the narrow T1 theorem boundary, complete the missing T2
-relations under fast semantic tests, install a repository-wide single-flight
-gate for heavy Nova evidence, obtain the authority budget, and only then measure
-the final circuit and run closure verification.
+1. **T1 residual acceptance blocker:** code-addressable evidence now passes:
+   the native resident equation is exactly `69,337,178 B` with a
+   `574,040 KiB` real-HJMT workload RSS measurement; the cutover has a
+   five-seam abrupt-exit/reopen corpus; and the project-owned secret boundary
+   has a six-outcome clean-process canary/core/artifact corpus. F12 still needs
+   numeric authority acceptance, F23 still needs authority acceptance of redb
+   library-boundary equivalence, and F24 retains only the dependency/upstream
+   allocation-zeroization non-claim.
+2. **External authority blocker:** no authority-pinned operating-budget tuple or
+   permitted SHA-width candidate set exists, so T2 action 11 cannot select a
+   production candidate. The 24 GiB worker ceiling remains diagnostic only.
+3. **Git reproducibility blocker:** the current-source proof,
+   Model C, and strict artifact corpus pass after the milestone worker
+   correction. After the residual-corpus changes, the mandatory bootstrap and
+   exact F23 target pass; a three-pass review ends with passes 2–3
+   significant-clean, followed by both doublechecks. Both wallet goldens now
+   have one inline test owner; the all-target release build, focused owner
+   guards, and broad runtime tree-path guard pass. Git reproducibility remains
+   open because the scoped implementation and evidence packet are absent from
+   HEAD.
+The complete proof, split artifacts, strict real-key corpus, clean verifier-only
+child, and recomputed Model C exist and are refreshed after the harness fix.
+The correct response is to preserve the completed source-bound evidence without
+fabricating Git authority, close the remaining T1 rows, and obtain the
+authority tuple. T3
+remains locked until all three conditions are true.
 
 No S0 finding was established. Five S1 findings block acceptance.
 
@@ -66,16 +91,17 @@ snapshot used for the decisive code findings was:
 | --- | --- |
 | `069-051-PLAN.md` | `b6fae8fe6c0e858bce36444bbc6d22041cb9e73b563cde2526c82d23111370ff` |
 | `069-051-T2-CRYPTO-AUDIT-2.md` | `7638cbf46e7410b8627e9d734682a11fd185ddb4bb68f9d8b225f38cfc18751f` |
-| `recursive_v2/nova.rs` | `97e85108ccc6070e1557156b6a567a3998d39629f9e427f7b9b043b913f40c62` |
+| `checkpoint/nova.rs` | `ba72e6c10193308568ef4f6c39aa1bf4e739cab486c21ce6ff2610909b37da58` |
 | `recursive_predicate.rs` | `417e9a003a43df66f8b79a7ca70840d960f78fc4c8d51c829a093659e7b6b893` |
 | `recursive_statement.rs` | `e899355c6ecdba0d02f75c02f682cd7bdd8812153e10cab7aefc37b002f28304` |
 | `settlement/proof_batch.rs` | `7f98491ae8a4c83ed444d33c93ebf711369addbe9e3d601dabcf63591cbad0dc` |
 
-No source or existing plan was edited by this audit. Existing concurrent test
-processes were not interrupted. Because heavy Nova workers were already running,
-this audit did not start a third setup/proof process. Observed processes are
-process evidence, not retained pass evidence; their terminal results were not
-available to this audit.
+The Nova row was refreshed after the authority-mandated canonical relocation to
+`z00z_storage::checkpoint::nova`; no nested-path shim or duplicate owner remains.
+Existing concurrent test processes were not interrupted. Because heavy Nova
+workers were already running, this audit did not start a third setup/proof
+process. Observed processes are process evidence, not retained pass evidence;
+their terminal results were not available to this audit.
 ## 📊 Historical Implementation Status At Audit Snapshot
 
 This table records the source snapshot identified above. The live reconciliation
@@ -86,7 +112,7 @@ findings and measurements remain evidence of the state that was audited.
 | --- | --- | --- |
 | T0 authority/V1 eradication | `full_match` with evidence-maintenance caveats | The scoped recursive V1 symbol scan is clean, the authority branch is explicit, and live code has one V2 path. Do not reopen Plans 01–05. |
 | T1 native V2 relation | `partial_match` | Resolver, durable cutover, bounded source, real HJMT trace, strict decoding, hierarchy checks, and typed statement exist. Pre-state backend-root anchoring, complete statement layering, and resource-consistent streaming remain incomplete. T1 must be reopened narrowly rather than erased. |
-| T2 uniform Nova relation | `partial_match` / `missing_in_code` for required families | SHA/source/global/replay, exact count/P/U/challenge/list SHA, full semantic-row uniqueness products/order, semantic Delete/Insert/Replace/Unchanged Net, and final per-opcode accounting are real. JMT proof algebra, hierarchy, roots, commitments, `X_h`/prior-IVC/application finals, Models A/B/C, full mutation ledger, final artifacts, and candidate selection remain absent. |
+| T2 uniform Nova relation | semantic code and complete-candidate evidence implemented; acceptance blocked | The sole fixed-shape path includes source/FIPS SHA, full uniqueness, semantic Net, Net→JMT, all six JMT cases, hierarchy/roots, four typed commitments, `X_h`, prior IVC, exact successor, and all counters. The mixed 1,727-step release proof, strict VK-only verification, clean verifier-only process, artifact corpus, and independently recomputed Model C pass. The new F12 measurement and F23/F24 corpora pass, but external residual acceptance, conditional A-17, Git reproducibility, and authority candidate selection remain open. |
 | T3 continuous runner | `not_started` as required | Correctly locked. Private proof-envelope code in T2 is preparatory and is not a T3 runner. |
 | T4 closure/migration/theorem matrix | `not_started` as required | Correctly locked. Current coverage pass is planning coverage, not T4 theorem-to-code closure. |
 | Plans 06–13 | `blocked_by_dependency` | Must remain locked until all T0–T4 acceptance gates pass. Several downstream path/owner references need reconciliation before execution. |
@@ -399,9 +425,10 @@ planning gate, not an implementation acceptance gate.
 
 **Classification:** documentation drift with future implementation risk
 
-The controlling Plan 051 ownership table and current TODO module table place
-Nova and Plonky3 under `z00z_storage::checkpoint::recursive_v2`; live code
-matches this and keeps `nova-snark` private to the storage adapter boundary.
+The controlling Plan 051 ownership table now distinguishes the one public
+project contract, `z00z_storage::checkpoint::recursive_v2`, from the one
+private concrete Nova owner, `z00z_storage::checkpoint::nova`; live code keeps
+`nova-snark` private to that storage boundary.
 
 However:
 
@@ -448,7 +475,7 @@ change captured T0 evidence.
 The correction must preserve the following good work:
 
 - exact `nova-snark = 0.73.0` pin with a narrow `io` feature set;
-- concrete Nova types remain private to `recursive_v2::nova`;
+- concrete Nova types remain private to `checkpoint::nova`;
 - no scoped recursive-proof V1 symbol was found in live code by the current
   seed scan;
 - authority and snapshot constructors are no longer public caller-selected
@@ -631,12 +658,13 @@ live source rather than ROADMAP prose alone. The decisive source checks were:
 
 ## 🏁 Final Disposition
 
-**Cryptographic verdict:** **RISKY BUT SALVAGEABLE**.  
+**Cryptographic verdict:** **CONDITIONAL; A-17 REMAINS EXPLICIT**.
 **Implementation status:** T0 accepted with maintenance notes; T1 narrowly
-reopened; T2 partially implemented and blocked; T3/T4 and Plans 06–13 locked.  
-**Immediate next action:** install cross-process single-flight, freeze the
-pre-definition-root/statement DAG correction, obtain the authority budget, and
-continue fast semantic T2 work without another unconditional heavy bootstrap.  
+reopened; the T2 semantic relation is implemented but acceptance is blocked;
+T3/T4 and Plans 06–13 remain locked.
+**Immediate next action:** retain the complete mixed proof/Model-C and strict
+artifact evidence, close implementable T1 ledgers, and obtain the authority
+budget before candidate selection or global closure review.
 **Unlock condition:** complete theorem, selected budget-compliant candidate,
 retained Model A/B/C evidence, and converged reviews—never shape/proof smoke or
 planning coverage alone.
@@ -791,27 +819,252 @@ digest or another SHA context.
 The live fixed shape also includes exact SettlementV2 Poseidon2 hierarchy
 parent keys, settlement pre/post root derivation, `X_h`, prior finalized IVC
 state, and the independently derived exact successor. Current base ShapeCS is
-`C=533,905/V=401,549/NZ=2,036,951/G=2,097,153`; static
+`C=533,794/V=401,550/NZ=2,036,733/G=1,048,577`; static
 PP/VK/bundle/Pedersen lower bounds are
-`161,400,800/67,108,896/67,109,350/402,653,376 B`.
+`127,834,984/127,834,984/523/201,326,784 B`.
 
-This is not T2 acceptance. The complete mixed real compressed proof, final
-Models A/B/C corpus, theorem/mutation/benchmark/A-17 artifacts, reopened T1
-evidence, authority numeric budget/candidate selection and global review
-convergence remain open. The optional developer PP+PK setup cache remains
-deferred until relation stabilization. Durable folding recovery and Celestia
-DA publication are T3/later integrations and do not substitute for a T2 gate.
-T3 stays locked.
+The Nova implementation now has one private owner at
+`z00z_storage::checkpoint::nova`. PP+PK has a capped canonical private recovery
+wire and strict generation/source/shape loader; VK load requires the exact
+authority-selected bundle digest before dependency decode; the keyless
+envelope enforces activation bounds. The pinned-key wrapper additionally
+rejects canonical identity/default and primary/secondary swaps before proof
+decode. The complete mixed proof/TestCS path and the theorem/mutation/benchmark
+ledgers exist. A-17 pins ePrint 2024/232
+revision 2026-02-13 Theorem 5 and remains explicit because concrete EAGM, GZT
+and compression applicability is not demonstrated.
+
+Fresh bounded evidence now passes for the 1,727-step mixed proof, clean
+verifier-only process, strict invalid-key corpus, private PP/PK recovery and a
+genuine recomputed Model C. The compressed proof is 122,288 bytes and the
+provider-neutral DA envelope is 342,353 bytes; PP/PK/VK are excluded from the
+envelope. This is still not T2 acceptance: current-source artifact/review
+evidence, reopened T1 residual evidence, and authority numeric budget/`q_V`/
+candidate selection remain open. The optional developer
+PP+PK cache wire never counts as fresh evidence. Durable folding recovery and
+Celestia DA publication are T3/later integrations and do not substitute for a
+T2 gate. T3 stays locked.
+
+### 🧪 Current Validation And Scoped Review Record (2026-07-19)
+
+The incoming mandatory release bootstrap took `1609.07 s`. On the final tree it
+passes in `120.48 s` (`13.36x`) after the explicit verification pyramid moved
+36 exhaustive semantic R1CS cases, three real-artifact cases, the full
+1,727-step TestCS replay, and the fresh full proof/recomputed Model C behind
+`nova_milestone_tests.sh`. All 41 are unconditionally ignored in ordinary
+Cargo; the explicit runner uses production parameters. One canonical first
+step plus non-boolean-DONE mutation traverses the full R1CS path unignored in
+`0.26 s`. Guard mode reports one owner, zero legacy owner, the exact ignore
+set, and `1332/1332` coverage. The curated Nova packet passes in `77.56 s`,
+the all-target workspace release build in `136.95 s`, and full `cargo test
+--workspace --release` in `2662.15 s` without executing milestone TestCS/full
+proof. This is verification-pyramid speedup, not a fresh-proof speedup claim.
+The old proof/Model-C report is stale because the immutable source digest binds
+all of `nova.rs`. The first post-edit milestone exposed a fail-open worker that
+did not pass `--ignored` to its child and accepted a zero-test exit. The fixed
+worker now requires `--ignored` and an exact child execution marker. Final
+source revision `d7980118…fc06` then passed the accepted proof/Model C milestone
+in `2127.806 s` with `6,605,221,888 B` peak RSS; Model C recomputation took
+`1030.604 s` and the target comparator rejected. The release-only external
+verifier harness observed the clean marked subtree for `29357 ms`, sampled
+`3,062,788,096 B` peak VmRSS, and recorded authoritative kernel VmHWM
+`3,063,189,504 B`; clean verification took `29.496 s`. Both terminal parents
+exited zero, isolated process-group cleanup was clean, the worker lock was
+free, and the accepted measurement bundle SHA-256 is
+`6d5b7827462082f3751472b70586d57646998d27a1a585eaf3975323f585c003`.
+The proposed 4 GiB verifier limit therefore has `1,231,777,792 B` measured
+headroom, but remains non-active pending external authority. The three-test
+current-source artifact milestone then passed: canonical PP+PK recovery payload
+`858,785,714 B`; strict
+verifier bundle/invalid-key worker `191.765 s` at `7,838,879,744 B` peak RSS;
+source-binding worker `111.039 s` at `8,077,549,568 B` peak RSS. The
+post-harness bootstrap reached terminal `BOOTSTRAP COMPLETE`; the curated
+packet and both changed targeted regressions pass. The historical pre-repair
+all-target workspace build stopped because the user-owned tracked deletion of
+`crates/z00z_wallets/docs/domains_snapshot.txt` leaves the wallet test owner's
+canonical `include_str!` unresolved; no relocated snapshot was found. That
+failed attempt and its skipped broad test are superseded by the later inline
+wallet-owner repairs and green all-target/rename-guard gates. The earlier five-pass
+review/doublecheck wave predates the residual-corpus changes and is historical
+for that tree. On the current tree, review pass 1 strengthened F23 manifest
+state assertions; passes 2–3 were consecutive significant-clean, and both new
+doublechecks passed after correcting stale ledger digests. The mandatory
+bootstrap was rerun after the F23 fix and reached terminal
+`BOOTSTRAP COMPLETE`; the exact strengthened F23 target then passed 1/1.
+The exact resource preflight remains
+`C=533,794/V=401,550/NZ=2,036,733/G=1,048,577`, PP/VK/bundle/Pedersen lower
+bounds `127,834,984/127,834,984/523/201,326,784 B`.
+
+The verifier-RSS evidence wave completed three inline task-execution reviews.
+Pass 1 fixed two significant fail-closed gaps: the canonical runner now pins
+the harness release/identity/recursive-`/proc`/report contract, and every RSS
+sample revalidates the verifier PID start-time. Passes 2 and 3 were consecutive
+significant-clean after Bash syntax, ShellCheck, self-test, cleanup, identity,
+arithmetic, doc, and promotion-lock scans. Doublecheck 1 independently matched
+the accepted report to exact source/worker/Cargo.lock identities, KiB/byte and
+4 GiB headroom arithmetic, canonical docs, and runner guards. Doublecheck 2
+verified the inactive authority placeholders, T2/T3/`VERIFIED` locks, wallet
+deletion blocker, and fail-closed process/worker-lock cleanup paths.
+
+Pre-harness inline `/GSD-Review-Tasks-Execution` YOLO passes (historical after
+the execution-marker fix):
+
+1. Found and fixed the canonical milestone-runner name mismatch, removed the
+   non-production `test-params-fast` escape, hardened source/ignore-set guards,
+   and repaired rename-induced shell indentation/executable-mode drift before
+   the runner was accepted.
+2. Significant-clean: release-only command, Bash syntax, formatting/diff,
+   release-feature, coverage, owner/legacy, crypto/security/constant-time, and
+   performance scans found no new significant issue.
+3. Consecutive significant-clean: an independent CodeGraph/direct-source path
+   check plus exact milestone-set, release-only, theorem, blocker, and
+   promotion-lock scans found no new significant issue.
+
+The earlier post-relocation review wave was separate: pass 1 corrected the new
+integration-test names and rustfmt drift; pass 2 removed a false claim that a
+valid-proof endpoint comparison was a recomputed false-candidate Model C test.
+Model C label before the genuine candidate existed. Pass 3 found no further
+static owner, path, artifact, formatting, or theorem-ledger inconsistency. The
+genuine recomputed Model C now passes. The later execution-marker fix resets
+the final-tree review sequence; the wave above no longer closes that gate.
+
+Pre-harness doublecheck 1 verified the sound pyramid from its then-live source and an
+exact release smoke: one private Nova module, one canonical flow codec, 41
+explicit milestone-only tests, one unignored canonical-plus-mutation R1CS
+smoke, complete Model A/B semantic/differential fixtures, and recomputed Model
+C only in the explicit proof milestone. Doublecheck 2 independently verified
+the then-live residuals. The subsequent closure cycle added exact F12 evidence,
+the F23 five-seam owned crash corpus, and the F24 six-outcome project-owned
+process-secret corpus. Current residuals are now F12 numeric acceptance, F23
+redb equivalence acceptance, F24 dependency/upstream allocation zeroization,
+the authority finite candidate set, operating tuple, `q_V`, and no-candidate
+decision; `CheckpointProofSystem::VERIFIED` and T3 remain locked. These are
+retained scoped checks, not global T2 acceptance.
+
+Post-harness inline review convergence on the unchanged Plan 051 source:
+
+1. Significant-clean: canonical owner/legacy path, 41-test tier contract,
+   fail-closed ignored-child marker, release-only runner, coverage, formatting,
+   and diff checks passed.
+2. Consecutive significant-clean: public API, unsafe/secret-log, promotion,
+   bounded codec/key, release-feature, source-identity, and release-clippy
+   checks passed.
+3. Found and corrected two stale `STATE.md` phrases that still called the
+   already-passing artifact refresh pending; no source changed.
+4. Significant-clean: reconciled A–F, owner/legacy/tier/coverage, shell,
+   formatting, source-mtime, and stale-status checks passed.
+5. Consecutive significant-clean: adversarial integration, exact worker
+   argument/marker, production-feature, promotion-lock, and external blocker
+   checks passed.
+
+Post-harness doublecheck 1 verified eight theorem/constraint/source-identity
+claims against 18 nonblank theorem-matrix rows, live symbols, release smoke,
+coverage, and T3 locks. Doublecheck 2 verified nine Model A/B/C, artifact,
+A-17, T1, authority, dirty-tree, and promotion claims. Both had zero disputed
+or fabrication-risk findings; all evidence was repository-local.
+
+Historical residual-corpus review/doublecheck wave on its then-final source tree:
+
+1. Review pass 1 found that post-commit F23 stages accepted any reload error.
+   The test now directly proves pre-commit manifest absence, post-commit
+   manifest presence, and complete publication after exactly-once retry. The
+   mandatory bootstrap and exact F23 release target pass after that fix.
+2. Review pass 2 was significant-clean across exact/equivalent durability,
+   project-owned secret outcomes, authority placeholders, and A-17 wording.
+3. Review pass 3 was consecutive significant-clean across production hook
+   exclusion, proof identity, artifact hygiene, the then-current wallet blocker, and promotion
+   locks.
+
+Doublecheck 1 mapped the F12 equation, five F23 seams, six F24 outcomes,
+identity tuple, and A-17 fields to source. Doublecheck 2 found and corrected
+stale DC2 source digests, then rechecked exact/equivalent and
+project/dependency boundaries, the then-current external wallet blocker, and the locked
+T3/`VERIFIED` state. No disputed or fabricated authority claim remains.
 
 ### 🔒 Ordered Live Work List
 
 1. Treat the amended S1-01 source-byte/window relation as the sole main path;
    retain its direct mutation and bounded-worker regressions. Do not restore the
    endpoint-free Poseidon root/frontier or introduce an inner/digest substitute.
-2. Complete the remaining T2 evidence families in theorem order: the mixed
-   compressed proof, Models A/B/C, final theorem/mutation/benchmark/A-17
-   artifacts, and evaluator/circuit/verifier differential evidence.
-3. Obtain the S1-04 authority budget, then run the sole complete-circuit
-   candidate/worker measurement and freeze one compile-time SHA width.
-4. Materialize the retained Model A/B/C artifacts and only then execute T3/T4
-   and the two-heavy-parent setup test.
+2. Obtain external acceptance or rejection of the exact F12 resident envelope,
+   the F23 redb owned-boundary equivalence, and the F24 dependency/upstream
+   residual without claiming dependency zeroization or internal redb failpoints.
+3. Obtain the S1-04 authority budget/`q_V`/finite candidate decision using the
+   `DRAFT_NOT_ACTIVE` carrier; the complete `k=1` measurement is evidence for
+   authority review, not selection.
+4. Preserve the now-green release pyramid, three-review/two-clean record, and
+   two doublechecks while resolving items 2 and 3; only then execute T3/T4.
+
+### Superseded pre-wallet-repair final-audit addendum (2026-07-19)
+
+The mandatory bootstrap again reached terminal `BOOTSTRAP COMPLETE`. The
+release-only curated Nova packet passed in `81.41 s` at `3,071,228 KiB` peak
+RSS. The then-current all-target workspace build failed after `47.71 s` at `2,443,964 KiB`
+peak RSS solely at the wallet test's unresolved `include_str!` for the
+user-owned tracked deletion `crates/z00z_wallets/docs/domains_snapshot.txt`;
+the broad workspace test was not run. This historical state is superseded by
+the later wallet-owner section: both fixture decisions are eliminated and the
+all-target build plus full rename-guard target pass. Direct CodeGraph-plus-source review
+confirmed one working-tree `z00z_storage::checkpoint::nova` owner, no nested shim,
+no runtime width selector, no active authority defaults, VK-only verifier
+loading, a keyless proof envelope, and no setup/proof cache. No remaining
+further semantic T2 gap was found in the working tree. That is not reproducible
+closure: `checkpoint/nova.rs`, both Nova integration tests, both milestone
+scripts, the coverage audit/inputs, Plan-051 ledgers, and accepted RSS evidence
+are absent from HEAD, while tracked `recursive_v2/nova.rs` is deleted. A clean
+clone at the current HEAD loses the implementation and verification packet. T2 is non-closeable until
+the exact phase-owned scope is versioned with explicit commit/tag/push
+authorization and the external residual/A-17/operating-budget/candidate inputs
+are supplied; T3 remains locked.
+
+Final inline review pass 1 corrected one docs-only truth error: the strict
+PP+PK recovery wire had been mislabeled as an implemented developer setup
+cache. No code or proof-bound source changed. Pass 2 was significant-clean for
+format/diff, shell, private API, promotion and artifact boundaries. Pass 3 was
+consecutive significant-clean for canonical owner, source identity, coverage,
+inactive authority values and absence of cache/runtime selection. Doublecheck
+1 independently mapped the complete theorem families, source/lock identities,
+Model C comparator and T3 locks. Doublecheck 2 recomputed all retained resource
+arithmetic and verified the untouched authority placeholders, reserved
+`VERIFIED` path, exact wallet deletion/include blocker and absence of a
+relocated snapshot. Both doublechecks passed without disputed claims.
+
+The corrected reproducibility review was a separate three-pass wave. Pass 1
+found that the passing canonical owner and verification packet are absent from
+HEAD and added T2-GAP-09. Passes 2 and 3 were consecutive significant-clean
+checks of the exact include/exclude scope. Doublecheck 1 confirmed source,
+import, runner, and accepted-evidence identity; doublecheck 2 confirmed that
+the version manager necessarily commits, tags, and pushes, so it cannot run
+without explicit authority. The exact non-authoritative scope is recorded in
+`069-051-VERSIONING-MANIFEST.md`; it remains unstaged and uncommitted.
+
+### Wallet golden-owner resolution (2026-07-19)
+
+CodeGraph plus live source established that restoring
+`crates/z00z_wallets/docs/domains_snapshot.txt` was not the sole strict option.
+The exact 79 non-comment HEAD mappings now live unchanged as an independent
+literal in the sole test owner `src/domains/test_definitions.rs`; expected data
+is not derived from production `definitions.rs`. The rename guard requires
+both former snapshot paths to remain absent and has a dedicated owner test,
+while its broader tree-path test retains the same assertions. Release evidence
+passes for all four domain tests and the owner guard. The formerly failing
+`cargo build --workspace --all-targets --release` now passes in `2:11.23` at
+`3,458,900 KiB` peak RSS. Its old wallet snapshot restore/amend decision is
+therefore eliminated. At that bounded point, the tracked deletion
+`crates/z00z_wallets/docs/egui_views.tar.gz` still blocked the broad runtime
+tree-path test; the following dated resolution supersedes that blocker. No
+authority decision, T2 closure, staging, commit, tag, push, or version bump
+follows.
+
+### Egui archive golden-owner resolution (2026-07-19)
+
+CodeGraph and live-reference inspection established that the broad guard only
+required canonical relocation evidence: no production or runtime consumer reads
+the archive. The deleted HEAD blob is now represented in the sole rename-guard
+owner by its exact Git blob identity, `6,528,992 B` length, SHA-256, ordered
+150-member count, and member-list SHA-256. All five former archive paths remain
+forbidden; no archive was restored and no path assertion was removed. The
+focused release owner gate and formerly blocked broad runtime tree-path test
+both pass 1/1. The manifest now contains 87 paths and 12 exclusions. All local
+workspace/runtime gates are green in this working tree, but Git reproducibility,
+external residual/A-17/authority decisions, and T3 locks remain unchanged.

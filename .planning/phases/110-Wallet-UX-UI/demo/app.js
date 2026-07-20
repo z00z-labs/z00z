@@ -9,7 +9,7 @@ const appShell = document.querySelector("#app-shell");
 const lockScreen = document.querySelector("#lock-screen");
 const demoParams = new URLSearchParams(window.location.search);
 const requestedView = ["home", "wallet", "activity", "settings"].includes(demoParams.get("view")) ? demoParams.get("view") : "home";
-const requestedWalletSection = ["assets", "claims", "permissions"].includes(demoParams.get("wallet")) ? demoParams.get("wallet") : "assets";
+const requestedWalletSection = ["assets", "vouchers", "permissions"].includes(demoParams.get("wallet")) ? demoParams.get("wallet") : "assets";
 const requestedSettingsSection = ["general", "security", "network", "policies", "backup", "appearance", "advanced"].includes(demoParams.get("settings")) ? demoParams.get("settings") : "general";
 const requestedNetworkSection = ["overview", "reticulum", "onionnet", "carriers"].includes(demoParams.get("network")) ? demoParams.get("network") : "overview";
 
@@ -20,15 +20,17 @@ const state = {
   walletSection: requestedWalletSection,
   settingsSection: requestedSettingsSection,
   networkSection: requestedNetworkSection,
+  isNetworkOpen: requestedSettingsSection === "network",
   theme: "dark",
   locked: false,
   flow: null,
   lastDialogTrigger: null,
   activities: [
     { id: "tx-7f31", type: "money", direction: "out", title: "Payment to Mira", detail: "Sent · waiting to settle", amount: "− 240.00 Z00Z", time: "2 min", status: "settling" },
-    { id: "claim-014", type: "claim", direction: "in", title: "Travel refund", detail: "Claimed · waiting to settle", amount: "+ 86.00 Z00Z", time: "18 min", status: "settling" },
+    { id: "claim-014", type: "asset", direction: "in", title: "Allocation claimed", detail: "Verified claim · waiting to settle", amount: "+ 86.00 Z00Z", time: "18 min", status: "settling" },
     { id: "tx-7e88", type: "money", direction: "in", title: "Received from Niko", detail: "Settled", amount: "+ 1,200.00 Z00Z", time: "Yesterday", status: "settled" },
-    { id: "budget-221", type: "budget", direction: "neutral", title: "Design services budget", detail: "Used 120 of 500 Z00Z", amount: "380.00 left", time: "Yesterday", status: "active" },
+    { id: "voucher-221", type: "voucher", direction: "neutral", title: "Travel refund voucher", detail: "Offered · review before 21 Jul", amount: "86.00 Z00Z", time: "Yesterday", status: "attention" },
+    { id: "right-221", type: "permission", direction: "neutral", title: "Delivery receipt access", detail: "Data access · 2 of 5 uses remain", amount: "2 uses", time: "Yesterday", status: "active" },
     { id: "tx-7d12", type: "money", direction: "out", title: "Payment to Coffee Lab", detail: "Settled", amount: "− 18.50 Z00Z", time: "12 Jul", status: "settled" },
     { id: "security-4", type: "security", direction: "neutral", title: "Local backup created", detail: "Integrity check passed", amount: "", time: "10 Jul", status: "settled" }
   ]
@@ -36,9 +38,9 @@ const state = {
 
 const headings = {
   home: ["Home", "Your private money at a glance"],
-  wallet: ["Wallet", "Assets, claims, and permissions stay distinct"],
-  activity: ["Activity", "Assets, claims, permissions, policies, and security events"],
-  settings: ["Settings", "Common controls and fully synchronized advanced configuration"]
+  wallet: ["Wallet", "Assets, vouchers, and permissions stay distinct"],
+  activity: ["Activity", "Asset, voucher, permission, policy, and security events"],
+  settings: ["Settings", "Common controls and advanced configuration"]
 };
 
 function icon(name, className = "") {
@@ -82,15 +84,15 @@ function homeView() {
         <article class="card privacy-card">
           <div class="privacy-card-header">
             <span class="shield-mark">${icon("shield")}</span>
-            <span class="status-badge is-settled">Healthy</span>
+            <span class="status-badge is-ready">Target simulation</span>
           </div>
-          <h2>Onion route verified</h2>
-          <p>OnionNet protects the route. Reticulum carries it on Main.</p>
+          <h2>Private route model</h2>
+          <p>Target layering is shown without pretending current RPC telemetry exists.</p>
           <div class="privacy-lines">
-            <div class="privacy-line"><span>Privacy</span><strong>OnionNet · 3 hops</strong></div>
-            <div class="privacy-line"><span>Carrier</span><strong>Reticulum</strong></div>
-            <div class="privacy-line"><span>Wallet scan</span><strong>Up to date</strong></div>
-            <div class="privacy-line"><span>Last checked</span><strong>Just now</strong></div>
+            <div class="privacy-line"><span>Privacy overlay</span><strong>OnionNet · target</strong></div>
+            <div class="privacy-line"><span>Primary carrier</span><strong>Reticulum · target</strong></div>
+            <div class="privacy-line"><span>Wallet scan</span><strong>Mock current</strong></div>
+            <div class="privacy-line"><span>Live route telemetry</span><strong>Unavailable</strong></div>
           </div>
         </article>
       </section>
@@ -99,11 +101,15 @@ function homeView() {
         <div class="section-heading">
           <div><h2 id="quick-title">What would you like to do?</h2><p>Private actions with safe defaults</p></div>
         </div>
-        <div class="quick-grid">
-          ${quickAction("pay", "Pay", "Send private money", "send")}
-          ${quickAction("receive", "Receive", "Create a private request", "receive")}
-          ${quickAction("claim", "Claim", "Review something offered", "claim")}
-          ${quickAction("budget", "Give permission", "Start with a safe budget", "budget")}
+        <div class="quick-pairs">
+          <div class="quick-pair">
+            ${quickAction("pay", "Pay", "Send private money", "send")}
+            ${quickAction("receive", "Receive", "Create a private request", "receive")}
+          </div>
+          <div class="quick-pair">
+            ${quickAction("asset-claim", "Claim", "Claim an asset allocation", "claim")}
+            ${quickAction("permission", "Give permission", "Delegate a bounded right", "permission")}
+          </div>
         </div>
       </section>
 
@@ -111,18 +117,18 @@ function homeView() {
         <article class="card panel" aria-labelledby="attention-title">
           <div class="section-heading">
             <div><h2 id="attention-title">Needs your attention</h2><p>Two items</p></div>
-            <button class="section-link" type="button" data-wallet-section="claims">Open claims ${icon("chevron")}</button>
+            <button class="section-link" type="button" data-view="activity">Review all ${icon("chevron")}</button>
           </div>
           <div class="attention-list">
-            <button class="attention-item" type="button" data-open-flow="claim">
+            <button class="attention-item" type="button" data-open-flow="voucher-review">
               <span class="list-icon is-claim">${icon("claim")}</span>
-              <span class="list-copy"><strong>Travel refund</strong><small>Verified offer from Northwind Travel</small></span>
+              <span class="list-copy"><strong>Travel refund voucher</strong><small>Offered by Northwind Travel · review required</small></span>
               <span class="list-meta"><strong>86.00 Z00Z</strong><small>Ends in 2 days</small></span>
             </button>
-            <button class="attention-item" type="button" data-open-flow="budget-detail">
+            <button class="attention-item" type="button" data-open-flow="permission-detail">
               <span class="list-icon is-warning">${icon("alert")}</span>
-              <span class="list-copy"><strong>Design services permission</strong><small>Budget recipe · 76% remaining</small></span>
-              <span class="list-meta"><strong>380.00 left</strong><small>Ends 31 Jul</small></span>
+              <span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · cannot delegate</small></span>
+              <span class="list-meta"><strong>2 of 5 uses</strong><small>Ends 31 Jul</small></span>
             </button>
           </div>
         </article>
@@ -144,7 +150,7 @@ function moneyView() {
   return `
     <div class="view-enter">
       <div class="page-intro">
-        <div><p class="eyebrow">Cash only</p><h2>Your private money</h2><p>Only spendable cash is counted here. Claims and delegated limits remain separate.</p></div>
+        <div><p class="eyebrow">Asset family</p><h2>Your assets</h2><p>Native cash, issued tokens, and collectibles stay distinguishable. Only spendable native cash enters Available.</p></div>
         <button class="button button-primary" type="button" data-open-flow="pay">${icon("send")} Pay</button>
       </div>
       <section class="money-summary" aria-label="Money totals">
@@ -152,11 +158,12 @@ function moneyView() {
         <article class="card metric-card"><span>Receiving</span><strong>${sensitive("960.00")}</strong><small>Waiting to settle</small></article>
         <article class="card metric-card"><span>Sending</span><strong>${sensitive("240.00")}</strong><small>Waiting to settle</small></article>
       </section>
-      <div class="section-heading"><div><h2>Assets</h2><p>Verified cash projections from this wallet</p></div></div>
-      <section class="asset-list" aria-label="Cash assets">
+      <div class="choice-strip" aria-label="Asset filters"><button class="choice-chip is-active" type="button">All</button><button class="choice-chip" type="button">Coin</button><button class="choice-chip" type="button">Token</button><button class="choice-chip" type="button">Collectible</button><button class="choice-chip" type="button">Needs review</button></div>
+      <div class="section-heading"><div><h2>Owned assets</h2><p>Class, trust, and spendability are explicit</p></div></div>
+      <section class="asset-list" aria-label="Owned assets">
         <article class="card asset-row">
           <span class="asset-logo" aria-hidden="true">Z</span>
-          <div class="asset-info"><strong>Z00Z</strong><small class="trust-label">${icon("shield")} Native · verified</small></div>
+          <div class="asset-info"><strong>Z00Z <span class="object-kind">Coin</span></strong><small class="trust-label">${icon("shield")} Native asset · trusted catalog</small></div>
           <div class="asset-number"><strong>${sensitive("12,480.75")}</strong><small>Available</small></div>
           <div class="asset-number"><strong>${sensitive("720.00")}</strong><small>Net settling</small></div>
           <div class="asset-actions">
@@ -164,34 +171,49 @@ function moneyView() {
             <button class="button button-primary" type="button" data-open-flow="pay" aria-label="Pay Z00Z">${icon("send")}<span>Pay</span></button>
           </div>
         </article>
+        <article class="card asset-row">
+          <span class="asset-logo is-token" aria-hidden="true">A</span>
+          <div class="asset-info"><strong>Acme Credits <span class="object-kind">Token</span></strong><small class="review-label">Declared domain · acme.example · review needed</small></div>
+          <div class="asset-number"><strong>240.00</strong><small>Owned · not native cash</small></div>
+          <div class="asset-number"><strong>0.00</strong><small>Settling</small></div>
+          <div class="asset-actions"><button class="button" type="button" data-demo-action="asset-review">Review asset</button></div>
+        </article>
+        <article class="card asset-row">
+          <span class="asset-logo is-collectible" aria-hidden="true">◇</span>
+          <div class="asset-info"><strong>Founders Pass #014 <span class="object-kind">NFT</span></strong><small>Unique collectible · metadata available</small></div>
+          <div class="asset-number"><strong>1 item</strong><small>Owned</small></div>
+          <div class="asset-number"><strong>Not fungible</strong><small>Excluded from Available</small></div>
+          <div class="asset-actions"><button class="button" type="button" data-demo-action="asset-review">View details</button></div>
+        </article>
       </section>
-      <div class="notice">${icon("shield")} Claims, permissions, quarantined objects, and experimental compatibility assets are intentionally excluded from your spendable total.</div>
+      <div class="notice">${icon("shield")} Vouchers, permissions, quarantined objects, non-native tokens, collectibles, and experimental compatibility assets are excluded from Available.</div>
     </div>`;
 }
 
-const walletTabs = [
+const walletSections = [
   ["assets", "Assets", "Spendable and owned value"],
-  ["claims", "Claims", "Voucher outcomes"],
-  ["permissions", "Permissions", "Bounded rights"]
+  ["vouchers", "Vouchers", "Conditional value"],
+  ["permissions", "Permissions", "Bounded authority"]
 ];
 
-function walletTabBar() {
-  return `<nav class="workspace-tabs" role="tablist" aria-label="Wallet object families">${walletTabs.map(([key, label, helper]) => `
-    <button class="workspace-tab${state.walletSection === key ? " is-active" : ""}" type="button" role="tab" aria-selected="${state.walletSection === key}" data-wallet-section="${key}">
-      <strong>${label}</strong><small>${helper}</small>${key === "claims" ? '<span class="tab-count">1</span>' : ""}
+function walletContextNav() {
+  return `<nav class="context-nav" aria-label="Wallet sections">${walletSections.map(([key, label, helper]) => `
+    <button class="context-nav-item${state.walletSection === key ? " is-active" : ""}" type="button" ${state.walletSection === key ? 'aria-current="page"' : ""} data-wallet-section="${key}">
+      <span><strong>${label}</strong><small>${helper}</small></span>${key === "vouchers" ? '<span class="nav-count">1</span>' : ""}
     </button>`).join("")}</nav>`;
 }
 
-function claimsPanel() {
+function vouchersPanel() {
   return `
     <div class="page-intro compact-intro">
-      <div><p class="eyebrow">Voucher family</p><h2>Claims</h2><p>Conditional value stays outside Available until its outcome settles.</p></div>
+      <div><p class="eyebrow">Voucher family</p><h2>Vouchers</h2><p>Conditional value has its own acceptance, redemption, transfer, refund, and expiry lifecycle.</p></div>
     </div>
-    <section class="card action-panel" role="tabpanel">
+    <div class="choice-strip" aria-label="Voucher filters"><button class="choice-chip is-active" type="button">Needs action</button><button class="choice-chip" type="button">Redeemable</button><button class="choice-chip" type="button">History</button><button class="choice-chip" type="button">Quarantined</button></div>
+    <section class="card action-panel">
       <div class="action-panel-top"><div class="action-title"><span class="list-icon is-claim">${icon("claim")}</span><div><h2>Ready for your decision</h2><p>Backing and restrictions are checked before any action</p></div></div><span class="status-badge is-ready">1 ready</span></div>
       <div class="claim-list">
-        <button class="claim-row" type="button" data-open-flow="claim"><span class="list-icon is-claim">${icon("claim")}</span><span class="list-copy"><strong>Travel refund</strong><small>Northwind Travel · cash-backed · one-time · refund allowed</small></span><span class="list-meta"><strong>86.00 Z00Z</strong><small class="status-badge is-ready">Ready to claim</small></span></button>
-        <button class="claim-row" type="button" data-open-flow="claim-settled"><span class="list-icon">${icon("check")}</span><span class="list-copy"><strong>Event deposit return</strong><small>Riverside Events · redeemed and settled 12 Jul</small></span><span class="list-meta"><strong>150.00 Z00Z</strong><small class="status-badge is-settled">Settled</small></span></button>
+        <button class="claim-row" type="button" data-open-flow="voucher-review"><span class="list-icon is-claim">${icon("claim")}</span><span class="list-copy"><strong>Travel refund voucher</strong><small>Northwind Travel · consumed-asset backing · acceptance required · refund allowed</small></span><span class="list-meta"><strong>86.00 Z00Z</strong><small class="status-badge is-ready">Offered</small></span></button>
+        <button class="claim-row" type="button" data-open-flow="voucher-settled"><span class="list-icon">${icon("check")}</span><span class="list-copy"><strong>Event deposit return</strong><small>Riverside Events · redeemed and settled 12 Jul</small></span><span class="list-meta"><strong>150.00 Z00Z</strong><small class="status-badge is-settled">Redeemed</small></span></button>
       </div>
     </section>
     <div class="notice">${icon("shield")} Imported vouchers with unknown policy, invalid signatures, or unsupported schema go to Quarantine and never enter Available.</div>`;
@@ -201,21 +223,22 @@ function permissionsPanel() {
   return `
     <div class="page-intro compact-intro">
       <div><p class="eyebrow">Right family</p><h2>Permissions</h2><p>Zero-value authority with explicit action, scope, uses, expiry, and delegation rules.</p></div>
-      <button class="button button-primary" type="button" data-open-flow="budget">${icon("budget")} Give permission</button>
+      <button class="button button-primary" type="button" data-open-flow="permission">${icon("permission")} Give permission</button>
     </div>
-    <section class="card action-panel" role="tabpanel">
-      <div class="action-panel-top"><div class="action-title"><span class="list-icon is-warning">${icon("budget")}</span><div><h2>Active permissions</h2><p>Budget is one safe recipe, not every permission</p></div></div><span class="status-badge is-active">2 active</span></div>
-      <div class="budget-list">
-        <button class="budget-row" type="button" data-open-flow="budget-detail"><span class="list-icon is-warning">${icon("budget")}</span><span class="list-copy"><strong>Design services</strong><small>Budget recipe · pay Studio North · ends 31 Jul</small><span class="budget-progress"><span class="progress-track"><span class="progress-bar" style="width:24%"></span></span></span></span><span class="list-meta"><strong>380.00 left</strong><small class="status-badge is-active">Active</small></span></button>
-        <div class="budget-row"><span class="list-icon">${icon("shield")}</span><span class="list-copy"><strong>Verify delivery receipt</strong><small>Scoped action · receipts.example · 2 of 5 uses remain · cannot delegate</small></span><span class="list-meta"><strong>2 uses</strong><small class="status-badge is-active">Active</small></span></div>
+    <div class="choice-strip" aria-label="Permission filters"><button class="choice-chip is-active" type="button">Held</button><button class="choice-chip" type="button">Delegated</button><button class="choice-chip" type="button">Used</button><button class="choice-chip" type="button">Needs review</button></div>
+    <section class="card action-panel">
+      <div class="action-panel-top"><div class="action-title"><span class="list-icon is-warning">${icon("permission")}</span><div><h2>Held permissions</h2><p>Class, action, scope, uses, expiry, and delegation are visible</p></div></div><span class="status-badge is-active">2 held</span></div>
+      <div class="permission-list">
+        <button class="permission-row" type="button" data-open-flow="permission-detail"><span class="list-icon is-warning">${icon("permission")}</span><span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
+        <div class="permission-row"><span class="list-icon">${icon("shield")}</span><span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></div>
       </div>
     </section>
-    <div class="notice">${icon("spark")} A delegated permission can only become narrower. The wallet never creates authority broader than the right you hold.</div>`;
+    <div class="notice">${icon("spark")} A permission is zero-value. “Give permission” delegates a narrower held right; monetary budgets require a separate future composition and are not projected here.</div>`;
 }
 
 function walletView() {
-  const panel = state.walletSection === "assets" ? moneyView() : state.walletSection === "claims" ? claimsPanel() : permissionsPanel();
-  return `<div class="view-enter">${walletTabBar()}<div class="workspace-panel">${panel}</div></div>`;
+  const panel = state.walletSection === "assets" ? moneyView() : state.walletSection === "vouchers" ? vouchersPanel() : permissionsPanel();
+  return `<div class="view-enter workspace-layout"><aside class="context-rail"><p class="context-rail-label">Wallet</p>${walletContextNav()}</aside><div class="workspace-panel">${panel}</div></div>`;
 }
 
 function statusText(status) {
@@ -233,7 +256,7 @@ function activityRows(items, compact = false) {
   }
 
   return items.map((item) => {
-    const iconName = item.type === "claim" ? "claim" : item.type === "budget" ? "budget" : item.type === "security" ? "backup" : item.direction === "in" ? "receive" : "send";
+    const iconName = item.type === "voucher" || item.id.startsWith("claim-") ? "claim" : item.type === "permission" ? "permission" : item.type === "security" ? "backup" : item.direction === "in" ? "receive" : "send";
     const iconClass = item.direction === "in" ? "is-incoming" : item.direction === "out" ? "is-outgoing" : "";
     const amountClass = item.direction === "in" ? "positive" : item.direction === "out" ? "negative" : "";
     return `
@@ -245,21 +268,24 @@ function activityRows(items, compact = false) {
   }).join("");
 }
 
+function matchesActivityFilter(item, filter) {
+  if (filter === "all") return true;
+  if (filter === "asset") return item.type === "asset" || item.type === "money";
+  if (filter === "attention") return item.status === "attention" || item.status === "settling";
+  return item.type === filter;
+}
+
 function activityView() {
-  const visible = state.activityFilter === "all"
-    ? state.activities
-    : state.activityFilter === "attention"
-      ? state.activities.filter((item) => item.status === "attention" || item.status === "settling")
-      : state.activities.filter((item) => item.type === state.activityFilter);
+  const visible = state.activities.filter((item) => matchesActivityFilter(item, state.activityFilter));
 
   const filters = [
-    ["all", "All"], ["money", "Assets"], ["claim", "Claims"], ["budget", "Permissions"], ["attention", "Needs attention"]
-  ].map(([value, label]) => `<button class="filter-chip${state.activityFilter === value ? " is-active" : ""}" type="button" data-filter="${value}">${label}</button>`).join("");
+    ["all", "All"], ["asset", "Assets"], ["voucher", "Vouchers"], ["permission", "Permissions"], ["security", "System"], ["attention", "Needs attention"]
+  ].map(([value, label]) => `<button class="choice-chip${state.activityFilter === value ? " is-active" : ""}" type="button" data-filter="${value}">${label}</button>`).join("");
 
   return `
     <div class="view-enter">
       <div class="page-intro"><div><p class="eyebrow">Honest settlement</p><h2>Everything that changed</h2><p>Submission and final settlement are shown as different states. Open an item for its receipt and technical timeline.</p></div></div>
-      <div class="filter-bar" aria-label="Activity filters">
+      <div class="filter-bar choice-strip" aria-label="Activity filters">
         ${filters}
         <label class="search-wrap"><span class="sr-only">Search activity</span>${icon("search")}<input id="activity-search" type="search" placeholder="Search activity" autocomplete="off"></label>
       </div>
@@ -279,33 +305,40 @@ const settingsMeta = {
   advanced: ["Advanced", "YAML configuration and diagnostic tools", "settings"]
 };
 
-function settingsMenu() {
-  return Object.entries(settingsMeta).map(([key, [label, helper, iconName]]) => `
-    <button class="workspace-tab${state.settingsSection === key ? " is-active" : ""}" type="button" role="tab" aria-selected="${state.settingsSection === key}" title="${helper}" data-settings-section="${key}">
-      ${icon(iconName)}<strong>${label}</strong>
-    </button>`).join("");
-}
-
-function networkTabs() {
-  return `<nav class="subtabs" role="tablist" aria-label="Network settings">${[
-    ["overview", "Overview"], ["reticulum", "Reticulum"], ["onionnet", "OnionNet"], ["carriers", "Carriers"]
-  ].map(([key, label]) => `<button type="button" role="tab" aria-selected="${state.networkSection === key}" class="${state.networkSection === key ? "is-active" : ""}" data-network-section="${key}">${label}</button>`).join("")}</nav>`;
+function settingsContextNav() {
+  const item = (key) => {
+    const [label, helper, iconName] = settingsMeta[key];
+    const isNetworkBranch = key === "network";
+    const isCurrent = state.settingsSection === key && (!isNetworkBranch || state.networkSection === "overview");
+    const disclosure = isNetworkBranch
+      ? `<span class="context-disclosure${state.isNetworkOpen ? " is-open" : ""}" aria-hidden="true">${icon("chevron")}</span>`
+      : "";
+    const expanded = isNetworkBranch ? ` aria-expanded="${state.isNetworkOpen}" aria-controls="network-sections"` : "";
+    return `<button class="context-nav-item${isCurrent ? " is-active" : ""}${isNetworkBranch && state.isNetworkOpen ? " is-open" : ""}" type="button" ${isCurrent ? 'aria-current="page"' : ""}${expanded} title="${helper}" data-settings-section="${key}">${icon(iconName)}<span><strong>${label}</strong><small>${helper}</small></span>${disclosure}</button>`;
+  };
+  const networkChildren = [["overview", "Overview"], ["reticulum", "Reticulum"], ["onionnet", "OnionNet"], ["carriers", "Carriers"]]
+    .map(([key, label]) => `<button class="context-nav-child${state.settingsSection === "network" && state.networkSection === key ? " is-active" : ""}" type="button" ${state.settingsSection === "network" && state.networkSection === key ? 'aria-current="page"' : ""} data-network-section="${key}">${label}</button>`).join("");
+  return `<nav class="context-nav settings-context" aria-label="Settings sections">
+    <p class="context-group-label">Wallet</p>${item("general")}${item("security")}${item("backup")}
+    <p class="context-group-label">Connectivity</p>${item("network")}${state.isNetworkOpen ? `<div id="network-sections" class="context-nav-children" aria-label="Network sections">${networkChildren}</div>` : ""}
+    <p class="context-group-label">Rules & interface</p>${item("policies")}${item("appearance")}${item("advanced")}
+  </nav>`;
 }
 
 function networkDetail() {
   if (state.networkSection === "reticulum") return `
     <div class="connection-options">
-      <div class="connection-option"><span class="health-orb is-good"></span><span><strong>Reticulum service</strong><small>Connected · direct underlay · target simulation</small></span><span class="status-badge is-settled">Healthy</span></div>
+      <div class="connection-option"><span class="health-orb"></span><span><strong>Reticulum service</strong><small>Target service example · no live wallet API</small></span><span class="status-badge is-ready">Target</span></div>
       <div class="connection-option"><span class="list-icon">${icon("network")}</span><span><strong>Interfaces</strong><small>Auto · TCP client + local mesh discovery</small></span><button class="button" type="button" data-demo-action="config-stage">Configure</button></div>
       <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Network identity</strong><small class="mono">RNS 6A3E…91B2 · independent from wallet seed</small></span><span class="status-badge is-active">Separate</span></div>
     </div><div class="notice">${icon("settings")} Raw Reticulum interface definitions live in Advanced YAML. Service/runtime changes may require restart.</div>`;
 
   if (state.networkSection === "onionnet") return `
     <div class="connection-options">
-      <div class="connection-option"><span class="health-orb is-good"></span><span><strong>Privacy route</strong><small>Verified · 3 hops · epoch 1842</small></span><span class="status-badge is-settled">Standard floor</span></div>
-      <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Membership & replay checks</strong><small>Healthy · fixed packet geometry active</small></span><span class="status-badge is-settled">Verified</span></div>
+      <div class="connection-option"><span class="health-orb"></span><span><strong>Privacy route</strong><small>Target example · 3 hops · epoch 1842</small></span><span class="status-badge is-ready">Target floor</span></div>
+      <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Membership & replay checks</strong><small>Target telemetry · unavailable in current RPC</small></span><span class="status-badge is-ready">Target</span></div>
       <div class="connection-option"><span class="list-icon">${icon("activity")}</span><span><strong>Route age</strong><small>12 minutes · rebuilt automatically by policy</small></span><button class="button" type="button" data-demo-action="rebuild-route">Rebuild</button></div>
-    </div><div class="notice">${icon("shield")} This reports concrete route properties. It does not claim that the user is “anonymous” or “untraceable.”</div>`;
+    </div><div class="capability-note">${icon("alert")} <span><strong>Target Phase 080 simulation</strong><small>The current live network RPC is stubbed; all route details on this screen are illustrative until an authoritative status capability exists.</small></span></div><div class="notice">${icon("shield")} This reports concrete route properties. It does not claim that the user is “anonymous” or “untraceable.”</div>`;
 
   if (state.networkSection === "carriers") return `
     <div class="confirmation-note">${icon("alert")} Carrier priority affects availability. Private mode never falls back to a non-OnionNet direct path.</div>
@@ -328,9 +361,9 @@ function networkDetail() {
 function settingsDetail() {
   if (state.settingsSection === "general") {
     return `
-      <div class="settings-heading"><div><p class="eyebrow">Effective configuration</p><h2>General</h2><p>Common controls write validated patches to the same YAML-backed configuration.</p></div><span class="status-badge is-settled">Synced</span></div>
+      <div class="settings-heading"><div><p class="eyebrow">Target configuration contract</p><h2>General</h2><p>Common controls will write validated patches to the same YAML-backed configuration.</p></div><span class="status-badge is-ready">Target sync</span></div>
       <div class="config-status-grid">
-        <div><span>Source</span><strong class="mono">wallet_config.yaml</strong></div><div><span>Schema</span><strong>v2 target</strong></div><div><span>Revision</span><strong class="mono">8f31c2</strong></div><div><span>Last valid load</span><strong>Just now</strong></div>
+        <div><span>Source</span><strong class="mono">wallet_config.yaml</strong></div><div><span>Schema</span><strong>v2 target</strong></div><div><span>Revision</span><strong class="mono">target-8f31c2</strong></div><div><span>Runtime support</span><strong>Read overlay only</strong></div>
       </div>
       <div class="setting-group">
         <div class="setting-line"><span class="setting-line-copy"><strong>Wallet name</strong><small>Everyday · source: YAML</small></span><input class="short-input" value="Everyday" aria-label="Wallet name"></div>
@@ -343,8 +376,8 @@ function settingsDetail() {
     return `
       <h2>Security</h2><p>Keep private material out of sight and end sessions automatically.</p>
       <div class="setting-group">
-        <div class="setting-line"><span class="setting-line-copy"><strong>Lock wallet</strong><small>Clear session data and hide all wallet content</small></span><button class="button" type="button" data-demo-action="lock">${icon("lock")} Lock now</button></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>Auto-lock</strong><small>After inactivity on this device</small></span><select aria-label="Auto-lock duration"><option>5 minutes</option><option>15 minutes</option><option>30 minutes</option></select></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>Lock wallet</strong><small>End the in-memory wallet session and hide all wallet content</small></span><button class="button" type="button" data-demo-action="lock">${icon("lock")} Lock now</button></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>Auto-lock policy</strong><small>Target configuration · current RPC has no settings read/write method</small></span><span class="status-badge is-attention">Target</span></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>Hide sensitive amounts</strong><small>Mask balances and transaction values</small></span><button class="toggle" type="button" data-demo-action="toggle-balance" aria-pressed="${state.balanceHidden}" aria-label="Hide sensitive amounts"></button></div>
       </div>
       <div class="setting-group">
@@ -370,19 +403,19 @@ function settingsDetail() {
   if (state.settingsSection === "network") {
     return `
       <div class="settings-heading"><div><p class="eyebrow">Overlay, carrier, chain</p><h2>Network & privacy</h2><p>OnionNet protects the route; Reticulum carries it. Chain remains separate.</p></div><select aria-label="Network mode"><option>Private · no direct fallback</option><option>Auto</option><option>Resilient</option><option>Direct · warning</option></select></div>
-      ${networkTabs()}${networkDetail()}`;
+      ${networkDetail()}`;
   }
 
   if (state.settingsSection === "policies") {
     return `
-      <div class="settings-heading"><div><p class="eyebrow">Effective restrictions</p><h2>Safety & policy profiles</h2><p>Profiles can narrow behavior. They cannot change protocol rules or expand your authority.</p></div><button class="button button-primary" type="button" data-demo-action="load-policy">${icon("backup")} Load profile</button></div>
+      <div class="settings-heading"><div><p class="eyebrow">Target profile preview</p><h2>Safety & policy profiles</h2><p>Profiles can narrow behavior. They cannot change protocol rules or expand your authority.</p></div><button class="button button-primary" type="button" data-demo-action="load-policy">${icon("backup")} Preview profile</button></div>
       <div class="policy-stack" aria-label="Policy precedence">
         <div class="policy-layer is-locked"><span>1</span><div><strong>Protocol rules</strong><small>Native cash conservation · immutable in wallet</small></div><span class="status-badge">Locked</span></div>
         <div class="policy-layer"><span>2</span><div><strong>Organization</strong><small>No managed profile · signed profiles only</small></div><button class="button" type="button" data-demo-action="load-policy">Load</button></div>
-        <div class="policy-layer is-active"><span>3</span><div><strong>Personal Safe · v1.4</strong><small>Max payment 2,500 · daily 5,000 · confirmation required</small></div><span class="status-badge is-settled">Applied</span></div>
+        <div class="policy-layer is-active"><span>3</span><div><strong>Personal Safe · v1.4</strong><small>Target example · max payment 2,500 · daily 5,000 · confirmation required</small></div><span class="status-badge is-ready">Preview</span></div>
         <div class="policy-layer"><span>4</span><div><strong>Per-action attenuation</strong><small>May only make the current action narrower</small></div><span class="status-badge">As needed</span></div>
       </div>
-      <button class="why-blocked" type="button" data-demo-action="why-blocked">${icon("alert")}<span><strong>Why a 3,200 Z00Z payment would be blocked</strong><small>Personal Safe → maximum transaction is 2,500 Z00Z</small></span>${icon("chevron")}</button>
+      <button class="why-blocked" type="button" data-demo-action="why-blocked">${icon("alert")}<span><strong>Why a 3,200 Z00Z payment would be blocked</strong><small>Target Personal Safe preview → maximum transaction is 2,500 Z00Z</small></span>${icon("chevron")}</button>
       <div class="notice">${icon("shield")} A loaded profile is not proof of legal compliance. Invalid signatures, expired schemas, and ambiguous conflicts fail closed and go to quarantine.</div>`;
   }
 
@@ -399,8 +432,8 @@ function settingsDetail() {
   }
 
   return `
-    <div class="settings-heading"><div><p class="eyebrow">Advanced configuration</p><h2>YAML & diagnostics</h2><p>UI controls and YAML edit one effective configuration. Secrets are never stored here.</p></div><span class="status-badge is-settled">Synced · 8f31c2</span></div>
-    <nav class="subtabs config-tabs" role="tablist" aria-label="Configuration views"><button class="is-active" role="tab" aria-selected="true">YAML</button><button role="tab" aria-selected="false">Form</button><button role="tab" aria-selected="false">Diff</button></nav>
+    <div class="settings-heading"><div><p class="eyebrow">Advanced configuration</p><h2>YAML & diagnostics</h2><p>UI controls and YAML edit one effective configuration. Secrets are never stored here.</p></div><span class="status-badge is-ready">Target preview · 8f31c2</span></div>
+    <div class="choice-strip config-view-choices" aria-label="Configuration view"><button class="choice-chip is-active" type="button" aria-pressed="true">YAML</button><button class="choice-chip" type="button" aria-pressed="false">Form</button><button class="choice-chip" type="button" aria-pressed="false">Diff</button></div>
     <div class="yaml-toolbar"><span><strong class="mono">wallet_config.yaml</strong><small>Schema v2 target · last valid just now</small></span><div><button class="button" type="button" data-demo-action="config-validate">Validate</button><button class="button button-primary" type="button" data-demo-action="config-apply">Apply</button></div></div>
     <pre class="yaml-editor" aria-label="Read-only target YAML configuration preview"><code><span class="yaml-key">schema_version:</span> 2
 <span class="yaml-key">wallet:</span>
@@ -413,19 +446,19 @@ function settingsDetail() {
     <span class="yaml-key">carriers:</span> [reticulum, quic_tls]
   <span class="yaml-key">policy_profiles:</span>
     <span class="yaml-key">user:</span> personal-safe-v1</code></pre>
-    <div class="config-foot"><span>${icon("shield")} Unknown keys and comments are preserved</span><span>${icon("activity")} External edits watched</span><span>${icon("backup")} Last known good retained</span></div>
+    <div class="config-foot"><span>${icon("shield")} Target: preserve unknown keys/comments</span><span>${icon("activity")} Target: watch external edits</span><span>${icon("backup")} Target: retain last known good</span></div>
     <div class="capability-note">${icon("alert")} <span><strong>Target configuration service</strong><small>Current runtime reads YAML but has no write/watch/revision RPC. These controls must stay disabled in production until that service exists.</small></span></div>
     <div class="setting-group"><div class="setting-line"><span class="setting-line-copy"><strong>Expert details</strong><small>Show identifiers, receipts, and lifecycle events</small></span><button class="toggle" type="button" aria-pressed="false" aria-label="Show expert details" data-demo-action="expert"></button></div><div class="setting-line"><span class="setting-line-copy"><strong>Sanitized diagnostics</strong><small>RPC, configuration, route, and synchronization events</small></span><button class="button" type="button" data-demo-action="diagnostics">Open</button></div></div>`;
 }
 
 function settingsView() {
   return `
-    <div class="view-enter">
-      <div class="page-intro"><div><p class="eyebrow">Your wallet, your device</p><h2>Wallet settings</h2><p>Security actions require the right level of review and authentication.</p></div></div>
-      <section class="settings-workspace">
-        <nav class="workspace-tabs settings-menu" role="tablist" aria-label="Settings sections">${settingsMenu()}</nav>
+    <div class="view-enter settings-view">
+      <div class="page-intro settings-page-intro"><div><p class="eyebrow">Your wallet, your device</p><h2>Wallet settings</h2><p>Common controls stay simple; advanced and target-only capabilities are labelled.</p></div></div>
+      <div class="workspace-layout settings-layout">
+        <aside class="context-rail">${settingsContextNav()}</aside>
         <article class="card settings-detail">${settingsDetail()}</article>
-      </section>
+      </div>
     </div>`;
 }
 
@@ -450,6 +483,10 @@ function render(options = {}) {
   }[state.view]();
 
   syncBalanceButtons();
+  requestAnimationFrame(() => {
+    const activeContext = main.querySelector(".context-nav-child.is-active") || main.querySelector(".context-nav-item.is-active");
+    activeContext?.scrollIntoView({ block: "nearest", inline: "center" });
+  });
   if (options.focusMain) {
     main.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -513,8 +550,8 @@ function payDialog() {
           <div class="summary-row"><span>Recipient</span><strong>${escapeHtml(data.recipientLabel)} · <span class="mono">7D3B…9A40</span></strong></div>
           <div class="summary-row"><span>From</span><strong>Everyday wallet</strong></div>
           <div class="summary-row"><span>Fee</span><strong>Included</strong></div>
-          <div class="summary-row"><span>Privacy route</span><strong>OnionNet · verified · 3 hops</strong></div>
-          <div class="summary-row"><span>Carrier</span><strong>Reticulum</strong></div>
+          <div class="summary-row"><span>Privacy route</span><strong>OnionNet · target simulation</strong></div>
+          <div class="summary-row"><span>Carrier</span><strong>Reticulum · target</strong></div>
           <div class="summary-row"><span>Network</span><strong><span class="environment-tag is-main">MAIN</span></strong></div>
           ${data.memo ? `<div class="summary-row"><span>Note</span><strong>${escapeHtml(data.memo)}</strong></div>` : ""}
         </div>
@@ -565,94 +602,128 @@ function receiveDialog() {
   });
 }
 
-function claimDialog(settled = false) {
+function assetClaimDialog() {
+  if (state.flow.step === 0) {
+    return dialogFrame({
+      title: "Claim asset allocation",
+      subtitle: "One source, one recipient, one replay-safe claim",
+      steps: 2,
+      activeStep: 0,
+      body: `
+        <div class="review-card review-hero"><span class="list-icon is-claim">${icon("claim")}</span><strong>86.00 Z00Z</strong><span>Genesis allocation #014</span></div>
+        <div class="review-card"><div class="summary-row"><span>Claim source</span><strong>Allocation root · proof present</strong></div><div class="summary-row"><span>Authority</span><strong>Signature present</strong></div><div class="summary-row"><span>Recipient</span><strong>Everyday wallet · bound</strong></div><div class="summary-row"><span>Output</span><strong>Z00Z Coin · 86.00</strong></div><div class="summary-row"><span>Replay protection</span><strong>Chain-bound nullifier</strong></div></div>
+        <div class="confirmation-note">${icon("shield")} The claim package is separate from vouchers. A successful claim creates owned Asset output and can be used only once.</div>
+        <div class="capability-note">${icon("alert")} <span><strong>Target claim intake</strong><small>Live code verifies ClaimTxPackage, but the current wallet RPC has no dedicated high-level claim intake/build method. Production keeps this action capability-gated.</small></span></div>`,
+      footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="button" data-dialog-action="asset-claim-submit">Verify and claim once</button>`
+    });
+  }
+
+  return dialogFrame({
+    title: "Claim submitted",
+    subtitle: "Waiting for final settlement",
+    steps: 2,
+    activeStep: 1,
+    body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Asset receiving · settling</h3><p>The verified claim output is tracked as an Asset. It is not included in Available until authoritative settlement makes it spendable.</p><div class="receipt-ref mono">Claim CLM-883C · nullifier reserved once</div></div>`,
+    footer: `<button class="button" type="button" data-dialog-action="view-activity">View activity</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
+  });
+}
+
+function voucherDialog(settled = false) {
   if (settled) {
     return dialogFrame({
       title: "Event deposit return",
-      subtitle: "Claim details",
-      body: `<div class="result-state"><span class="result-icon">${icon("check")}</span><h3>Settled</h3><p>150.00 Z00Z was added to your available private money on 12 Jul 2026.</p></div><div class="review-card"><div class="summary-row"><span>Issuer</span><strong>Riverside Events · verified</strong></div><div class="summary-row"><span>Receipt</span><strong class="mono">RCPT-14B9…C201</strong></div></div><details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Object: voucher_04e9…af31</span><span>Lifecycle: accepted → redeemed → confirmed</span></div></details>`,
+      subtitle: "Voucher history",
+      body: `<div class="result-state"><span class="result-icon">${icon("check")}</span><h3>Redeemed · settled</h3><p>The voucher was redeemed and its resulting asset settled on 12 Jul 2026.</p></div><div class="review-card"><div class="summary-row"><span>Issuer</span><strong>Riverside Events</strong></div><div class="summary-row"><span>Face / remaining</span><strong>150.00 / 0.00 Z00Z</strong></div><div class="summary-row"><span>Lifecycle</span><strong>Redeemed</strong></div></div><details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Object: voucher_04e9…af31</span><span>Lifecycle: offered → accepted → redeemed</span></div></details>`,
       footer: `<button class="button button-primary" type="button" data-dialog-close>Done</button>`
     });
   }
 
   if (state.flow.step === 0) {
     return dialogFrame({
-      title: "Review claim",
-      subtitle: "Offer verified by your wallet",
-      steps: 2,
-      activeStep: 0,
-      body: `
-        <div class="review-card review-hero"><span class="list-icon is-claim">${icon("claim")}</span><strong>86.00 Z00Z</strong><span>Travel refund</span></div>
-        <div class="review-card"><div class="summary-row"><span>From</span><strong class="trust-label">${icon("shield")} Northwind Travel</strong></div><div class="summary-row"><span>You receive</span><strong>86.00 Z00Z</strong></div><div class="summary-row"><span>Ends</span><strong>21 Jul 2026 · 18:00</strong></div><div class="summary-row"><span>Terms</span><strong>One-time refund · no payment required</strong></div></div>
-        <div class="confirmation-note">${icon("shield")} Accepting reveals only the information required for this refund. It does not grant future spending permission.</div>
-        <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Preview: voucher_883c…204a</span><span>Package verified · Main chain</span></div></details>`,
-      footer: `<button class="button button-quiet" type="button" data-dialog-action="claim-reject">Reject</button><button class="button button-primary" type="button" data-dialog-action="claim-accept">Accept claim</button>`
-    });
-  }
-
-  return dialogFrame({
-    title: "Claim accepted",
-    subtitle: "Waiting for final settlement",
-    steps: 2,
-    activeStep: 1,
-    body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Claimed · settling</h3><p>The refund was accepted and is waiting for final settlement. It is not included in your available balance yet.</p><div class="receipt-ref mono">Claim CLM-883C · result tracked automatically</div></div>`,
-    footer: `<button class="button" type="button" data-dialog-action="view-activity">View activity</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
-  });
-}
-
-function budgetDialog() {
-  const data = state.flow.data;
-  if (state.flow.step === 0) {
-    return dialogFrame({
-      title: "Create a budget",
-      subtitle: "A bounded permission you can revoke",
+      title: "Review voucher",
+      subtitle: "Conditional value offered to this wallet",
       steps: 3,
       activeStep: 0,
-      body: `
-        <form class="form-grid" id="budget-entry" novalidate>
-          <div class="field-group"><label class="field-label" for="budget-recipe">Budget recipe</label><select id="budget-recipe" name="recipe"><option>Service allowance</option><option>Recurring allowance</option><option>Single-use permission</option></select><p class="field-hint">Recipes prevent accidentally broad permissions.</p></div>
-          <div class="field-group"><label class="field-label" for="budget-delegate">Service or person</label><input id="budget-delegate" name="delegate" value="${escapeHtml(data.delegate)}" placeholder="Verified request or known identity" required aria-describedby="budget-delegate-error"><p class="field-error" id="budget-delegate-error"></p></div>
-          <div class="field-group"><label class="field-label" for="budget-limit">Maximum total</label><div class="input-with-affix"><input id="budget-limit" name="limit" type="number" min="1" max="12480.75" step="0.01" inputmode="decimal" value="${escapeHtml(data.limit)}" placeholder="0.00" required aria-describedby="budget-limit-error"><span class="input-affix">Z00Z</span></div><p class="field-error" id="budget-limit-error"></p></div>
-          <div class="field-group"><label class="field-label" for="budget-purpose">Allowed purpose</label><select id="budget-purpose" name="purpose"><option>Design services</option><option>Compute services</option><option>Travel services</option><option>Single purchase</option></select></div>
-          <div class="field-group"><label class="field-label" for="budget-expiry">Ends</label><input id="budget-expiry" name="expiry" type="date" value="2026-08-19" min="2026-07-20" required></div>
-        </form>`,
-      footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="budget-entry">Review budget ${icon("chevron")}</button>`
+      body: `<div class="review-card review-hero"><span class="list-icon is-claim">${icon("claim")}</span><strong>86.00 Z00Z</strong><span>Travel refund voucher</span></div><div class="review-card"><div class="summary-row"><span>Issuer</span><strong>Northwind Travel</strong></div><div class="summary-row"><span>Backing</span><strong>Consumed asset reference</strong></div><div class="summary-row"><span>Face / remaining</span><strong>86.00 / 86.00 Z00Z</strong></div><div class="summary-row"><span>Acceptance</span><strong>Required</strong></div><div class="summary-row"><span>Ends</span><strong>21 Jul 2026 · 18:00</strong></div><div class="summary-row"><span>Holder options</span><strong>Accept · Reject</strong></div></div><div class="confirmation-note">${icon("shield")} Accepting changes the voucher lifecycle. It does not directly add 86.00 Z00Z to Available.</div>`,
+      footer: `<button class="button button-danger" type="button" data-dialog-action="voucher-reject">Reject voucher</button><button class="button button-primary" type="button" data-dialog-action="voucher-accept">Accept voucher</button>`
     });
   }
 
   if (state.flow.step === 1) {
     return dialogFrame({
-      title: "Review budget",
-      subtitle: "Check what is and is not allowed",
+      title: "Voucher accepted",
+      subtitle: "Now redeemable",
       steps: 3,
       activeStep: 1,
-      body: `
-        <div class="review-card review-hero"><span class="list-icon is-warning">${icon("budget")}</span><strong>${escapeHtml(data.limit)} Z00Z</strong><span>maximum for ${escapeHtml(data.delegate)}</span></div>
-        <div class="review-card"><div class="summary-row"><span>Can use</span><strong>Up to ${escapeHtml(data.limit)} Z00Z total</strong></div><div class="summary-row"><span>Only for</span><strong>${escapeHtml(data.purpose)}</strong></div><div class="summary-row"><span>Ends</span><strong>${escapeHtml(data.expiryLabel)}</strong></div><div class="summary-row"><span>Cannot</span><strong>Transfer permission or exceed limit</strong></div><div class="summary-row"><span>Your control</span><strong>Revoke from this wallet</strong></div></div>
-        <div class="confirmation-note">${icon("alert")} Already-authorized or in-flight use may still settle after revocation. Final behavior follows the live protocol state.</div>`,
-      footer: `<button class="button" type="button" data-dialog-action="budget-back">Back</button><button class="button button-primary" type="button" data-dialog-action="budget-submit">Create budget</button>`
+      body: `<div class="result-state"><span class="result-icon">${icon("check")}</span><h3>Accepted · redeemable</h3><p>The voucher remains conditional value. Redeem it to request its asset outcome.</p></div><div class="review-card"><div class="summary-row"><span>Remaining value</span><strong>86.00 Z00Z</strong></div><div class="summary-row"><span>Next action</span><strong>Redeem full voucher</strong></div></div>`,
+      footer: `<button class="button" type="button" data-dialog-close>Later</button><button class="button button-primary" type="button" data-dialog-action="voucher-redeem">Redeem voucher</button>`
     });
   }
 
   return dialogFrame({
-    title: "Budget created",
-    subtitle: "Bounded permission is active",
+    title: "Voucher redeemed",
+    subtitle: "Asset outcome is settling",
     steps: 3,
     activeStep: 2,
-    body: `<div class="result-state"><span class="result-icon">${icon("check")}</span><h3>Budget active</h3><p>${escapeHtml(data.delegate)} can use up to ${escapeHtml(data.limit)} Z00Z for ${escapeHtml(data.purpose).toLowerCase()} until ${escapeHtml(data.expiryLabel)}.</p><div class="receipt-ref mono">Budget BGT-40A1 · revocable from this wallet</div></div>`,
-    footer: `<button class="button" type="button" data-dialog-action="go-actions">View budgets</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
+    body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Redeemed · receiving</h3><p>The voucher lifecycle is redeemed. Its asset outcome is waiting for authoritative settlement and is not Available yet.</p></div>`,
+    footer: `<button class="button" type="button" data-dialog-action="view-activity">View activity</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
 }
 
-function budgetDetailDialog() {
+function permissionDialog() {
+  const data = state.flow.data;
+  if (state.flow.step === 0) {
+    return dialogFrame({
+      title: "Give permission",
+      subtitle: "Delegate a narrower right you already hold",
+      steps: 3,
+      activeStep: 0,
+      body: `
+        <form class="form-grid" id="permission-entry" novalidate>
+          <div class="field-group"><label class="field-label" for="permission-source">Held authority</label><select id="permission-source" name="source"><option>Deploy to staging · machine capability</option></select><p class="field-hint">Only held, delegable authority is offered. Right creation is a separate issuer capability.</p></div>
+          <div class="field-group"><label class="field-label" for="permission-delegate">Delegate</label><input id="permission-delegate" name="delegate" value="${escapeHtml(data.delegate)}" placeholder="Verified service or known identity" required aria-describedby="permission-delegate-error"><p class="field-error" id="permission-delegate-error"></p></div>
+          <div class="field-group"><label class="field-label" for="permission-action">Allowed action</label><select id="permission-action" name="action"><option>Deploy release</option><option>View status</option></select></div>
+          <div class="field-group"><label class="field-label" for="permission-scope">Scope</label><input id="permission-scope" name="scope" value="${escapeHtml(data.scope)}" readonly></div>
+          <div class="field-group"><label class="field-label" for="permission-uses">Maximum uses</label><input id="permission-uses" name="uses" type="number" min="1" max="5" inputmode="numeric" value="${escapeHtml(data.uses)}" required aria-describedby="permission-uses-error"><p class="field-error" id="permission-uses-error"></p></div>
+          <div class="field-group"><label class="field-label" for="permission-expiry">Ends</label><input id="permission-expiry" name="expiry" type="date" value="${escapeHtml(data.expiry)}" min="2026-07-20" required></div>
+        </form>`,
+      footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="permission-entry">Review permission ${icon("chevron")}</button>`
+    });
+  }
+
+  if (state.flow.step === 1) {
+    return dialogFrame({
+      title: "Review permission",
+      subtitle: "The delegated right can only become narrower",
+      steps: 3,
+      activeStep: 1,
+      body: `
+        <div class="review-card review-hero"><span class="list-icon is-warning">${icon("permission")}</span><strong>${escapeHtml(data.uses)} uses</strong><span>for ${escapeHtml(data.delegate)}</span></div>
+        <div class="review-card"><div class="summary-row"><span>Class</span><strong>Machine capability</strong></div><div class="summary-row"><span>Can</span><strong>${escapeHtml(data.action)}</strong></div><div class="summary-row"><span>Only within</span><strong>${escapeHtml(data.scope)}</strong></div><div class="summary-row"><span>Use limit</span><strong>${escapeHtml(data.uses)}</strong></div><div class="summary-row"><span>Ends</span><strong>${escapeHtml(data.expiryLabel)}</strong></div><div class="summary-row"><span>Cannot</span><strong>Sub-delegate or broaden scope</strong></div><div class="summary-row"><span>Monetary value</span><strong>None · Right is zero-value</strong></div></div>
+        <div class="confirmation-note">${icon("alert")} Delegation transfers bounded authority. Revocation cannot be described as cancelling work already accepted by the protocol.</div>`,
+      footer: `<button class="button" type="button" data-dialog-action="permission-back">Back</button><button class="button button-primary" type="button" data-dialog-action="permission-submit">Give permission</button>`
+    });
+  }
+
   return dialogFrame({
-    title: "Design services",
-    subtitle: "Active budget for Studio North",
+    title: "Permission delegated",
+    subtitle: "Bounded authority is being tracked",
+    steps: 3,
+    activeStep: 2,
+    body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Delegating · settling</h3><p>${escapeHtml(data.delegate)} may ${escapeHtml(data.action).toLowerCase()} within ${escapeHtml(data.scope)} up to ${escapeHtml(data.uses)} times, ending ${escapeHtml(data.expiryLabel)}.</p><div class="receipt-ref mono">Right RGT-40A1 · zero-value · attenuation only</div></div>`,
+    footer: `<button class="button" type="button" data-dialog-action="go-actions">View permissions</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
+  });
+}
+
+function permissionDetailDialog() {
+  return dialogFrame({
+    title: "Delivery receipt access",
+    subtitle: "Held data-access permission",
     body: `
-      <div class="review-card review-hero"><span class="list-icon is-warning">${icon("budget")}</span><strong>380.00 Z00Z</strong><span>remaining of 500.00 Z00Z</span><span class="budget-progress"><span class="progress-track"><span class="progress-bar" style="width:24%"></span></span></span></div>
-      <div class="review-card"><div class="summary-row"><span>Allowed purpose</span><strong>Design services</strong></div><div class="summary-row"><span>Used</span><strong>120.00 Z00Z</strong></div><div class="summary-row"><span>Ends</span><strong>31 Jul 2026</strong></div><div class="summary-row"><span>Status</span><strong><span class="status-badge is-active">Active</span></strong></div></div>
-      <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Right: right_54ac…1f88</span><span>Scope: provider/studio-north/design</span><span>Lifecycle: delegated → active</span></div></details>`,
-    footer: `<button class="button button-danger" type="button" data-dialog-action="budget-revoke">Revoke budget</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
+      <div class="review-card review-hero"><span class="list-icon is-warning">${icon("permission")}</span><strong>2 of 5 uses</strong><span>remaining</span></div>
+      <div class="review-card"><div class="summary-row"><span>Class</span><strong>Data access</strong></div><div class="summary-row"><span>Allowed action</span><strong>View receipt</strong></div><div class="summary-row"><span>Scope</span><strong>receipts.example</strong></div><div class="summary-row"><span>Delegation</span><strong>Forbidden</strong></div><div class="summary-row"><span>Ends</span><strong>31 Jul 2026</strong></div><div class="summary-row"><span>Monetary value</span><strong>None</strong></div><div class="summary-row"><span>Status</span><strong><span class="status-badge is-active">Held</span></strong></div></div>
+      <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Right: right_54ac…1f88</span><span>Class: data_access</span><span>Lifecycle: granted → held</span></div></details>`,
+    footer: `<button class="button button-danger" type="button" data-dialog-action="permission-revoke">Revoke permission</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
 }
 
@@ -663,7 +734,7 @@ function activityDialog(item) {
     subtitle: "Activity details",
     body: `
       <div class="review-card review-hero"><span class="list-icon ${item.direction === "in" ? "is-claim" : ""}">${icon(item.direction === "in" ? "receive" : item.direction === "out" ? "send" : "activity")}</span><strong>${escapeHtml(item.amount || statusText(item.status))}</strong><span>${escapeHtml(item.detail)}</span></div>
-      <div class="review-card"><div class="summary-row"><span>Status</span><strong><span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span></strong></div><div class="summary-row"><span>When</span><strong>${escapeHtml(item.time)}</strong></div><div class="summary-row"><span>Fee</span><strong>${item.type === "money" ? "Included" : "Not applicable"}</strong></div><div class="summary-row"><span>Privacy</span><strong>OnionNet verified</strong></div><div class="summary-row"><span>Carrier & chain</span><strong>Reticulum · Main</strong></div></div>
+      <div class="review-card"><div class="summary-row"><span>Status</span><strong><span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span></strong></div><div class="summary-row"><span>When</span><strong>${escapeHtml(item.time)}</strong></div><div class="summary-row"><span>Fee</span><strong>${item.type === "money" ? "Included" : "Not applicable"}</strong></div><div class="summary-row"><span>Privacy</span><strong>Target simulation · not live telemetry</strong></div><div class="summary-row"><span>Carrier & chain</span><strong>Reticulum target · Main mock</strong></div></div>
       <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>ID: ${escapeHtml(item.id)}-b4c9…8e20</span><span>Lifecycle: ${lifecycle}</span><span>Receipt: public_4a92…c71e</span></div></details>`,
     footer: `<button class="button" type="button" data-demo-action="copy-receipt">${icon("copy")} Copy receipt</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
@@ -675,7 +746,7 @@ function connectionDialog() {
     subtitle: "Overlay, carrier, and chain are separate",
     body: `
       <p class="eyebrow">Privacy mode · target simulation</p>
-      <div class="connection-options"><div class="connection-option"><span class="health-orb is-good"></span><span><strong>OnionNet</strong><small>Route verified · standard floor · 3 hops</small></span><span class="status-badge is-settled">Privacy overlay</span></div><div class="connection-option"><span class="health-orb is-good"></span><span><strong>Reticulum</strong><small>Primary resilient carrier · direct underlay</small></span><span class="status-badge is-active">Carrier</span></div><div class="connection-option"><span class="health-orb"></span><span><strong>Tor</strong><small>Optional compatibility carrier · disabled</small></span><span class="status-badge">Off</span></div></div>
+      <div class="connection-options"><div class="connection-option"><span class="health-orb"></span><span><strong>OnionNet</strong><small>Target overlay example · 3 hops</small></span><span class="status-badge is-ready">Target</span></div><div class="connection-option"><span class="health-orb"></span><span><strong>Reticulum</strong><small>Target primary resilient carrier</small></span><span class="status-badge is-ready">Target</span></div><div class="connection-option"><span class="health-orb"></span><span><strong>Tor</strong><small>Current switch method is a placeholder</small></span><span class="status-badge">Stub</span></div></div>
       <p class="eyebrow" style="margin-top:22px">Chain</p>
       <div class="connection-options"><div class="connection-option"><span class="environment-tag is-main">MAIN</span><span><strong>Main</strong><small>Real private value</small></span><span class="status-badge is-settled">In use</span></div><button class="connection-option" type="button" data-demo-action="test-network"><span class="environment-tag is-test">TEST</span><span><strong>Test</strong><small>Test value only · persistent blue label</small></span>${icon("chevron")}</button><button class="connection-option" type="button" data-demo-action="dev-network"><span class="environment-tag is-dev">DEV</span><span><strong>Dev</strong><small>Development value · persistent amber label</small></span>${icon("chevron")}</button></div>
       <div class="capability-note">${icon("alert")} <span><strong>Phase 080 target</strong><small>Current network RPC is stubbed; production must not show these properties until authoritative.</small></span></div>`,
@@ -687,7 +758,7 @@ function notificationsDialog() {
   return dialogFrame({
     title: "Notifications",
     subtitle: "One item needs attention",
-    body: `<div class="attention-list"><button class="attention-item" type="button" data-dialog-action="notification-claim"><span class="list-icon is-claim">${icon("claim")}</span><span class="list-copy"><strong>Travel refund expires soon</strong><small>Review 86.00 Z00Z from Northwind Travel</small></span>${icon("chevron")}</button><div class="attention-item"><span class="list-icon">${icon("backup")}</span><span class="list-copy"><strong>Backup verified</strong><small>Your 10 Jul local backup passed integrity checks</small></span><span class="status-badge is-settled">Done</span></div></div>`,
+    body: `<div class="attention-list"><button class="attention-item" type="button" data-dialog-action="notification-voucher"><span class="list-icon is-claim">${icon("claim")}</span><span class="list-copy"><strong>Travel refund voucher expires soon</strong><small>Review 86.00 Z00Z from Northwind Travel</small></span>${icon("chevron")}</button><div class="attention-item"><span class="list-icon">${icon("backup")}</span><span class="list-copy"><strong>Backup verified</strong><small>Your 10 Jul local backup passed integrity checks</small></span><span class="status-badge is-settled">Done</span></div></div>`,
     footer: `<button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
 }
@@ -811,10 +882,11 @@ function renderDialog() {
   const type = state.flow.type;
   const content = type === "pay" ? payDialog()
     : type === "receive" ? receiveDialog()
-    : type === "claim" ? claimDialog(false)
-    : type === "claim-settled" ? claimDialog(true)
-    : type === "budget" ? budgetDialog()
-    : type === "budget-detail" ? budgetDetailDialog()
+    : type === "asset-claim" ? assetClaimDialog()
+    : type === "voucher-review" ? voucherDialog(false)
+    : type === "voucher-settled" ? voucherDialog(true)
+    : type === "permission" ? permissionDialog()
+    : type === "permission-detail" ? permissionDetailDialog()
     : type === "activity" ? activityDialog(state.flow.data.item)
     : type === "connection" ? connectionDialog()
     : type === "wallets" ? walletsDialog()
@@ -827,7 +899,7 @@ function renderDialog() {
 function defaultFlowData(type) {
   if (type === "pay") return { recipient: "", recipientLabel: "", amount: "", memo: "" };
   if (type === "receive") return { amount: "", note: "" };
-  if (type === "budget") return { delegate: "", limit: "", purpose: "Design services", expiry: "2026-08-19", expiryLabel: "19 Aug 2026" };
+  if (type === "permission") return { delegate: "", action: "Deploy release", scope: "staging.example", uses: "1", expiry: "2026-08-19", expiryLabel: "19 Aug 2026" };
   if (type === "create-wallet") return { name: "" };
   return {};
 }
@@ -908,24 +980,24 @@ function validatePay(form) {
   renderDialog();
 }
 
-function validateBudget(form) {
+function validatePermission(form) {
   const delegate = form.elements.delegate;
-  const limit = form.elements.limit;
+  const uses = form.elements.uses;
   let valid = true;
-  document.querySelector("#budget-delegate-error").textContent = "";
-  document.querySelector("#budget-limit-error").textContent = "";
+  document.querySelector("#permission-delegate-error").textContent = "";
+  document.querySelector("#permission-uses-error").textContent = "";
   delegate.removeAttribute("aria-invalid");
-  limit.removeAttribute("aria-invalid");
+  uses.removeAttribute("aria-invalid");
 
   if (delegate.value.trim().length < 3) {
-    document.querySelector("#budget-delegate-error").textContent = "Choose a verified service or known person.";
+    document.querySelector("#permission-delegate-error").textContent = "Choose a verified service or known person.";
     delegate.setAttribute("aria-invalid", "true");
     valid = false;
   }
-  const number = Number(limit.value);
-  if (!Number.isFinite(number) || number < 1 || number > 12480.75) {
-    document.querySelector("#budget-limit-error").textContent = "Set a maximum between 1.00 and 12,480.75 Z00Z.";
-    limit.setAttribute("aria-invalid", "true");
+  const useCount = Number(uses.value);
+  if (!Number.isInteger(useCount) || useCount < 1 || useCount > 5) {
+    document.querySelector("#permission-uses-error").textContent = "Choose between 1 and 5 uses, within the held authority.";
+    uses.setAttribute("aria-invalid", "true");
     valid = false;
   }
   if (!valid) {
@@ -936,8 +1008,9 @@ function validateBudget(form) {
   const expiry = new Date(`${form.elements.expiry.value}T12:00:00`);
   state.flow.data = {
     delegate: delegate.value.trim(),
-    limit: number.toFixed(2),
-    purpose: form.elements.purpose.value,
+    action: form.elements.action.value,
+    scope: form.elements.scope.value,
+    uses: String(useCount),
     expiry: form.elements.expiry.value,
     expiryLabel: new Intl.DateTimeFormat("en", { day: "2-digit", month: "short", year: "numeric" }).format(expiry)
   };
@@ -965,18 +1038,24 @@ function handleDialogAction(action, button) {
   } else if (action === "pay-submit") {
     setButtonLoading(button, "Sending once…");
     window.setTimeout(completePay, 650);
-  } else if (action === "budget-back") {
+  } else if (action === "permission-back") {
     state.flow.step = 0;
     renderDialog();
-  } else if (action === "budget-submit") {
-    setButtonLoading(button, "Creating…");
+  } else if (action === "permission-submit") {
+    setButtonLoading(button, "Delegating…");
     window.setTimeout(() => { state.flow.step = 2; renderDialog(); }, 650);
-  } else if (action === "claim-accept") {
-    setButtonLoading(button, "Accepting…");
+  } else if (action === "asset-claim-submit") {
+    setButtonLoading(button, "Verifying once…");
     window.setTimeout(() => { state.flow.step = 1; renderDialog(); }, 600);
-  } else if (action === "claim-reject") {
-    showToast("Reject is a separate destructive confirmation in production.", "alert");
-  } else if (action === "budget-revoke") {
+  } else if (action === "voucher-accept") {
+    setButtonLoading(button, "Accepting voucher…");
+    window.setTimeout(() => { state.flow.step = 1; renderDialog(); }, 600);
+  } else if (action === "voucher-redeem") {
+    setButtonLoading(button, "Redeeming…");
+    window.setTimeout(() => { state.flow.step = 2; renderDialog(); }, 600);
+  } else if (action === "voucher-reject") {
+    showToast("Rejecting a voucher requires a separate consequence confirmation.", "alert");
+  } else if (action === "permission-revoke") {
     showToast("Revocation requires re-authentication and consequence review.", "alert");
   } else if (action === "view-activity") {
     closeDialog();
@@ -988,9 +1067,9 @@ function handleDialogAction(action, button) {
     state.view = "wallet";
     state.walletSection = "permissions";
     render({ focusMain: true });
-  } else if (action === "notification-claim") {
+  } else if (action === "notification-voucher") {
     closeDialog();
-    window.setTimeout(() => openFlow("claim", button), 0);
+    window.setTimeout(() => openFlow("voucher-review", button), 0);
   } else if (action === "select-wallet") {
     closeDialog();
     showToast("Everyday wallet remains open in this concept.");
@@ -1052,6 +1131,8 @@ function handleDemoAction(action, button) {
     showToast("Backup destination selection would open next.");
   } else if (action === "restore") {
     showToast("Restore validates integrity before any replacement.", "alert");
+  } else if (action === "asset-review") {
+    showToast("Declared domain and metadata are not the same as an authoritative trust verdict.", "alert");
   } else if (["motion", "compact", "expert"].includes(action)) {
     const pressed = button.getAttribute("aria-pressed") === "true";
     button.setAttribute("aria-pressed", String(!pressed));
@@ -1061,7 +1142,7 @@ function handleDemoAction(action, button) {
   } else if (action === "load-policy") {
     showToast("Profile would be parsed, signature-checked, capability-checked, and previewed before Apply.");
   } else if (action === "why-blocked") {
-    showToast("Blocked by Personal Safe v1.4: maximum transaction is 2,500 Z00Z.", "alert");
+    showToast("Target preview: Personal Safe v1.4 would block this above its 2,500 Z00Z maximum.", "alert");
   } else if (action === "config-validate") {
     showToast("Target document is valid; no secret paths detected.");
   } else if (action === "config-apply") {
@@ -1128,14 +1209,29 @@ document.addEventListener("click", (event) => {
 
   const settingButton = event.target.closest("[data-settings-section]");
   if (settingButton) {
-    state.settingsSection = settingButton.dataset.settingsSection;
+    const section = settingButton.dataset.settingsSection;
+    if (section === "network") {
+      if (state.settingsSection === "network" && state.isNetworkOpen) {
+        state.isNetworkOpen = false;
+        state.networkSection = "overview";
+      } else {
+        state.isNetworkOpen = true;
+        state.networkSection = "overview";
+      }
+      state.settingsSection = "network";
+    } else {
+      state.settingsSection = section;
+      state.isNetworkOpen = false;
+    }
     render();
     return;
   }
 
   const networkButton = event.target.closest("[data-network-section]");
   if (networkButton) {
+    state.settingsSection = "network";
     state.networkSection = networkButton.dataset.networkSection;
+    state.isNetworkOpen = true;
     render();
     return;
   }
@@ -1178,8 +1274,8 @@ document.addEventListener("submit", (event) => {
     };
     state.flow.step = 1;
     renderDialog();
-  } else if (event.target.id === "budget-entry") {
-    validateBudget(event.target);
+  } else if (event.target.id === "permission-entry") {
+    validatePermission(event.target);
   } else if (event.target.id === "create-wallet-entry") {
     const name = event.target.elements.name;
     const password = event.target.elements.password;
@@ -1247,6 +1343,7 @@ document.addEventListener("submit", (event) => {
       return;
     }
     input.removeAttribute("aria-invalid");
+    input.value = "";
     state.locked = false;
     lockScreen.hidden = true;
     appShell.hidden = false;
@@ -1261,7 +1358,7 @@ document.addEventListener("input", (event) => {
   if (event.target.id === "activity-search") {
     const term = event.target.value.trim().toLowerCase();
     const items = state.activities.filter((item) => {
-      const matchesFilter = state.activityFilter === "all" || item.type === state.activityFilter || (state.activityFilter === "attention" && ["settling", "attention"].includes(item.status));
+      const matchesFilter = matchesActivityFilter(item, state.activityFilter);
       return matchesFilter && `${item.title} ${item.detail} ${item.id}`.toLowerCase().includes(term);
     });
     document.querySelector("#activity-results").innerHTML = activityRows(items);

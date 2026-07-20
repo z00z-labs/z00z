@@ -111,8 +111,9 @@ fn canonical_checkpoint(
         .expect("persist execution input");
     let manifest = checkpoint_fixtures::archive_manifest(&draft, &exec, exec_id);
     let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    let statement_core = checkpoint_fixtures::statement_core(&exec);
     checkpoint_store
-        .stage_publication_contract(exec_id, &manifest, &da_reference)
+        .stage_publication_contract(exec_id, &statement_core, &manifest, &da_reference)
         .expect("stage canonical checkpoint evidence");
     let link = checkpoint_store
         .seal_artifact(
@@ -156,8 +157,9 @@ fn canonical_noop_checkpoint(
         .expect("persist typed noop input");
     let manifest = checkpoint_fixtures::archive_manifest(&draft, &exec, exec_id);
     let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    let statement_core = checkpoint_fixtures::statement_core(&exec);
     checkpoint_store
-        .stage_publication_contract(exec_id, &manifest, &da_reference)
+        .stage_publication_contract(exec_id, &statement_core, &manifest, &da_reference)
         .expect("stage canonical checkpoint evidence");
     let link = checkpoint_store
         .seal_artifact(
@@ -282,8 +284,8 @@ fn recursive_v2_trace_replays_one_real_hjmt_commit_and_binds_the_result() {
     );
     assert_eq!(
         declared_counts.count(RecursiveTraceOpcodeV2::CommitTypedEvent),
-        2,
-        "every replay row must have one separately counted commit row"
+        4,
+        "the sole typed-commit lane must contain the four ordered checkpoint-core commitments"
     );
     assert_eq!(
         declared_counts.count(RecursiveTraceOpcodeV2::UniquenessSorted),

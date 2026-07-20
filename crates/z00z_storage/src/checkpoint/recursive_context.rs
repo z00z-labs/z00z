@@ -566,30 +566,6 @@ impl RecursiveAuthoritySnapshotV2 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn snapshot_captures_the_definition_root_used_by_the_v2_root() {
-        let store = SettlementStore::new();
-        let snapshot =
-            RecursiveSnapshotHandleV2::from_store(PrepSnapshotId::new([7; 32]), &store, 7)
-                .expect("storage-owned snapshot");
-
-        assert_eq!(
-            snapshot.pre_definition_root(),
-            store.recursive_v2_definition_root()
-        );
-        assert_eq!(
-            snapshot.root(),
-            store
-                .settlement_root_v2(7)
-                .expect("derived settlement root")
-        );
-    }
-}
-
 fn repository_fixture_authority(
     store: &SettlementStore,
 ) -> Result<RecursiveAuthorityContextV2, RecursiveV2Error> {
@@ -624,4 +600,28 @@ fn repository_config_digest() -> Result<[u8; 32], RecursiveV2Error> {
     let bytes = read_file_bounded(path, RECURSIVE_V2_CONFIG_MAX_BYTES)
         .map_err(|_| RecursiveV2Error::Authority)?;
     Ok(sha256_256_simple(&bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_captures_the_definition_root_used_by_the_v2_root() {
+        let store = SettlementStore::new();
+        let snapshot =
+            RecursiveSnapshotHandleV2::from_store(PrepSnapshotId::new([7; 32]), &store, 7)
+                .expect("storage-owned snapshot");
+
+        assert_eq!(
+            snapshot.pre_definition_root(),
+            store.recursive_v2_definition_root()
+        );
+        assert_eq!(
+            snapshot.root(),
+            store
+                .settlement_root_v2(7)
+                .expect("derived settlement root")
+        );
+    }
 }

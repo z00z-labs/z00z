@@ -1,9 +1,5 @@
 //! Sole public path for the live recursive checkpoint V2 contract.
 
-// The Nova implementation is deliberately private to the storage owner.  In
-// particular, no dependency-specific proof type crosses this facade.
-pub(crate) mod nova;
-
 pub use super::{
     canonical_transition::{
         CanonicalCheckpointTransitionV2, SettlementRootCutoverModeV2,

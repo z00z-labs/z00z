@@ -7,6 +7,7 @@ use z00z_crypto::{
     CheckpointSha256BlockVisitError, CheckpointSha256V2, CheckpointShaRole,
 };
 use z00z_utils::io::PrivateSpoolFile;
+use zeroize::{Zeroize, Zeroizing};
 
 use super::{
     recursive_circuit::RecursiveCircuitProfileV2,
@@ -166,8 +167,6 @@ impl RecursiveTraceOpcodeV2 {
     /// Commit the complete frozen opcode alphabet in numeric order.
     #[must_use]
     pub(crate) fn grammar_digest() -> [u8; 32] {
-        use z00z_crypto::{sha256_256_role, CheckpointShaRole};
-
         const OPCODES: [u8; RECURSIVE_TRACE_OPCODE_COUNT_V2] =
             [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
         sha256_256_role(
@@ -256,6 +255,18 @@ pub struct RecursiveTraceEventV2 {
     opcode: RecursiveTraceOpcodeV2,
     object_id: [u8; 32],
     payload: Vec<u8>,
+}
+
+impl Zeroize for RecursiveTraceEventV2 {
+    fn zeroize(&mut self) {
+        self.payload.zeroize();
+    }
+}
+
+impl Drop for RecursiveTraceEventV2 {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
 }
 
 /// One zero-padded, ordered view of a canonical source record.
@@ -3218,7 +3229,7 @@ fn spool_read_exact(
 fn read_spooled_trace_record(
     spool: &mut PrivateSpoolFile,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<Option<Vec<u8>>, RecursiveV2Error> {
+) -> Result<Option<Zeroizing<Vec<u8>>>, RecursiveV2Error> {
     let mut tag = [0_u8; 1];
     if spool.read_chunk(&mut tag)? == 0 {
         return Ok(None);
@@ -3239,7 +3250,7 @@ fn read_spooled_trace_record(
     let total = TRACE_EVENT_HEADER_BYTES_V2
         .checked_add(payload_len)
         .ok_or(RecursiveV2Error::Overflow)?;
-    let mut bytes = vec![0_u8; total];
+    let mut bytes = Zeroizing::new(vec![0_u8; total]);
     bytes[0] = tag[0];
     bytes[1..TRACE_EVENT_HEADER_BYTES_V2].copy_from_slice(&rest);
     spool_read_exact(spool, &mut bytes[TRACE_EVENT_HEADER_BYTES_V2..])?;
@@ -3253,7 +3264,8 @@ mod tests {
     use super::{
         decode_hash_control, decode_trace_chunk_control, emit_derived_hash_controls,
         emit_derived_trace_chunks, HashControlSchemaV2, HashControlStageV2, RecursiveTraceEventV2,
-        RecursiveTraceOpcodeV2, RecursiveTransitionTraceSourceV2, TRACE_CANONICAL_CHUNK_BYTES_V2,
+        RecursiveTraceOpcodeV2, RecursiveTransitionTraceSourceV2, UniquenessListHashJobV2,
+        UniquenessTranscriptHashJobV2, TRACE_CANONICAL_CHUNK_BYTES_V2, TRACE_HASH_ROLE_TAG_V2,
     };
     use crate::{
         checkpoint::{
@@ -3734,5 +3746,64 @@ mod tests {
             precommit.output_original_ids_digest(),
             precommit.output_sorted_ids_digest()
         );
+    }
+
+    #[test]
+    fn secret_canary_stays_redacted() {
+        const CANARY: &str = "z00z-recursive-secret-canary-7f64b7c8";
+        let error = match RecursiveTraceEventV2::new(
+            0,
+            RecursiveTraceOpcodeV2::ReplayInput,
+            [0; 32],
+            CANARY.as_bytes().to_vec(),
+            &profile(),
+        ) {
+            Ok(_) => panic!("zero object identity must reject"),
+            Err(error) => error,
+        };
+        let diagnostic = format!("{error:?} {error}");
+        assert!(
+            !diagnostic.contains(CANARY),
+            "recursive trace errors must never retain source payload bytes"
+        );
+    }
+
+    #[test]
+    fn trace_event_payload_zeroizes_in_place() {
+        use zeroize::Zeroize;
+
+        let mut event = RecursiveTraceEventV2::new(
+            1,
+            RecursiveTraceOpcodeV2::ReplayInput,
+            [1; 32],
+            vec![0xa5; 97],
+            &profile(),
+        )
+        .expect("bounded secret-boundary fixture");
+        event.zeroize();
+        assert!(event.payload.is_empty());
+    }
+
+    #[test]
+    fn hash_job_registry_is_injective() {
+        let mut rows = std::collections::BTreeSet::new();
+        assert!(rows.insert((
+            HashControlSchemaV2::SourceRecord as u8,
+            TRACE_HASH_ROLE_TAG_V2,
+        )));
+        assert!(rows.insert((
+            HashControlSchemaV2::TracePrecommit as u8,
+            TRACE_HASH_ROLE_TAG_V2,
+        )));
+        for job in UniquenessListHashJobV2::ALL {
+            assert!(rows.insert((HashControlSchemaV2::UniquenessList as u8, job.role_tag(),)));
+        }
+        for job in UniquenessTranscriptHashJobV2::ALL {
+            assert!(rows.insert((
+                HashControlSchemaV2::UniquenessTranscript as u8,
+                job.role_tag(),
+            )));
+        }
+        assert_eq!(rows.len(), 20, "every theorem hash job has one schema row");
     }
 }

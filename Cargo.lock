@@ -8207,6 +8207,7 @@ dependencies = [
  "z00z_crypto",
  "z00z_utils",
  "z00z_wallets",
+ "zeroize",
 ]
 
 [[package]]

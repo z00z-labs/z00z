@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::OnceLock,
+    path::Path,
+    sync::{Mutex, OnceLock},
 };
 
 use jmt::{proof::UpdateMerkleProof, KeyHash, RootHash, SimpleHasher};
@@ -9,7 +10,13 @@ use sha2::{Digest, Sha256};
 use z00z_crypto::{
     expert::hash_domain, frame_bytes, hash_zk::hash_zk, CheckpointSha256V2, CheckpointShaRole,
 };
-use z00z_utils::codec::{BincodeCodec, Codec};
+use z00z_utils::{
+    codec::{BincodeCodec, Codec},
+    io::PrivateSpoolFile,
+};
+use zeroize::{Zeroize, Zeroizing};
+
+use crate::checkpoint::RECURSIVE_HJMT_SEGMENT_BYTES_V2;
 
 use super::proof::{
     chk_blob_settlement, hjmt_default_child_commitment, hjmt_default_value_commitment,
@@ -71,6 +78,29 @@ const JMT_CIRCUIT_RAW_BLOCK_BYTES_V2: usize = 64;
 // the derived old-parent node: 19 framing bytes plus four 64-byte blocks.
 const JMT_CIRCUIT_MAX_RECORD_BYTES_V2: usize = 403;
 pub(crate) const JMT_CIRCUIT_HEADER_BYTES_V2: usize = 1 + 1 + 1 + 32 + 4;
+const JMT_SEGMENT_MAGIC_V2: [u8; 8] = *b"Z00ZJSG2";
+const JMT_SEGMENT_VERSION_V2: u8 = 1;
+const JMT_SEGMENT_ROLE_BYTES_V2: usize = 1 + 32 + 4 + 32;
+const JMT_SEGMENT_HEADER_BYTES_V2: usize = 8
+    + 1
+    + 32
+    + 8
+    + 1
+    + 4
+    + JMT_SEGMENT_ROLE_BYTES_V2
+    + 4
+    + 4
+    + 4
+    + 4
+    + 4
+    + 8
+    + 8
+    + 32
+    + 32
+    + 4
+    + 32;
+const JMT_SEGMENT_FRAME_BYTES_V2: usize = 4;
+const JMT_SEGMENT_SPOOL_MAX_BYTES_V2: u64 = 64 * 1024 * 1024;
 static BATCH_PROOF_TRANSCRIPT_DOMAIN: OnceLock<[u8; 32]> = OnceLock::new();
 
 type TerminalRootKeyV2 = ([u8; 32], u32, [u8; 32]);
@@ -229,6 +259,92 @@ pub(crate) struct JmtUpdateOpV2 {
     value: Option<Vec<u8>>,
 }
 
+impl Zeroize for JmtUpdateOpV2 {
+    fn zeroize(&mut self) {
+        self.key.zeroize();
+        self.prior_value.zeroize();
+        self.value.zeroize();
+    }
+}
+
+impl Drop for JmtUpdateOpV2 {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+#[cfg(test)]
+mod jmt_secret_boundary_tests {
+    use super::{
+        CircuitOperationBuilderV2, JmtInternalWireV2, JmtLeafWireV2, JmtSiblingWireV2,
+        JmtUpdateOpV2,
+    };
+    use zeroize::Zeroize;
+
+    #[test]
+    fn project_owned_jmt_operation_buffers_zeroize_in_place() {
+        let mut operation = JmtUpdateOpV2 {
+            key: [0x11; 32],
+            prior_value: Some(vec![0x22; 73]),
+            value: Some(vec![0x33; 91]),
+        };
+        operation.zeroize();
+        assert_eq!(operation.key, [0; 32]);
+        assert!(operation.prior_value.is_none());
+        assert!(operation.value.is_none());
+    }
+
+    #[test]
+    fn streaming_decoder_operation_buffers_zeroize_in_place() {
+        let mut operation = CircuitOperationBuilderV2 {
+            key: [0x11; 32],
+            prior_value_present: true,
+            expected_prior_value_bytes: 73,
+            prior_value: vec![0x22; 73],
+            next_prior_value_chunk: 2,
+            value_present: true,
+            expected_value_bytes: 91,
+            value: vec![0x33; 91],
+            next_value_chunk: 2,
+            proof_leaf: Some(Some(JmtLeafWireV2 {
+                key_hash: [0x66; 32],
+                value_hash: [0x77; 32],
+            })),
+            expected_siblings: Some(2),
+            siblings: vec![
+                JmtSiblingWireV2::Internal(JmtInternalWireV2 {
+                    left_child: [0x88; 32],
+                    right_child: [0x99; 32],
+                }),
+                JmtSiblingWireV2::Leaf(JmtLeafWireV2 {
+                    key_hash: [0xAA; 32],
+                    value_hash: [0xBB; 32],
+                }),
+            ],
+            proof_closed: false,
+            old_current_hash: Some([0x44; 32]),
+            mutation_case: Some(1),
+            expected_split_siblings: 1,
+            split_siblings: vec![JmtSiblingWireV2::Leaf(JmtLeafWireV2 {
+                key_hash: [0xCC; 32],
+                value_hash: [0xDD; 32],
+            })],
+            new_current_hash: Some([0x55; 32]),
+            new_parent_started: false,
+            coalesced_leaf_seen: false,
+        };
+        operation.zeroize();
+        assert_eq!(operation.key, [0; 32]);
+        assert!(operation.prior_value.is_empty());
+        assert!(operation.value.is_empty());
+        assert!(operation.proof_leaf.is_none());
+        assert!(operation.siblings.is_empty());
+        assert!(operation.split_siblings.is_empty());
+        assert!(operation.old_current_hash.is_none());
+        assert!(operation.new_current_hash.is_none());
+    }
+}
+
 /// Project-owned classification of one upstream update-proof transition.
 ///
 /// It is decoded independently from the opaque pinned-JMT wire and never
@@ -266,10 +382,24 @@ struct JmtLeafWireV2 {
     value_hash: [u8; 32],
 }
 
+impl Zeroize for JmtLeafWireV2 {
+    fn zeroize(&mut self) {
+        self.key_hash.zeroize();
+        self.value_hash.zeroize();
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct JmtInternalWireV2 {
     left_child: [u8; 32],
     right_child: [u8; 32],
+}
+
+impl Zeroize for JmtInternalWireV2 {
+    fn zeroize(&mut self) {
+        self.left_child.zeroize();
+        self.right_child.zeroize();
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -277,6 +407,27 @@ enum JmtSiblingWireV2 {
     Null,
     Internal(JmtInternalWireV2),
     Leaf(JmtLeafWireV2),
+}
+
+impl Zeroize for JmtSiblingWireV2 {
+    fn zeroize(&mut self) {
+        match self {
+            Self::Null => {}
+            Self::Internal(node) => node.zeroize(),
+            Self::Leaf(leaf) => leaf.zeroize(),
+        }
+        *self = Self::Null;
+    }
+}
+
+impl Zeroize for JmtSparseProofWireV2 {
+    fn zeroize(&mut self) {
+        if let Some(leaf) = self.leaf.as_mut() {
+            leaf.zeroize();
+        }
+        self.leaf = None;
+        self.siblings.zeroize();
+    }
 }
 
 impl JmtUpdateOpV2 {
@@ -297,8 +448,10 @@ impl JmtUpdateOpV2 {
         })
     }
 
-    fn into_live(self) -> (KeyHash, Option<Vec<u8>>) {
-        (KeyHash(self.key), self.value)
+    fn into_live(mut self) -> (KeyHash, Option<Vec<u8>>) {
+        let key = KeyHash(self.key);
+        let value = self.value.take();
+        (key, value)
     }
 
     #[cfg(test)]
@@ -1005,17 +1158,880 @@ fn check_jmt_operations(operations: &[JmtUpdateOpV2]) -> Result<(), ProofChkErr>
     Ok(())
 }
 
+/// Immutable identity copied into every sealed HJMT segment.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct JmtTraceSegmentContextV2 {
+    transition_identity: [u8; 32],
+    height: u64,
+}
+
+impl JmtTraceSegmentContextV2 {
+    #[must_use]
+    pub(crate) const fn new(transition_identity: [u8; 32], height: u64) -> Self {
+        Self {
+            transition_identity,
+            height,
+        }
+    }
+}
+
+struct JmtSegmentSpoolV2 {
+    context: JmtTraceSegmentContextV2,
+    spool: PrivateSpoolFile,
+    stream_digest: [u8; 32],
+    segment_count: u32,
+}
+
+/// Single production writer for the versioned segmented HJMT source.
+///
+/// An update is decoded into bounded circuit records twice: the first pass
+/// fixes deterministic segment geometry and the second writes directly to the
+/// private spool.  No complete transition envelope or segment tape is kept in
+/// memory.
+pub(crate) struct SettlementUpdateTraceBuilderV2 {
+    context: JmtTraceSegmentContextV2,
+    spool: PrivateSpoolFile,
+    trace_digest: CheckpointSha256V2,
+    stream_digest: Sha256,
+    update_count: u32,
+    terminal_operation_count: u64,
+    segment_count: u32,
+}
+
+impl SettlementUpdateTraceBuilderV2 {
+    pub(crate) fn create_in(
+        dir: impl AsRef<Path>,
+        context: JmtTraceSegmentContextV2,
+    ) -> Result<Self, ProofChkErr> {
+        Ok(Self {
+            context,
+            spool: PrivateSpoolFile::create_in(dir, JMT_SEGMENT_SPOOL_MAX_BYTES_V2)
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?,
+            trace_digest: CheckpointSha256V2::new(CheckpointShaRole::Trace),
+            stream_digest: <Sha256 as Digest>::new(),
+            update_count: 0,
+            terminal_operation_count: 0,
+            segment_count: 0,
+        })
+    }
+
+    pub(crate) fn push_update(&mut self, update: JmtUpdateTraceV2) -> Result<(), ProofChkErr> {
+        update.verify_native()?;
+        let update_index = self.update_count;
+        let operation_count =
+            u32::try_from(update.operations.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let terminal_operations = update.terminal_operation_count()?;
+        let meta = JmtSegmentUpdateMetaV2::from_update(&update);
+        let resident = SettlementUpdateTraceEnvelopeV2::resident_unchecked(vec![update])?;
+        let payload_cap = usize::try_from(RECURSIVE_HJMT_SEGMENT_BYTES_V2)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+            .checked_sub(JMT_SEGMENT_FRAME_BYTES_V2 + JMT_SEGMENT_HEADER_BYTES_V2)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+
+        let mut geometry = Vec::<(u32, u32, usize)>::new();
+        let mut first_record = 0_u32;
+        let mut record_count = 0_u32;
+        let mut payload_bytes = 0_usize;
+        resident.visit_resident_micro_operations(|record| {
+            let framed = record
+                .len()
+                .checked_add(2)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+            if framed > payload_cap {
+                return Err(ProofChkErr::JmtUpdateTraceLimit);
+            }
+            if record_count != 0 && payload_bytes.saturating_add(framed) > payload_cap {
+                geometry.push((first_record, record_count, payload_bytes));
+                first_record = first_record
+                    .checked_add(record_count)
+                    .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+                record_count = 0;
+                payload_bytes = 0;
+            }
+            record_count = record_count
+                .checked_add(1)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+            payload_bytes = payload_bytes
+                .checked_add(framed)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+            Ok(())
+        })?;
+        if record_count == 0 {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        geometry.push((first_record, record_count, payload_bytes));
+        let segment_count =
+            u32::try_from(geometry.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+
+        let mut segment_index = 0_usize;
+        let mut payload = Zeroizing::new(Vec::with_capacity(geometry[0].2));
+        resident.visit_resident_micro_operations(|record| {
+            let mut record = Zeroizing::new(record.to_vec());
+            if record.len() < 6 {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            record[2..6].copy_from_slice(&update_index.to_le_bytes());
+            self.trace_digest
+                .update_part(&record)
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+            let record_len =
+                u16::try_from(record.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+            let next = payload
+                .len()
+                .checked_add(2 + record.len())
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+            let expected = geometry
+                .get(segment_index)
+                .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+            if next > expected.2 {
+                self.write_segment(
+                    &meta,
+                    update_index,
+                    operation_count,
+                    segment_index,
+                    segment_count,
+                    *expected,
+                    &payload,
+                )?;
+                segment_index = segment_index
+                    .checked_add(1)
+                    .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+                let capacity = geometry
+                    .get(segment_index)
+                    .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?
+                    .2;
+                payload = Zeroizing::new(Vec::with_capacity(capacity));
+            }
+            payload.extend_from_slice(&record_len.to_le_bytes());
+            payload.extend_from_slice(&record);
+            Ok(())
+        })?;
+        let expected = *geometry
+            .get(segment_index)
+            .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
+        self.write_segment(
+            &meta,
+            update_index,
+            operation_count,
+            segment_index,
+            segment_count,
+            expected,
+            &payload,
+        )?;
+        if segment_index + 1 != geometry.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        self.update_count = self
+            .update_count
+            .checked_add(1)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        self.terminal_operation_count = self
+            .terminal_operation_count
+            .checked_add(terminal_operations)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        self.segment_count = self
+            .segment_count
+            .checked_add(segment_count)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn write_segment(
+        &mut self,
+        meta: &JmtSegmentUpdateMetaV2,
+        update_index: u32,
+        operation_count: u32,
+        segment_index: usize,
+        segment_count: u32,
+        geometry: (u32, u32, usize),
+        payload: &[u8],
+    ) -> Result<(), ProofChkErr> {
+        if payload.len() != geometry.2 {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let payload_digest = segment_payload_digest(payload);
+        let mut header = Vec::with_capacity(JMT_SEGMENT_HEADER_BYTES_V2);
+        header.extend_from_slice(&JMT_SEGMENT_MAGIC_V2);
+        header.push(JMT_SEGMENT_VERSION_V2);
+        header.extend_from_slice(&self.context.transition_identity);
+        header.extend_from_slice(&self.context.height.to_le_bytes());
+        header.push(RootGeneration::SettlementV2.version());
+        header.extend_from_slice(&update_index.to_le_bytes());
+        meta.tree.encode_circuit_canonical(&mut header);
+        header.extend_from_slice(
+            &u32::try_from(segment_index)
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                .to_le_bytes(),
+        );
+        header.extend_from_slice(&segment_count.to_le_bytes());
+        header.extend_from_slice(&geometry.0.to_le_bytes());
+        header.extend_from_slice(&geometry.1.to_le_bytes());
+        header.extend_from_slice(&operation_count.to_le_bytes());
+        header.extend_from_slice(&meta.old_version.to_le_bytes());
+        header.extend_from_slice(&meta.new_version.to_le_bytes());
+        header.extend_from_slice(&meta.old_root);
+        header.extend_from_slice(&meta.new_root);
+        header.extend_from_slice(
+            &u32::try_from(payload.len())
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                .to_le_bytes(),
+        );
+        header.extend_from_slice(&payload_digest);
+        if header.len() != JMT_SEGMENT_HEADER_BYTES_V2 {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let segment_bytes = header
+            .len()
+            .checked_add(payload.len())
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        if segment_bytes + JMT_SEGMENT_FRAME_BYTES_V2 > RECURSIVE_HJMT_SEGMENT_BYTES_V2 as usize {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let segment_len =
+            u32::try_from(segment_bytes).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        self.spool
+            .write_bounded(&segment_len.to_le_bytes())
+            .and_then(|()| self.spool.write_bounded(&header))
+            .and_then(|()| self.spool.write_bounded(payload))
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        Digest::update(&mut self.stream_digest, segment_len.to_le_bytes());
+        Digest::update(&mut self.stream_digest, &header);
+        Digest::update(&mut self.stream_digest, payload);
+        Ok(())
+    }
+
+    pub(crate) fn finish(mut self) -> Result<SettlementUpdateTraceEnvelopeV2, ProofChkErr> {
+        if self.update_count == 0 || self.segment_count == 0 {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        self.spool
+            .rewind()
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?;
+        let trace_digest = self.trace_digest.finalize();
+        let stream_digest: [u8; 32] = Digest::finalize(self.stream_digest).into();
+        Ok(SettlementUpdateTraceEnvelopeV2 {
+            version: JMT_UPDATE_TRACE_VERSION_V2,
+            root_generation: RootGeneration::SettlementV2.version(),
+            kind: JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+            trace_digest,
+            update_count: self.update_count,
+            terminal_operation_count: self.terminal_operation_count,
+            updates: Vec::new(),
+            segments: Some(Mutex::new(JmtSegmentSpoolV2 {
+                context: self.context,
+                spool: self.spool,
+                stream_digest,
+                segment_count: self.segment_count,
+            })),
+        })
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct JmtSegmentUpdateMetaV2 {
+    tree: JmtTreeRoleV2,
+    old_version: u64,
+    new_version: u64,
+    old_root: [u8; 32],
+    new_root: [u8; 32],
+}
+
+fn visit_segment_spool(
+    segments: &mut JmtSegmentSpoolV2,
+    expected_updates: u32,
+    visit: &mut impl FnMut(&[u8]) -> Result<(), ProofChkErr>,
+) -> Result<(), ProofChkErr> {
+    segments
+        .spool
+        .rewind()
+        .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?;
+    let mut stream_digest = <Sha256 as Digest>::new();
+    let mut seen_segments = 0_u32;
+    let mut expected_update = 0_u32;
+    let mut expected_segment = 0_u32;
+    let mut expected_record = 0_u32;
+    let mut current_segment_count = 0_u32;
+    let mut current_meta = None::<JmtSegmentUpdateMetaV2>;
+
+    loop {
+        let Some(frame) = spool_read_frame(&mut segments.spool)? else {
+            break;
+        };
+        Digest::update(
+            &mut stream_digest,
+            u32::try_from(frame.len())
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
+                .to_le_bytes(),
+        );
+        Digest::update(&mut stream_digest, &frame);
+        if frame.len() < JMT_SEGMENT_HEADER_BYTES_V2
+            || frame.len() + JMT_SEGMENT_FRAME_BYTES_V2 > RECURSIVE_HJMT_SEGMENT_BYTES_V2 as usize
+        {
+            return Err(ProofChkErr::JmtUpdateTraceLimit);
+        }
+        let mut reader = CanonicalReader::new(&frame);
+        if reader.take_exact(8)? != JMT_SEGMENT_MAGIC_V2
+            || reader.take_u8()? != JMT_SEGMENT_VERSION_V2
+            || reader.take_array()? != segments.context.transition_identity
+            || reader.take_u64()? != segments.context.height
+            || reader.take_u8()? != RootGeneration::SettlementV2.version()
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let update_index = reader.take_u32()?;
+        let tree = JmtTreeRoleV2::decode_circuit_canonical(&mut reader)?;
+        let segment_index = reader.take_u32()?;
+        let segment_count = reader.take_u32()?;
+        let first_record = reader.take_u32()?;
+        let record_count = reader.take_u32()?;
+        let operation_count = reader.take_u32()?;
+        let meta = JmtSegmentUpdateMetaV2 {
+            tree,
+            old_version: reader.take_u64()?,
+            new_version: reader.take_u64()?,
+            old_root: reader.take_array()?,
+            new_root: reader.take_array()?,
+        };
+        let payload_len =
+            usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let payload_digest = reader.take_array()?;
+        if update_index != expected_update
+            || segment_count == 0
+            || record_count == 0
+            || operation_count == 0
+            || !jmt_version_pair_is_canonical(meta.old_version, meta.new_version)
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        if expected_segment == 0 {
+            if segment_index != 0 || first_record != 0 {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            current_segment_count = segment_count;
+            current_meta = Some(meta.clone());
+        } else if segment_index != expected_segment
+            || segment_count != current_segment_count
+            || first_record != expected_record
+            || current_meta.as_ref() != Some(&meta)
+        {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let payload = reader.take_exact(payload_len)?;
+        reader.finish()?;
+        if segment_payload_digest(payload) != payload_digest {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        let mut payload_reader = CanonicalReader::new(payload);
+        for _ in 0..record_count {
+            let record_len = usize::from(payload_reader.take_u16()?);
+            if record_len == 0 || record_len > JMT_CIRCUIT_MAX_RECORD_BYTES_V2 {
+                return Err(ProofChkErr::JmtUpdateTraceLimit);
+            }
+            let record = payload_reader.take_exact(record_len)?;
+            if record.len() < 6 || record[2..6] != update_index.to_le_bytes() {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            visit(record)?;
+        }
+        payload_reader.finish()?;
+        expected_record = expected_record
+            .checked_add(record_count)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        seen_segments = seen_segments
+            .checked_add(1)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        if segment_index
+            .checked_add(1)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?
+            == segment_count
+        {
+            expected_update = expected_update
+                .checked_add(1)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+            expected_segment = 0;
+            expected_record = 0;
+            current_segment_count = 0;
+            current_meta = None;
+        } else {
+            expected_segment = expected_segment
+                .checked_add(1)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        }
+    }
+    let actual_stream_digest: [u8; 32] = Digest::finalize(stream_digest).into();
+    if expected_update != expected_updates
+        || expected_segment != 0
+        || current_meta.is_some()
+        || seen_segments != segments.segment_count
+        || actual_stream_digest != segments.stream_digest
+    {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    Ok(())
+}
+
+fn spool_read_frame(
+    spool: &mut PrivateSpoolFile,
+) -> Result<Option<Zeroizing<Vec<u8>>>, ProofChkErr> {
+    let mut length = [0_u8; 4];
+    if !spool_read_exact(spool, &mut length, true)? {
+        return Ok(None);
+    }
+    let frame_len = usize::try_from(u32::from_le_bytes(length))
+        .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+    if frame_len < JMT_SEGMENT_HEADER_BYTES_V2
+        || frame_len + JMT_SEGMENT_FRAME_BYTES_V2 > RECURSIVE_HJMT_SEGMENT_BYTES_V2 as usize
+    {
+        return Err(ProofChkErr::JmtUpdateTraceLimit);
+    }
+    let mut frame = Zeroizing::new(vec![0_u8; frame_len]);
+    if !spool_read_exact(spool, &mut frame, false)? {
+        return Err(ProofChkErr::JmtUpdateTraceCanonical);
+    }
+    Ok(Some(frame))
+}
+
+fn spool_read_exact(
+    spool: &mut PrivateSpoolFile,
+    bytes: &mut [u8],
+    allow_initial_eof: bool,
+) -> Result<bool, ProofChkErr> {
+    let mut offset = 0_usize;
+    while offset < bytes.len() {
+        let read = spool
+            .read_chunk(&mut bytes[offset..])
+            .map_err(|_| ProofChkErr::JmtUpdateTraceCanonical)?;
+        if read == 0 {
+            if allow_initial_eof && offset == 0 {
+                return Ok(false);
+            }
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        offset = offset
+            .checked_add(read)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+    }
+    Ok(true)
+}
+
+impl JmtSegmentUpdateMetaV2 {
+    fn from_update(update: &JmtUpdateTraceV2) -> Self {
+        Self {
+            tree: update.tree.clone(),
+            old_version: update.old_version,
+            new_version: update.new_version,
+            old_root: update.old_root,
+            new_root: update.new_root,
+        }
+    }
+}
+
+fn segment_payload_digest(payload: &[u8]) -> [u8; 32] {
+    let mut digest = <Sha256 as Digest>::new();
+    Digest::update(&mut digest, b"z00z.hjmt.segment.payload.v2");
+    Digest::update(&mut digest, (payload.len() as u64).to_le_bytes());
+    Digest::update(&mut digest, payload);
+    Digest::finalize(digest).into()
+}
+
+#[cfg(test)]
+mod jmt_segment_grammar_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn record(update_index: u32, len: usize) -> Vec<u8> {
+        assert!((6..=JMT_CIRCUIT_MAX_RECORD_BYTES_V2).contains(&len));
+        let mut record = vec![0_u8; len];
+        record[0] = JMT_CIRCUIT_MICRO_OP_VERSION_V2;
+        record[1] = JMT_CIRCUIT_UPDATE_BEGIN_V2;
+        record[2..6].copy_from_slice(&update_index.to_le_bytes());
+        record
+    }
+
+    fn payload(records: &[Vec<u8>]) -> Vec<u8> {
+        let mut payload = Vec::new();
+        for record in records {
+            payload.extend_from_slice(&(record.len() as u16).to_le_bytes());
+            payload.extend_from_slice(record);
+        }
+        payload
+    }
+
+    fn frame(
+        context: JmtTraceSegmentContextV2,
+        segment_index: u32,
+        segment_count: u32,
+        first_record: u32,
+        records: &[Vec<u8>],
+    ) -> Vec<u8> {
+        let payload = payload(records);
+        let mut frame = Vec::with_capacity(JMT_SEGMENT_HEADER_BYTES_V2 + payload.len());
+        frame.extend_from_slice(&JMT_SEGMENT_MAGIC_V2);
+        frame.push(JMT_SEGMENT_VERSION_V2);
+        frame.extend_from_slice(&context.transition_identity);
+        frame.extend_from_slice(&context.height.to_le_bytes());
+        frame.push(RootGeneration::SettlementV2.version());
+        frame.extend_from_slice(&0_u32.to_le_bytes());
+        JmtTreeRoleV2::Definition.encode_circuit_canonical(&mut frame);
+        frame.extend_from_slice(&segment_index.to_le_bytes());
+        frame.extend_from_slice(&segment_count.to_le_bytes());
+        frame.extend_from_slice(&first_record.to_le_bytes());
+        frame.extend_from_slice(&(records.len() as u32).to_le_bytes());
+        frame.extend_from_slice(&1_u32.to_le_bytes());
+        frame.extend_from_slice(&0_u64.to_le_bytes());
+        frame.extend_from_slice(&0_u64.to_le_bytes());
+        frame.extend_from_slice(&[0x11; 32]);
+        frame.extend_from_slice(&[0x22; 32]);
+        frame.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        frame.extend_from_slice(&segment_payload_digest(&payload));
+        assert_eq!(frame.len(), JMT_SEGMENT_HEADER_BYTES_V2);
+        frame.extend_from_slice(&payload);
+        frame
+    }
+
+    fn segmented_spool(
+        frames: &[Vec<u8>],
+        trailing: &[u8],
+        context: JmtTraceSegmentContextV2,
+        declared_segments: u32,
+    ) -> (TempDir, JmtSegmentSpoolV2) {
+        let dir = TempDir::new().expect("segment temp dir");
+        let mut spool =
+            PrivateSpoolFile::create_in(dir.path(), JMT_SEGMENT_SPOOL_MAX_BYTES_V2).expect("spool");
+        let mut digest = <Sha256 as Digest>::new();
+        for frame in frames {
+            let length = (frame.len() as u32).to_le_bytes();
+            spool.write_bounded(&length).expect("frame length");
+            spool.write_bounded(frame).expect("frame");
+            Digest::update(&mut digest, length);
+            Digest::update(&mut digest, frame);
+        }
+        spool.write_bounded(trailing).expect("trailing bytes");
+        Digest::update(&mut digest, trailing);
+        spool.rewind().expect("seal spool");
+        (
+            dir,
+            JmtSegmentSpoolV2 {
+                context,
+                spool,
+                stream_digest: Digest::finalize(digest).into(),
+                segment_count: declared_segments,
+            },
+        )
+    }
+
+    fn rejected(
+        frames: &[Vec<u8>],
+        trailing: &[u8],
+        context: JmtTraceSegmentContextV2,
+        declared_segments: u32,
+    ) {
+        let (_dir, mut spool) = segmented_spool(frames, trailing, context, declared_segments);
+        assert!(visit_segment_spool(&mut spool, 1, &mut |_| Ok(())).is_err());
+    }
+
+    #[test]
+    fn segment_cap_and_sequence_mutations_fail_closed() {
+        let context = JmtTraceSegmentContextV2::new([0xA5; 32], 73);
+        let first = frame(context, 0, 2, 0, &[record(0, 6)]);
+        let second = frame(context, 1, 2, 1, &[record(0, 6)]);
+        let (_dir, mut valid) = segmented_spool(&[first.clone(), second.clone()], &[], context, 2);
+        visit_segment_spool(&mut valid, 1, &mut |_| Ok(())).expect("valid two-segment stream");
+
+        rejected(&[first.clone()], &[], context, 2);
+        rejected(
+            &[first.clone(), first.clone(), second.clone()],
+            &[],
+            context,
+            2,
+        );
+        rejected(&[second.clone(), first.clone()], &[], context, 2);
+        rejected(&[first.clone(), second.clone()], &[0xFF], context, 2);
+
+        let mut substituted = first.clone();
+        substituted[9] ^= 1;
+        rejected(&[substituted, second], &[], context, 2);
+
+        let target_payload = RECURSIVE_HJMT_SEGMENT_BYTES_V2 as usize
+            - JMT_SEGMENT_FRAME_BYTES_V2
+            - JMT_SEGMENT_HEADER_BYTES_V2;
+        let record_count = target_payload / 8;
+        let remainder = target_payload % 8;
+        let mut boundary_records = vec![record(0, 6); record_count];
+        boundary_records
+            .last_mut()
+            .expect("non-empty boundary record set")
+            .resize(6 + remainder, 0);
+        let boundary = frame(context, 0, 1, 0, &boundary_records);
+        assert_eq!(
+            boundary.len() + JMT_SEGMENT_FRAME_BYTES_V2,
+            RECURSIVE_HJMT_SEGMENT_BYTES_V2 as usize
+        );
+        let (_dir, mut at_cap) = segmented_spool(&[boundary], &[], context, 1);
+        visit_segment_spool(&mut at_cap, 1, &mut |_| Ok(())).expect("exact cap accepted");
+
+        let over_cap =
+            vec![0_u8; RECURSIVE_HJMT_SEGMENT_BYTES_V2 as usize - JMT_SEGMENT_FRAME_BYTES_V2 + 1];
+        rejected(&[over_cap], &[], context, 1);
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum HierarchyStageV2 {
+    Terminal,
+    Bucket,
+    Serial,
+    Definition,
+    PathIndex,
+}
+
+struct HierarchyVerifierV2 {
+    stage: HierarchyStageV2,
+    terminal_roots: BTreeMap<TerminalRootKeyV2, RootTransitionV2>,
+    bucket_roots: BTreeMap<([u8; 32], u32), RootTransitionV2>,
+    serial_roots: BTreeMap<[u8; 32], RootTransitionV2>,
+    used_terminal_roots: BTreeSet<TerminalRootKeyV2>,
+    used_bucket_roots: BTreeSet<([u8; 32], u32)>,
+    used_serial_roots: BTreeSet<[u8; 32]>,
+    definition_transition: Option<([u8; 32], [u8; 32])>,
+}
+
+impl Default for HierarchyVerifierV2 {
+    fn default() -> Self {
+        Self {
+            stage: HierarchyStageV2::Terminal,
+            terminal_roots: BTreeMap::new(),
+            bucket_roots: BTreeMap::new(),
+            serial_roots: BTreeMap::new(),
+            used_terminal_roots: BTreeSet::new(),
+            used_bucket_roots: BTreeSet::new(),
+            used_serial_roots: BTreeSet::new(),
+            definition_transition: None,
+        }
+    }
+}
+
+impl HierarchyVerifierV2 {
+    #[cfg(test)]
+    fn absorb(&mut self, update: &JmtUpdateTraceV2) -> Result<(), ProofChkErr> {
+        self.begin_update(&update.tree, update.old_root, update.new_root)?;
+        for operation in &update.operations {
+            self.absorb_operation(&update.tree, operation)?;
+        }
+        Ok(())
+    }
+
+    fn begin_update(
+        &mut self,
+        tree: &JmtTreeRoleV2,
+        old_root: [u8; 32],
+        new_root: [u8; 32],
+    ) -> Result<(), ProofChkErr> {
+        match tree {
+            JmtTreeRoleV2::Terminal(definition_id, serial_id, bucket_id) => {
+                if self.stage != HierarchyStageV2::Terminal
+                    || old_root == new_root
+                    || self
+                        .terminal_roots
+                        .insert(
+                            (*definition_id, *serial_id, *bucket_id),
+                            RootTransitionV2::new(old_root, new_root),
+                        )
+                        .is_some()
+                {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+            }
+            JmtTreeRoleV2::Bucket(definition_id, serial_id) => {
+                if self.stage > HierarchyStageV2::Bucket
+                    || old_root == new_root
+                    || self
+                        .bucket_roots
+                        .insert(
+                            (*definition_id, *serial_id),
+                            RootTransitionV2::new(old_root, new_root),
+                        )
+                        .is_some()
+                {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                self.stage = HierarchyStageV2::Bucket;
+            }
+            JmtTreeRoleV2::Serial(definition_id) => {
+                if self.stage > HierarchyStageV2::Serial || old_root == new_root {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                if self.stage < HierarchyStageV2::Serial {
+                    self.release_terminal_level()?;
+                }
+                if self
+                    .serial_roots
+                    .insert(*definition_id, RootTransitionV2::new(old_root, new_root))
+                    .is_some()
+                {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                self.stage = HierarchyStageV2::Serial;
+            }
+            JmtTreeRoleV2::Definition => {
+                if self.stage > HierarchyStageV2::Definition
+                    || self.definition_transition.is_some()
+                    || old_root == new_root
+                {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                if self.stage < HierarchyStageV2::Definition {
+                    self.release_terminal_level()?;
+                    self.release_bucket_level()?;
+                }
+                self.stage = HierarchyStageV2::Definition;
+                self.definition_transition = Some((old_root, new_root));
+            }
+            JmtTreeRoleV2::PathIndex => {
+                if self.stage < HierarchyStageV2::Definition {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                if self.stage == HierarchyStageV2::Definition {
+                    self.release_serial_level()?;
+                }
+                self.stage = HierarchyStageV2::PathIndex;
+            }
+        }
+        Ok(())
+    }
+
+    fn release_terminal_level(&mut self) -> Result<(), ProofChkErr> {
+        if self.terminal_roots.len() != self.used_terminal_roots.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        self.terminal_roots.clear();
+        self.used_terminal_roots.clear();
+        Ok(())
+    }
+
+    fn release_bucket_level(&mut self) -> Result<(), ProofChkErr> {
+        if self.bucket_roots.len() != self.used_bucket_roots.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        self.bucket_roots.clear();
+        self.used_bucket_roots.clear();
+        Ok(())
+    }
+
+    fn release_serial_level(&mut self) -> Result<(), ProofChkErr> {
+        if self.serial_roots.len() != self.used_serial_roots.len() {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        self.serial_roots.clear();
+        self.used_serial_roots.clear();
+        Ok(())
+    }
+
+    fn absorb_operation(
+        &mut self,
+        tree: &JmtTreeRoleV2,
+        operation: &JmtUpdateOpV2,
+    ) -> Result<(), ProofChkErr> {
+        match tree {
+            JmtTreeRoleV2::Terminal(..) | JmtTreeRoleV2::PathIndex => Ok(()),
+            JmtTreeRoleV2::Bucket(definition_id, serial_id) => {
+                let terminal_key = verify_bucket_promotion(
+                    *definition_id,
+                    *serial_id,
+                    operation,
+                    &self.terminal_roots,
+                )?;
+                if !self.used_terminal_roots.insert(terminal_key) {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                Ok(())
+            }
+            JmtTreeRoleV2::Serial(definition_id) => {
+                let bucket_key =
+                    verify_serial_promotion(*definition_id, operation, &self.bucket_roots)?;
+                if !self.used_bucket_roots.insert(bucket_key) {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                Ok(())
+            }
+            JmtTreeRoleV2::Definition => {
+                let definition_id = verify_definition_promotion(operation, &self.serial_roots)?;
+                if !self.used_serial_roots.insert(definition_id) {
+                    return Err(ProofChkErr::JmtUpdateTraceCanonical);
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn finish(
+        mut self,
+        expected_definition_root: [u8; 32],
+    ) -> Result<([u8; 32], [u8; 32]), ProofChkErr> {
+        if self.stage < HierarchyStageV2::Definition {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        self.release_terminal_level()?;
+        self.release_bucket_level()?;
+        self.release_serial_level()?;
+        let Some(definition_transition) = self.definition_transition else {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        };
+        if definition_transition.1 != expected_definition_root {
+            return Err(ProofChkErr::JmtUpdateTraceCanonical);
+        }
+        Ok(definition_transition)
+    }
+}
+
 /// One frozen storage envelope for all traced JMT updates of one V2 transition.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct SettlementUpdateTraceEnvelopeV2 {
     version: u8,
     root_generation: u8,
     kind: u8,
     trace_digest: [u8; 32],
+    update_count: u32,
+    terminal_operation_count: u64,
     updates: Vec<JmtUpdateTraceV2>,
+    segments: Option<Mutex<JmtSegmentSpoolV2>>,
 }
 
+impl PartialEq for SettlementUpdateTraceEnvelopeV2 {
+    fn eq(&self, other: &Self) -> bool {
+        let self_stream = self.segments.as_ref().map(|segments| {
+            let segments = segments.lock().unwrap_or_else(|poison| poison.into_inner());
+            (
+                segments.context,
+                segments.stream_digest,
+                segments.segment_count,
+                segments.spool.len(),
+            )
+        });
+        let other_stream = other.segments.as_ref().map(|segments| {
+            let segments = segments.lock().unwrap_or_else(|poison| poison.into_inner());
+            (
+                segments.context,
+                segments.stream_digest,
+                segments.segment_count,
+                segments.spool.len(),
+            )
+        });
+        self.version == other.version
+            && self.root_generation == other.root_generation
+            && self.kind == other.kind
+            && self.trace_digest == other.trace_digest
+            && self.update_count == other.update_count
+            && self.terminal_operation_count == other.terminal_operation_count
+            && self.updates == other.updates
+            && self_stream == other_stream
+    }
+}
+
+impl Eq for SettlementUpdateTraceEnvelopeV2 {}
+
 impl SettlementUpdateTraceEnvelopeV2 {
+    #[cfg(test)]
     pub(crate) fn new(
         root_generation: RootGeneration,
         updates: Vec<JmtUpdateTraceV2>,
@@ -1026,15 +2042,30 @@ impl SettlementUpdateTraceEnvelopeV2 {
         for update in &updates {
             update.verify_native()?;
         }
-        let mut envelope = Self {
-            version: JMT_UPDATE_TRACE_VERSION_V2,
-            root_generation: root_generation.version(),
-            kind: JMT_UPDATE_TRACE_KIND_MUTATING_V2,
-            trace_digest: [0_u8; 32],
-            updates,
-        };
+        let mut envelope = Self::resident_unchecked(updates)?;
+        envelope.root_generation = root_generation.version();
         envelope.trace_digest = envelope.circuit_trace_digest()?;
         Ok(envelope)
+    }
+
+    fn resident_unchecked(updates: Vec<JmtUpdateTraceV2>) -> Result<Self, ProofChkErr> {
+        let update_count =
+            u32::try_from(updates.len()).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        let terminal_operation_count = updates.iter().try_fold(0_u64, |count, update| {
+            count
+                .checked_add(update.terminal_operation_count()?)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)
+        })?;
+        Ok(Self {
+            version: JMT_UPDATE_TRACE_VERSION_V2,
+            root_generation: RootGeneration::SettlementV2.version(),
+            kind: JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+            trace_digest: [0_u8; 32],
+            update_count,
+            terminal_operation_count,
+            updates,
+            segments: None,
+        })
     }
 
     /// Build the explicit zero-update envelope used only by the
@@ -1048,7 +2079,10 @@ impl SettlementUpdateTraceEnvelopeV2 {
             root_generation: root_generation.version(),
             kind: JMT_UPDATE_TRACE_KIND_NOOP_V2,
             trace_digest: noop_update_trace_digest(),
+            update_count: 0,
+            terminal_operation_count: 0,
             updates: Vec::new(),
+            segments: None,
         };
         Ok(envelope)
     }
@@ -1057,6 +2091,8 @@ impl SettlementUpdateTraceEnvelopeV2 {
     pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, ProofChkErr> {
         if self.version != JMT_UPDATE_TRACE_VERSION_V2
             || self.root_generation != RootGeneration::SettlementV2.version()
+            || self.segments.is_some()
+            || self.update_count != self.updates.len() as u32
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
@@ -1142,7 +2178,15 @@ impl SettlementUpdateTraceEnvelopeV2 {
             root_generation,
             kind,
             trace_digest,
+            update_count: u32::try_from(updates.len())
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?,
+            terminal_operation_count: updates.iter().try_fold(0_u64, |count, update| {
+                count
+                    .checked_add(update.terminal_operation_count()?)
+                    .ok_or(ProofChkErr::JmtUpdateTraceLimit)
+            })?,
             updates,
+            segments: None,
         };
         if envelope.canonical_bytes()? != bytes {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -1159,16 +2203,12 @@ impl SettlementUpdateTraceEnvelopeV2 {
     }
 
     #[must_use]
-    pub(crate) fn updates(&self) -> &[JmtUpdateTraceV2] {
-        &self.updates
+    pub(crate) const fn update_count(&self) -> u32 {
+        self.update_count
     }
 
     pub(crate) fn terminal_operation_count(&self) -> Result<u64, ProofChkErr> {
-        self.updates.iter().try_fold(0_u64, |count, update| {
-            count
-                .checked_add(update.terminal_operation_count()?)
-                .ok_or(ProofChkErr::JmtUpdateTraceLimit)
-        })
+        Ok(self.terminal_operation_count)
     }
 
     #[must_use]
@@ -1183,15 +2223,15 @@ impl SettlementUpdateTraceEnvelopeV2 {
     ) -> Result<[u8; JMT_CIRCUIT_HEADER_BYTES_V2], ProofChkErr> {
         match self.kind {
             JMT_UPDATE_TRACE_KIND_MUTATING_V2
-                if !self.updates.is_empty()
+                if self.update_count != 0
                     && self.trace_digest == self.circuit_trace_digest()? => {}
             JMT_UPDATE_TRACE_KIND_NOOP_V2
-                if self.updates.is_empty() && self.trace_digest == noop_update_trace_digest() => {}
+                if self.update_count == 0 && self.trace_digest == noop_update_trace_digest() => {}
             _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
         }
         if self.version != JMT_UPDATE_TRACE_VERSION_V2
             || self.root_generation != RootGeneration::SettlementV2.version()
-            || self.updates.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
+            || self.update_count > JMT_UPDATE_TRACE_MAX_OPS_V2 as u32
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
@@ -1200,11 +2240,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
         header[1] = self.root_generation;
         header[2] = self.kind;
         header[3..35].copy_from_slice(&self.trace_digest);
-        header[35..39].copy_from_slice(
-            &u32::try_from(self.updates.len())
-                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?
-                .to_le_bytes(),
-        );
+        header[35..39].copy_from_slice(&self.update_count.to_le_bytes());
         Ok(header)
     }
 
@@ -1227,6 +2263,23 @@ impl SettlementUpdateTraceEnvelopeV2 {
     /// mutating envelope's `trace_digest` and expose every operation, old leaf,
     /// and sibling needed by the subsequent in-circuit raw-SHA path machine.
     pub(crate) fn visit_circuit_micro_operations(
+        &self,
+        mut visit: impl FnMut(&[u8]) -> Result<(), ProofChkErr>,
+    ) -> Result<(), ProofChkErr> {
+        if let Some(segments) = &self.segments {
+            if !self.updates.is_empty() {
+                return Err(ProofChkErr::JmtUpdateTraceCanonical);
+            }
+            return visit_segment_spool(
+                &mut segments.lock().unwrap_or_else(|poison| poison.into_inner()),
+                self.update_count,
+                &mut visit,
+            );
+        }
+        self.visit_resident_micro_operations(visit)
+    }
+
+    fn visit_resident_micro_operations(
         &self,
         mut visit: impl FnMut(&[u8]) -> Result<(), ProofChkErr>,
     ) -> Result<(), ProofChkErr> {
@@ -1602,6 +2655,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
     /// child-tree root, in the frozen terminal → bucket → serial → definition
     /// order, and that the final definition update is the storage-owned root
     /// exposed to the recursive relation. It never calls the HJMT executor.
+    #[cfg(test)]
     pub(crate) fn verify_hierarchy_semantics(
         &self,
         expected_definition_root: [u8; 32],
@@ -1613,124 +2667,19 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 Err(ProofChkErr::JmtUpdateTraceCanonical)
             };
         }
-        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-        enum Stage {
-            Terminal,
-            Bucket,
-            Serial,
-            Definition,
-            PathIndex,
+        if self.segments.is_some() {
+            let header = self.circuit_header_bytes()?;
+            let mut decoder = SettlementUpdateTraceCircuitDecoderV2::new(&header)?;
+            self.visit_circuit_micro_operations(|record| decoder.accept(record))?;
+            return decoder
+                .finish()?
+                .verify_hierarchy_semantics(expected_definition_root);
         }
-
-        let mut stage = Stage::Terminal;
-        let mut terminal_roots = BTreeMap::<TerminalRootKeyV2, RootTransitionV2>::new();
-        let mut bucket_roots = BTreeMap::<([u8; 32], u32), RootTransitionV2>::new();
-        let mut serial_roots = BTreeMap::<[u8; 32], RootTransitionV2>::new();
-        let mut used_terminal_roots = BTreeSet::new();
-        let mut used_bucket_roots = BTreeSet::new();
-        let mut used_serial_roots = BTreeSet::new();
-        let mut definition_transition = None;
-
+        let mut verifier = HierarchyVerifierV2::default();
         for update in &self.updates {
-            match &update.tree {
-                JmtTreeRoleV2::Terminal(definition_id, serial_id, bucket_id) => {
-                    if stage != Stage::Terminal
-                        || update.old_root == update.new_root
-                        || terminal_roots
-                            .insert(
-                                (*definition_id, *serial_id, *bucket_id),
-                                RootTransitionV2::new(update.old_root, update.new_root),
-                            )
-                            .is_some()
-                    {
-                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                    }
-                }
-                JmtTreeRoleV2::Bucket(definition_id, serial_id) => {
-                    if stage > Stage::Bucket
-                        || update.old_root == update.new_root
-                        || bucket_roots
-                            .insert(
-                                (*definition_id, *serial_id),
-                                RootTransitionV2::new(update.old_root, update.new_root),
-                            )
-                            .is_some()
-                    {
-                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                    }
-                    stage = Stage::Bucket;
-                    for operation in &update.operations {
-                        let terminal_key = verify_bucket_promotion(
-                            *definition_id,
-                            *serial_id,
-                            operation,
-                            &terminal_roots,
-                        )?;
-                        if !used_terminal_roots.insert(terminal_key) {
-                            return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                        }
-                    }
-                }
-                JmtTreeRoleV2::Serial(definition_id) => {
-                    if stage > Stage::Serial
-                        || update.old_root == update.new_root
-                        || serial_roots
-                            .insert(
-                                *definition_id,
-                                RootTransitionV2::new(update.old_root, update.new_root),
-                            )
-                            .is_some()
-                    {
-                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                    }
-                    stage = Stage::Serial;
-                    for operation in &update.operations {
-                        let bucket_key =
-                            verify_serial_promotion(*definition_id, operation, &bucket_roots)?;
-                        if !used_bucket_roots.insert(bucket_key) {
-                            return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                        }
-                    }
-                }
-                JmtTreeRoleV2::Definition => {
-                    if stage > Stage::Definition
-                        || definition_transition.is_some()
-                        || update.old_root == update.new_root
-                    {
-                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                    }
-                    stage = Stage::Definition;
-                    definition_transition = Some((update.old_root, update.new_root));
-                    for operation in &update.operations {
-                        let definition_id = verify_definition_promotion(operation, &serial_roots)?;
-                        if !used_serial_roots.insert(definition_id) {
-                            return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                        }
-                    }
-                    if update.new_root != expected_definition_root {
-                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                    }
-                }
-                JmtTreeRoleV2::PathIndex => {
-                    if stage < Stage::Definition {
-                        return Err(ProofChkErr::JmtUpdateTraceCanonical);
-                    }
-                    stage = Stage::PathIndex;
-                }
-            }
+            verifier.absorb(update)?;
         }
-
-        let Some(definition_transition) = definition_transition else {
-            return Err(ProofChkErr::JmtUpdateTraceCanonical);
-        };
-        if stage < Stage::Definition
-            || terminal_roots.len() != used_terminal_roots.len()
-            || bucket_roots.len() != used_bucket_roots.len()
-            || serial_roots.len() != used_serial_roots.len()
-        {
-            return Err(ProofChkErr::JmtUpdateTraceCanonical);
-        }
-        Ok(definition_transition)
+        verifier.finish(expected_definition_root)
     }
 }
 
@@ -1739,25 +2688,72 @@ impl SettlementUpdateTraceEnvelopeV2 {
 /// The recursive trace carries one fixed header plus this transcript; the
 /// former opaque envelope body is never copied into the source spool. The
 /// decoder retains only the typed update currently being assembled and the
-/// already completed typed updates needed by hierarchy verification.
+/// bounded hierarchy metadata accumulated from completed updates.
+pub(crate) struct SettlementUpdateTraceSummaryV2 {
+    kind: u8,
+    trace_digest: [u8; 32],
+    update_count: u32,
+    terminal_operation_count: u64,
+    hierarchy: HierarchyVerifierV2,
+}
+
+impl SettlementUpdateTraceSummaryV2 {
+    #[must_use]
+    pub(crate) const fn is_noop(&self) -> bool {
+        self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2
+    }
+
+    #[must_use]
+    pub(crate) const fn updates_empty(&self) -> bool {
+        self.update_count == 0
+    }
+
+    #[must_use]
+    pub(crate) const fn update_count(&self) -> u32 {
+        self.update_count
+    }
+
+    #[must_use]
+    pub(crate) const fn trace_digest(&self) -> [u8; 32] {
+        self.trace_digest
+    }
+
+    pub(crate) const fn terminal_operation_count(&self) -> Result<u64, ProofChkErr> {
+        Ok(self.terminal_operation_count)
+    }
+
+    pub(crate) fn verify_hierarchy_semantics(
+        self,
+        expected_definition_root: [u8; 32],
+    ) -> Result<([u8; 32], [u8; 32]), ProofChkErr> {
+        if self.is_noop() {
+            return if self.updates_empty() && self.trace_digest == noop_update_trace_digest() {
+                Ok((expected_definition_root, expected_definition_root))
+            } else {
+                Err(ProofChkErr::JmtUpdateTraceCanonical)
+            };
+        }
+        self.hierarchy.finish(expected_definition_root)
+    }
+}
+
 pub(crate) struct SettlementUpdateTraceCircuitDecoderV2 {
     kind: u8,
     expected_digest: [u8; 32],
     expected_updates: usize,
-    updates: Vec<JmtUpdateTraceV2>,
+    completed_updates: usize,
+    terminal_operation_count: u64,
+    trace_digest: CheckpointSha256V2,
+    hierarchy: HierarchyVerifierV2,
     current_update: Option<CircuitUpdateBuilderV2>,
 }
 
 struct CircuitUpdateBuilderV2 {
     tree: JmtTreeRoleV2,
-    old_version: u64,
-    new_version: u64,
-    old_root: [u8; 32],
     new_root: [u8; 32],
     current_root: [u8; 32],
     expected_operations: usize,
-    operations: Vec<JmtUpdateOpV2>,
-    proofs: Vec<JmtSparseProofWireV2>,
+    completed_operations: usize,
     current_operation: Option<CircuitOperationBuilderV2>,
 }
 
@@ -1782,6 +2778,35 @@ struct CircuitOperationBuilderV2 {
     new_current_hash: Option<[u8; 32]>,
     new_parent_started: bool,
     coalesced_leaf_seen: bool,
+}
+
+impl Zeroize for CircuitOperationBuilderV2 {
+    fn zeroize(&mut self) {
+        self.key.zeroize();
+        self.prior_value.zeroize();
+        self.value.zeroize();
+        if let Some(Some(leaf)) = self.proof_leaf.as_mut() {
+            leaf.key_hash.zeroize();
+            leaf.value_hash.zeroize();
+        }
+        self.proof_leaf = None;
+        self.siblings.zeroize();
+        self.split_siblings.zeroize();
+        if let Some(hash) = self.old_current_hash.as_mut() {
+            hash.zeroize();
+        }
+        self.old_current_hash = None;
+        if let Some(hash) = self.new_current_hash.as_mut() {
+            hash.zeroize();
+        }
+        self.new_current_hash = None;
+    }
+}
+
+impl Drop for CircuitOperationBuilderV2 {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
 }
 
 impl SettlementUpdateTraceCircuitDecoderV2 {
@@ -1810,15 +2835,14 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
-        let mut updates = Vec::new();
-        updates
-            .try_reserve_exact(expected_updates)
-            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
         Ok(Self {
             kind,
             expected_digest,
             expected_updates,
-            updates,
+            completed_updates: 0,
+            terminal_operation_count: 0,
+            trace_digest: CheckpointSha256V2::new(CheckpointShaRole::Trace),
+            hierarchy: HierarchyVerifierV2::default(),
             current_update: None,
         })
     }
@@ -1829,6 +2853,9 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
+        self.trace_digest
+            .update_part(record)
+            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
         let mut reader = CanonicalReader::new(record);
         if reader.take_u8()? != JMT_CIRCUIT_MICRO_OP_VERSION_V2 {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -1853,7 +2880,7 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         let update_index =
             usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
         if self.current_update.is_some()
-            || update_index != self.updates.len()
+            || update_index != self.completed_updates
             || update_index >= self.expected_updates
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -1872,24 +2899,13 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
-        let mut operations = Vec::new();
-        let mut proofs = Vec::new();
-        operations
-            .try_reserve_exact(expected_operations)
-            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
-        proofs
-            .try_reserve_exact(expected_operations)
-            .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
+        self.hierarchy.begin_update(&tree, old_root, new_root)?;
         self.current_update = Some(CircuitUpdateBuilderV2 {
             tree,
-            old_version,
-            new_version,
-            old_root,
             new_root,
             current_root: old_root,
             expected_operations,
-            operations,
-            proofs,
+            completed_operations: 0,
             current_operation: None,
         });
         Ok(())
@@ -1904,8 +2920,8 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .as_mut()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len()
-            || operation_index != update.operations.len()
+        if update_index != self.completed_updates
+            || operation_index != update.completed_operations
             || operation_index >= update.expected_operations
             || update.current_operation.is_some()
         {
@@ -1976,7 +2992,8 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .as_mut()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len() || operation_index != update.operations.len() {
+        if update_index != self.completed_updates || operation_index != update.completed_operations
+        {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         let operation = update
@@ -2048,7 +3065,8 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .as_mut()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len() || operation_index != update.operations.len() {
+        if update_index != self.completed_updates || operation_index != update.completed_operations
+        {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         let operation = update
@@ -2168,7 +3186,8 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .as_mut()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len() || operation_index != update.operations.len() {
+        if update_index != self.completed_updates || operation_index != update.completed_operations
+        {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         let operation = update
@@ -2347,7 +3366,8 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .as_mut()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len() || operation_index != update.operations.len() {
+        if update_index != self.completed_updates || operation_index != update.completed_operations
+        {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         let operation = update
@@ -2447,7 +3467,8 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .as_mut()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len() || operation_index != update.operations.len() {
+        if update_index != self.completed_updates || operation_index != update.completed_operations
+        {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         let operation = update
@@ -2515,10 +3536,11 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .as_mut()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len() || operation_index != update.operations.len() {
+        if update_index != self.completed_updates || operation_index != update.completed_operations
+        {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
-        let operation = update
+        let mut operation = update
             .current_operation
             .take()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
@@ -2532,27 +3554,40 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         let computed_new_root = operation.new_current_hash;
-        let proof = JmtSparseProofWireV2 {
+        let proof = Zeroizing::new(JmtSparseProofWireV2 {
             leaf: operation
                 .proof_leaf
                 .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?,
-            siblings: operation.siblings,
-        };
+            siblings: std::mem::take(&mut operation.siblings),
+        });
         let operation = JmtUpdateOpV2 {
             key: operation.key,
             prior_value: operation
                 .prior_value_present
-                .then_some(operation.prior_value),
-            value: operation.value_present.then_some(operation.value),
+                .then(|| std::mem::take(&mut operation.prior_value)),
+            value: operation
+                .value_present
+                .then(|| std::mem::take(&mut operation.value)),
         };
         let (_, next_root) =
             verify_jmt_transition_semantics(&proof, &operation, update.current_root)?;
         if computed_new_root != Some(next_root) {
             return Err(ProofChkErr::JmtUpdateProofMix);
         }
+        let tree = update.tree.clone();
+        let terminal = matches!(tree, JmtTreeRoleV2::Terminal(..));
         update.current_root = next_root;
-        update.operations.push(operation);
-        update.proofs.push(proof);
+        update.completed_operations = update
+            .completed_operations
+            .checked_add(1)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        self.hierarchy.absorb_operation(&tree, &operation)?;
+        if terminal {
+            self.terminal_operation_count = self
+                .terminal_operation_count
+                .checked_add(1)
+                .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
+        }
         Ok(())
     }
 
@@ -2564,51 +3599,48 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             .current_update
             .take()
             .ok_or(ProofChkErr::JmtUpdateTraceCanonical)?;
-        if update_index != self.updates.len()
+        if update_index != self.completed_updates
             || update.current_operation.is_some()
-            || update.operations.len() != update.expected_operations
-            || update.proofs.len() != update.expected_operations
+            || update.completed_operations != update.expected_operations
+            || update.current_root != update.new_root
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
-        let proof_wire = BincodeCodec.serialize(&JmtUpdateProofWireV2(update.proofs))?;
-        if proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 {
-            return Err(ProofChkErr::JmtUpdateTraceLimit);
-        }
-        let trace = JmtUpdateTraceV2 {
-            version: JMT_UPDATE_TRACE_VERSION_V2,
-            tree: update.tree,
-            old_version: update.old_version,
-            new_version: update.new_version,
-            old_root: update.old_root,
-            new_root: update.new_root,
-            operations: update.operations,
-            proof_wire,
-        };
-        trace.verify_semantics()?;
-        trace.verify_native()?;
-        self.updates.push(trace);
+        // Every operation's typed values, raw-SHA proof path, root transition,
+        // and hierarchy promotion were already checked before it was dropped.
+        // Update end therefore retains only count/root continuity.
+        self.completed_updates = self
+            .completed_updates
+            .checked_add(1)
+            .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
         Ok(())
     }
 
-    pub(crate) fn finish(self) -> Result<SettlementUpdateTraceEnvelopeV2, ProofChkErr> {
-        if self.current_update.is_some() || self.updates.len() != self.expected_updates {
+    pub(crate) fn finish(self) -> Result<SettlementUpdateTraceSummaryV2, ProofChkErr> {
+        if self.current_update.is_some() || self.completed_updates != self.expected_updates {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         if self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2 {
-            return SettlementUpdateTraceEnvelopeV2::new_noop(RootGeneration::SettlementV2);
+            return Ok(SettlementUpdateTraceSummaryV2 {
+                kind: self.kind,
+                trace_digest: self.expected_digest,
+                update_count: 0,
+                terminal_operation_count: 0,
+                hierarchy: self.hierarchy,
+            });
         }
-        let envelope = SettlementUpdateTraceEnvelopeV2 {
-            version: JMT_UPDATE_TRACE_VERSION_V2,
-            root_generation: RootGeneration::SettlementV2.version(),
-            kind: self.kind,
-            trace_digest: self.expected_digest,
-            updates: self.updates,
-        };
-        if envelope.circuit_trace_digest()? != envelope.trace_digest {
+        let trace_digest = self.trace_digest.finalize();
+        if trace_digest != self.expected_digest {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
-        Ok(envelope)
+        Ok(SettlementUpdateTraceSummaryV2 {
+            kind: self.kind,
+            trace_digest,
+            update_count: u32::try_from(self.completed_updates)
+                .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?,
+            terminal_operation_count: self.terminal_operation_count,
+            hierarchy: self.hierarchy,
+        })
     }
 }
 

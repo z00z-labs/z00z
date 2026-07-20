@@ -45,6 +45,7 @@ mod exec_input;
 mod ids;
 mod lifecycle;
 mod link;
+pub(crate) mod nova;
 mod pq_anchor;
 mod pruning;
 mod publication_evidence;
@@ -64,6 +65,8 @@ mod store_fs;
 mod test_checkpoint;
 #[cfg(test)]
 mod test_store;
+
+pub(crate) use recursive_circuit::RECURSIVE_HJMT_SEGMENT_BYTES_V2;
 
 pub use self::{
     archive_manifest::{

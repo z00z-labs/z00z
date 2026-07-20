@@ -5,20 +5,20 @@
 | Field | Value |
 | --- | --- |
 | Status | Product, interaction, configuration, and target-network baseline for prototype validation |
-| Version | 0.2.0 |
+| Version | 0.5.0 |
 | Date | 2026-07-19 |
-| Targets | Windows, Linux, iOS, Android |
+| Targets | Windows, Linux, iOS |
 | Prototype | [`demo/index.html`](demo/index.html) |
-| Production UI decision | Tauri 2 shell + Leptos 0.8 CSR view layer |
-| Backend boundary | Typed UI gateway over the existing JSON-RPC transport |
+| Production UI decision | Tauri 2 + Leptos is a packaged standalone shell; no browser, container, or hosted-wallet profile |
+| Backend boundary | Typed local-only gateway over in-process calls or authenticated OS IPC; no HTTP/WebSocket wallet listener |
 
 ## 🎯 Purpose
 
 This document is the implementation contract for the Z00Z Wallet user interface. It fixes the product model, information architecture, screen behavior, interaction flows, content, visual system, security behavior, responsive rules, and RPC ownership before production implementation begins.
 
-The accompanying HTML prototype is the executable design reference. It demonstrates contextual tabs, responsive layout, lock state, object-family separation, payment, receiving, claims, permissions, activity, layered network status, policy profiles, UI/YAML configuration, theme switching, and representative error/success states. It does not perform cryptography or connect to a live wallet.
+The accompanying HTML prototype is the executable design reference. It demonstrates contextual navigation, responsive layout, lock state, object-family separation, payment, receiving, asset claiming, vouchers, permissions, activity, layered network status, policy profiles, UI/YAML configuration, theme switching, and representative error/success states. It does not perform cryptography or connect to a live wallet.
 
-Version 0.2 corrects three conceptual drifts found during verification: Reticulum is the resilient carrier under OnionNet rather than a competing privacy route; a budget is one useful recipe for a `Right`, not the whole right model; and UI/YAML synchronization plus compliance-profile loading are target capabilities that are not exposed by the current RPC surface.
+Version 0.5 fixes a standalone-only deployment model: Z00Z Wallet is a packaged application for Windows, Linux, and iOS. Its UI and wallet backend run on the same device; frontend-to-backend traffic never crosses TCP, HTTP, WebSocket, a LAN, or the Internet. A Z00Z **Claim** is an asset-claim transaction with its own source proof, authority, recipient binding, and replay nullifier; it is not a voucher action. A `Right` is strictly zero-value, so a monetary budget cannot be represented as a bare permission card. Voucher actions are Accept, Reject, Transfer, Redeem, Refund, and Expire. UI/YAML synchronization, detailed Reticulum/OnionNet health, compliance profiles, and a wallet-facing claim-package intake remain target capabilities where current RPC is incomplete.
 
 The intended result is a wallet implementer who translates defined behavior into Rust rather than inventing product behavior inside view code.
 
@@ -40,7 +40,7 @@ Z00Z Wallet is a calm private-action workspace, not a trading terminal and not a
 
 The interface has two layers:
 
-- **Everyday layer:** assets, recent activity, requests, claims, and permissions expressed as human tasks.
+- **Everyday layer:** assets, recent activity, requests, asset claims, vouchers, and permissions expressed as human tasks.
 - **Expert layer:** identifiers, package data, receipts, lifecycle events, network diagnostics, and compatibility operations. It is deliberately opt-in.
 
 The home screen answers four questions in this order:
@@ -55,12 +55,12 @@ The core action language is fixed:
 | Product verb | User meaning | Backend concept | MVP placement |
 | --- | --- | --- | --- |
 | Pay | Send private money | Canonical transaction lane | Primary |
-| Claim | Accept or redeem something offered to me | Voucher/object lane | Primary |
+| Claim | Prove one authorized claim source and receive its private asset output once | `ClaimTxPackage` / asset claim lane | Primary, capability-gated |
 | Use | Exercise a granted capability | Right consumption | Secondary; future-ready |
-| Delegate | Give a bounded permission | Right delegation | Primary as a safe recipe; **Budget** is one recipe |
+| Delegate | Give a narrower permission that I already control | Right delegation | Primary as a safe recipe |
 | Prove | Show a fact or receipt without exposing more | Receipt/public material | Secondary; future-ready |
 
-The five verbs are the durable ontology. The first release promotes **Pay**, **Claim**, and **Give permission**. **Budget** remains the clearest initial permission recipe. Receive is a necessary counterpart to Pay and appears as a primary quick action.
+The five verbs are the durable action ontology, but they are not object families. The first release promotes **Pay**, **Receive**, and **Give permission**; **Claim** appears only when the build exposes a verified claim-package intake. Voucher review and redemption remain explicit voucher actions rather than being renamed Claim.
 
 ### 🧬 Object-family mental model
 
@@ -69,38 +69,73 @@ The protocol has three object families. The wallet presents their consequences b
 | Family | Everyday label | What it means | Balance treatment | Primary UI |
 | --- | --- | --- | --- | --- |
 | `Asset` | Asset / money | Final-value property the wallet can possess; native cash is the primary spendable projection | Count only verified, spendable cash in Available | Wallet → Assets |
-| `Voucher` | Claim / offer | Conditional value that can require acceptance or redemption and can have transfer/refund rules | Never Available until its outcome settles | Wallet → Claims |
+| `Voucher` | Voucher / offer | Conditional value that requires explicit acceptance and can have redemption, transfer, partial-redemption, refund, and expiry rules | Never Available until redeemed into a settled spendable asset | Wallet → Vouchers |
 | `Right` | Permission | Zero-value authority scoped by action, object/policy/domain, use count, delegation, and attenuation | Never a monetary balance | Wallet → Permissions |
 
-`Asset` and `Voucher` are value-bearing protocol families; only settled spendable assets contribute to the main balance. `Right` is zero-value authority. A voucher card must state its concrete outcome and backing rather than implying every voucher is cash. A right may control spending, use, delegation, proof, or another bounded action; the budget recipe is used only when an amount limit actually exists.
+`Asset` and `Voucher` are value-bearing protocol families; only settled spendable assets contribute to the main balance. `Right` is zero-value authority. A voucher card states its concrete outcome and backing rather than implying every voucher is cash. A right card never carries a monetary balance. If a future product offers an agent budget, it is a composed recipe that binds a zero-value authority to separately controlled value and fee support; the UI must not project the amount onto `RightLeaf` or claim that `wallet.object.delegate_right` creates money.
+
+`Claim` is not a fourth object family. It is a transaction lane that consumes a verified claim source and produces one or more `Asset` outputs. A successful claim therefore appears in Activity as an asset acquisition and, once settled and spendable, in Wallet → Assets. `OwnedAssetSource::ManualClaim` describes provenance; it does not turn the resulting asset into a voucher.
 
 ## 🧱 Non-negotiable product principles
 
-1. **Available is not an object total.** Spendable assets use the cash projection. Claims and permissions have separate tabs and never inflate the displayed balance.
-2. **Human language first, object family always recoverable.** Normal users see asset, claim, permission, request, receipt, recipient, available, and settling. Expert details show `Asset`, `Voucher`, `Right`, package, policy, and identifiers without creating a separate protocol product.
+1. **Available is not an object total.** Spendable assets use the cash projection. Vouchers and permissions have separate sections and never inflate the displayed balance.
+2. **Human language first, object family always recoverable.** Normal users see asset, claim funds, voucher, permission, request, receipt, recipient, available, and settling. Expert details show `Asset`, `Voucher`, `Right`, `ClaimTxPackage`, package, policy, and identifiers without creating a separate protocol product.
 3. **One intent, one dominant action.** Every flow has one primary button. Destructive or irreversible actions require a separate review step.
 4. **Fees are explained, not configured.** The UI states Included, Sponsored, or Deducted. Manual fee controls are not part of the standard flow.
 5. **Settlement is honest.** A successful submission is not presented as final settlement.
-6. **Safety is the default.** Main network, valid recipient/request, scoped budgets, finite expiry, local lock, and backup reminders are defaults.
+6. **Safety is the default.** Main network, valid recipient/request, attenuated permissions, finite expiry, local lock, and backup reminders are defaults.
 7. **Privacy is a state, not decoration.** Connection route and sensitive-display state are visible and understandable.
 8. **No speculative finance UI.** No market charts, fiat gain/loss, price tickers, or portfolio performance without an authoritative price service.
 9. **Progressive disclosure.** Protocol detail is available for support and verification without occupying everyday screens.
 10. **Cross-platform parity, platform-native behavior.** The same task model applies everywhere; window chrome, back behavior, share sheet, biometrics, keyboard, and safe areas follow each OS.
 11. **Configuration has one effective truth.** UI controls and YAML are two editors of the same versioned configuration; provenance, validation, conflicts, and restart requirements are visible.
 12. **Policy can restrict, never silently expand.** Protocol rules are immutable in the wallet. Organization and user profiles may only narrow allowed behavior; ambiguous or unsupported policy fails closed.
-13. **Privacy claims are measurable.** Say what is verified—Onion route, privacy floor, hop count, Reticulum carrier—not “anonymous” or “untraceable.”
+13. **Privacy claims are measurable and capability-bound.** Say what an authoritative network API verified—overlay route, privacy floor, hop count, carrier—not “anonymous” or “untraceable.” When that API is absent, say unavailable/target rather than fabricating health.
 
 ## 👥 Users and jobs
 
 | User | Primary job | Interface response |
 | --- | --- | --- |
 | Everyday holder | Safely pay, receive, and understand available money | Large balance, four quick actions, plain status language |
-| Claim recipient | Inspect and accept/redeem an offer | Claim card with issuer, value, expiry, terms summary, review |
-| Delegator | Give an app/person bounded authority | Recipe-based permission with scope, action, uses, expiry, review, attenuation, revoke |
+| Claim recipient | Claim an authorized asset allocation once | Claim review with source, output asset, authority/proof result, replay protection, and settlement state |
+| Voucher holder | Inspect, accept, redeem, transfer, or refund a conditional-value offer | Voucher card with issuer, backing, remaining value, validity, state-driven actions, and review |
+| Delegator | Give an app/person narrower authority from a held delegable right | Recipe-based permission with source authority, scope, action, uses, expiry, attenuation, and revoke |
 | Managed user | Operate under organization or safety restrictions | Signed profile status, effective restrictions, source, version, and a plain “Why blocked?” explanation |
 | Network-sensitive user | Prefer privacy, resilience, or controlled fallback | Mode-level choices with concrete OnionNet and Reticulum health, not raw ports |
 | Power user | Inspect receipts, identifiers, networks, and packages | Expert details drawer, copy/export actions, diagnostics |
 | Recovering user | Restore access without ambiguity | Guided 24-word recovery, validation, clear destructive warnings |
+
+### 🧭 Scenario-to-screen derivation
+
+The interface is derived from concrete jobs rather than from RPC namespaces. Every visible element must support at least one row below; unsupported placeholders are removed.
+
+| Scenario | User starts from | Dominant task | Result and durable location |
+| --- | --- | --- | --- |
+| Pay private money | Home or a spendable asset | Validate recipient → enter amount → review → send once | Settling/settled asset activity |
+| Receive private money | Home or a spendable asset | Create and share a payment request | Receiving/settled asset activity |
+| Claim an allocation | Home Claim action, deep link, QR, or imported package | Verify claim source, authority, recipient binding, outputs, and replay protection → authorize once | Asset activity; settled output appears under Assets |
+| Review a voucher | Attention or Wallet → Vouchers | Inspect issuer, backing, value, validity, and policy-driven actions | Accepted/redeemable/refunded/expired voucher state |
+| Redeem a voucher | Redeemable voucher detail | Review output and requirements → redeem full/partial as allowed | Voucher lifecycle plus any settled asset output |
+| Use a permission | Wallet → Permissions | Inspect the exact action, scope, uses, and expiry → use | Consumed/active permission activity |
+| Give a permission | Held delegable permission | Choose recipient and narrower scope/uses/expiry → review attenuation → delegate | Given permission; source authority remains explicit |
+| Resolve unsafe input | Attention or family filter | Read quarantine reason → discard/export diagnostics or retry with supported policy | Object remains non-spendable until authoritative promotion |
+| Diagnose connectivity | Header health or Settings → Network | Identify overlay, carrier, chain, and scan independently | Actionable degraded/unavailable state; no invented privacy claim |
+| Change configuration | Common control or Advanced YAML | Edit one effective config → validate → preview provenance/restart → apply | UI and YAML converge on one revision |
+
+### 🧱 UI element work plan
+
+Implementation and review proceed from general to specific:
+
+1. **Shell:** global destinations, title/context, wallet identity, privacy/scan signal, lock behavior, and responsive safe areas.
+2. **Context navigation:** one internal navigation rail for peer sections and nested settings; one active state; deep-linkable route; mobile adaptation.
+3. **Action hierarchy:** one primary action per view, safe secondary actions, destructive actions separated and named.
+4. **Object projections:** Assets, Vouchers, and Permissions each receive their own icon grammar, fields, filters, statuses, empty/loading/error/quarantine states, and detail flow.
+5. **Lists and cards:** one row geometry, divider rule, padding rhythm, metadata alignment, and interactive/static distinction across Attention, Activity, and object inventories.
+6. **Interaction states:** default, hover, keyboard focus, pressed, selected, disabled-with-reason, loading, success, warning, and error for every interactive component.
+7. **Responsive composition:** two aligned Home columns at desktop, stable two-by-two quick actions on mobile, internal rail collapse, and bottom-sheet flows.
+8. **Validation:** screenshot all main routes and states, keyboard traverse, 200% zoom, reduced motion, light/dark/forced-colors, and automated accessibility checks.
+
+An element that has no scenario, no authoritative/target data owner, or no useful action is not added to the demo.
 
 ## 🧰 Technology decision
 
@@ -108,13 +143,39 @@ The protocol has three object families. The wallet presents their consequences b
 
 Use:
 
-- **Tauri 2.11+** as the cross-platform application shell for Windows, Linux, iOS, and Android.
-- **Leptos 0.8 stable, CSR mode** as the Rust/WASM declarative view layer.
+- **Tauri 2** as the packaged cross-platform application shell for Windows, Linux, and iOS.
+- **Leptos static CSR** as the Rust/WASM declarative view layer, compiled into the Tauri application with Trunk; it is not served to, or opened by, a browser.
 - **CSS custom properties and component styles** for the design system and responsive behavior.
 - **Inline SVG icon components** from a single curated outline icon set; no emoji or icon fonts.
 - **Existing `RpcTransport` and typed RPC DTOs** behind a UI-owned `WalletGateway` trait.
 
-Tauri is the host, lifecycle, window, secure storage integration, platform bridge, and packaging layer. It is not the wallet domain API. Leptos owns views, local interaction state, routing, focus management, and presentation models.
+Tauri is the host, lifecycle, window, secure storage integration, platform bridge, and packaging layer. It is not the wallet domain API. Leptos owns views, local interaction state, routing, focus management, and presentation models. Tauri uses an embedded platform WebView as a renderer; it does **not** start an external browser, host a website, or expose a network wallet API.
+
+This is a **TARGET architecture decision**, not a description of the current repository. Exact Tauri, Leptos, Trunk, and plugin versions are pinned only after the implementation spike verifies Windows/Linux/iOS lifecycle, accessibility trees, secure-storage integration, binary size, and local-IPC packaging. The official Tauri Leptos guide itself is version-specific, so this specification deliberately does not freeze a Leptos minor version before that spike.
+
+### 📱 Mobile platform-adaptation contract
+
+**One visual system, not two mobile products.** Windows, Linux, and iOS share the same Leptos component tree, design tokens, CSS layout rules, route names, content, and wallet task flows. The responsive HTML prototype is the visual source of truth. iOS may adjust safe-area padding, system font fallback, window chrome, sheet presentation, and platform affordances, but must not fork the information architecture, colours, object grammar, or review flows.
+
+| Concern | Shared Leptos/UI responsibility | iOS Tauri adapter responsibility |
+| --- | --- | --- |
+| Layout | Breakpoints, 44 px targets, responsive cards, bottom navigation, sheets | Apply actual safe-area insets; test notches, home indicator, cut-outs, foldables, rotation, and split-screen/window resize |
+| Keyboard and forms | Keep the focused field and primary action visible; use semantic amount/password fields | Reconcile visual viewport and native keyboard; scroll/reposition the sheet rather than allowing the keyboard to obscure a review/submit action |
+| Back/navigation | Route state, modal stack, focus return, unsaved-input confirmation | iOS back gesture/control first closes the top dialog/sheet, then follows the route stack and never bypasses a required review |
+| Lifecycle and lock | Clear secret presentation state and stop foreground polling | Forward `backgrounded`, `suspended`, and `screen_locked` to the gateway; invoke the platform lock/privacy screen and refresh/re-auth on foreground. The wallet process remains authoritative for revocation/timeout |
+| Authentication | Explain why authentication is needed; never retain password/seed in component state | Use OS biometric/keychain/secure-storage integration only through a narrow Tauri command; no biometric result, session token, seed, or private key enters renderer-side persistent storage |
+| Share/files | Offer Copy, Share, Export, Import, and backup flows with clear review/error states | Use native share sheet, document picker, and destination abstraction; the frontend never receives arbitrary filesystem paths or opens host files directly |
+| Accessibility | Semantic DOM, visible focus, labels, live regions, reduced motion, text scaling | Validate real native accessibility trees and gestures with VoiceOver; honor OS text scale, contrast, motion, and screen-reader settings |
+
+**Mobile behavior rules:**
+
+1. A mobile bottom sheet is full-screen when the task needs keyboard entry, long review text, recovery words, or an irreversible confirmation. It is never a clipped desktop dialog.
+2. App backgrounding, suspension, or screen lock immediately hides sensitive balances/identifiers and clears all seed/password/recovery words from rendered and in-memory UI state. Foregrounding does not imply an unlocked wallet.
+3. A native back/gesture never discards entered non-secret data silently and never confirms, signs, exports, or redeems an action. It closes only the top transient layer before route navigation.
+4. Mobile does not rely on hover, a permanent sidebar, a right-click, or desktop-width tables. The labelled context route strip remains scrollable and the current route stays visible.
+5. Native capabilities are optional adapters with an unavailable state. If biometric, share, file, or secure-storage support is unavailable, the UI explains the fallback rather than imitating success.
+
+**Release gate:** validate the same build on an iPhone/iPad target for cold start, foreground/background/suspend/lock, keyboard overlap, safe areas, rotation, iOS return gesture, biometrics, share/import/export, VoiceOver, large text, reduced motion, and failed/unavailable native capability states. This is a platform-adaptation spike, not a justification for a second UI implementation.
 
 Official references:
 
@@ -128,7 +189,7 @@ Official references:
 
 Scores use 1 (poor/high risk) to 5 (strong/low risk). Mobile UX, accessibility, and transfer from the HTML prototype have the highest weight.
 
-| Option | Four target OSes | Responsive/mobile UX | Accessibility | Rust fit | Prototype transfer | Licensing/operational risk | Weighted conclusion |
+| Option | Three target OSes | Responsive/mobile UX | Accessibility | Rust fit | Prototype transfer | Licensing/operational risk | Weighted conclusion |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | Tauri 2 + Leptos | 5 | 5 | 4 | 5 | 5 | 5 | **Selected** |
 | Slint | 4 | 4 | 4 | 5 | 2 | 3 | Strong native alternative; licensing and HTML translation add risk |
@@ -140,10 +201,50 @@ Why the existing egui direction is not selected for the product UI:
 
 - The current views are mostly functional sketches and technical tab inventory.
 - Immediate-mode layout is efficient for tools but works against DOM-grade responsive composition and the target mobile information architecture.
-- Platform accessibility support and native-feeling mobile behavior are weaker than the selected webview route.
+- Platform accessibility support and native-feeling mobile behavior are weaker than the selected embedded-renderer route.
 - Current dependency is `eframe 0.28`; upgrading and redesigning it would still not solve prototype-to-production transfer.
 
 Do not delete the egui application during initial implementation. Keep it as a diagnostic client until the new gateway and core flows reach parity.
+
+### 📦 Deployment decision: standalone local application only
+
+**Decision:** Z00Z Wallet ships only as a packaged standalone application for Windows, Linux, and iOS. There is no browser companion, web application, Docker wallet profile, hosted wallet, local HTTP server, WebSocket server, TCP listener, LAN listener, or Internet-facing wallet RPC.
+
+The Tauri WebView is an embedded renderer inside the signed application bundle; it is not a deployment target or a browser session. The wallet backend and encrypted `.wlt` data remain on the same device. Reticulum/OnionNet traffic is a separate backend-to-network concern and must never become a route for UI-to-wallet commands.
+
+| Platform | Runtime shape | Wallet/key location | Required local boundary |
+| --- | --- | --- | --- |
+| **Windows/Linux** | Tauri application process plus local `z00z-walletd` process | `z00z-walletd` owns encrypted native `.wlt` data and key-bearing sessions | Authenticated Unix-domain socket (Linux) or Windows named pipe; never TCP |
+| **iOS** | One signed application with native embedded Rust backend | App-private native storage; backend owns session/key material | In-process typed gateway; no daemon, listener, or container |
+
+#### 🧱 Target standalone topology
+
+```mermaid
+flowchart LR
+    V[Leptos views in packaged Tauri renderer] --> C[Allowlisted typed Tauri commands]
+    C --> G[Native WalletGateway]
+    G -->|Windows/Linux: authenticated OS IPC| W[z00z-walletd]
+    G -->|iOS: in-process typed calls| M[Embedded wallet backend]
+    W --> D[Encrypted native .wlt data]
+    M --> D
+    W --> N[Reticulum / OnionNet target agent]
+    M --> N
+    Y[Wallet YAML file] --> X[Typed ConfigGateway]
+    X --> W
+    X --> M
+```
+
+#### 🛡️ Local IPC and reliability contract
+
+1. The application never binds a wallet command port. It has no HTTP, HTTPS, WebSocket, TCP, LAN, loopback-browser, or remote-RPC mode. `LocalRpcTransport` remains an in-process test/adapter seam, not the production desktop IPC transport.
+2. On Linux, `z00z-walletd` listens only on a Unix-domain socket under a user-private runtime directory. On Windows it uses a named pipe restricted by a current-user DACL. The daemon validates the OS peer identity; the client validates the daemon created by the signed application. No secret is passed in command-line arguments, URLs, or logs.
+3. The channel starts with protocol-version negotiation and a one-time, short-lived pairing capability. Requests have bounded size, deadline, cancellation, and structured error limits; stale sockets/pipes are removed only after peer/process validation.
+4. The Tauri command surface is a small allowlist of typed user intents—never generic `rpc.call(method, params)`, arbitrary package mutation, arbitrary file path access, or `sign(bytes)`. It maps flows such as `create payment draft → review → approve → submit`.
+5. `z00z-walletd` retains the raw `SessionToken`, private keys, and `WalletSessionManager` key-bearing session state. The renderer receives only presentation-safe state. High-risk commands require fresh local confirmation and, where enabled, operating-system biometric confirmation.
+6. A mutation receives an operation ID and idempotency key. The daemon atomically journals the intent/request digest before external broadcast, then records submitted/settled/failed status. On timeout, restart, or disconnect the UI shows **Checking result** and reconciles by operation/transaction identity; it never retries a money-moving command blindly.
+7. Lifecycle signals are accepted only from the authenticated native platform bridge. They immediately hide sensitive UI state and trigger the wallet lock contract; no other local process may call raw `wallet.lifecycle.on_event`.
+
+This boundary protects against network exposure and other OS users/processes. It cannot make a compromised operating-system account or kernel trustworthy; the residual protection is platform code-signing, OS permissions, secure storage, the key/session lock, and user confirmation for high-risk actions.
 
 ### 🧪 Design and prototype tooling
 
@@ -162,8 +263,8 @@ Figma is optional and downstream. Use it after the product flows stabilize for c
 
 | Decision | Alternative considered | Why this contract wins | Failure to guard against |
 | --- | --- | --- | --- |
-| Workspaces + contextual tabs | One global tab for every RPC capability | Stable four-item navigation with family/settings depth where it belongs | Tab explosion and empty speculative pages |
-| Wallet tabs Assets/Claims/Permissions | A technical “Object explorer” as the default | Preserves the protocol families without requiring protocol vocabulary | Mixing conditional or zero-value objects into Available |
+| Workspaces + context navigation | One global tab for every RPC capability | Stable four-item global navigation plus a tree/rail where wallet and settings depth belongs | Tab explosion and empty speculative pages |
+| Wallet rail Assets/Vouchers/Permissions | A technical “Object explorer” or horizontal tab strip | Preserves the three protocol families, scales to badges/quarantine, and keeps long labels readable | Mixing conditional or zero-value objects into Available |
 | Permission as durable label | Call every `Right` a Budget | Covers action/domain/object-scoped authority correctly | Showing a fake monetary limit for a non-monetary right |
 | OnionNet overlay + Reticulum carrier | Tor/OnionNet/Reticulum as equivalent route toggles | Matches Phase 080 layering and enables measurable privacy status | False privacy claims and unsafe fallback |
 | Typed config service + lossless YAML | Separate UI preferences database or full YAML overwrite | One effective truth, preserves advanced keys/comments | Silent divergence, lost settings, race overwrites |
@@ -178,6 +279,39 @@ Concept-drift gate for every new screen:
 3. Which current RPC/capability supplies each claim, and is it live, stubbed, or target-only?
 4. Could the action broaden authority, weaken privacy, overwrite config, or imply compliance? If yes, block or add explicit review/attenuation.
 5. Can a common user finish without identifiers, YAML, route internals, or policy encoding?
+
+### 🔎 CodeGraph evidence ledger
+
+Every implementation claim in this specification is classified. `LIVE` means verified against current on-disk source through CodeGraph. `TARGET` means a required future contract and must be labelled/capability-gated in the demo/product. `UX` is a design decision derived from user scenarios and usability constraints; it is not presented as backend fact.
+
+| Claim | Class | CodeGraph/source evidence | UI consequence |
+| --- | --- | --- | --- |
+| Protocol object families are Asset, Voucher, Right; only Asset/Voucher are value-bearing | LIVE | `ObjectFamily`, `ObjectFamily::is_value_bearing` — `crates/z00z_core/src/assets/object_family.rs` | Three Wallet routes; Right never enters balance |
+| Wallet inventory stores Asset, Voucher, Right separately | LIVE | `WalletInventoryPayload`, `OwnedObjectFamily`, status enums — `crates/z00z_wallets/src/redb_store/tables.rs` | Lists/actions are family and status specific |
+| Asset classes are Coin, Token, Nft, Void | LIVE | `AssetClass` — `crates/z00z_core/src/assets/asset_class.rs`; `AssetDefinition` — `assets/definition.rs` | Visible class labels; Void expert/quarantine only |
+| Claim is an asset-claim transaction, not a voucher action | LIVE | `ClaimTxPackage`, `ClaimInputWire`, `ClaimOutputWire`, `ClaimContextWire` — `crates/z00z_wallets/src/tx/claim_tx_wire.rs`; `ClaimTxVerifier` — `tx/claim_tx.rs`; `verify_nullifier`, `build_claim_stmt` — claim verification modules | Claim review shows source proof, authority, recipient binding, asset outputs, nullifier |
+| Claim-related outputs persist as Assets with explicit source | LIVE | `put_claimed_asset` uses `OwnedAssetSource::ManualClaim`; `import_claimed_assets` uses `OwnedAssetSource::Import` — `services/wallet_actions_reachability.rs` | Claim/import provenance stays distinct; neither becomes a Voucher |
+| No dedicated current wallet-facing claim build/intake RPC | LIVE negative check | Complete `register_all_wallet_rpc_methods` path plus `ObjectRpc` — `wallet_dispatcher_wiring.rs`, `object_rpc.rs` | Claim action is TARGET/capability-gated despite live verifier libraries |
+| Voucher lifecycle/actions are independent | LIVE | `VoucherLeaf` — `z00z_storage/src/settlement/record.rs`; `VoucherLifecycleV1` — `z00z_core/src/vouchers/voucher_lifecycle.rs`; `VoucherAction` — `settlement/tx_plan_types.rs`; dedicated voucher methods in `ObjectRpc`/`ObjectRpcImpl` | Voucher screen uses Offered/Accepted/Redeemable/etc. and state-valid verbs |
+| Right is zero-value; budget/value semantics are forbidden | LIVE | `RightLeaf`; `RightPolicyV1::validate`; `FORBIDDEN_RIGHT_KEYS` includes `budget`, `amount`, `nominal`, `backing`, `value` — `rights/config.rs` | Permission card shows class/action/scope/uses/expiry, no Z00Z remainder |
+| High-level right actions exist, but dedicated `grant_right` does not | LIVE | `ObjectRpc::{delegate_right,consume_right,revoke_right,challenge_right}`; generic `build_package`; `ObjectRpcImpl::delegate_right` forces Right transfer | Normal Give permission attenuates held authority; issuer create is separate/gated |
+| Object policy projection includes availability/manual review/quarantine | LIVE | `OwnedObjectPolicy`, `WalletPolicyAvailability` — `redb_store/tables.rs`; `RuntimeObjectPolicyState` — `rpc/object_types.rs` | Trust/review badges use authoritative availability, not marketing copy |
+| Current wallet policy supports spend limits/allowlists/confirmation/time | LIVE | `PolicyRules`, `PolicyImpl::validate_definition_with_context` — `wallet/policy.rs` | Basic safety-rule explanations may be live |
+| Signed compliance profile load/apply/persistence is absent | LIVE negative check | CodeGraph search of live types plus complete wallet RPC registry finds no profile loader/signature/apply/disable RPC | Rich profile UI is TARGET preview, never “applied” without capability |
+| Runtime config reads embedded YAML + optional overlay and selected env overrides | LIVE | `wallet_config_override_yaml_checked`, `merge_wallet_yaml_value`, `load_wallet_config_yaml_checked`, `resolve_wallet_identity_checked` — `services/wallet_runtime_config.rs` | Current config surface is read/merge baseline only |
+| Lossless UI↔YAML write/watch/revision/diff RPC does not exist | LIVE negative check | Complete current registration path (68 RPC method annotations at review time) has no config/settings/YAML methods; merge serializes `YamlValue` | Full synchronization service below is TARGET |
+| OnionNet code is a placeholder; network switch RPC is stubbed | LIVE | `crates/z00z_networks/onionnet/src/lib.rs` placeholder modules; `AppService::switch_to_onionet` returns `success: false`; `switch_to_tor` returns placeholder Devnet/localhost settings | No live Healthy/Verified route claim; demo says Target simulation |
+| Current product-view sketch is feature-gated egui/eframe, not Tauri/Leptos | LIVE | `crates/z00z_wallets/src/lib.rs` gates `egui_views` behind `feature = "egui"`; `crates/z00z_wallets/Cargo.toml` binds that feature to optional `eframe = "0.28"`; CodeGraph plus manifest search finds no current Tauri/Leptos dependency | Preserve egui as a diagnostic client during migration; treat the selected production stack as TARGET |
+| Current RPC has no production local-IPC transport | LIVE | `LocalRpcTransport` calls the dispatcher directly; `RpcTransport` documents peer identity/authentication/retry/lifecycle as higher-layer concerns; CodeGraph finds no Unix socket, named pipe, or server listener | Implement the standalone local IPC contract below; the WASM/WebSocket seam is explicitly outside this product |
+| Wallet key-bearing sessions and `.wlt` persistence are native/process-local | LIVE | `WalletSessionManager` owns `BTreeMap<PersistWalletId, ManagedSession>` and revokes expired/locked sessions; `SessionToken` is a serializable bearer object; `db/mod.rs` documents native-only `redb` `.wlt` persistence; `FileKeyStore` is file-based | Raw session tokens and key material stay in the native gateway/daemon, never in renderer state, persistent storage, URLs, logs, or telemetry |
+| Current session token authenticates a session but is not a UI authorization model | LIVE | `SessionToken.permissions` is documented as future/optional and issued as `vec![]`; `WalletSessionManager::verify` checks token, wallet, and expiry | The contract never trusts a frontend-supplied role, balance, policy, recipient, or permission. The daemon revalidates policy, ownership, state, and high-risk confirmation for every mutation |
+| Current RPC idempotency is not crash-durable or universal | LIVE | `wallet.tx.send_transaction` has an in-memory response cache with a 10-minute TTL in `rpc/tx_rpc_idempotency.rs`; generic `RpcTransport` has no timeout/retry/reconnect policy and other mutations do not share that cache | After an ambiguous result the UI reconciles instead of blind-retrying. The production gateway requires a durable operation/intent journal for money-moving actions before it can advertise crash-safe retries |
+| Lifecycle events have no RPC session guard | LIVE | `wallet.lifecycle.on_event` is registered without a `SessionToken` guard in `rpc/wallet_dispatcher_routes.rs`; it calls the service lifecycle path which locks wallets on background/suspend/screen-lock | This is safe only for the present in-process caller. The future local IPC adapter accepts lifecycle signals only from the authenticated platform bridge and never publishes this raw method to arbitrary local peers |
+| Reticulum under OnionNet is target architecture, not current API | TARGET | Phase 080 `080-Reticulum-OnionNet.md`; CodeGraph finds no live Reticulum runtime/API | Reticulum/OnionNet tree exists as target design with unavailable capability state |
+| Grouped context rail/tree plus rounded filter chips | UX | Scenario depth, label length, mobile transformation, consistency review | Exactly two selection patterns: route navigation and choices/filters |
+| Home quick actions align as two pairs over two equal lower panels | UX | Visual hierarchy and requested alignment contract | Same outer grid/gap tokens; two equal cards per pair |
+
+If a future code change invalidates a `LIVE` row, update this ledger, RPC traceability, scenarios, demo copy/state, and acceptance tests together. Planning graphs may locate code but are never evidence for a `LIVE` claim.
 
 ## 🔌 Frontend isolation and architecture
 
@@ -201,33 +335,76 @@ flowchart LR
 ### 🛡️ Boundary rules
 
 - Views never import wallet service implementations, key managers, databases, or crypto primitives.
-- Views never retain seeds, passwords, session tokens, raw transaction packages, or private material in persistent browser storage.
+- Views never retain seeds, passwords, session tokens, raw transaction packages, or private material in renderer-side persistent storage.
 - `WalletGateway` returns presentation-safe typed results and structured errors.
 - Session tokens live only in the gateway/runtime memory and are redacted from logs.
-- Desktop may use an in-process/local transport; separated processes may use authenticated local IPC; browser-like targets may use WebSocket/HTTP. The view API is identical.
-- Tauri commands must be a thin transport bridge, not a parallel business API.
-- Every mutating request carries an idempotency key where the backend supports it.
+- Desktop uses authenticated Unix-domain socket (Linux) or Windows named-pipe IPC for a separated `z00z-walletd`; iOS uses typed in-process calls. Every path uses the same `WalletGateway` API. `LocalRpcTransport` is an in-process adapter, not that production IPC implementation. No UI-to-wallet WebSocket, HTTP, TCP, or remote transport exists.
+- Tauri commands must be a thin, allowlisted intent bridge—not a generic `rpc.call(method, params)` or arbitrary-byte signing API. The native gateway maps `create payment draft → review → approve → submit` and retains the raw wallet session.
+- Frontend input is untrusted at the boundary: the gateway/daemon rechecks object ownership, recipient binding, chain, policy, state transition, amount, and fresh-confirmation requirements for every mutation. UI state and future token `permissions` fields never grant authority by themselves.
+- Every money-moving request carries an idempotency key where the backend supports it. A timeout is an **unknown outcome**, never permission to submit again: reconcile by operation/transaction identity. The current 10-minute in-memory `send_transaction` cache is useful against double-clicks but is not sufficient across daemon restart; the production daemon persists the operation/intent record before external broadcast.
+- The raw `wallet.lifecycle.on_event` method is private to the authenticated platform bridge in a separated-process deployment. It is not exposed to the renderer or arbitrary local peers.
 - Lifecycle events (`backgrounded`, `foregrounded`, `suspended`, `screen_locked`) are forwarded immediately. Background, suspend, and screen lock revoke sensitive UI state and trigger the backend lifecycle contract.
 - Views request intent-level network modes and status. They never sign arbitrary bytes, derive network identities from the wallet seed, or configure raw Reticulum/OnionNet internals directly.
-- Configuration reads and writes cross a typed config service. The UI never rewrites YAML text from browser state or treats a successful file write as a successfully applied configuration.
+- Configuration reads and writes cross a typed config service. The UI never rewrites YAML text from renderer state or treats a successful file write as a successfully applied configuration.
+
+### 🤝 Stable UI contract and team boundary
+
+**Decision:** retain RPC as the logical command/query boundary, but do not make the raw current JSON-RPC method catalogue the UI's product API. The current method registry is an evolving backend inventory: it is incomplete, includes target/stub/feature-gated work, and may grow substantially as wallet functionality is implemented. It is neither a ceiling on future wallet capabilities nor a contract that the UI consumes directly. `WalletGateway v1` is the stable, typed contract shared by the UI and backend teams; local IPC is only one adapter that carries it. Replacing Leptos, changing the Tauri renderer, moving from direct calls to a daemon, or adding/refactoring internal RPC methods must not require a change to wallet services, cryptography, storage, or already-shipped UI semantics.
+
+| Layer | Owner | May depend on | Must not depend on |
+| --- | --- | --- | --- |
+| `wallet_ui_contract` | Shared API ownership | Serde/basic types and generated neutral schemas | `z00z_wallets` services, database, private keys, Tauri/Leptos |
+| UI application | UI team | `wallet_ui_contract`, `WalletGateway`, presentation models, platform adapter | RPC method strings, `SessionToken`, wallet DB, crypto, key/session implementations |
+| Gateway client | App/platform team | Contract plus local IPC or direct-call adapter | View components and UI state |
+| Gateway/daemon adapter | Backend team | Contract plus current wallet RPC/services | Renderer storage, arbitrary UI code |
+| Mock gateway and fixtures | Shared | Contract and deterministic fixture data | A live wallet, network, wallet files, or secrets |
+
+The stable contract exposes human intents and presentation-safe results, for example `load_home`, `list_assets`, `create_payment_draft`, `approve_payment`, `submit_payment`, `reconcile_operation`, `lock_wallet`, `load_effective_config`, and their explicit unavailable/target states. It does **not** expose generic `call(method, params)`, raw package mutation, database paths, raw seed/key material, or arbitrary signing. Current and future `wallet.*` methods remain an internal backend implementation detail behind the adapter.
+
+#### ➕ Capability-extension rule
+
+1. The backend team may add, split, rename, deprecate, or replace internal RPC/service methods whenever wallet implementation requires it. An internal addition by itself creates no UI dependency and does not require a UI release.
+2. A capability becomes visible to the UI only when there is a user scenario, an authoritative backend owner, a safety/confirmation model, and a `WalletGateway` command/query with typed request/result/error/capability state.
+3. The shared team then publishes an additive contract-minor change, JSON Schema, golden fixtures, mock behavior, adapter conformance tests, and UX copy/state. Until that work exists, the UI does not invent a button or label a backend stub as available.
+4. Internal adapters may compose several low-level RPC calls behind one UI intent, or replace one low-level method without changing the UI contract. Conversely, one backend method may support several UI read projections; no one-to-one mapping is required.
+5. Removing or changing an already-exposed intent follows the contract-major/deprecation policy. Adding unexposed backend methods never changes that version.
+
+#### 📜 Contract versioning and local protocol
+
+1. `wallet_ui_contract` has its own semantic major/minor version, changelog, canonical JSON Schema, and redacted golden fixtures. A breaking DTO/error/state change increments the major; additive optional fields or commands increment the minor. The schema/fixtures let a separately staffed non-Rust UI use a generated client without importing backend code.
+2. Both direct and IPC adapters accept the same typed request/response DTOs. IPC begins with a version handshake; incompatible major versions fail closed with an update-required state, while supported minor versions negotiate the lower feature set.
+3. Every response contains a correlation/request ID; mutations also return an operation ID. Progress and final-state updates are typed events or polling projections, never UI guesses from transport success.
+4. The contract has a complete error taxonomy: validation, authentication, authorization, unavailable capability, conflict, timeout/unknown outcome, integrity, and internal failure. It never return-leaks a Rust stack trace, filesystem path, key, seed, raw token, or a security policy implementation detail.
+5. Contract fixtures cover lock/unlock, unavailable target capabilities, every object family/state, malformed input, disconnect/restart during submit, and reconciliation. The UI team develops against `MockWalletGateway`; backend changes are accepted only after the live adapter passes the same contract suite.
+
+This yields two independent deliverables: the UI team can build and test every screen without a wallet node or access to wallet internals, while the backend team evolves storage, crypto, networking, and local IPC behind a versioned compatibility boundary. RPC is therefore the isolation mechanism—not a commitment to a browser or network service.
 
 ### 🧩 Suggested Rust module shape
 
 ```text
-z00z_wallet_ui/
+crates/z00z_wallet_ui_contract/
+  src/
+    gateway.rs            # WalletGateway v1 trait and typed intent/query methods
+    dto/                  # versioned request, result, event, and error DTOs
+    schema/               # generated canonical JSON Schema for non-Rust UI clients
+    capability.rs         # explicit live/target/unavailable capability states
+    fixtures/             # redacted deterministic contract fixtures
+
+crates/z00z_wallet_ui/
   src/
     app.rs
     route.rs
     gateway/
-      mod.rs              # WalletGateway trait
-      rpc_gateway.rs      # RpcTransport implementation
+      mod.rs              # re-export/consume WalletGateway v1 only
+      local_ipc_gateway.rs # Windows/Linux authenticated IPC adapter
+      direct_gateway.rs   # iOS in-process adapter
       mock_gateway.rs     # deterministic UI tests/story states
     model/                # presentation models only
     store/                # session, wallet, objects, activity, config, network
     view/
       shell/
       home/
-      wallet/             # Assets, Claims, Permissions tabs
+      wallet/             # Assets, Vouchers, Permissions context routes
       activity/
       settings/           # General, Security, Network, Policies, Backups, Appearance, Advanced
       onboarding/
@@ -239,6 +416,11 @@ z00z_wallet_ui/
     base.css
     components.css
     responsive.css
+
+crates/z00z_walletd/      # Windows/Linux only; ships the z00z-walletd binary
+  contract_adapter/        # WalletGateway v1 -> current wallet services/RPC
+  ipc/                     # UDS/named-pipe handshake, limits, peer checks
+  operation_journal/       # durable idempotency and reconciliation records
 ```
 
 `crates/z00z_wallets` remains the domain/backend owner. A separate UI crate prevents dependency leakage.
@@ -256,11 +438,13 @@ Persistent left rail:
 
 The rail footer contains privacy route, network, lock, and build channel. The header contains wallet switcher, sync state, balance-visibility toggle, notifications, and account menu.
 
-The rail selects a workspace. A compact horizontal contextual tab bar then selects the content inside that workspace, matching the information rhythm of `z00z.io` without copying its documentation layout. Tabs change the main panel; they do not open floating windows or multiply global navigation.
+The global rail selects a workspace. Inside Wallet and Settings, a compact **context rail/tree** selects the main-panel route. It follows the section rhythm of `z00z.io` while behaving as an application: the selected entry replaces the main panel rather than opening another window.
 
-- Wallet tabs: **Assets**, **Claims**, **Permissions**, and capability-gated **Quarantine**.
-- Settings tabs: **General**, **Security**, **Network**, **Policies**, **Backups**, **Appearance**, **Advanced**.
-- Network tabs: **Overview**, **Reticulum**, **OnionNet**, **Carriers**, **Diagnostics**.
+- Wallet peer entries: **Assets**, **Vouchers**, **Permissions**, and capability-gated **Quarantine**.
+- Settings groups: **Wallet** (General, Security, Backups), **Connectivity** (Network), and **Rules & interface** (Policies, Appearance, Advanced).
+- Network is the only expandable branch. Selecting it opens the **Overview** and expands **Reticulum**, **OnionNet**, **Carriers**, and capability-gated **Diagnostics** in place; selecting it again collapses that branch and restores Overview. A child route reopens its parent branch. Exactly one route has `aria-current="page"`: the parent for Overview, otherwise the selected child.
+
+The context rail is navigation, not a tab widget: use `nav`, links/buttons, and `aria-current="page"`; do not apply `tablist/tab/tabpanel`. Rounded `ChoiceChip` controls are reserved for filtering or a small mutually exclusive view mode. Activity filters therefore remain rounded chips. These two patterns must not be restyled into look-alike third and fourth variants.
 
 ### 📱 Mobile and narrow tablet
 
@@ -271,7 +455,7 @@ Bottom navigation contains four destinations:
 3. Activity
 4. Settings
 
-Quick actions are horizontally stable two-by-two cards, not a horizontally scrolling carousel. Contextual tabs scroll as one labelled tab strip when they cannot fit, retain the active item in view, and never turn into unlabeled icons. Native back closes the most recent sheet/dialog before navigating away, then returns to the preceding tab/workspace.
+Quick actions are stable two-by-two cards, not a carousel. The context rail becomes one labelled horizontal route strip on narrow screens; it retains the active item in view and never becomes unlabeled icons. Native back closes the most recent sheet/dialog before navigating away, then returns to the preceding route/workspace.
 
 ### 🧭 Route contract
 
@@ -283,8 +467,8 @@ Quick actions are horizontally stable two-by-two cards, not a horizontally scrol
 | `/unlock/:wallet_id` | Unlock | — | No |
 | `/home` | Overview | Home | Yes |
 | `/wallet/assets` | Spendable asset projection | Wallet → Assets | Yes |
-| `/wallet/claims` | Voucher outcomes and offers | Wallet → Claims | Yes |
-| `/wallet/claims/:id` | Claim details | — | Yes |
+| `/wallet/vouchers` | Conditional-value offers and lifecycle | Wallet → Vouchers | Yes |
+| `/wallet/vouchers/:id` | Voucher details | — | Yes |
 | `/wallet/permissions` | Rights and safe permission recipes | Wallet → Permissions | Yes |
 | `/wallet/permissions/:id` | Permission details | — | Yes |
 | `/wallet/quarantine` | Unsupported/invalid objects | Wallet → Quarantine | Yes + capability |
@@ -350,7 +534,7 @@ The balance hero shows:
 - Pending line: incoming/outgoing amount that is not settled.
 - Hide/reveal button; hidden state persists only as a non-sensitive preference.
 
-Do not sum claims, vouchers, permissions, delegated limits, quarantined objects, or incompatible assets into this number.
+Do not sum unsettled claim outputs, vouchers, permissions, delegated limits, quarantined objects, or incompatible assets into this number.
 
 ### ⚡ Quick actions
 
@@ -361,7 +545,9 @@ Fixed order:
 3. Claim
 4. Give permission
 
-The fourth card may summarize the initial **Budget** recipe in its helper, but its durable destination is Permissions.
+Claim means a verified asset claim, not voucher acceptance or redemption. Give permission means attenuated delegation from a held delegable right, not creation of a monetary allowance. Both actions are capability-gated when their required high-level gateway methods are unavailable.
+
+Desktop geometry is fixed as two outer pairs aligned to the two lower Home panels: Pay/Receive over **Needs your attention**, Claim/Give permission over **Recent activity**. The outer gap, pair widths, and lower-panel gap use the same grid token. At narrow widths the two pairs stack, but each pair remains two equal columns when labels fit.
 
 Each action is a button with icon, verb, and six-word maximum helper. No action is represented only by a colored icon.
 
@@ -369,7 +555,8 @@ Each action is a button with icon, verb, and six-word maximum helper. No action 
 
 Shows at most three items, ordered by required user action and then age:
 
-- Claim expiring soon.
+- Voucher requiring acceptance or expiring soon.
+- Asset claim package requiring review when claim intake is available.
 - Permission approaching use limit or expiry.
 - Payment requiring retry/reconciliation.
 - Backup overdue.
@@ -383,20 +570,22 @@ Show the five most recent records with counterparty/intent, amount or object lab
 
 ## 💵 Wallet → Assets
 
-This screen is the cash-only projection of `wallet.asset.*` plus canonical transaction state.
+This screen is the owned-`Asset` projection. Its first summary is the spendable native-cash projection, while the inventory below distinguishes the live `AssetClass` variants `Coin`, `Token`, `Nft`, and expert-only/unsupported `Void`. Non-native tokens and collectibles do not silently enter **Available privately**.
 
 ### 🧾 Asset card/list fields
 
 | Field | Default | Notes |
 | --- | --- | --- |
-| Asset name and symbol | Visible | Verified label first; identifier in details |
+| Asset name, symbol, class | Visible | `Coin`, `Token`, or `Collectible`; raw enum/identifier in details |
 | Available | Visible | Spendable amount only |
 | Settling | Visible when non-zero | Separate incoming/outgoing semantics |
-| Verification state | Visible | Trusted, unverified, or local |
+| Trust/policy state | Visible | Native/trusted catalog, declared domain, review required, policy unavailable, or quarantined; `domain_name` alone is not a trust verdict |
 | Pay / Receive | Visible | Context-preserving actions |
 | Raw asset ID | Hidden | Expert details only |
 
 Desktop uses a compact list with cards for the selected asset. Mobile uses stacked cards. Never force a horizontally scrollable table.
+
+Filters are `All`, `Coin`, `Token`, `Collectible`, and `Needs review`. An NFT uses item count/serial-oriented copy, never a decimal money balance. `Void` is excluded from normal inventory and shown only in expert/quarantine handling when present.
 
 ### 🚧 Compatibility operations
 
@@ -408,46 +597,39 @@ Rules:
 - If enabled for testing, place them under Advanced → Experimental recipes.
 - Label the environment and risk; never imply final settlement from a compatibility response.
 
-## 🪄 Wallet → Claims and Permissions
+## 🪄 Wallet → Vouchers and Permissions
 
-The Wallet workspace gives each object family a stable tab. This keeps the everyday model simple while making the three-family protocol structure discoverable. Each tab header shows the everyday label and, in expert mode only, its protocol family.
+The Wallet context rail gives every protocol family one stable route: Assets, Vouchers, Permissions. Expert mode may add the protocol type beside the human label, but it never collapses these families into one “balance”.
 
-### 🎟️ Claims
+### 🎟️ Vouchers
 
-Claims are vouchers with a conditional outcome that may require acceptance or redemption. Cards contain:
+A voucher is conditional value, not an asset claim. Cards project the live voucher fields/statuses and contain:
 
-- Human label.
-- Issuer/counterparty and verification state.
-- Outcome type, backing, and what the user receives if the claim succeeds.
-- Expiry or no-expiry statement.
-- One-line terms summary.
-- State: Ready to claim, Claimed · settling, Settled, Expired, Rejected, Needs attention.
-- Primary action based on state.
-- Transfer, partial-redemption, refund, beneficiary, and required-right restrictions when the policy enables them.
+- Human label and issuer; never infer “verified issuer” from a commitment or declared domain alone.
+- Backing class: reserve commitment, consumed asset, or genesis reserve.
+- Face value and remaining value.
+- Validity window, beneficiary/refund consequence, acceptance requirement, and reject availability.
+- Wallet status: Offered, Pending accept, Accepted, Redeemable, Partially redeemed, Redeemed, Rejected, Refunded, Expired, or Quarantined.
+- Only state-valid actions: Accept, Reject, Transfer, Redeem full/partial, Refund, or no action.
 
-The normal card never shows voucher ID or package bytes.
+Filters are `Needs action`, `Redeemable`, `History`, and `Quarantined`. Voucher value never enters Available. A redeemed voucher may produce or release an asset outcome, but the asset becomes Available only after the asset/transaction authority reports it settled and spendable. The normal card never shows raw commitments or package bytes.
 
 ### 🔑 Permissions
 
-A permission is the human-facing projection of a `Right`. Cards contain:
+A permission is the human-facing projection of a zero-value `Right`. Cards contain:
 
-- Holder/delegate, issuer, and verification state.
-- Allowed actions.
-- Scope: object family, specific object, policy, or domain.
-- Uses remaining when limited.
-- Delegation allowed/forbidden and attenuation-only state.
+- Right class: Machine capability, Data access, Service entitlement, Validator mandate, or One-time use.
+- Holder/delegate and issuer/provider scope; trust is shown only when an authoritative policy/catalog verdict exists.
+- Allowed action and scope: object family, specific object, policy, or domain.
+- Uses remaining when limited and the validity/challenge windows.
+- Delegation allowed/forbidden and attenuation-only requirements.
 - Expiry.
-- State: Active, Paused, Exhausted, Expired, Revoked, Challenged, Needs attention.
+- Wallet status: Granted, Held, Delegated, Consumed, Revoked, Expired, Challenged, or Quarantined.
 - Revoke action, always confirmed.
 
-Initial safe recipes:
+Normal **Give permission** flow delegates/attenuates a held delegable right through `wallet.object.delegate_right`. It first selects source authority, then delegate, action, scope, uses, and expiry; values broader than the source are unavailable rather than merely warned. Generic `wallet.object.build_package` can encode a Right create action, but current code exposes no dedicated `grant_right` method. Issuer/create UI therefore remains a separate capability-gated expert flow.
 
-1. **Service allowance** — provider, total limit, expiry.
-2. **Recurring allowance** — per-period limit, total cap, expiry.
-3. **Single-use permission** — exact maximum, one use, short expiry.
-4. **Scoped action** — one action on one object/policy/domain, no monetary implication.
-
-Only amount-bearing recipes use the word **Budget**. A generic right is always **Permission**. No raw policy builder appears in the normal interface, and a delegated permission can never be broader than the authority held by the delegator.
+The standard UI never asks for asset, amount, balance, spend cap, fee, backing, or reserve on a permission: current right configuration rejects those semantics. A future “agent budget” is a composed product over a Right plus separately controlled value/fee support and needs its own protocol/gateway contract. It must not be presented as a current `RightLeaf` field or a current `delegate_right` capability.
 
 ### 🧯 Quarantine
 
@@ -459,15 +641,15 @@ Reserve component and routing capacity for Use and Prove. Do not ship empty navi
 
 ## 🧾 Activity screen
 
-Activity unifies asset transactions, claims, permission events, policy/config changes, backup/security events that affect user trust, and reconciliation alerts.
+Activity unifies asset transactions (including claim-origin assets), voucher events, permission events, policy/config changes, backup/security events that affect user trust, and reconciliation alerts.
 
 Filters:
 
 - All
 - Assets
-- Claims
+- Vouchers
 - Permissions
-- Policy & settings
+- System
 - Needs attention
 
 Search matches user-visible labels, counterparty, abbreviated ID, and memo. It must not load or index secrets.
@@ -571,35 +753,43 @@ Validation:
 
 The full receiver value is selectable only in a deliberate details region. Copy feedback names exactly what was copied.
 
-### 🎟️ Claim
+### 🧬 Claim an asset allocation
 
-1. Open a claim from attention queue, Actions, QR/deep link, or imported package.
-2. Validate and preview using `wallet.object.preview_package`.
-3. Show issuer, outcome, expiry, requirements, and verification state.
-4. Primary button states the action: **Accept claim** or **Redeem now**.
-5. Review any money movement or external effect.
-6. Call the corresponding accept/redeem operation.
-7. Show **Claimed · settling** until authoritative settlement is observed.
+This flow is capability-gated until a dedicated claim-package gateway/RPC exists.
 
-Reject and refund are secondary/destructive actions with explicit consequences.
+1. Open Claim from Home, a deep link/QR, or imported `ClaimTxPackage`.
+2. Verify the source proof/root, claim authority signature, recipient binding, claim scope, output asset wires, output owner attestations, and chain-bound nullifier.
+3. Show the human source label only when supplied by a trusted catalog; otherwise show an abbreviated source identifier and `Unknown source`.
+4. Show output asset class/name/amount, recipient wallet, one-time/replay protection, expected fee treatment, and network/environment.
+5. Authorize once with **Verify and claim once**. A duplicate activation cannot submit a second claim.
+6. Persist/report the output as an Asset with claim provenance only after the backend returns an accepted result.
+7. Activity says **Asset receiving · settling**; the output enters Assets and Available only under authoritative asset status.
 
-### 🧰 Create budget
+This flow never calls `wallet.object.accept_voucher` and never displays voucher lifecycle terms.
 
-1. Choose a recipe.
-2. Select delegate/app from a validated request or known identity.
-3. Set asset, maximum amount, purpose/provider scope, recurrence if allowed, and expiry.
-4. Preview human rules first, with protocol package under expert disclosure.
-5. Review: **Can spend**, **Cannot spend**, **Ends**, and **You can revoke**.
-6. Authenticate and call `wallet.object.delegate_right` through the gateway.
-7. Show Active only after the backend confirms the delegation state; otherwise **Creating · settling**.
+### 🎟️ Accept and redeem a voucher
+
+1. Open an Offered/Pending-accept voucher from Home or Wallet → Vouchers.
+2. Preview the package and show issuer, backing, face/remaining value, acceptance/reject flags, validity, beneficiary/refund effect, policy availability, and quarantine state.
+3. Offer only status-valid actions. **Accept voucher** calls `wallet.object.accept_voucher`; **Reject voucher** is destructive and names the consequence.
+4. Accepted/active vouchers remain in Vouchers. Redeemable vouchers offer `redeem_voucher`; partial redemption is visible only when the package/policy supports it.
+5. A redeem/refund result is **settling** until the authoritative object and asset states update.
+
+### 🔑 Delegate a permission
+
+1. Choose one held right that is delegable.
+2. Select a delegate from a validated request or known identity.
+3. Choose a permitted action and narrow its scope, use count, validity, and delegation behavior within the source authority.
+4. Review **Can**, **Only within**, **Uses**, **Ends**, **Cannot**, and **Monetary value: none**. Expert disclosure shows the source/right package.
+5. Authenticate and call `wallet.object.delegate_right` through the gateway.
+6. Show **Delegating · settling** until the backend inventory reports Delegated/Held as applicable.
 
 Revocation:
 
-1. Open budget detail.
-2. Choose Revoke.
-3. Explain whether already-authorized/in-flight use can still settle.
-4. Confirm with budget name, then call `wallet.object.revoke_right`.
-5. Show Revoking until confirmed.
+1. Open permission detail and choose **Revoke permission**.
+2. Explain that work already accepted by the protocol may have its own terminal outcome.
+3. Confirm the permission label/scope, re-authenticate, then call `wallet.object.revoke_right`.
+4. Show Revoking until the authoritative state becomes Revoked or returns a conflict.
 
 ### 🧾 Backup and restore
 
@@ -614,7 +804,9 @@ Use `wallet.backup.create_backup`, `list_backups`, `restore_backup`, and `config
 
 ## ⚙️ Settings
 
-Settings is a tabbed workspace, not a long miscellaneous list. The selected tab fills the main panel. Changes show **Saved**, **Applying**, **Restart required**, **Managed**, or **Invalid** at field and page level. Every value can expose its source: Default, YAML file, UI, Environment, or Managed profile.
+Settings uses the grouped context rail defined in the IA; it is neither a horizontal tab bar nor one long miscellaneous form. The selected route fills the main panel. Changes show **Saved**, **Applying**, **Restart required**, **Managed**, **Invalid**, or **Target capability** at field and page level. Every effective value can expose its source: Default, YAML file, UI patch, Environment, or Managed profile.
+
+**Layout contract:** the page heading spans the workspace above the content. At desktop width, the context rail and detail card begin on the same horizontal line beneath it; the rail is 240 px with a 32 px gutter. A context item must never exceed the rail: labels truncate within it. The Settings rail begins directly with its first group, **Wallet**; it does not repeat a redundant `Settings` caption already established by the workspace header and page heading. Network is the only accordion branch: its parent carries `aria-expanded` and the disclosure mark, toggles open/closed on repeated activation, restores Overview when closing, and exposes Overview, Reticulum, OnionNet, and Carriers only while open. A selected child, not its parent, is the current route; leaf routes have no trailing disclosure/chevron. A common settings row is a two-column grid (label/help + control) with one shared control edge; buttons/toggles align to that edge. At narrow width it becomes one vertical row without document-level horizontal overflow. Interactive setting rows use the same contained hover and focus treatment as list rows; static information does not pretend to be a control.
 
 ### 🧭 General
 
@@ -625,12 +817,25 @@ Settings is a tabbed workspace, not a long miscellaneous list. The selected tab 
 ### 🔐 Security
 
 - Lock now.
-- Auto-lock duration.
+- Auto-lock duration when an authoritative settings RPC exists.
 - Lock on screen lock/background according to platform policy.
 - Biometrics toggle when available.
 - Show recovery phrase, requiring re-auth and privacy confirmation.
 - Rotate master key, requiring explanation, re-auth, progress, and backup reminder.
 - Sensitive-value visibility preference.
+
+#### 🔒 Wallet session lock
+
+The UI exposes a **wallet session lock**, not a client-side key locker. The wallet service alone owns decrypted key material and the active key-bearing session. UI code never reads, stores, derives, exports, or attempts to erase a private key itself.
+
+1. **Lock now** is a persistent shell action and a Security-page action. It calls `wallet.session.lock_wallet` through `WalletGateway`; a successful result immediately closes transient UI, clears password/seed/recovery fields and sensitive presentation state, makes the application shell inert, and opens the locked screen.
+2. The locked screen shows only the minimum safe identity needed to choose the wallet (for example, wallet label). It does not render balances, activity, receiver material, copied values, diagnostics, seed words, or a reusable session token.
+3. Unlock submits the chosen wallet ID and password to the gateway. Although current RPC returns `SessionToken`, the token is gateway-owned memory only: it must never enter Leptos state persisted to disk, DOM attributes, renderer/WASM storage, URLs, logs, telemetry, or error text. The UI receives only a success/failure/locked presentation state.
+4. On `backgrounded`, `suspended`, or `screen_locked`, the platform bridge first hides sensitive presentation state and forwards `wallet.lifecycle.on_event`; current wallet service behavior then locks all wallets and drops their in-memory sessions. Foregrounding requires session validation/re-authentication; it never implies that the wallet remained unlocked.
+5. Invalid-password, corrupted-wallet, and rate-limited unlock responses use a safe generic error. The rate-limit wait is visible when supplied. No retry UI exposes backend internals or retains the password.
+6. The current RPC has no authoritative session-status or remaining-time query. Until that API exists, do not display a live countdown, a claimed remaining auto-lock duration, or a switch that appears to persist auto-lock policy. The settings field is a labelled **TARGET** configuration requirement.
+
+The HTML demo must prove manual lock/unlock and immediate sensitive-field clearing. It may simulate lifecycle lock visually, but production platform events remain a Tauri bridge integration test.
 
 ### 🌐 Network and privacy
 
@@ -644,6 +849,8 @@ Wallet intent
 ```
 
 Reticulum is the resilient delivery fabric and path/interface abstraction. OnionNet is the privacy overlay above it. They are not peer choices and OnionNet is not implemented as a Reticulum fork or plugin. The initial production direction is OnionNet over Reticulum, with a desktop `z00z-netd` sidecar and a mobile embedded Reticulum client. Reticulum identity must be independent of the wallet seed.
+
+**Evidence boundary:** the current live tree has no Reticulum runtime/API. `crates/z00z_networks/onionnet/src/lib.rs` explicitly exports placeholder module roots, including placeholder telemetry, and current `app.network.switch_to_onionet` returns `success: false`; `switch_to_tor` returns placeholder Devnet/localhost settings. Therefore every detailed status below is a **TARGET contract**. The demo labels it `Target simulation`; a production build without the future capability shows only unavailable/stub status.
 
 Default Overview surface:
 
@@ -662,7 +869,7 @@ Mode behavior:
 | Resilient | Reticulum mesh is allowed; higher latency and underlay diversity may be unverified | Delivery prioritized; privacy limitations remain visible |
 | Direct | Explicit test/emergency path with metadata warning and confirmation | No privacy-overlay claim |
 
-Network contextual tabs:
+Network tree entries:
 
 - **Overview:** effective mode, privacy result, carrier, chain, scan, and one-line degradation reason.
 - **Reticulum:** service state, interfaces, mesh/bridge state, independent identity fingerprint, resource use, and restart requirement. Common UI controls are mode and allowed interface classes; raw interface config is YAML/Advanced.
@@ -703,7 +910,7 @@ Profile card fields:
 
 Lifecycle is Draft → Validated → Applied → Superseded/Disabled. Failed validation goes to quarantine and never changes effective behavior. Imported profiles should be signed, versioned, schema-validated, previewed as a diff, and capability-checked before Apply. Jurisdiction-named profiles are not shipped without qualified ownership and release review.
 
-Current wallet-local `PolicyRules` support maximum transaction/daily amounts, allowed assets/recipients, confirmation, and time restrictions. The repository's compliance-profile directory is presently a placeholder and no settings RPC exposes profile persistence. Rich profile loading, signatures, and object-policy integration are therefore target capabilities behind a capability flag.
+Current wallet-local `PolicyRules` support maximum transaction/daily amounts, allowed assets/recipients, confirmation, and time restrictions. `OwnedObjectPolicy` separately carries policy ID, availability (`Available`, `Unknown`, `Missing`), manual-review, and quarantine reason for inventory projection. CodeGraph finds no live compliance-profile loader, signature/apply/disable/persistence RPC, or effective-profile explanation service. Rich profiles are therefore **TARGET** capabilities behind a capability flag; the demo calls its example a target preview.
 
 ### 🎨 Appearance
 
@@ -717,7 +924,9 @@ Current wallet-local `PolicyRules` support maximum transaction/daily amounts, al
 
 ### 🔄 UI ↔ YAML configuration contract
 
-UI and YAML are two synchronized editors of one versioned configuration. The UI may expose fewer keys, but it must never maintain a second settings store.
+**Target invariant:** UI and YAML are two synchronized editors of one versioned configuration. The UI may expose fewer keys, but it must never maintain a second settings store.
+
+**Current live baseline:** wallet runtime config merges the embedded YAML with an optional file selected by `Z00Z_WALLET_CONFIG_PATH` (or the default file) and then applies selected environment overrides such as wallet network/chain. The merge deserializes and reserializes YAML values, so it does not provide a lossless comment/order-preserving editor. The complete current wallet RPC registration path (68 method annotations at review time) has no config/settings/YAML get-set, watch, diff, revision, apply, or reload surface. Everything in the following synchronization loop beyond current read/merge/validation is **TARGET**.
 
 ```mermaid
 flowchart LR
@@ -747,8 +956,9 @@ Required behavior:
 8. Restart-required fields are staged and labelled; live-safe fields apply only after backend acknowledgement.
 9. Secrets never appear in YAML. Configuration stores secure-store/keychain references only.
 10. Schema versioning, migrations, export, redacted support bundle, and rollback to last known good are required.
+11. In the standalone application, only the native ConfigGateway owns configuration mutation. The renderer cannot directly browse arbitrary paths, rewrite YAML text, or bypass the revisioned validation/reconciliation path; external changes still reconcile through the same snapshot.
 
-Advanced → Configuration has **Form**, **YAML**, and **Diff** tabs plus Validate, Apply, Reload, Export, and Open file. The YAML editor is optional for normal use and must provide schema-aware completion, inline errors, search, and protected secret paths. External editors remain fully valid.
+Advanced → Configuration has a rounded `ChoiceChip` view selector for **Form**, **YAML**, and **Diff**, plus Validate, Apply, Reload, Export, and Open file. These are peer representations of one document, not route tabs. The YAML editor is optional for normal use and must provide schema-aware completion, inline errors, search, and protected secret paths. External editors remain fully valid.
 
 Target configuration service methods—names to finalize during backend design—are `app.config.get_schema`, `get_snapshot`, `validate_patch`, `apply_patch`, `validate_document`, `apply_document`, `reload`, `rollback`, and a `config.changed` event. These do not exist in the current RPC registry and must not be represented as live in production until implemented.
 
@@ -804,7 +1014,7 @@ The relationship to `z00z.io` is structural and tonal:
 
 - Compact sticky header/rail rhythm, clear section hierarchy, thin borders, restrained cards, readable prose, and gold primary accent.
 - Geist/Open Sans/Inter-compatible typography with strong labels and generous line height; monospace only for identifiers/YAML.
-- Site-like section selection becomes workspace tabs inside the wallet's main window.
+- Site-like section selection becomes the grouped context rail/tree inside the wallet's main window; rounded chips remain filter controls.
 - The wallet remains dark-first because private desktop/mobile sessions benefit from reduced glare, while the light theme uses the site's neutral corporate surfaces.
 - Do not import the site's marketing/documentation density, web links, or browse hierarchy into transactional review screens.
 
@@ -851,6 +1061,17 @@ Never encode state by color alone. Pair color with icon and text.
 - Border: 1 px; primary action may use a subtle inner highlight.
 - Shadow: low blur and opacity; distinguish surfaces primarily with tone and border.
 
+### 🖱️ Interaction-state consistency
+
+- Every interactive control has `default`, `hover` (pointer devices), `focus-visible`, `pressed`, `selected/current`, `disabled`, and `loading` where applicable.
+- Ordinary hover uses `--bg-raised` plus `--border-strong`; it never shifts layout, translates, or scales the component. Global workspace selection uses the neutral raised surface/text/border treatment, so it does not compete with the active local context route. Gold is reserved for current local context, primary authorization, and meaningful status—not sprayed across every hover.
+- `focus-visible` is at least a 3 px protected focus ring and must not be replaced by hover styling.
+- Static cards never acquire a hover border. Clickable cards/rows are real buttons/links and receive the shared interactive treatment.
+- Attention, Activity, Voucher, and Permission lists use the same row geometry and 1 px horizontal dividers; the last row omits its trailing divider. Hover replaces the divider with a contained outline without changing height.
+- Settings context items and interactive setting rows follow that same contained hover/focus rule. Settings labels remain left-aligned; their editable controls, status chips, and actions share the right-side grid edge.
+- Touch operation never depends on hover. Selected/current state remains visible after the pointer leaves.
+- Home quick-action cards use identical height, padding, icon geometry, border, focus, and hover. Color may distinguish the action icon, never the card interaction behavior.
+
 ### 🧿 Icons and imagery
 
 - 20/24 px outline icons with 1.75–2 px stroke.
@@ -878,7 +1099,7 @@ Never encode state by color alone. Pair color with icon and text.
 
 Additional rules:
 
-- Respect iOS/Android safe-area insets.
+- Respect iOS safe-area insets.
 - Never rely on hover.
 - Software keyboard must not cover the active field or primary action.
 - Use numeric/decimal keyboard for amounts and password manager-compatible semantics for passwords.
@@ -899,7 +1120,7 @@ Target WCAG 2.2 AA for all core flows.
 - Sensitive values have explicit labels; screen readers do not announce hidden values.
 - QR-only flows always provide copy/share text alternatives.
 - Time, amounts, and abbreviations have accessible expanded forms.
-- Test Windows with keyboard and a screen reader; test Android TalkBack and iOS VoiceOver before release.
+- Test Windows with keyboard and a screen reader; test iOS VoiceOver before release.
 
 ## 🔐 Security and privacy UX
 
@@ -917,8 +1138,8 @@ Target WCAG 2.2 AA for all core flows.
 | Risk | Pattern | Examples |
 | --- | --- | --- |
 | Low | Immediate with undo where meaningful | Hide balance, dismiss notification |
-| Medium | Review screen | Pay, accept claim, create payment request |
-| High | Review + re-auth | Create/revoke budget, seed reveal, key rotation, restore |
+| Medium | Review screen | Pay, claim asset allocation, accept/redeem voucher, create payment request |
+| High | Review + re-auth | Delegate/revoke permission, seed reveal, key rotation, restore |
 | Destructive | Consequence text + explicit confirmation | Delete wallet, reject/refund, overwrite on restore |
 
 Do not use generic **Are you sure?**. Name the object and consequence. Never ask the user to type a seed or password into an untrusted external website.
@@ -946,10 +1167,11 @@ The UI must preserve entered non-secret data after recoverable errors. Error mes
 | Do not lead with | Use instead | Expert detail allowed |
 | --- | --- | --- |
 | Asset object | Asset name / private money when spendable cash | Asset ID and family |
-| Voucher | Claim | Voucher ID/type |
-| Right | Permission; Budget only for an amount-limited recipe | Right ID/scope |
+| Voucher object | Voucher / offer | Voucher ID, backing, lifecycle |
+| Claim transaction | Claim asset allocation | `ClaimTxPackage`, source proof, nullifier |
+| Right | Permission | Right ID/class/scope |
 | Consume right | Use permission | Operation name |
-| Delegate right | Give permission / Create budget | Delegation package |
+| Delegate right | Give permission | Delegation package |
 | Transaction admitted | Sending / Receiving | Admitted event |
 | Confirmed transaction | Settled | Confirmed event |
 | UTXO/input/output | Money source/result | Technical transaction view |
@@ -963,10 +1185,11 @@ The UI must preserve entered non-secret data after recoverable errors. Error mes
 | Balance | Available privately |
 | Pending outgoing | Sending · waiting to settle |
 | Pending incoming | Receiving · waiting to settle |
-| Healthy route | Onion route verified · Reticulum carrier |
+| Target route demo | Target simulation · OnionNet over Reticulum |
+| Live route unavailable | Private-route telemetry unavailable in this build |
 | Scanning | Updating your wallet — {progress}% |
-| Claim action | Review claim |
-| Budget recipe summary | Can use up to {amount} for {purpose} until {date} |
+| Asset claim action | Claim asset allocation |
+| Voucher action | Review voucher / Accept voucher / Redeem voucher |
 | Generic permission summary | Can {action} within {scope} · {uses/expiry} |
 | Policy block | Blocked by {profile}: {plain rule}. Why this is blocked |
 | Config source | Effective value from {source} · revision {revision} |
@@ -976,7 +1199,7 @@ The UI must preserve entered non-secret data after recoverable errors. Error mes
 | Empty activity | Your private activity will appear here. |
 | Seed warning | Anyone with these 24 words can control this wallet. |
 
-Buttons use verbs: Pay, Review payment, Send payment, Accept claim, Give permission, Create budget, Revoke permission, Validate configuration, Apply profile, Lock now. Avoid OK, Submit, Continue when the action can be named.
+Buttons use verbs: Pay, Review payment, Send payment, Verify and claim once, Accept voucher, Redeem voucher, Give permission, Revoke permission, Validate configuration, Apply profile, Lock now. Avoid OK, Submit, Continue when the action can be named.
 
 ## 🔗 RPC traceability
 
@@ -997,10 +1220,11 @@ The method names below are current source contracts, not invented frontend endpo
 | Activity | `wallet.tx.get_transaction_history`, `wallet.tx.list_pending_transactions`, `wallet.tx.get_transaction_details` | Merge into user status model |
 | Reconcile/cancel | `wallet.tx.reconcile_transaction`, `wallet.tx.cancel_transaction` | Only when lifecycle permits |
 | Fee explanation | `wallet.tx.estimate_transaction_fee` | Display treatment, not tuning |
-| Claims list/preview | `wallet.object.list_vouchers`, `wallet.object.list_objects`, `wallet.object.preview_package` | Do not mix with balance |
-| Claim actions | `wallet.object.accept_voucher`, `wallet.object.redeem_voucher`, `wallet.object.reject_voucher`, `wallet.object.refund_voucher`, `wallet.object.transfer_voucher` | Action availability is state-driven |
-| Permissions list | `wallet.object.list_rights` | Present exact scope/actions/uses; Budget is one recipe |
-| Permission create/use/revoke | `wallet.object.delegate_right`, `wallet.object.consume_right`, `wallet.object.revoke_right`, `wallet.object.challenge_right` | High-risk flows, attenuation, and settlement honesty |
+| Asset claim verification/storage | `ClaimTxVerifier` library path; `put_claimed_asset` / `import_claimed_assets` persistence paths | No dedicated current wallet-facing claim build/intake RPC; Claim UI is capability-gated and never aliases voucher RPC |
+| Vouchers list/preview | `wallet.object.list_vouchers`, `wallet.object.list_objects`, `wallet.object.preview_package` | Do not mix conditional value with balance |
+| Voucher actions | `wallet.object.accept_voucher`, `wallet.object.redeem_voucher`, `wallet.object.reject_voucher`, `wallet.object.refund_voucher`, `wallet.object.transfer_voucher` | Action availability is status/package driven |
+| Permissions list | `wallet.object.list_rights` | Present exact class/scope/actions/uses; never show a monetary balance |
+| Permission delegate/use/revoke | `wallet.object.delegate_right`, `wallet.object.consume_right`, `wallet.object.revoke_right`, `wallet.object.challenge_right` | `delegate_right` forces a Right transfer; generic `build_package` is not a dedicated grant UI |
 | Backups | `wallet.backup.create_backup`, `wallet.backup.list_backups`, `wallet.backup.restore_backup`, `wallet.backup.configure_backup` | Platform destination abstraction |
 | Receiver management | `wallet.key.list_receivers`, `wallet.key.label_receiver`, `wallet.key.export_public_material` | Advanced except current receive identity |
 | Key rotation | `wallet.key.rotate_master_key` | Security, re-auth, progress |
@@ -1031,16 +1255,19 @@ Required reusable components:
 | Component | Variants/states |
 | --- | --- |
 | `AppShell` | desktop rail, tablet compact rail, mobile bottom nav, locked |
-| `WorkspaceTabs` | keyboard roving focus, overflow/active reveal, deep-link, badge, capability-disabled |
+| `ContextNav` | grouped rail/tree, nested current route, badge, disabled capability, mobile labelled route strip; `aria-current`, not tab semantics |
+| `ChoiceChip` | filter or compact view choice, active/inactive, overflow scroll, count, disabled; never used for route hierarchy |
 | `HealthPill` | healthy, syncing, degraded, offline, wrong environment |
 | `NetworkLayerStatus` | OnionNet overlay, Reticulum/carrier, chain, scan; never collapsed into one ambiguous dot |
 | `SensitiveAmount` | visible, hidden, loading, unavailable |
 | `ActionCard` | default, hover/focus, disabled with reason, attention |
 | `AssetCard` | verified/unverified/quarantined, available/settling/non-spendable, selected |
 | `StatusBadge` | ready, settling, settled, attention, failed, cancelled |
-| `ActivityRow` | asset/claim/permission/policy/config/security, incoming/outgoing/neutral |
-| `ClaimCard` | ready, settling, settled, expiring, expired/rejected |
-| `PermissionCard` | budget/scoped action/delegated, active, limited, exhausted, expiring, revoked/challenged |
+| `InteractiveRow` | shared geometry/divider/hover/focus for attention, activity, voucher, permission, and settings actions |
+| `ActivityRow` | asset (including claim provenance), voucher, permission, policy/config/security; incoming/outgoing/neutral |
+| `AssetClaimReview` | unavailable, verifying, replay conflict, submitting, asset receiving, settled/failed |
+| `VoucherCard` | offered, pending accept, accepted, redeemable, partially redeemed, redeemed, rejected, refunded, expired, quarantined |
+| `PermissionCard` | class/action/scope/uses/expiry/delegation, granted/held/delegated/consumed/revoked/expired/challenged/quarantined; zero-value |
 | `PolicyProfileCard` | draft, validating, valid, applied, managed, superseded, invalid/quarantined |
 | `ConfigField` | effective value, source, overridden/managed, staged, restart-required, invalid/conflicted |
 | `YamlWorkspace` | form, YAML, diff, external change, validation, apply, rollback |
@@ -1058,21 +1285,22 @@ Every component documents keyboard behavior, accessible name, loading state, err
 
 The HTML prototype must demonstrate:
 
-1. Desktop rail and mobile bottom navigation with workspace-level contextual tabs.
+1. Desktop global rail and mobile bottom navigation plus Wallet/Settings context rail/tree that becomes a labelled narrow-screen route strip.
 2. Dark/light appearance and system token structure.
 3. Visible/hidden sensitive balances.
 4. Lock and mock unlock.
 5. Wallet switching, create with one-time 24-word reveal/check, and two-entry recovery with scan result.
-6. Home, Wallet (Assets/Claims/Permissions), Activity, and Settings workspaces.
+6. Home, Wallet (Assets/Vouchers/Permissions), Activity, and Settings workspaces.
 7. Pay flow through entry, review, submission, and settling result.
 8. Receive request creation and copy feedback.
-9. Claim review and settling result.
-10. Permission recipes including Budget, scope/action/use limits, review, creation, and active result.
+9. Capability-gated asset Claim review with source/authority/recipient/output/nullifier and asset-settling result; separate Voucher accept/redeem lifecycle.
+10. Permission attenuation with held source, class, action, scope, use limit, expiry, delegation rule, zero-value review, and delegated result.
 11. Activity filtering and details.
 12. Layered OnionNet/Reticulum/carrier status, modes, capability disclaimer, and TEST/DEV treatment.
 13. Policy-profile preview with immutable protocol layer, signed managed layer, local restrictions, and “Why blocked?” explanation.
 14. UI/YAML configuration status, provenance, valid external update, invalid-file last-known-good behavior, conflict/diff, and restart-required state.
 15. System/dark/light themes, accent presets, protected semantic colors, keyboard focus, dialog focus return, reduced motion, and 44 px targets.
+16. Mobile-adapter simulation: safe-area-aware bottom navigation, keyboard-safe entry/review sheet, back closes only the top transient layer, and background/lock clears sensitive presentation state before foreground refresh.
 
 The demo uses fabricated values and must display **Interactive concept · no real funds**. It must not import production wallet code or give the impression that it signs transactions.
 
@@ -1080,9 +1308,9 @@ The demo uses fabricated values and must display **Interactive concept · no rea
 
 ### 🧭 Product acceptance
 
-- A new user can identify Available, Pay, Receive, Claim, and Permissions within five seconds.
+- A new user can identify Available, Pay, Receive, Claim, Vouchers, and Permissions within five seconds.
 - No standard screen requires understanding voucher, right, package, UTXO, fee rate, Reticulum interface syntax, Tor port, or chain height.
-- Claims and permissions cannot be mistaken for spendable balance; non-cash assets cannot silently enter Available.
+- Asset claims, vouchers, and permissions cannot be mistaken for spendable balance; non-native/non-cash assets cannot silently enter Available.
 - A user can explain that OnionNet provides the privacy route and Reticulum carries it after viewing Network Overview.
 - A managed user can identify which profile blocked an action and cannot weaken it through UI or YAML.
 - The same common setting edited in UI or YAML converges to the same effective value and exposes overrides/conflicts.
@@ -1091,12 +1319,15 @@ The demo uses fabricated values and must display **Interactive concept · no rea
 
 ### 🧑‍💻 Implementation acceptance
 
+- `z00z_wallet_ui_contract` has no dependency on wallet database, key manager, cryptographic implementation, Tauri, or Leptos modules.
 - UI crate has no direct dependency on wallet database, key manager, or cryptographic implementation modules.
-- All domain calls cross `WalletGateway`; method-to-screen traceability is testable.
-- No secret reaches persistent web storage, logs, analytics, panic payloads, or screenshot fixtures.
-- Core flows have deterministic mock-gateway tests and live transport contract tests.
+- All domain calls cross versioned `WalletGateway`; method-to-screen traceability is testable, and a contract-major mismatch fails closed with update-required state.
+- Adding or refactoring an unexposed internal RPC method causes no UI change. Every new user-visible capability has a scenario, typed contract addition, schema, fixture, mock state, adapter-conformance test, and explicit availability/confirmation rule before a UI control is enabled.
+- No secret reaches renderer-side persistent storage, logs, analytics, panic payloads, or screenshot fixtures.
+- Core flows have deterministic mock-gateway tests and the direct/iOS and local-IPC/desktop adapters pass the same contract suite.
 - Responsive screenshots exist at 390 × 844, 768 × 1024, 1280 × 800, and 1920 × 1080.
-- Keyboard-only Pay, Claim, Permission, policy profile, configuration, lock/unlock, and settings flows pass.
+- iOS release candidates pass the mobile-adaptation contract on real/emulated targets: safe areas, keyboard, rotation/window resize, iOS navigation gesture, lifecycle lock, biometrics, share/files, VoiceOver, large text, and reduced motion.
+- Keyboard-only Pay, asset Claim, Voucher, Permission, policy profile, configuration, lock/unlock, and settings flows pass.
 - Config tests cover comment/unknown-key preservation, invalid YAML, external edits, revision conflict, atomic write failure, last-known-good rollback, environment provenance, migration, and secret rejection.
 - Network tests cover no fabricated privacy health, Private-mode no-fallback, resilient degradation copy, independent Reticulum identity, and chain/carrier/overlay separation.
 - WCAG 2.2 AA automated checks pass and manual screen-reader tests cover critical flows.
@@ -1114,7 +1345,7 @@ The demo uses fabricated values and must display **Interactive concept · no rea
 - Date/amount localization and long text do not break layout.
 - Light and dark themes preserve semantic contrast.
 - Reduced motion and high text zoom remain usable.
-- Contextual tabs have correct `tablist`/`tab`/`tabpanel` semantics, arrow-key navigation, active focus, deep links, and no hidden focus targets.
+- Context routes use navigation semantics and `aria-current`; ChoiceChip groups expose a clear accessible label/selected state; neither pattern leaves hidden focus targets.
 - User-selected accent/theme combinations preserve protected status colors and 4.5:1 text contrast.
 
 ## 🚫 Explicit non-goals for this phase
@@ -1123,25 +1354,27 @@ The demo uses fabricated values and must display **Interactive concept · no rea
 - A market-data portfolio, fiat on-ramp, NFT gallery, exchange, or social feed.
 - A raw protocol policy language editor for normal users. Advanced wallet YAML is allowed, schema-validated, and is not a protocol/genesis policy editor.
 - Promoting compatibility swap/stake/merge/split operations to supported consumer flows.
-- Defining a remote custody model.
+- Defining a remote, hosted, browser, or container custody model.
 - Treating Figma as a second behavior specification.
 - Pixel-copying Zano, Guarda, Atomic, or the existing egui sketch.
 
 ## 🛣️ Delivery sequence
 
 1. Validate this specification and HTML prototype with product/security stakeholders.
-2. Run seven task-based usability sessions: unlock, Pay, Receive, Claim, create/revoke Permission, apply/explain a policy profile, and change the same setting through UI then YAML.
+2. Run eight task-based usability sessions: unlock, Pay, Receive, asset Claim, accept/redeem Voucher, delegate/revoke Permission, apply/explain a policy profile, and change the same setting through UI then YAML.
 3. Freeze language, navigation, status mapping, and responsive behavior.
-4. Create the UI crate, tokens, shell, mock gateway, and component story states.
-5. Implement onboarding/session and Wallet/Activity reads.
-6. Implement Pay/Receive with idempotency and reconciliation.
-7. Implement Claims/Permissions behind capability flags.
-8. Design and implement the typed configuration service, YAML migration/write/watch contract, and settings RPC before enabling configuration controls.
-9. Implement Reticulum/OnionNet intent/status API from Phase 080 before enabling detailed network health.
-10. Implement signed policy profiles and effective-rule explanation behind capability flags.
-11. Integrate platform lifecycle, secure display, biometrics, share, and file bridges per OS.
-12. Run accessibility, security, config-failure, and cross-platform release gates.
-13. Retire egui product views only after functional parity and diagnostic replacement.
+4. Create `z00z_wallet_ui_contract v1`: intent/query DTOs, error/status taxonomy, capability states, version handshake, correlation/operation IDs, redacted fixtures, and a contract test suite.
+5. Create `z00z_wallet_ui`, tokens, shell, `MockWalletGateway`, and component story states against that contract—without linking wallet services.
+6. Implement the backend contract adapter: direct typed calls for iOS and authenticated Unix-socket/Windows-pipe IPC for desktop. Add peer checks, bounded requests, deadline/cancellation, and the durable operation journal before enabling money mutations.
+7. Implement onboarding/session and Wallet/Activity reads through both adapters.
+8. Implement Pay/Receive with idempotency, reconciliation, and restart/disconnect contract fixtures.
+9. Implement asset Claim intake behind its capability flag; implement Vouchers/Permissions from their distinct contract commands and gate unavailable mutations.
+10. Design and implement the typed configuration service, YAML migration/write/watch contract, and settings API before enabling configuration controls.
+11. Implement Reticulum/OnionNet intent/status API from Phase 080 before enabling detailed network health.
+12. Implement signed policy profiles and effective-rule explanation behind capability flags.
+13. Integrate platform lifecycle, secure display, biometrics, share, and file bridges per OS.
+14. Run accessibility, security, config-failure, IPC failure/restart, and cross-platform release gates.
+15. Retire egui product views only after functional parity and diagnostic replacement.
 
 ## 📚 Reviewed local inputs
 

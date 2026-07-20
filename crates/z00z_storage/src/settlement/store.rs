@@ -550,7 +550,7 @@ impl SettlementStore {
         Self::open_with_policy(root, mode, bucket_policy)
     }
 
-    #[cfg(all(test, feature = "test-params-fast"))]
+    #[cfg(test)]
     pub(crate) fn load_with_backend_mode(
         root: impl Into<PathBuf>,
         mode: SettlementBackendMode,
@@ -777,6 +777,10 @@ impl SettlementStore {
                 "recursive V2 cutover durable readback mismatch".to_string(),
             ));
         }
+        #[cfg(test)]
+        crate::backend::redb::recursive_v2_cutover_crash_point(
+            "after-durable-readback-before-success",
+        );
         Ok(())
     }
 
@@ -886,6 +890,8 @@ impl SettlementStore {
     pub(crate) fn apply_exec_handoff_v2(
         &mut self,
         handoff: SettlementExecHandoff,
+        segment_dir: &std::path::Path,
+        segment_context: super::proof_batch::JmtTraceSegmentContextV2,
     ) -> Result<
         (
             ScopeFlow,
@@ -894,7 +900,26 @@ impl SettlementStore {
         SettlementStoreError,
     > {
         self.require_hjmt_mode()?;
-        self.hjmt_apply_exec_handoff_with_update_trace(handoff)
+        self.hjmt_apply_exec_handoff_with_update_trace(handoff, segment_dir, segment_context)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_exec_handoff_v2_for_test(
+        &mut self,
+        handoff: SettlementExecHandoff,
+        segment_dir: &std::path::Path,
+    ) -> Result<
+        (
+            ScopeFlow,
+            super::proof_batch::SettlementUpdateTraceEnvelopeV2,
+        ),
+        SettlementStoreError,
+    > {
+        self.apply_exec_handoff_v2(
+            handoff,
+            segment_dir,
+            super::proof_batch::JmtTraceSegmentContextV2::new([0xA5; 32], 1),
+        )
     }
 
     pub fn recovery_state(&self) -> Result<SettlementRecoveryState, SettlementStoreError> {

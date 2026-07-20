@@ -39,8 +39,9 @@ pub(super) fn finalize_stage12(
     let proof = build_attest_proof(&draft, &pkg, refs.snap_id, refs.exec_id)?;
     let manifest = checkpoint_fixtures::archive_manifest(&draft, &exec, refs.exec_id);
     let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    let statement_core = checkpoint_fixtures::statement_core(&exec);
     store
-        .stage_publication_contract(refs.exec_id, &manifest, &da_reference)
+        .stage_publication_contract(refs.exec_id, &statement_core, &manifest, &da_reference)
         .map_err(|e| e.to_string())?;
     let link = store
         .seal_artifact(&draft, proof, refs.snap_id, refs.exec_id)

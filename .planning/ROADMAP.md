@@ -3036,11 +3036,31 @@ recursive-sidecar, PQ-anchor, and authority-promotion contracts.
 - [ ] 069-12-PLAN.md
 - [ ] 069-13-PLAN.md
 
+**069-051 T2 closure (2026-07-20):** T0, T1 and T2 are complete on final T2
+source revision
+`50f8f9084d3cf888e0aedf10ebc165a088d977a256d2f031b5773bb00adbc45a`.
+The sole Nova path now consumes one bounded versioned 1 MiB HJMT segment
+stream, verifies and drops operations incrementally, releases hierarchy maps at
+exact barriers, and fixes one HJMT worker, 2 MiB result admission, separate
+64 MiB input/snapshot reservation, one prover, `k=1`, a private 1 GiB
+identity-bound setup cache and deterministic replay recovery. Authority accepted
+F12/F23/F24, conditional A-17, `q_V=1,048,576`, `N=4,294,967,296` and the
+numeric tuple under `phase-069-t2-interactive-authority-2026-07-20`. Final
+proof/Model C/artifacts, bootstrap-first release gates, three reviews ending in
+two significant-clean passes, two doublechecks, scoped versioning and clean-
+clone reproducibility are retained by the canonical Plan 051 ledgers.
+The unchanged-tree gate records bootstrap `2:43.51`, semantic 36/36
+`58:58.46`, TestCS 1,727/1,727 `4:21.58`, artifacts 3/3 `7:40.84`, all-target
+build `2:15.01`, and workspace tests `45:00.11`; final review passes 3–4 are
+consecutive clean after the F23 test-env lock repair.
+`069-051-T3` is now the next executable task but is not started; T4 and Plans
+06–13 remain locked, and `CheckpointProofSystem::VERIFIED` remains disabled.
+
 **T1 acceptance (2026-07-14):** T1 is complete. The repository-local cutover validates every manifest/root binding, commits its CAS at immediate durability, reloads it, and rejects a second install. The evaluator consumes strict bounded opcode/JMT bytes, independently recomputes raw-SHA JMT transitions, and requires exact terminal→bucket→serial→definition child-root consumption. The authority-defined empty/no-op transition is explicit: config, authority digest, durable manifest, canonical transition, and independent evaluator bind the same execution-input version; only the sentinel handoff and a typed zero-update envelope are accepted. Five YOLO execution reviews ran (the final two clean) and two `doublecheck` passes completed. Bootstrap, targeted release suites, the full 187-unit/package `z00z_storage` release suite, `cargo build --release`, full workspace `cargo test --release`, and the release feature guard completed. T2 is now active; T3–T4 and Plan 06 remain locked on T2 acceptance.
 
 **Verification update (2026-07-14):** The current mandatory bootstrap completed. Release target suites pass: `test_recursive_v2_trace` 6/6 and `test_recursive_v2_cutover` 4/4; config-drift and JMT-envelope tamper regressions pass. The scoped recursive V1 elimination is complete; no executable recursive V1 selector or fallback remains. T1 is accepted and execution advances to T2. T2 dependency preflight pins and release-checks `nova-snark = 0.73.0` with its audited `io` feature only; its circuit/bundle/runner work remains active.
 
-**T2 execution update (2026-07-14):** The mandatory bootstrap reran successfully after the exact Nova dependency pin. T2 implementation is constrained to the sole private path `z00z_storage::checkpoint::recursive_v2::nova`; no public Nova type, V1 compatibility item, runtime SHA-width selector, duplicate JMT evaluator, or second circuit owner is permitted. T3–T4 and Plan 06 remain locked until the real `ShapeCS → PublicParams → RecursiveSNARK → CompressedSNARK::prove/verify` acceptance and review convergence evidence are retained.
+**T2 execution update (2026-07-14):** The mandatory bootstrap reran successfully after the exact Nova dependency pin. T2 implementation is constrained to the sole private path `z00z_storage::checkpoint::nova`; no nested-path shim, public Nova type, V1 compatibility item, runtime SHA-width selector, duplicate JMT evaluator, or second circuit owner is permitted. T3–T4 and Plan 06 remain locked until the real `ShapeCS → PublicParams → RecursiveSNARK → CompressedSNARK::prove/verify` acceptance and review convergence evidence are retained.
 
 **T2 evidence update (2026-07-14):** One fixed 780-cell control relation, capped private authority-bundle framing, and constrained typed source-event phase/opcode/ordinal/payload-commitment limbs are implemented. Release tests pass for a real Nova control proof and one-bit source-event commitment tampering through the actual verifier. The expensive PP/VK bundle round-trip was stopped without a captured exit and is inconclusive. Full replay/SHA/uniqueness/JMT/hierarchy/final-input constraints, continuous runner, and complete adversarial mutation ledger remain open; T2 is not complete and T3–T4 remain locked.
 
@@ -3425,7 +3445,7 @@ T3/T4 and Plan 06 stay locked.
 
 📌 **069-051 T2 exact-P/uniqueness/accounting update (2026-07-18):** The canonical gap
 ledger is now `069-051-T2-GAPS.md`. The sole private
-`z00z_storage::checkpoint::recursive_v2::nova` owner consumes each 79-byte
+`z00z_storage::checkpoint::nova` owner consumes each 79-byte
 Original/Sorted uniqueness record through its two authenticated
 `SourceMemoryWrite`/`TraceChunk` windows. The one 353-byte challenge transcript
 carries `P`, both set-specific `U` values and eight domain-separated SHA-256
@@ -3605,7 +3625,7 @@ derivation, settlement roots/typed commitments, statement/`X_h`/prior-IVC/final
 successor, Models A/B/C, complete artifacts/measurement, and the authority
 budget remain open. T3/T4 and Plan 06 remain locked.
 
-🔑 **069-051 T2 canonical-flow and Net→terminal-JMT update (2026-07-18):**
+🔑 **069-051 T2 complete-relation/artifact update (2026-07-19):**
 The semantic relation now proves that every non-Unchanged Net effect is
 consumed exactly once by the terminal JMT scheduler. Because Net rows are
 globally terminal-sorted while terminal operations are hierarchy-grouped,
@@ -3620,17 +3640,153 @@ removed from the sole producer and evaluator. `ReplayInput`/`ReplayOutput` are
 now the one canonical flow-item path; `CommitTypedEvent` accepts only the four
 ordered checkpoint-core commitments bound from X_h. The fixed control machine
 retains Commit→Commit solely for those four records, and its R1CS first-chunk
-gate rejects the former Put/Delete tags directly. Current exact base shape
-is `C=533,905/V=401,549/NZ=2,036,951/G=2,097,153`; lower bounds are
+gate rejects the former Put/Delete tags directly. Nova now has exactly one
+private owner at `z00z_storage::checkpoint::nova`; the former nested path has
+no module, shim or re-export. PP+PK has a finite generation/source/shape-bound
+canonical private recovery wire, VK load requires the exact authority-selected
+bundle digest before dependency decode, and the pinned-key wrapper structurally
+rejects noncanonical point/scalar plus identity/default/primary-secondary drift
+before proof decode. The keyless proof envelope rejects outside the selected
+activation interval. Current exact base shape is
+`C=533,794/V=401,550/NZ=2,036,733/G=1,048,577`; lower bounds are
 PP/VK/bundle/Pedersen
-`161,400,800/67,108,896/67,109,350/402,653,376 B`.
+`127,834,984/127,834,984/523/201,326,784 B`.
 
-T2 is not closed. Complete mixed real-proof evidence, final Models A/B/C,
-artifact/theorem/A-17 ledgers, reopened T1 evidence, three-review/two-clean
-convergence and an authority-pinned numeric operating budget remain mandatory.
-The developer-only setup cache is optional and deferred until relation
-stabilization; folding recovery and Celestia DA publication remain T3/later
+T2 is not closed. The complete mixed proof/TestCS path and theorem/mutation/
+benchmark/A-17 ledgers exist; A-17 is pinned to ePrint 2024/232 revision
+2026-02-13 Theorem 5 and remains a residual assumption because concrete
+EAGM/GZT applicability is not demonstrated. Fresh bounded release evidence now
+passes for one 1,727-step complete proof, compression, exact endpoint, clean
+verifier-only child, strict invalid-key corpus, PP/PK recovery, and an
+independently recomputed Model C that is accepted for its own statement and
+rejected for the target. The proof is `122,288 B`; the provider-neutral
+envelope is `342,353 B`; the authority-distributed VK bundle is excluded from
+each DA envelope. Reopened T1 residual evidence and an authority-pinned numeric
+operating budget/`q_V`/candidate decision remain mandatory.
+The strict private PP+PK recovery wire exists, but no developer setup cache is
+implemented and fresh measurements report `nova_runtime_cache=none`;
+folding recovery and Celestia DA publication remain T3/later
 integration work. T3/T4 and Plan 06 remain locked.
+
+The ordinary verification pyramid is live. The mandatory release
+bootstrap improved from the incoming `1609.07 s` baseline to `120.48 s`
+(`13.36x`) while keeping one ordinary canonical-plus-mutation R1CS smoke. The
+explicit `nova_milestone_tests.sh` runner owns 36 exhaustive semantic R1CS
+tests, three real-artifact tests, the full 1,727-step TestCS replay, and the
+fresh full proof/recomputed Model C; all 41 are unconditionally ignored by
+ordinary Cargo and use production parameters when explicitly selected. Its
+guards require exactly one `z00z_storage::checkpoint::nova` source owner, zero
+legacy owner, the exact milestone set, and `1332/1332` coverage. The curated
+Nova packet passes in `77.56 s`, the all-target workspace release build in
+`136.95 s`, and full `cargo test --workspace --release` in `2662.15 s` without
+repeating the milestone Nova TestCS/full proof. These figures establish a
+verification-pyramid speedup, not a fresh-proof speedup.
+
+The former proof/Model-C report is stale for the final source identity because
+`source_revision_digest()` binds the complete `nova.rs`, including later test-
+tier edits. The first explicit milestone rerun then exposed a fail-open worker:
+its ignored child omitted `--ignored`, executed zero tests, and was falsely
+accepted after `3 ms`/approximately `4 MiB`. The worker now passes `--ignored`
+and requires an exact per-child execution marker before accepting status/RSS.
+Final source revision
+`d7980118f0e7650c45efe064d1c87e70fb6c9cb91f903643b1ab568c03d6fc06`
+and worker revision
+`c4ee3ca3b2229d095ffa58f4d6ecbb225b0041a59bae598423615b54516b6694`
+then passed the accepted release milestone: `1727/1727` folds, compressed proof
+`122,288 B`, envelope `342,353 B`, Model C target rejection, `2127.806 s`
+proof worker, and `6,605,221,888 B` worker peak RSS. The release-only external
+RSS run binds the same exact source/worker identities and records `1030.604 s`
+Model C recomputation, and `29.496 s` clean verification. The all-thread
+recursive `/proc` sampler observed `3,062,788,096 B` peak VmRSS and kernel
+VmHWM `3,063,189,504 B`; the latter leaves `1,231,777,792 B` below the proposed
+4 GiB verifier limit. Both terminal parents exited zero, cleanup left no
+isolated process group, and the single-flight lock was free. This supports the
+proposal's measurement arithmetic but does not activate it or select `k=1`.
+
+The verifier-RSS task-execution review wave completed after this measurement.
+Pass 1 fixed exact harness-contract guarding in the canonical runner and
+fail-closed verifier PID start-time revalidation; passes 2–3 were consecutive
+significant-clean. Doublecheck 1 independently reconciled report identities,
+RSS/headroom arithmetic, docs, and runner guards. Doublecheck 2 verified the
+inactive authority placeholders, T2/T3/`VERIFIED` locks, wallet deletion
+blocker, and cleanup/worker-lock failure paths.
+
+The current-source strict artifact corpus now also passes: all three exact
+ignored tests completed, including the 858,785,714-byte PP+PK recovery payload,
+47,008,185-byte verifier bundle/invalid-key corpus, and exact source-binding
+worker. The post-harness mandatory bootstrap reached terminal
+`BOOTSTRAP COMPLETE`. This cycle's curated Nova packet passed in `81.41 s` at
+`3,071,228 KiB` peak RSS. A historical pre-repair all-target workspace build failed after
+`47.71 s` at `2,443,964 KiB` peak RSS solely because
+user-owned `crates/z00z_wallets/docs/domains_snapshot.txt` is a tracked deletion
+while the wallet test owner still includes that canonical path; no relocation
+exists. That failed attempt and its skipped broad test are superseded by the
+later wallet-owner repair and final green release gates recorded below.
+
+The pre-harness review/doublecheck waves remain historical for their respective
+trees. The latest residual-corpus wave changed only test-owned durability and
+secret-boundary sources, not the immutable Nova proof source. Review pass 1
+found and fixed an F23 post-commit assertion that accepted any reload error;
+passes 2–3 were consecutive significant-clean. Doublecheck 1 mapped the F12
+equation, five F23 seams, six F24 outcomes, source identities, and A-17 fields
+to live source. Doublecheck 2 found and corrected stale DC2 ledger digests, then
+confirmed exact/equivalent and project/dependency boundaries, proof identity,
+the then-current wallet blocker, and promotion locks. After the F23 fix, the mandatory
+bootstrap reached `BOOTSTRAP COMPLETE` and the exact F23 target passed 1/1.
+F12 numeric acceptance, F23 redb-boundary equivalence acceptance, the F24
+dependency/upstream residual, conditional A-17, the Git reproducibility gate,
+and the external authority finite candidates, operating tuple, `q_V`, and
+no-candidate decision remain open; `CheckpointProofSystem::VERIFIED` and T3
+remain locked. The final live-source audit found no further semantic gap in the
+working tree, but Git reproducibility remains open: canonical
+`crates/z00z_storage/src/checkpoint/nova.rs`, both Nova integration tests, both
+milestone scripts, the coverage audit/inputs, Plan-051 ledgers, and accepted RSS
+evidence are absent from HEAD while the former nested owner is a tracked
+deletion. A clean clone therefore loses the passing implementation and its
+verification packet. T2 also still requires the external inputs plus explicit
+authority for a scoped version-manager commit/tag/same-branch push;
+`--stage-all` is forbidden on the current unrelated dirty tree.
+Corrected review pass 1 found the missing Git gate and expanded it to the
+coverage/evidence packet; passes 2–3 were consecutive significant-clean.
+Doublecheck 1 verified HEAD/source/import/evidence identities. Doublecheck 2
+verified zero staged paths, 131 unrelated dirty entries, the 50 MiB guard, and
+the version manager's unavoidable commit/tag/push behavior.
+
+A later non-mutating release preflight seeded a fresh temporary Git index from
+HEAD and reproduced the exact versioning scope. The wallet-owner repairs expand
+that scope to 87 paths (`38` tracked, `5`
+untracked implementation/test/runner, `39` ignored planning, `5` RSS evidence),
+raw status `A49/M35/D3`, and `R088` rename detection from the deleted nested
+owner to canonical `checkpoint/nova.rs`. All 12 exclusions were absent and the
+largest staged blob was `1,165,579 B`. The version-manager `minor --dry-run`
+passed and proposed `1.13.0→1.14.0`, tag `v1.14.0`, and branch `main`. The
+temporary index was removed; the real index, HEAD, `versions.yaml`, worktree
+status, and refs were unchanged. This is readiness evidence, not versioning or
+authority approval.
+The version-backup exclusion protects the current worktree's pre-existing ignored
+`versions.yaml.bak`: the real version-manager path overwrites that name, so the
+authorized release must run only in an isolated worktree and must never stage
+the generated backup.
+
+The wallet snapshot compile blocker is now resolved without restoration. The
+sole domain test owner embeds all 79 exact non-comment HEAD mappings as an
+independent golden, both former snapshot paths are forbidden, and release tests
+pass for the four domain invariants plus the dedicated owner guard. The
+all-target workspace release build now passes in `2:11.23` at `3,458,900 KiB`
+peak RSS. The deleted HEAD egui archive is now represented by one compact,
+test-owned record of its exact Git blob identity, byte length, SHA-256,
+150-member count, and ordered member-list SHA-256. Every former archive path is
+forbidden, and its focused owner gate plus the formerly blocked broad runtime
+tree-path guard both pass in release mode. Both wallet restore/amend decisions
+are eliminated; no T2 closure or authority decision follows.
+
+The current live `069-TODO.md` revision is SHA-256 `5572536c…`. Its new
+Nova-envelope-reference, provider-neutral DA-payload, bounded-challenge-archive,
+and compact-history terms are mandatory live scope at their existing owners;
+they are not treated as already implemented by this T2 slice. The generated
+coverage inventory and Plan 051 continuation were reconciled to `1332/1332`
+atoms, `57/57` active continuation atoms, zero missing/duplicate/drift, and one
+canonical recursive backend owner.
 
 **Success Criteria:**
 

@@ -102,6 +102,7 @@ pub struct PublicationReadyRecord {
 pub struct PreSealPublicationContract {
     pub payload_commitment: [u8; 32],
     pub publication_height: u64,
+    pub statement_core: CheckpointTransitionStatementCoreV1,
     pub archive_manifest: CheckpointArchiveManifestV1,
     pub da_reference: CheckpointDaReferenceV1,
     pub artifact: CheckpointArtifact,
@@ -501,6 +502,7 @@ pub fn preview_publication_contract_parts(
     Ok(PreSealPublicationContract {
         payload_commitment,
         publication_height,
+        statement_core,
         archive_manifest,
         da_reference,
         artifact,

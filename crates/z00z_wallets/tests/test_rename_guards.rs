@@ -518,6 +518,101 @@ fn test_leaf_paths_canonical() {
     assert!(wallet_guide.contains("WalletExportPack"));
 }
 
+fn assert_domain_golden_owner_canonical() {
+    let domain_tests = read_workspace_file("crates/z00z_wallets/src/domains/test_definitions.rs");
+
+    for removed_path in [
+        "crates/z00z_wallets/docs/domains_snapshot.txt",
+        "crates/z00z_wallets/src/domains/domains_snapshot.txt",
+    ] {
+        assert!(
+            !workspace_path_exists(removed_path),
+            "unexpected duplicate domain golden: {removed_path}"
+        );
+    }
+
+    assert!(domain_tests.contains("const FROZEN_DOMAIN_SNAPSHOT: &str"));
+    assert!(domain_tests.contains("snapshot_lines_from_str(FROZEN_DOMAIN_SNAPSHOT)"));
+    assert!(!domain_tests.contains("include_str!(\"../../docs/domains_snapshot.txt\")"));
+}
+
+#[test]
+fn test_domain_golden_owner_canonical() {
+    assert_domain_golden_owner_canonical();
+}
+
+// Exact provenance for the deleted archive previously retained only to prove
+// the egui tree relocation. Values are derived from the HEAD blob and its
+// ordered `tar -tzf` output; no runtime code consumes the archive.
+const FROZEN_EGUI_ARCHIVE_METADATA: &str = r#"
+git_blob_oid=906761239cb3ec4f8ba80a9ee8b4e96ed88ed81c
+blob_len=6528992
+blob_sha256=3319d481df7cedd46275eb2d2fe276c563c25e77b32e6602c77c781df8386fd9
+member_count=150
+member_list_sha256=2b5d20f0fb572bd128cafe94fd910099adea79894af704727f81f36bb448d577
+"#;
+
+const REMOVED_EGUI_ARCHIVE_PATHS: [&str; 5] = [
+    "crates/z00z_wallets/docs/egui_views.tar.gz",
+    "crates/z00z_wallets/src/egui_views/egui_views.tar.gz",
+    "crates/z00z_wallets/src/egui_views/ascii-mockups.tar.gz",
+    "crates/z00z_wallets/src/egui_views/ref-docs.tar.gz",
+    "crates/z00z_wallets/src/egui_views/themes.tar.gz",
+];
+
+fn frozen_egui_metadata_value(key: &str) -> &'static str {
+    FROZEN_EGUI_ARCHIVE_METADATA
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .find_map(|(candidate, value)| (candidate == key).then_some(value))
+        .unwrap_or_else(|| panic!("missing frozen egui archive metadata: {key}"))
+}
+
+fn is_lower_hex(value: &str, expected_len: usize) -> bool {
+    value.len() == expected_len
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn assert_egui_archive_owner_canonical() {
+    for removed_path in REMOVED_EGUI_ARCHIVE_PATHS {
+        assert!(
+            !workspace_path_exists(removed_path),
+            "unexpected legacy egui archive path: {removed_path}"
+        );
+    }
+
+    let fields = FROZEN_EGUI_ARCHIVE_METADATA
+        .lines()
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    let unique_keys = fields
+        .iter()
+        .filter_map(|line| line.split_once('=').map(|(key, _)| key))
+        .collect::<std::collections::HashSet<_>>();
+
+    assert_eq!(fields.len(), 5, "unexpected egui archive metadata shape");
+    assert_eq!(unique_keys.len(), fields.len(), "duplicate metadata key");
+    assert!(is_lower_hex(frozen_egui_metadata_value("git_blob_oid"), 40));
+    assert!(is_lower_hex(frozen_egui_metadata_value("blob_sha256"), 64));
+    assert!(is_lower_hex(
+        frozen_egui_metadata_value("member_list_sha256"),
+        64
+    ));
+    assert!(frozen_egui_metadata_value("blob_len")
+        .parse::<u64>()
+        .is_ok_and(|value| value > 0));
+    assert!(frozen_egui_metadata_value("member_count")
+        .parse::<usize>()
+        .is_ok_and(|value| value > 0));
+}
+
+#[test]
+fn test_egui_archive_owner_canonical() {
+    assert_egui_archive_owner_canonical();
+}
+
 #[test]
 fn test_tree_paths_canonical() {
     let definitions = read_workspace_file("crates/z00z_wallets/src/domains/definitions.rs");
@@ -525,15 +620,12 @@ fn test_tree_paths_canonical() {
     let wallet_runtime_config =
         read_workspace_file("crates/z00z_wallets/src/services/wallet_runtime_config.rs");
     let tab_registry = read_workspace_file("crates/z00z_wallets/src/egui_views/tab_registry.rs");
-    let domain_snapshot = read_workspace_file("crates/z00z_wallets/docs/domains_snapshot.txt");
 
     for live_path in [
         "crates/z00z_wallets/src/domains/test_definitions.rs",
         "crates/z00z_wallets/src/domains/test_hashing.rs",
         "crates/z00z_wallets/src/services/test_wallet_runtime_config_suite.rs",
         "crates/z00z_wallets/src/egui_views/wallet_tab_staking.rs",
-        "crates/z00z_wallets/docs/domains_snapshot.txt",
-        "crates/z00z_wallets/docs/egui_views.tar.gz",
     ] {
         assert!(
             workspace_path_exists(live_path),
@@ -544,14 +636,11 @@ fn test_tree_paths_canonical() {
     for removed_path in [
         "crates/z00z_wallets/src/domains/definitions/test_mod.rs",
         "crates/z00z_wallets/src/domains/hashing/test_mod.rs",
+        "crates/z00z_wallets/docs/domains_snapshot.txt",
         "crates/z00z_wallets/src/domains/domains_snapshot.txt",
         "crates/z00z_wallets/src/egui_views/app_settings_tab_2.rs",
         "crates/z00z_wallets/src/egui_views/wallet_tab_stacking.rs",
-        "crates/z00z_wallets/src/egui_views/egui_views.tar.gz",
-        "crates/z00z_wallets/src/egui_views/ascii-mockups.tar.gz",
-        "crates/z00z_wallets/src/egui_views/ref-docs.tar.gz",
         "crates/z00z_wallets/src/egui_views/egui_config.yaml",
-        "crates/z00z_wallets/src/egui_views/themes.tar.gz",
         "crates/z00z_wallets/src/egui_views/themes/_border_patterns.yaml",
         "crates/z00z_wallets/src/egui_views/themes/_border_semantics.yaml",
         "crates/z00z_wallets/src/egui_views/themes/_icon_system.yaml",
@@ -571,7 +660,8 @@ fn test_tree_paths_canonical() {
     assert!(wallet_runtime_config.contains("include!(\"test_wallet_runtime_config_suite.rs\");"));
     assert!(tab_registry.contains("module_name: \"wallet_tab_staking\""));
     assert!(!tab_registry.contains("module_name: \"wallet_tab_stacking\""));
-    assert!(domain_snapshot.contains("# Frozen domain snapshot"));
+    assert_domain_golden_owner_canonical();
+    assert_egui_archive_owner_canonical();
 }
 
 #[test]

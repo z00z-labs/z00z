@@ -10,6 +10,9 @@ use z00z_storage::{
     settlement::{RootGeneration, SettlementStore},
 };
 
+const CLEAN_PROCESS_MARKER: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CLEAN_PROCESS";
+const CLEAN_PROCESS_PATH: &str = "Z00Z_RECURSIVE_V2_CUTOVER_PATH";
+
 fn authority(store: &SettlementStore) -> RecursiveAuthoritySnapshotV2 {
     RecursiveAuthoritySnapshotV2::resolve_repository_local_fixture(store)
         .expect("repository-local authority capability")
@@ -106,4 +109,72 @@ fn recursive_v2_root_uses_the_live_hjmt_definition_root_owner() {
     let root = store.settlement_root_v2(7).expect("V2 root");
     assert_eq!(root.generation(), RootGeneration::SettlementV2);
     assert!(store.settlement_root_v2(0).is_err());
+}
+
+#[test]
+fn test_failed_cutover_is_atomic() {
+    let (_guard, temp, mut store) = durable_fixture_store();
+    let mut committed = fixture_cutover(&store, authority(&store));
+    let mut conflicting = fixture_cutover(&store, authority(&store));
+    committed
+        .install_repository_fixture(&mut store, 11)
+        .expect("first atomic cutover");
+    assert!(
+        conflicting
+            .install_repository_fixture(&mut store, 11)
+            .is_err(),
+        "a second valid token must fail inside the durable transaction",
+    );
+
+    drop(store);
+    let mut reloaded = SettlementStore::load(temp.path()).expect("reload failed transaction");
+    let mut replay = fixture_cutover(&reloaded, authority(&reloaded));
+    assert!(
+        replay
+            .install_repository_fixture(&mut reloaded, 11)
+            .is_err(),
+        "the failed duplicate must not remove or replace the committed record",
+    );
+}
+
+#[test]
+fn test_cutover_clean_process_reload() {
+    if std::env::var_os(CLEAN_PROCESS_MARKER).is_some() {
+        let path = std::env::var_os(CLEAN_PROCESS_PATH).expect("child cutover path");
+        let mut store = SettlementStore::load(path).expect("clean-process reload");
+        let mut replay = fixture_cutover(&store, authority(&store));
+        assert!(
+            replay.install_repository_fixture(&mut store, 11).is_err(),
+            "a clean process must observe the already committed cutover"
+        );
+        return;
+    }
+
+    let (_guard, temp, mut store) = durable_fixture_store();
+    let mut cutover = fixture_cutover(&store, authority(&store));
+    cutover
+        .install_repository_fixture(&mut store, 11)
+        .expect("durable parent installation");
+    drop(store);
+
+    let current_thread = std::thread::current();
+    let test_name = current_thread.name().expect("test harness name");
+    let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
+        .arg("--exact")
+        .arg(test_name)
+        .arg("--nocapture")
+        .env(CLEAN_PROCESS_MARKER, "1")
+        .env(CLEAN_PROCESS_PATH, temp.path())
+        .env("Z00Z_SETTLEMENT_BACKEND_MODE", "hjmt")
+        .env("Z00Z_SETTLEMENT_BUCKET_BITS", "2")
+        .env("Z00Z_STORAGE_SCHED_CPU", "1")
+        .env("Z00Z_STORAGE_SCHED_QUEUE", "1024")
+        .output()
+        .expect("start clean-process cutover verifier");
+    assert!(
+        output.status.success(),
+        "clean-process cutover verification failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }

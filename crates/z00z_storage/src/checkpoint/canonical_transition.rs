@@ -7,8 +7,8 @@ use z00z_crypto::{sha256_256_role, CheckpointSha256BlockStreamV2, CheckpointShaR
 use crate::backend::redb::state::RecursiveV2CutoverManifestV2;
 use crate::checkpoint::{CheckpointId, CheckpointStore};
 use crate::settlement::{
-    derive_settlement_root_v2, ScopeFlow, ScopeOpKind, SettlementExecHandoff, SettlementStateRoot,
-    SettlementStore, SettlementUpdateTraceEnvelopeV2,
+    derive_settlement_root_v2, JmtTraceSegmentContextV2, ScopeFlow, ScopeOpKind,
+    SettlementExecHandoff, SettlementStateRoot, SettlementStore, SettlementUpdateTraceEnvelopeV2,
 };
 use crate::snapshot::PrepSnapshotStore;
 
@@ -178,7 +178,11 @@ impl SettlementRootGenerationCutoverV2 {
         }
         store
             .install_recursive_v2_cutover(self.durable_manifest())
-            .map_err(|_| RecursiveV2Error::CutoverInstall)?;
+            .map_err(|_error| {
+                #[cfg(test)]
+                eprintln!("recursive V2 durable cutover rejected: {_error}");
+                RecursiveV2Error::CutoverInstall
+            })?;
         Ok(derived)
     }
 
@@ -254,6 +258,53 @@ impl CanonicalCheckpointTransitionV2 {
         store: &mut SettlementStore,
         handoff: SettlementExecHandoff,
     ) -> Result<Self, RecursiveV2Error> {
+        Self::from_exec_with_verifier_inner(
+            dir,
+            profile,
+            checkpoint_store,
+            prep_snapshot_store,
+            checkpoint_id,
+            store,
+            handoff,
+            None,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_exec_with_verifier(
+        dir: impl AsRef<Path>,
+        profile: RecursiveCircuitProfileV2,
+        checkpoint_store: &impl CheckpointStore,
+        prep_snapshot_store: &impl PrepSnapshotStore,
+        checkpoint_id: CheckpointId,
+        store: &mut SettlementStore,
+        handoff: SettlementExecHandoff,
+        verifier: RecursiveVerifierAuthorityV2,
+    ) -> Result<Self, RecursiveV2Error> {
+        Self::from_exec_with_verifier_inner(
+            dir,
+            profile,
+            checkpoint_store,
+            prep_snapshot_store,
+            checkpoint_id,
+            store,
+            handoff,
+            Some(verifier),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_exec_with_verifier_inner(
+        dir: impl AsRef<Path>,
+        profile: RecursiveCircuitProfileV2,
+        checkpoint_store: &impl CheckpointStore,
+        prep_snapshot_store: &impl PrepSnapshotStore,
+        checkpoint_id: CheckpointId,
+        store: &mut SettlementStore,
+        handoff: SettlementExecHandoff,
+        verifier: Option<RecursiveVerifierAuthorityV2>,
+    ) -> Result<Self, RecursiveV2Error> {
+        let segment_dir = dir.as_ref().to_path_buf();
         let checkpoint = RecursiveCheckpointBindingV2::resolve(
             checkpoint_store,
             prep_snapshot_store,
@@ -273,6 +324,10 @@ impl CanonicalCheckpointTransitionV2 {
             return Err(RecursiveV2Error::Authority);
         }
         let snapshot = authority.snapshot();
+        let segment_context = JmtTraceSegmentContextV2::new(
+            checkpoint.checkpoint_id().into_bytes(),
+            checkpoint.height(),
+        );
         if context.policy_digest() != store.bucket_policy().bucket_policy_id() {
             return Err(RecursiveV2Error::CutoverAuthority);
         }
@@ -296,7 +351,7 @@ impl CanonicalCheckpointTransitionV2 {
         // or seal a spool after durable state has moved.
         let mut preflight_store = store.recursive_v2_preflight_clone();
         let (preflight_flow, preflight_update_trace) = preflight_store
-            .apply_exec_handoff_v2(handoff.clone())
+            .apply_exec_handoff_v2(handoff.clone(), &segment_dir, segment_context)
             .map_err(|_| RecursiveV2Error::Storage)?;
         let preflight_post_settlement_root = preflight_store
             .settlement_root_v2(context.layout())
@@ -316,7 +371,15 @@ impl CanonicalCheckpointTransitionV2 {
             checkpoint.is_recursive_v2_noop(),
         )?;
         let spec = RecursiveCircuitSpecV2::new(context.layout(), &profile)?;
-        let verifier = RecursiveVerifierAuthorityV2::repository_fixture(context, &profile, &spec)?;
+        let verifier = match verifier {
+            Some(verifier)
+                if verifier.predicate_digest() == super::nova::executable_predicate_digest()? =>
+            {
+                verifier
+            }
+            Some(_) => return Err(RecursiveV2Error::Authority),
+            None => RecursiveVerifierAuthorityV2::repository_fixture(context, &profile, &spec)?,
+        };
         let pre_uniqueness_context = RecursivePreUniquenessContextV2::build(
             context,
             snapshot,
@@ -326,7 +389,8 @@ impl CanonicalCheckpointTransitionV2 {
             declared_work,
             preflight_update_trace.trace_digest(),
         )?;
-        let mut source = RecursiveTransitionTraceSourceV2::create_in(dir, profile, snapshot)?;
+        let mut source =
+            RecursiveTransitionTraceSourceV2::create_in(&segment_dir, profile, snapshot)?;
         source.bind_pre_uniqueness_context(pre_uniqueness_context)?;
         source.begin_canonical_precommit()?;
         canonical_events(
@@ -349,7 +413,7 @@ impl CanonicalCheckpointTransitionV2 {
         // operation remains that could turn a successful live commit into an
         // ambiguous post-commit error.
         let (live_flow, live_update_trace) = store
-            .apply_exec_handoff_v2(handoff)
+            .apply_exec_handoff_v2(handoff, &segment_dir, segment_context)
             .map_err(|_| RecursiveV2Error::Storage)?;
         let post_storage_generation = store.recursive_v2_storage_generation();
         let live_root = store.settlement_root_v2(context.layout()).map_err(|_| {
@@ -407,7 +471,7 @@ impl CanonicalCheckpointTransitionV2 {
     /// Expose only the bounded count of private JMT updates.
     #[must_use]
     pub fn update_trace_count(&self) -> u32 {
-        u32::try_from(self.update_trace.updates().len()).unwrap_or(u32::MAX)
+        self.update_trace.update_count()
     }
 
     pub(crate) const fn recursive_authority_context(&self) -> RecursiveAuthorityContextV2 {
@@ -451,6 +515,33 @@ impl CanonicalCheckpointTransitionV2 {
             return Err(RecursiveV2Error::Root);
         }
         Ok(evaluated)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn evaluate_with_nova_events(
+        &mut self,
+        store: &SettlementStore,
+    ) -> Result<(EvaluatedCheckpointTransitionV2, Vec<RecursiveTraceEventV2>), RecursiveV2Error>
+    {
+        self.authority.revalidate_config()?;
+        if store
+            .settlement_root_v2(self.authority.authority().layout())
+            .map_err(|_| RecursiveV2Error::Root)?
+            != self.post_settlement_root
+            || store.recursive_v2_storage_generation() != self.post_storage_generation
+        {
+            return Err(RecursiveV2Error::SnapshotChanged);
+        }
+        let (evaluated, events) = CheckpointTransitionConsistencyV2::evaluate_stream_with_events(
+            &mut self.source,
+            self.authority.authority(),
+            self.checkpoint,
+            store,
+        )?;
+        if evaluated.settlement_root() != self.post_settlement_root {
+            return Err(RecursiveV2Error::Root);
+        }
+        Ok((evaluated, events))
     }
 
     /// Finalize only when the immutable pre-state handle remains identical and
@@ -606,8 +697,7 @@ fn plan_declared_work(
             .len(),
     )
     .map_err(|_| RecursiveV2Error::Limit)?;
-    let jmt_update_count =
-        u64::try_from(update_trace.updates().len()).map_err(|_| RecursiveV2Error::Limit)?;
+    let jmt_update_count = u64::from(update_trace.update_count());
     let net_mutation_count = update_trace
         .terminal_operation_count()
         .map_err(|_| RecursiveV2Error::Canonical)?;
@@ -1010,7 +1100,10 @@ mod tests {
     use z00z_core::assets::{AssetLeaf, AssetPackPlain};
     use z00z_crypto::ZkPackEncrypted;
 
-    use super::{canonical_events, CanonicalCheckpointTransitionV2};
+    use super::{
+        canonical_events, opaque_record_digest, CanonicalCheckpointTransitionV2,
+        SettlementRootGenerationCutoverV2,
+    };
     use crate::{
         checkpoint::{
             recursive_circuit::RecursiveCircuitProfileV2,
@@ -1026,16 +1119,86 @@ mod tests {
             CheckpointExecVersion, CheckpointFsStore, CheckpointId, CheckpointInRef,
             CheckpointStore, CheckpointVersion, CreatedEnt, SpentEnt,
         },
-        fixture_support::checkpoint_fixtures,
+        fixture_support::{
+            checkpoint_fixtures,
+            settlement_corpus::{asset_item, load_fixture},
+        },
         settlement::{
-            DefinitionId, SerialId, SettlementExecHandoff, SettlementPath, SettlementRouteCtx,
-            SettlementStateRoot, SettlementStore, StoreItem, StoreOp, TerminalId, TerminalLeaf,
+            hjmt_config::SettlementBackendMode, DefinitionId, SerialId, SettlementExecHandoff,
+            SettlementPath, SettlementRouteCtx, SettlementStateRoot, SettlementStore, StoreItem,
+            StoreOp, TerminalId, TerminalLeaf,
         },
         snapshot::{build_snapshot_v2, PrepFsStore, PrepSnapshotStore},
     };
 
     fn profile() -> RecursiveCircuitProfileV2 {
         RecursiveCircuitProfileV2::repository_fixture()
+    }
+
+    #[test]
+    fn durable_cutover_generation_cas_failure_is_atomic() {
+        let temp = tempfile::TempDir::new().expect("durable CAS directory");
+        let mut store =
+            SettlementStore::load_with_backend_mode(temp.path(), SettlementBackendMode::Hjmt)
+                .expect("durable CAS fixture");
+        let fixture = load_fixture();
+        store
+            .put_settlement_item(asset_item(&fixture.assets[0]))
+            .expect("persist CAS pre-state");
+        let authority =
+            super::RecursiveAuthoritySnapshotV2::resolve_repository_local_fixture(&store)
+                .expect("CAS authority snapshot");
+        let expected = store.settlement_root_v2(7).expect("CAS V2 root");
+        let opaque = [8; 32];
+        let stale = SettlementRootGenerationCutoverV2::repository_local_fixture(
+            authority,
+            &store,
+            10,
+            opaque,
+            opaque_record_digest(opaque),
+            expected,
+            11,
+        )
+        .expect("stale CAS manifest");
+        let stale_manifest = stale.durable_manifest();
+
+        store
+            .put_settlement_item(asset_item(&fixture.assets[1]))
+            .expect("advance durable generation before backend CAS");
+        let error = store
+            .backend
+            .install_recursive_v2_cutover(&stale_manifest)
+            .expect_err("backend must reject the stale generation");
+        assert!(
+            error.to_string().contains("compare-and-swap mismatch"),
+            "the rejection must reach the durable backend CAS: {error}",
+        );
+        assert!(
+            store
+                .backend
+                .load_recursive_v2_cutover()
+                .expect("read back failed CAS")
+                .is_none(),
+            "a failed generation CAS must leave no partial manifest",
+        );
+
+        let current_authority =
+            super::RecursiveAuthoritySnapshotV2::resolve_repository_local_fixture(&store)
+                .expect("current CAS authority snapshot");
+        let current_expected = store.settlement_root_v2(7).expect("current CAS V2 root");
+        let mut current = SettlementRootGenerationCutoverV2::repository_local_fixture(
+            current_authority,
+            &store,
+            10,
+            opaque,
+            opaque_record_digest(opaque),
+            current_expected,
+            11,
+        )
+        .expect("current CAS manifest");
+        current
+            .install_repository_fixture(&mut store, 11)
+            .expect("failed stale CAS leaves the current install available");
     }
 
     fn path(definition: u8, serial: u32, terminal: u8) -> SettlementPath {
@@ -1124,8 +1287,9 @@ mod tests {
             .expect("persist execution input");
         let manifest = checkpoint_fixtures::archive_manifest(&draft, &exec, exec_id);
         let da_reference = checkpoint_fixtures::da_reference(&manifest);
+        let statement_core = checkpoint_fixtures::statement_core(&exec);
         checkpoint_store
-            .stage_publication_contract(exec_id, &manifest, &da_reference)
+            .stage_publication_contract(exec_id, &statement_core, &manifest, &da_reference)
             .expect("stage canonical checkpoint evidence");
         let link = checkpoint_store
             .seal_artifact(
@@ -1164,12 +1328,12 @@ mod tests {
 
         let mut post_a = store_a.recursive_v2_preflight_clone();
         let (_, _) = post_a
-            .apply_exec_handoff_v2(handoff.clone())
+            .apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
             .expect("converging A transition");
         let post_root = post_a.settlement_root_v2(7).expect("shared V2 post-root");
         let mut post_b = store_b.recursive_v2_preflight_clone();
         let (flow_b, envelope_b) = post_b
-            .apply_exec_handoff_v2(handoff.clone())
+            .apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
             .expect("converging B transition");
         assert_eq!(
             post_b.settlement_root_v2(7).expect("shared V2 post-root"),
@@ -1252,7 +1416,7 @@ mod tests {
 
         let mut post = store.recursive_v2_preflight_clone();
         let (flow, envelope) = post
-            .apply_exec_handoff_v2(handoff.clone())
+            .apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
             .expect("preflight transition");
         let post_root = post.settlement_root_v2(7).expect("V2 post-root");
         let post_definition_root = post.recursive_v2_definition_root();

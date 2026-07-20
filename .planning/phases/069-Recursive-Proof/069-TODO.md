@@ -3,11 +3,23 @@ phase: 069
 artifact: recursive-proof-spec
 status: planning-ready
 registration: registered-existing-phase-reuse
-updated: 2026-07-15
+updated: 2026-07-20
 authority: phase-local
 ---
 
 # Phase 069 Recursive Proof Spec
+
+## Live execution overlay — 2026-07-20
+
+`069-051-T2` is complete on source revision
+`50f8f9084d3cf888e0aedf10ebc165a088d977a256d2f031b5773bb00adbc45a`.
+The final bounded segment, incremental hierarchy, selected resource profile,
+private setup-cache, deterministic replay, proof/Model C, authority, release,
+review, doublecheck, scoped versioning and clean-clone gates are closed in the
+canonical Plan 051 ledgers. `069-051-T3` is the only next executable task and
+is not started by this overlay. T4 and Plans 06–13 remain locked until their
+declared dependencies complete; `CheckpointProofSystem::VERIFIED` remains
+disabled.
 
 ## 🎯 Purpose
 
@@ -245,16 +257,16 @@ plan; storage schema support alone does not require installing Kubo.
 
 📌 Default ownership for dependency wiring:
 
-- `crates/z00z_storage/src/checkpoint/` keeps the statement, artifact, evidence,
-  PQ anchor codecs, configuration validation, and the sole V2 recursive module.
-- `z00z_storage::checkpoint::recursive_v2` owns the Nova and Plonky3 adapter
-  boundary, proving/verifying APIs, benchmark harnesses, and backend dependency pins.
+- `crates/z00z_storage/src/checkpoint/` keeps statement/artifact/evidence/PQ codecs,
+  configuration validation, the sole private Nova owner, and public V2 facade.
+- `z00z_storage::checkpoint::nova` alone owns Nova; named V2/Plonky3 owners may
+  share APIs, benchmarks, and dependency pins without recreating a nested path.
 - `z00z_rollup_node` SHOULD own Kubo/IPFS RPC wiring and archive-operator
   process integration, not checkpoint theorem bytes.
 
 | Dependency surface | Install target | Required package(s) | Primary docs | Phase 069 rule |
 | --- | --- | --- | --- | --- |
-| Nova block proof lane | `z00z_storage::checkpoint::recursive_v2::nova` | [`nova-snark`](https://docs.rs/nova-snark/), [Microsoft/Nova repository](https://github.com/microsoft/Nova), [Nova paper](https://par.nsf.gov/servlets/purl/10440508) | `docs.rs`, repository README/examples, paper | MUST implement `NovaCompressedSnapshotV2`; MUST stay non-PQ; MUST pin one exact crate version or git revision in workspace metadata before the first adapter lands. |
+| Nova block proof lane | `z00z_storage::checkpoint::nova` | [`nova-snark`](https://docs.rs/nova-snark/), [Microsoft/Nova repository](https://github.com/microsoft/Nova), [Nova paper](https://par.nsf.gov/servlets/purl/10440508) | `docs.rs`, repository README/examples, paper | MUST implement `NovaCompressedSnapshotV2`; MUST stay non-PQ; MUST pin one exact crate version or git revision in workspace metadata before the first adapter lands. |
 | Plonky3 recursion lane | `z00z_storage::checkpoint::recursive_v2::plonky3` | [`p3-recursion`](https://docs.rs/crate/p3-recursion/latest), [`p3-uni-stark`](https://docs.rs/crate/p3-uni-stark/latest), [`p3-fri`](https://docs.rs/crate/p3-fri/latest), [`p3-commit`](https://docs.rs/crate/p3-commit/latest), [`p3-challenger`](https://docs.rs/crate/p3-challenger/latest), [`p3-field`](https://docs.rs/crate/p3-field/latest), [`p3-matrix`](https://docs.rs/crate/p3-matrix/latest), [Plonky3 repository](https://github.com/Plonky3/Plonky3), and [Plonky3-recursion repository](https://github.com/Plonky3/Plonky3-recursion/) | `docs.rs`, upstream repositories, local benchmark vectors | MUST implement `Plonky3EpochProofV2`; MUST pin one approved compatibility set; MUST NOT mix unrelated `p3-*` release families inside the same workspace. |
 | Plonky3 field/hash profile | Same V2 module plus shared crypto helpers | [`p3-koala-bear`](https://docs.rs/crate/p3-koala-bear/latest), [`p3-poseidon2`](https://docs.rs/crate/p3-poseidon2/latest), and when sponge helpers are needed [`p3-symmetric`](https://docs.rs/crate/p3-symmetric/latest) | `docs.rs` plus the upstream Plonky3 workspace manifest | MUST match config `field: koala_bear` and `hash: poseidon2`; any alternative field/hash pair rejects unless config, vectors, proofs, and tests move together. |
 | IPFS archive RPC client | `z00z_rollup_node` archive adapter or future archive crate | [`ipfs-api-backend-hyper`](https://docs.rs/crate/ipfs-api-backend-hyper/latest) | `docs.rs` crate docs | Conditional scope only. If `ipfs_pinned` is exercised, the adapter MUST talk to an external pinned Kubo node over local or private RPC, emit receipts/pinning evidence, and keep SDK types outside canonical checkpoint modules. |
@@ -3685,7 +3697,7 @@ updates the architecture doublecheck ledger and tests the migration.
 | Extended transition statement | `z00z_storage::checkpoint` | `transition_statement.rs` or extension of `artifact_stmt.rs` | Produce statement/core/final digests from storage-owned fields. | Rebuild a second theorem in runtime or recursive crate. |
 | Canonical artifact compatibility | `z00z_storage::checkpoint` | `codec.rs`, `artifact_final.rs`, `artifact_types.rs` | Keep `OPAQUE_ATTEST` canonical and `VERIFIED` reserved. | Admit recursive proof bytes as canonical. |
 | V2 evidence envelope | `z00z_storage::checkpoint::recursive_v2` | `evidence.rs`, `store.rs`, `reject.rs` | Persist and verify non-authoritative V2 evidence. | Mutate `CheckpointArtifact` or `CheckpointLink`. |
-| Nova block proof object | `z00z_storage::checkpoint::recursive_v2::nova` | `nova.rs`, `evidence.rs` | Fold each block; bind statements/links in bounded recovery/compression artifacts; send accepted compressed bodies into Plan 09 `NovaRetentionStateV2`. | Claim PQ authority, publish PP/PK, merge the Nova-body clock with the 90-day challenge clock, or bypass canonical replay. |
+| Nova block proof object | `z00z_storage::checkpoint::nova` | `nova.rs`, `evidence.rs` | Fold each block; bind statements/links in bounded recovery/compression artifacts; send accepted compressed bodies into Plan 09 `NovaRetentionStateV2`. | Claim PQ authority, publish PP/PK, merge the Nova-body clock with the 90-day challenge clock, or bypass canonical replay. |
 | Plonky3 epoch/history proof | `z00z_storage::checkpoint::recursive_v2::plonky3` | `plonky3.rs`, `history.rs`, `evidence.rs` | Bind exact epoch range and verify rolling-history predecessor/successor/rotation over canonical statements, manifests, witness roots, and optional Nova root. | Depend only on Nova, accept a predecessor digest without its proof, or bridge generations implicitly. |
 | Epoch manifest and compact anchor | `z00z_storage::checkpoint` | `epoch_manifest.rs`, `epoch_anchor.rs`, `history_accumulator.rs` | Commit epoch closure immediately; persist compact certified anchor/MMR/rotation history permanently while large bodies follow window/successor policy. | Delay canonical close for proof work or embed multi-MiB proof bodies in the permanent anchor. |
 | Challenge packs, receipts and retention ledger | `z00z_storage::checkpoint` schema; rollup/storage exporter writes receipts | `challenge_pack.rs`, `archive_manifest.rs`, `archive_receipt.rs`, `retrieval_audit.rs`, `retention_ledger.rs` | Losslessly deduplicate in-window exact bytes, bind mandatory RS(10,16) shards/placement/audits, and authorize expiry only through `RetentionTicketV2` CAS. | Treat Celestia/unpinned IPFS as persistence, select full-replica fallback, delete current state, or accept early/held/ticketless deletion. |

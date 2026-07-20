@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.15
 milestone_name: Storage Serialization Bootstrap
-status: Phase 069 Active — 069-051-T0 is complete; 069-051-T1 is reopened; T2 semantic code now includes direct source-byte/FIPS binding, full uniqueness/Net, exact Net-to-terminal-JMT permutation, all-six-case JMT, hierarchy/key/root induction, four checkpoint-core commitments, X_h/prior-IVC/exact-successor bindings, and one canonical flow path; complete mixed real-proof/Model A-B-C/artifact/A-17 evidence and the authority operating budget remain open; T3–T4 and Plans 06–13 remain locked
-last_updated: "2026-07-18T22:02:19+03:00"
-last_activity: 2026-07-18
+status: Phase 069 Active — 069-051-T0, T1 and T2 are complete; T2 closes the one full Nova relation plus bounded deterministic HJMT segments, incremental hierarchy verification, the authority-selected 1 MiB/one-worker/one-prover/k=1 profile, a private 1 GiB identity-bound PP/PK cache, deterministic replay recovery, accepted F12/F23/F24 and conditional A-17, final proof/Model C/artifacts, release/review/doublecheck gates, scoped versioning and clean-clone reproducibility on source revision `50f8f908…bc45a`; 069-051-T3 is the next open task and is not started; T4 and Plans 06–13 remain locked; CheckpointProofSystem::VERIFIED remains disabled
+last_updated: "2026-07-20T04:02:00+03:00"
+last_activity: 2026-07-20
 progress:
   total_phases: 47
   completed_phases: 1
   total_plans: 30
   completed_plans: 21
   percent: 2
-stopped_at: "`069-051-T2` remains active against `069-051-T2-GAPS.md`. Endpoint-free Poseidon root/frontier stays removed. The circuit now binds complete mutating Net rows to terminal JMT operations through two precommit-derived products plus exact count, removes duplicated flow payloads from CommitTypedEvent so ReplayInput/ReplayOutput are the sole flow-item codec, and rejects the former Put/Delete payload tags directly in R1CS. Four ordered typed checkpoint-core commitments, SettlementV2 roots, X_h, prior finalized state and exact independently derived successor are live. The state-range audit removed an invalid u16 range constraint from full-field permutation/Net product cells. Current base ShapeCS is C=533,905/V=401,549/NZ=2,036,951/G=2,097,153 with lower bounds PP/VK/bundle/Pedersen 161,400,800/67,108,896/67,109,350/402,653,376 B. Focused release gates pass. No fresh augmented worker was run because the complete mixed fixture, Models A/B/C, final artifacts/A-17 mapping, reopened T1 evidence, review convergence, and authority numeric budget remain open; T3–T4/Plans 06–13 remain locked."
+stopped_at: "Completed `069-051-T2`; next is `069-051-T3`. T3 was not implemented."
 current_phase: 069
 current_phase_name: Recursive Proof
 current_plan: 069-051
@@ -26,11 +26,40 @@ current_plan: 069-051
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Confidential asset and wallet flows must remain correct, explicit, and storage-safe.
-**Current focus:** Phase 069 — Recursive Proof / `069-051` retained T2 evidence, artifacts, resource authority, and review convergence
+**Current focus:** Phase 069 — Recursive Proof / begin `069-051-T3` from the closed T2 identities and formats
 
 ## Status
 
-**Current T2 semantic/integration status (2026-07-18):** The sole canonical
+**Final T2 closure (2026-07-20):** `069-051-T2` is complete on source revision
+`50f8f9084d3cf888e0aedf10ebc165a088d977a256d2f031b5773bb00adbc45a`.
+Authority decision `phase-069-t2-interactive-authority-2026-07-20` accepts
+F12/F23/F24, conditional A-17, `q_V=1,048,576`, `N=4,294,967,296` and the
+fixed 1 MiB segment/one HJMT worker/2 MiB result/separate 64 MiB input snapshot/
+one prover/`k=1`/1 GiB cache/deterministic-replay tuple. The final source has
+one bounded segment grammar, incremental exact-consumption hierarchy verifier,
+private atomic setup cache and no production resident fallback or selector.
+Final proof/Model C, strict artifacts, release gates, three reviews ending in
+two clean passes, two doublechecks, scoped versioning and clean-clone
+reproducibility are recorded by the Plan 051 ledgers. T3 is the next task and
+has not started; T4 and Plans 06–13 remain locked. All older active/blocking T2
+paragraphs below are retained as historical execution chronology only.
+
+The canonical final proof/RSS report is
+`test-results/phase-069/nova-verifier-rss/20260720T002157Z-3/measurement.env`
+with measurement-bundle SHA-256
+`5a9b4fd953325959b37be84aa6c8317d37a451401f396200c5d0c691e6eca0e4`.
+It records 2,023.509 s for proof plus independently recomputed Model C,
+6,611,693,568 B prover peak RSS, 28.010 s clean verification and
+3,054,936,064 B verifier kernel peak VmHWM. Model C recomputed in 976.269 s and
+the all-limb target comparator rejected.
+
+Final unchanged-tree release evidence is bootstrap `2:43.51`, semantic 36/36
+`58:58.46`, TestCS 1,727/1,727 `4:21.58`, artifacts 3/3 `7:40.84`, all-target
+build `2:15.01`, and workspace tests `45:00.11`. The final F23 test-only env-
+lock repair is stress-green 21/21; review passes 3–4 are consecutive clean and
+both independent doublechecks pass.
+
+**Current T2 semantic/integration status (2026-07-19):** The sole canonical
 flow-item representation is now `ReplayInput`/`ReplayOutput`; the redundant
 flow copy formerly accepted by `CommitTypedEvent` was deleted from the trace
 producer and native evaluator. `CommitTypedEvent` has one exact meaning: four
@@ -40,29 +69,88 @@ permutation between all mutating Net effects and terminal-tree JMT operations,
 using two SHA-precommit-derived `(alpha,beta)` pairs and exact cardinality;
 Unchanged remains a constrained Net record and emits no JMT operation. A
 changed terminal value hash reaches the product equality and rejects. Current
-fixed base shape is `C=533,905/V=401,549/NZ=2,036,951/G=2,097,153`; static
+fixed base shape is `C=533,794/V=401,550/NZ=2,036,733/G=1,048,577`; static
 PP/VK/bundle/Pedersen lower bounds are
-`161,400,800/67,108,896/67,109,350/402,653,376 B`. This is semantic progress,
-not T2 acceptance: no complete mixed real compressed proof, final Models A/B/C
-corpus, final artifact/theorem/A-17 ledger, review convergence, or
-authority-pinned operating budget exists. The optional developer PP+PK cache
-remains intentionally unimplemented until relation stabilization; folding
+`127,834,984/127,834,984/523/201,326,784 B`. The split artifact path now has a
+strict finite PP+PK private loader, authority-selected VK-bundle digest, full
+generation/source/shape/activation identity and a keyless activation-bound
+proof envelope. The pinned-key wrapper walks both Pedersen/IPA key ranges and
+rejects identity/default/order drift before proof decode. A-17 names the exact
+current Theorem 5 result and records its EAGM/GZT mismatch as a residual
+assumption. Fresh bounded release evidence passes for the complete 1,727-step
+proof, strict invalid-key corpus, clean verifier-only process and recomputed
+Model C. The proof is `122,288 B`; the exact provider-neutral envelope is
+`342,353 B`; the authority-distributed VK bundle is excluded. This is not T2
+acceptance: reopened T1 residuals, conditional A-17, Git reproducibility, and
+the external authority operating budget/`q_V`/candidate decision remain open.
+All identified local workspace build and runtime rename-guard gates pass. The
+strict PP+PK recovery wire is implemented,
+but the optional developer setup cache is absent and fresh measurements report
+`nova_runtime_cache=none`; folding
 recovery and Celestia publication are T3/later consumers, not T2 substitutes.
+The current `069-TODO.md` SHA-256 is `621666f4…`; its new live-scope terms are
+routed without deferral or false implementation claims. Coverage is
+`1332/1332`, including `57/57` active Plan 051 continuation atoms.
+The final-tree mandatory release bootstrap passes in `120.48 s`, versus the
+incoming `1609.07 s` baseline (`13.36x`). The explicit production-parameter
+milestone runner keeps 36 exhaustive semantic R1CS cases, three real-artifact
+cases, the full 1,727-step TestCS replay, and the fresh full proof/recomputed
+Model C outside ordinary tests; one canonical-plus-non-boolean-mutation R1CS
+smoke remains unignored. Its guards report one owner, zero legacy owner, the
+exact 41-test milestone ignore set, and `1332/1332` coverage. The curated Nova
+release packet passes in `77.56 s`; `cargo build --workspace --all-targets
+--release` passes in `136.95 s`; and `cargo test --workspace --release` passes
+in `2662.15 s` without executing the milestone Nova TestCS/full proof. Those
+ordinary-pyramid figures predate the later harness-only fix and remain
+performance evidence, not a post-fix final gate. The first post-harness proof
+attempt exposed that the bounded child omitted `--ignored` and falsely passed
+after executing zero tests; the worker now requires `--ignored` plus an exact
+child execution marker. Under final source revision `d7980118…fc06`, the real
+proof/Model C milestone passes in `2127.806 s` with `6,605,221,888 B` peak RSS;
+Model C recomputation takes `1030.604 s`. The external release-only RSS harness
+records `29.496 s` clean verification, sampled peak VmRSS `3,062,788,096 B`,
+and authoritative kernel VmHWM `3,063,189,504 B`; the proposed 4 GiB verifier
+limit has `1,231,777,792 B` measured headroom but remains
+`PROPOSED_NOT_ACTIVE`. Both terminal parents exited zero, isolated group
+cleanup was clean, and the single-flight lock was free. The earlier review/doublecheck wave is reset
+by that fix. The verifier-RSS review wave then fixed canonical runner-contract
+guarding and PID start-time revalidation in pass 1; passes 2–3 were consecutive
+significant-clean. Doublecheck 1 reconciled report/source identities,
+RSS/headroom arithmetic, docs, and runner guards; Doublecheck 2 verified
+inactive authority fields, promotion locks, the then-current wallet blocker, and fail-closed
+process/worker-lock cleanup. The current-source three-test artifact corpus now passes: the
+858,785,714-byte PP+PK recovery payload, 47,008,185-byte verifier bundle and
+strict invalid-key corpus, and exact source-binding worker all completed. The
+post-harness bootstrap reached terminal `BOOTSTRAP COMPLETE`. This cycle's
+curated packet passed in `81.41 s` at `3,071,228 KiB` peak RSS. A historical
+pre-repair all-target attempt stopped at the deleted domain snapshot; both
+wallet fixture dependencies have since been replaced by exact inline HEAD
+evidence in their sole test owners. The final release rename-guard target
+passes 13/13, and a fresh `cargo build --workspace --all-targets --release`
+passes in `2:14.70` at `3,366,960 KiB` peak RSS. After the earlier F23 assertion
+fix, the mandatory bootstrap and exact F23 target pass. This measures
+verification-pyramid speedup, not a fresh-proof speedup. Global T2 convergence
+remains blocked by Git reproducibility, reopened T1 residuals, conditional
+A-17, and external authority—not by a missing semantic relation, source
+carrier, current-source proof, or local workspace gate. The working-tree code
+audit found no further semantic implementation gap, but the untracked
+owner/tests/scripts mean the implementation is not reproducible from Git and
+therefore cannot close T2.
 
 **Historical hierarchy-only release gate (superseded 2026-07-18):** Exact-P codec version 2 carried `update_trace_digest` as digest anchor 12, and the JMT header equalled that anchor before hierarchy products were used. That intermediate shape was `C=337,927/V=216,219/NZ=1,266,770/G=2,097,153`, with PP/VK/bundle/Pedersen lower bounds `125,890,088/67,108,896/67,109,350/402,653,376 B`. The then-open SettlementV2 Poseidon2 parent-key relation is implemented by the current gate above; this row is retained only as historical resource evidence.
 
-**Recovery lane:** `069-051-T0` is complete; `069-051-T1` is reopened for bounded theorem closure. There is no executable recursive V1 fallback or selector in the Phase 069 V2 path. The one storage-owned V2 root, immutable pre-definition-root binding, strict trace/evaluator relation, source-owned external-sort uniqueness commitments, indexed source-record-to-`TraceChunk` reconstruction, converging-prestate native rejection fixture, per-opcode declared/consumed statement counts, profile-committed native resident accounting, amended direct source-byte-to-SHA relation, complete uniqueness/Net/JMT/hierarchy/root relation, four typed commitments, and `X_h`/prior-IVC/exact-final endpoint are live. `069-051-T1-DC2-RESOLUTION-LEDGER.md` records each DC2-F11..F24 disposition without treating a partial row as proof. Retained mixed compressed-verifier evidence, Models A/B/C, final theorem/mutation/benchmark/A-17 artifacts, reopened T1 evidence, and the authority numeric operating budget remain open. `069-051-T2` is active but non-closeable; T3, T4, and `069-06` through `069-13` remain locked. The 24 GiB emergency worker ceiling cannot select or accept a candidate.
+**Recovery lane:** `069-051-T0` is complete; `069-051-T1` is reopened for bounded theorem closure. There is no executable recursive V1 fallback or selector in the Phase 069 V2 path. The one storage-owned V2 root, immutable pre-definition-root binding, strict trace/evaluator relation, source-owned external-sort uniqueness commitments, indexed source-record-to-`TraceChunk` reconstruction, converging-prestate native rejection fixture, per-opcode declared/consumed statement counts, profile-committed native resident accounting, amended direct source-byte-to-SHA relation, complete uniqueness/Net/JMT/hierarchy/root relation, four typed commitments, and `X_h`/prior-IVC/exact-final endpoint are live. `069-051-T1-DC2-RESOLUTION-LEDGER.md` records each DC2-F11..F24 disposition without treating a partial row as proof. The current-source mixed compressed-verifier proof, Model C, strict artifact corpus, latest three-pass/two-clean residual-corpus review, and both doublechecks pass; theorem/mutation/benchmark/A-17 ledgers remain retained. The wallet snapshot and egui archive blockers are eliminated by single inline golden owners; the focused owner gates, broad runtime tree guard, and all-target release build pass. F12/F23 external acceptance, the F24 dependency residual, conditional A-17, and the authority numeric operating budget/`q_V`/candidate decision remain open. `069-051-T2` is active but non-closeable; T3, T4, and `069-06` through `069-13` remain locked. The 24 GiB emergency worker ceiling cannot select or accept a candidate.
 **Historical S1 authority decision (superseded 2026-07-18):** Native replay reconstructs every `TraceChunk` from the sole canonical record and checks it against the control payload. The live main path derives exactly one `SourceMemoryWrite` and then one `TraceChunk` from the same stack-local canonical chunk. The authority-reviewed theorem amendment removes the fixed-depth Poseidon root/frontier because it had no independent public or authority endpoint: it duplicated the ordered transcript relation without adding a binding lemma. The writer remains constrained to an empty pending window, the active source ordinal, and exact next-chunk cursor; pending state forces the immediate reader; direct R1CS equality covers every metadata field, all 64 bytes, and the zero tail; that same reader feeds both constrained SHA contexts with exact header, count, length, EOF, padding, chaining, and final authority digest. The former additive `SOURCE_TRACE_ROOT` is removed because summing event-digest limbs was not a root theorem; the sole terminal trace binding is the authority digest compared to the actual global SHA chaining state. Adversarial byte, metadata, cursor, zero-tail, and both-context tests reject. The source-only amended revision had base shape `C=128,769/V=80,844/NZ=493,046/G=524,289` and a fresh bounded worker at `16,829,259,776 B` peak RSS in `343.966 s`. The later replay→Original subgap revision additionally bound every authenticated replay terminal ID to one immediately adjacent commit-pass Original row using 34 scalar cells, without endpoint-free authenticated memory, and made the sole replay codec carry the storage-owned 32-byte old/new JMT leaf-value hash. That intermediate static shape was `C=221,624/V=138,756/NZ=810,066/G=1,048,577`, with PP lower bound `71,276,224 B`; it had no fresh augmented worker evidence and could not reuse the older bounded-worker result. No inner proof, bounded arena, native assertion, digest-only equality, reduced-cap relation, second circuit owner, or `TraceChunk` no-op was introduced. The current live gate above supersedes this historical subgap status.
 **Current Nova setup-cache contract (2026-07-17):** `.cache/` currently contains only historical Cargo/scenario artifacts; no reusable Nova PP, PK, VK, or proof exists. A future developer-only setup cache may retain private PP+PK only under one SHA-256 key derived from the complete identity preimage (cache format and role, suite/feature, authority/profile/spec/grammar/shape/source/lockfile/manifest digests, and state arity), never a directory name. Each bounded, mode-0600 entry must carry an independently checked manifest of every preimage component, payload length/digest, PP digest, and augmented-shape metrics; cache decode must be capped, strict, and canonically re-encoded before use. The cache may never contain a proof, receipt, verifier bundle, public VK artifact, source payload, or acceptance result. It is opt-in for repeated developer tests only; bounded-worker release measurements must bypass it and remain fresh. A cache hit can reduce setup time but cannot select a SHA width, establish an authority budget, or close T2.
 **Historical full-row/Net/JMT-only release gate (superseded 2026-07-18):** The intermediate exact base shape before hierarchy/roots/X_h/final-state integration was `C=325,091/V=206,541/NZ=1,221,306/G=2,097,153`; static PP/VK/bundle/Pedersen lower bounds were `123,763,464/67,108,896/67,109,350/402,653,376 B`. The current gate above supersedes its former open semantic list; this row is retained only as historical resource evidence.
 **Historical exact-P release gate (superseded 2026-07-18):** `nova-snark = 0.73.0` is pinned with only its audited `io` feature. The last measured strict verifier artifact is VK/header = 273,174,184/454 bytes and bundle = 273,174,638 bytes; it decodes/verifies without PP, while PP+PK remain private. This does not make a 273 MiB VK acceptable for mass watcher distribution, and neither the base-shape lower bound nor the 24 GiB emergency worker ceiling is an authority operating budget. The sole one-spool schedule emits global TracePrecommit `BEGIN_HASH` before source replay, then source → fixed-cursor prefix blocks → ordered `SourceMemoryWrite`/`TraceChunk`/derived-block groups → exact padding → source `END_HASH` → schema-bound global `END_HASH`. The amended R1CS relation directly binds each writer/reader window and every selected source/global SHA block before FIPS, with per-context chaining, exact padding, EOF, and endpoint equality. The same bytes feed canonical replay plus exact `UniquenessPrecommit`, 353-byte `UniquenessChallenge`, typed Original/Sorted rows, and `NetMerge` parsers. Each replay row is now immediately paired with a commit-pass Original row; direct R1CS gates constrain pending-active, set, and every terminal-ID byte, and prohibit skip/trailing/reordered pairs. Replay payloads additionally bind the storage-owned 32-byte old/new JMT leaf-value hash in their canonical source/global SHA bytes, and the fixed-shape R1CS parser consumes that field. The typed statement/anchor path commits exact declared semantic and per-opcode work plus the exact pre-uniqueness context. R1CS derives count digest, `P`, both set-specific `U` values and all eight challenges through the shared FIPS lane; reconstructs all four list hashes from authenticated row bytes; validates version/set/list tags and all sixteen little-endian `u16` limbs; enforces per-set/global strict order; and checks two full-field original/sorted product pairs per set. The sole schema-bound global TraceClosure `END_HASH` compares and clears all sixteen live opcode counters. Its static preflight was `C=221,624/V=138,756/NZ=810,066/G=1,048,577`, with PP/VK/bundle/Pedersen lower bounds `71,276,224/33,554,464/33,554,918/201,326,784 B`. No complete-candidate worker was run; every prior proof/RSS/latency figure predates the current relation and is historical only.
 **Historical S1/replay/precommit/challenge evidence (2026-07-16):** The native TracePrecommit schedule starts before source replay and the sole `CheckpointSha256BlockStreamV2` absorbs record-length framing and exactly the live canonical chunks while their source schedules expand; no terminal rewind, second feed, block tape, or encoder exists. Nova derives its source static frame and global role/DST static prefix in R1CS, retains only two fixed O(1) contexts, and makes active `TraceChunk` a constrained feeder rather than a generic edge. Static cursor blocks and live queued blocks both equality-bind to the selected FIPS lane; source/global padding, chaining, counter/ordinal/zero-tail checks, EOF, and endpoint digest comparisons are R1CS relations. Source replay additionally requires the global context to be active and started, while `FINALIZE_BLOCK` arms a private TraceClosure whose sole finalizing row is the schema-bound global TracePrecommit `END_HASH`; all transient fields are then constrained zero in successor Idle. The replay parser accepts only the exact canonical item structure from those bytes: terminal hex matches source object ID, `op_kind` is R1CS-constrained to `Put=1|Delete=2` independently of replay-set direction, leaf is Terminal, and input first-seen flags are zero. The same byte context streams exact native uniqueness records: the 169-byte precommit grammar materializes two counts and five digests and equates its counts to replay; the 65-byte challenge grammar requires version `1`, materializes its 32 challenge bytes, and pairwise equals its committed-precommit bytes to the authenticated precommit-digest limbs. Canonical inputs pass; precommit and challenge version mutations, a precommit count mutation, and a challenge committed-precommit-byte mutation reach direct R1CS gates. The codec-derived `UNIQUENESS` end advances every later state family, so neither parser aliases NET or JMT state. The mandatory clean release bootstrap completed with storage 232/232; the storage packet completed in 718.47 s. Its then-current targeted base-shape preflight was C=261,266, V=190,904, NZ=992,779, G=1,048,577 with lower bounds PP=79,536,152, VK=33,554,464, verifier bundle=33,554,918, and Pedersen RSS=201,326,784; the 2026-07-17 amended relation supersedes those figures at line 36. This is still base-shape evidence only: it does not authorize setup/RSS, select a width, prove precommit digest meanings/order/product or SHA-derived challenge, close net/JMT/hierarchy/statement relations, begin review convergence, or unlock T3–T4/Plan 06.
-**Queued follow-up packet:** `069-051-PLAN.md` binds the 4,325-line AUDIT-2 snapshot (`7638cbf46e7410b8627e9d734682a11fd185ddb4bb68f9d8b225f38cfc18751f`) as live authority. T2 must add exactly one private `z00z_storage::checkpoint::recursive_v2::nova` circuit/bundle owner; it must not create a V1 compatibility path, public Nova types, runtime width selector, duplicate JMT walker, or second circuit owner. Each T1–T4 verify block requires bootstrap first, release-only Rust gates, at least three YOLO execution reviews ending in two consecutive clean passes, and two doublechecks.
+**Queued follow-up packet:** `069-051-PLAN.md` binds the 4,325-line AUDIT-2 snapshot (`7638cbf46e7410b8627e9d734682a11fd185ddb4bb68f9d8b225f38cfc18751f`) as live authority. T2 must add exactly one private `z00z_storage::checkpoint::nova` circuit/bundle owner; it must not create a V1 compatibility path, public Nova types, runtime SHA-width selector, duplicate JMT walker, or second circuit owner. Each T1–T4 verify block requires bootstrap first, release-only Rust gates, at least three YOLO execution reviews ending in two consecutive clean passes, and two doublechecks.
 **Clarification:** `069-TODO.md` and its referenced design/whitepaper corpus are phase authority and mandatory live implementation scope; live code, tests, and repository configuration remain implementation ground truth. Target- or future-design statements are live scope, not deferred status. Planning evidence does not accept a backend or promote recursive evidence.
 **Parallel pause:** Phase `046` remains paused after `046-04`; it is not part of the Phase 069 execution lane.
-**Progress:** [████░░░░░░] 36% of Phase 069 execution (5/14 plans; `069-051` is in progress at T2)
-**Last activity:** 2026-07-18
-**Guardrails:** T2 must use only `z00z_storage::checkpoint::recursive_v2::nova`, preserve the one Phase 068 statement theorem and existing SHA owner, and keep backend types internal. Do not enable `CheckpointProofSystem::VERIFIED` before the canonical promotion gates pass.
+**Progress:** [████░░░░░░] 36% of Phase 069 execution (5/14 plans; `069-051` is in progress with T0–T2 complete and T3 next)
+**Last activity:** 2026-07-19
+**Guardrails:** T3 must consume the closed T2 identities, segment/cache/recovery formats and selected tuple without adding a compatibility lane, second owner or alternate recovery path. Preserve the one Phase 068 statement theorem and existing SHA owner, keep backend types internal, and do not enable `CheckpointProofSystem::VERIFIED` before the canonical promotion gates pass.
 
 - 2026-07-13: Began `069-051-T0` after a passing mandatory bootstrap gate. CodeGraph/direct source inventory located the recursive V1 dependency cone and existing V1 configuration paths. The sole config root plus absent `artifacts/`, `data/`, `state/`, snapshot environment, and live Z00Z process select `RepositoryLocalNoLiveV1`, not an external-input blocker. The isolated current-builder fixture was captured in two clean release processes; snapshot, execution, draft, statement-core, HJMT batch, roots, journal, and opaque record hashes match exactly. The fixture is not deployed and retains only field-digest evidence. The two explicit stale technical-paper mirrors were removed with `gio trash`; no source, configuration, persisted artifact, or user-owned worktree change was removed. V1 deletion, V2-only normative rewrite, and zero-reachability proof are pending. T1-T4 and Plan 06 remain locked on T0 completion.
 - 2026-07-13: Continued `069-051-T0`: safely removed the scoped recursive V1 modules/package/tests and all codec/store/config ingress, rewrote the normative V2 documents, regenerated 1084/1084 coverage, removed named stale release artifacts, and recorded three external release compile-fail consumers. The storage release suite passes. T0 remains active for post-deletion bootstrap/workspace validation, review convergence, doublechecks, and final scans; no user-owned or unrelated Phase 068 data was removed.

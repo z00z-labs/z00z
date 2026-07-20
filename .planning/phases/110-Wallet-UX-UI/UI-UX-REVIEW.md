@@ -2,187 +2,139 @@
 
 # Z00Z Wallet UI/UX Verification and Design Review
 
-## Summary
+| Field | Result |
+| --- | --- |
+| Reviewed baseline | `UI-UX-SPEC.md` v0.4.0 and responsive HTML demo |
+| Date | 2026-07-19 |
+| Verdict | Pass for concept/prototype validation |
+| Backend evidence method | CodeGraph first, then exact current source/manifests when needed |
+| Prototype boundary | Fabricated data; no wallet, signing, persistence, or live RPC connection |
 
-**Text verified:** `UI-UX-SPEC.md` v0.2 and the self-contained HTML demo, checked against current wallet/network/object/config code, Phase 080, and the live `z00z.io` surface.
+## Executive result
 
-**Claims extracted:** 12 material claims.
+The v0.4 concept is internally consistent with the current object model and honest about missing backend capability. The former statement “Claim is a voucher action” is **DISPUTED by live code and removed**. Claim is now a distinct asset-claim transaction flow; Voucher and Permission have independent inventories, lifecycles, actions, and review dialogs. `Right` is zero-value and no visible Permission surface shows a Z00Z budget.
+
+The deployment decision is also explicit: Tauri + Leptos remains the default self-custody shell. A static browser bundle and a local container are viable future surfaces, but current code has only a WASM WebSocket client seam—not an authenticated browser gateway or wallet RPC server. Docker packaging therefore does not make a remote key-bearing wallet self-custodial or production-ready.
+
+The interface now has two consistent selection patterns only:
+
+1. `ContextNav` for route hierarchy: grouped rail/tree on wide screens and a labelled horizontal route strip on narrow screens.
+2. `ChoiceChip` for filters and small peer view choices.
+
+Home quick actions are two equal pairs aligned to the two equal lower panels. Attention, Activity, Voucher, and Permission rows share divider, hover, focus, spacing, and metadata behavior. Target-only Reticulum/OnionNet telemetry, policy profiles, and UI↔YAML synchronization never masquerade as live capability.
+
+## Claim ratings
 
 | Rating | Count |
 | --- | ---: |
-| VERIFIED | 10 |
-| PLAUSIBLE | 2 |
+| VERIFIED | 12 |
+| PLAUSIBLE / architecture decision | 4 |
 | UNVERIFIED | 0 |
-| DISPUTED | 0 |
-| FABRICATION RISK | 0 |
+| Current DISPUTED | 0 |
+| Fabrication risk left in visible demo | 0 |
 
-**Items requiring attention:** No disputed claim remains in v0.2. Three drifts in v0.1 were corrected: Tor/OnionNet/Reticulum were modelled as peer route choices; `Right` was overgeneralized as Budget; configuration/profile target capabilities were not explicit enough about missing live RPC support.
+### VERIFIED against CodeGraph/current source
 
-## Flagged Items
+| ID | Claim | Evidence | Review consequence |
+| --- | --- | --- | --- |
+| C1 | Protocol and wallet inventory separate Asset, Voucher, and Right | `ObjectFamily`, `WalletInventoryPayload`, `OwnedObjectFamily` | Wallet routes are Assets, Vouchers, Permissions |
+| C2 | Asset classes are Coin, Token, Nft, Void and wallet statuses include pending/quarantined states | `AssetClass`; `OwnedAssetStatus` | Class chips and authoritative availability/trust treatment; only verified spendable cash enters Available |
+| C3 | Claim is an asset-claim transaction, not a Voucher action | `ClaimTxPackage`, `ClaimTxVerifier`, `verify_nullifier`, `build_claim_stmt` | Dedicated review of source proof, authority, recipient binding, outputs, and replay nullifier |
+| C4 | Claimed/imported outputs persist as Asset with distinct provenance | `put_claimed_asset` → `OwnedAssetSource::ManualClaim`; `import_claimed_assets` → `Import` | Successful Claim appears as asset acquisition and later under Assets |
+| C5 | Voucher has its own lifecycle and action set | `VoucherLeaf`, `VoucherLifecycleV1`, `VoucherAction`, dedicated `ObjectRpc` methods | Offered/Accepted/Redeemable/Redeemed/etc.; Accept/Reject/Transfer/Redeem/Refund only when state permits |
+| C6 | Right is zero-value; amount/budget/value semantics are forbidden | `RightLeaf`, `RightPolicyV1::validate`, `FORBIDDEN_RIGHT_KEYS` | Permission cards show class/action/scope/uses/expiry/delegation, never money |
+| C7 | Current high-level capabilities are incomplete | Complete wallet RPC registration and `ObjectRpc`: no claim intake/build route, no dedicated `grant_right`, no config/profile service | Claim, issuer grant, rich profiles, and config synchronization remain capability-gated TARGET contracts |
+| C8 | Current network methods and OnionNet crate do not provide target telemetry; no live Reticulum runtime/API exists | `AppService::switch_to_onionet`, `switch_to_tor`, `z00z_networks/onionnet/src/lib.rs`, CodeGraph negative search | Detailed Reticulum/OnionNet screens are explicitly Phase 080 target simulation |
+| C9 | Current UI sketch is feature-gated `eframe 0.28`; Tauri/Leptos are not current dependencies | `z00z_wallets/src/lib.rs`, `z00z_wallets/Cargo.toml`, `egui_views` entry files, CodeGraph plus manifest search | Tauri + Leptos is recorded as TARGET architecture; egui remains a migration/diagnostic client |
+| C14 | Browser-facing WebSocket client exists, but no authenticated browser RPC gateway/listener exists | `WasmRpcClient`, `RpcTransport`, `LocalRpcTransport`; CodeGraph plus exact listener/Origin/CORS search | Browser UI remains a TARGET deployment until gateway, pairing, Origin policy, and session mapping exist |
+| C15 | Key-bearing wallet sessions are process-local and `.wlt` persistence is native-only/file-backed | `WalletSessionManager`, `SessionToken`, `db/mod.rs`, `FileKeyStore` | Raw RPC token cannot be given to browser JS; container persistence requires a dedicated threat model |
+| C16 | Existing Dockerfile packages `zuz-node`, not a wallet | `crates/z00z_networks/docker_nodes/Dockerfile` | No current wallet Docker deployment is implied or reused |
 
-No current DISPUTED or FABRICATION RISK items.
+### PLAUSIBLE / architecture decisions
 
-Resolved before this report:
+| ID | Decision | Why accepted | Required proof before production |
+| --- | --- | --- | --- |
+| C10 | Tauri 2 + Leptos static CSR | One Rust-oriented view stack, static web assets, strong responsive prototype transfer, four target OS families | Spike Android/iOS lifecycle, native accessibility trees, secure storage, CSP, IPC/sidecar, size and performance; then pin exact versions |
+| C11 | Grouped context rail/tree | Preserves hierarchy, readable labels, badges, nested Network routes, and mobile transformation without tab explosion | Task test and screen-reader test with long/localized labels |
+| C12 | Protocol → managed → local → per-action restrictions only | Prevents a lower layer from expanding authority and supports plain “Why blocked?” explanations | Dedicated policy/profile authority, signature, conflict, migration, rollback, and audit specification |
+| C13 | Local-first Tauri profile with a separately gated browser/container profile | Keeps keys on the user's device by default while retaining a browser deployment option | Threat-model loopback pairing, gateway-owned session mapping, volume hardening, lifecycle, CSP, WebSocket Origin checks, and recovery semantics |
 
-1. Replaced “Tor or Onionet route” with OnionNet privacy overlay → carrier adapter → Reticulum/QUIC/TLS/Tor.
-2. Replaced “Budgets” as the generic right surface with “Permissions”; Budget remains one amount-limited recipe.
-3. Marked detailed Phase 080 network status, signed policy profiles, and UI/YAML write/watch as simulated target capabilities rather than live backend behavior.
+## Resolved conceptual drifts
 
-## All Claims
-
-### VERIFIED
-
-#### C1 — Three object families
-
-- **Claim:** The wallet must project `Asset`, `Voucher`, and `Right` separately.
-- **Source:** `crates/z00z_core/src/assets/object_family.rs:11`.
-- **Notes:** The enum has exactly these three variants; the owned-object inventory has matching families.
-
-#### C2 — Voucher is conditional value-bearing state
-
-- **Claim:** Vouchers are value-bearing but must not enter Available before the outcome settles.
-- **Source:** `crates/z00z_core/src/assets/object_family.rs:28`, `crates/z00z_core/src/vouchers/voucher_policy.rs:9`.
-- **Notes:** `Asset | Voucher` are value-bearing. Voucher policy requires receiver acceptance and defines transfer, partial redemption, refund, beneficiary, refund-authority, and required-right behavior.
-
-#### C3 — Right is bounded zero-value authority
-
-- **Claim:** Permission must express action, scope, uses, delegation, and attenuation; not every right is a monetary budget.
-- **Source:** `crates/z00z_core/src/rights/right_policy.rs:14`, `:23`, `:80`.
-- **Notes:** Scope and allowed actions are explicit; `max_uses`, `delegation_allowed`, `attenuation_only`, and `zero_value_only` are protocol fields.
-
-#### C4 — OnionNet and Reticulum have different responsibilities
-
-- **Claim:** OnionNet is the privacy overlay/contract and Reticulum is a resilient carrier/delivery fabric.
-- **Source:** `.planning/phases/080-Network-Reticulum/080-Reticulum-OnionNet.md:711`, `:1138`, `:1248`.
-- **Notes:** The target architecture routes wallet envelopes through OnionNet then a carrier adapter. Reticulum must not replace or own OnionNet semantics.
-
-#### C5 — User-facing network modes and measurable status
-
-- **Claim:** Auto, Private, Resilient, and Direct have distinct fallback/privacy behavior, and UI should show concrete route properties rather than “anonymous.”
-- **Source:** `.planning/phases/080-Network-Reticulum/080-Reticulum-OnionNet.md:3576`.
-- **Notes:** v0.2 uses the same modes and shows overlay, privacy floor/hops, carrier, chain, and scan separately.
-
-#### C6 — Current network RPC is not authoritative for target status
-
-- **Claim:** Existing `app.network.switch_to_onionet` / `switch_to_tor` cannot justify detailed live Phase 080 health.
-- **Source:** `crates/z00z_wallets/src/rpc/network_rpc_impl.rs:1`, `crates/z00z_wallets/src/services/app_chain_network.rs:6`, `crates/z00z_wallets/src/app/app_kernel.rs:117`.
-- **Notes:** The RPC implementation and service call themselves placeholders/stubs; OnionNet returns an unsuccessful Devnet fallback.
-
-#### C7 — Current YAML runtime is read/merge oriented
-
-- **Claim:** Current runtime supports embedded defaults plus `Z00Z_WALLET_CONFIG_PATH` overlay, but not the specified UI write/watch/revision contract.
-- **Source:** `crates/z00z_wallets/src/services/wallet_runtime_config.rs:28`, `:79`, `:402`; RPC search for config/settings methods.
-- **Notes:** Recursive YAML merge and validation exist. No config watcher, lossless write, revision/ETag, typed patch, or `config.changed` RPC was found.
-
-#### C8 — Current wallet-local rules are narrower than rich profiles
-
-- **Claim:** Live local policy fields cover amount/day, assets, recipients, confirmation, and time restrictions; signed compliance profiles are not implemented.
-- **Source:** `crates/z00z_wallets/src/wallet/policy.rs:12`, `crates/z00z_wallets/src/rpc/wallet_types.rs:187`, `crates/z00z_extensions/compliance/profiles`.
-- **Notes:** `PersistWalletSettings.policy_rules` exists and is consumed by transaction/asset support; the compliance profile surface is a placeholder and no complete settings/profile RPC exists.
-
-#### C9 — Intent-level UI boundary
-
-- **Claim:** UI must request reviewed wallet intents and must not receive arbitrary signing/derivation APIs.
-- **Source:** `.planning/phases/080-Network-Reticulum/080-Reticulum-OnionNet.md:3480`.
-- **Notes:** The gateway and review-flow contract in v0.2 is aligned.
-
-#### C10 — Live Z00Z design direction
-
-- **Claim:** The wallet can mirror the site's compact navigation, neutral surfaces, thin borders, readable typography, and gold brand accent without copying the docs layout.
-- **Source:** `https://www.z00z.io/` live response on 2026-07-19.
-- **Notes:** The response redirects to `/docs` and declares corporate theme, Geist/Open Sans/Inter/monospace fonts, compact sticky navigation, bordered neutral surfaces, and primary accent treatment.
-
-### PLAUSIBLE
-
-#### C11 — Tauri + Leptos is the best production UI choice
-
-- **Claim:** Tauri 2 + Leptos CSR is the best fit among the compared options.
-- **Notes:** Platform support and repository fit are verified, but “best” is a weighted product decision. A technical spike must still validate mobile lifecycle, accessibility bridge, binary size, sidecar packaging, and performance.
-
-#### C12 — Restriction intersection is the safest profile composition
-
-- **Claim:** Protocol → managed → local → per-action layers should compose as restrictions only, with ambiguous conflicts failing closed.
-- **Notes:** This is consistent with rights attenuation and safe wallet behavior, but it is a target product/security decision. Backend policy semantics and profile signature authority require a dedicated specification and tests.
-
-## Internal Consistency
-
-No blocking contradiction remains.
-
-- SPEC and demo use the same four workspaces and Wallet/Settings contextual tabs.
-- Assets, Claims, and Permissions map to the three object families without summing conditional or zero-value state into Available.
-- Network overlay, carrier, chain, and scan are consistently distinct.
-- Detailed network/config/profile controls are consistently labelled target simulations where the backend is not ready.
-- UI/YAML is one effective settings model with provenance and conflict handling; UI exposes a subset rather than a second store.
-- Theme customization protects status, privacy, environment, warning, error, and focus semantics.
-
-One deliberate terminology exception remains: current function/dialog names use `budget` internally because the interactive flow demonstrates the Budget recipe. Visible navigation and generic right copy use Permission.
-
-## Frontend Design Review: Z00Z Wallet v0.2 Concept
-
-### Context
-
-- **Purpose:** Define an implementation-ready private wallet interface for Windows, Linux, iOS, and Android.
-- **Aesthetic direction:** Calm dark-first technical workspace, navy surfaces, restrained gold identity, cyan privacy rail, mint confirmation, compact site-like tab hierarchy.
-- **User task:** Understand available value, act on assets/claims/permissions, verify settlement/privacy state, and safely control policy/configuration.
-
-### Assessment Summary
-
-**Pass for concept validation** — the visual concept is preserved and the product model is more accurate, transparent, and implementation-specific. Target-only backend capabilities remain clearly disclosed.
-
-### Aesthetic Quality
-
-- [x] Clear non-cyberpunk Z00Z direction.
-- [x] Cohesive tokenized palette and protected semantics.
-- [x] Compact contextual tabs reflect the site without imitating documentation pages.
-- [x] Desktop and mobile compositions preserve the same content hierarchy.
-- [x] Inline SVG icons; no external dependencies or emoji controls.
-- [x] Focus, hover, reduced-motion, forced-color, and responsive rules exist.
-
-### Pillar Assessment
-
-| Pillar | Status | Notes |
+| Previous drift | CodeGraph verdict | Resolution in v0.4 |
 | --- | --- | --- |
-| Frictionless | 🟢 | Four global destinations; family/settings depth uses contextual tabs; one dominant action per flow |
-| Quality Craft | 🟢 | Strong visual continuity, responsive cards/tabs, 100 accessibility score on Advanced screen |
-| Trustworthy | 🟢 | Honest settlement, object separation, concrete privacy state, target-capability disclaimers, policy provenance |
+| “Claim is an action over Voucher” | False | Claim is a capability-gated asset-claim transaction; Voucher has separate review/action flow |
+| Generic Right displayed as monetary Budget | False | Visible label is Permission; internal icon/classes renamed; zero-value is explicit |
+| OnionNet, Reticulum, and Tor treated as equivalent choices | False for Phase 080 target model; current live network is stubbed | OnionNet = privacy overlay, Reticulum = primary carrier, chain = separate; every detailed value labelled target |
+| Rich profile shown as Applied | Unsupported by current RPC | Demo status is Preview and “would block,” never current enforcement |
+| UI/YAML shown as already Synced | Unsupported by current RPC | Demo status is Target preview; preserve/watch/last-known-good are explicitly target requirements |
+| Declared asset domain treated as trust | Unsupported | Domain is metadata; review/quarantine uses authoritative policy availability |
+| Docker/container described as wallet security | False as a standalone claim | Container is a constrained packaging/operations option; key custody, RPC gateway, browser session, and data-volume security are separately specified |
 
-### Issues
+## UI consistency audit
 
-**Blocking:** None for the concept baseline.
+### Navigation
 
-**Major before production:**
+- Four global workspaces remain fixed: Home, Wallet, Activity, Settings.
+- Wallet context routes are Assets, Vouchers, Permissions; no Claims pseudo-family.
+- Settings uses grouped hierarchy, with Network as the one real on/off accordion branch: activation opens Network Overview and its children; repeat activation collapses it and restores Overview; child selection reopens it. Exactly one route is current—the parent for Overview, otherwise the child. Leaf routes show no trailing chevron.
+- The Settings context rail starts directly with its first group and does not repeat the already visible Settings workspace/page title.
+- Wide screens use a left context rail; 768–900 px portrait tablets and mobile use the same route model as a horizontally scrollable strip.
+- Active entries use `aria-current="page"`; filter chips use pressed/selected choice semantics rather than tab semantics.
 
-1. Implement config service and profile/network capability RPCs before enabling simulated controls.
-2. Run real screen-reader and mobile safe-area/keyboard tests in Tauri targets; browser automation is not sufficient.
-3. Specify profile signing authority, migration, rollback, and rule-conflict tests in a backend/security document.
+### Layout and component behavior
 
-**Minor refinement:**
+- At 1920 px, the four quick actions are grouped 2+2 and their pair widths match the two lower panel widths within 1 px.
+- At 768 px, context navigation moves above content; all four Voucher filters fit and the former clipped layout is gone.
+- Attention, Activity, Voucher, and Permission lists use the same 1 px divider rhythm; the final row omits the divider.
+- Interactive rows gain a contained hover outline without layout shift. Static Permission rows do not acquire button hover treatment.
+- Buttons, route entries, chips, icon buttons, switches, segmented controls, links, and actionable cards have visible hover/focus states. Global workspace selection is neutral; gold is limited to local context, authorization, and meaningful status.
+- Settings heading spans above the 240 px context rail and detail card; neither selected routes nor long labels cross into the content column. Common settings rows share one control edge, including input/select/button/toggle variants.
+- The Settings detail form collapses to one column without horizontal document overflow at 390 px; the Network route strip remains internally scrollable and its active child is visible.
+- Mobile 390 px has no document-level horizontal overflow; the active nested Network route is scrolled into view.
 
-1. Add an explicit Quarantine demo state after object RPC capability exists.
-2. Add long localization/200% text fixtures and RTL evaluation when language scope is known.
-3. Replace the simulated YAML preview with a real editor component only after lossless backend semantics are implemented.
+### Object-specific visual grammar
 
-## Verification Commands and Results
+- Assets show class and availability/trust treatment; non-native/non-cash items never silently enter Available.
+- Vouchers use ticket imagery and show issuer, backing, face/remaining value, lifecycle, validity, and allowed next actions.
+- Permissions use a key/authority icon and show class, action, scope, uses, expiry, delegation; monetary value is explicitly none.
+- Claim uses a claim/source-proof icon but is recorded as asset activity after submission.
+
+## Scenario review
+
+| Scenario | Result |
+| --- | --- |
+| Pay / Receive | One dominant action, review before mutation, submitted is not final |
+| Claim allocation | Correct asset-claim fields, one-use nullifier, dedicated capability disclaimer |
+| Voucher review/redeem | Separate three-step lifecycle; acceptance does not inflate Available |
+| Give/revoke Permission | Starts from held delegable authority, enforces attenuation, zero-value review |
+| Unsafe object | Quarantine language and authoritative policy reason; no silent balance promotion |
+| Network diagnosis | Overlay/carrier/chain separated; current live telemetry stated unavailable |
+| Policy profile | Preview-first and restriction-only; no legal-compliance claim |
+| UI↔YAML | One target effective configuration with provenance/revision/conflict/rollback contract; current read-overlay baseline disclosed |
+
+## Verification results
 
 | Check | Result |
 | --- | --- |
+| CodeGraph status and focused exploration | Pass; 2,096 indexed files; exact object/RPC/network/config/UI seams checked |
 | `node --check demo/app.js` | Pass |
 | `html-validate demo/index.html` | Pass |
-| Chromium desktop screenshots: Network and Advanced YAML | Pass; visually inspected |
-| Chromium mobile screenshot: Permissions at 390 × 844 | Pass; no visible page overflow |
-| Lighthouse Advanced screen | Accessibility 100, Best Practices 100 |
-| CodeGraph + direct source checks | Object, network RPC, policy, and config claims reconciled |
+| `demo/run-smoke.sh` | Pass: 4/4; semantic flows, lock/unlock sensitive-field clearing, target disclosure, real Network accordion, exactly one current route, leaf affordances, alignment, mobile overflow, neutral global selection, hover, focus |
+| Chromium screenshots | Pass: 1920×1080 Home; 1280×800 Permissions, Vouchers, and Network; 768×1024 Vouchers and Reticulum; 390×844 Home, OnionNet, Network, and General Settings |
+| Lighthouse Home | Accessibility 100; Best Practices 100 |
+| Lighthouse Advanced configuration | Accessibility 100; Best Practices 100 |
 
-## What Was Not Checked
+## Production gates not proven by this prototype
 
-- Real Tauri/Leptos implementation, native accessibility trees, biometrics, secure storage, mobile suspend/resume, and `z00z-netd` packaging; they do not exist in this prototype.
-- Production visual parity across Windows/Linux/iOS/Android renderers.
-- Legal sufficiency of any future compliance profile.
-- Performance with large object/activity inventories and real RPC latency.
-- Figma component-library parity; Figma is intentionally downstream of the validated HTML behavior.
+- Native Windows/Linux/iOS/Android rendering, assistive-technology trees, safe areas, keyboard avoidance, background/suspend behavior, biometrics, and secure storage.
+- Real `WalletGateway` transport integration, session handling, idempotency, large inventory performance, and RPC latency/error races.
+- Browser gateway, local pairing/session binding, exact-Origin WebSocket policy, CSP, loopback/TLS posture, container hardening, volume backup/restore, and a separate hosted-custody threat model.
+- Lossless comment/order-preserving YAML editor and authoritative config revision/watch/rollback service.
+- Reticulum/OnionNet status capability and no-fallback enforcement from Phase 080.
+- Compliance-profile authority, legal ownership, signatures, schema migration, conflict semantics, and audit trail.
+- Localization, RTL, 200% text, forced-colors on native targets, and real screen-reader task sessions.
 
-## Limitations
+## Final review verdict
 
-- The prototype is deterministic fabricated data and does not sign, persist, or call RPC.
-- Phase 080 is a target architecture document; current network methods remain stubs.
-- A supporting source establishes alignment, not absolute correctness; target decisions still require implementation and security review.
+The specification and demo are suitable as the Phase 110 concept baseline. Implementation must use the evidence ledger as a capability boundary: a `LIVE` method may be connected; a `TARGET` screen must remain disabled/unavailable until its authoritative RPC exists; a `UX` decision may change only through an explicit design revision and synchronized update of SPEC, demo, tests, and review.

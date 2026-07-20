@@ -13,11 +13,32 @@ use super::{
 };
 
 /// Sole version of the recursive checkpoint circuit profile.
-pub const RECURSIVE_CIRCUIT_PROFILE_VERSION_V2: u8 = 3;
+pub const RECURSIVE_CIRCUIT_PROFILE_VERSION_V2: u8 = 4;
 /// Sole version of the recursive checkpoint circuit schema.
 pub const RECURSIVE_CIRCUIT_SPEC_VERSION_V2: u8 = 6;
 /// V2 content bound required by the authority-pinned checkpoint contract.
 pub const RECURSIVE_V2_MAX_CONTENT_BYTES: u64 = 64 * 1024 * 1024;
+/// Authority-selected maximum for one sealed HJMT segment, including header.
+pub(crate) const RECURSIVE_HJMT_SEGMENT_BYTES_V2: u32 = 1024 * 1024;
+/// Authority-selected HJMT worker count.  The selected production tuple is
+/// deliberately single-worker; candidate 2/4-worker runs remain benchmark
+/// evidence and cannot become runtime selectors.
+pub(crate) const RECURSIVE_HJMT_THREADS_V2: u32 = 1;
+/// Ordered-result reservation: two segment slots for every selected worker.
+pub(crate) const RECURSIVE_HJMT_RESULT_BYTES_V2: u64 =
+    2 * RECURSIVE_HJMT_THREADS_V2 as u64 * RECURSIVE_HJMT_SEGMENT_BYTES_V2 as u64;
+/// Input/JMT snapshot reservation, accounted separately from result bytes.
+pub(crate) const RECURSIVE_HJMT_SNAPSHOT_BYTES_V2: u64 = 64 * 1024 * 1024;
+/// The Nova prover is sequential and has no runtime concurrency selector.
+pub(crate) const RECURSIVE_NOVA_PROVERS_V2: u32 = 1;
+/// Private PP/PK cache ceiling for the sole selected material identity.
+pub(crate) const RECURSIVE_NOVA_CACHE_BYTES_V2: u64 = 1024 * 1024 * 1024;
+/// Recovery replays sealed source/JMT segments; no Nova accumulator image is
+/// admitted until the dependency exposes a canonical validated codec.
+pub(crate) const RECURSIVE_RECOVERY_REPLAY_V2: u8 = 1;
+/// Ninety days at five seconds per finalized block.  This challenge window is
+/// independent of Nova proof/archive retention.
+pub const RECURSIVE_CHALLENGE_BLOCKS_V2: u64 = 1_555_200;
 
 /// Fixed committed source records emitted around one canonical execution:
 /// begin, uniqueness precommit/challenge/net merge, hierarchy promotion, and
@@ -422,10 +443,11 @@ impl RecursiveCircuitProfileV2 {
             .checked_add(u64::from(max_outputs))
             .ok_or(RecursiveV2Error::Overflow)?;
         // Each identifier appears once in replay, twice in the commit
-        // original/sorted rows, twice in the product original/sorted rows,
-        // and once in CommitTypedEvent.
+        // original/sorted rows, and twice in the product original/sorted rows.
+        // The four checkpoint-core CommitTypedEvent rows are fixed and counted
+        // separately below; flow identifiers never enter that codec.
         let identifier_records = replay_ids
-            .checked_mul(6)
+            .checked_mul(5)
             .ok_or(RecursiveV2Error::Overflow)?;
         let semantic_minimum = SOURCE_FIXED_RECORDS_V2
             .checked_add(identifier_records)
@@ -554,7 +576,7 @@ impl RecursiveCircuitProfileV2 {
     /// Encode all profile fields in their only frozen order.
     #[must_use]
     pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(4 * 14 + 8 * 6);
+        let mut bytes = Vec::with_capacity(4 * 17 + 8 * 11 + 2);
         bytes.push(RECURSIVE_CIRCUIT_PROFILE_VERSION_V2);
         for value in [
             self.max_rows,
@@ -581,9 +603,21 @@ impl RecursiveCircuitProfileV2 {
             self.total_spool_bytes,
             self.native_evaluator_resident_bytes()
                 .expect("validated profile has a representable native evaluator bound"),
+            RECURSIVE_HJMT_RESULT_BYTES_V2,
+            RECURSIVE_HJMT_SNAPSHOT_BYTES_V2,
+            RECURSIVE_NOVA_CACHE_BYTES_V2,
+            RECURSIVE_CHALLENGE_BLOCKS_V2,
         ] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
+        for value in [
+            RECURSIVE_HJMT_SEGMENT_BYTES_V2,
+            RECURSIVE_HJMT_THREADS_V2,
+            RECURSIVE_NOVA_PROVERS_V2,
+        ] {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        bytes.push(RECURSIVE_RECOVERY_REPLAY_V2);
         bytes
     }
 
@@ -638,10 +672,10 @@ impl RecursiveCircuitProfileV2 {
     /// Return the accounted peak for the native evaluator's bounded resident
     /// data structures.
     ///
-    /// The bound includes the complete canonical JMT envelope accumulated for
-    /// strict decode, the raw and decoded copies of the one current source
-    /// record, and both external-sorter resident buffers. It is a profile
-    /// commitment, not an authority operating-budget measurement.
+    /// The bound includes one sealed HJMT segment, the raw and decoded copies
+    /// of the current source record, both external-sorter resident buffers,
+    /// and the separately reserved ordered-result bytes.  The complete JMT
+    /// envelope is never resident on the production path.
     pub fn native_evaluator_resident_bytes(&self) -> Result<u64, RecursiveV2Error> {
         Self::native_evaluator_resident_bytes_from_parts(
             self.max_leaf_bytes,
@@ -674,12 +708,14 @@ impl RecursiveCircuitProfileV2 {
             .map_err(|_| RecursiveV2Error::Limit)?
             .checked_add(u64::from(max_leaf_bytes))
             .ok_or(RecursiveV2Error::Overflow)?;
-        max_content_bytes
-            .checked_add(
-                source_record_bytes
-                    .checked_mul(NATIVE_EVALUATOR_SOURCE_RECORD_COPIES_V2)
-                    .ok_or(RecursiveV2Error::Overflow)?,
-            )
+        let _ = max_content_bytes;
+        u64::from(RECURSIVE_HJMT_SEGMENT_BYTES_V2)
+            .checked_add(RECURSIVE_HJMT_RESULT_BYTES_V2)
+            .and_then(|value| {
+                value.checked_add(
+                    source_record_bytes.checked_mul(NATIVE_EVALUATOR_SOURCE_RECORD_COPIES_V2)?,
+                )
+            })
             .and_then(|value| value.checked_add(u64::from(resident_buffer_bytes)))
             .ok_or(RecursiveV2Error::Overflow)
     }
@@ -720,7 +756,7 @@ impl RecursiveCircuitSpecV2 {
             let start = index * 4;
             uniqueness_security_bytes[start..start + 4].copy_from_slice(&value.to_le_bytes());
         }
-        let shape_digest = super::recursive_v2::nova::circuit_shape_digest()?;
+        let shape_digest = super::nova::circuit_shape_digest()?;
         let digest = sha256_256_role(
             CheckpointShaRole::Statement,
             &[
@@ -757,8 +793,44 @@ impl RecursiveCircuitSpecV2 {
 #[cfg(test)]
 mod tests {
     use super::{
-        RecursiveCircuitProfileV2, RECURSIVE_V2_MAX_CONTENT_BYTES, TRACE_EVENT_HEADER_BYTES_V2,
+        RecursiveCircuitProfileV2, RECURSIVE_CHALLENGE_BLOCKS_V2,
+        RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2, RECURSIVE_HJMT_RESULT_BYTES_V2,
+        RECURSIVE_HJMT_SEGMENT_BYTES_V2, RECURSIVE_HJMT_SNAPSHOT_BYTES_V2,
+        RECURSIVE_HJMT_THREADS_V2, RECURSIVE_NOVA_CACHE_BYTES_V2, RECURSIVE_NOVA_PROVERS_V2,
+        RECURSIVE_RECOVERY_REPLAY_V2, RECURSIVE_V2_MAX_CONTENT_BYTES, SOURCE_FIXED_RECORDS_V2,
+        TRACE_EVENT_HEADER_BYTES_V2,
     };
+
+    #[test]
+    fn operational_candidate_matrix_selects_exactly_one_tuple() {
+        let segment_candidates = [1_u32, 4, 8].map(|mib| mib * 1024 * 1024);
+        let thread_candidates = [1_u32, 2, 4];
+        let prover_candidates = [1_u32];
+        let passing = segment_candidates
+            .into_iter()
+            .flat_map(|segment| {
+                thread_candidates.into_iter().flat_map(move |threads| {
+                    prover_candidates
+                        .into_iter()
+                        .map(move |provers| (segment, threads, provers))
+                })
+            })
+            .filter(|candidate| {
+                *candidate
+                    == (
+                        RECURSIVE_HJMT_SEGMENT_BYTES_V2,
+                        RECURSIVE_HJMT_THREADS_V2,
+                        RECURSIVE_NOVA_PROVERS_V2,
+                    )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(passing.len(), 1, "authority selection must be singular");
+        assert_eq!(RECURSIVE_HJMT_RESULT_BYTES_V2, 2 * 1024 * 1024);
+        assert_eq!(RECURSIVE_HJMT_SNAPSHOT_BYTES_V2, 64 * 1024 * 1024);
+        assert_eq!(RECURSIVE_NOVA_CACHE_BYTES_V2, 1024 * 1024 * 1024);
+        assert_eq!(RECURSIVE_RECOVERY_REPLAY_V2, 1);
+        assert_eq!(RECURSIVE_CHALLENGE_BLOCKS_V2, 1_555_200);
+    }
 
     #[test]
     fn sha_block_count_has_fips_padding_boundaries() {
@@ -881,6 +953,25 @@ mod tests {
                 .expect("byte-derived bound covers arbitrarily short JMT micro records"),
             4 * 1024 / TRACE_EVENT_HEADER_BYTES_V2 as u64
         );
+        let exact_semantic_minimum =
+            (SOURCE_FIXED_RECORDS_V2 + 2 * 5 + 4 + 1) * TRACE_EVENT_HEADER_BYTES_V2 as u64;
+        assert_eq!(
+            RecursiveCircuitProfileV2::max_source_records(
+                1,
+                1,
+                RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2,
+                exact_semantic_minimum,
+            )
+            .expect("sole flow codec plus four fixed typed commitments fits the exact minimum"),
+            SOURCE_FIXED_RECORDS_V2 + 2 * 5 + 4 + 1
+        );
+        assert!(RecursiveCircuitProfileV2::max_source_records(
+            1,
+            1,
+            RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2,
+            exact_semantic_minimum - 1,
+        )
+        .is_err());
     }
 
     #[test]
@@ -939,7 +1030,8 @@ mod tests {
         let source_record_bytes = u64::try_from(TRACE_EVENT_HEADER_BYTES_V2)
             .expect("header length fits u64")
             + u64::from(profile.max_leaf_bytes());
-        let expected = RECURSIVE_V2_MAX_CONTENT_BYTES
+        let expected = u64::from(RECURSIVE_HJMT_SEGMENT_BYTES_V2)
+            + RECURSIVE_HJMT_RESULT_BYTES_V2
             + 2 * source_record_bytes
             + u64::from(profile.resident_buffer_bytes());
         assert_eq!(
@@ -947,11 +1039,14 @@ mod tests {
                 .native_evaluator_resident_bytes()
                 .expect("fixture bound is representable"),
             expected,
-            "JMT envelope, concurrent raw/decoded source record, and sort buffers must be explicit"
+            "one HJMT segment, ordered-result reservation, concurrent source records, and sort buffers must be explicit"
         );
-        assert!(
-            profile.canonical_bytes().ends_with(&expected.to_le_bytes()),
-            "the native evaluator bound must be committed with the profile"
+        let canonical = profile.canonical_bytes();
+        let resident_offset = 1 + 14 * 4 + 4 * 8;
+        assert_eq!(
+            &canonical[resident_offset..resident_offset + 8],
+            &expected.to_le_bytes(),
+            "the native evaluator bound must occupy its frozen profile slot"
         );
     }
 }

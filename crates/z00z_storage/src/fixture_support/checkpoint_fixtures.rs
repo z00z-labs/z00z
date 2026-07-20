@@ -161,6 +161,15 @@ pub fn archive_manifest(
     exec_id: CheckpointExecInputId,
 ) -> CheckpointArchiveManifestV1 {
     let core = statement_core(exec);
+    archive_manifest_with_core(draft, exec, exec_id, core)
+}
+
+pub fn archive_manifest_with_core(
+    draft: &CheckpointDraft,
+    exec: &CheckpointExecInput,
+    exec_id: CheckpointExecInputId,
+    core: CheckpointTransitionStatementCoreV1,
+) -> CheckpointArchiveManifestV1 {
     let statement =
         CheckpointTransitionStatementV1::from_draft(draft, exec.prep_snapshot_id(), exec_id);
     let statement_core_digest = statement.statement_core_digest_v1(&core);

@@ -116,8 +116,9 @@ fn stage_contract(
     let exec = exec(snap_id, draft.prev_root(), seed);
     let manifest = checkpoint_fixtures::archive_manifest(draft, &exec, exec_id);
     let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    let statement_core = checkpoint_fixtures::statement_core(&exec);
     store
-        .stage_publication_contract(exec_id, &manifest, &da_reference)
+        .stage_publication_contract(exec_id, &statement_core, &manifest, &da_reference)
         .expect("stage publication contract");
 }
 

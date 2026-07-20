@@ -110,5 +110,6 @@ pub use self::{
 /// `checkpoint::recursive_v2`; this hidden re-export exists solely to bridge
 /// the storage owner into that canonical facade.
 pub(crate) use proof_batch::{
-    SettlementUpdateTraceCircuitDecoderV2, SettlementUpdateTraceEnvelopeV2,
+    JmtTraceSegmentContextV2, SettlementUpdateTraceCircuitDecoderV2,
+    SettlementUpdateTraceEnvelopeV2,
 };

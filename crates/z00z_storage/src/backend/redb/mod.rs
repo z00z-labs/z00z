@@ -45,6 +45,17 @@ const KEY_CHECK_ID: &[u8] = b"check_id";
 const KEY_EXEC_ID: &[u8] = b"exec_id";
 const DB_FILE: &str = "settlement_state.redb";
 
+#[cfg(test)]
+pub(crate) fn recursive_v2_cutover_crash_point(stage: &str) {
+    const STAGE_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_STAGE";
+    if std::env::var(STAGE_ENV).as_deref() == Ok(stage) {
+        // `process::exit` intentionally skips Rust destructors. The parent
+        // process must establish restart state from redb recovery, not from an
+        // orderly transaction or store drop.
+        std::process::exit(86);
+    }
+}
+
 struct RedbBackend {
     root: Option<PathBuf>,
     db: OnceLock<Database>,

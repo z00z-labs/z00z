@@ -128,6 +128,11 @@ impl CheckpointFsStore {
             .join(format!("{}.bin", id_hex(exec_id.as_bytes())))
     }
 
+    pub(super) fn staged_statement_core_path(&self, exec_id: &CheckpointExecInputId) -> PathBuf {
+        self.staged_archive_manifest_dir()
+            .join(format!("{}.core.bin", id_hex(exec_id.as_bytes())))
+    }
+
     pub(super) fn da_reference_path(&self, checkpoint_id: &CheckpointId) -> PathBuf {
         self.da_reference_dir()
             .join(format!("{}.bin", id_hex(checkpoint_id.as_bytes())))

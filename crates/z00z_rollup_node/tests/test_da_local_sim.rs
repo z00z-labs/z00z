@@ -450,7 +450,12 @@ fn sealed_store(
     let preview = preview_publication_contract(request, CheckpointDaProviderFamily::LocalArchive)
         .expect("preview");
     store
-        .stage_publication_contract(exec_id, &preview.archive_manifest, &preview.da_reference)
+        .stage_publication_contract(
+            exec_id,
+            &preview.statement_core,
+            &preview.archive_manifest,
+            &preview.da_reference,
+        )
         .expect("stage publication contract");
 
     let proof = request

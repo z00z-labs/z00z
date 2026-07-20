@@ -22,7 +22,7 @@
       <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
       <symbol id="i-receive" viewBox="0 0 24 24"><path d="M19 12H5m6 6-6-6 6-6"/></symbol>
       <symbol id="i-claim" viewBox="0 0 24 24"><path d="M5 4h14v5a3 3 0 0 0 0 6v5H5v-5a3 3 0 0 0 0-6Z"/><path d="M12 7v10"/></symbol>
-      <symbol id="i-budget" viewBox="0 0 24 24"><path d="M12 3v18M17 7.5C17 5.6 15 5 12.5 5S8 5.8 8 7.7c0 4.3 9 2.2 9 6.6 0 1.9-2 2.7-4.5 2.7S8 16.4 8 14.5"/></symbol>
+      <symbol id="i-permission" viewBox="0 0 24 24"><path d="M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="M12 11v10M8 17h8"/></symbol>
       <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
       <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 6.1A11 11 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.2 2.8M6.2 6.2C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6a9.8 9.8 0 0 0 3-.5"/><path d="M10 10a2.8 2.8 0 0 0 4 4"/></symbol>
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
@@ -89,13 +89,13 @@
           <button class="nav-item" type="button" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></button>
         </nav>
         <div class="sidebar-spacer"></div>
-        <button class="connection-card" type="button" data-open-flow="connection" aria-label="OnionNet route verified over Reticulum on Main network">
-          <span class="health-orb is-good" aria-hidden="true"></span>
-          <span><strong>Onion route</strong><small>Reticulum · Main</small></span>
+        <button class="connection-card" type="button" data-open-flow="connection" aria-label="Open target network model; live route telemetry unavailable">
+          <span class="health-orb" aria-hidden="true"></span>
+          <span><strong>Target route model</strong><small>OnionNet over Reticulum</small></span>
           <svg class="icon"><use href="#i-chevron"/></svg>
         </button>
         <button class="nav-item lock-action" type="button" data-demo-action="lock"><svg class="icon"><use href="#i-lock"/></svg><span>Lock wallet</span></button>
-        <p class="build-label">Concept 0.2 · Main</p>
+        <p class="build-label">Concept 0.4 · no real funds</p>
       </aside>
 
       <div class="app-column">
@@ -105,9 +105,9 @@
             <h1 id="page-title">Home</h1>
             <p id="page-context">Your private money at a glance</p>
           </div>
-          <button class="health-pill" type="button" data-open-flow="connection">
-            <span class="health-orb is-good" aria-hidden="true"></span>
-            <span class="health-text">Onion route verified</span>
+          <button class="health-pill" type="button" data-open-flow="connection" aria-label="Open target network model; live route telemetry unavailable">
+            <span class="health-orb" aria-hidden="true"></span>
+            <span class="health-text">Route telemetry unavailable</span>
           </button>
           <button class="wallet-switcher" type="button" data-demo-action="switch-wallet">
             <span class="wallet-avatar" aria-hidden="true">E</span>

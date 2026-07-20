@@ -214,8 +214,10 @@ pub(crate) mod tests {
         SerialRootLeaf,
     };
 
+    type JmtMutationTranscriptFixtureV2 = (&'static str, Vec<u8>, Vec<Vec<u8>>);
+
     pub(crate) fn jmt_mutation_case_circuit_transcripts_for_test(
-    ) -> Vec<(&'static str, Vec<u8>, Vec<Vec<u8>>)> {
+    ) -> Vec<JmtMutationTranscriptFixtureV2> {
         let key_a = KeyHash([0x00; 32]);
         let key_b = KeyHash([0x80; 32]);
         let key_c = KeyHash([0x40; 32]);
@@ -501,7 +503,7 @@ pub(crate) mod tests {
     #[test]
     fn traced_jmt_update_is_canonical_and_reverifies() {
         let (root, trace, snap) = HjmtStore::commit_snap_with_update_trace(
-            JmtTreeRoleV2::Definition,
+            JmtTreeRoleV2::Terminal([0x11; 32], 7, [0x22; 32]),
             HjmtTreeSnap::default(),
             vec![(KeyHash([7u8; 32]), Some(vec![9u8; 3]))],
             0,
@@ -559,7 +561,7 @@ pub(crate) mod tests {
             .finish()
             .expect("complete circuit transcript");
         assert_eq!(circuit_envelope.trace_digest(), envelope.trace_digest());
-        assert_eq!(circuit_envelope.updates().len(), 1);
+        assert_eq!(circuit_envelope.update_count(), 1);
         let mut reordered_decoder = SettlementUpdateTraceCircuitDecoderV2::new(&circuit_header)
             .expect("circuit header decoder");
         assert!(reordered_decoder.accept(&micro_records[1]).is_err());

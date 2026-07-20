@@ -93,8 +93,9 @@ fn stage_contract(
 ) {
     let manifest = checkpoint_fixtures::archive_manifest(draft, exec, exec_id);
     let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    let statement_core = checkpoint_fixtures::statement_core(exec);
     store
-        .stage_publication_contract(exec_id, &manifest, &da_reference)
+        .stage_publication_contract(exec_id, &statement_core, &manifest, &da_reference)
         .expect("stage publication contract");
 }
 
@@ -170,8 +171,9 @@ fn test_seal_rejects_foreign_da_statement_core() {
         [0x42; 32],
     );
     let da_reference = checkpoint_fixtures::da_reference(&manifest);
+    let statement_core = checkpoint_fixtures::statement_core(&exec);
     store
-        .stage_publication_contract(exec_id, &manifest, &da_reference)
+        .stage_publication_contract(exec_id, &statement_core, &manifest, &da_reference)
         .expect("stage mutually-bound foreign publication contract");
 
     let err = store

@@ -26,6 +26,7 @@ const REGISTRY_CATALOG_DOC: &str = include_str!("../src/assets/registry_catalog.
 const GENESIS_DOC: &str = include_str!("../src/genesis/mod.rs");
 const GENESIS_IMPL: &str = include_str!("../src/genesis/genesis.rs");
 const GENESIS_VALIDATOR_IMPL: &str = include_str!("../src/genesis/validator.rs");
+const CONFIG_PATHS_IMPL: &str = include_str!("../src/config_paths.rs");
 const CARGO_TOML: &str = include_str!("../Cargo.toml");
 const GENESIS_CAVEATS_DOC: &str = include_str!("../../../wiki/03-core-protocol/genesis-caveats.md");
 const STRUCTURE_DOC: &str = include_str!("../../../.planning/codebase/STRUCTURE.md");
@@ -33,8 +34,6 @@ const ARCHITECTURE_DOC: &str = include_str!("../../../.planning/codebase/ARCHITE
 const PROFILING_DOC: &str = include_str!("../../../.planning/phases/profiling-comprehensive.md");
 const ROOT_TYPES_DOC: &str =
     include_str!("../../../crates/z00z_storage/src/settlement/root_types.md");
-const SCENARIO11_TODO: &str =
-    include_str!("../../../.planning/phases/090-New-Scenarios/90-TODO.md");
 const PHASE065_WORDING_AUDIT: &str =
     include_str!("../../../scripts/audit/audit_narrowed_wording.sh");
 const UTILS_BOUNDARY_AUDIT: &str =
@@ -376,13 +375,13 @@ fn phase065_wording_guard() {
         "registry/example data only",
     );
     assert_absent(
-        "phase 066 todo",
-        SCENARIO11_TODO,
+        "tracked config paths",
+        CONFIG_PATHS_IMPL,
         "crates/z00z_core/src/assets/assets_config.yaml",
     );
     assert_present(
-        "phase 066 todo",
-        SCENARIO11_TODO,
-        "crates/z00z_core/configs/devnet_rights_config.yaml",
+        "tracked config paths",
+        CONFIG_PATHS_IMPL,
+        "configs/devnet_rights_config.yaml",
     );
 }

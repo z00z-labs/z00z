@@ -102,6 +102,7 @@ impl RecursiveV2CutoverManifestV2 {
                 &self.snapshot_id,
                 &storage_generation,
                 &self.snapshot_root,
+                &self.expected_definition_root,
                 &record_count,
                 &byte_count,
                 &self.snapshot_content_digest,
@@ -185,12 +186,14 @@ mod recursive_v2_cutover_tests {
         let snapshot_record_count = 2_u64;
         let snapshot_byte_count = 96_u64;
         let snapshot_content_digest = [6; 32];
+        let expected_definition_root = [8; 32];
         let snapshot_digest = sha256_256_role(
             CheckpointShaRole::Content,
             &[
                 &snapshot_id,
                 &storage_generation.to_le_bytes(),
                 &snapshot_root,
+                &expected_definition_root,
                 &snapshot_record_count.to_le_bytes(),
                 &snapshot_byte_count.to_le_bytes(),
                 &snapshot_content_digest,
@@ -204,7 +207,6 @@ mod recursive_v2_cutover_tests {
                 &opaque_last_root_record,
             ],
         );
-        let expected_definition_root = [8; 32];
         let expected_settlement_root = derive_settlement_root_v2(
             RootGeneration::SettlementV2,
             layout,

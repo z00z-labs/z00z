@@ -1,0 +1,96 @@
+Z00Z NOTICE
+
+Review date: 19 July 2026
+Copyright (c) 2026 Z00Z-Labs
+
+1. SOFTWARE LICENSING
+
+Unless a file, package, directory, or third-party notice states otherwise,
+original Z00Z software identified as MIT-licensed is provided under the MIT
+License in the LICENSE file.
+
+This NOTICE is informational. It does not modify, limit, or add conditions to
+the permissions granted by the MIT License.
+
+Different packages, vendored components, adapted code, generated material,
+examples, fonts, media, data, or dependencies may be governed by different
+terms. Review source headers, package manifests, lockfiles, licence files, and
+third-party notices. Preserve all notices required by the applicable licence.
+Do not assume that the root MIT License relicenses third-party material.
+
+Before distributing a release, the release owner should generate or update a
+complete third-party attribution and licence inventory and resolve any
+inconsistency between package metadata and the files actually distributed.
+
+2. NO REGULATORY AUTHORIZATION
+
+Copyright permission is not regulatory authorization. Regulatory
+classification depends on the functions, control, affiliations, data
+possession, and services actually provided by each actor in each jurisdiction,
+not solely on protocol labels or architectural intent.
+
+A project-linked or third-party actor may have licensing, registration,
+AML/CFT/CPF, sanctions, Travel Rule, consumer-protection, tax, privacy,
+recordkeeping, monitoring, and reporting obligations based on its actual
+activity. Nothing in this NOTICE states that any actor is exempt from those
+obligations.
+
+Controls implemented above the base protocol may be mandatory for the actor
+that provides the relevant wallet, payment, merchant, issuance, redemption,
+custody, exchange, bridge, routing, or other service.
+
+3. PRIVACY LIMITS
+
+Z00Z is designed to reduce the amount of information exposed by the base
+public settlement layer. It does not guarantee anonymity, untraceability, or
+absence of records.
+
+Wallets, counterparties, issuers, bridges, exchanges, RPC or relay providers,
+merchants, support systems, analytics providers, hosting providers, and other
+services may collect, infer, retain, or be required to disclose information.
+Privacy and transport features must not be represented as tools for sanctions
+evasion, obstruction of lawful process, concealment of unlawful activity, or
+avoidance of controls applicable to a service operator.
+
+4. EXTERNAL ASSETS AND SERVICES
+
+Protocol compatibility does not establish the legality, reserve quality,
+solvency, redemption reliability, custody status, sanctions status, security,
+or regulatory classification of an external asset or service. Each issuer,
+custodian, bridge, locker, venue, wallet, and service operator remains
+responsible for its actual role and applicable obligations.
+
+5. PROJECT-OPERATED SURFACES
+
+Access to project-operated websites, hosted services, support channels, and
+other controlled surfaces may be governed by the Z00Z Terms of Use, Privacy
+Policy, responsible-disclosure policy, and service-specific terms.
+
+Those terms do not convert publication of neutral open-source code into
+custody or transaction monitoring and do not add field-of-use restrictions to
+software distributed under the MIT License. They may restrict access to and
+use of surfaces and relationships actually operated by the relevant entity.
+
+If a project-linked entity actually operates a wallet, bridge, exchange route,
+market maker, redemption desk, hosted account, custody service, treasury
+payout service, or other product, that activity must be analyzed and disclosed
+as such. A general disclaimer does not override actual functions or control.
+
+6. TRADEMARKS
+
+The MIT License does not grant permission to use Z00Z names, logos, or other
+source identifiers in a way that implies official status, sponsorship,
+endorsement, certification, operation, or regulatory approval. See the Z00Z
+Trademark Policy.
+
+Truthful nominative references and notices required for attribution remain
+subject to applicable law.
+
+7. SECURITY AND MATURITY
+
+Software, protocol designs, wallets, bridges, cross-chain integrations,
+offline flows, machines, agents, and transport systems may be experimental or
+contain defects. An audit, review, test, or proof applies only to its stated
+scope, assumptions, version, and date and does not guarantee security,
+correctness, compliance, availability, privacy, or fitness for purpose.
+

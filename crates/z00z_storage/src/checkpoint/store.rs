@@ -24,7 +24,7 @@ use super::{
     link::CheckpointLink,
     store_fs::CheckpointFinalLane,
     CheckpointArchiveManifestV1, CheckpointArtifact, CheckpointDaReferenceV1, CheckpointDraft,
-    CheckpointProof, CheckpointPublicationEvidenceV1,
+    CheckpointProof, CheckpointPublicationEvidenceV1, CheckpointTransitionStatementCoreV1,
 };
 
 /// Load one canonical checkpoint draft from canonical storage bytes.
@@ -236,6 +236,7 @@ pub trait CheckpointStore {
     fn stage_publication_contract(
         &mut self,
         exec_id: CheckpointExecInputId,
+        statement_core: &CheckpointTransitionStatementCoreV1,
         manifest: &CheckpointArchiveManifestV1,
         da_reference: &CheckpointDaReferenceV1,
     ) -> Result<(), CheckpointError>;
@@ -306,6 +307,7 @@ pub struct CheckpointFsStore {
 
 #[derive(Clone, Debug)]
 struct StagedPublicationContract {
+    statement_core: CheckpointTransitionStatementCoreV1,
     manifest: CheckpointArchiveManifestV1,
     da_reference: CheckpointDaReferenceV1,
 }
@@ -436,6 +438,33 @@ impl CheckpointFsStore {
         decode_archive_manifest_bin(&bytes)
     }
 
+    fn persist_staged_statement_core(
+        &self,
+        exec_id: CheckpointExecInputId,
+        statement_core: &CheckpointTransitionStatementCoreV1,
+    ) -> Result<(), CheckpointError> {
+        let bytes = BincodeCodec.serialize(statement_core)?;
+        self.save_unique_bin(
+            &self.staged_statement_core_path(&exec_id),
+            &bytes,
+            CheckpointError::ArchiveMix,
+        )
+    }
+
+    fn load_staged_statement_core(
+        &self,
+        exec_id: &CheckpointExecInputId,
+    ) -> Result<CheckpointTransitionStatementCoreV1, CheckpointError> {
+        let bytes = read_file(self.staged_statement_core_path(exec_id))
+            .map_err(|_| CheckpointError::ArchiveMix)?;
+        let statement_core: CheckpointTransitionStatementCoreV1 =
+            BincodeCodec.deserialize(&bytes)?;
+        if BincodeCodec.serialize(&statement_core)? != bytes {
+            return Err(CheckpointError::ArchiveMix);
+        }
+        Ok(statement_core)
+    }
+
     fn persist_da_reference_bin(
         &self,
         checkpoint_id: CheckpointId,
@@ -484,9 +513,17 @@ impl CheckpointFsStore {
         &self,
         exec_id: &CheckpointExecInputId,
     ) -> Result<StagedPublicationContract, CheckpointError> {
+        let statement_core = self.load_staged_statement_core(exec_id)?;
         let manifest = self.load_staged_archive_manifest(exec_id)?;
         let da_reference = self.load_staged_da_reference(exec_id)?;
-        if manifest.checkpoint_exec_input_id() != *exec_id
+        if statement_core.tx_data_root() != manifest.tx_data_root()
+            || statement_core.delta_root() != manifest.delta_root()
+            || statement_core.witness_root() != manifest.witness_root()
+            || statement_core.journal_digest() != manifest.journal_digest()
+            || statement_core
+                .prior_recursive_output_root()
+                .is_some_and(|digest| digest == [0_u8; 32])
+            || manifest.checkpoint_exec_input_id() != *exec_id
             || da_reference.statement_core_digest() != manifest.statement_core_digest()
             || da_reference.archive_manifest_root() != manifest.archive_manifest_root()
             || da_reference.payload_commitment() != manifest.da_payload_commitment()
@@ -494,6 +531,7 @@ impl CheckpointFsStore {
             return Err(CheckpointError::ArchiveMix);
         }
         Ok(StagedPublicationContract {
+            statement_core,
             manifest,
             da_reference,
         })
@@ -504,6 +542,7 @@ impl CheckpointFsStore {
         exec_id: &CheckpointExecInputId,
     ) -> Result<(), CheckpointError> {
         for path in [
+            self.staged_statement_core_path(exec_id),
             self.staged_archive_manifest_path(exec_id),
             self.staged_da_reference_path(exec_id),
         ] {
@@ -725,17 +764,26 @@ impl CheckpointStore for CheckpointFsStore {
     fn stage_publication_contract(
         &mut self,
         exec_id: CheckpointExecInputId,
+        statement_core: &CheckpointTransitionStatementCoreV1,
         manifest: &CheckpointArchiveManifestV1,
         da_reference: &CheckpointDaReferenceV1,
     ) -> Result<(), CheckpointError> {
         self.reject_noncanonical_final_lane()?;
-        if manifest.checkpoint_exec_input_id() != exec_id
+        if statement_core.tx_data_root() != manifest.tx_data_root()
+            || statement_core.delta_root() != manifest.delta_root()
+            || statement_core.witness_root() != manifest.witness_root()
+            || statement_core.journal_digest() != manifest.journal_digest()
+            || statement_core
+                .prior_recursive_output_root()
+                .is_some_and(|digest| digest == [0_u8; 32])
+            || manifest.checkpoint_exec_input_id() != exec_id
             || da_reference.statement_core_digest() != manifest.statement_core_digest()
             || da_reference.archive_manifest_root() != manifest.archive_manifest_root()
             || da_reference.payload_commitment() != manifest.da_payload_commitment()
         {
             return Err(CheckpointError::ArchiveMix);
         }
+        self.persist_staged_statement_core(exec_id, statement_core)?;
         self.persist_staged_archive_manifest_bin(exec_id, manifest)?;
         self.persist_staged_da_reference_bin(exec_id, da_reference)
     }
@@ -766,12 +814,7 @@ impl CheckpointStore for CheckpointFsStore {
         {
             return Err(CheckpointError::ArchiveMix);
         }
-        let statement_core = super::CheckpointTransitionStatementCoreV1::new(
-            staged.manifest.tx_data_root(),
-            staged.manifest.delta_root(),
-            staged.manifest.witness_root(),
-            staged.manifest.journal_digest(),
-        );
+        let statement_core = staged.statement_core;
         let statement_core_digest = stmt.statement_core_digest_v1(&statement_core);
         if staged.manifest.statement_core_digest() != statement_core_digest
             || staged.da_reference.statement_core_digest() != statement_core_digest

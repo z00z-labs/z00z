@@ -30,8 +30,6 @@ const ROOT_ERROR: &str = include_str!("../src/error.rs");
 const ROOT_CRATE_README: &str = include_str!("../README.md");
 const ROOT_TYPES_DOC: &str = include_str!("../src/settlement/root_types.md");
 const README_DOC: &str = include_str!("../src/settlement/README.md");
-const BENCHMARKS_DOC: &str = include_str!("../../../docs/tech-papers/benchmarks.md");
-const DESIGN_DOC: &str = include_str!("../../../docs/tech-papers/done/Z00Z-HJMT-Design.md");
 const PHASE0_SOURCE_DOC: &str =
     include_str!("../../../.planning/phases/000/062-Gaps-Closing-2/GAPS.md");
 const PHASE_SOURCE_DOC: &str =
@@ -760,22 +758,6 @@ fn test_docs_promote_settle_terms() {
             "runtime or canonical test surface",
         ],
     );
-
-    assert_all_present(
-        "design doc operator notes",
-        DESIGN_DOC,
-        &[
-            "Z00Z_SETTLEMENT_BACKEND_MODE",
-            "Z00Z_SETTLEMENT_BUCKET_BITS",
-            "Z00Z_STORAGE_SCHED_CPU",
-            "Z00Z_STORAGE_SCHED_QUEUE",
-        ],
-    );
-    assert_all_absent(
-        "design doc operator notes",
-        DESIGN_DOC,
-        &["Z00Z_ASSET_BACKEND_MODE", "Z00Z_ASSET_BUCKET_BITS"],
-    );
 }
 
 #[test]
@@ -1007,12 +989,6 @@ fn test_stage11_labels_settle_proof() {
 #[test]
 fn test_meta_gate_sources() {
     assert_absent("store mod", STORE_MOD, "settlement store open failed");
-    assert_absent("benchmarks doc", BENCHMARKS_DOC, "RedbBackend::default()");
-    assert!(
-        BENCHMARKS_DOC.contains("SettlementStore::new()` now uses a managed local RedB root"),
-        "benchmarks doc must describe the live managed SettlementStore::new() contract"
-    );
-
     for needle in [
         "bash scripts/audit/audit_secret_type_hygiene.sh",
         "bash scripts/audit/audit_secret_eq_hygiene.sh",

@@ -214,6 +214,8 @@ impl RedbBackend {
         let codec = BincodeCodec;
         let manifest_bytes = codec.serialize(manifest)?;
         let db = self.db()?;
+        #[cfg(test)]
+        super::recursive_v2_cutover_crash_point("before-write-transaction");
         let mut write = db
             .begin_write()
             .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
@@ -261,6 +263,9 @@ impl RedbBackend {
         drop(meta_bytes);
         drop(meta_table);
 
+        #[cfg(test)]
+        super::recursive_v2_cutover_crash_point("before-manifest-insert");
+
         let mut cutover_table = write
             .open_table(RECURSIVE_V2_CUTOVER_TABLE)
             .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
@@ -276,10 +281,15 @@ impl RedbBackend {
         cutover_table
             .insert(&b"installed"[..], manifest_bytes.as_slice())
             .map_err(|err| StoreBackendError::Tx(err.to_string()))?;
+        #[cfg(test)]
+        super::recursive_v2_cutover_crash_point("after-manifest-insert-before-immediate-commit");
         drop(cutover_table);
         write
             .commit()
-            .map_err(|err| StoreBackendError::Commit(err.to_string()))
+            .map_err(|err| StoreBackendError::Commit(err.to_string()))?;
+        #[cfg(test)]
+        super::recursive_v2_cutover_crash_point("after-immediate-commit-before-readback");
+        Ok(())
     }
 
     pub(super) fn load_recursive_v2_cutover(
@@ -306,6 +316,132 @@ impl RedbBackend {
         let manifest: RecursiveV2CutoverManifestV2 = codec.deserialize(bytes.value())?;
         manifest.validate()?;
         Ok(Some(manifest))
+    }
+}
+
+#[cfg(test)]
+mod recursive_v2_cutover_crash_tests {
+    use std::process::Command;
+
+    use z00z_crypto::{sha256_256_role, CheckpointShaRole};
+
+    use crate::{
+        checkpoint::recursive_v2::{
+            RecursiveAuthoritySnapshotV2, SettlementRootGenerationCutoverV2,
+        },
+        fixture_support::settlement_corpus::{asset_item, load_fixture, redb_store_with_bits},
+        settlement::{store::test_env_lock, SettlementStore},
+    };
+
+    const CHILD_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_CHILD";
+    const PATH_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_PATH";
+    const STAGE_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_STAGE";
+
+    fn cutover(store: &SettlementStore) -> SettlementRootGenerationCutoverV2 {
+        let authority = RecursiveAuthoritySnapshotV2::resolve_repository_local_fixture(store)
+            .expect("repository-local crash-corpus authority");
+        let expected = store.settlement_root_v2(7).expect("crash-corpus V2 root");
+        let record = [0x81; 32];
+        let record_digest = sha256_256_role(
+            CheckpointShaRole::Link,
+            &[b"z00z.recursive.v2.opaque-last-root-record", &record],
+        );
+        SettlementRootGenerationCutoverV2::repository_local_fixture(
+            authority,
+            store,
+            10,
+            record,
+            record_digest,
+            expected,
+            11,
+        )
+        .expect("crash-corpus cutover")
+    }
+
+    #[test]
+    fn recursive_v2_cutover_owned_boundary_crash_corpus() {
+        if std::env::var_os(CHILD_ENV).is_some() {
+            let path = std::env::var_os(PATH_ENV).expect("crash-corpus database path");
+            let mut store = SettlementStore::load(path).expect("crash-corpus child reload");
+            cutover(&store)
+                .install_repository_fixture(&mut store, 11)
+                .expect("the configured crash point must terminate before this returns");
+            panic!("configured recursive V2 cutover crash point did not terminate the child");
+        }
+
+        let _settlement_env = test_env_lock()
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+
+        for (stage, manifest_must_be_committed) in [
+            ("before-write-transaction", false),
+            ("before-manifest-insert", false),
+            ("after-manifest-insert-before-immediate-commit", false),
+            ("after-immediate-commit-before-readback", true),
+            ("after-durable-readback-before-success", true),
+        ] {
+            let (_environment, temp, mut store) =
+                redb_store_with_bits(Some("2")).expect("crash-corpus durable store");
+            let fixture = load_fixture();
+            store
+                .put_settlement_item(asset_item(&fixture.assets[0]))
+                .expect("crash-corpus persisted pre-state");
+            drop(store);
+
+            let current_thread = std::thread::current();
+            let test_name = current_thread.name().expect("test harness name");
+            let output = Command::new(std::env::current_exe().expect("test executable"))
+                .arg("--exact")
+                .arg(test_name)
+                .arg("--nocapture")
+                .env(CHILD_ENV, "1")
+                .env(PATH_ENV, temp.path())
+                .env(STAGE_ENV, stage)
+                .env("Z00Z_SETTLEMENT_BACKEND_MODE", "hjmt")
+                .env("Z00Z_SETTLEMENT_BUCKET_BITS", "2")
+                .env("Z00Z_STORAGE_SCHED_CPU", "1")
+                .env("Z00Z_STORAGE_SCHED_QUEUE", "1024")
+                .output()
+                .expect("start recursive V2 cutover crash child");
+            assert_eq!(
+                output.status.code(),
+                Some(86),
+                "stage {stage} did not hit the owned crash point: stdout={} stderr={}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+
+            let mut reloaded =
+                SettlementStore::load(temp.path()).expect("fresh-process-equivalent reload");
+            let recovered_manifest = reloaded
+                .backend
+                .load_recursive_v2_cutover()
+                .expect("read recovered cutover manifest");
+            assert_eq!(
+                recovered_manifest.is_some(),
+                manifest_must_be_committed,
+                "stage {stage} recovered the wrong complete-old/complete-new state"
+            );
+            let result = cutover(&reloaded).install_repository_fixture(&mut reloaded, 11);
+            if manifest_must_be_committed {
+                assert!(
+                    result.is_err(),
+                    "stage {stage} returned from Immediate commit, so reload must observe publication"
+                );
+            } else {
+                result.unwrap_or_else(|error| {
+                    panic!("stage {stage} preceded commit, so reload must permit install: {error}")
+                });
+                assert!(
+                    reloaded
+                        .backend
+                        .load_recursive_v2_cutover()
+                        .expect("read retried cutover manifest")
+                        .is_some(),
+                    "stage {stage} retry returned success without publishing the complete manifest"
+                );
+            }
+        }
     }
 }
 

@@ -73,6 +73,31 @@ impl CheckpointTransitionConsistencyV2 {
         checkpoint: RecursiveCheckpointBindingV2,
         store: &SettlementStore,
     ) -> Result<EvaluatedCheckpointTransitionV2, RecursiveV2Error> {
+        Self::evaluate_stream_inner(source, context, checkpoint, store, |_| {})
+    }
+
+    #[cfg(test)]
+    pub(crate) fn evaluate_stream_with_events(
+        source: &mut RecursiveTransitionTraceSourceV2,
+        context: RecursiveAuthorityContextV2,
+        checkpoint: RecursiveCheckpointBindingV2,
+        store: &SettlementStore,
+    ) -> Result<(EvaluatedCheckpointTransitionV2, Vec<RecursiveTraceEventV2>), RecursiveV2Error>
+    {
+        let mut events = Vec::new();
+        let evaluated = Self::evaluate_stream_inner(source, context, checkpoint, store, |event| {
+            events.push(event.clone())
+        })?;
+        Ok((evaluated, events))
+    }
+
+    fn evaluate_stream_inner(
+        source: &mut RecursiveTransitionTraceSourceV2,
+        context: RecursiveAuthorityContextV2,
+        checkpoint: RecursiveCheckpointBindingV2,
+        store: &SettlementStore,
+        mut on_accepted: impl FnMut(&RecursiveTraceEventV2),
+    ) -> Result<EvaluatedCheckpointTransitionV2, RecursiveV2Error> {
         let expected_precommit = source.sealed_precommit()?;
         let pre_uniqueness_context = source
             .pre_uniqueness_context()
@@ -87,7 +112,9 @@ impl CheckpointTransitionConsistencyV2 {
             source.profile(),
         )?;
         let pass = source.event_pass_with_source_context(|event, source_record| {
-            machine.accept(event, source_record)
+            machine.accept(event, source_record)?;
+            on_accepted(event);
+            Ok(())
         })?;
         let declared_event_counts = pass.event_counts();
         let update_trace_digest = machine.update_trace_digest()?;
@@ -730,10 +757,11 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 if !legal_row {
                     return Err(RecursiveV2Error::EventOrder);
                 }
-                if commit_pass && list == UniquenessListKindV2::Original {
-                    if self.pending_replay_row.take() != Some((set, row)) {
-                        return Err(RecursiveV2Error::Invariant);
-                    }
+                if commit_pass
+                    && list == UniquenessListKindV2::Original
+                    && self.pending_replay_row.take() != Some((set, row))
+                {
+                    return Err(RecursiveV2Error::Invariant);
                 }
                 match (list, set) {
                     (UniquenessListKindV2::Original, UniquenessSetKindV2::Spent) => {
@@ -1112,8 +1140,8 @@ impl<'a> TraceSemanticMachineV2<'a> {
             .finish()
             .map_err(|_| RecursiveV2Error::Canonical)?;
         if envelope.is_noop() != self.authority_noop
-            || (!self.authority_noop && envelope.updates().is_empty())
-            || (self.authority_noop && !envelope.updates().is_empty())
+            || (!self.authority_noop && envelope.updates_empty())
+            || (self.authority_noop && !envelope.updates_empty())
         {
             return Err(RecursiveV2Error::Canonical);
         }
@@ -1132,6 +1160,11 @@ impl<'a> TraceSemanticMachineV2<'a> {
         {
             return Err(RecursiveV2Error::Invariant);
         }
+        let terminal_operation_count = envelope
+            .terminal_operation_count()
+            .map_err(|_| RecursiveV2Error::Canonical)?;
+        let update_trace_digest = envelope.trace_digest();
+        let update_trace_count = envelope.update_count();
         let definition_root_transition = envelope
             .verify_hierarchy_semantics(self.store.recursive_v2_definition_root())
             .map_err(|_| RecursiveV2Error::Canonical)?;
@@ -1147,17 +1180,12 @@ impl<'a> TraceSemanticMachineV2<'a> {
         {
             return Err(RecursiveV2Error::Root);
         }
-        if envelope
-            .terminal_operation_count()
-            .map_err(|_| RecursiveV2Error::Canonical)?
-            != self.net_mutation_count
-        {
+        if terminal_operation_count != self.net_mutation_count {
             return Err(RecursiveV2Error::EventOrder);
         }
         self.definition_root_transition = Some(definition_root_transition);
-        self.update_trace_digest = Some(envelope.trace_digest());
-        self.update_trace_count =
-            Some(u32::try_from(envelope.updates().len()).map_err(|_| RecursiveV2Error::Limit)?);
+        self.update_trace_digest = Some(update_trace_digest);
+        self.update_trace_count = Some(update_trace_count);
         self.envelope_verified = true;
         Ok(())
     }

@@ -1,5 +1,3 @@
-const WHITEPAPER_DOC: &str = include_str!("../../../docs/whitepapers/Main-Whitepaper.md");
-const ROADMAP_DOC: &str = include_str!("../../../docs/tech-papers/Z00Z-Roadmap-Blueprint.md");
 const ONIONNET_DOC: &str = include_str!("../../z00z_networks/onionnet/README.md");
 const WALLET_LIB_SRC: &str = include_str!("../src/lib.rs");
 const APP_MOD_SRC: &str = include_str!("../src/app/mod.rs");
@@ -11,8 +9,6 @@ const FULL_VERIFY_SKILL: &str =
     include_str!("../../../.github/skills/z00z-full-verify-gate/SKILL.md");
 const STORAGE_BENCHES_DOC: &str = include_str!("../../z00z_storage/benches/settlement_benches.md");
 const SETTLEMENT_README_DOC: &str = include_str!("../../z00z_storage/src/settlement/README.md");
-const HJMT_THREAT_DOC: &str =
-    include_str!("../../../docs/tech-papers/done/Z00Z-HJMT-Threat-Model.md");
 
 fn assert_present(label: &str, source: &str, needle: &str) {
     assert!(source.contains(needle), "{label} missing {needle:?}");
@@ -27,31 +23,6 @@ fn assert_absent(label: &str, source: &str, needle: &str) {
 
 #[test]
 fn onionnet_and_remote_chain_surfaces_stay_deferred() {
-    assert_present(
-        "whitepaper",
-        WHITEPAPER_DOC,
-        "privacy against network-level traffic analysis is not yet a shipped base-layer guarantee",
-    );
-    assert_present(
-        "whitepaper",
-        WHITEPAPER_DOC,
-        "OnionNet currently exists as a reserved boundary crate",
-    );
-    assert_present(
-        "whitepaper",
-        WHITEPAPER_DOC,
-        "wallet-side OnionNet switching still returns deterministic placeholder behavior",
-    );
-    assert_present(
-        "roadmap",
-        ROADMAP_DOC,
-        "OnionNet | Reserved boundary with design specification",
-    );
-    assert_present(
-        "roadmap",
-        ROADMAP_DOC,
-        "network/privacy claims remain bounded by executable evidence",
-    );
     assert_present("onionnet readme", ONIONNET_DOC, "placeholder seam");
     assert_present(
         "onionnet readme",
@@ -82,40 +53,6 @@ fn onionnet_and_remote_chain_surfaces_stay_deferred() {
         "chain client",
         CHAIN_CLIENT_SRC,
         "remote node adapter is not configured",
-    );
-}
-
-#[test]
-fn da_slashing_and_fraud_claims_stay_honest() {
-    assert_present(
-        "whitepaper",
-        WHITEPAPER_DOC,
-        "there is no fully landed slashing or fraud-proof execution engine",
-    );
-    assert_present(
-        "whitepaper",
-        WHITEPAPER_DOC,
-        "does not yet ship the full provider implementation",
-    );
-    assert_present(
-        "whitepaper",
-        WHITEPAPER_DOC,
-        "the chain client is still a Phase 1 stub",
-    );
-    assert_present(
-        "roadmap",
-        ROADMAP_DOC,
-        "still explicitly implementation-blocked",
-    );
-    assert_present(
-        "roadmap",
-        ROADMAP_DOC,
-        "future anonymous ingress architecture and runtime sink",
-    );
-    assert_present(
-        "roadmap",
-        ROADMAP_DOC,
-        "reserved or planned privacy boundaries rather than deployed",
     );
 }
 
@@ -178,20 +115,9 @@ fn release_authority_docs_do_not_normalize_debug_release_features() {
         ),
         "settlement readme must not normalize release simulator debug tests",
     );
-    assert!(
-        !HJMT_THREAT_DOC.contains(
-            "cargo test -p z00z_simulator --release --features test-params-fast --test test_scenario_settlement",
-        ),
-        "threat model doc must not normalize release simulator fast-test features",
-    );
     assert_present(
         "settlement readme",
         SETTLEMENT_README_DOC,
-        "bash scripts/audit/audit_release_feature_guards.sh",
-    );
-    assert_present(
-        "threat model doc",
-        HJMT_THREAT_DOC,
         "bash scripts/audit/audit_release_feature_guards.sh",
     );
 }

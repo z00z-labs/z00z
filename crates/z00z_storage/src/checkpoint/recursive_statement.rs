@@ -169,7 +169,7 @@ impl RecursiveVerifierAuthorityV2 {
         profile: &RecursiveCircuitProfileV2,
         spec: &RecursiveCircuitSpecV2,
     ) -> Result<Self, RecursiveV2Error> {
-        let predicate_digest = super::recursive_v2::nova::executable_predicate_digest()?;
+        let predicate_digest = super::nova::executable_predicate_digest()?;
         let verifier_bundle_digest = sha256_256_role(
             CheckpointShaRole::Statement,
             &[
