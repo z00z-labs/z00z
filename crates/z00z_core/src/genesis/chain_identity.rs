@@ -557,8 +557,8 @@ fn install_into(
             Ok(())
         } else {
             Err(GenesisChainIdentityError::ProcessIdentityMismatch {
-                installed: *installed,
-                proposed: identity,
+                installed: Box::new(*installed),
+                proposed: Box::new(identity),
             })
         };
     }
@@ -574,8 +574,8 @@ fn install_into(
                 Ok(())
             } else {
                 Err(GenesisChainIdentityError::ProcessIdentityMismatch {
-                    installed,
-                    proposed,
+                    installed: Box::new(installed),
+                    proposed: Box::new(proposed),
                 })
             }
         }
@@ -671,8 +671,8 @@ pub enum GenesisChainIdentityError {
     ProcessIdentityUnavailable,
     #[error("process genesis identity is already pinned to {installed:?}; rejected {proposed:?}")]
     ProcessIdentityMismatch {
-        installed: GenesisChainIdentityV2,
-        proposed: GenesisChainIdentityV2,
+        installed: Box<GenesisChainIdentityV2>,
+        proposed: Box<GenesisChainIdentityV2>,
     },
 }
 
@@ -1252,8 +1252,8 @@ mod tests {
         assert_eq!(
             install_into(&slot, proposed),
             Err(GenesisChainIdentityError::ProcessIdentityMismatch {
-                installed,
-                proposed,
+                installed: Box::new(installed),
+                proposed: Box::new(proposed),
             })
         );
     }

@@ -20,13 +20,17 @@ fn test_circuit_owner_shape_exact() {
 
 #[test]
 fn test_snapshot_terminal_is_explicit() {
-    let snapshot = NOVA
-        .find("pub(crate) fn snapshot(&self)")
-        .expect("one non-consuming snapshot method");
     let continuous = NOVA
         .find("pub(crate) struct NovaContinuousSessionV2")
         .expect("one continuous session owner");
-    assert!(snapshot < continuous);
+    let continuous_owner = &NOVA[continuous..];
+    assert_eq!(
+        continuous_owner
+            .matches("pub(crate) fn snapshot(&self)")
+            .count(),
+        1,
+        "the continuous-session owner has one non-consuming snapshot method"
+    );
     assert!(NOVA.contains(
         "expected_public_state(&self.public_input, cumulative_steps, self.terminalized)"
     ));

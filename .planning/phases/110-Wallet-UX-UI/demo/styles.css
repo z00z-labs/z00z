@@ -7,7 +7,7 @@
   --sidebar-width: 248px;
   --topbar-height: 80px;
   --wallet-statusbar-height: 54px;
-  --content-max: 1120px;
+  --content-max: 1075px;
   --ease: 180ms ease;
   --font-sans: "Geist", "Geist Fallback", sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
@@ -30,6 +30,9 @@
   --type-status: 0.8125rem;
   --type-id: 0.875rem;
   --type-brand: clamp(1.625rem, 2.2vw, 2.125rem);
+  --sidebar-label-size: var(--type-row-title);
+  --sidebar-label-weight: 700;
+  --sidebar-label-line-height: 1.25;
   font-family: var(--font-sans);
 }
 
@@ -440,9 +443,10 @@ h3 {
 }
 
 .network-nav-copy strong {
-  font-size: var(--type-row-title);
-  font-weight: 700;
-  line-height: 1.25;
+  font-family: var(--font-sans);
+  font-size: var(--sidebar-label-size);
+  font-weight: var(--sidebar-label-weight);
+  line-height: var(--sidebar-label-line-height);
 }
 
 .network-nav-copy small {
@@ -579,6 +583,13 @@ h3 {
 
 .system-nav {
   margin-top: 12px;
+}
+
+.system-nav .nav-item {
+  font-family: var(--font-sans);
+  font-size: var(--sidebar-label-size);
+  font-weight: var(--sidebar-label-weight);
+  line-height: var(--sidebar-label-line-height);
 }
 
 .nav-item,
@@ -728,7 +739,8 @@ h3 {
   letter-spacing: 0.045em;
 }
 
-.page-heading h1.is-telemetry-title {
+.page-heading h1.is-telemetry-title,
+.page-heading h1.is-settings-title {
   font-family: var(--font-logo);
   font-size: 26px;
   font-weight: 700;
@@ -736,7 +748,8 @@ h3 {
   letter-spacing: 0.012em;
 }
 
-.page-heading h1.is-telemetry-title + p {
+.page-heading h1.is-telemetry-title + p,
+.page-heading h1.is-settings-title + p {
   margin-top: 4px;
   letter-spacing: 0.012em;
   line-height: 1.35;
@@ -941,6 +954,16 @@ h3 {
   height: 19px;
 }
 
+.wallet-tabs.is-settings-tabs {
+  justify-content: center;
+}
+
+.wallet-tabs.is-settings-tabs .wallet-tab {
+  gap: 7px;
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
 .wallet-statusbar {
   position: sticky;
   z-index: 10;
@@ -1017,6 +1040,10 @@ h3 {
 
 .wallet-tool-card {
   padding: 22px;
+}
+
+.wallet-backup-action {
+  margin-top: 16px;
 }
 
 .tool-card-heading {
@@ -1190,6 +1217,22 @@ h3 {
 .section-link .icon,
 .text-button .icon {
   width: 15px;
+}
+
+.asset-transfer-links {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.asset-transfer-links .text-button {
+  min-height: 32px;
+}
+
+.asset-transfer-links .icon {
+  width: 17px;
+  height: 17px;
 }
 
 .dashboard-grid {
@@ -3642,7 +3685,6 @@ details.technical summary {
 @media (min-width: 1440px) {
   :root {
     --sidebar-width: 264px;
-    --content-max: 1240px;
   }
 
   .sidebar {
@@ -3739,6 +3781,53 @@ button.permission-row:hover {
 
 .settings-layout {
   min-width: 0;
+}
+
+.settings-layout--full {
+  width: min(100%, var(--content-max));
+  margin: 0 auto;
+}
+
+.settings-network-tabs {
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+
+.settings-network-tab {
+  display: inline-flex;
+  min-width: max-content;
+  min-height: 54px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: var(--type-nav);
+  font-weight: 700;
+}
+
+.settings-network-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.settings-network-tab.is-active {
+  border-bottom-color: var(--brand);
+  color: var(--text-primary);
+}
+
+.settings-network-tab .icon {
+  width: 18px;
+  height: 18px;
 }
 
 .page-intro .button {
@@ -4268,7 +4357,8 @@ button.connection-option:hover,
     letter-spacing: -0.025em;
   }
 
-  .page-heading h1.is-telemetry-title {
+  .page-heading h1.is-telemetry-title,
+  .page-heading h1.is-settings-title {
     font-size: 26px;
     letter-spacing: 0.008em;
   }

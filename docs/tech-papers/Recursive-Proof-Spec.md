@@ -33,7 +33,7 @@ source shape, compilation, or a benchmark scaffold is not acceptance evidence.
 | Sole V2 facade | SOURCE PRESENT/NOT ACCEPTED. `z00z_storage::checkpoint::recursive_v2` is the sole public recursive surface and exposes no private step input or backend type. |
 | Independent registry axes | SOURCE PRESENT/NOT ACCEPTED. Public rows independently bind cryptographic domain, transcript, roots, public-input encoding, config, parameter, authority, and runtime-profile generations; source-current release evidence is pending. |
 | Preallocation proof | SOURCE PRESENT/NOT ACCEPTED. Typed preheaders run before active ConfigV3 full-object ingress caps, while the Nova body and seeded sidecar payload retain separate smaller bounds; source-current release evidence is pending. |
-| T3/T4 evidence | CANDIDATE SOURCE/NOT ACCEPTED. The 83-entry manifest-pinned source revision is `0cd690bc4c04ee14e5047861ac50d68f473fcc6c7e59e383540f8ba05d6c61c3`; no source-current `accepted.marker` exists, and obsolete-source drafts or diagnostic runs cannot authorize closure. |
+| T3/T4 evidence | CANDIDATE SOURCE/NOT ACCEPTED. The 83-entry manifest-pinned source revision is `571d365434c746284325a7f665af88559f395768512ec27b21c9b4bb608e309e`; no source-current `accepted.marker` exists, and obsolete-source drafts or diagnostic runs cannot authorize closure. |
 
 ## Scope and security claim
 

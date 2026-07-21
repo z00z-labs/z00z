@@ -22,10 +22,11 @@ const requestedView = ["home", "wallet", "activity", "swap", "exchange", "stakin
 const requestedWalletSection = ["assets", "vouchers", "permissions"].includes(demoParams.get("wallet")) ? demoParams.get("wallet") : "assets";
 const requestedWalletSettingsSection = ["general", "security", "backup", "policies", "advanced"].includes(demoParams.get("walletSettings")) ? demoParams.get("walletSettings") : "general";
 const requestedSettingsSection = ["general", "network", "appearance"].includes(demoParams.get("settings")) ? demoParams.get("settings") : "general";
-const requestedNetworkSection = ["overview", "reticulum", "onionnet", "carriers"].includes(demoParams.get("network")) ? demoParams.get("network") : "overview";
+const requestedNetworkSection = ["overview", "reticulum", "onionnet"].includes(demoParams.get("network")) ? demoParams.get("network") : "overview";
 const requestedTelemetrySource = ["onionnet", "reticulum", "aggregators"].includes(demoParams.get("telemetry")) ? demoParams.get("telemetry") : "onionnet";
-const requestedReticulumTelemetryTab = ["node", "interfaces", "radio", "entrypoints", "paths", "probes", "links"].includes(demoParams.get("reticulumTab")) ? demoParams.get("reticulumTab") : "node";
+const requestedReticulumTelemetryTab = ["overview", "node", "interfaces", "radio", "entrypoints", "paths", "probes", "links"].includes(demoParams.get("reticulumTab")) ? demoParams.get("reticulumTab") : "overview";
 const requestedOnionnetTelemetryTab = ["overview", "epoch", "privacy", "transport", "queues", "probation", "ingress"].includes(demoParams.get("onionTab")) ? demoParams.get("onionTab") : "overview";
+const requestedAggregatorsTelemetryTab = ["overview"].includes(demoParams.get("aggregatorsTab")) ? demoParams.get("aggregatorsTab") : "overview";
 
 const paletteOptions = [
   { id: "z00z-default", label: "Z00Z Default", description: "Current private-wallet palette" },
@@ -60,6 +61,7 @@ const state = {
   telemetrySource: requestedTelemetrySource,
   reticulumTelemetryTab: requestedReticulumTelemetryTab,
   onionnetTelemetryTab: requestedOnionnetTelemetryTab,
+  aggregatorsTelemetryTab: requestedAggregatorsTelemetryTab,
   isNetworkOpen: requestedSettingsSection === "network",
   theme: "dark",
   palette: "z00z-default",
@@ -564,8 +566,8 @@ function renderWalletShell() {
       <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
     </div>`;
   const networkEntries = [
-    { key: "onionnet", label: "OnionNet", initials: "O", helperKey: "network.routeTelemetry" },
     { key: "reticulum", label: "Reticulum", initials: "R", helperKey: "network.carrierTelemetry" },
+    { key: "onionnet", label: "OnionNet", initials: "O", helperKey: "network.routeTelemetry" },
     { key: "aggregators", label: "Aggregators", initials: "A", helperKey: "network.publicationTelemetry" }
   ];
   networkNav.innerHTML = networkEntries.map((entry) => {
@@ -582,14 +584,29 @@ function renderWalletShell() {
   lockWalletLabel.innerHTML = `${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))} <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
   copyWalletAddress.setAttribute("aria-label", t("walletShell.copyAddress", { wallet: walletName }));
   copyWalletAddress.setAttribute("title", wallet.fullAddress);
-  const telemetryTabSource = state.view === "telemetry" && ["reticulum", "onionnet"].includes(state.telemetrySource) ? state.telemetrySource : null;
+  const telemetryTabSource = state.view === "telemetry" ? {
+    reticulum: { label: "Reticulum", tabs: reticulumTelemetryTabs, selectedTab: state.reticulumTelemetryTab, actionName: "reticulum-telemetry-tab" },
+    onionnet: { label: "OnionNet", tabs: onionnetTelemetryTabs, selectedTab: state.onionnetTelemetryTab, actionName: "onionnet-telemetry-tab" },
+    aggregators: { label: "Aggregators", tabs: aggregatorsTelemetryTabs, selectedTab: state.aggregatorsTelemetryTab, actionName: "aggregators-telemetry-tab" }
+  }[state.telemetrySource] : null;
+  const settingsTabs = [
+    { id: "general", labelKey: "settings.general", iconName: "settings" },
+    { id: "appearance", labelKey: "settings.appearance", iconName: "sun" },
+    { id: "network", labelKey: "settings.networkPrivacy", iconName: "network" }
+  ];
+  walletTabs.classList.toggle("is-settings-tabs", state.view === "settings");
   if (telemetryTabSource) {
-    const tabs = telemetryTabSource === "reticulum" ? reticulumTelemetryTabs : onionnetTelemetryTabs;
-    const selectedTab = telemetryTabSource === "reticulum" ? state.reticulumTelemetryTab : state.onionnetTelemetryTab;
-    const actionName = telemetryTabSource === "reticulum" ? "reticulum-telemetry-tab" : "onionnet-telemetry-tab";
-    walletTabs.setAttribute("aria-label", `${telemetryTabSource === "reticulum" ? "Reticulum" : "OnionNet"} telemetry parameters`);
+    const { label, tabs, selectedTab, actionName } = telemetryTabSource;
+    walletTabs.setAttribute("aria-label", `${label} telemetry parameters`);
     walletTabs.setAttribute("role", "tablist");
-    walletTabs.innerHTML = tabs.map((tab) => `<button id="${telemetryTabSource}-tab-${tab.id}" class="wallet-tab${selectedTab === tab.id ? " is-active" : ""}" type="button" role="tab" aria-selected="${selectedTab === tab.id}" aria-controls="${telemetryTabSource}-panel-${tab.id}"${selectedTab === tab.id ? ' aria-current="page"' : ""} data-${actionName}="${tab.id}">${icon(tab.iconName)}<span>${t(tab.labelKey)}</span></button>`).join("");
+    walletTabs.innerHTML = tabs.map((tab) => `<button id="${state.telemetrySource}-tab-${tab.id}" class="wallet-tab${selectedTab === tab.id ? " is-active" : ""}" type="button" role="tab" aria-selected="${selectedTab === tab.id}" aria-controls="${state.telemetrySource}-panel-${tab.id}"${selectedTab === tab.id ? ' aria-current="page"' : ""} data-${actionName}="${tab.id}">${icon(tab.iconName)}<span>${t(tab.labelKey)}</span></button>`).join("");
+  } else if (state.view === "settings") {
+    walletTabs.setAttribute("aria-label", t("settings.sections"));
+    walletTabs.setAttribute("role", "tablist");
+    walletTabs.innerHTML = settingsTabs.map((tab) => {
+      const isActive = state.settingsSection === tab.id;
+      return `<button id="settings-tab-${tab.id}" class="wallet-tab${isActive ? " is-active" : ""}" type="button" role="tab" aria-selected="${isActive}"${isActive ? ' aria-current="page"' : ""} data-settings-section="${tab.id}">${icon(tab.iconName)}<span>${t(tab.labelKey)}</span></button>`;
+    }).join("");
   } else {
     walletTabs.setAttribute("aria-label", "Selected wallet");
     walletTabs.removeAttribute("role");
@@ -611,7 +628,7 @@ function renderWalletShell() {
     <span><small>${t("walletShell.pendingIn")}</small><strong>${sensitive(`${summary.pendingIn} Z00Z`)}</strong></span>
     <span><small>${t("walletShell.pendingOut")}</small><strong>${sensitive(`${summary.pendingOut} Z00Z`)}</strong></span>
     <span class="statusbar-telemetry"><small>${t("walletShell.routeTelemetry")}</small><strong><span class="statusbar-state-dot" aria-hidden="true"></span>${t("common.unavailable")}</strong></span>`;
-  walletTabs.hidden = !isWalletView() && !telemetryTabSource;
+  walletTabs.hidden = !isWalletView() && !telemetryTabSource && state.view !== "settings";
   walletStatusbar.hidden = !hasSelectedWalletContext();
   document.querySelector(".bottom-nav").hidden = false;
 }
@@ -665,7 +682,7 @@ function walletAssetEntries() {
       key: "acme", type: "token", label: "Acme Credits", ticker: "ACME", unit: "ACME", kind: "Token", kindKey: "assets.kindToken", balance: "240.00", balanceLabel: "240.00 ACME", value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: true, owner: "acme.example issuer", assetId: "asset:acme:8f31…c20e", currentSupply: "2,400,000 ACME", maxSupply: "10,000,000 ACME"
     },
     {
-      key: "founders", type: "nft", label: "Founders Pass #014", ticker: "PASS-014", unit: "pass", kind: "Collectible", kindKey: "assets.kindCollectible", balance: "1", balanceLabel: "1 pass", value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: false, owner: wallet.fullAddress || wallet.address, assetId: "nft:founders:014", currentSupply: "1 pass", maxSupply: "100 passes"
+      key: "founders", type: "nft", label: "Founders Pass #014", ticker: "PASS-014", unit: "pass", kind: "NFT", kindKey: "assets.kindCollectible", balance: "1", balanceLabel: "1 pass", value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: false, owner: wallet.fullAddress || wallet.address, assetId: "nft:founders:014", currentSupply: "1 pass", maxSupply: "100 passes"
     }
   ];
 }
@@ -801,6 +818,10 @@ function moneyView() {
           </article>`).join("")}
       </div>
       <div class="notice">${icon("shield")} ${t("assets.excludedNotice")}</div>
+      <div class="asset-transfer-links">
+        <button class="text-button" type="button" data-view="wallet-send">${icon("send")} ${t("assets.send")}</button>
+        <button class="text-button" type="button" data-view="wallet-receive">${icon("receive")} ${t("assets.receive")}</button>
+      </div>
     </div>`;
 }
 
@@ -830,15 +851,12 @@ const walletSections = [
 function walletContextNav() {
   return `<nav class="context-nav context-tab-list" aria-label="${t("assets.sections")}">${walletSections.map(([key, labelKey, iconName]) => `
     <button class="context-nav-item${state.walletSection === key ? " is-active" : ""}" type="button" ${state.walletSection === key ? 'aria-current="page"' : ""} data-wallet-section="${key}">
-      ${icon(iconName)}<span><strong>${t(labelKey)}</strong></span>${key === "vouchers" ? '<span class="nav-count">1</span>' : ""}
+      ${icon(iconName)}<span><strong>${t(labelKey)}</strong></span>
     </button>`).join("")}</nav>`;
 }
 
 function vouchersPanel() {
   return `
-    <div class="page-intro compact-intro">
-      <div><p class="eyebrow">Voucher family</p><h2>Vouchers</h2><p>Conditional value has its own acceptance, redemption, transfer, refund, and expiry lifecycle.</p></div>
-    </div>
     <div class="choice-strip" aria-label="Voucher filters"><button class="choice-chip is-active" type="button">Needs action</button><button class="choice-chip" type="button">Redeemable</button><button class="choice-chip" type="button">History</button><button class="choice-chip" type="button">Quarantined</button></div>
     <section class="card action-panel">
       <div class="action-panel-top"><div class="action-title">${objectTypeIcon("voucher", "refund", "list-icon")}<div><h2>Ready for your decision</h2><p>Backing and restrictions are checked before any action</p></div></div><span class="status-badge is-ready">1 ready</span></div>
@@ -850,18 +868,41 @@ function vouchersPanel() {
     <div class="notice">${icon("shield")} Imported vouchers with unknown policy, invalid signatures, or unsupported schema go to Quarantine and never enter Available.</div>`;
 }
 
+const permissionDetails = Object.freeze({
+  receipt: Object.freeze({
+    title: "Delivery receipt access",
+    subtitle: "Held data-access permission",
+    remaining: "2 of 5 uses",
+    classLabel: "Data access",
+    action: "View receipt",
+    scope: "receipts.example",
+    delegation: "Forbidden",
+    expiry: "31 Jul 2026",
+    rightId: "right_54ac…1f88",
+    kind: "data_access"
+  }),
+  deploy: Object.freeze({
+    title: "Deploy to staging",
+    subtitle: "Held machine-capability permission",
+    remaining: "1 use",
+    classLabel: "Machine capability",
+    action: "Deploy",
+    scope: "staging.example",
+    delegation: "Attenuation only",
+    expiry: "19 Aug 2026",
+    rightId: "right_8d9e…4a62",
+    kind: "machine_capability"
+  })
+});
+
 function permissionsPanel() {
   return `
-    <div class="page-intro compact-intro">
-      <div><p class="eyebrow">Right family</p><h2>Permissions</h2><p>Zero-value authority with explicit action, scope, uses, expiry, and delegation rules.</p></div>
-      <button class="button button-primary" type="button" data-open-flow="permission">${icon("permission")} Give permission</button>
-    </div>
-    <div class="choice-strip" aria-label="Permission filters"><button class="choice-chip is-active" type="button">Held</button><button class="choice-chip" type="button">Delegated</button><button class="choice-chip" type="button">Used</button><button class="choice-chip" type="button">Needs review</button></div>
+    <div class="choice-strip" aria-label="Permission filters"><button class="choice-chip is-active" type="button">Held</button><button class="choice-chip" type="button">Delegated</button><button class="choice-chip" type="button">Used</button></div>
     <section class="card action-panel">
       <div class="action-panel-top"><div class="action-title">${objectTypeIcon("right", "receipt", "list-icon")}<div><h2>Held permissions</h2><p>Class, action, scope, uses, expiry, and delegation are visible</p></div></div><span class="status-badge is-active">2 held</span></div>
       <div class="permission-list">
-        <button class="permission-row" type="button" data-open-flow="permission-detail">${objectTypeIcon("right", "receipt", "list-icon")}<span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
-        <div class="permission-row">${objectTypeIcon("right", "deploy", "list-icon")}<span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></div>
+        <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="receipt">${objectTypeIcon("right", "receipt", "list-icon")}<span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
+        <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="deploy">${objectTypeIcon("right", "deploy", "list-icon")}<span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></button>
       </div>
     </section>
     <div class="notice">${icon("spark")} A permission is zero-value. “Give permission” delegates a narrower held right; monetary budgets require a separate future composition and are not projected here.</div>`;
@@ -913,7 +954,6 @@ function activityRows(items, compact = false) {
 function matchesActivityFilter(item, filter) {
   if (filter === "all") return true;
   if (filter === "asset") return item.type === "asset" || item.type === "money";
-  if (filter === "attention") return item.status === "attention" || item.status === "settling";
   return item.type === filter;
 }
 
@@ -921,12 +961,11 @@ function activityView() {
   const visible = activeWallet().activities.filter((item) => matchesActivityFilter(item, state.activityFilter));
 
   const filters = [
-    ["all", "history.all"], ["asset", "history.assets"], ["voucher", "history.vouchers"], ["permission", "history.permissions"], ["security", "history.system"], ["attention", "history.needsAttention"]
+    ["all", "history.all"], ["asset", "history.assets"], ["voucher", "history.vouchers"], ["permission", "history.permissions"], ["security", "history.system"]
   ].map(([value, labelKey]) => `<button class="choice-chip${state.activityFilter === value ? " is-active" : ""}" type="button" data-filter="${value}">${t(labelKey)}</button>`).join("");
 
   return `
     <div class="view-enter">
-      <div class="page-intro"><div><p class="eyebrow">${t("history.honestSettlement")}</p><h2>${t("history.title")}</h2><p>${t("history.description")}</p></div></div>
       <div class="filter-bar choice-strip" aria-label="${t("history.filters")}">
         ${filters}
         <label class="search-wrap"><span class="sr-only">${t("history.search")}</span>${icon("search")}<input id="activity-search" type="search" placeholder="${t("history.search")}" autocomplete="off"></label>
@@ -942,7 +981,6 @@ function swapView() {
   const asset = supportedAsset("z00z");
   return `
     <div class="view-enter wallet-tool-view">
-      <div class="page-intro"><div><p class="eyebrow">Wallet swap</p><h2>Swap assets privately</h2><p>Move between compatible assets within ${escapeHtml(wallet.name)}. The preview labels route availability honestly.</p></div><span class="status-badge is-ready">${escapeHtml(wallet.name)} wallet</span></div>
       <section class="wallet-tool-grid">
         <article class="card wallet-tool-card">
           <div class="tool-card-heading"><span class="list-icon">${icon("swap")}</span><div><h3>Build a swap</h3><p>Choose the assets before you request a quote.</p></div></div>
@@ -995,7 +1033,6 @@ function stakingView() {
   const summary = wallet.summary;
   return `
     <div class="view-enter wallet-tool-view">
-      <div class="page-intro"><div><p class="eyebrow">${t("staking.eyebrow")}</p><h2>${t("staking.heading", { wallet: wallet.name })}</h2><p>${t("staking.description")}</p></div><span class="status-badge is-ready">${t("staking.badge")}</span></div>
       <section class="money-summary" aria-label="${t("staking.totals")}">
         <article class="card metric-card"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong><small>${t("staking.walletValueBefore")}</small></article>
         <article class="card metric-card"><span>${t("staking.staked")}</span><strong>0.00 Z00Z</strong><small>${t("staking.nothingDelegated")}</small></article>
@@ -1025,12 +1062,11 @@ function walletBackupView() {
   const wallet = activeWallet();
   return `
     <div class="view-enter wallet-tool-view">
-      <div class="page-intro"><div><p class="eyebrow">Selected wallet backup</p><h2>Back up ${escapeHtml(wallet.name)}</h2><p>Create and verify a recoverable local backup for this wallet profile without changing any other wallet.</p></div><span class="status-badge is-ready">Local only</span></div>
       <section class="wallet-tool-grid">
         <article class="card wallet-tool-card">
           <div class="tool-card-heading"><span class="list-icon">${icon("backup")}</span><div><h3>Backup status</h3><p>Backup material stays distinct from the live wallet and recovery phrase.</p></div></div>
           <div class="review-card"><div class="summary-row"><span>Latest backup</span><strong>10 Jul 2026 · 09:42</strong></div><div class="summary-row"><span>Integrity</span><strong class="trust-label">${icon("shield")} Verified</strong></div><div class="summary-row"><span>Destination</span><strong>Encrypted local file</strong></div></div>
-          <button class="button button-primary button-full" type="button" data-demo-action="backup">${icon("backup")} Create fresh backup</button>
+          <button class="button button-primary button-full wallet-backup-action" type="button" data-demo-action="backup">${icon("backup")} Create fresh backup</button>
         </article>
         <aside class="card wallet-tool-card wallet-tool-summary">
           <p class="eyebrow">Recovery guardrails</p>
@@ -1048,7 +1084,7 @@ const walletSettingsMeta = {
   security: ["Security", "shield"],
   backup: ["Backup", "backup"],
   policies: ["Policies", "permission"],
-  advanced: ["Advanced", "activity"]
+  advanced: ["Advanced", "advanced"]
 };
 
 function walletSettingsContextNav() {
@@ -1113,6 +1149,7 @@ function walletSettingsSecurityDetail() {
     <div class="setting-group">
       <div class="setting-line"><label class="setting-line-copy" for="wallet-lock-after"><strong>Lock app after</strong><small>Per-wallet inactivity preference for this local profile.</small></label><select id="wallet-lock-after" data-wallet-settings-control="lock-after"><option value="5"${preferences.lockAfterMinutes === "5" ? " selected" : ""}>5 minutes</option><option value="15"${preferences.lockAfterMinutes === "15" ? " selected" : ""}>15 minutes</option><option value="30"${preferences.lockAfterMinutes === "30" ? " selected" : ""}>30 minutes</option><option value="never"${preferences.lockAfterMinutes === "never" ? " selected" : ""}>Never</option></select></div>
       <div class="setting-line"><span class="setting-line-copy"><strong>Lock now</strong><small>Clears sensitive presentation and closes the wallet session.</small></span><button class="button" type="button" data-demo-action="lock">Lock now</button></div>
+      <div class="setting-line"><span class="setting-line-copy"><strong>${t("walletSettings.password")}</strong><small>${t("walletSettings.passwordHelp")}</small></span><button class="button" type="button" data-open-flow="wallet-password-change">${t("walletSettings.changePassword")}</button></div>
     </div>
     <div class="setting-group wallet-key-settings">
       <div class="setting-line"><span class="setting-line-copy"><strong>Recovery phrase</strong><small>Requires the wallet password and the exact confirmation phrase. The renderer clears it when the dialog closes.</small></span><button class="button" type="button" data-open-flow="wallet-seed-reveal">View phrase</button></div>
@@ -1164,33 +1201,21 @@ function walletSettingsView() {
   return `<div class="view-enter settings-view wallet-settings-view"><div class="workspace-layout settings-layout"><aside class="context-rail">${walletSettingsContextNav()}</aside><article class="card settings-detail">${walletSettingsDetail()}</article></div></div>`;
 }
 
-const settingsMeta = {
-  general: ["settings.general", "settings.generalHelp", "settings"],
-  network: ["settings.networkPrivacy", "settings.networkPrivacyHelp", "network"],
-  appearance: ["settings.appearance", "settings.appearanceHelp", "sun"]
-};
+function settingsNetworkTabs() {
+  if (state.settingsSection !== "network") return "";
 
-function settingsContextNav() {
-  const item = (key) => {
-    const [labelKey, helperKey, iconName] = settingsMeta[key];
-    const label = t(labelKey);
-    const helper = t(helperKey);
-    const isNetworkBranch = key === "network";
-    const isCurrent = state.settingsSection === key && (!isNetworkBranch || state.networkSection === "overview");
-    const disclosure = isNetworkBranch
-      ? `<span class="context-disclosure${state.isNetworkOpen ? " is-open" : ""}" aria-hidden="true">${icon("chevron")}</span>`
-      : "";
-    const expanded = isNetworkBranch ? ` aria-expanded="${state.isNetworkOpen}" aria-controls="network-sections"` : "";
-    return `<button class="context-nav-item${isCurrent ? " is-active" : ""}${isNetworkBranch && state.isNetworkOpen ? " is-open" : ""}" type="button" ${isCurrent ? 'aria-current="page"' : ""}${expanded} title="${helper}" data-settings-section="${key}">${icon(iconName)}<span><strong>${label}</strong><small>${helper}</small></span>${disclosure}</button>`;
-  };
-  const networkChildren = [["overview", "settings.overview"], ["reticulum", null], ["onionnet", null], ["carriers", null]]
-    .map(([key, labelKey]) => {
-      const label = labelKey ? t(labelKey) : key === "reticulum" ? "Reticulum" : key === "onionnet" ? "OnionNet" : "Carriers";
-      return `<button class="context-nav-child${state.settingsSection === "network" && state.networkSection === key ? " is-active" : ""}" type="button" ${state.settingsSection === "network" && state.networkSection === key ? 'aria-current="page"' : ""} data-network-section="${key}">${label}</button>`;
-    }).join("");
-  return `<nav class="context-nav settings-context" aria-label="${t("settings.sections")}">
-    <p class="context-group-label">${t("settings.application")}</p>${item("general")}${item("appearance")}
-    <p class="context-group-label">${t("settings.connectivity")}</p>${item("network")}${state.isNetworkOpen ? `<div id="network-sections" class="context-nav-children" aria-label="${t("settings.networkSections")}">${networkChildren}</div>` : ""}
+  const tabs = [
+    { id: "overview", labelKey: "settings.overview", iconName: "activity" },
+    { id: "reticulum", label: "Reticulum", iconName: "network" },
+    { id: "onionnet", label: "OnionNet", iconName: "shield" }
+  ];
+
+  return `<nav class="settings-network-tabs" aria-label="${t("settings.networkSections")}" role="tablist">
+    ${tabs.map((tab) => {
+      const isActive = state.networkSection === tab.id;
+      const label = tab.labelKey ? t(tab.labelKey) : tab.label;
+      return `<button class="settings-network-tab${isActive ? " is-active" : ""}" type="button" role="tab" aria-selected="${isActive}"${isActive ? ' aria-current="page"' : ""} data-network-section="${tab.id}">${icon(tab.iconName)}<span>${label}</span></button>`;
+    }).join("")}
   </nav>`;
 }
 
@@ -1208,14 +1233,6 @@ function networkDetail() {
       <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Membership & replay checks</strong><small>Target telemetry · unavailable in current RPC</small></span><span class="status-badge is-ready">Target</span></div>
       <div class="connection-option"><span class="list-icon">${icon("activity")}</span><span><strong>Route age</strong><small>12 minutes · rebuilt automatically by policy</small></span><button class="button" type="button" data-demo-action="rebuild-route">Rebuild</button></div>
     </div><div class="capability-note">${icon("alert")} <span><strong>Target Phase 080 simulation</strong><small>The current live network RPC is stubbed; all route details on this screen are illustrative until an authoritative status capability exists.</small></span></div><div class="notice">${icon("shield")} This reports concrete route properties. It does not claim that the user is “anonymous” or “untraceable.”</div>`;
-
-  if (state.networkSection === "carriers") return `
-    <div class="confirmation-note">${icon("alert")} Carrier priority affects availability. Private mode never falls back to a non-OnionNet direct path.</div>
-    <div class="connection-options">
-      <div class="connection-option"><span class="health-orb is-good"></span><span><strong>1 · Reticulum</strong><small>Primary resilient carrier · in use</small></span><span class="status-badge is-settled">Allowed</span></div>
-      <div class="connection-option"><span class="health-orb"></span><span><strong>2 · QUIC/TLS</strong><small>Private carrier fallback</small></span><span class="status-badge is-active">Allowed</span></div>
-      <div class="connection-option"><span class="health-orb"></span><span><strong>Tor compatibility</strong><small>Optional carrier · disabled in this profile</small></span><span class="status-badge">Off</span></div>
-    </div>`;
 
   return `
     <div class="network-summary-grid">
@@ -1272,7 +1289,7 @@ function settingsDetail() {
 
   if (state.settingsSection === "network") {
     return `
-      <div class="settings-heading"><div><p class="eyebrow">Overlay, carrier, chain</p><h2>Network & privacy</h2><p>OnionNet protects the route; Reticulum carries it. Chain remains separate.</p></div><select aria-label="Network mode"><option>Private · no direct fallback</option><option>Auto</option><option>Resilient</option><option>Direct · warning</option></select></div>
+      <div class="settings-heading"><div><p class="eyebrow">Overlay, carrier, chain</p><h2>Network</h2><p>OnionNet protects the route; Reticulum carries it. Chain remains separate.</p></div><select aria-label="Network mode"><option>Private · no direct fallback</option><option>Auto</option><option>Resilient</option><option>Direct · warning</option></select></div>
       ${networkDetail()}`;
   }
 
@@ -1309,8 +1326,8 @@ function settingsDetail() {
 function settingsView() {
   return `
     <div class="view-enter settings-view">
-      <div class="workspace-layout settings-layout">
-        <aside class="context-rail">${settingsContextNav()}</aside>
+      <div class="settings-layout settings-layout--full">
+        ${settingsNetworkTabs()}
         <article class="card settings-detail">${settingsDetail()}</article>
       </div>
     </div>`;
@@ -1324,12 +1341,39 @@ function telemetryLine(iconName, title, detail) {
   return `<div class="connection-option"><span class="list-icon">${icon(iconName)}</span><span><strong>${title}</strong><small>${detail}</small></span><span class="status-badge">${t("common.unavailable")}</span></div>`;
 }
 
+const RETICULUM_TAB_ICON_LUT = Object.freeze({
+  overview: "activity",
+  node: "reticulum-node",
+  interfaces: "reticulum-interface",
+  radio: "network",
+  entrypoints: "reticulum-entry",
+  paths: "reticulum-paths",
+  probes: "reticulum-probe",
+  links: "reticulum-link"
+});
+
 const reticulumTelemetryTabs = [
+  {
+    id: "overview",
+    labelKey: "reticulum.tabs.overview",
+    iconName: RETICULUM_TAB_ICON_LUT.overview,
+    summary: "A bounded summary of managed-node, interface, path, probe, and link evidence from one local bridge.",
+    metrics: [
+      ["Managed-node state", "Unavailable", "No local Reticulum status bridge"],
+      ["Interface availability", "Unavailable", "No local interface summary"],
+      ["Path and link evidence", "Unavailable", "No managed transport summary"],
+      ["Probe coverage", "Unavailable", "No controlled-destination probe results"]
+    ],
+    details: [
+      ["activity", "Local telemetry scope", "Overview collects only bounded summaries from a registered local bridge. It does not describe Reticulum as a whole or reconstruct a wallet route."],
+      ["shield", "Evidence boundary", "All values remain unavailable until a local source provides them with explicit freshness and scope. Addresses, destinations, routes, and payloads stay outside this wallet view."]
+    ]
+  },
   {
     id: "node",
     label: "Node",
     labelKey: "reticulum.tabs.node",
-    iconName: "activity",
+    iconName: RETICULUM_TAB_ICON_LUT.node,
     summary: "Health of one managed Reticulum instance, never a claim about the global network.",
     metrics: [
       ["RNS instance", "Unavailable", "No local rnstatus bridge"],
@@ -1346,7 +1390,7 @@ const reticulumTelemetryTabs = [
     id: "interfaces",
     label: "Interfaces",
     labelKey: "reticulum.tabs.interfaces",
-    iconName: "network",
+    iconName: RETICULUM_TAB_ICON_LUT.interfaces,
     summary: "Configured local interface state, capacity metadata, and aggregate traffic.",
     metrics: [
       ["Interfaces up / total", "Unavailable", "No local interface snapshot"],
@@ -1363,7 +1407,7 @@ const reticulumTelemetryTabs = [
     id: "radio",
     label: "Radio",
     labelKey: "reticulum.tabs.radio",
-    iconName: "network",
+    iconName: RETICULUM_TAB_ICON_LUT.radio,
     summary: "RNode and LoRa radio metrics only when a local radio interface reports them.",
     metrics: [
       ["Frequency", "Unavailable", "No RNode interface snapshot"],
@@ -1380,7 +1424,7 @@ const reticulumTelemetryTabs = [
     id: "entrypoints",
     label: "Entry points",
     labelKey: "reticulum.tabs.entrypoints",
-    iconName: "user",
+    iconName: RETICULUM_TAB_ICON_LUT.entrypoints,
     summary: "Published and locally discovered entry points, never a directory of every Reticulum node.",
     metrics: [
       ["Discovery state", "Unavailable", "No local discovery snapshot"],
@@ -1397,7 +1441,7 @@ const reticulumTelemetryTabs = [
     id: "paths",
     label: "Paths",
     labelKey: "reticulum.tabs.paths",
-    iconName: "swap",
+    iconName: RETICULUM_TAB_ICON_LUT.paths,
     summary: "Known-path state and control-plane pressure from this managed node only.",
     metrics: [
       ["Known paths", "Unavailable", "No local path-table summary"],
@@ -1414,7 +1458,7 @@ const reticulumTelemetryTabs = [
     id: "probes",
     label: "Probes",
     labelKey: "reticulum.tabs.probes",
-    iconName: "activity",
+    iconName: RETICULUM_TAB_ICON_LUT.probes,
     summary: "End-to-end checks for specifically managed destinations that consent to probes.",
     metrics: [
       ["Probe availability", "Unavailable", "No managed-destination probe results"],
@@ -1431,7 +1475,7 @@ const reticulumTelemetryTabs = [
     id: "links",
     label: "Links",
     labelKey: "reticulum.tabs.links",
-    iconName: "activity",
+    iconName: RETICULUM_TAB_ICON_LUT.links,
     summary: "Local application link and receipt evidence, separate from interface health.",
     metrics: [
       ["Active links", "Unavailable", "No local link summary"],
@@ -1442,6 +1486,26 @@ const reticulumTelemetryTabs = [
     details: [
       ["activity", "Link evidence", "For wallet-owned applications, expose link age, idle time, request response time, MTU, MDU, receipt state, resource-transfer progress, and optional local physical stats when track_phy_stats is enabled."],
       ["shield", "No link tracing", "Remote identities, destinations, payload content, individual-link history, and teardown internals remain outside the wallet surface." ]
+    ]
+  }
+];
+
+const aggregatorsTelemetryTabs = [
+  {
+    id: "overview",
+    labelKey: "aggregators.tabs.overview",
+    iconName: "activity",
+    summary: "Read-only service and publication evidence for aggregation work. It never receives wallet keys, seeds, or policy secrets.",
+    metrics: [
+      ["Service bindings", "Unavailable", "No wallet-to-node status bridge"],
+      ["Publication", "Unavailable", "No latest publication record"],
+      ["Placement", "Unavailable", "No batch placement observation"],
+      ["Verdict", "Unavailable", "No validation or lifecycle evidence"]
+    ],
+    details: [
+      ["activity", "Service bindings", "When a verified local bridge exists, report whether aggregator, validator, and watcher services are attached. A detached service is not an error by itself."],
+      ["exchange", "Publication and placement", "Report a batch or publication lifecycle only when an authoritative record exists. Do not claim settlement, acceptance, or a recipient outcome from a queued publication."],
+      ["shield", "Verification evidence", "Expose a local verdict, lifecycle state, provider signal, and observation only with their freshness and scope. Keep wallet-specific identifiers and private payloads out of this page."]
     ]
   }
 ];
@@ -1485,7 +1549,7 @@ const onionnetTelemetryTabs = [
     iconName: "shield",
     summary: "Privacy is described through separate lane, diversity, route-floor, and cover-traffic contract signals — never one universal score.",
     metrics: [
-      ["Privacy floor", "Unavailable", "No active profile evaluation"],
+      ["Privacy", "Unavailable", "No active profile evaluation"],
       ["Active lanes", "Unavailable", "No lane-contract snapshot"],
       ["Minimum bucket population", "Unavailable", "No bucket aggregate"],
       ["Compliant route floor", "Unavailable", "No policy-bound route count"]
@@ -1606,39 +1670,25 @@ function onionnetTelemetryView() {
   });
 }
 
+function aggregatorsTelemetryView() {
+  return telemetryTabbedView({
+    source: "aggregators",
+    tabs: aggregatorsTelemetryTabs,
+    selectedTabId: state.aggregatorsTelemetryTab,
+    eyebrowKey: "network.publicationTelemetry",
+    titleKey: "aggregators.title",
+    summaryKey: "aggregators.summary",
+    localCapabilityKey: "aggregators.localCapability",
+    localCapabilityHelpKey: "aggregators.localCapabilityHelp",
+    notice: "Telemetry is evidence, not a control plane. It remains read-only, scope-labelled, freshness-labelled, and separate from wallet and application setup."
+  });
+}
+
 function telemetryView() {
   const source = state.telemetrySource;
   if (source === "reticulum") return reticulumTelemetryView();
   if (source === "onionnet") return onionnetTelemetryView();
-  const definitions = {
-    aggregators: {
-      label: "Aggregators",
-      eyebrow: "Publication telemetry",
-      summary: "Read-only service and publication evidence for aggregation work. It is not a wallet setup page and never receives wallet keys, seeds, or policy secrets.",
-      metrics: [
-        ["Service bindings", "Unavailable", "No wallet-to-node status bridge"],
-        ["Publication", "Unavailable", "No latest publication record"],
-        ["Placement", "Unavailable", "No batch placement observation"],
-        ["Verdict", "Unavailable", "No validation or lifecycle evidence"]
-      ],
-      sections: [
-        ["activity", "Service bindings", "When a verified local bridge exists, report whether aggregator, validator, and watcher services are attached. A detached service is not an error by itself."],
-        ["exchange", "Publication and placement", "Report a batch or publication lifecycle only when an authoritative record exists. Do not claim settlement, acceptance, or a recipient outcome from a queued publication."],
-        ["shield", "Verification evidence", "Expose a local verdict, lifecycle state, provider signal, and observation only with their freshness and scope. Keep wallet-specific identifiers and private payloads out of this page."]
-      ],
-      note: "The rollup node can build a StatusSnapshot with service bindings, publication, placement, verdict, lifecycle, provider signal, and observation. The wallet has no registered bridge to that snapshot yet, so this page correctly shows unavailable."
-    }
-  };
-  const item = definitions[source] || definitions.aggregators;
-  return `<section class="view-enter telemetry-view" aria-labelledby="telemetry-heading">
-    <div class="page-intro"><div><p class="eyebrow">${item.eyebrow}</p><h2 id="telemetry-heading">${item.label} telemetry</h2><p>${item.summary}</p></div><span class="status-badge">Read-only</span></div>
-    <div class="capability-note">${icon("alert")}<span><strong>Local capability unavailable</strong><small>${item.note}</small></span></div>
-    <section class="network-summary-grid telemetry-summary" aria-label="${item.label} telemetry summary">${item.metrics.map(([label, value, helper]) => telemetryValue(label, value, helper)).join("")}</section>
-    <section class="telemetry-grid" aria-label="${item.label} telemetry details">
-      ${item.sections.map(([iconName, title, detail]) => `<article class="card telemetry-card">${telemetryLine(iconName, title, detail)}</article>`).join("")}
-    </section>
-    <div class="notice">${icon("shield")} Telemetry is evidence, not a control plane. It remains read-only, scope-labelled, freshness-labelled, and separate from application and wallet setup.</div>
-  </section>`;
+  return aggregatorsTelemetryView();
 }
 
 function render(options = {}) {
@@ -1650,6 +1700,7 @@ function render(options = {}) {
   const [title, context] = headings[state.view];
   const [telemetryTitle, telemetryContext] = telemetryTopbar[state.telemetrySource] || telemetryTopbar.onionnet;
   const telemetryScreen = state.view === "telemetry";
+  const settingsScreen = state.view === "settings";
   pageTitle.textContent = walletScreen ? wallet.address : telemetryScreen ? telemetryTitle : t(title);
   pageContext.textContent = walletScreen
     ? t("app.walletContext", { wallet: wallet.name })
@@ -1658,6 +1709,7 @@ function render(options = {}) {
       : t(context);
   pageTitle.classList.toggle("is-wallet-address", walletScreen);
   pageTitle.classList.toggle("is-telemetry-title", telemetryScreen);
+  pageTitle.classList.toggle("is-settings-title", settingsScreen);
   copyWalletAddress.hidden = !walletScreen;
   walletIdentity.hidden = !walletScreen;
 
@@ -1689,7 +1741,7 @@ function render(options = {}) {
   syncBalanceButtons();
   requestAnimationFrame(() => {
     walletTabs.querySelector(".wallet-tab.is-active")?.scrollIntoView({ block: "nearest", inline: "center" });
-    const activeContext = main.querySelector(".context-nav-child.is-active") || main.querySelector(".context-nav-item.is-active");
+    const activeContext = main.querySelector(".settings-network-tab.is-active") || main.querySelector(".context-nav-child.is-active") || main.querySelector(".context-nav-item.is-active");
     activeContext?.scrollIntoView({ block: "nearest", inline: "center" });
   });
   if (options.focusMain) {
@@ -1763,6 +1815,7 @@ function validateAndApplyWalletSettingsYaml(source, apply = false) {
 function sensitiveWalletDialog(type) {
   const wallet = activeWallet();
   const preferences = activeWalletPreferences();
+  if (type === "wallet-password-change") return walletPasswordChangeDialog();
   if (type === "wallet-policy-profile") {
     return dialogFrame({
       title: "Compliance profile preview",
@@ -1829,6 +1882,29 @@ function sensitiveWalletDialog(type) {
     subtitle: definition.subtitle,
     body: `<form class="form-grid" id="${type}-entry" novalidate>${definition.body}<div class="field-group"><label class="field-label" for="${passwordId}">Wallet password</label><input id="${passwordId}" name="password" type="password" minlength="8" autocomplete="current-password" required><p class="field-hint">This concept validates locally and clears the value immediately after use.</p><p class="field-error" id="${type}-error" role="alert"></p></div>${confirmationMarkup}</form>`,
     footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="${type}-entry">${definition.actionLabel}</button>`
+  });
+}
+
+function walletPasswordChangeDialog() {
+  if (state.flow.step === 1) {
+    return dialogFrame({
+      title: t("walletSettings.passwordChangedTitle"),
+      subtitle: "Local concept result",
+      body: `<div class="result-state"><span class="result-icon">${icon("check")}</span><h3>${t("walletSettings.passwordChangedTitle")}</h3><p>${t("walletSettings.passwordChangedResult")}</p></div>`,
+      footer: `<button class="button button-primary" type="button" data-dialog-close>Done</button>`
+    });
+  }
+
+  return dialogFrame({
+    title: t("walletSettings.changePasswordTitle"),
+    subtitle: t("walletSettings.changePasswordSubtitle"),
+    body: `<form class="form-grid" id="wallet-password-change-entry" novalidate>
+      <div class="field-group"><label class="field-label" for="wallet-current-password">${t("walletSettings.currentPassword")}</label><input id="wallet-current-password" name="currentPassword" type="password" minlength="8" autocomplete="current-password" required></div>
+      <div class="field-group"><label class="field-label" for="wallet-new-password">${t("walletSettings.newPassword")}</label><input id="wallet-new-password" name="newPassword" type="password" minlength="8" autocomplete="new-password" required><p class="field-hint">${t("walletSettings.passwordChangeHint")}</p></div>
+      <div class="field-group"><label class="field-label" for="wallet-confirm-new-password">${t("walletSettings.confirmNewPassword")}</label><input id="wallet-confirm-new-password" name="confirmNewPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+      <p class="field-error" id="wallet-password-change-error" role="alert"></p>
+    </form>`,
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="wallet-password-change-entry">${t("walletSettings.changePasswordSubmit")}</button>`
   });
 }
 
@@ -2052,13 +2128,14 @@ function permissionDialog() {
 }
 
 function permissionDetailDialog() {
+  const permission = permissionDetails[state.flow.data.permissionId] || permissionDetails.receipt;
   return dialogFrame({
-    title: "Delivery receipt access",
-    subtitle: "Held data-access permission",
+    title: permission.title,
+    subtitle: permission.subtitle,
     body: `
-      <div class="review-card review-hero"><span class="list-icon is-warning">${icon("permission")}</span><strong>2 of 5 uses</strong><span>remaining</span></div>
-      <div class="review-card"><div class="summary-row"><span>Class</span><strong>Data access</strong></div><div class="summary-row"><span>Allowed action</span><strong>View receipt</strong></div><div class="summary-row"><span>Scope</span><strong>receipts.example</strong></div><div class="summary-row"><span>Delegation</span><strong>Forbidden</strong></div><div class="summary-row"><span>Ends</span><strong>31 Jul 2026</strong></div><div class="summary-row"><span>Monetary value</span><strong>None</strong></div><div class="summary-row"><span>Status</span><strong><span class="status-badge is-active">Held</span></strong></div></div>
-      <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Right: right_54ac…1f88</span><span>Class: data_access</span><span>Lifecycle: granted → held</span></div></details>`,
+      <div class="review-card review-hero"><span class="list-icon is-warning">${icon("permission")}</span><strong>${permission.remaining}</strong><span>remaining</span></div>
+      <div class="review-card"><div class="summary-row"><span>Class</span><strong>${permission.classLabel}</strong></div><div class="summary-row"><span>Allowed action</span><strong>${permission.action}</strong></div><div class="summary-row"><span>Scope</span><strong>${permission.scope}</strong></div><div class="summary-row"><span>Delegation</span><strong>${permission.delegation}</strong></div><div class="summary-row"><span>Ends</span><strong>${permission.expiry}</strong></div><div class="summary-row"><span>Monetary value</span><strong>None</strong></div><div class="summary-row"><span>Status</span><strong><span class="status-badge is-active">Held</span></strong></div></div>
+      <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Right: ${permission.rightId}</span><span>Class: ${permission.kind}</span><span>Lifecycle: granted → held</span></div></details>`,
     footer: `<button class="button button-danger" type="button" data-dialog-action="permission-revoke">Revoke permission</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
 }
@@ -2096,7 +2173,7 @@ function assetDetailDialog() {
 
 function connectionDialog() {
   return dialogFrame({
-    title: "Network & privacy",
+    title: "Network",
     subtitle: "Overlay, carrier, and chain are separate",
     body: `
       <p class="eyebrow">Privacy mode · target simulation</p>
@@ -2307,7 +2384,7 @@ function renderDialog() {
     : type === "create-wallet" ? createWalletDialog()
     : type === "open-wallet" ? openWalletDialog()
     : type === "recover-wallet" ? recoverWalletDialog()
-    : ["wallet-rename", "wallet-seed-reveal", "wallet-public-export", "wallet-key-rotation", "wallet-policy-apply", "wallet-policy-profile"].includes(type) ? sensitiveWalletDialog(type)
+    : ["wallet-rename", "wallet-password-change", "wallet-seed-reveal", "wallet-public-export", "wallet-key-rotation", "wallet-policy-apply", "wallet-policy-profile"].includes(type) ? sensitiveWalletDialog(type)
     : notificationsDialog();
   dialogContent.innerHTML = content;
 }
@@ -2503,6 +2580,45 @@ function validateWalletSettingsAction(form) {
   syncConfigDraftFromState();
   state.flow.step = 1;
   render();
+  renderDialog();
+}
+
+function validateWalletPasswordChange(form) {
+  const currentPassword = form.elements.currentPassword;
+  const newPassword = form.elements.newPassword;
+  const confirmNewPassword = form.elements.confirmNewPassword;
+  const error = form.querySelector(".field-error");
+  const fields = [currentPassword, newPassword, confirmNewPassword];
+  if (error) error.textContent = "";
+  fields.forEach((field) => field.removeAttribute("aria-invalid"));
+
+  if (currentPassword.value.length < 8) {
+    error.textContent = t("walletSettings.passwordCurrentError");
+    currentPassword.setAttribute("aria-invalid", "true");
+    currentPassword.focus();
+    return;
+  }
+  if (newPassword.value.length < 8) {
+    error.textContent = t("walletSettings.passwordNewError");
+    newPassword.setAttribute("aria-invalid", "true");
+    newPassword.focus();
+    return;
+  }
+  if (newPassword.value === currentPassword.value) {
+    error.textContent = t("walletSettings.passwordSameError");
+    newPassword.setAttribute("aria-invalid", "true");
+    newPassword.focus();
+    return;
+  }
+  if (confirmNewPassword.value !== newPassword.value) {
+    error.textContent = t("walletSettings.passwordMismatchError");
+    confirmNewPassword.setAttribute("aria-invalid", "true");
+    confirmNewPassword.focus();
+    return;
+  }
+
+  fields.forEach((field) => { field.value = ""; });
+  state.flow.step = 1;
   renderDialog();
 }
 
@@ -2803,7 +2919,12 @@ document.addEventListener("click", (event) => {
 
   const flowButton = event.target.closest("[data-open-flow]");
   if (flowButton) {
-    openFlow(flowButton.dataset.openFlow, flowButton, flowButton.dataset.assetKey ? { assetKey: flowButton.dataset.assetKey } : {});
+    const flowData = flowButton.dataset.assetKey
+      ? { assetKey: flowButton.dataset.assetKey }
+      : flowButton.dataset.permissionId
+        ? { permissionId: flowButton.dataset.permissionId }
+        : {};
+    openFlow(flowButton.dataset.openFlow, flowButton, flowData);
     return;
   }
 
@@ -2841,14 +2962,10 @@ document.addEventListener("click", (event) => {
   if (settingButton) {
     const section = settingButton.dataset.settingsSection;
     if (section === "network") {
-      if (state.settingsSection === "network" && state.isNetworkOpen) {
-        state.isNetworkOpen = false;
-        state.networkSection = "overview";
-      } else {
-        state.isNetworkOpen = true;
-        state.networkSection = "overview";
-      }
+      const wasNetwork = state.settingsSection === "network";
       state.settingsSection = "network";
+      state.isNetworkOpen = true;
+      if (!wasNetwork) state.networkSection = "overview";
     } else {
       state.settingsSection = section;
       state.isNetworkOpen = false;
@@ -2884,6 +3001,13 @@ document.addEventListener("click", (event) => {
   const onionnetTelemetryButton = event.target.closest("[data-onionnet-telemetry-tab]");
   if (onionnetTelemetryButton) {
     state.onionnetTelemetryTab = onionnetTelemetryButton.dataset.onionnetTelemetryTab;
+    render();
+    return;
+  }
+
+  const aggregatorsTelemetryButton = event.target.closest("[data-aggregators-telemetry-tab]");
+  if (aggregatorsTelemetryButton) {
+    state.aggregatorsTelemetryTab = aggregatorsTelemetryButton.dataset.aggregatorsTelemetryTab;
     render();
     return;
   }
@@ -2946,6 +3070,8 @@ document.addEventListener("submit", (event) => {
   event.preventDefault();
   if (["wallet-rename-entry", "wallet-seed-reveal-entry", "wallet-public-export-entry", "wallet-key-rotation-entry", "wallet-policy-apply-entry"].includes(event.target.id)) {
     validateWalletSettingsAction(event.target);
+  } else if (event.target.id === "wallet-password-change-entry") {
+    validateWalletPasswordChange(event.target);
   } else if (event.target.id === "pay-entry") {
     validatePay(event.target);
   } else if (event.target.id === "receive-entry") {

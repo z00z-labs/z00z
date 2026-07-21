@@ -568,8 +568,8 @@ pub enum RecursiveEvidenceRequestV2 {
 /// or fully reloaded and reverified snapshot evidence.
 #[derive(Debug)]
 pub enum RecursiveEvidenceOutcomeV2 {
-    Folded(RecursiveFinalizedIvcStateV2),
-    Snapshot(RecursiveCheckpointEvidenceV2),
+    Folded(Box<RecursiveFinalizedIvcStateV2>),
+    Snapshot(Box<RecursiveCheckpointEvidenceV2>),
 }
 
 /// Cooperative cancellation for one production evidence attempt. It cannot
@@ -817,7 +817,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         if request == RecursiveEvidenceRequestV2::FoldOnly {
             revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
             *session_slot = Some(session);
-            return Ok(RecursiveEvidenceOutcomeV2::Folded(successor));
+            return Ok(RecursiveEvidenceOutcomeV2::Folded(Box::new(successor)));
         }
         let (stage, verifier_attempts) = stage
             .retain(self.reserve_verifier_attempts(VERIFIER_ATTEMPTS_PER_RECEIPT_V2))
@@ -987,7 +987,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         };
         *session_slot = Some(session);
 
-        Ok(RecursiveEvidenceOutcomeV2::Snapshot(
+        Ok(RecursiveEvidenceOutcomeV2::Snapshot(Box::new(
             RecursiveCheckpointEvidenceV2 {
                 sidecar,
                 receipt,
@@ -997,7 +997,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 successor,
                 verifier_attempts,
             },
-        ))
+        )))
     }
 
     fn object_dir(&self, class: &str) -> Result<&SecureDir, CheckpointError> {
@@ -1570,8 +1570,8 @@ mod tests {
         let receipt_bytes = receipt.canonical_bytes().to_vec();
         assert_eq!(
             receipt_bytes.len(),
-            super::version_registry::RECURSIVE_OBJECT_PREHEADER_BYTES_V2
-                + super::receipt::RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2
+            super::super::version_registry::RECURSIVE_OBJECT_PREHEADER_BYTES_V2
+                + super::super::receipt::RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2
         );
         assert!(!evidence_root.join("receipts").exists());
         assert!(store
@@ -1603,7 +1603,7 @@ mod tests {
     fn test_real_chain_public_receipt() {
         use crate::{
             checkpoint::canonical_transition::SettlementRootGenerationCutoverV2,
-            fixture_support::settlement_corpus::{asset_item, load_fixture, redb_store_with_bits},
+            fixture_support::settlement_corpus::{asset_item, load_fixture, redb_store},
         };
         use z00z_crypto::{sha256_256_role, CheckpointShaRole};
 
@@ -1617,8 +1617,12 @@ mod tests {
         let checkpoint_root = chain.path().join("checkpoints");
         create_dir_all(&checkpoint_root).expect("create checkpoint root");
 
+        // The retained prover/VK material is bound to the canonical active
+        // authority policy.  A test-only HJMT bucket override would select a
+        // distinct authority and must be covered by the negative corpus, not
+        // by this positive continuous-ingress path.
         let (_hjmt_guard, _settlement_dir, mut settlement_store) =
-            redb_store_with_bits(Some("2")).expect("durable T3 settlement store");
+            redb_store().expect("durable T3 settlement store");
         let fixture = load_fixture();
         settlement_store
             .put_settlement_item(asset_item(&fixture.assets[0]))
@@ -1685,7 +1689,7 @@ mod tests {
             match outcome {
                 RecursiveEvidenceOutcomeV2::Folded(successor) => {
                     assert_eq!(request, RecursiveEvidenceRequestV2::FoldOnly);
-                    prior = successor;
+                    prior = *successor;
                 }
                 RecursiveEvidenceOutcomeV2::Snapshot(evidence) => {
                     assert_eq!(request, RecursiveEvidenceRequestV2::Snapshot);

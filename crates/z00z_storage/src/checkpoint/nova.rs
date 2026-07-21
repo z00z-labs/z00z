@@ -26618,6 +26618,8 @@ mod tests {
         let bundle = prover
             .verifier_bundle(&vk, binding)
             .expect("canonical authority-selected verifier bundle");
+        retain_t3_artifact("prover-material.bin", &material);
+        retain_t3_artifact("verifier-bundle.bin", &bundle);
         let resolved =
             super::resolve_verifier_authority_v2(&material, &bundle, authority, &profile);
         let selected = NovaVerifierBundleV2::load(
@@ -26650,8 +26652,6 @@ mod tests {
             &profile,
         )
         .is_err());
-        retain_t3_artifact("prover-material.bin", &material);
-        retain_t3_artifact("verifier-bundle.bin", &bundle);
         let canonical_header = super::ProverMaterialHeaderV2::decode(&material)
             .expect("canonical private prover-material header");
         eprintln!(
