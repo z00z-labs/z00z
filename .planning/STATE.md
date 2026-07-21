@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.15
 milestone_name: Storage Serialization Bootstrap
-status: "Phase 069 Active — 069-051-T0, T1 and T2 are complete; T2 closes the one full Nova relation plus bounded deterministic HJMT segments, incremental hierarchy verification, the authority-selected 1 MiB/one-worker/one-prover/k=1 profile, a private 1 GiB identity-bound PP/PK cache, deterministic replay recovery, accepted F12/F23/F24 and conditional A-17, final proof/Model C/artifacts, release/review/doublecheck gates, scoped versioning and detached clean-clone reproducibility on source revision `e58e2f9a…dbd6` and local patch release `v1.14.1`/`37ece6c…faad2`; 069-051-T3 is OPEN as the next task and is not started; T4 and Plans 06–13 remain locked; CheckpointProofSystem::VERIFIED remains disabled; ordinary remote push retry remains pending after DNS failure"
-last_updated: "2026-07-20T11:35:37.659Z"
-last_activity: 2026-07-20
+status: "Phase 069 active — 069-051 T0–T2 complete; T3/T4 implementation and current-source verification in progress; Plans 06–13 locked"
+last_updated: "2026-07-21T05:09:12.000Z"
+last_activity: 2026-07-21
 progress:
   total_phases: 47
   completed_phases: 0
   total_plans: 14
   completed_plans: 5
   percent: 0
-stopped_at: Completed `069-051-T2`; next is `069-051-T3`. T3 was not implemented.
+stopped_at: Validating `069-051-T3/T4` on current source; Plan 051 is not yet accepted.
 current_phase: 069
 current_phase_name: Recursive Proof
 current_plan: 069-051
@@ -30,13 +30,12 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 
 ## Status
 
-**Active lane:** Phase `069` continues at `069-051`; T0–T2 are complete, while T3/T4 close the single production Nova V2 runner, strict evidence acceptance, recovery, and theorem/evidence gates.
-**Current gate:** Current-source identity, captured bootstrap, proof artifacts, and real same-`z_0` 1/3/5 receipt evidence must converge; superseded runs are historical only. Phase 069 outputs belong only under `crates/z00z_storage/outputs/checkpoint`; the repository-root `test-results` tree must remain absent.
-**Queued packet:** Plans `069-06` through `069-13` remain dependency-locked until `069-051-T3/T4` and all release/review/doublecheck gates close.
-**Parallel pause:** Phase `046` remains paused after `046-04`; it is outside this execution lane.
-**Progress:** [████░░░░░░] 36% of Phase 069 execution (5/14 plans; `069-051` in progress).
-**Last activity:** `2026-07-20` landed the V2 registry/config/codec/sidecar/receipt/authority path, moved Phase 069 outputs to the storage-owned canonical root, and added fail-closed output guards; current-source proof acceptance remains open.
-**Guardrails:** Future/target authority text is live scope; keep one V2-only canonical path, release-only Cargo gates, three reviews ending in two clean passes plus two doublechecks per verify block, and keep `CheckpointProofSystem::VERIFIED` disabled until promotion gates pass.
+**Active lane:** `069-051`; T0–T2 complete, T3/T4 implementation and verification in progress.
+**Current gate:** Bootstrap must pass on source revision `5a381948…3cbad2d`, followed by release gates, three reviews ending in two clean passes, and two doublechecks.
+**Blocking defect:** The pre-uniqueness epoch cadence was digest-bound but absent from the transcript/Nova anchor layout; the canonical binding fix is pending bootstrap validation.
+**Progress:** [████░░░░░░] 36% (5/14 plans); `069-051` is not complete and Plans 06–13 remain locked.
+**Output policy:** Evidence belongs only under `crates/z00z_storage/outputs/checkpoint`; repository-root `test-results` must remain absent.
+**Authority:** Future/target design text is live scope; keep one V2-only path and `CheckpointProofSystem::VERIFIED` disabled until promotion gates pass.
 
 ## Historical Status
 

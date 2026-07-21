@@ -22,6 +22,13 @@ Optional visual smoke test (with the development server above still running):
 .planning/phases/110-Wallet-UX-UI/demo/run-smoke.sh
 ```
 
+## 🌐 Languages
+
+The concept includes English, Russian, French, German, Spanish, Japanese, and
+Simplified Chinese UI catalogues. Language, regional format, and display time zone
+are independent preferences. See [I18N-ARCHITECTURE.md](I18N-ARCHITECTURE.md) for
+the catalogue contract, local machine-translation bridge, and required checks.
+
 ## 🧪 Suggested walkthrough
 
 1. Resize between desktop and a 390 px mobile viewport.
@@ -31,13 +38,13 @@ Optional visual smoke test (with the development server above still running):
 5. Use **Log out**, confirm the application shell is hidden, then unlock; the password field and visible sensitive presentation state must be cleared on lock.
 6. Open Assets and compare Assets, Vouchers, and Permissions in the context rail; conditional and zero-value objects never appear in Available.
 7. Verify that Claim and Voucher are separate flows: Claim reviews source proof/recipient/output/nullifier, while Voucher uses accept/redeem lifecycle actions.
-8. In Settings → Network, compare Overview, Reticulum, OnionNet, and Carriers. Click Network again to collapse the branch, then reopen it; leaf entries have no disclosure mark. The detailed status is explicitly a Phase 080 target simulation because the current RPC is stubbed.
-9. Inspect Settings → Policies and the restriction-layer / “Why blocked?” model.
-10. Inspect Settings → Advanced for the local concept YAML/Form/Mapping draft. It validates and updates only demo state; production configuration write/watch/revision remains unavailable and is explicitly labelled.
+8. Open OnionNet, Reticulum, and Aggregators from the left Network group. Each opens a separate read-only telemetry workspace, never a setup page. OnionNet uses the same second-row tab grammar as a wallet: Overview, Epoch, Privacy floor, Transport, Queues & replay, Probation, and Ingress boundary. These panels distinguish public deterministic state, local evidence, and aggregate synthetic health; they never reveal a user route, endpoint, session, or universal privacy score. Reticulum uses Node, Interfaces, Radio, Entry points, Paths, Probes, and Links for managed-node/local evidence rather than claims about the whole network. Unavailable evidence stays unavailable; Aggregators describes only a future wallet-to-node status bridge.
+9. Inspect a selected wallet’s Settings → Policies and the restriction-layer / “Why blocked?” model.
+10. Inspect a selected wallet’s Settings → Advanced for the local concept YAML draft. It validates and updates only that wallet’s demo state; production configuration write/watch/revision remains unavailable and is explicitly labelled.
 11. Inspect Settings on desktop and narrow widths: the page heading, context tree, and detail card now use one aligned layout; the Network branch opens only when selected.
-12. Switch System/Dark/Light and choose Z00Z Default, Black & Gold, Deep Blue Sea, Golden Twilight, or Midnight Sky. Palette changes update semantic tokens while safety colours remain protected.
+12. In application Settings → Appearance, switch System/Dark/Light and choose Z00Z Default, Black & Gold, Deep Blue Sea, Golden Twilight, or Midnight Sky. Palette changes update semantic tokens while safety colours remain protected. Appearance also selects the application-wide YAML syntax theme: One Light, Xcode, One Dark, or Night Owl.
 13. Filter the selected wallet's History and open technical details.
-14. Use **Add wallet** to create, open, or restore a profile, or choose **Cancel** to return to the selected wallet. **Remove wallet** confirms before removing one or more selected concept profiles; removing all profiles returns to **Add wallet**. Created and restored wallets become cards in a three-card scrollable left placeholder; Add/Remove follow the cards in that same scroll area and sit at its lower edge for a short or empty list. Remove becomes disabled when the list is empty. The recovery helper inserts 24 demonstration words that are never a real seed.
+14. Use **Add wallet** to create, open, or restore a profile, or choose **Cancel** to return to the selected wallet. **Remove wallet** confirms before removing one or more selected concept profiles; removing all profiles returns to **Add wallet**. The Wallets placeholder shows exactly three rows and one scrollbar: wallet cards, Add, and Remove are one ordered scroll list. Remove becomes disabled when the list is empty. The recovery helper inserts 24 demonstration words that are never a real seed.
 15. Open Assets and select an asset name to inspect its asset-details fields; the table shows Name, Balance, Value, and Price for each asset.
 16. Open a selected wallet's Settings. Confirm that General, Security, Backup, Policies, and Advanced are scoped to that wallet. Sensitive actions require a fresh password and their typed confirmation; secret/private material is never rendered or placed in YAML.
 

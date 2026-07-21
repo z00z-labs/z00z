@@ -31,8 +31,9 @@ pub(crate) const RECURSIVE_HJMT_RESULT_BYTES_V2: u64 =
 pub(crate) const RECURSIVE_HJMT_SNAPSHOT_BYTES_V2: u64 = 64 * 1024 * 1024;
 /// The Nova prover is sequential and has no runtime concurrency selector.
 pub(crate) const RECURSIVE_NOVA_PROVERS_V2: u32 = 1;
-/// Private PP/PK cache ceiling for the sole selected material identity.
-pub(crate) const RECURSIVE_NOVA_CACHE_BYTES_V2: u64 = 1024 * 1024 * 1024;
+/// Maximum resident PP/PK bytes for one invocation. Material is loaded from
+/// authority-owned bytes and zeroized on drop; no plaintext cache exists.
+pub(crate) const RECURSIVE_NOVA_MATERIAL_BYTES_V2: u64 = 1024 * 1024 * 1024;
 /// Recovery replays sealed source/JMT segments; no Nova accumulator image is
 /// admitted until the dependency exposes a canonical validated codec.
 pub(crate) const RECURSIVE_RECOVERY_REPLAY_V2: u8 = 1;
@@ -49,14 +50,14 @@ const SOURCE_FIXED_RECORDS_V2: u64 = 6;
 /// canonical source-record expansion.
 const FINALIZATION_STEPS_V2: u64 = 4;
 /// Bounded JMT controls per update in addition to the sibling path.
-const JMT_FIXED_STEPS_PER_UPDATE_V2: u64 = 7;
+const JMT_STEPS_PER_UPDATE_V2: u64 = 7;
 /// One canonical replay uniqueness row commits path, terminal and leaf value.
 pub(crate) const RECURSIVE_IDENTIFIER_BYTES_V2: u64 = UNIQUENESS_SEMANTIC_ROW_BYTES_V2 as u64;
 /// The two private sorters each retain a resident semantic-row buffer.
 const RECURSIVE_IDENTIFIER_SORTERS_V2: u64 = 2;
 /// One source record is held both as its exact spool bytes and as its decoded
 /// event while the evaluator invokes its immediately derived controls.
-const NATIVE_EVALUATOR_SOURCE_RECORD_COPIES_V2: u64 = 2;
+const EVALUATOR_SOURCE_COPIES_V2: u64 = 2;
 /// One begin/end pair for the global trace hash, four list commitments,
 /// twelve uniqueness transcripts, and two SettlementV2 root transcripts.
 /// Source-record hash delimiters are counted separately because their number
@@ -66,7 +67,7 @@ const NATIVE_EVALUATOR_SOURCE_RECORD_COPIES_V2: u64 = 2;
 const FIXED_DERIVED_HASH_DELIMITERS_V2: u64 = 2 * (1 + 4 + 14);
 /// Every canonical source chunk has one authenticated memory write and one
 /// byte-equal TraceChunk control.
-const DERIVED_BYTE_CONTROLS_PER_CHUNK_V2: u64 = 2;
+const BYTE_CONTROLS_PER_CHUNK_V2: u64 = 2;
 /// Exact raw part geometry for the two U transcripts.
 const UNIQUENESS_PRECOMMIT_PART_BYTES_V2: u64 = 32 + 1 + 4 + 32 + 32;
 const UNIQUENESS_PRECOMMIT_PART_COUNT_V2: u64 = 5;
@@ -168,7 +169,7 @@ impl RecursiveCircuitProfileV2 {
         // the same frozen caps that are committed below.  It is deliberately
         // separate from disk spool feasibility: the decoded source record and
         // verified JMT envelope are live simultaneously during evaluation.
-        Self::native_evaluator_resident_bytes_from_parts(
+        Self::count_evaluator_resident_bytes(
             max_leaf_bytes,
             max_content_bytes,
             resident_buffer_bytes,
@@ -307,7 +308,7 @@ impl RecursiveCircuitProfileV2 {
     /// `source_record_hash` transcript.  Unlike the source trace digest, each
     /// source record starts a fresh role-framed FIPS stream and therefore owns
     /// its DST, label, length prefixes, and terminal padding block.
-    pub fn sha_blocks_for_source_record_hashes(
+    pub fn count_source_hash_blocks(
         payload_bytes: u64,
         source_records: u64,
     ) -> Result<u64, CheckpointError> {
@@ -353,8 +354,7 @@ impl RecursiveCircuitProfileV2 {
         max_spent: u32,
         max_outputs: u32,
     ) -> Result<u64, CheckpointError> {
-        let source_local =
-            Self::sha_blocks_for_source_record_hashes(max_content_bytes, max_source_records)?;
+        let source_local = Self::count_source_hash_blocks(max_content_bytes, max_source_records)?;
         let global = Self::sha_blocks_for_role_parts(
             CheckpointShaRole::Trace,
             max_content_bytes,
@@ -533,10 +533,10 @@ impl RecursiveCircuitProfileV2 {
             .map(|bytes| bytes / 64)
             .ok_or(CheckpointError::Overflow)?;
         let byte_controls = canonical_chunks
-            .checked_mul(DERIVED_BYTE_CONTROLS_PER_CHUNK_V2)
+            .checked_mul(BYTE_CONTROLS_PER_CHUNK_V2)
             .ok_or(CheckpointError::Overflow)?;
         let jmt_per_update = u64::from(max_siblings)
-            .checked_add(JMT_FIXED_STEPS_PER_UPDATE_V2)
+            .checked_add(JMT_STEPS_PER_UPDATE_V2)
             .ok_or(CheckpointError::Overflow)?;
         let jmt = u64::from(max_jmt_updates)
             .checked_mul(jmt_per_update)
@@ -602,7 +602,7 @@ impl RecursiveCircuitProfileV2 {
                 .expect("validated profile has a representable native evaluator bound"),
             RECURSIVE_HJMT_RESULT_BYTES_V2,
             RECURSIVE_HJMT_SNAPSHOT_BYTES_V2,
-            RECURSIVE_NOVA_CACHE_BYTES_V2,
+            RECURSIVE_NOVA_MATERIAL_BYTES_V2,
             RECURSIVE_CHALLENGE_BLOCKS_V2,
         ] {
             bytes.extend_from_slice(&value.to_le_bytes());
@@ -674,7 +674,7 @@ impl RecursiveCircuitProfileV2 {
     /// and the separately reserved ordered-result bytes.  The complete JMT
     /// envelope is never resident on the production path.
     pub fn native_evaluator_resident_bytes(&self) -> Result<u64, CheckpointError> {
-        Self::native_evaluator_resident_bytes_from_parts(
+        Self::count_evaluator_resident_bytes(
             self.max_leaf_bytes,
             self.max_content_bytes,
             self.resident_buffer_bytes,
@@ -696,7 +696,7 @@ impl RecursiveCircuitProfileV2 {
         self.spool_merge_fan_in
     }
 
-    fn native_evaluator_resident_bytes_from_parts(
+    fn count_evaluator_resident_bytes(
         max_leaf_bytes: u32,
         max_content_bytes: u64,
         resident_buffer_bytes: u32,
@@ -709,9 +709,7 @@ impl RecursiveCircuitProfileV2 {
         u64::from(RECURSIVE_HJMT_SEGMENT_BYTES_V2)
             .checked_add(RECURSIVE_HJMT_RESULT_BYTES_V2)
             .and_then(|value| {
-                value.checked_add(
-                    source_record_bytes.checked_mul(NATIVE_EVALUATOR_SOURCE_RECORD_COPIES_V2)?,
-                )
+                value.checked_add(source_record_bytes.checked_mul(EVALUATOR_SOURCE_COPIES_V2)?)
             })
             .and_then(|value| value.checked_add(u64::from(resident_buffer_bytes)))
             .ok_or(CheckpointError::Overflow)
@@ -793,13 +791,13 @@ mod tests {
         RecursiveCircuitProfileV2, RECURSIVE_CHALLENGE_BLOCKS_V2,
         RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2, RECURSIVE_HJMT_RESULT_BYTES_V2,
         RECURSIVE_HJMT_SEGMENT_BYTES_V2, RECURSIVE_HJMT_SNAPSHOT_BYTES_V2,
-        RECURSIVE_HJMT_THREADS_V2, RECURSIVE_NOVA_CACHE_BYTES_V2, RECURSIVE_NOVA_PROVERS_V2,
+        RECURSIVE_HJMT_THREADS_V2, RECURSIVE_NOVA_MATERIAL_BYTES_V2, RECURSIVE_NOVA_PROVERS_V2,
         RECURSIVE_RECOVERY_REPLAY_V2, RECURSIVE_V2_MAX_CONTENT_BYTES, SOURCE_FIXED_RECORDS_V2,
         TRACE_EVENT_HEADER_BYTES_V2,
     };
 
     #[test]
-    fn operational_candidate_matrix_selects_exactly_one_tuple() {
+    fn test_candidate_matrix_selects_one() {
         let segment_candidates = [1_u32, 4, 8].map(|mib| mib * 1024 * 1024);
         let thread_candidates = [1_u32, 2, 4];
         let prover_candidates = [1_u32];
@@ -824,13 +822,13 @@ mod tests {
         assert_eq!(passing.len(), 1, "authority selection must be singular");
         assert_eq!(RECURSIVE_HJMT_RESULT_BYTES_V2, 2 * 1024 * 1024);
         assert_eq!(RECURSIVE_HJMT_SNAPSHOT_BYTES_V2, 64 * 1024 * 1024);
-        assert_eq!(RECURSIVE_NOVA_CACHE_BYTES_V2, 1024 * 1024 * 1024);
+        assert_eq!(RECURSIVE_NOVA_MATERIAL_BYTES_V2, 1024 * 1024 * 1024);
         assert_eq!(RECURSIVE_RECOVERY_REPLAY_V2, 1);
         assert_eq!(RECURSIVE_CHALLENGE_BLOCKS_V2, 1_555_200);
     }
 
     #[test]
-    fn sha_block_count_has_fips_padding_boundaries() {
+    fn test_sha_count_handles_padding() {
         assert_eq!(
             RecursiveCircuitProfileV2::sha_blocks_for_bytes(0).expect("zero-byte message"),
             1
@@ -873,7 +871,7 @@ mod tests {
         )
         .expect("fixture source record cap");
         assert!(
-            RecursiveCircuitProfileV2::sha_blocks_for_source_record_hashes(
+            RecursiveCircuitProfileV2::count_source_hash_blocks(
                 RECURSIVE_V2_MAX_CONTENT_BYTES,
                 source_records,
             )
@@ -881,7 +879,7 @@ mod tests {
                 > 1_048_578,
             "separately padded source-record hashes must not reuse the whole-trace bound"
         );
-        assert!(RecursiveCircuitProfileV2::sha_blocks_for_source_record_hashes(1, 0).is_err());
+        assert!(RecursiveCircuitProfileV2::count_source_hash_blocks(1, 0).is_err());
         let complete_sha = RecursiveCircuitProfileV2::sha_blocks_for_complete_trace(
             RECURSIVE_V2_MAX_CONTENT_BYTES,
             source_records,
@@ -891,7 +889,7 @@ mod tests {
         .expect("complete fixture SHA cap");
         assert!(
             complete_sha
-                > RecursiveCircuitProfileV2::sha_blocks_for_source_record_hashes(
+                > RecursiveCircuitProfileV2::count_source_hash_blocks(
                     RECURSIVE_V2_MAX_CONTENT_BYTES,
                     source_records,
                 )
@@ -909,7 +907,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_rejects_the_former_contradictory_event_and_step_caps() {
+    fn test_profile_rejects_conflicting_caps() {
         let rejected = RecursiveCircuitProfileV2::new(
             1_000,
             16,
@@ -943,7 +941,7 @@ mod tests {
     }
 
     #[test]
-    fn source_record_bound_covers_jmt_micro_records_and_the_largest_flow_payload() {
+    fn test_source_bound_covers_payloads() {
         assert!(RecursiveCircuitProfileV2::max_source_records(1, 1, 398, 4 * 1024).is_err());
         assert_eq!(
             RecursiveCircuitProfileV2::max_source_records(1, 1, 512, 4 * 1024)
@@ -972,7 +970,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_rejects_spool_that_omits_identifier_sorters() {
+    fn test_profile_requires_sorter_spool() {
         let content_bytes = 4 * 1_024;
         let source_records =
             RecursiveCircuitProfileV2::max_source_records(1, 1, 512, content_bytes)
@@ -1022,7 +1020,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_commits_native_evaluator_resident_buffer_accounting() {
+    fn test_profile_binds_evaluator_memory() {
         let profile = RecursiveCircuitProfileV2::authority_pinned();
         let source_record_bytes = u64::try_from(TRACE_EVENT_HEADER_BYTES_V2)
             .expect("header length fits u64")

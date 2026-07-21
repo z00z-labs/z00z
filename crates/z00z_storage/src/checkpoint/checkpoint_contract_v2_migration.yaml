@@ -1,28 +1,26 @@
 version: 2
 profile: checkpoint-contract-streaming-v2
 architecture_mode: checkpoint_contract_first
-
 statement:
   version: 1
   domain: z00z.checkpoint.transition.v1
   required_fields:
-    - height
-    - prev_root
-    - new_root
-    - prev_settlement_root
-    - new_settlement_root
-    - checkpoint_exec_input_id
-    - prep_snapshot_id
-    - tx_data_root
-    - delta_root
-    - witness_root
-    - journal_digest
-    - da_ref
+  - height
+  - prev_root
+  - new_root
+  - prev_settlement_root
+  - new_settlement_root
+  - checkpoint_exec_input_id
+  - prep_snapshot_id
+  - tx_data_root
+  - delta_root
+  - witness_root
+  - journal_digest
+  - da_ref
   optional_fields:
-    - claim_root
-    - prior_recursive_output_root
-    - pq_anchor_root
-
+  - claim_root
+  - prior_recursive_output_root
+  - pq_anchor_root
 branches:
   canonical:
     is_enabled: true
@@ -51,7 +49,9 @@ branches:
     selected: true
     is_available: true
     fold_cadence_blocks: 1
-    compressed_proof_snapshot_cadence_blocks: 1
+    recovery_snapshot_cadence_blocks: 100
+    compression_cadence_blocks: 1000
+    publication_cadence_blocks: 1000
     mode: fast_classical_streaming_v2
     proof_system: nova_streaming_compressed_v2
     has_prior_output_binding: true
@@ -74,14 +74,12 @@ branches:
     hash: poseidon2
     security_bits: 124
     recursion_library: p3_recursion
-
 authority_promotion:
   stage: spec_only
   recursive_authority_allowed: false
   verified_backend_allowed: false
   allowed_next_stages:
-    - config_gate
-
+  - config_gate
 verified_backend:
   proof_object: VerifiedCheckpointProofV2
   verifier_api: VerifiedCheckpointVerifierV2
@@ -93,19 +91,19 @@ verified_backend:
     max_steps: 5
     requires_prior_output_binding: true
   negative_tests:
-    - wrong_root
-    - wrong_delta
-    - wrong_witness
-    - wrong_proof
-    - wrong_link
-    - unsupported_backend
-    - mixed_era
+  - wrong_root
+  - wrong_delta
+  - wrong_witness
+  - wrong_proof
+  - wrong_link
+  - unsupported_backend
+  - mixed_era
   benchmarks:
-    - proof_size
-    - prover_time
-    - verifier_time
-    - memory
-    - witness_size
+  - proof_size
+  - prover_time
+  - verifier_time
+  - memory
+  - witness_size
   rollback:
     procedure: disable_verified_backend_without_statement_change
     preserves_statement: true
@@ -113,7 +111,6 @@ verified_backend:
     status: pending
     requires_third_party_equivalent: true
   statement_stability: CheckpointTransitionStatementV1
-
 gates:
   inputs:
     has_statement_fields: true
@@ -129,19 +126,17 @@ gates:
   artifacts:
     has_pq_anchor_on_cadence: true
     has_mixed_era_fail_closed: true
-
 da:
   provider_sdk_boundary: adapter_only
   publication_readiness_gate: required
   challenge_window_start: da_publication_ready
   allowed_sync_modes:
-    - da_only
-    - hybrid_p2p_da_verified
+  - da_only
+  - hybrid_p2p_da_verified
   provider_families:
-    - local_archive
-    - sovereign_sdk_adapter
-    - celestia_adapter
-
+  - local_archive
+  - sovereign_sdk_adapter
+  - celestia_adapter
 archive_retention:
   celestia_is_da_only: true
   long_term_retrieval_required: true
@@ -153,21 +148,20 @@ archive_retention:
   min_archive_replicas: 3
   retrieval_audit_interval_blocks: 1000
   allowed_backends:
-    - z00z_archive_node
-    - ipfs_pinned
-    - paid_archival_provider
-    - filecoin_or_equivalent
-    - cold_object_store
+  - z00z_archive_node
+  - ipfs_pinned
+  - paid_archival_provider
+  - filecoin_or_equivalent
+  - cold_object_store
   required_artifacts:
-    - archive_manifest_root
-    - raw_tx_package_root
-    - exact_tx_proof_bytes_root
-    - witness_archive_root
-    - delta_journal_root
-    - da_payload_commitment
-    - retrieval_audit_root
-    - archive_provider_receipt_root
-
+  - archive_manifest_root
+  - raw_tx_package_root
+  - exact_tx_proof_bytes_root
+  - witness_archive_root
+  - delta_journal_root
+  - da_payload_commitment
+  - retrieval_audit_root
+  - archive_provider_receipt_root
 post_quantum:
   is_enabled: true
   cadence_blocks: 1000
@@ -176,16 +170,15 @@ post_quantum:
   enforce_live_cadence: false
   epoch_evidence_commitment: non_authenticating_digest_v2
   required_artifacts:
-    - pq_statement_digest
-    - pq_delta_root
-    - pq_witness_root
-    - pq_archive_manifest_root
-    - plonky3_epoch_statement_digest
-    - plonky3_epoch_proof_digest
-    - plonky3_public_inputs_digest
-    - nova_chain_root
-    - epoch_evidence_commitment
-
+  - pq_statement_digest
+  - pq_delta_root
+  - pq_witness_root
+  - pq_archive_manifest_root
+  - plonky3_epoch_statement_digest
+  - plonky3_epoch_proof_digest
+  - plonky3_public_inputs_digest
+  - nova_chain_root
+  - epoch_evidence_commitment
 snapshots:
   is_enabled: true
   cadence_epochs: 10
@@ -200,7 +193,6 @@ snapshots:
   must_bind_archive_manifest_root: true
   must_bind_snapshot_chunk_root: true
   must_bind_pq_anchor_root: true
-
 pruning:
   full_node_pruning_allowed: true
   archive_node_pruning_allowed: false
@@ -215,7 +207,6 @@ pruning:
   must_keep_epoch_manifest: true
   must_keep_state_snapshot: true
   must_not_prune_archive_replicas: true
-
 retention:
   dispute_window_blocks: 1555200
   challenge_window_start: da_publication_ready
@@ -227,7 +218,6 @@ retention:
   epoch_manifests: permanent_metadata
   compact_metadata: permanent_metadata
   da_blobs: da_required_until_archive_replicated
-
 paths:
   checkpoint_artifacts: artifacts/checkpoints/final
   checkpoint_links: artifacts/checkpoints/links
@@ -248,7 +238,6 @@ paths:
   archive_receipts: artifacts/checkpoints/archive_receipt
   da_exports: artifacts/da/checkpoints
   documentation_packets: artifacts/checkpoints/recursive_docs
-
 limits:
   max_batch_ops: 1000
   max_batch_bytes: 8388608
@@ -262,7 +251,6 @@ limits:
   max_state_snapshot_manifest_bytes: 16777216
   max_retrieval_audit_bytes: 4194304
   max_documentation_packet_bytes: 8388608
-
 documentation:
   include_source_disposition: true
   include_object_schemas: true

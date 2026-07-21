@@ -17,9 +17,8 @@ use z00z_utils::{logger::NoopLogger, metrics::NoopMetrics};
 use super::{
     compute_genesis_manifest_hash, compute_genesis_policies_digest, compute_genesis_rights_digest,
     compute_genesis_seed_hash, compute_genesis_vouchers_digest, generate_genesis_lanes,
-    load_genesis_context, load_genesis_settlement_manifest,
-    validator::compute_genesis_state_hash, GenesisGenerationPlan, GenesisLaneOutputs,
-    GenesisResolvedContext, GenesisSettlementManifest,
+    load_genesis_context, load_genesis_settlement_manifest, validator::compute_genesis_state_hash,
+    GenesisGenerationPlan, GenesisLaneOutputs, GenesisResolvedContext, GenesisSettlementManifest,
     GENESIS_POLICIES_FILE, GENESIS_POLICIES_REPLAY_DIGEST_LABEL,
     GENESIS_POLICIES_ROUNDTRIP_DIGEST_LABEL, GENESIS_RIGHTS_FILE,
     GENESIS_RIGHTS_REPLAY_DIGEST_LABEL, GENESIS_RIGHTS_ROUNDTRIP_DIGEST_LABEL,

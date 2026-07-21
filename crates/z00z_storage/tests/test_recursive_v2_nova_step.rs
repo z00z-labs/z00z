@@ -22,10 +22,10 @@ fn test_complete_relation_remains_wired() {
         "synthesize_uniqueness_products",
         "synthesize_net_merge_payload",
         "synthesize_jmt_hierarchy_payload",
-        "typed_checkpoint_commitments_bind_x_h_fields_in_canonical_order",
+        "test_checkpoint_commitments_bind_fields",
         "expected_public_state",
-        "real_nova_mixed_checkpoint_proves_the_complete_t2_relation",
-        "complete_mixed_fixture_satisfies_every_test_cs_step",
+        "test_nova_checkpoint_proves_relation",
+        "test_mixed_fixture_satisfies_testcs",
     ] {
         assert!(
             NOVA_OWNER.contains(required),

@@ -3,7 +3,10 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, OnceLock, RwLock,
+    },
 };
 
 use fs2::FileExt;
@@ -41,9 +44,21 @@ pub const CONFIG_V3_TRANSFORM_VERSION: u16 = 2;
 pub const CONFIG_V3_PROFILE: &str = "checkpoint-contract-client-notary-v2";
 pub const CONFIG_V3_PQ_MODE: &str = "plonky3_epoch_evidence_async";
 pub const CONFIG_V3_NEWLINE_POLICY: &str = "single-lf";
-const CONFIG_MIGRATION_RECORD_MAX_BYTES_V3: usize = 128 * 1024;
-const EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES: &[u8] =
-    include_bytes!("checkpoint_contract_v2_migration.yaml");
+pub const POST_QUANTUM_REQUIRED_ARTIFACTS_V3: [&str; 11] = [
+    "pq_statement_digest",
+    "pq_delta_root",
+    "pq_witness_root",
+    "challenge_content_root",
+    "da_payload_commitment",
+    "archive_availability_manifest_root",
+    "plonky3_epoch_statement_digest",
+    "plonky3_epoch_proof_digest",
+    "plonky3_public_inputs_digest",
+    "nova_chain_root",
+    "epoch_evidence_commitment",
+];
+const MIGRATION_RECORD_MAX_BYTES_V3: usize = 128 * 1024;
+const CONFIG_V2_MIGRATION_BYTES: &[u8] = include_bytes!("checkpoint_contract_v2_migration.yaml");
 const EMBEDDED_CHAIN_CONTEXT_PREIMAGE_V3: &[u8] =
     b"network=z00z-local\nchain=checkpoint-contract\nconfig_schema=3\n";
 const EMBEDDED_RELEASE_IDENTITY_V3: &str = "phase-069-051";
@@ -51,8 +66,8 @@ const EMBEDDED_RELEASE_IDENTITY_V3: &str = "phase-069-051";
 // review tool. Production recomputes that tuple and compares it to this literal;
 // it never accepts a candidate's recomputation as its own authorization.
 const EMBEDDED_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-    0xa5, 0x2b, 0x42, 0x82, 0xf2, 0x69, 0x83, 0x9c, 0x59, 0x47, 0x4a, 0x15, 0x7a, 0xa6, 0x1b, 0xc6,
-    0x3c, 0x04, 0x4d, 0x7f, 0xb4, 0x6a, 0xe3, 0x8a, 0xf2, 0x89, 0x7b, 0x14, 0xf6, 0xc7, 0xaf, 0x3d,
+    0x5a, 0x5c, 0xd5, 0x65, 0xc4, 0xa9, 0x90, 0xb2, 0x09, 0x00, 0x51, 0x21, 0x4f, 0x65, 0x1f, 0x27,
+    0x47, 0x62, 0x13, 0xe5, 0x5c, 0xa4, 0xec, 0xba, 0x1d, 0xcf, 0xcb, 0xc9, 0x9d, 0x0c, 0xe1, 0x71,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -528,7 +543,7 @@ impl CheckpointContractConfigV3 {
     }
 
     fn decode_canonical_bytes(bytes: &[u8]) -> Result<Self, CheckpointError> {
-        reject_noncanonical_yaml_features(&bytes)?;
+        reject_noncanonical_yaml_features(bytes)?;
         let cfg: Self = YamlCodec
             .deserialize(bytes)
             .map_err(|error| CheckpointError::ContractConfig(error.to_string()))?;
@@ -595,6 +610,12 @@ impl CheckpointContractConfigV3 {
             || self.branches.recursive.proof_system != "recursive_hybrid_v2"
             || self.branches.nova.proof_system != "nova_streaming_compressed_v2"
             || self.branches.plonky3_epoch.proof_system != "plonky3_stark_epoch_v2"
+            || !self
+                .post_quantum
+                .required_artifacts
+                .iter()
+                .map(String::as_str)
+                .eq(POST_QUANTUM_REQUIRED_ARTIFACTS_V3)
             || self.archive_retention.erasure_coding_profile != "rs_10_16_v1"
             || self.archive_retention.reconstruction_threshold != 10
             || self.archive_retention.total_shards != 16
@@ -777,13 +798,10 @@ impl CheckpointContractConfigV3 {
     }
 
     pub fn canonical_digest(&self) -> Result<[u8; 32], CheckpointError> {
-        let _source =
-            decode_canonical_config_v2_migration_source(EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES)?;
+        let _source = decode_config_v2_migration(CONFIG_V2_MIGRATION_BYTES)?;
         let destination_bytes = YamlCodec.serialize(self).map_err(map_codec)?;
-        let ledger = ConfigV3RenameLedger::from_pair(
-            EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES,
-            &destination_bytes,
-        )?;
+        let ledger =
+            ConfigV3RenameLedger::from_pair(CONFIG_V2_MIGRATION_BYTES, &destination_bytes)?;
         self.canonical_digest_with_ledger(ledger.digest)
     }
 
@@ -853,25 +871,28 @@ fn embedded_authority_unvalidated() -> &'static CheckpointContractConfigV3 {
     })
 }
 
-fn decode_canonical_config_v2_migration_source(
-    bytes: &[u8],
-) -> Result<CheckpointContractConfigV2, CheckpointError> {
+fn decode_config_v2_migration(bytes: &[u8]) -> Result<CheckpointContractConfigV2, CheckpointError> {
     CheckpointVersionRegistryV2::authority_pinned()?.decode_config_schema(
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
         bytes,
         RegistryOperationV2::Read,
         |source_bytes| {
-            // Schema 2 is an immutable migration/audit input. Its canonical
-            // representation is the exact pre-cutover authority file, whose
-            // bytes and digest must survive the Rust owner rename unchanged.
-            if source_bytes != EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES {
-                return config_error(
-                    "schema-2 migration source bytes are not authority-pinned",
-                );
+            // Schema 2 is an immutable migration/audit input. Require the
+            // registry callback to receive the exact embedded authority bytes
+            // before also proving that those bytes are the canonical typed
+            // re-encoding below.
+            if source_bytes != CONFIG_V2_MIGRATION_BYTES {
+                return config_error("schema-2 migration source bytes are not authority-pinned");
             }
             let source: CheckpointContractConfigV2 =
                 YamlCodec.deserialize(source_bytes).map_err(map_codec)?;
             source.validate()?;
+            let canonical = YamlCodec.serialize(&source).map_err(map_codec)?;
+            if canonical.as_slice() != source_bytes {
+                return config_error(
+                    "schema-2 migration source is not its exact canonical re-encoding",
+                );
+            }
             Ok(source)
         },
     )
@@ -944,7 +965,7 @@ impl ConfigV3RenameLedger {
         config_generation: u64,
         activation_height: u64,
     ) -> Result<(CheckpointContractConfigV3, Self), CheckpointError> {
-        let decoded_source = decode_canonical_config_v2_migration_source(source_bytes)?;
+        let decoded_source = decode_config_v2_migration(source_bytes)?;
         if decoded_source != *source {
             return config_error("typed schema-2 migration source does not match supplied owner");
         }
@@ -1131,9 +1152,8 @@ fn authorize_release_manifest_v3(
         || derived != expected_release_manifest_digest
     {
         return config_error(format!(
-            "ConfigV3 release manifest tuple is not authority-pinned: derived={}, expected={}",
-            hex_digest(derived),
-            hex_digest(expected_release_manifest_digest),
+            "ConfigV3 release manifest tuple is not authority-pinned: derived={}",
+            hex_digest(derived)
         ));
     }
     record.release_manifest_digest = derived;
@@ -1221,12 +1241,38 @@ impl ActiveCheckpointConfigV3 {
 /// replace it atomically for the process through `activate_installed`.
 pub struct CheckpointConfigResolverV3;
 
+/// Linear process-local guard preventing ConfigV3 activation while one live
+/// recursive evidence attempt is using the captured generation.
+pub(crate) struct ActiveConfigEvidenceGuardV3 {
+    marker: std::marker::PhantomData<()>,
+}
+
+impl Drop for ActiveConfigEvidenceGuardV3 {
+    fn drop(&mut self) {
+        active_evidence_attempts().fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
 impl CheckpointConfigResolverV3 {
     pub fn resolve_active() -> Result<Arc<ActiveCheckpointConfigV3>, CheckpointError> {
         active_config_state()?
             .read()
             .map(|active| Arc::clone(&active))
             .map_err(|_| CheckpointError::ContractConfig("active config lock poisoned".to_string()))
+    }
+
+    pub(crate) fn begin_evidence_attempt(
+        captured: ActiveCheckpointConfigIdentityV3,
+    ) -> Result<ActiveConfigEvidenceGuardV3, CheckpointError> {
+        Self::require_current(captured)?;
+        active_evidence_attempts().fetch_add(1, Ordering::AcqRel);
+        if let Err(error) = Self::require_current(captured) {
+            active_evidence_attempts().fetch_sub(1, Ordering::AcqRel);
+            return Err(error);
+        }
+        Ok(ActiveConfigEvidenceGuardV3 {
+            marker: std::marker::PhantomData,
+        })
     }
 
     /// Atomically activate an already-installed, immutable ConfigV3
@@ -1268,6 +1314,9 @@ impl CheckpointConfigResolverV3 {
             }
             return Ok(Arc::clone(&current));
         }
+        if active_evidence_attempts().load(Ordering::Acquire) != 0 {
+            return config_error("active recursive evidence attempt blocks config activation");
+        }
         *current = Arc::clone(&candidate);
         Ok(candidate)
     }
@@ -1281,6 +1330,11 @@ impl CheckpointConfigResolverV3 {
         }
         Ok(())
     }
+}
+
+fn active_evidence_attempts() -> &'static AtomicU64 {
+    static ACTIVE_EVIDENCE_ATTEMPTS: AtomicU64 = AtomicU64::new(0);
+    &ACTIVE_EVIDENCE_ATTEMPTS
 }
 
 /// Immutable-generation ConfigV3 installer. Authorization is a pre-pinned
@@ -1316,14 +1370,16 @@ impl ConfigV3ActivationStore {
         {
             return config_error("config activation authorization is incomplete");
         }
-        let decoded_source = decode_canonical_config_v2_migration_source(source_bytes)?;
+        let decoded_source = decode_config_v2_migration(source_bytes)?;
         if decoded_source != *source {
             return config_error("typed schema-2 migration source does not match supplied owner");
         }
         destination.validate()?;
+        let canonical_source = YamlCodec.serialize(source).map_err(map_codec)?;
         let canonical_destination = YamlCodec.serialize(destination).map_err(map_codec)?;
-        if destination.version_authority.config_generation
-            <= expected_source_generation.unwrap_or(0)
+        if canonical_source != source_bytes
+            || destination.version_authority.config_generation
+                <= expected_source_generation.unwrap_or(0)
             || destination.version_authority.rollback_floor
                 > destination.version_authority.config_generation
         {
@@ -1373,7 +1429,7 @@ impl ConfigV3ActivationStore {
         let record_bytes = encode_local_registry_object(
             RecursiveBoundedObjectV2::ConfigMigrationRecord,
             &record,
-            CONFIG_MIGRATION_RECORD_MAX_BYTES_V3,
+            MIGRATION_RECORD_MAX_BYTES_V3,
         )?;
         let migration_record_digest = sha256_256(
             "z00z.storage.checkpoint.config-migration-record.v3",
@@ -1445,10 +1501,7 @@ impl ConfigV3ActivationStore {
         let reloaded =
             CheckpointContractConfigV3::load(generation.join("checkpoint_contract.yaml"))?;
         if reloaded != *destination
-            || read_local_registry_object::<
-                ConfigMigrationRecordV3,
-                CONFIG_MIGRATION_RECORD_MAX_BYTES_V3,
-            >(
+            || read_local_registry_object::<ConfigMigrationRecordV3, MIGRATION_RECORD_MAX_BYTES_V3>(
                 &generation.join("migration.bin"),
                 RecursiveBoundedObjectV2::ConfigMigrationRecord,
             )? != record
@@ -1492,12 +1545,12 @@ impl ConfigV3ActivationStore {
         let config = CheckpointContractConfigV3::load(&config_path)?;
         let migration_bytes = read_file_bounded(
             &migration_path,
-            (CONFIG_MIGRATION_RECORD_MAX_BYTES_V3 + RECURSIVE_OBJECT_PREHEADER_BYTES_V2 + 1) as u64,
+            (MIGRATION_RECORD_MAX_BYTES_V3 + RECURSIVE_OBJECT_PREHEADER_BYTES_V2 + 1) as u64,
         )
         .map_err(|error| CheckpointError::ContractConfig(error.to_string()))?;
         let migration_record = decode_local_registry_object_bytes::<
             ConfigMigrationRecordV3,
-            CONFIG_MIGRATION_RECORD_MAX_BYTES_V3,
+            MIGRATION_RECORD_MAX_BYTES_V3,
         >(
             &migration_bytes,
             RecursiveBoundedObjectV2::ConfigMigrationRecord,
@@ -1563,19 +1616,18 @@ fn build_embedded_active_config() -> Result<ActiveCheckpointConfigV3, Checkpoint
     let runtime_profile_manifest_digest =
         decode_digest_hex(&config.runtime_profile.manifest_digest)?;
     let destination_bytes = YamlCodec.serialize(&config).map_err(map_codec)?;
-    let _source =
-        decode_canonical_config_v2_migration_source(EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES)?;
-    let ledger = ConfigV3RenameLedger::from_pair(
-        EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES,
-        &destination_bytes,
-    )?;
+    let source = decode_config_v2_migration(CONFIG_V2_MIGRATION_BYTES)?;
+    if YamlCodec.serialize(&source).map_err(map_codec)?.as_slice() != CONFIG_V2_MIGRATION_BYTES {
+        return config_error("embedded schema-2 migration source changed during typed decode");
+    }
+    let ledger = ConfigV3RenameLedger::from_pair(CONFIG_V2_MIGRATION_BYTES, &destination_bytes)?;
     let config_digest = config.canonical_digest_with_ledger(ledger.digest)?;
     let mut record = ConfigMigrationRecordV3 {
         wire_version: 1,
         release_identity: EMBEDDED_RELEASE_IDENTITY_V3.to_string(),
         source_schema: 2,
         destination_schema: 3,
-        source_config_bytes: EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES.to_vec(),
+        source_config_bytes: CONFIG_V2_MIGRATION_BYTES.to_vec(),
         source_bytes_digest: ledger.source_config_digest,
         destination_bytes_digest: ledger.destination_config_digest,
         destination_config_digest: config_digest,
@@ -1598,7 +1650,7 @@ fn build_embedded_active_config() -> Result<ActiveCheckpointConfigV3, Checkpoint
     let record_bytes = encode_local_registry_object(
         RecursiveBoundedObjectV2::ConfigMigrationRecord,
         &record,
-        CONFIG_MIGRATION_RECORD_MAX_BYTES_V3,
+        MIGRATION_RECORD_MAX_BYTES_V3,
     )?;
     let migration_record_digest = sha256_256(
         "z00z.storage.checkpoint.config-migration-record.v3",
@@ -1636,7 +1688,7 @@ fn validate_active_snapshot(
     record_bytes: &[u8],
 ) -> Result<(), CheckpointError> {
     validate_head_config_tuple(head, config)?;
-    let _typed_source = decode_canonical_config_v2_migration_source(&record.source_config_bytes)?;
+    let _typed_source = decode_config_v2_migration(&record.source_config_bytes)?;
     let canonical_config = YamlCodec.serialize(config).map_err(map_codec)?;
     record
         .rename_ledger
@@ -1837,7 +1889,7 @@ fn rename_entries(
     source_bytes: &[u8],
     destination_bytes: &[u8],
 ) -> Result<Vec<ConfigV3RenameEntry>, CheckpointError> {
-    let source_yaml: YamlValue = YamlCodec.deserialize(&source_bytes).map_err(map_codec)?;
+    let source_yaml: YamlValue = YamlCodec.deserialize(source_bytes).map_err(map_codec)?;
     let destination_yaml: YamlValue = YamlCodec
         .deserialize(destination_bytes)
         .map_err(map_codec)?;
@@ -2262,15 +2314,32 @@ fn config_error<T>(message: impl Into<String>) -> Result<T, CheckpointError> {
 mod tests {
     use super::*;
 
-    const TEST_INSTALL_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-        0xd1, 0x5e, 0x66, 0x23, 0x9d, 0x16, 0xb9, 0x51, 0x0a, 0x8b, 0xbb, 0xd7, 0xea, 0x84, 0x94,
-        0x54, 0xc9, 0x1a, 0xe6, 0xca, 0xf9, 0x0c, 0x57, 0x64, 0x4e, 0xaa, 0x1c, 0xac, 0xed, 0x1e,
-        0xd2, 0xf9,
+    const TEST_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
+        0x3c, 0x18, 0x60, 0x7e, 0xe0, 0x1d, 0x4d, 0x03, 0x5a, 0xce, 0x2c, 0x42, 0x2e, 0x32, 0x09,
+        0x5f, 0x9c, 0x9c, 0x67, 0x25, 0x3e, 0xc8, 0x9f, 0xa6, 0x85, 0x21, 0xbc, 0x0b, 0xc0, 0xc1,
+        0xc7, 0x8c,
     ];
 
     fn migration_source_v2() -> (CheckpointContractConfigV2, Vec<u8>) {
-        let source_bytes = EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES.to_vec();
-        let source = decode_canonical_config_v2_migration_source(&source_bytes).unwrap();
+        let source_bytes = CONFIG_V2_MIGRATION_BYTES.to_vec();
+        let source: CheckpointContractConfigV2 = YamlCodec.deserialize(&source_bytes).unwrap();
+        source.validate().unwrap();
+        let canonical = YamlCodec.serialize(&source).unwrap();
+        if canonical != source_bytes {
+            let mismatch = canonical
+                .iter()
+                .zip(&source_bytes)
+                .position(|(left, right)| left != right)
+                .unwrap_or(canonical.len().min(source_bytes.len()));
+            let start = mismatch.saturating_sub(80);
+            let canonical_end = (mismatch + 160).min(canonical.len());
+            let source_end = (mismatch + 160).min(source_bytes.len());
+            panic!(
+                "schema-2 canonical YAML mismatch at byte {mismatch}: canonical={:?}, source={:?}",
+                String::from_utf8_lossy(&canonical[start..canonical_end]),
+                String::from_utf8_lossy(&source_bytes[start..source_end]),
+            );
+        }
         (source, source_bytes)
     }
 
@@ -2291,21 +2360,18 @@ mod tests {
     }
 
     #[test]
-    fn test_embedded_migration_source_is_exact_and_digest_bound() {
+    fn test_migration_source_is_bound() {
         let (source, source_bytes) = migration_source_v2();
-        assert_eq!(
-            decode_canonical_config_v2_migration_source(&source_bytes).unwrap(),
-            source
-        );
+        assert_eq!(decode_config_v2_migration(&source_bytes).unwrap(), source);
         assert_eq!(source.version, 2);
-        assert_eq!(source_bytes, EMBEDDED_CONFIG_V2_MIGRATION_SOURCE_BYTES);
+        assert_eq!(source_bytes, CONFIG_V2_MIGRATION_BYTES);
         assert_eq!(
             sha256_256(
                 "z00z.storage.checkpoint.contract-config.v2",
                 "canonical_bytes_digest",
                 &[&source_bytes],
             ),
-            decode_digest_hex("31ee3cebd1e5228046733b77e0f1ac84c3506f98f64f9b60ac36ec01f9647ce7")
+            decode_digest_hex("2a7484600c9056fedb6fa850edbbd284b1faec75d8fbfdd1f50d69c860802d08")
                 .unwrap(),
         );
         let active = build_embedded_active_config().unwrap();
@@ -2318,11 +2384,11 @@ mod tests {
 
         let mut noncanonical = source_bytes;
         noncanonical.push(b'\n');
-        assert!(decode_canonical_config_v2_migration_source(&noncanonical).is_err());
+        assert!(decode_config_v2_migration(&noncanonical).is_err());
     }
 
     #[test]
-    fn test_embedded_release_manifest_binds_every_authority_axis_and_yaml_bytes() {
+    fn test_release_manifest_binds_authority() {
         let active = build_embedded_active_config().unwrap();
         let record = active.migration_record.clone().unwrap();
         let baseline = release_manifest_digest_v3(&record);
@@ -2369,10 +2435,7 @@ mod tests {
             &[&changed_source_yaml.source_config_bytes],
         );
         assert_ne!(release_manifest_digest_v3(&changed_source_yaml), baseline);
-        assert!(decode_canonical_config_v2_migration_source(
-            &changed_source_yaml.source_config_bytes
-        )
-        .is_err());
+        assert!(decode_config_v2_migration(&changed_source_yaml.source_config_bytes).is_err());
 
         let mut destination_yaml = YamlCodec.serialize(active.config()).unwrap();
         destination_yaml.push(b'\n');
@@ -2395,7 +2458,7 @@ mod tests {
     }
 
     #[test]
-    fn test_current_state_sharding_rejects_every_leaf_mutation() {
+    fn test_sharding_rejects_leaf_mutations() {
         let mutations: &[fn(&mut CurrentStateShardingCfgV3)] = &[
             |value| value.is_required = false,
             |value| value.shard_count += 1,
@@ -2416,7 +2479,7 @@ mod tests {
     }
 
     #[test]
-    fn test_offline_mailbox_rejects_every_leaf_mutation() {
+    fn test_mailbox_rejects_leaf_mutations() {
         let mutations: &[fn(&mut OfflineReceiptMailboxCfgV3)] = &[
             |value| value.is_required = false,
             |value| value.is_runtime_enabled = true,
@@ -2457,7 +2520,7 @@ mod tests {
     }
 
     #[test]
-    fn test_online_resolver_returns_one_coherent_embedded_head() {
+    fn test_resolver_returns_coherent_head() {
         let active = CheckpointConfigResolverV3::resolve_active().unwrap();
         let identity = active.identity();
         assert_eq!(
@@ -2482,7 +2545,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extended_paths_resolve_beneath_canonical_root() {
+    fn test_paths_stay_under_root() {
         let cfg = CheckpointContractConfigV3::load_repo_default().unwrap();
         let root = PathBuf::from("crates/z00z_storage/outputs/checkpoint");
         let resolved = cfg.resolve_paths(&root);
@@ -2621,7 +2684,7 @@ mod tests {
                 &migrated,
                 &forged,
                 1,
-                TEST_INSTALL_RELEASE_MANIFEST_DIGEST_V3,
+                TEST_RELEASE_MANIFEST_DIGEST_V3,
                 embedded_chain_context_digest_v3(),
                 None,
             )
@@ -2630,7 +2693,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rename_ledger_rejects_missing_extra_collision_and_downgrade() {
+    fn test_rename_ledger_rejects_drift() {
         let (_, source_bytes) = migration_source_v2();
         let destination = CheckpointContractConfigV3::load_repo_default().unwrap();
         let destination_bytes = YamlCodec.serialize(&destination).unwrap();
@@ -2719,7 +2782,7 @@ mod tests {
                 &destination,
                 &ledger,
                 1,
-                TEST_INSTALL_RELEASE_MANIFEST_DIGEST_V3,
+                TEST_RELEASE_MANIFEST_DIGEST_V3,
                 embedded_chain_context_digest_v3(),
                 None,
             )
@@ -2741,7 +2804,7 @@ mod tests {
                     &destination,
                     &ledger,
                     1,
-                    TEST_INSTALL_RELEASE_MANIFEST_DIGEST_V3,
+                    TEST_RELEASE_MANIFEST_DIGEST_V3,
                     embedded_chain_context_digest_v3(),
                     None,
                 )
@@ -2751,7 +2814,7 @@ mod tests {
     }
 
     #[test]
-    fn test_activation_store_resumes_exact_partial_generation_and_rejects_mix() {
+    fn test_activation_resumes_exact_generation() {
         let active = CheckpointContractConfigV3::load_repo_default().unwrap();
         let (source, source_bytes) = migration_source_v2();
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
@@ -2782,7 +2845,7 @@ mod tests {
                 &destination,
                 &ledger,
                 1,
-                TEST_INSTALL_RELEASE_MANIFEST_DIGEST_V3,
+                TEST_RELEASE_MANIFEST_DIGEST_V3,
                 embedded_chain_context_digest_v3(),
                 None,
             )
@@ -2804,7 +2867,7 @@ mod tests {
                 &destination,
                 &ledger,
                 1,
-                TEST_INSTALL_RELEASE_MANIFEST_DIGEST_V3,
+                TEST_RELEASE_MANIFEST_DIGEST_V3,
                 embedded_chain_context_digest_v3(),
                 None,
             )

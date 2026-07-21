@@ -9,7 +9,9 @@ use z00z_storage::{
         CheckpointExecTx, CheckpointExecVersion, CheckpointFsStore, CheckpointId, CheckpointInRef,
         CheckpointStore, CheckpointVersion, CreatedEnt, SpentEnt,
     },
-    fixture_support::checkpoint_fixtures,
+    fixture_support::{
+        checkpoint_fixtures, genesis_chain_identity::ensure_test_process_chain_identity,
+    },
     settlement::{
         DefinitionId, SerialId, SettlementExecHandoff, SettlementPath, SettlementRouteCtx,
         SettlementStateRoot, SettlementStore, StoreItem, StoreOp, TerminalId, TerminalLeaf,
@@ -18,6 +20,7 @@ use z00z_storage::{
 };
 
 fn profile() -> RecursiveCircuitProfileV2 {
+    ensure_test_process_chain_identity().expect("canonical test process chain identity");
     RecursiveCircuitProfileV2::authority_pinned()
 }
 
@@ -188,7 +191,7 @@ fn expected_post_root(input: SettlementPath, output: StoreItem) -> SettlementSta
 }
 
 #[test]
-fn recursive_v2_trace_replays_one_real_hjmt_commit_and_binds_the_result() {
+fn test_trace_replays_real_hjmt() {
     let temp = tempfile::TempDir::new().expect("temp dir");
     let mut store = SettlementStore::new();
     let input = path(1, 1, 1);
@@ -311,7 +314,7 @@ fn recursive_v2_trace_replays_one_real_hjmt_commit_and_binds_the_result() {
 }
 
 #[test]
-fn recursive_v2_accepts_only_the_authority_defined_empty_noop_transition() {
+fn test_accepts_authority_noop_only() {
     let temp = tempfile::TempDir::new().expect("temp dir");
     let mut store = SettlementStore::new();
     let pre_root = store.settlement_root_v2(7).expect("V2 pre-state root");
@@ -369,7 +372,7 @@ fn recursive_v2_accepts_only_the_authority_defined_empty_noop_transition() {
 }
 
 #[test]
-fn recursive_v2_transition_rejects_handoff_rows_outside_the_checkpoint_exec() {
+fn test_transition_rejects_external_handoff() {
     let temp = tempfile::TempDir::new().expect("temp dir");
     let mut store = SettlementStore::new();
     let input = path(1, 1, 1);
@@ -416,7 +419,7 @@ fn recursive_v2_transition_rejects_handoff_rows_outside_the_checkpoint_exec() {
 }
 
 #[test]
-fn recursive_v2_transition_rejects_a_stale_pre_state_handle_before_commit() {
+fn test_transition_rejects_stale_prestate() {
     let temp = tempfile::TempDir::new().expect("temp dir");
     let mut store = SettlementStore::new();
     let input = path(1, 1, 1);
@@ -449,7 +452,7 @@ fn recursive_v2_transition_rejects_a_stale_pre_state_handle_before_commit() {
 }
 
 #[test]
-fn recursive_v2_preflight_failure_cannot_advance_the_live_store() {
+fn test_preflight_cannot_advance_store() {
     let temp = tempfile::TempDir::new().expect("temp dir");
     let mut store = SettlementStore::new();
     let input = path(1, 1, 1);
@@ -496,7 +499,7 @@ fn recursive_v2_preflight_failure_cannot_advance_the_live_store() {
 }
 
 #[test]
-fn recursive_v2_transition_rejects_a_post_commit_generation_change() {
+fn test_transition_rejects_generation_change() {
     let temp = tempfile::TempDir::new().expect("temp dir");
     let mut store = SettlementStore::new();
     let input = path(1, 1, 1);

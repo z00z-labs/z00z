@@ -39,7 +39,7 @@ fn test_artifacts_bind_full_identity() {
         "z00z_crypto/src/hash/policy.rs",
         "workspace-and-storage-manifests",
         "Nova curve/transcript/entropy dependency identity drifted",
-        "nova_pasta_keccak_transcript_is_non_evm_and_pinned",
+        "test_nova_keccak_transcript_pinned",
         "pallas-ipa",
         "vesta-ipa",
         "decode_bincode",
@@ -53,7 +53,7 @@ fn test_artifacts_bind_full_identity() {
 }
 
 #[test]
-fn test_project_owned_secret_buffers_have_no_log_or_telemetry_sink() {
+fn test_secret_buffers_stay_private() {
     for (owner_name, owner) in [
         ("recursive trace", TRACE_OWNER),
         ("JMT proof batch", JMT_PROOF_BATCH_OWNER),
@@ -258,7 +258,7 @@ fn assert_private_canary_free_artifacts(root: &Path) {
 }
 
 #[test]
-fn test_project_owned_secret_process_outcome_corpus() {
+fn test_secret_process_outcomes() {
     if std::env::var_os(SECRET_CHILD_ENV).is_some() {
         secret_child();
         return;
@@ -317,11 +317,11 @@ fn test_project_owned_secret_process_outcome_corpus() {
 #[test]
 fn test_adversarial_evidence_remains_live() {
     for required in [
-        "assert_bundle_rejected_before_proof_decode",
+        "assert_bundle_rejected_early",
         "assert_prover_material_rejected",
-        "canonical_hash_controls_reject_binding_and_order_mutations",
-        "jmt_new_root_machine_rejects_authenticated_transcript_mutations",
-        "final_successor_rejects_a_changed_declared_opcode_count",
+        "test_hash_controls_reject_mutations",
+        "test_jmt_machine_rejects_mutations",
+        "test_successor_rejects_opcode_change",
         "a changed compressed body must fail before Nova verification",
         "require_expected_public_endpoint",
         "recompute_compressed_mixed_candidate",
@@ -332,7 +332,7 @@ fn test_adversarial_evidence_remains_live() {
         "zero/default primary blinding key",
         "swapped primary/secondary commitment generators",
         "attempted-invalid-subgroup-or-identity-bundle",
-        "real_nova_verifier_only_clean_process",
+        "test_nova_clean_verifier_process",
         "a verifier-only process must never enter PublicParams::setup",
         "setup_path=forbidden",
         ".arg(\"--core=0\")",
@@ -346,7 +346,7 @@ fn test_adversarial_evidence_remains_live() {
     assert!(!NOVA_OWNER.contains("spartan-ppsnark"));
     assert!(TRACE_OWNER.contains("impl Drop for RecursiveTraceEventV2"));
     assert!(TRACE_OWNER.contains("Zeroizing<Vec<u8>>"));
-    assert!(TRACE_OWNER.contains("secret_canary_stays_redacted"));
+    assert!(TRACE_OWNER.contains("test_secret_canary_stays_redacted"));
     assert!(!TRACE_OWNER
         .contains("#[derive(Clone, Debug, PartialEq, Eq)]\npub struct RecursiveTraceEventV2"));
 }

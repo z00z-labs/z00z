@@ -3036,6 +3036,18 @@ recursive-sidecar, PQ-anchor, and authority-promotion contracts.
 - [ ] 069-12-PLAN.md
 - [ ] 069-13-PLAN.md
 
+**069-051 T3/T4 execution update (2026-07-21):** Plan 051 is not complete.
+T0–T2 remain accepted; T3/T4 implementation and current-source validation are
+active. The current candidate source revision is
+`5a381948457e9a8aa69792c43285e28597ef2779687457221a6d56a8b3cbad2d`.
+Bootstrap found that epoch cadence was included in the pre-uniqueness digest but
+omitted from the transcript and Nova anchor state; the single canonical binding
+has been repaired and awaits bootstrap-first release validation. Plans 06–13
+remain locked until all Plan 051 proof, artifact, review, and doublecheck gates
+close. Evidence may be written only below
+`crates/z00z_storage/outputs/checkpoint`; repository-root `test-results` is
+forbidden.
+
 **069-051 T2 closure (2026-07-20):** T0, T1 and T2 are complete on final T2
 source revision
 `e58e2f9a2f715a64b37dd464248b57601e7deda4254086c0b6598160cf30dbd6`.

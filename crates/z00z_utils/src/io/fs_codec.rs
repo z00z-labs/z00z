@@ -15,20 +15,25 @@ const DEFAULT_MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
 pub fn read_file_bounded(path: impl AsRef<Path>, max_bytes: u64) -> Result<Vec<u8>, IoError> {
     let path = path.as_ref();
     let file = std::fs::File::open(path)?;
+    let take_limit = max_bytes.checked_add(1).ok_or_else(|| {
+        IoError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "file byte limit must allow a one-byte overflow probe",
+        ))
+    })?;
 
-    if let Ok(metadata) = file.metadata() {
-        if metadata.is_file() {
-            let size = metadata.len();
-            if size > max_bytes {
-                return Err(IoError::FileTooLarge {
-                    size,
-                    max: max_bytes,
-                });
-            }
+    // Descriptor metadata is an fstat on Unix; failure must not be ignored.
+    let metadata = file.metadata()?;
+    if metadata.is_file() {
+        let size = metadata.len();
+        if size > max_bytes {
+            return Err(IoError::FileTooLarge {
+                size,
+                max: max_bytes,
+            });
         }
     }
 
-    let take_limit = max_bytes.saturating_add(1);
     let mut bytes = Vec::new();
     file.take(take_limit).read_to_end(&mut bytes)?;
 

@@ -14,19 +14,25 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn test_v3_config_keeps_pq_evidence_non_authoritative() {
+fn test_config_keeps_pq_shadow() {
     let yaml = std::fs::read_to_string(repo_default_path()).expect("contract YAML");
     assert!(yaml.starts_with("version: 3\n"));
-    assert!(yaml.contains("epoch_evidence_commitment: non_authenticating_digest_v2"));
     assert!(yaml.contains("- epoch_evidence_commitment"));
-    assert!(yaml.contains("security_role: pq_oriented_evidence_only"));
+    assert!(yaml.contains("security_role: classical_only"));
+    assert!(yaml.contains("has_pq_epoch_evidence: true"));
+    assert!(yaml.contains("mode: plonky3_epoch_evidence_async"));
+    assert!(yaml.contains("is_live_cadence_enforced: false"));
+    assert!(yaml.contains("is_recursive_authority_allowed: false"));
+    assert!(yaml.contains("is_verified_backend_allowed: false"));
+    assert!(!yaml.contains("epoch_evidence_commitment:"));
+    assert!(!yaml.contains("epoch_evidence_commitment: non_authenticating_digest_v2"));
     assert!(!yaml.contains("pq_signature_or_commitment"));
     assert!(!yaml.contains("is_pq_authoritative"));
     assert!(!yaml.contains("pq_epoch_finality"));
 }
 
 #[test]
-fn test_statement_golden_vector_is_stable() {
+fn test_statement_vector_is_stable() {
     let statement = CheckpointTransitionStatementV1::new(
         CheckpointVersion::CURRENT,
         42,

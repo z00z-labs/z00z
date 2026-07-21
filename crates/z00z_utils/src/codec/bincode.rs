@@ -31,6 +31,42 @@ const DEFAULT_MAX_DESERIALIZE_SIZE: u64 = LIMIT_10MB_BYTES as u64;
 pub struct BincodeCodec;
 
 impl BincodeCodec {
+    /// Encode one value with the frozen legacy bincode wire used by imported
+    /// cryptographic artifacts.
+    pub fn serialize_legacy<T: Serialize>(&self, value: &T) -> Result<Vec<u8>, CodecError> {
+        bincode::serde::encode_to_vec(value, bincode::config::legacy())
+            .map_err(|error| CodecError::Bincode(error.to_string()))
+    }
+
+    /// Decode one exact legacy-wire value under a compile-time ceiling.
+    ///
+    /// New project-owned objects use the standard configuration. This method
+    /// exists only for frozen dependency artifacts whose canonical wire was
+    /// already selected as legacy bincode.
+    pub fn deserialize_legacy_bounded<T: DeserializeOwned, const LIMIT: usize>(
+        &self,
+        bytes: &[u8],
+    ) -> Result<T, CodecError> {
+        if bytes.len() > LIMIT {
+            return Err(CodecError::DeserializeSizeLimitExceeded {
+                size: bytes.len(),
+                limit: LIMIT as u64,
+            });
+        }
+        let (value, consumed): (T, usize) = bincode::serde::decode_from_slice(
+            bytes,
+            bincode::config::legacy().with_limit::<LIMIT>(),
+        )
+        .map_err(|error| CodecError::Bincode(error.to_string()))?;
+        if consumed != bytes.len() {
+            return Err(CodecError::TrailingBytes {
+                consumed,
+                total: bytes.len(),
+            });
+        }
+        Ok(value)
+    }
+
     /// Decode one exact bincode value under a compile-time allocation ceiling.
     ///
     /// The const ceiling is part of the call site instead of an attacker-controlled
@@ -246,6 +282,29 @@ mod tests {
     }
 
     #[test]
+    fn test_legacy_round_trip() {
+        let value = TestStruct {
+            name: "legacy".to_owned(),
+            value: 7,
+            active: true,
+        };
+        let bytes = BincodeCodec.serialize_legacy(&value).unwrap();
+        let decoded = BincodeCodec
+            .deserialize_legacy_bounded::<TestStruct, 1024>(&bytes)
+            .unwrap();
+        assert_eq!(decoded, value);
+    }
+
+    #[test]
+    fn test_legacy_trailing_rejected() {
+        let mut bytes = BincodeCodec.serialize_legacy(&7_u64).unwrap();
+        bytes.push(0);
+        assert!(BincodeCodec
+            .deserialize_legacy_bounded::<u64, 1024>(&bytes)
+            .is_err());
+    }
+
+    #[test]
     fn test_bincode_codec_types() {
         let codec = BincodeCodec;
 
@@ -297,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bincode_24mb_limit_rejects_declared_oversize_vec_without_panic() {
+    fn test_bincode_rejects_oversize_vec() {
         let len_prefix = bincode::serde::encode_to_vec(
             u64::try_from(LIMIT_24MB_BYTES + 1).expect("fixed limit fits u64"),
             bincode::config::standard(),
@@ -326,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_const_bound_consumes_exact_input_and_propagates_seed_errors() {
+    fn test_seeded_bound_propagates_errors() {
         let codec = BincodeCodec;
         let bytes = codec.serialize(&42_u64).unwrap();
         assert_eq!(
@@ -348,5 +407,20 @@ mod tests {
         assert!(codec
             .deserialize_seeded_bounded::<U64Seed, 1>(&[0; 2], U64Seed)
             .is_err());
+    }
+
+    #[test]
+    fn test_legacy_vec_length_rejects() {
+        let hostile = BincodeCodec
+            .serialize_legacy(&u64::MAX)
+            .expect("legacy length prefix");
+        let result = std::panic::catch_unwind(|| {
+            BincodeCodec.deserialize_legacy_bounded::<Vec<u8>, 131_072>(&hostile)
+        });
+        assert!(result.is_ok(), "hostile legacy length must not panic");
+        assert!(
+            result.unwrap().is_err(),
+            "hostile legacy length must reject"
+        );
     }
 }

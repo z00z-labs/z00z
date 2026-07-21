@@ -86,6 +86,12 @@ pub enum CheckpointError {
     /// Recursive V2 Nova resource preflight rejected the requested work.
     #[error("recursive V2 Nova resource preflight rejected")]
     Resource,
+    /// Recursive V2 work was cancelled before receipt issuance.
+    #[error("recursive V2 operation cancelled")]
+    RecursiveCancelled,
+    /// Recursive V2 work exceeded its authority-pinned deadline.
+    #[error("recursive V2 operation deadline exceeded")]
+    RecursiveDeadline,
     /// Recursive V2 checked arithmetic overflowed.
     #[error("recursive V2 checked arithmetic overflow")]
     Overflow,

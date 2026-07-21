@@ -18,6 +18,8 @@ mod file_read;
 mod fs_codec;
 #[path = "json_io.rs"]
 mod json_io;
+#[path = "secure.rs"]
+mod secure;
 #[cfg(test)]
 #[path = "test_fs_io_suite.rs"]
 mod test_io;
@@ -34,11 +36,12 @@ pub use self::{
     bincode_io::{load_bincode, load_bincode_bounded, save_bincode},
     file_read::{
         create_dir_all, file_len, open_lock_file, path_exists, path_exists_no_follow, read_dir,
-        read_file, read_link, read_to_string, remove_dir_all, remove_file, rename_file,
-        set_file_mode, set_permissions_mode, symlink_metadata, sync_directory,
+        read_dir_bounded, read_file, read_link, read_to_string, remove_dir_all, remove_file,
+        rename_file, set_file_mode, set_permissions_mode, symlink_metadata, sync_directory,
     },
     fs_codec::{load_with_codec, read_file_bounded, save_with_codec},
     json_io::{load_json, load_json_bounded, save_json},
+    secure::SecureDir,
     yaml_io::{load_yaml, load_yaml_bounded, save_yaml},
 };
 
@@ -68,13 +71,13 @@ fn permission_copy_seam_path(path: &Path) -> PathBuf {
     path.with_file_name(format!(".{file_name}{PERM_COPY_FAIL_MARKER}"))
 }
 
-fn should_force_permission_copy_fail(path: &Path) -> bool {
+fn is_permission_copy_failure_forced(path: &Path) -> bool {
     is_test_io_process() && permission_copy_seam_path(path).exists()
 }
 
 fn copy_existing_permissions(temp_file: &std::fs::File, path: &Path) -> Result<(), IoError> {
     if let Ok(meta) = std::fs::metadata(path) {
-        if should_force_permission_copy_fail(path) {
+        if is_permission_copy_failure_forced(path) {
             return Err(IoError::Io(std::io::Error::new(
                 ErrorKind::PermissionDenied,
                 format!(

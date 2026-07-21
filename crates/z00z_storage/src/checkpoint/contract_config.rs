@@ -22,7 +22,7 @@ use super::version_registry::{
 
 pub const CHECKPOINT_CONTRACT_CONFIG_PATH: &str =
     "crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml";
-pub const CHECKPOINT_CONTRACT_CONFIG_V2_MIGRATION_PATH: &str =
+pub const CONFIG_V2_MIGRATION_PATH: &str =
     "crates/z00z_storage/src/checkpoint/checkpoint_contract_v2_migration.yaml";
 pub const AUTHORITY_PROMOTION_STAGE_SPEC_ONLY: &str = "spec_only";
 pub const AUTHORITY_PROMOTION_STAGE_CONFIG_GATE: &str = "config_gate";
@@ -42,7 +42,7 @@ pub const VERIFIED_BACKEND_STATEMENT_STABILITY: &str = "CheckpointTransitionStat
 pub const VERIFIED_BACKEND_REVIEW_PENDING: &str = "pending";
 pub const VERIFIED_BACKEND_REVIEW_APPROVED: &str = "approved";
 /// V2 writes only the non-authenticating evidence-commitment field name.
-pub const POST_QUANTUM_REQUIRED_ARTIFACTS: [&str; 9] = [
+pub const POST_QUANTUM_REQUIRED_ARTIFACTS_V2: [&str; 9] = [
     "pq_statement_digest",
     "pq_delta_root",
     "pq_witness_root",
@@ -169,7 +169,11 @@ pub struct NovaBranchCfg {
     #[serde(default)]
     pub fold_cadence_blocks: u64,
     #[serde(default)]
-    pub compressed_proof_snapshot_cadence_blocks: u64,
+    pub recovery_snapshot_cadence_blocks: u64,
+    #[serde(default)]
+    pub compression_cadence_blocks: u64,
+    #[serde(default)]
+    pub publication_cadence_blocks: u64,
     pub mode: String,
     pub proof_system: String,
     pub has_prior_output_binding: bool,
@@ -491,7 +495,7 @@ impl CheckpointContractConfigV2 {
     pub fn load_repo_default() -> Result<Self, CheckpointError> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
-            .join(CHECKPOINT_CONTRACT_CONFIG_V2_MIGRATION_PATH);
+            .join(CONFIG_V2_MIGRATION_PATH);
         Self::load(path)
     }
 
@@ -761,10 +765,23 @@ impl CheckpointContractConfigV2 {
                 nova.fold_cadence_blocks,
                 1,
             )?;
-            if nova.compressed_proof_snapshot_cadence_blocks == 0 {
-                return invalid(
-                    "branches.nova.compressed_proof_snapshot_cadence_blocks must be > 0",
-                );
+            for (field, cadence) in [
+                (
+                    "branches.nova.recovery_snapshot_cadence_blocks",
+                    nova.recovery_snapshot_cadence_blocks,
+                ),
+                (
+                    "branches.nova.compression_cadence_blocks",
+                    nova.compression_cadence_blocks,
+                ),
+                (
+                    "branches.nova.publication_cadence_blocks",
+                    nova.publication_cadence_blocks,
+                ),
+            ] {
+                if cadence == 0 {
+                    return invalid(format!("{field} must be > 0"));
+                }
             }
         }
         require_false("branches.nova.is_authoritative", nova.is_authoritative)?;
@@ -1128,7 +1145,7 @@ impl CheckpointContractConfigV2 {
         require_exact_list(
             "post_quantum.required_artifacts",
             &pq.required_artifacts,
-            &POST_QUANTUM_REQUIRED_ARTIFACTS,
+            &POST_QUANTUM_REQUIRED_ARTIFACTS_V2,
         )
     }
 
@@ -1692,7 +1709,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recursive_contract_rejects_profile_drift() {
+    fn test_contract_rejects_profile_drift() {
         let mut mode_drift = cfg();
         mode_drift.branches.recursive.mode = "streaming_transition_v2".to_string();
         assert!(matches!(
@@ -1709,7 +1726,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nova_nonclassical_security_role_rejects() {
+    fn test_nova_rejects_nonclassical_role() {
         let mut cfg = cfg();
         cfg.branches.nova.security_role = "pq_authoritative".to_string();
 
@@ -1721,7 +1738,7 @@ mod tests {
     }
 
     #[test]
-    fn test_live_recursive_config_rejects_disabled_nova() {
+    fn test_config_rejects_disabled_nova() {
         let mut invalid_cfg = cfg();
         invalid_cfg.branches.recursive.is_enabled = false;
         assert!(matches!(
@@ -1738,7 +1755,7 @@ mod tests {
     }
 
     #[test]
-    fn test_live_recursive_config_rejects_bad_cadence_matrix() {
+    fn test_config_rejects_bad_cadence() {
         for fold in [0, 2] {
             let mut invalid_cfg = cfg();
             invalid_cfg.branches.nova.fold_cadence_blocks = fold;
@@ -1886,7 +1903,7 @@ mod tests {
     }
 
     #[test]
-    fn test_unimplemented_pq_writer_stage_rejects() {
+    fn test_pq_writer_stage_rejects() {
         let mut cfg = cfg();
         cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
         cfg.authority_promotion.allowed_next_stages =

@@ -16,7 +16,7 @@ use crate::{
 const RECURSIVE_CHECKPOINT_CONTEXT_DOMAIN_V2: &str = "z00z.storage.checkpoint.recursive_context.v2";
 const RECURSIVE_CHECKPOINT_CONTEXT_LABEL_V2: &str = "context_digest";
 const RECURSIVE_CHECKPOINT_CONTEXT_VERSION_V2: u16 = 2;
-const RECURSIVE_NOOP_EXECUTION_INPUT_VERSION_V2: u8 = 2;
+const NOOP_EXECUTION_INPUT_VERSION_V2: u8 = 2;
 
 /// Exact portable namespace bound into recursive-checkpoint public inputs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -180,7 +180,7 @@ impl RecursiveAuthorityContextV2 {
             policy_digest,
             layout,
             authority_generation,
-            noop_execution_input_version: RECURSIVE_NOOP_EXECUTION_INPUT_VERSION_V2,
+            noop_execution_input_version: NOOP_EXECUTION_INPUT_VERSION_V2,
             epoch_cadence_blocks,
         })
     }
@@ -216,7 +216,7 @@ impl RecursiveAuthorityContextV2 {
     }
 
     #[must_use]
-    pub const fn allows_noop_execution_input_version(&self, version: u8) -> bool {
+    pub const fn is_noop_input_version_allowed(&self, version: u8) -> bool {
         version == self.noop_execution_input_version
     }
 
@@ -666,7 +666,7 @@ impl RecursiveAuthoritySnapshotV2 {
                 &generation,
             ],
         ));
-        Self::resolve_active_authority_for_snapshot_with_config(store, snapshot_id, &active)
+        Self::resolve_snapshot_authority(store, snapshot_id, &active)
     }
 
     /// Resolve the active authority around the prep-snapshot ID reloaded from
@@ -677,10 +677,10 @@ impl RecursiveAuthoritySnapshotV2 {
     ) -> Result<Self, CheckpointError> {
         let active =
             CheckpointConfigResolverV3::resolve_active().map_err(|_| CheckpointError::Authority)?;
-        Self::resolve_active_authority_for_snapshot_with_config(store, snapshot_id, &active)
+        Self::resolve_snapshot_authority(store, snapshot_id, &active)
     }
 
-    fn resolve_active_authority_for_snapshot_with_config(
+    fn resolve_snapshot_authority(
         store: &SettlementStore,
         snapshot_id: PrepSnapshotId,
         active: &ActiveCheckpointConfigV3,
@@ -698,6 +698,13 @@ impl RecursiveAuthoritySnapshotV2 {
     /// Detect configuration rotation before each transition boundary.
     pub(crate) fn revalidate_config(&self) -> Result<(), CheckpointError> {
         CheckpointConfigResolverV3::require_current(self.config_identity)
+            .map_err(|_| CheckpointError::Authority)
+    }
+
+    pub(crate) fn begin_evidence_attempt(
+        &self,
+    ) -> Result<super::contract_config_v3::ActiveConfigEvidenceGuardV3, CheckpointError> {
+        CheckpointConfigResolverV3::begin_evidence_attempt(self.config_identity)
             .map_err(|_| CheckpointError::Authority)
     }
 
@@ -737,7 +744,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn portable_context_has_frozen_digest_and_field_mutation_separation() {
+    fn test_context_binds_every_field() {
         let context = RecursiveCheckpointContextV2::test_fixture([1; 32], [2; 32]);
         let expected = [
             0x02, 0x99, 0x58, 0x79, 0x7f, 0x83, 0xcf, 0x2d, 0x64, 0x0e, 0x68, 0x4c, 0x5f, 0x08,
@@ -759,7 +766,7 @@ mod tests {
     }
 
     #[test]
-    fn no_op_execution_input_version_is_private_and_canonical() {
+    fn test_noop_input_is_canonical() {
         let context = RecursiveCheckpointContextV2::test_fixture([1; 32], [2; 32]);
         let authority = RecursiveAuthorityContextV2::new(
             context,
@@ -772,12 +779,12 @@ mod tests {
         .expect("canonical recursive authority");
 
         assert_eq!(authority.noop_execution_input_version(), 2);
-        assert!(authority.allows_noop_execution_input_version(2));
-        assert!(!authority.allows_noop_execution_input_version(1));
+        assert!(authority.is_noop_input_version_allowed(2));
+        assert!(!authority.is_noop_input_version_allowed(1));
     }
 
     #[test]
-    fn snapshot_captures_the_definition_root_used_by_the_v2_root() {
+    fn test_snapshot_binds_definition_root() {
         let store = SettlementStore::new();
         let snapshot =
             RecursiveSnapshotHandleV2::from_store(PrepSnapshotId::new([7; 32]), &store, 7)

@@ -11,7 +11,7 @@ use z00z_crypto::{sha256_256, sha256_256_role, CheckpointShaRole};
 use crate::{
     checkpoint::CheckpointId,
     settlement::{
-        derive_settlement_root_v2, RootGeneration, SettlementStateRoot,
+        derive_settlement_root_v2, RootGeneration, SettlementStateRoot, SettlementStore,
         SettlementUpdateTraceEnvelopeV2,
     },
     CheckpointError,
@@ -475,7 +475,7 @@ impl RecursivePreUniquenessContextV2 {
     }
 
     #[must_use]
-    pub(crate) const fn scalar_parts(self) -> [u64; 6] {
+    pub(crate) const fn scalar_parts(self) -> [u64; 7] {
         [
             PRE_UNIQUENESS_CONTEXT_VERSION_V2 as u64,
             self.height,
@@ -483,6 +483,7 @@ impl RecursivePreUniquenessContextV2 {
             self.layout as u64,
             self.authority_generation,
             self.noop_execution_input_version as u64,
+            self.epoch_cadence_blocks,
         ]
     }
 
@@ -519,6 +520,7 @@ impl RecursivePreUniquenessContextV2 {
             self.layout.to_le_bytes().to_vec(),
             self.authority_generation.to_le_bytes().to_vec(),
             vec![self.noop_execution_input_version],
+            self.epoch_cadence_blocks.to_le_bytes().to_vec(),
             self.old_settlement_root.to_vec(),
             self.old_definition_root.to_vec(),
             self.tx_data_root.to_vec(),
@@ -884,17 +886,16 @@ impl RecursiveTransitionStatementV2 {
     }
 }
 
-const RECURSIVE_NOVA_STEP_INPUT_VERSION_V2: u8 = 2;
-pub(crate) const RECURSIVE_FINALIZED_IVC_STATE_VERSION_V2: u8 = 1;
-const RECURSIVE_NOVA_STEP_INPUT_MAGIC_V2: [u8; 8] = *b"Z00ZRCI2";
-pub(crate) const RECURSIVE_FINALIZED_IVC_STATE_MAGIC_V2: [u8; 8] = *b"Z00ZRFS2";
+const NOVA_STEP_INPUT_VERSION_V2: u8 = 2;
+pub(crate) const FINAL_IVC_STATE_VERSION_V2: u8 = 1;
+const NOVA_STEP_INPUT_MAGIC_V2: [u8; 8] = *b"Z00ZRCI2";
+pub(crate) const FINAL_IVC_STATE_MAGIC_V2: [u8; 8] = *b"Z00ZRFS2";
 pub const NOVA_BACKEND_LABEL_V2: [u8; 28] = *b"nova_streaming_compressed_v2";
 pub const NOVA_PROOF_MODE_V2: [u8; 27] = *b"fast_classical_streaming_v2";
-const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2: u16 = 2;
-const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_DOMAIN_V2: &str =
-    "z00z.storage.checkpoint.recursive_public_input.v2";
-const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_LABEL_V2: &str = "public_input_digest";
-pub(crate) const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2: usize =
+const CHECKPOINT_PUBLIC_INPUT_VERSION_V2: u16 = 2;
+const CHECKPOINT_PUBLIC_INPUT_DOMAIN_V2: &str = "z00z.storage.checkpoint.recursive_public_input.v2";
+const CHECKPOINT_PUBLIC_INPUT_LABEL_V2: &str = "public_input_digest";
+pub(crate) const CHECKPOINT_PUBLIC_INPUT_BYTES_V2: usize =
     2 + 32 * 10 + 8 * 4 + 4 * 2 + NOVA_BACKEND_LABEL_V2.len() + NOVA_PROOF_MODE_V2.len();
 
 /// Authority-selected Nova identities that enter `X_h` only after the
@@ -983,23 +984,56 @@ impl RecursiveFinalizedIvcStateV2 {
         Ok(state)
     }
 
-    /// Construct the authority-pinned height-zero cutover endpoint.
-    #[allow(dead_code)] // Consumed by the configured cutover owner in T3.
-    pub(crate) fn cutover(
+    /// Derive the authority-pinned cutover endpoint from the sole durable
+    /// manifest validated against the unchanged settlement store.
+    pub(crate) fn from_cutover_store(store: &SettlementStore) -> Result<Self, CheckpointError> {
+        let manifest = store
+            .load_recursive_v2_cutover()
+            .map_err(|_| CheckpointError::CutoverAuthority)?;
+        if [
+            manifest.record_digest,
+            manifest.expected_settlement_root,
+            manifest.expected_definition_root,
+        ]
+        .contains(&[0_u8; 32])
+        {
+            return Err(CheckpointError::CutoverAuthority);
+        }
+        let height = manifest
+            .height
+            .checked_sub(1)
+            .ok_or(CheckpointError::CutoverAuthority)?;
+        let mut state = Self {
+            height,
+            checkpoint_id: CheckpointId::new(manifest.record_digest),
+            public_input_digest: manifest.record_digest,
+            transition_statement_digest: manifest.record_digest,
+            checkpoint_link_digest: manifest.record_digest,
+            settlement_root: manifest.expected_settlement_root,
+            definition_root: manifest.expected_definition_root,
+            cumulative_steps: 0,
+            digest: [0_u8; 32],
+        };
+        state.digest = sha256_256_role(CheckpointShaRole::Statement, &[&state.canonical_prefix()]);
+        Ok(state)
+    }
+
+    #[cfg(test)]
+    pub(super) fn cutover_fixture(
         checkpoint_id: CheckpointId,
         settlement_root: [u8; 32],
         definition_root: [u8; 32],
-        cutover_manifest_digest: [u8; 32],
+        manifest_digest: [u8; 32],
     ) -> Result<Self, CheckpointError> {
-        if [settlement_root, definition_root, cutover_manifest_digest].contains(&[0_u8; 32]) {
+        if [settlement_root, definition_root, manifest_digest].contains(&[0_u8; 32]) {
             return Err(CheckpointError::Authority);
         }
         let mut state = Self {
             height: 0,
             checkpoint_id,
-            public_input_digest: cutover_manifest_digest,
-            transition_statement_digest: cutover_manifest_digest,
-            checkpoint_link_digest: cutover_manifest_digest,
+            public_input_digest: manifest_digest,
+            transition_statement_digest: manifest_digest,
+            checkpoint_link_digest: manifest_digest,
             settlement_root,
             definition_root,
             cumulative_steps: 0,
@@ -1011,8 +1045,8 @@ impl RecursiveFinalizedIvcStateV2 {
 
     fn canonical_prefix(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(8 + 1 + 8 * 2 + 32 * 7);
-        bytes.extend_from_slice(&RECURSIVE_FINALIZED_IVC_STATE_MAGIC_V2);
-        bytes.push(RECURSIVE_FINALIZED_IVC_STATE_VERSION_V2);
+        bytes.extend_from_slice(&FINAL_IVC_STATE_MAGIC_V2);
+        bytes.push(FINAL_IVC_STATE_VERSION_V2);
         bytes.extend_from_slice(&self.height.to_le_bytes());
         bytes.extend_from_slice(self.checkpoint_id.as_bytes());
         bytes.extend_from_slice(&self.public_input_digest);
@@ -1042,6 +1076,203 @@ impl RecursiveFinalizedIvcStateV2 {
     #[must_use]
     pub(crate) const fn checkpoint_id(&self) -> CheckpointId {
         self.checkpoint_id
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::items_after_test_module)]
+mod cutover_state_tests {
+    use std::path::Path;
+
+    use redb::{Database, TableDefinition};
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::{
+        backend::redb::state::RecursiveV2CutoverManifestV2,
+        fixture_support::settlement_corpus::{asset_item, load_fixture},
+        settlement::hjmt_config::SettlementBackendMode,
+    };
+
+    const CUTOVER_TABLE: TableDefinition<&[u8], &[u8]> =
+        TableDefinition::new("settlement_recursive_v2_cutover");
+    const STORE_DB: &str = "settlement_state.redb";
+
+    fn durable_store() -> (TempDir, SettlementStore) {
+        let temp = tempfile::tempdir().expect("cutover tempdir");
+        let mut store =
+            SettlementStore::load_with_backend_mode(temp.path(), SettlementBackendMode::Hjmt)
+                .expect("durable cutover store");
+        let fixture = load_fixture();
+        store
+            .put_settlement_item(asset_item(&fixture.assets[0]))
+            .expect("persisted cutover state");
+        (temp, store)
+    }
+
+    fn cutover_manifest(store: &SettlementStore) -> RecursiveV2CutoverManifestV2 {
+        let network_context = [1_u8; 32];
+        let config_digest = [2_u8; 32];
+        let policy_digest = store.bucket_policy().bucket_policy_id();
+        let layout = 7_u32;
+        let authority_generation = 1_u64;
+        let noop_execution_input_version = 2_u8;
+        let epoch_cadence_blocks = 1_000_u64;
+        let authority_digest = sha256_256_role(
+            CheckpointShaRole::UniquenessContext,
+            &[
+                &network_context,
+                &config_digest,
+                &policy_digest,
+                &layout.to_le_bytes(),
+                &authority_generation.to_le_bytes(),
+                &[noop_execution_input_version],
+                &epoch_cadence_blocks.to_le_bytes(),
+            ],
+        );
+        let (
+            snapshot_root,
+            expected_definition_root,
+            storage_generation,
+            snapshot_record_count,
+            snapshot_byte_count,
+            snapshot_content_digest,
+        ) = store
+            .recursive_v2_snapshot_binding(layout)
+            .expect("live cutover binding");
+        let snapshot_id = [4_u8; 32];
+        let snapshot_digest = sha256_256_role(
+            CheckpointShaRole::Content,
+            &[
+                &snapshot_id,
+                &storage_generation.to_le_bytes(),
+                &snapshot_root,
+                &expected_definition_root,
+                &snapshot_record_count.to_le_bytes(),
+                &snapshot_byte_count.to_le_bytes(),
+                &snapshot_content_digest,
+            ],
+        );
+        let opaque_last_root_record = [7_u8; 32];
+        let pinned_opaque_record_digest = sha256_256_role(
+            CheckpointShaRole::Link,
+            &[
+                b"z00z.recursive.v2.opaque-last-root-record",
+                &opaque_last_root_record,
+            ],
+        );
+        let height = 10_u64;
+        let atomic_install_generation = 11_u64;
+        let record_digest = sha256_256_role(
+            CheckpointShaRole::Link,
+            &[
+                b"z00z.recursive.v2.cutover.manifest",
+                &authority_digest,
+                &snapshot_digest,
+                &height.to_le_bytes(),
+                &opaque_last_root_record,
+                &pinned_opaque_record_digest,
+                &expected_definition_root,
+                &snapshot_root,
+                &atomic_install_generation.to_le_bytes(),
+            ],
+        );
+        RecursiveV2CutoverManifestV2 {
+            schema_version: RecursiveV2CutoverManifestV2::SCHEMA_VERSION,
+            authority_digest,
+            network_context,
+            config_digest,
+            policy_digest,
+            layout,
+            authority_generation,
+            noop_execution_input_version,
+            epoch_cadence_blocks,
+            snapshot_id,
+            snapshot_digest,
+            snapshot_storage_generation: storage_generation,
+            snapshot_root,
+            snapshot_record_count,
+            snapshot_byte_count,
+            snapshot_content_digest,
+            height,
+            opaque_last_root_record,
+            pinned_opaque_record_digest,
+            expected_definition_root,
+            expected_settlement_root: snapshot_root,
+            storage_generation,
+            atomic_install_generation,
+            record_digest,
+        }
+    }
+
+    fn install_cutover(store: &mut SettlementStore) -> RecursiveV2CutoverManifestV2 {
+        let manifest = cutover_manifest(store);
+        store
+            .install_recursive_v2_cutover(manifest.clone())
+            .expect("durable cutover install");
+        manifest
+    }
+
+    fn corrupt_cutover(root: &Path) {
+        let database = Database::open(root.join(STORE_DB)).expect("open cutover database");
+        let write = database.begin_write().expect("begin corrupt write");
+        {
+            let mut table = write.open_table(CUTOVER_TABLE).expect("open cutover table");
+            table
+                .insert(&b"installed"[..], &b"corrupt"[..])
+                .expect("corrupt cutover record");
+        }
+        write.commit().expect("commit corrupt record");
+    }
+
+    #[test]
+    fn test_missing_cutover_rejected() {
+        let (_temp, store) = durable_store();
+        assert!(store.load_recursive_v2_cutover().is_err());
+    }
+
+    #[test]
+    fn test_corrupt_cutover_rejected() {
+        let (temp, mut store) = durable_store();
+        install_cutover(&mut store);
+        drop(store);
+        corrupt_cutover(temp.path());
+        let store =
+            SettlementStore::load_with_backend_mode(temp.path(), SettlementBackendMode::Hjmt)
+                .expect("reload corrupt cutover store");
+        assert!(store.load_recursive_v2_cutover().is_err());
+    }
+
+    #[test]
+    fn test_stale_cutover_rejected() {
+        let (_temp, mut store) = durable_store();
+        install_cutover(&mut store);
+        let fixture = load_fixture();
+        store
+            .put_settlement_item(asset_item(&fixture.assets[1]))
+            .expect("advance settlement generation");
+        assert!(store.load_recursive_v2_cutover().is_err());
+    }
+
+    #[test]
+    fn test_cutover_state_is_canonical() {
+        let (_temp, mut store) = durable_store();
+        let manifest = install_cutover(&mut store);
+        let first = RecursiveFinalizedIvcStateV2::from_cutover_store(&store)
+            .expect("canonical cutover state");
+        let second = RecursiveFinalizedIvcStateV2::from_cutover_store(&store)
+            .expect("repeat canonical cutover state");
+
+        assert_eq!(first, second);
+        assert_eq!(first.height, manifest.height - 1);
+        assert_eq!(first.cumulative_steps, 0);
+        assert_eq!(first.checkpoint_id.as_bytes(), &manifest.record_digest);
+        assert_eq!(first.public_input_digest, manifest.record_digest);
+        assert_eq!(first.transition_statement_digest, manifest.record_digest);
+        assert_eq!(first.checkpoint_link_digest, manifest.record_digest);
+        assert_eq!(first.settlement_root, manifest.expected_settlement_root);
+        assert_eq!(first.definition_root, manifest.expected_definition_root);
+        assert_ne!(first.digest, [0_u8; 32]);
     }
 }
 
@@ -1103,7 +1334,7 @@ pub(super) struct RecursiveNovaStepInputV2 {
 #[derive(Clone, Copy)]
 pub(crate) struct RecursiveNovaStateBindingsV2 {
     pub(crate) anchor_digests: [[u8; 32]; 17],
-    pub(crate) anchor_scalars: [u64; 7],
+    pub(crate) anchor_scalars: [u64; 8],
     pub(crate) semantic_counts: [u64; 8],
     pub(crate) opcode_counts: [u64; 17],
     pub(crate) expected_trace_digest: [u8; 32],
@@ -1221,8 +1452,8 @@ impl RecursiveNovaStepInputV2 {
 
     fn canonical_prefix(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&RECURSIVE_NOVA_STEP_INPUT_MAGIC_V2);
-        bytes.push(RECURSIVE_NOVA_STEP_INPUT_VERSION_V2);
+        bytes.extend_from_slice(&NOVA_STEP_INPUT_MAGIC_V2);
+        bytes.push(NOVA_STEP_INPUT_VERSION_V2);
         for digest in [
             self.chain_context,
             self.config_digest,
@@ -1364,6 +1595,7 @@ impl RecursiveNovaStepInputV2 {
                 self.layout as u64,
                 self.authority_generation,
                 self.noop_execution_input_version as u64,
+                self.epoch_cadence_blocks,
                 predecessor_present,
             ],
             semantic_counts: self.semantic_counts,
@@ -1395,7 +1627,7 @@ impl RecursiveNovaStepInputV2 {
         verifier: RecursiveVerifierInputBindingV2,
     ) -> Self {
         assert_eq!(context.height, 1, "envelope fixture starts at cutover");
-        let prior = RecursiveFinalizedIvcStateV2::cutover(
+        let prior = RecursiveFinalizedIvcStateV2::cutover_fixture(
             CheckpointId::new([1_u8; 32]),
             context.old_settlement_root,
             context.old_definition_root,
@@ -1534,7 +1766,7 @@ impl RecursiveCheckpointPublicInputV2 {
             .and_then(|value| value.checked_mul(step.epoch_cadence_blocks))
             .ok_or(CheckpointError::Overflow)?;
         Ok(Self {
-            version: RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2,
+            version: CHECKPOINT_PUBLIC_INPUT_VERSION_V2,
             context_digest: step.checkpoint_context.digest(),
             statement_digest: step.checkpoint_statement_digest,
             statement_core_digest: step.checkpoint_statement_core_digest,
@@ -1558,7 +1790,7 @@ impl RecursiveCheckpointPublicInputV2 {
 
     #[must_use]
     pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2);
+        let mut bytes = Vec::with_capacity(CHECKPOINT_PUBLIC_INPUT_BYTES_V2);
         bytes.extend_from_slice(&self.version.to_le_bytes());
         bytes.extend_from_slice(&self.context_digest);
         bytes.extend_from_slice(&self.statement_digest);
@@ -1582,12 +1814,12 @@ impl RecursiveCheckpointPublicInputV2 {
     }
 
     pub(super) fn decode_canonical(bytes: &[u8]) -> Result<Self, CheckpointError> {
-        if bytes.len() != RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2 {
+        if bytes.len() != CHECKPOINT_PUBLIC_INPUT_BYTES_V2 {
             return Err(CheckpointError::Canonical);
         }
         let mut cursor = 0;
         let version = u16::from_le_bytes(take_public_input::<2>(bytes, &mut cursor)?);
-        if version != RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2 {
+        if version != CHECKPOINT_PUBLIC_INPUT_VERSION_V2 {
             return Err(CheckpointError::RecursiveRejected(
                 RecursiveCheckpointRejectReasonV2::UnsupportedVersion,
             ));
@@ -1679,8 +1911,8 @@ impl RecursiveCheckpointPublicInputV2 {
     #[must_use]
     pub fn digest(&self) -> [u8; 32] {
         sha256_256(
-            RECURSIVE_CHECKPOINT_PUBLIC_INPUT_DOMAIN_V2,
-            RECURSIVE_CHECKPOINT_PUBLIC_INPUT_LABEL_V2,
+            CHECKPOINT_PUBLIC_INPUT_DOMAIN_V2,
+            CHECKPOINT_PUBLIC_INPUT_LABEL_V2,
             &[&self.canonical_bytes()],
         )
     }
@@ -1720,15 +1952,11 @@ impl RecursiveCheckpointPublicInputV2 {
         self.checkpoint_link_digest
     }
 
+    #[cfg(test)]
     pub(crate) fn validate_required_local_chain(&self) -> Result<(), CheckpointError> {
         if self.chain_length < 3 {
             return Err(CheckpointError::RecursiveRejected(
                 RecursiveCheckpointRejectReasonV2::ChainTooShort,
-            ));
-        }
-        if self.chain_length > 5 {
-            return Err(CheckpointError::RecursiveRejected(
-                RecursiveCheckpointRejectReasonV2::ChainTooLong,
             ));
         }
         Ok(())
@@ -1758,6 +1986,9 @@ fn take_public_input<const N: usize>(
 }
 
 #[cfg(test)]
+// Keep canonical statement serialization as the final production item while
+// colocating the public-input regression corpus with its decoder above.
+#[allow(clippy::items_after_test_module)]
 mod public_input_tests {
     use super::*;
 
@@ -1786,7 +2017,7 @@ mod public_input_tests {
     }
 
     #[test]
-    fn exact_public_input_has_frozen_order_and_each_field_is_bound() {
+    fn test_public_input_binds_fields() {
         let input = sample();
         let expected = [
             0xd1, 0xbe, 0x92, 0xaa, 0x35, 0x60, 0xce, 0xd5, 0x43, 0x45, 0x8e, 0x3c, 0xbe, 0x62,
@@ -1794,7 +2025,7 @@ mod public_input_tests {
             0x78, 0xf7, 0xb8, 0xf2,
         ];
         let bytes = input.canonical_bytes();
-        assert_eq!(bytes.len(), RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2);
+        assert_eq!(bytes.len(), CHECKPOINT_PUBLIC_INPUT_BYTES_V2);
         assert_eq!(input.digest(), expected);
         assert_eq!(
             RecursiveCheckpointPublicInputV2::decode_canonical(&bytes).ok(),
@@ -1886,10 +2117,11 @@ mod public_input_tests {
     }
 
     #[test]
-    fn required_local_chain_bounds_are_explicit() {
+    fn test_required_chain_bounds() {
         assert!(sample().validate_required_local_chain().is_ok());
         assert!(matches!(
             RecursiveCheckpointPublicInputV2 {
+                chain_index: 0,
                 chain_length: 2,
                 ..sample()
             }
@@ -1898,20 +2130,17 @@ mod public_input_tests {
                 RecursiveCheckpointRejectReasonV2::ChainTooShort
             ))
         ));
-        assert!(matches!(
-            RecursiveCheckpointPublicInputV2 {
-                chain_length: 6,
-                ..sample()
-            }
-            .validate_required_local_chain(),
-            Err(CheckpointError::RecursiveRejected(
-                RecursiveCheckpointRejectReasonV2::ChainTooLong
-            ))
-        ));
+        assert!(RecursiveCheckpointPublicInputV2 {
+            chain_index: 5,
+            chain_length: 6,
+            ..sample()
+        }
+        .validate_required_local_chain()
+        .is_ok());
     }
 
     #[test]
-    fn malformed_public_input_width_is_an_operational_codec_error() {
+    fn test_public_input_rejects_width() {
         let bytes = sample().canonical_bytes();
         assert!(matches!(
             RecursiveCheckpointPublicInputV2::decode_canonical(&bytes[..bytes.len() - 1]),

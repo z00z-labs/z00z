@@ -47,6 +47,13 @@ pub enum ConfigError {
         max: u64,
     },
 
+    /// Configuration directory exceeds the supported entry-count limit.
+    #[error("config directory contains more entries than limit {max}")]
+    DirectoryTooLarge {
+        /// Maximum supported number of directory entries.
+        max: usize,
+    },
+
     /// I/O error
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
@@ -57,6 +64,7 @@ impl From<IoError> for ConfigError {
         match err {
             IoError::Io(err) => Self::Io(err),
             IoError::FileTooLarge { size, max } => Self::FileTooLarge { size, max },
+            IoError::DirectoryTooLarge { max } => Self::DirectoryTooLarge { max },
             IoError::Serialization(err) | IoError::Deserialization(err) => Self::Yaml(err),
         }
     }

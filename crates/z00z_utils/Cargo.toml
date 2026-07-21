@@ -30,7 +30,7 @@ libc = "0.2"
 zstd = "0.13"
 lz4 = "1"
 lz4_flex = "0.11"
-rustix = { version = "1", features = ["mm", "process"] }
+rustix = { version = "1", features = ["fs", "mm", "process"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_Memory"] }

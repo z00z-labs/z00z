@@ -1,11 +1,9 @@
 //! Non-authoritative cryptographic verification receipt.
 
-use serde::Serialize;
 use z00z_crypto::sha256_256;
-use z00z_utils::codec::{BincodeCodec, Codec};
 
 use super::{
-    adapter::PostwriteVerifiedV2,
+    adapter::{ReceiptIssuedPartsV2, ReloadedEvidenceV2},
     version_registry::{
         CheckpointVersionRegistryV2, RecursiveBoundedObjectV2,
         CRYPTOGRAPHIC_VERIFICATION_RECEIPT_DIGEST_LABEL_V2,
@@ -14,15 +12,15 @@ use super::{
 };
 use crate::CheckpointError;
 
-const RECURSIVE_RECEIPT_PAYLOAD_CAP_V2: usize = 16 * 1024;
+pub(super) const RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2: usize = 524;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RecursiveVerificationResultV2 {
     VerifiedExactReload = 1,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct ReceiptWireV2 {
     wire_version: u16,
     authority_generation: u64,
@@ -48,28 +46,11 @@ struct ReceiptWireV2 {
     result: RecursiveVerificationResultV2,
 }
 
-/// Private canonical receipt payload prepared before the final in-memory
-/// issuance transition. Persisted bytes cannot construct this type or the
-/// public receipt because no decoder exists.
+/// Registry and fixed-size validation completed before the receipt-issued
+/// gate. It contains no success result, gate digest, or receipt bytes.
 pub(super) struct PreparedReceiptV2 {
-    wire: ReceiptWireV2,
-    canonical_bytes: Vec<u8>,
-}
-
-impl PreparedReceiptV2 {
-    pub(super) fn canonical_bytes(&self) -> &[u8] {
-        &self.canonical_bytes
-    }
-
-    #[cfg(test)]
-    pub(super) fn corrupt_wire_for_test(&mut self) {
-        self.wire.config_digest[0] ^= 1;
-    }
-
-    #[cfg(test)]
-    pub(super) fn corrupt_bytes_for_test(&mut self) {
-        self.canonical_bytes[0] ^= 1;
-    }
+    preheader: Vec<u8>,
+    registry_digest: [u8; 32],
 }
 
 /// Write-only evidence of the local unchanged-verifier result. There is no
@@ -81,43 +62,35 @@ pub struct CryptographicVerificationReceiptV2 {
 }
 
 impl CryptographicVerificationReceiptV2 {
-    pub(super) fn prepare_postwrite(
-        postwrite: &PostwriteVerifiedV2,
+    pub(super) fn prepare(
+        _storage_generation: u64,
+        envelope_digest: [u8; 32],
+        sidecar_digest: [u8; 32],
+        bindings: super::nova::NovaVerificationBindingsV2,
     ) -> Result<PreparedReceiptV2, CheckpointError> {
-        let preview = postwrite.receipt_preview();
-        let registry = CheckpointVersionRegistryV2::authority_pinned()
-            .map_err(|_| CheckpointError::Authority)?;
-        let wire = receipt_wire_from_postwrite(&preview, &registry)?;
-        let canonical_bytes = encode_receipt_wire(&wire, &registry)?;
-        Ok(PreparedReceiptV2 {
-            wire,
-            canonical_bytes,
-        })
-    }
-
-    /// Final checked type transition. All receipt bytes were prepared, durably
-    /// reloaded, and authority-revalidated while `postwrite` still owned the
-    /// 15-gate prefix. Release builds compare every prepared field and byte
-    /// against the exact consumed postwrite capability before issuance.
-    pub(super) fn issue_postwrite(
-        postwrite: PostwriteVerifiedV2,
-        prepared: PreparedReceiptV2,
-    ) -> Result<Self, CheckpointError> {
-        let issued = postwrite.issue_receipt()?;
-        let registry = CheckpointVersionRegistryV2::authority_pinned()
-            .map_err(|_| CheckpointError::Authority)?;
-        let expected_wire = receipt_wire_from_postwrite(&issued, &registry)?;
-        let expected_bytes = encode_receipt_wire(&expected_wire, &registry)?;
-        if prepared.wire != expected_wire || prepared.canonical_bytes != expected_bytes {
+        if envelope_digest == [0; 32]
+            || sidecar_digest == [0; 32]
+            || bindings.authority_generation == 0
+            || bindings.height == 0
+            || bindings.steps == 0
+            || bindings.gate_trace_digest != [0; 32]
+        {
             return Err(CheckpointError::Invariant);
         }
-        Ok(Self {
-            wire: prepared.wire,
-            canonical_bytes: prepared.canonical_bytes,
+        let registry = CheckpointVersionRegistryV2::authority_pinned()
+            .map_err(|_| CheckpointError::Authority)?;
+        let preheader = registry
+            .encode_preheader(
+                RecursiveBoundedObjectV2::CryptographicVerificationReceipt,
+                RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2,
+            )
+            .map_err(|_| CheckpointError::Canonical)?;
+        Ok(PreparedReceiptV2 {
+            preheader: preheader.to_vec(),
+            registry_digest: registry.digest(),
         })
     }
 
-    #[cfg(test)]
     pub(super) fn canonical_bytes(&self) -> &[u8] {
         &self.canonical_bytes
     }
@@ -133,72 +106,81 @@ impl CryptographicVerificationReceiptV2 {
     }
 }
 
-fn receipt_wire_from_postwrite(
-    parts: &super::adapter::PostwriteReceiptPartsV2,
-    registry: &CheckpointVersionRegistryV2,
-) -> Result<ReceiptWireV2, CheckpointError> {
-    // Generation zero is the canonical empty/genesis HJMT generation. It is
-    // serialized and authority-revalidated like every later value.
-    if parts.envelope_digest == [0; 32]
-        || parts.sidecar_digest == [0; 32]
-        || parts.bindings.steps == 0
-    {
-        return Err(CheckpointError::Invariant);
+impl PreparedReceiptV2 {
+    /// Gate 16 supplies the only success capability. All subsequent operations
+    /// are fixed-layout memory writes and cannot return a fallible status.
+    pub(super) fn issue(
+        self,
+        issued: ReceiptIssuedPartsV2,
+        _reloaded: ReloadedEvidenceV2,
+    ) -> CryptographicVerificationReceiptV2 {
+        let (storage_generation, envelope_digest, sidecar_digest, bindings) = issued.into_parts();
+        let wire = ReceiptWireV2 {
+            wire_version: 2,
+            authority_generation: bindings.authority_generation,
+            storage_generation,
+            height: bindings.height,
+            steps: bindings.steps,
+            checkpoint_id: bindings.checkpoint_id,
+            predecessor: bindings.predecessor,
+            config_digest: bindings.config_digest,
+            registry_digest: self.registry_digest,
+            verifier_bundle_digest: bindings.bundle_digest,
+            public_input_digest: bindings.public_input_digest,
+            initial_state_digest: bindings.initial_state_digest,
+            final_state_digest: bindings.final_state_digest,
+            final_state_limbs: bindings.final_state_limbs,
+            successor_finalized_state_digest: bindings.successor_finalized_state_digest,
+            statement_digest: bindings.statement_digest,
+            checkpoint_link_digest: bindings.checkpoint_link_digest,
+            envelope_digest,
+            sidecar_digest,
+            gate_trace_digest: bindings.gate_trace_digest,
+            backend_revision_result_digest: bindings.backend_revision_result_digest,
+            result: RecursiveVerificationResultV2::VerifiedExactReload,
+        };
+        let canonical_bytes = encode_receipt_wire(&wire, self.preheader);
+        CryptographicVerificationReceiptV2 {
+            wire,
+            canonical_bytes,
+        }
     }
-    let bindings = parts.bindings;
-    Ok(ReceiptWireV2 {
-        wire_version: 2,
-        authority_generation: bindings.authority_generation,
-        storage_generation: parts.storage_generation,
-        height: bindings.height,
-        steps: bindings.steps,
-        checkpoint_id: bindings.checkpoint_id,
-        predecessor: bindings.predecessor,
-        config_digest: bindings.config_digest,
-        registry_digest: registry.digest(),
-        verifier_bundle_digest: bindings.bundle_digest,
-        public_input_digest: bindings.public_input_digest,
-        initial_state_digest: bindings.initial_state_digest,
-        final_state_digest: bindings.final_state_digest,
-        final_state_limbs: bindings.final_state_limbs,
-        successor_finalized_state_digest: bindings.successor_finalized_state_digest,
-        statement_digest: bindings.statement_digest,
-        checkpoint_link_digest: bindings.checkpoint_link_digest,
-        envelope_digest: parts.envelope_digest,
-        sidecar_digest: parts.sidecar_digest,
-        gate_trace_digest: bindings.gate_trace_digest,
-        backend_revision_result_digest: bindings.backend_revision_result_digest,
-        result: RecursiveVerificationResultV2::VerifiedExactReload,
-    })
 }
 
-fn encode_receipt_wire(
-    wire: &ReceiptWireV2,
-    registry: &CheckpointVersionRegistryV2,
-) -> Result<Vec<u8>, CheckpointError> {
-    if wire.wire_version != 2
-        || wire.authority_generation == 0
-        || wire.height == 0
-        || wire.steps == 0
-    {
-        return Err(CheckpointError::Canonical);
+fn encode_receipt_wire(wire: &ReceiptWireV2, mut bytes: Vec<u8>) -> Vec<u8> {
+    bytes.reserve(RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2);
+    bytes.extend_from_slice(&wire.wire_version.to_le_bytes());
+    bytes.extend_from_slice(&wire.authority_generation.to_le_bytes());
+    bytes.extend_from_slice(&wire.storage_generation.to_le_bytes());
+    bytes.extend_from_slice(&wire.height.to_le_bytes());
+    bytes.extend_from_slice(&wire.steps.to_le_bytes());
+    bytes.extend_from_slice(&wire.checkpoint_id);
+    bytes.push(u8::from(wire.predecessor.is_some()));
+    bytes.extend_from_slice(&wire.predecessor.unwrap_or([0; 32]));
+    for digest in [
+        wire.config_digest,
+        wire.registry_digest,
+        wire.verifier_bundle_digest,
+        wire.public_input_digest,
+        wire.initial_state_digest,
+        wire.final_state_digest,
+    ] {
+        bytes.extend_from_slice(&digest);
     }
-    let payload = BincodeCodec
-        .serialize(wire)
-        .map_err(|_| CheckpointError::Canonical)?;
-    if payload.len() > RECURSIVE_RECEIPT_PAYLOAD_CAP_V2 {
-        return Err(CheckpointError::Limit);
+    bytes.extend_from_slice(&wire.final_state_limbs.to_le_bytes());
+    for digest in [
+        wire.successor_finalized_state_digest,
+        wire.statement_digest,
+        wire.checkpoint_link_digest,
+        wire.envelope_digest,
+        wire.sidecar_digest,
+        wire.gate_trace_digest,
+        wire.backend_revision_result_digest,
+    ] {
+        bytes.extend_from_slice(&digest);
     }
-    let header = registry
-        .encode_preheader(
-            RecursiveBoundedObjectV2::CryptographicVerificationReceipt,
-            payload.len(),
-        )
-        .map_err(|_| CheckpointError::Canonical)?;
-    let mut bytes = Vec::with_capacity(header.len() + payload.len());
-    bytes.extend_from_slice(&header);
-    bytes.extend_from_slice(&payload);
-    Ok(bytes)
+    bytes.push(wire.result as u8);
+    bytes
 }
 
 pub(crate) fn recursive_receipt_digest(bytes: &[u8]) -> [u8; 32] {

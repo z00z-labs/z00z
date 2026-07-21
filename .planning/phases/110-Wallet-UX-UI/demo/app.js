@@ -14,53 +14,71 @@ const dialog = document.querySelector("#flow-dialog");
 const dialogContent = document.querySelector("#dialog-content");
 const appShell = document.querySelector("#app-shell");
 const lockScreen = document.querySelector("#lock-screen");
+const i18n = window.Z00ZI18n;
+if (!i18n) throw new Error("Z00Z i18n must load before the wallet demo.");
+const uiLanguages = i18n.languages();
 const demoParams = new URLSearchParams(window.location.search);
-const requestedView = ["home", "wallet", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings", "settings", "add-wallet"].includes(demoParams.get("view")) ? demoParams.get("view") : "wallet";
+const requestedView = ["home", "wallet", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings", "settings", "telemetry"].includes(demoParams.get("view")) ? demoParams.get("view") : "wallet";
 const requestedWalletSection = ["assets", "vouchers", "permissions"].includes(demoParams.get("wallet")) ? demoParams.get("wallet") : "assets";
 const requestedWalletSettingsSection = ["general", "security", "backup", "policies", "advanced"].includes(demoParams.get("walletSettings")) ? demoParams.get("walletSettings") : "general";
-const requestedSettingsSection = ["general", "security", "network", "policies", "backup", "appearance", "advanced"].includes(demoParams.get("settings")) ? demoParams.get("settings") : "general";
+const requestedSettingsSection = ["general", "network", "appearance"].includes(demoParams.get("settings")) ? demoParams.get("settings") : "general";
 const requestedNetworkSection = ["overview", "reticulum", "onionnet", "carriers"].includes(demoParams.get("network")) ? demoParams.get("network") : "overview";
+const requestedTelemetrySource = ["onionnet", "reticulum", "aggregators"].includes(demoParams.get("telemetry")) ? demoParams.get("telemetry") : "onionnet";
+const requestedReticulumTelemetryTab = ["node", "interfaces", "radio", "entrypoints", "paths", "probes", "links"].includes(demoParams.get("reticulumTab")) ? demoParams.get("reticulumTab") : "node";
+const requestedOnionnetTelemetryTab = ["overview", "epoch", "privacy", "transport", "queues", "probation", "ingress"].includes(demoParams.get("onionTab")) ? demoParams.get("onionTab") : "overview";
 
 const paletteOptions = [
-  { id: "z00z-default", label: "Z00Z Default", description: "Current private-wallet palette", swatches: ["#081019", "#101D29", "#E3B341", "#32A9E8", "#F5F7F8"] },
-  { id: "black-gold-elegance", label: "Black & Gold", description: "Black, navy, and restrained gold", swatches: ["#000000", "#14213D", "#FCA311", "#E5E5E5", "#FFFFFF"] },
-  { id: "deep-blue-sea", label: "Deep Blue Sea", description: "Layered blue with cool neutrals", swatches: ["#134074", "#13315C", "#0B2545", "#8DA9C4", "#EEF4ED"] },
-  { id: "golden-twilight", label: "Golden Twilight", description: "Near-black, deep blue, and gold", swatches: ["#000814", "#001D3D", "#003566", "#FFC300", "#FFD60A"] },
-  { id: "midnight-sky", label: "Midnight Sky", description: "Midnight blue with luminous gold", swatches: ["#00296B", "#003F88", "#00509D", "#FDC500", "#FFD500"] }
+  { id: "z00z-default", label: "Z00Z Default", description: "Current private-wallet palette" },
+  { id: "black-gold-elegance", label: "Black & Gold", description: "Black, navy, and restrained gold" },
+  { id: "deep-blue-sea", label: "Deep Blue Sea", description: "Layered blue with cool neutrals" },
+  { id: "golden-twilight", label: "Golden Twilight", description: "Near-black, deep blue, and gold" },
+  { id: "midnight-sky", label: "Midnight Sky", description: "Midnight blue with luminous gold" }
 ];
 
 const codeThemeOptions = [
-  { id: "atom-one-light", label: "One Light", description: "Bright technical surface with magenta, amber, violet, and green syntax.", mode: "light", background: "#FAFAFA", border: "#D6D6D6", foreground: "#0D161B", comment: "#64560D", keyword: "#F23173", string: "#BD5200", number: "#CF4DFF", title: "#007400" },
-  { id: "xcode", label: "Xcode", description: "Light Apple-style syntax with green comments and crisp blue numerics.", mode: "light", background: "#FAFAFA", border: "#D6D6D6", foreground: "#000000", comment: "#007400", keyword: "#AA0D91", string: "#C41A16", number: "#1C00CF", title: "#1C00CF" },
-  { id: "atom-one-dark", label: "One Dark", description: "Deep blue-black surface with Monokai pink, amber, violet, and green syntax.", mode: "dark", background: "#0D161B", border: "#181A1F", foreground: "#CACED6", comment: "#75715E", keyword: "#F92672", string: "#E5C07B", number: "#C678DD", title: "#98C379" },
-  { id: "night-owl", label: "Night Owl", description: "Deep dark technical surface with muted violet, sand, and orange tokens.", mode: "dark", background: "#011627", border: "#13344A", foreground: "#D6DEEB", comment: "#637777", keyword: "#C792EA", string: "#ECC48D", number: "#F78C6C", title: "#DCDCAA" }
+  { id: "atom-one-light", label: "One Light", description: "Bright technical surface with magenta, amber, violet, and green syntax.", mode: "light" },
+  { id: "xcode", label: "Xcode", description: "Light Apple-style syntax with green comments and crisp blue numerics.", mode: "light" },
+  { id: "atom-one-dark", label: "One Dark", description: "Deep blue-black surface with Monokai pink, amber, violet, and green syntax.", mode: "dark" },
+  { id: "night-owl", label: "Night Owl", description: "Deep dark technical surface with muted violet, sand, and orange tokens.", mode: "dark" }
 ];
+
+const defaultCustomAppearance = Object.freeze({
+  brand: getComputedStyle(document.documentElement).getPropertyValue("--brand").trim(),
+  rail: getComputedStyle(document.documentElement).getPropertyValue("--rail").trim()
+});
 
 const state = {
   view: requestedView,
   balanceHidden: false,
   expertDetails: false,
   activityFilter: "all",
+  assetFilter: "all",
   walletSection: requestedWalletSection,
   walletSettingsSection: requestedWalletSettingsSection,
   settingsSection: requestedSettingsSection,
   networkSection: requestedNetworkSection,
+  telemetrySource: requestedTelemetrySource,
+  reticulumTelemetryTab: requestedReticulumTelemetryTab,
+  onionnetTelemetryTab: requestedOnionnetTelemetryTab,
   isNetworkOpen: requestedSettingsSection === "network",
   theme: "dark",
   palette: "z00z-default",
-  codeTheme: "atom-one-dark",
-  language: "English",
+  language: "en",
+  regionalLocale: "en-US",
+  timeZone: "UTC",
+  networkUnits: "decimal-bps",
   notifications: true,
   autoLockMinutes: "15",
   textScale: "100",
   reducedMotion: false,
   compactLists: false,
+  codeTheme: "atom-one-dark",
   configView: "yaml",
   configDraft: "",
   walletSettingsConfigDraft: "",
   configStatus: "Local draft is in sync with the visible controls.",
   hasCustomAppearance: false,
-  customAppearance: { brand: "#e3b341", rail: "#32a9e8" },
+  customAppearance: { ...defaultCustomAppearance },
   walletPreferences: {},
   locked: false,
   flow: null,
@@ -75,13 +93,13 @@ const state = {
       fullAddress: "ZxChpoioBEFR1PRJPamJxh5aWdEb94ek8J52PmT8PYAEa8RKVtSs9X3UPgaSaHvMMZKcQoiyVFhEE256vcyGPeFV23d2Mj8Pt",
       summary: { available: "12,480.75", locked: "0.00", pendingIn: "960.00", pendingOut: "240.00", scan: "Current" },
       activities: [
-        { id: "tx-7f31", type: "money", direction: "out", title: "Payment to Mira", detail: "Sent · waiting to settle", amount: "− 240.00 Z00Z", time: "2 min", status: "settling" },
-        { id: "claim-014", type: "asset", direction: "in", title: "Allocation claimed", detail: "Verified claim · waiting to settle", amount: "+ 86.00 Z00Z", time: "18 min", status: "settling" },
-        { id: "tx-7e88", type: "money", direction: "in", title: "Received from Niko", detail: "Settled", amount: "+ 1,200.00 Z00Z", time: "Yesterday", status: "settled" },
-        { id: "voucher-221", type: "voucher", direction: "neutral", title: "Travel refund voucher", detail: "Offered · review before 21 Jul", amount: "86.00 Z00Z", time: "Yesterday", status: "attention" },
-        { id: "right-221", type: "permission", direction: "neutral", title: "Delivery receipt access", detail: "Data access · 2 of 5 uses remain", amount: "2 uses", time: "Yesterday", status: "active" },
-        { id: "tx-7d12", type: "money", direction: "out", title: "Payment to Coffee Lab", detail: "Settled", amount: "− 18.50 Z00Z", time: "12 Jul", status: "settled" },
-        { id: "security-4", type: "security", direction: "neutral", title: "Local backup created", detail: "Integrity check passed", amount: "", time: "10 Jul", status: "settled" }
+        { id: "tx-7f31", type: "money", direction: "out", titleKey: "history.paymentTo", titleValues: { recipient: "Mira" }, detailKey: "history.sentWaiting", amount: "− 240.00 Z00Z", timeKey: "history.minutesAgo", timeValues: { count: 2 }, status: "settling" },
+        { id: "claim-014", type: "asset", direction: "in", titleKey: "history.allocationClaimed", detailKey: "history.verifiedClaimWaiting", amount: "+ 86.00 Z00Z", timeKey: "history.minutesAgo", timeValues: { count: 18 }, status: "settling" },
+        { id: "tx-7e88", type: "money", direction: "in", titleKey: "history.receivedFrom", titleValues: { sender: "Niko" }, detailKey: "history.settled", amount: "+ 1,200.00 Z00Z", timeKey: "history.yesterday", status: "settled" },
+        { id: "voucher-221", type: "voucher", direction: "neutral", titleKey: "history.travelRefundVoucher", detailKey: "history.offeredReviewBefore", detailValueKeys: { date: "history.jul21" }, amount: "86.00 Z00Z", timeKey: "history.yesterday", status: "attention" },
+        { id: "right-221", type: "permission", direction: "neutral", titleKey: "history.deliveryReceiptAccess", detailKey: "history.dataAccessUsesRemain", detailValues: { used: 2, total: 5 }, amountKey: "history.uses", amountValues: { count: 2 }, timeKey: "history.yesterday", status: "active" },
+        { id: "tx-7d12", type: "money", direction: "out", titleKey: "history.paymentTo", titleValues: { recipient: "Coffee Lab" }, detailKey: "history.settled", amount: "− 18.50 Z00Z", timeKey: "history.jul12", status: "settled" },
+        { id: "security-4", type: "security", direction: "neutral", titleKey: "history.localBackupCreated", detailKey: "history.integrityPassed", amount: "", timeKey: "history.jul10", status: "settled" }
       ]
     },
     {
@@ -92,8 +110,8 @@ const state = {
       fullAddress: "ZxR5vKpyP2W6eT8fVqH8M9sB7cX4aL2nQ5rD1uEe1Qm",
       summary: { available: "7,215.00", locked: "1,400.00", pendingIn: "0.00", pendingOut: "0.00", scan: "Current" },
       activities: [
-        { id: "saving-100", type: "money", direction: "in", title: "Transfer from Everyday", detail: "Settled", amount: "+ 2,000.00 Z00Z", time: "3 Jul", status: "settled" },
-        { id: "saving-101", type: "security", direction: "neutral", title: "Recovery check completed", detail: "Local verification passed", amount: "", time: "30 Jun", status: "settled" }
+        { id: "saving-100", type: "money", direction: "in", titleKey: "history.transferFrom", titleValues: { wallet: "Everyday" }, detailKey: "history.settled", amount: "+ 2,000.00 Z00Z", timeKey: "history.jul3", status: "settled" },
+        { id: "saving-101", type: "security", direction: "neutral", titleKey: "history.recoveryCheckCompleted", detailKey: "history.localVerificationPassed", amount: "", timeKey: "history.jun30", status: "settled" }
       ]
     },
     {
@@ -104,25 +122,70 @@ const state = {
       fullAddress: "ZxT8cQy6BvR3sL9wE1mD5hK7pA4Fh2Ns",
       summary: { available: "860.00", locked: "0.00", pendingIn: "125.00", pendingOut: "0.00", scan: "Scanning" },
       activities: [
-        { id: "travel-100", type: "money", direction: "in", title: "Received from Niko", detail: "Waiting to settle", amount: "+ 125.00 Z00Z", time: "8 min", status: "settling" },
-        { id: "travel-101", type: "money", direction: "out", title: "Payment to RailLink", detail: "Settled", amount: "− 74.50 Z00Z", time: "Yesterday", status: "settled" }
+        { id: "travel-100", type: "money", direction: "in", titleKey: "history.receivedFrom", titleValues: { sender: "Niko" }, detailKey: "history.waitingToSettle", amount: "+ 125.00 Z00Z", timeKey: "history.minutesAgo", timeValues: { count: 8 }, status: "settling" },
+        { id: "travel-101", type: "money", direction: "out", titleKey: "history.paymentTo", titleValues: { recipient: "RailLink" }, detailKey: "history.settled", amount: "− 74.50 Z00Z", timeKey: "history.yesterday", status: "settled" }
       ]
     }
   ]
 };
 
 const headings = {
-  home: ["Home", "Your private money at a glance"],
+  home: ["app.home", "app.homeContext"],
   wallet: ["Wallet", "Assets, vouchers, and permissions stay distinct"],
+  "wallet-send": ["assets.send", "Assets, vouchers, and permissions stay distinct"],
+  "wallet-receive": ["assets.receive", "Assets, vouchers, and permissions stay distinct"],
   activity: ["History", "Asset, voucher, permission, policy, and security events"],
   swap: ["Swap", "Move value between assets in this wallet"],
   exchange: ["Exchange", "Compare external exchange routes for this wallet"],
   staking: ["Staking", "Put selected wallet value to work with clear terms"],
   "wallet-backup": ["Backup", "Protect the selected wallet with a verified local backup"],
   "wallet-settings": ["Wallet settings", "Configure this wallet without changing other local profiles"],
-  settings: ["Settings", "Common controls and advanced configuration"],
-  "add-wallet": ["Add wallet", "Create, open, or restore a local wallet"]
+  settings: ["app.settings", "app.settingsContext"],
+  telemetry: ["Telemetry", "Read-only local route and publication evidence"]
 };
+
+const telemetryTopbar = {
+  onionnet: ["OnionNet", "network.routeTelemetry"],
+  reticulum: ["Reticulum", "network.carrierTelemetry"],
+  aggregators: ["Aggregators", "network.publicationTelemetry"]
+};
+
+function t(key, values) {
+  return i18n.translate(state.language, key, values);
+}
+
+function languageOptionsMarkup() {
+  return uiLanguages.map(({ id, nativeName }) => `<option value="${id}"${state.language === id ? " selected" : ""}>${nativeName}</option>`).join("");
+}
+
+function regionalLocaleOptionsMarkup() {
+  return uiLanguages.map(({ locale, nativeName }) => `<option value="${locale}"${state.regionalLocale === locale ? " selected" : ""}>${nativeName} · ${locale}</option>`).join("");
+}
+
+function applyDocumentTranslations() {
+  document.documentElement.lang = state.language;
+  document.documentElement.dir = uiLanguages.find((language) => language.id === state.language)?.direction ?? "ltr";
+  document.title = t("app.documentTitle");
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = t(element.dataset.i18n);
+  });
+}
+
+function formatLocalizedNumber(value, options) {
+  return i18n.formatNumber(value, state.language, state.regionalLocale, options);
+}
+
+function formatLocalizedDateTime(value, options) {
+  return i18n.formatDateTime(value, state.language, state.regionalLocale, state.timeZone, options);
+}
+
+function formatLocalizedBitrate(bitsPerSecond) {
+  return i18n.formatBitrate(bitsPerSecond, state.language, state.regionalLocale);
+}
+
+function walletScanLabel(scan) {
+  return t(scan === "Scanning" ? "walletShell.scanning" : "walletShell.current");
+}
 
 function activeWallet() {
   return state.wallets.find((wallet) => wallet.id === state.selectedWalletId) || state.wallets[0] || {
@@ -173,19 +236,20 @@ function effectiveDemoConfigYaml() {
     "app:",
     "  general:",
     `    language: \"${yamlScalar(state.language)}\"`,
+    `    regional_locale: \"${yamlScalar(state.regionalLocale)}\"`,
+    `    time_zone: \"${yamlScalar(state.timeZone)}\"`,
+    `    network_units: ${state.networkUnits}`,
     `    notifications: ${state.notifications}`,
     "  appearance:",
     `    theme: ${state.theme}`,
     `    palette: ${state.palette}`,
-    `    code_theme: ${state.codeTheme}`,
     `    custom_enabled: ${state.hasCustomAppearance}`,
     `    custom_brand: "${state.customAppearance.brand}"`,
     `    custom_rail: "${state.customAppearance.rail}"`,
     `    text_scale: ${state.textScale}`,
     `    reduced_motion: ${state.reducedMotion}`,
     `    compact_desktop_lists: ${state.compactLists}`,
-    "  security:",
-    `    lock_after_minutes: ${state.autoLockMinutes}`,
+    `    code_theme: ${state.codeTheme}`,
     "",
     "wallet:",
     `  id: \"${yamlScalar(wallet.id)}\"`,
@@ -234,6 +298,7 @@ function applyAppearancePreferences() {
   root.dataset.textScale = state.textScale;
   root.dataset.reducedMotion = String(state.reducedMotion);
   root.dataset.compactLists = String(state.compactLists);
+  applyDocumentTranslations();
   if (state.hasCustomAppearance) {
     root.style.setProperty("--brand", state.customAppearance.brand);
     root.style.setProperty("--rail", state.customAppearance.rail);
@@ -241,8 +306,8 @@ function applyAppearancePreferences() {
     root.style.removeProperty("--brand");
     root.style.removeProperty("--rail");
   }
-  const themeColor = getComputedStyle(root).getPropertyValue("--bg-canvas").trim() || (effectiveTheme === "dark" ? "#081019" : "#F4F7FA");
-  document.querySelector('meta[name="theme-color"]').content = themeColor;
+  const themeColor = getComputedStyle(root).getPropertyValue("--bg-canvas").trim();
+  if (themeColor) document.querySelector('meta[name="theme-color"]').content = themeColor;
 }
 
 function hexToRgb(value) {
@@ -279,12 +344,15 @@ function validateAndApplyDemoConfig(source, apply = false) {
 
   const theme = readYamlScalar(source, "theme");
   const palette = readYamlScalar(source, "palette");
-  const codeTheme = readYamlScalar(source, "code_theme");
   const language = readYamlScalar(source, "language");
+  const regionalLocale = readYamlScalar(source, "regional_locale");
+  const timeZone = readYamlScalar(source, "time_zone");
+  const networkUnits = readYamlScalar(source, "network_units");
   const textScale = readYamlScalar(source, "text_scale");
   const notifications = readYamlScalar(source, "notifications");
   const reducedMotion = readYamlScalar(source, "reduced_motion");
   const compactLists = readYamlScalar(source, "compact_desktop_lists");
+  const codeTheme = readYamlScalar(source, "code_theme");
   const appLockAfter = readYamlScalar(source, "lock_after_minutes");
   const defaultFee = readYamlScalar(source, "default_fee");
   const customEnabled = readYamlScalar(source, "custom_enabled");
@@ -295,11 +363,15 @@ function validateAndApplyDemoConfig(source, apply = false) {
 
   if (theme && !["system", "dark", "light"].includes(theme)) return { valid: false, message: "Theme must be system, dark, or light." };
   if (palette && !paletteOptions.some((entry) => entry.id === palette)) return { valid: false, message: "Palette must use one of the listed preset IDs." };
-  if (codeTheme && !codeThemeOptions.some((entry) => entry.id === codeTheme)) return { valid: false, message: "code_theme must use one of the listed preset IDs." };
+  if (language && !uiLanguages.some((entry) => entry.id === language)) return { valid: false, message: "language must be a supported UI language code." };
+  if (regionalLocale && !uiLanguages.some((entry) => entry.locale === regionalLocale)) return { valid: false, message: "regional_locale must use a supported locale." };
+  if (timeZone && !["UTC", "Asia/Jerusalem", "Europe/Berlin", "America/New_York", "Asia/Tokyo", "Asia/Shanghai"].includes(timeZone)) return { valid: false, message: "time_zone must use a supported IANA identifier." };
+  if (networkUnits && networkUnits !== "decimal-bps") return { valid: false, message: "network_units must be decimal-bps." };
   if (textScale && !["100", "110", "125"].includes(textScale)) return { valid: false, message: "text_scale must be 100, 110, or 125." };
   if (notifications && !["true", "false"].includes(notifications)) return { valid: false, message: "notifications must be true or false." };
   if (reducedMotion && !["true", "false"].includes(reducedMotion)) return { valid: false, message: "reduced_motion must be true or false." };
   if (compactLists && !["true", "false"].includes(compactLists)) return { valid: false, message: "compact_desktop_lists must be true or false." };
+  if (codeTheme && !codeThemeOptions.some((entry) => entry.id === codeTheme)) return { valid: false, message: "code_theme must use one of the listed preset IDs." };
   if (defaultFee && !/^\d+(?:\.\d+)?$/.test(defaultFee)) return { valid: false, message: "default_fee must be a non-negative decimal." };
   if (customEnabled && !["true", "false"].includes(customEnabled)) return { valid: false, message: "custom_enabled must be true or false." };
   if (customBrand && !hexToRgb(customBrand)) return { valid: false, message: "custom_brand must be a six-digit hex color." };
@@ -311,12 +383,15 @@ function validateAndApplyDemoConfig(source, apply = false) {
   if (apply) {
     if (theme) state.theme = theme;
     if (palette) state.palette = palette;
-    if (codeTheme) state.codeTheme = codeTheme;
     if (language) state.language = language;
+    if (regionalLocale) state.regionalLocale = regionalLocale;
+    if (timeZone) state.timeZone = timeZone;
+    if (networkUnits) state.networkUnits = networkUnits;
     if (textScale) state.textScale = textScale;
     if (notifications) state.notifications = notifications === "true";
     if (reducedMotion) state.reducedMotion = reducedMotion === "true";
     if (compactLists) state.compactLists = compactLists === "true";
+    if (codeTheme) state.codeTheme = codeTheme;
     if (appLockAfter) state.autoLockMinutes = appLockAfter.toLowerCase();
     if (defaultFee) activeWalletPreferences().defaultFee = defaultFee;
     if (customEnabled) state.hasCustomAppearance = customEnabled === "true";
@@ -333,17 +408,16 @@ function validateAndApplyDemoConfig(source, apply = false) {
 function paletteCard(palette) {
   const isActive = state.palette === palette.id;
   return `<button class="palette-card${isActive ? " is-active" : ""}" type="button" data-palette="${palette.id}" aria-pressed="${isActive}">
-    <span class="palette-swatches" aria-hidden="true">${palette.swatches.map((swatch) => `<i style="--swatch:${swatch}"></i>`).join("")}</span>
+    <span class="palette-swatches" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <span><strong>${palette.label}</strong><small>${palette.description}</small></span>
   </button>`;
 }
 
 function codeThemeCard(theme) {
   const isActive = state.codeTheme === theme.id;
-  const vars = `--code-preview-bg:${theme.background};--code-preview-border:${theme.border};--code-preview-fg:${theme.foreground};--code-preview-comment:${theme.comment};--code-preview-keyword:${theme.keyword};--code-preview-string:${theme.string};--code-preview-number:${theme.number};--code-preview-title:${theme.title}`;
   return `<button class="code-theme-card${isActive ? " is-active" : ""}" type="button" data-code-theme="${theme.id}" aria-pressed="${isActive}">
     <span class="code-theme-card-heading"><strong>${theme.label}</strong>${isActive ? "<em>Active</em>" : ""}</span>
-    <span class="code-theme-preview" aria-hidden="true" style="${vars}">
+    <span class="code-theme-preview" aria-hidden="true">
       <span class="code-theme-preview-dots"><i></i><i></i><i></i><i></i></span>
       <span><b>// z00z preview</b></span>
       <span><strong>theme</strong><span> = </span><em>"demo"</em></span>
@@ -406,10 +480,12 @@ function advancedConfigContent() {
   const source = state.configDraft || effectiveDemoConfigYaml();
   const formContent = `
     <div class="config-form-grid">
-      <label><span>Language</span><select data-config-control="language"><option${state.language === "English" ? " selected" : ""}>English</option><option${state.language === "Русский" ? " selected" : ""}>Русский</option><option${state.language === "עברית" ? " selected" : ""}>עברית</option></select></label>
+      <label><span>${t("app.language")}</span><select data-config-control="language">${languageOptionsMarkup()}</select></label>
+      <label><span>${t("app.regionalFormat")}</span><select data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select></label>
+      <label><span>${t("app.timeZone")}</span><select data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select></label>
       <label><span>Palette</span><select data-config-control="palette">${paletteOptions.map((palette) => `<option value="${palette.id}"${state.palette === palette.id ? " selected" : ""}>${palette.label}</option>`).join("")}</select></label>
-      <label><span>Code highlighting</span><select data-config-control="code-theme">${codeThemeOptions.map((theme) => `<option value="${theme.id}"${state.codeTheme === theme.id ? " selected" : ""}>${theme.label}</option>`).join("")}</select></label>
       <label><span>Text scale</span><select data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select></label>
+      <label><span>Code highlighting</span><select data-config-control="code-theme">${codeThemeOptions.map((theme) => `<option value="${theme.id}"${state.codeTheme === theme.id ? " selected" : ""}>${theme.label}</option>`).join("")}</select></label>
       <label><span>Default fee</span><input data-config-control="default-fee" inputmode="decimal" value="${escapeHtml(walletPreferences.defaultFee)}" aria-label="Default fee"></label>
     </div>`;
   const diffContent = `
@@ -434,11 +510,11 @@ function advancedConfigContent() {
 }
 
 function isWalletView() {
-  return ["wallet", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings"].includes(state.view);
+  return ["wallet", "wallet-send", "wallet-receive", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings"].includes(state.view);
 }
 
 function hasSelectedWalletContext() {
-  return Boolean(state.selectedWalletId) && !["settings", "add-wallet"].includes(state.view);
+  return Boolean(state.selectedWalletId) && !["settings", "telemetry"].includes(state.view);
 }
 
 function addWalletProfile(name, scan = "Scanning") {
@@ -459,15 +535,13 @@ function addWalletProfile(name, scan = "Scanning") {
 }
 
 function sidebarActiveTarget() {
+  if (state.view === "telemetry") return { group: "network", id: state.telemetrySource };
+
   if (state.view === "settings") {
     if (state.settingsSection === "network") {
       return { group: "network", id: state.networkSection };
     }
     return { group: "settings", id: "settings" };
-  }
-
-  if (state.view === "add-wallet") {
-    return { group: "add-wallet", id: "add-wallet" };
   }
 
   return state.selectedWalletId
@@ -482,53 +556,90 @@ function renderWalletShell() {
   walletNav.innerHTML = `${state.wallets.map((entry) => `
     <button class="wallet-nav-item${sidebarTarget.group === "wallet" && entry.id === sidebarTarget.id ? " is-active" : ""}" type="button" ${sidebarTarget.group === "wallet" && entry.id === sidebarTarget.id ? 'aria-current="page"' : ""} data-wallet-id="${escapeHtml(entry.id)}">
       <span class="wallet-avatar" aria-hidden="true">${escapeHtml(entry.initials)}</span>
-      <span class="wallet-nav-copy"><strong>${escapeHtml(entry.name)}</strong><small><span class="mono">${sensitive(`${entry.summary.available} Z00Z`)}</span> available</small></span>
-      <span class="wallet-nav-state${entry.summary.scan === "Scanning" ? " is-scanning" : ""}" aria-label="${escapeHtml(entry.summary.scan)}"></span>
+      <span class="wallet-nav-copy"><strong>${escapeHtml(entry.name)}</strong><small>${t("walletShell.balanceAvailable", { value: `<span class="mono">${sensitive(`${entry.summary.available} Z00Z`)}</span>` })}</small></span>
+      <span class="wallet-nav-state${entry.summary.scan === "Scanning" ? " is-scanning" : ""}" aria-label="${escapeHtml(walletScanLabel(entry.summary.scan))}"></span>
     </button>`).join("")}
     <div class="wallet-nav-actions" id="wallet-nav-actions">
-      <button class="nav-item nav-item-primary" type="button" data-view="add-wallet">${icon("plus")}<span>Add wallet</span></button>
-      <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>Remove wallet</span></button>
+      <button class="nav-item nav-item-primary" type="button" data-demo-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
+      <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
     </div>`;
   const networkEntries = [
-    { key: "onionnet", label: "OnionNet", initials: "O", helper: "Target overlay" },
-    { key: "reticulum", label: "Reticulum", initials: "R", helper: "Target carrier" },
-    { key: "overview", label: "TBD", initials: "T", helper: "Additional route" }
+    { key: "onionnet", label: "OnionNet", initials: "O", helperKey: "network.routeTelemetry" },
+    { key: "reticulum", label: "Reticulum", initials: "R", helperKey: "network.carrierTelemetry" },
+    { key: "aggregators", label: "Aggregators", initials: "A", helperKey: "network.publicationTelemetry" }
   ];
   networkNav.innerHTML = networkEntries.map((entry) => {
     const isActive = sidebarTarget.group === "network" && sidebarTarget.id === entry.key;
-    return `<button class="network-nav-item${isActive ? " is-active" : ""}" type="button" ${isActive ? 'aria-current="page"' : ""} data-network-section="${entry.key}" title="Open ${entry.label} network settings">
+    return `<button class="network-nav-item${isActive ? " is-active" : ""}" type="button" ${isActive ? 'aria-current="page"' : ""} data-network-section="${entry.key}" title="${t(entry.helperKey)}">
       <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
-      <span class="network-nav-copy"><strong>${entry.label}</strong><small>${entry.helper}</small></span>
+      <span class="network-nav-copy"><strong>${entry.label}</strong><small>${t(entry.helperKey)}</small></span>
       <span class="network-nav-state" aria-hidden="true"></span>
     </button>`;
   }).join("");
-  walletIdentity.innerHTML = `<span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span><strong>${escapeHtml(wallet.name)}</strong><small class="mono">${escapeHtml(wallet.address)}</small></span>`;
-  walletIdentity.setAttribute("aria-label", `Switch wallet. Current wallet: ${wallet.name}`);
-  lockWalletLabel.innerHTML = `${escapeHtml(wallet.name)} wallet <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
-  copyWalletAddress.setAttribute("aria-label", `Copy full address for ${wallet.name} wallet`);
+  const walletName = wallet.name;
+  walletIdentity.innerHTML = `<span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span><strong>${escapeHtml(walletName)}</strong><small class="mono">${escapeHtml(wallet.address)}</small></span>`;
+  walletIdentity.setAttribute("aria-label", t("walletShell.identityAria", { wallet: walletName }));
+  lockWalletLabel.innerHTML = `${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))} <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
+  copyWalletAddress.setAttribute("aria-label", t("walletShell.copyAddress", { wallet: walletName }));
   copyWalletAddress.setAttribute("title", wallet.fullAddress);
-  walletTabs.innerHTML = [
-    { view: "wallet", label: "Assets", iconName: "wallet" },
-    { view: "activity", label: "History", iconName: "activity" },
-    { view: "swap", label: "Swap", iconName: "swap", title: "Compatibility preview — no canonical execution route" },
-    { view: "exchange", label: "Exchange", iconName: "exchange", title: "Unavailable — no verified exchange provider or route", disabled: true },
-    { view: "staking", label: "Staking", iconName: "staking", title: "Compatibility preview — validator and lock terms required" },
-    { view: "wallet-backup", label: "Backup", iconName: "backup" },
-    { view: "wallet-settings", label: "Settings", iconName: "settings" }
-  ].map(({ view, label, iconName, title = "", disabled = false }) => `<button class="wallet-tab${state.view === view ? " is-active" : ""}${disabled ? " is-unavailable" : ""}" type="button" ${state.view === view ? 'aria-current="page"' : ""}${disabled ? " disabled" : ""}${title ? ` title="${escapeHtml(title)}"` : ""} data-view="${view}">${icon(iconName)}<span>${label}</span>${disabled ? '<span class="sr-only">Unavailable</span>' : ""}</button>`).join("");
+  const telemetryTabSource = state.view === "telemetry" && ["reticulum", "onionnet"].includes(state.telemetrySource) ? state.telemetrySource : null;
+  if (telemetryTabSource) {
+    const tabs = telemetryTabSource === "reticulum" ? reticulumTelemetryTabs : onionnetTelemetryTabs;
+    const selectedTab = telemetryTabSource === "reticulum" ? state.reticulumTelemetryTab : state.onionnetTelemetryTab;
+    const actionName = telemetryTabSource === "reticulum" ? "reticulum-telemetry-tab" : "onionnet-telemetry-tab";
+    walletTabs.setAttribute("aria-label", `${telemetryTabSource === "reticulum" ? "Reticulum" : "OnionNet"} telemetry parameters`);
+    walletTabs.setAttribute("role", "tablist");
+    walletTabs.innerHTML = tabs.map((tab) => `<button id="${telemetryTabSource}-tab-${tab.id}" class="wallet-tab${selectedTab === tab.id ? " is-active" : ""}" type="button" role="tab" aria-selected="${selectedTab === tab.id}" aria-controls="${telemetryTabSource}-panel-${tab.id}"${selectedTab === tab.id ? ' aria-current="page"' : ""} data-${actionName}="${tab.id}">${icon(tab.iconName)}<span>${t(tab.labelKey)}</span></button>`).join("");
+  } else {
+    walletTabs.setAttribute("aria-label", "Selected wallet");
+    walletTabs.removeAttribute("role");
+    walletTabs.innerHTML = [
+      { view: "wallet", labelKey: "nav.assets", iconName: "wallet" },
+      { view: "wallet-send", labelKey: "assets.send", iconName: "send" },
+      { view: "wallet-receive", labelKey: "assets.receive", iconName: "receive" },
+      { view: "activity", labelKey: "nav.history", iconName: "activity" },
+      { view: "swap", labelKey: "nav.swap", iconName: "swap", title: "Compatibility preview — no canonical execution route" },
+      { view: "exchange", labelKey: "nav.exchange", iconName: "exchange", title: "Unavailable — no verified exchange provider or route", disabled: true },
+      { view: "staking", labelKey: "nav.staking", iconName: "staking", title: "Compatibility preview — validator and lock terms required" },
+      { view: "wallet-backup", labelKey: "nav.backup", iconName: "backup" },
+      { view: "wallet-settings", labelKey: "nav.settings", iconName: "settings" }
+    ].map(({ view, labelKey, iconName, title = "", disabled = false }) => `<button class="wallet-tab${state.view === view ? " is-active" : ""}${disabled ? " is-unavailable" : ""}" type="button" ${state.view === view ? 'aria-current="page"' : ""}${disabled ? " disabled" : ""}${title ? ` title="${escapeHtml(title)}"` : ""} data-view="${view}">${icon(iconName)}<span>${t(labelKey)}</span>${disabled ? '<span class="sr-only">Unavailable</span>' : ""}</button>`).join("");
+  }
   walletStatusbar.innerHTML = `
-    <span><small>Available</small><strong>${sensitive(`${summary.available} Z00Z`)}</strong></span>
-    <span><small>Locked</small><strong>${sensitive(`${summary.locked} Z00Z`)}</strong></span>
-    <span><small>Pending in</small><strong>${sensitive(`${summary.pendingIn} Z00Z`)}</strong></span>
-    <span><small>Pending out</small><strong>${sensitive(`${summary.pendingOut} Z00Z`)}</strong></span>
-    <span class="statusbar-telemetry"><small>Route telemetry</small><strong><span class="statusbar-state-dot" aria-hidden="true"></span>Unavailable</strong></span>`;
-  walletTabs.hidden = !isWalletView();
+    <span><small>${t("walletShell.available")}</small><strong>${sensitive(`${summary.available} Z00Z`)}</strong></span>
+    <span><small>${t("walletShell.locked")}</small><strong>${sensitive(`${summary.locked} Z00Z`)}</strong></span>
+    <span><small>${t("walletShell.pendingIn")}</small><strong>${sensitive(`${summary.pendingIn} Z00Z`)}</strong></span>
+    <span><small>${t("walletShell.pendingOut")}</small><strong>${sensitive(`${summary.pendingOut} Z00Z`)}</strong></span>
+    <span class="statusbar-telemetry"><small>${t("walletShell.routeTelemetry")}</small><strong><span class="statusbar-state-dot" aria-hidden="true"></span>${t("common.unavailable")}</strong></span>`;
+  walletTabs.hidden = !isWalletView() && !telemetryTabSource;
   walletStatusbar.hidden = !hasSelectedWalletContext();
-  document.querySelector(".bottom-nav").hidden = state.view === "add-wallet";
+  document.querySelector(".bottom-nav").hidden = false;
 }
 
 function icon(name, className = "") {
   return `<svg class="icon ${className}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+}
+
+const OBJECT_TYPE_ICON_LUT = Object.freeze({
+  asset: Object.freeze({
+    coin: Object.freeze({ iconName: "coin", className: "is-coin" }),
+    token: Object.freeze({ iconName: "token", className: "is-token" }),
+    nft: Object.freeze({ iconName: "nft", className: "is-nft" })
+  }),
+  voucher: Object.freeze({
+    refund: Object.freeze({ iconName: "voucher", className: "is-voucher" }),
+    redeemed: Object.freeze({ iconName: "voucher", className: "is-voucher" })
+  }),
+  right: Object.freeze({
+    receipt: Object.freeze({ iconName: "right", className: "is-right" }),
+    deploy: Object.freeze({ iconName: "right", className: "is-right" })
+  })
+});
+
+function objectTypeIcon(family, type, className = "") {
+  const definition = OBJECT_TYPE_ICON_LUT[family]?.[type];
+  if (!definition) return "";
+  return `<span class="object-type-icon ${definition.className}${className ? ` ${className}` : ""}" aria-hidden="true">${icon(definition.iconName)}</span>`;
 }
 
 function escapeHtml(value) {
@@ -548,13 +659,13 @@ function walletAssetEntries() {
   const wallet = activeWallet();
   return [
     {
-      key: "z00z", label: "Z00Z", ticker: "Z00Z", unit: "Z00Z", kind: "Coin", balance: wallet.summary.available, balanceLabel: `${wallet.summary.available} Z00Z`, value: "—", price: "Unavailable", priceNote: "No market feed", divisible: true, logo: "Z", owner: "Protocol-native asset", assetId: "z00z:main:coin", currentSupply: "18,450,000 Z00Z", maxSupply: "21,000,000 Z00Z", note: "Native asset · trusted catalog", tone: "native"
+      key: "z00z", type: "coin", label: "Z00Z", ticker: "Z00Z", unit: "Z00Z", kind: "Coin", kindKey: "assets.kindCoin", balance: wallet.summary.available, balanceLabel: `${wallet.summary.available} Z00Z`, value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: true, owner: "Protocol-native asset", assetId: "z00z:main:coin", currentSupply: "18,450,000 Z00Z", maxSupply: "21,000,000 Z00Z"
     },
     {
-      key: "acme", label: "Acme Credits", ticker: "ACME", unit: "ACME", kind: "Token", balance: "240.00", balanceLabel: "240.00 ACME", value: "—", price: "Unavailable", priceNote: "No market feed", divisible: true, logo: "A", owner: "acme.example issuer", assetId: "asset:acme:8f31…c20e", currentSupply: "2,400,000 ACME", maxSupply: "10,000,000 ACME", note: "Declared domain · review needed", tone: "token"
+      key: "acme", type: "token", label: "Acme Credits", ticker: "ACME", unit: "ACME", kind: "Token", kindKey: "assets.kindToken", balance: "240.00", balanceLabel: "240.00 ACME", value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: true, owner: "acme.example issuer", assetId: "asset:acme:8f31…c20e", currentSupply: "2,400,000 ACME", maxSupply: "10,000,000 ACME"
     },
     {
-      key: "founders", label: "Founders Pass #014", ticker: "PASS-014", unit: "pass", kind: "Collectible", balance: "1", balanceLabel: "1 pass", value: "—", price: "Unavailable", priceNote: "No market feed", divisible: false, logo: "◇", owner: wallet.fullAddress || wallet.address, assetId: "nft:founders:014", currentSupply: "1 pass", maxSupply: "100 passes", note: "Unique collectible · metadata available", tone: "collectible"
+      key: "founders", type: "nft", label: "Founders Pass #014", ticker: "PASS-014", unit: "pass", kind: "Collectible", kindKey: "assets.kindCollectible", balance: "1", balanceLabel: "1 pass", value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: false, owner: wallet.fullAddress || wallet.address, assetId: "nft:founders:014", currentSupply: "1 pass", maxSupply: "100 passes"
     }
   ];
 }
@@ -570,7 +681,7 @@ function flowAsset(data = state.flow?.data) {
 
 function assetOptions(selectedKey = "z00z") {
   return walletAssetEntries().map((asset) => {
-    return `<option value="${asset.key}"${asset.key === selectedKey ? " selected" : ""}>${asset.label} · ${asset.kind}</option>`;
+    return `<option value="${asset.key}"${asset.key === selectedKey ? " selected" : ""}>${asset.label} · ${t(asset.kindKey)}</option>`;
   }).join("");
 }
 
@@ -663,52 +774,63 @@ function homeView() {
 }
 
 function moneyView() {
-  const summary = activeWallet().summary;
   const assets = walletAssetEntries();
+  const assetFilters = [
+    ["all", "assets.all"],
+    ["coin", "assets.filterCoins"],
+    ["token", "assets.filterTokens"],
+    ["nft", "assets.filterNfts"]
+  ];
+  const filteredAssets = state.assetFilter === "all"
+    ? assets
+    : assets.filter((asset) => asset.type === state.assetFilter);
   return `
     <div class="view-enter">
-      <div class="page-intro">
-        <div><p class="eyebrow">Asset family</p><h2>Your assets</h2><p>Native cash, issued tokens, and collectibles stay distinguishable. Only spendable native cash enters Available.</p></div>
-        <button class="button button-primary" type="button" data-open-flow="pay">${icon("send")} Send</button>
-      </div>
-      <section class="money-summary" aria-label="Money totals">
-        <article class="card metric-card"><span>Available</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong><small>Ready to use</small></article>
-        <article class="card metric-card"><span>Receiving</span><strong>${sensitive(summary.pendingIn)}</strong><small>Waiting to settle</small></article>
-        <article class="card metric-card"><span>Sending</span><strong>${sensitive(summary.pendingOut)}</strong><small>Waiting to settle</small></article>
-      </section>
-      <div class="choice-strip" aria-label="Asset filters"><button class="choice-chip is-active" type="button">All</button><button class="choice-chip" type="button">Coin</button><button class="choice-chip" type="button">Token</button><button class="choice-chip" type="button">Collectible</button><button class="choice-chip" type="button">Needs review</button></div>
-      <div class="section-heading"><div><h2>Owned assets</h2><p>Class, trust, and spendability are explicit</p></div></div>
-      <section class="asset-list" aria-label="Owned assets">
-        <div class="asset-table-head" aria-hidden="true"><span>Name</span><span>Balance</span><span>Value</span><span>Price</span><span></span></div>
-        ${assets.map((asset) => `
-          <article class="card asset-row">
-            <button class="asset-identity-button" type="button" data-open-flow="asset-detail" data-asset-key="${escapeHtml(asset.key)}" aria-label="View details for ${escapeHtml(asset.label)}">
-              <span class="asset-logo${asset.tone === "token" ? " is-token" : asset.tone === "collectible" ? " is-collectible" : ""}" aria-hidden="true">${escapeHtml(asset.logo)}</span>
-              <span class="asset-info"><strong>${escapeHtml(asset.label)} <span class="object-kind">${escapeHtml(asset.kind)}</span></strong><small class="${asset.tone === "native" ? "trust-label" : asset.tone === "token" ? "review-label" : ""}">${asset.tone === "native" ? `${icon("shield")} ` : ""}${escapeHtml(asset.note)}</small></span>
+      <div class="choice-strip" aria-label="${t("assets.filters")}">${assetFilters.map(([value, labelKey]) => `<button class="choice-chip${state.assetFilter === value ? " is-active" : ""}" type="button" data-asset-filter="${value}" aria-pressed="${state.assetFilter === value}">${t(labelKey)}</button>`).join("")}</div>
+      <div class="asset-list" role="table" aria-label="${t("nav.assets")}">
+        <div class="asset-table-head" role="row" aria-hidden="true"><span>${t("assets.name")}</span><span>${t("assets.balance")}</span><span>${t("assets.value")}</span><span>${t("assets.price")}</span></div>
+        ${filteredAssets.map((asset) => `
+          <article class="card asset-row" role="row">
+            <button class="asset-identity-button" type="button" data-open-flow="asset-detail" data-asset-key="${escapeHtml(asset.key)}" aria-label="${t("assets.viewDetails", { asset: asset.label })}">
+              ${objectTypeIcon("asset", asset.type, "asset-logo")}
+              <span class="asset-info"><strong>${escapeHtml(asset.label)} <span class="object-kind">${t(asset.kindKey)}</span></strong></span>
             </button>
-            <div class="asset-number"><strong>${sensitive(asset.balanceLabel)}</strong><small>Balance</small></div>
-            <div class="asset-number"><strong>${asset.value === "—" ? asset.value : sensitive(asset.value)}</strong><small>Value</small></div>
-            <div class="asset-number"><strong>${escapeHtml(asset.price)}</strong><small>${escapeHtml(asset.priceNote)}</small></div>
-            <div class="asset-actions">
-              <button class="button" type="button" data-open-flow="receive" data-asset-key="${escapeHtml(asset.key)}" aria-label="Receive ${escapeHtml(asset.label)}">${icon("receive")}<span>Receive</span></button>
-              <button class="button button-primary" type="button" data-open-flow="pay" data-asset-key="${escapeHtml(asset.key)}" aria-label="Send ${escapeHtml(asset.label)}">${icon("send")}<span>Send</span></button>
-            </div>
+            <div class="asset-number" role="cell"><strong>${sensitive(asset.balanceLabel)}</strong></div>
+            <div class="asset-number" role="cell"><strong>${asset.value === "—" ? asset.value : sensitive(asset.value)}</strong></div>
+            <div class="asset-number" role="cell"><strong>${t(asset.priceKey)}</strong></div>
           </article>`).join("")}
-      </section>
-      <div class="notice">${icon("shield")} Vouchers, permissions, quarantined objects, non-native tokens, collectibles, and experimental compatibility assets are excluded from Available.</div>
+      </div>
+      <div class="notice">${icon("shield")} ${t("assets.excludedNotice")}</div>
     </div>`;
 }
 
+function walletTransferView(direction) {
+  const isSend = direction === "send";
+  const flow = isSend ? "pay" : "receive";
+  const labelKey = isSend ? "assets.send" : "assets.receive";
+  const ariaKey = isSend ? "assets.sendAsset" : "assets.receiveAsset";
+  const iconName = isSend ? "send" : "receive";
+  return `<div class="view-enter transfer-view"><div class="transfer-asset-list" aria-label="${t(labelKey)}">
+    ${walletAssetEntries().map((asset) => `
+      <button class="card transfer-asset-row" type="button" data-open-flow="${flow}" data-asset-key="${escapeHtml(asset.key)}" aria-label="${t(ariaKey, { asset: asset.label })}">
+        ${objectTypeIcon("asset", asset.type, "transfer-asset-icon")}
+        <span class="transfer-asset-name"><strong>${escapeHtml(asset.label)} <span class="object-kind">${t(asset.kindKey)}</span></strong></span>
+        <strong class="transfer-asset-balance">${sensitive(asset.balanceLabel)}</strong>
+        ${icon(iconName)}
+      </button>`).join("")}
+  </div></div>`;
+}
+
 const walletSections = [
-  ["assets", "Assets", "Spendable and owned value"],
-  ["vouchers", "Vouchers", "Conditional value"],
-  ["permissions", "Permissions", "Bounded authority"]
+  ["assets", "assets.sectionAssets", "wallet"],
+  ["vouchers", "assets.sectionVouchers", "claim"],
+  ["permissions", "assets.sectionPermissions", "permission"]
 ];
 
 function walletContextNav() {
-  return `<nav class="context-nav" aria-label="Wallet sections">${walletSections.map(([key, label, helper]) => `
+  return `<nav class="context-nav context-tab-list" aria-label="${t("assets.sections")}">${walletSections.map(([key, labelKey, iconName]) => `
     <button class="context-nav-item${state.walletSection === key ? " is-active" : ""}" type="button" ${state.walletSection === key ? 'aria-current="page"' : ""} data-wallet-section="${key}">
-      <span><strong>${label}</strong><small>${helper}</small></span>${key === "vouchers" ? '<span class="nav-count">1</span>' : ""}
+      ${icon(iconName)}<span><strong>${t(labelKey)}</strong></span>${key === "vouchers" ? '<span class="nav-count">1</span>' : ""}
     </button>`).join("")}</nav>`;
 }
 
@@ -719,10 +841,10 @@ function vouchersPanel() {
     </div>
     <div class="choice-strip" aria-label="Voucher filters"><button class="choice-chip is-active" type="button">Needs action</button><button class="choice-chip" type="button">Redeemable</button><button class="choice-chip" type="button">History</button><button class="choice-chip" type="button">Quarantined</button></div>
     <section class="card action-panel">
-      <div class="action-panel-top"><div class="action-title"><span class="list-icon is-claim">${icon("claim")}</span><div><h2>Ready for your decision</h2><p>Backing and restrictions are checked before any action</p></div></div><span class="status-badge is-ready">1 ready</span></div>
+      <div class="action-panel-top"><div class="action-title">${objectTypeIcon("voucher", "refund", "list-icon")}<div><h2>Ready for your decision</h2><p>Backing and restrictions are checked before any action</p></div></div><span class="status-badge is-ready">1 ready</span></div>
       <div class="claim-list">
-        <button class="claim-row" type="button" data-open-flow="voucher-review"><span class="list-icon is-claim">${icon("claim")}</span><span class="list-copy"><strong>Travel refund voucher</strong><small>Northwind Travel · consumed-asset backing · acceptance required · refund allowed</small></span><span class="list-meta"><strong>86.00 Z00Z</strong><small class="status-badge is-ready">Offered</small></span></button>
-        <button class="claim-row" type="button" data-open-flow="voucher-settled"><span class="list-icon">${icon("check")}</span><span class="list-copy"><strong>Event deposit return</strong><small>Riverside Events · redeemed and settled 12 Jul</small></span><span class="list-meta"><strong>150.00 Z00Z</strong><small class="status-badge is-settled">Redeemed</small></span></button>
+        <button class="claim-row" type="button" data-open-flow="voucher-review">${objectTypeIcon("voucher", "refund", "list-icon")}<span class="list-copy"><strong>Travel refund voucher</strong><small>Northwind Travel · consumed-asset backing · acceptance required · refund allowed</small></span><span class="list-meta"><strong>86.00 Z00Z</strong><small class="status-badge is-ready">Offered</small></span></button>
+        <button class="claim-row" type="button" data-open-flow="voucher-settled">${objectTypeIcon("voucher", "redeemed", "list-icon")}<span class="list-copy"><strong>Event deposit return</strong><small>Riverside Events · redeemed and settled 12 Jul</small></span><span class="list-meta"><strong>150.00 Z00Z</strong><small class="status-badge is-settled">Redeemed</small></span></button>
       </div>
     </section>
     <div class="notice">${icon("shield")} Imported vouchers with unknown policy, invalid signatures, or unsupported schema go to Quarantine and never enter Available.</div>`;
@@ -736,10 +858,10 @@ function permissionsPanel() {
     </div>
     <div class="choice-strip" aria-label="Permission filters"><button class="choice-chip is-active" type="button">Held</button><button class="choice-chip" type="button">Delegated</button><button class="choice-chip" type="button">Used</button><button class="choice-chip" type="button">Needs review</button></div>
     <section class="card action-panel">
-      <div class="action-panel-top"><div class="action-title"><span class="list-icon is-warning">${icon("permission")}</span><div><h2>Held permissions</h2><p>Class, action, scope, uses, expiry, and delegation are visible</p></div></div><span class="status-badge is-active">2 held</span></div>
+      <div class="action-panel-top"><div class="action-title">${objectTypeIcon("right", "receipt", "list-icon")}<div><h2>Held permissions</h2><p>Class, action, scope, uses, expiry, and delegation are visible</p></div></div><span class="status-badge is-active">2 held</span></div>
       <div class="permission-list">
-        <button class="permission-row" type="button" data-open-flow="permission-detail"><span class="list-icon is-warning">${icon("permission")}</span><span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
-        <div class="permission-row"><span class="list-icon">${icon("shield")}</span><span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></div>
+        <button class="permission-row" type="button" data-open-flow="permission-detail">${objectTypeIcon("right", "receipt", "list-icon")}<span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
+        <div class="permission-row">${objectTypeIcon("right", "deploy", "list-icon")}<span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></div>
       </div>
     </section>
     <div class="notice">${icon("spark")} A permission is zero-value. “Give permission” delegates a narrower held right; monetary budgets require a separate future composition and are not projected here.</div>`;
@@ -747,21 +869,32 @@ function permissionsPanel() {
 
 function walletView() {
   const panel = state.walletSection === "assets" ? moneyView() : state.walletSection === "vouchers" ? vouchersPanel() : permissionsPanel();
-  return `<div class="view-enter workspace-layout"><aside class="context-rail"><p class="context-rail-label">Wallet</p>${walletContextNav()}</aside><div class="workspace-panel">${panel}</div></div>`;
+  return `<div class="view-enter workspace-layout"><aside class="context-rail">${walletContextNav()}</aside><div class="workspace-panel">${panel}</div></div>`;
 }
 
 function statusText(status) {
-  return {
-    settling: "Settling",
-    settled: "Settled",
-    active: "Active",
-    attention: "Needs attention"
-  }[status] || "Ready";
+  const key = {
+    settling: "history.settling",
+    settled: "history.settled",
+    active: "history.active",
+    attention: "history.needsAttention"
+  }[status] || "history.ready";
+  return t(key);
+}
+
+function activityText(item, field) {
+  const key = item[`${field}Key`];
+  if (!key) return item[field] || "";
+  const values = { ...item[`${field}Values`] };
+  Object.entries(item[`${field}ValueKeys`] || {}).forEach(([name, valueKey]) => {
+    values[name] = t(valueKey);
+  });
+  return t(key, values);
 }
 
 function activityRows(items, compact = false) {
   if (!items.length) {
-    return `<div class="empty-state"><span class="list-icon">${icon("search")}</span><h3>No matching history</h3><p>Try another filter or search term.</p></div>`;
+    return `<div class="empty-state"><span class="list-icon">${icon("search")}</span><h3>${t("history.noMatching")}</h3><p>${t("history.tryAnother")}</p></div>`;
   }
 
   return items.map((item) => {
@@ -771,8 +904,8 @@ function activityRows(items, compact = false) {
     return `
       <button class="activity-row" type="button" data-open-activity="${escapeHtml(item.id)}">
         <span class="activity-icon ${iconClass}">${icon(iconName)}</span>
-        <span class="activity-copy"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}${compact ? ` · ${escapeHtml(item.time)}` : ` · <span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span>`}</small></span>
-        <span class="activity-value"><strong class="${amountClass}">${escapeHtml(item.amount)}</strong><small>${escapeHtml(item.time)}</small></span>
+        <span class="activity-copy"><strong>${escapeHtml(activityText(item, "title"))}</strong><small>${escapeHtml(activityText(item, "detail"))}${compact ? ` · ${escapeHtml(activityText(item, "time"))}` : ` · <span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span>`}</small></span>
+        <span class="activity-value"><strong class="${amountClass}">${escapeHtml(activityText(item, "amount"))}</strong><small>${escapeHtml(activityText(item, "time"))}</small></span>
       </button>`;
   }).join("");
 }
@@ -788,17 +921,17 @@ function activityView() {
   const visible = activeWallet().activities.filter((item) => matchesActivityFilter(item, state.activityFilter));
 
   const filters = [
-    ["all", "All"], ["asset", "Assets"], ["voucher", "Vouchers"], ["permission", "Permissions"], ["security", "System"], ["attention", "Needs attention"]
-  ].map(([value, label]) => `<button class="choice-chip${state.activityFilter === value ? " is-active" : ""}" type="button" data-filter="${value}">${label}</button>`).join("");
+    ["all", "history.all"], ["asset", "history.assets"], ["voucher", "history.vouchers"], ["permission", "history.permissions"], ["security", "history.system"], ["attention", "history.needsAttention"]
+  ].map(([value, labelKey]) => `<button class="choice-chip${state.activityFilter === value ? " is-active" : ""}" type="button" data-filter="${value}">${t(labelKey)}</button>`).join("");
 
   return `
     <div class="view-enter">
-      <div class="page-intro"><div><p class="eyebrow">Honest settlement</p><h2>Everything that changed</h2><p>Submission and final settlement are shown as different states. Open an item for its receipt and technical timeline.</p></div></div>
-      <div class="filter-bar choice-strip" aria-label="History filters">
+      <div class="page-intro"><div><p class="eyebrow">${t("history.honestSettlement")}</p><h2>${t("history.title")}</h2><p>${t("history.description")}</p></div></div>
+      <div class="filter-bar choice-strip" aria-label="${t("history.filters")}">
         ${filters}
-        <label class="search-wrap"><span class="sr-only">Search history</span>${icon("search")}<input id="activity-search" type="search" placeholder="Search history" autocomplete="off"></label>
+        <label class="search-wrap"><span class="sr-only">${t("history.search")}</span>${icon("search")}<input id="activity-search" type="search" placeholder="${t("history.search")}" autocomplete="off"></label>
       </div>
-      <section class="card activity-panel" id="activity-results" aria-label="History results">
+      <section class="card activity-panel" id="activity-results" aria-label="${t("history.results")}">
         ${activityRows(visible)}
       </section>
     </div>`;
@@ -862,27 +995,27 @@ function stakingView() {
   const summary = wallet.summary;
   return `
     <div class="view-enter wallet-tool-view">
-      <div class="page-intro"><div><p class="eyebrow">Wallet staking</p><h2>Stake from ${escapeHtml(wallet.name)}</h2><p>Staking terms and pending value remain distinct from the wallet's spendable Available balance.</p></div><span class="status-badge is-ready">Main · concept</span></div>
-      <section class="money-summary" aria-label="Staking totals">
-        <article class="card metric-card"><span>Available to stake</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong><small>Wallet value before a stake is submitted</small></article>
-        <article class="card metric-card"><span>Staked</span><strong>0.00 Z00Z</strong><small>Nothing delegated in this concept</small></article>
-        <article class="card metric-card"><span>Rewards</span><strong>0.00 Z00Z</strong><small>Accrual is not simulated</small></article>
+      <div class="page-intro"><div><p class="eyebrow">${t("staking.eyebrow")}</p><h2>${t("staking.heading", { wallet: wallet.name })}</h2><p>${t("staking.description")}</p></div><span class="status-badge is-ready">${t("staking.badge")}</span></div>
+      <section class="money-summary" aria-label="${t("staking.totals")}">
+        <article class="card metric-card"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong><small>${t("staking.walletValueBefore")}</small></article>
+        <article class="card metric-card"><span>${t("staking.staked")}</span><strong>0.00 Z00Z</strong><small>${t("staking.nothingDelegated")}</small></article>
+        <article class="card metric-card"><span>${t("staking.rewards")}</span><strong>0.00 Z00Z</strong><small>${t("staking.accrualNotSimulated")}</small></article>
       </section>
       <section class="wallet-tool-grid">
         <article class="card wallet-tool-card">
-          <div class="tool-card-heading"><span class="list-icon">${icon("staking")}</span><div><h3>Prepare a stake</h3><p>Choose the amount and inspect the validator terms before authorization.</p></div></div>
+          <div class="tool-card-heading"><span class="list-icon">${icon("staking")}</span><div><h3>${t("staking.prepare")}</h3><p>${t("staking.prepareHelp")}</p></div></div>
           <div class="form-grid">
-            <div class="field-group"><label class="field-label" for="stake-amount">Amount</label><div class="input-with-affix"><input id="stake-amount" type="number" min="0.01" max="${escapeHtml(summary.available.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div><p class="field-hint">Available: ${sensitive(`${summary.available} Z00Z`)}</p></div>
-            <div class="field-group"><label class="field-label" for="stake-validator">Validator</label><select id="stake-validator"><option>Choose after chain verification</option></select></div>
-            <button class="button button-primary" type="button" data-demo-action="prepare-stake">${icon("staking")} Review stake</button>
+            <div class="field-group"><label class="field-label" for="stake-amount">${t("staking.amount")}</label><div class="input-with-affix"><input id="stake-amount" type="number" min="0.01" max="${escapeHtml(summary.available.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div><p class="field-hint">${t("staking.availableBalance", { value: sensitive(`${summary.available} Z00Z`) })}</p></div>
+            <div class="field-group"><label class="field-label" for="stake-validator">${t("staking.validator")}</label><select id="stake-validator"><option>${t("staking.validatorPlaceholder")}</option></select></div>
+            <button class="button button-primary" type="button" data-demo-action="prepare-stake">${icon("staking")} ${t("staking.review")}</button>
           </div>
         </article>
         <aside class="card wallet-tool-card wallet-tool-summary">
-          <p class="eyebrow">Staking safeguards</p>
-          <div class="summary-row"><span>Validator status</span><strong>Unavailable</strong></div>
-          <div class="summary-row"><span>Unlock period</span><strong>Not selected</strong></div>
-          <div class="summary-row"><span>Rewards</span><strong>Not projected</strong></div>
-          <div class="notice">${icon("shield")} The concept never estimates yield or hides lock-up risk. A stake remains pending until chain settlement.</div>
+          <p class="eyebrow">${t("staking.safeguards")}</p>
+          <div class="summary-row"><span>${t("staking.validatorStatus")}</span><strong>${t("common.unavailable")}</strong></div>
+          <div class="summary-row"><span>${t("staking.unlockPeriod")}</span><strong>${t("staking.notSelected")}</strong></div>
+          <div class="summary-row"><span>${t("staking.rewards")}</span><strong>${t("staking.notProjected")}</strong></div>
+          <div class="notice">${icon("shield")} ${t("staking.notice")}</div>
         </aside>
       </section>
     </div>`;
@@ -911,24 +1044,20 @@ function walletBackupView() {
 }
 
 const walletSettingsMeta = {
-  general: ["General", "Name, display currency, and transaction defaults"],
-  security: ["Security", "Locking, recovery phrase, and key material"],
-  backup: ["Backup", "Recovery scope and encrypted local copies"],
-  policies: ["Policies", "Local spend rules and profile preview"],
-  advanced: ["Advanced", "Safe YAML view of this wallet's visible controls"]
+  general: ["General", "settings"],
+  security: ["Security", "shield"],
+  backup: ["Backup", "backup"],
+  policies: ["Policies", "permission"],
+  advanced: ["Advanced", "activity"]
 };
 
 function walletSettingsContextNav() {
   const item = (key) => {
-    const [label, helper] = walletSettingsMeta[key];
+    const [label, iconName] = walletSettingsMeta[key];
     const active = state.walletSettingsSection === key;
-    return `<button class="context-nav-item${active ? " is-active" : ""}" type="button" ${active ? 'aria-current="page"' : ""} data-wallet-settings-section="${key}"><span><strong>${label}</strong><small>${helper}</small></span></button>`;
+    return `<button class="context-nav-item${active ? " is-active" : ""}" type="button" ${active ? 'aria-current="page"' : ""} data-wallet-settings-section="${key}">${icon(iconName)}<span><strong>${label}</strong></span></button>`;
   };
-  return `<nav class="context-nav wallet-settings-context" aria-label="Selected wallet settings">
-    <p class="context-group-label">Wallet</p>${item("general")}${item("security")}${item("backup")}
-    <p class="context-group-label">Rules</p>${item("policies")}
-    <p class="context-group-label">Expert</p>${item("advanced")}
-  </nav>`;
+  return `<nav class="context-nav context-tab-list wallet-settings-context" aria-label="Selected wallet settings">${item("general")}${item("security")}${item("backup")}${item("policies")}${item("advanced")}</nav>`;
 }
 
 function walletSettingsYaml() {
@@ -1036,18 +1165,16 @@ function walletSettingsView() {
 }
 
 const settingsMeta = {
-  general: ["General", "Common wallet behavior", "settings"],
-  security: ["Security", "Lock, sensitive information, and wallet keys", "shield"],
-  network: ["Network & privacy", "Private route, chain, and synchronization", "network"],
-  policies: ["Policies", "Safety and managed restrictions", "shield"],
-  backup: ["Backups", "Create and verify recoverable local backups", "backup"],
-  appearance: ["Appearance", "Theme, density, and motion", "sun"],
-  advanced: ["Advanced", "YAML configuration and diagnostic tools", "settings"]
+  general: ["settings.general", "settings.generalHelp", "settings"],
+  network: ["settings.networkPrivacy", "settings.networkPrivacyHelp", "network"],
+  appearance: ["settings.appearance", "settings.appearanceHelp", "sun"]
 };
 
 function settingsContextNav() {
   const item = (key) => {
-    const [label, helper, iconName] = settingsMeta[key];
+    const [labelKey, helperKey, iconName] = settingsMeta[key];
+    const label = t(labelKey);
+    const helper = t(helperKey);
     const isNetworkBranch = key === "network";
     const isCurrent = state.settingsSection === key && (!isNetworkBranch || state.networkSection === "overview");
     const disclosure = isNetworkBranch
@@ -1056,12 +1183,14 @@ function settingsContextNav() {
     const expanded = isNetworkBranch ? ` aria-expanded="${state.isNetworkOpen}" aria-controls="network-sections"` : "";
     return `<button class="context-nav-item${isCurrent ? " is-active" : ""}${isNetworkBranch && state.isNetworkOpen ? " is-open" : ""}" type="button" ${isCurrent ? 'aria-current="page"' : ""}${expanded} title="${helper}" data-settings-section="${key}">${icon(iconName)}<span><strong>${label}</strong><small>${helper}</small></span>${disclosure}</button>`;
   };
-  const networkChildren = [["overview", "Overview"], ["reticulum", "Reticulum"], ["onionnet", "OnionNet"], ["carriers", "Carriers"]]
-    .map(([key, label]) => `<button class="context-nav-child${state.settingsSection === "network" && state.networkSection === key ? " is-active" : ""}" type="button" ${state.settingsSection === "network" && state.networkSection === key ? 'aria-current="page"' : ""} data-network-section="${key}">${label}</button>`).join("");
-  return `<nav class="context-nav settings-context" aria-label="Settings sections">
-    <p class="context-group-label">Wallet</p>${item("general")}${item("security")}${item("backup")}
-    <p class="context-group-label">Connectivity</p>${item("network")}${state.isNetworkOpen ? `<div id="network-sections" class="context-nav-children" aria-label="Network sections">${networkChildren}</div>` : ""}
-    <p class="context-group-label">Rules & interface</p>${item("policies")}${item("appearance")}${item("advanced")}
+  const networkChildren = [["overview", "settings.overview"], ["reticulum", null], ["onionnet", null], ["carriers", null]]
+    .map(([key, labelKey]) => {
+      const label = labelKey ? t(labelKey) : key === "reticulum" ? "Reticulum" : key === "onionnet" ? "OnionNet" : "Carriers";
+      return `<button class="context-nav-child${state.settingsSection === "network" && state.networkSection === key ? " is-active" : ""}" type="button" ${state.settingsSection === "network" && state.networkSection === key ? 'aria-current="page"' : ""} data-network-section="${key}">${label}</button>`;
+    }).join("");
+  return `<nav class="context-nav settings-context" aria-label="${t("settings.sections")}">
+    <p class="context-group-label">${t("settings.application")}</p>${item("general")}${item("appearance")}
+    <p class="context-group-label">${t("settings.connectivity")}</p>${item("network")}${state.isNetworkOpen ? `<div id="network-sections" class="context-nav-children" aria-label="${t("settings.networkSections")}">${networkChildren}</div>` : ""}
   </nav>`;
 }
 
@@ -1071,7 +1200,7 @@ function networkDetail() {
       <div class="connection-option"><span class="health-orb"></span><span><strong>Reticulum service</strong><small>Target service example · no live wallet API</small></span><span class="status-badge is-ready">Target</span></div>
       <div class="connection-option"><span class="list-icon">${icon("network")}</span><span><strong>Interfaces</strong><small>Auto · TCP client + local mesh discovery</small></span><button class="button" type="button" data-demo-action="config-stage">Configure</button></div>
       <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Network identity</strong><small class="mono">RNS 6A3E…91B2 · independent from wallet seed</small></span><span class="status-badge is-active">Separate</span></div>
-    </div><div class="notice">${icon("settings")} Raw Reticulum interface definitions live in Advanced YAML. Service/runtime changes may require restart.</div>`;
+    </div><div class="notice">${icon("settings")} Raw Reticulum interface definitions require a future runtime configuration route. Service/runtime changes may require restart.</div>`;
 
   if (state.networkSection === "onionnet") return `
     <div class="connection-options">
@@ -1100,11 +1229,16 @@ function networkDetail() {
 
 function settingsDetail() {
   if (state.settingsSection === "general") {
+    const synchronizedCatalogues = i18n.auditCatalogues().filter((entry) => entry.ready).length;
     return `
-      <h2>General</h2>
+      <h2>${t("app.general")}</h2>
       <div class="setting-group settings-first-group">
-        <div class="setting-line"><span class="setting-line-copy"><strong>Language</strong><small>Language used throughout this wallet application</small></span><select aria-label="Language" data-config-control="language"><option${state.language === "English" ? " selected" : ""}>English</option><option${state.language === "Русский" ? " selected" : ""}>Русский</option><option${state.language === "עברית" ? " selected" : ""}>עברית</option></select></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>Notifications</strong><small>Show wallet updates and required actions</small></span><button class="toggle" type="button" data-demo-action="general-notifications" aria-pressed="${state.notifications}" aria-label="Notifications ${state.notifications ? "on" : "off"}"></button></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.language")}</strong><small>${t("app.languageHelp")}</small></span><select aria-label="${t("app.language")}" data-config-control="language">${languageOptionsMarkup()}</select></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.regionalFormat")}</strong><small>${t("app.regionalFormatHelp")}</small></span><select aria-label="${t("app.regionalFormat")}" data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.timeZone")}</strong><small>${t("app.timeZoneHelp")}</small></span><select aria-label="${t("app.timeZone")}" data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.networkUnits")}</strong><small>${t("app.networkUnitsHelp")}</small></span><select aria-label="${t("app.networkUnits")}" data-config-control="network-units"><option value="decimal-bps"${state.networkUnits === "decimal-bps" ? " selected" : ""}>${t("app.decimalBitrate")}</option></select></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.notifications")}</strong><small>${t("app.notificationsHelp")}</small></span><button class="toggle" type="button" data-demo-action="general-notifications" aria-pressed="${state.notifications}" aria-label="${t("app.notifications")} ${state.notifications ? t("common.on") : t("common.off")}"></button></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.translationCoverage")}</strong><small>${t("app.translationCoverageHelp", { count: synchronizedCatalogues })}</small></span><strong class="mono">${synchronizedCatalogues}/${uiLanguages.length}</strong></div>
       </div>`;
   }
 
@@ -1161,7 +1295,7 @@ function settingsDetail() {
       <div class="setting-group">
         <div class="setting-line"><span class="setting-line-copy"><strong>Theme</strong><small>System follows the operating system</small></span><div class="segmented" aria-label="Theme"><button type="button" data-theme="system" class="${state.theme === "system" ? "is-active" : ""}>System</button><button type="button" data-theme="dark" class="${state.theme === "dark" ? "is-active" : ""}">${icon("moon")} Dark</button><button type="button" data-theme="light" class="${state.theme === "light" ? "is-active" : ""}">${icon("sun")} Light</button></div></div>
         <div class="setting-line palette-setting"><span class="setting-line-copy"><strong>Palette</strong><small>Changes decorative and primary-action colors; safety colors remain semantic.</small></span><div class="palette-grid" aria-label="Palette presets">${paletteOptions.map(paletteCard).join("")}</div></div>
-        <div class="setting-line palette-setting code-theme-setting"><span class="setting-line-copy"><strong>Code highlighting</strong><small>Changes YAML syntax colours only. It does not affect wallet safety colours or runtime data.</small></span><div class="code-theme-sections" aria-label="YAML code highlighting theme"><section><p class="code-theme-group-label">Light</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "light").map(codeThemeCard).join("")}</div></section><section><p class="code-theme-group-label">Dark</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "dark").map(codeThemeCard).join("")}</div></section></div></div>
+        <div class="setting-line palette-setting code-theme-setting"><span class="setting-line-copy"><strong>Code highlighting</strong><small>Changes YAML syntax colours across the application. It does not change wallet data, amounts, or runtime behavior.</small></span><div class="code-theme-sections" aria-label="YAML code highlighting theme"><section><p class="code-theme-group-label">Light</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "light").map(codeThemeCard).join("")}</div></section><section><p class="code-theme-group-label">Dark</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "dark").map(codeThemeCard).join("")}</div></section></div></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>Custom accents</strong><small>Fine-tune brand and privacy rail only. Safety, warning, failure, and focus colours stay protected.</small></span><div class="custom-color-controls"><label>Brand<input type="color" data-config-control="custom-brand" value="${state.customAppearance.brand}" aria-label="Custom brand color"></label><label>Privacy rail<input type="color" data-config-control="custom-rail" value="${state.customAppearance.rail}" aria-label="Custom privacy rail color"></label></div></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>Text scale</strong><small>Interface reflows without hiding content</small></span><select aria-label="Text scale" data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>Reduced motion</strong><small>Reduce interface motion in addition to operating system preferences</small></span><button class="toggle" type="button" aria-pressed="${state.reducedMotion}" aria-label="Use reduced motion" data-demo-action="motion"></button></div>
@@ -1182,24 +1316,329 @@ function settingsView() {
     </div>`;
 }
 
-function addWalletView() {
-  return `
-    <section class="view-enter add-wallet-view" aria-labelledby="add-wallet-heading">
-      <div class="add-wallet-stage">
-        <div class="add-wallet-card">
-          <span class="add-wallet-mark" aria-hidden="true">${icon("wallet")}</span>
-          <p class="eyebrow">Local wallet profiles</p>
-          <h2 id="add-wallet-heading">Bring a wallet to this device</h2>
-          <p class="add-wallet-copy">Choose how to begin. Wallet keys, passwords, and recovery words remain local to this device in this concept.</p>
-          <div class="add-wallet-actions" aria-label="Add wallet options">
-            <button class="button add-wallet-choice is-primary" type="button" data-demo-action="create-wallet">${icon("plus")} Create new wallet</button>
-            <button class="button add-wallet-choice is-primary" type="button" data-demo-action="open-existing-wallet">${icon("wallet")} Open existing wallet</button>
-            <button class="button add-wallet-choice" type="button" data-demo-action="restore-wallet">${icon("backup")} Restore from backup</button>
-          </div>
-          <button class="button button-quiet add-wallet-back" type="button" data-view="home">Cancel</button>
-        </div>
-      </div>
-    </section>`;
+function telemetryValue(label, value, helper) {
+  return `<article><span>${label}</span><strong>${value}</strong><small>${helper}</small></article>`;
+}
+
+function telemetryLine(iconName, title, detail) {
+  return `<div class="connection-option"><span class="list-icon">${icon(iconName)}</span><span><strong>${title}</strong><small>${detail}</small></span><span class="status-badge">${t("common.unavailable")}</span></div>`;
+}
+
+const reticulumTelemetryTabs = [
+  {
+    id: "node",
+    label: "Node",
+    labelKey: "reticulum.tabs.node",
+    iconName: "activity",
+    summary: "Health of one managed Reticulum instance, never a claim about the global network.",
+    metrics: [
+      ["RNS instance", "Unavailable", "No local rnstatus bridge"],
+      ["Transport role", "Unavailable", "No managed node snapshot"],
+      ["Uptime", "Unavailable", "No local process observation"],
+      ["Aggregate RX / TX", "Unavailable", "No local traffic counters"]
+    ],
+    details: [
+      ["activity", "Managed-node state", "A future local bridge may show shared-instance availability, transport state, uptime, local application count, link-table count, probe responder state, and process resources."],
+      ["shield", "Node scope", "Transport and network identities are technical identifiers. This wallet view shows only a bounded local health result and never implies global Reticulum coverage." ]
+    ]
+  },
+  {
+    id: "interfaces",
+    label: "Interfaces",
+    labelKey: "reticulum.tabs.interfaces",
+    iconName: "network",
+    summary: "Configured local interface state, capacity metadata, and aggregate traffic.",
+    metrics: [
+      ["Interfaces up / total", "Unavailable", "No local interface snapshot"],
+      ["Mode", "Unavailable", "No interface-mode snapshot"],
+      ["Nominal bitrate", "Unavailable", "No configured-rate snapshot"],
+      ["Current RX / TX", "Unavailable", "No local traffic-rate snapshot"]
+    ],
+    details: [
+      ["network", "Interface snapshot", "For each locally managed interface, show status, type, mode, nominal bitrate, current RX/TX rate, totals, and an aggregate reachable-peer or client count when the source supplies it."],
+      ["shield", "Interface boundary", "Interface addresses, peer identities, destination hashes, IFAC material, and autoconnect details remain diagnostics outside the wallet." ]
+    ]
+  },
+  {
+    id: "radio",
+    label: "Radio",
+    labelKey: "reticulum.tabs.radio",
+    iconName: "network",
+    summary: "RNode and LoRa radio metrics only when a local radio interface reports them.",
+    metrics: [
+      ["Frequency", "Unavailable", "No RNode interface snapshot"],
+      ["Channel configuration", "Unavailable", "No bandwidth / SF / CR metadata"],
+      ["RF health", "Unavailable", "No noise / RSSI / SNR observation"],
+      ["Airtime / channel load", "Unavailable", "No short or long-window observation"]
+    ],
+    details: [
+      ["network", "Radio configuration", "Frequency, bandwidth, spreading factor, coding rate, TX power, modulation, and configured bitrate are configuration metadata for a reported radio interface."],
+      ["shield", "Hardware-only evidence", "Noise floor, interference, channel load, airtime, RSSI, SNR, link quality, battery, and device resources appear only when local hardware actually reports them. TCP and I2P never receive fake RF fields." ]
+    ]
+  },
+  {
+    id: "entrypoints",
+    label: "Entry points",
+    labelKey: "reticulum.tabs.entrypoints",
+    iconName: "user",
+    summary: "Published and locally discovered entry points, never a directory of every Reticulum node.",
+    metrics: [
+      ["Discovery state", "Unavailable", "No local discovery snapshot"],
+      ["Available entry points", "Unavailable", "No trusted-entrypoint count"],
+      ["Last heard", "Unavailable", "No discovery freshness signal"],
+      ["Trust scope", "Unavailable", "No managed discovery policy"]
+    ],
+    details: [
+      ["network", "Discovered entry points", "A future local bridge may show published interface name/type, Available or Stale state, first discovery, last heard, hop distance, and radio metadata where it was deliberately published."],
+      ["shield", "Discovery boundary", "This is a trusted local discovery view, not a global network map. Transport IDs, addresses, ports, coordinates, and discovery history remain hidden unless a dedicated diagnostics surface is authorized." ]
+    ]
+  },
+  {
+    id: "paths",
+    label: "Paths",
+    labelKey: "reticulum.tabs.paths",
+    iconName: "swap",
+    summary: "Known-path state and control-plane pressure from this managed node only.",
+    metrics: [
+      ["Known paths", "Unavailable", "No local path-table summary"],
+      ["Path freshness", "Unavailable", "No local update observation"],
+      ["Path churn", "Unavailable", "No managed change-rate summary"],
+      ["Announce pressure", "Unavailable", "No announce-rate or hold-state summary"]
+    ],
+    details: [
+      ["network", "Control-plane summary", "Known-path count, interface/hop distribution, path churn, announce rate, rate violations, and rate-limit state can be summarized from local rnpath evidence."],
+      ["shield", "Topology boundary", "Destination hashes, next hops, raw hop lists, path entries, cache contents, and announce payloads are diagnostics, not everyday wallet data." ]
+    ]
+  },
+  {
+    id: "probes",
+    label: "Probes",
+    labelKey: "reticulum.tabs.probes",
+    iconName: "activity",
+    summary: "End-to-end checks for specifically managed destinations that consent to probes.",
+    metrics: [
+      ["Probe availability", "Unavailable", "No managed-destination probe results"],
+      ["RTT", "Unavailable", "No local latency sample"],
+      ["Loss / jitter", "Unavailable", "No probe series"],
+      ["Consecutive failures", "Unavailable", "No local failure count"]
+    ],
+    details: [
+      ["activity", "Managed availability", "Availability windows, median and p95 RTT, jitter, packet loss, and consecutive failures can be derived only from an explicit rnprobe series to a controlled destination."],
+      ["shield", "Probe scope", "A missing proof response is not evidence that Reticulum is down. RSSI and SNR describe the receiving local radio interface only, not every intermediate hop." ]
+    ]
+  },
+  {
+    id: "links",
+    label: "Links",
+    labelKey: "reticulum.tabs.links",
+    iconName: "activity",
+    summary: "Local application link and receipt evidence, separate from interface health.",
+    metrics: [
+      ["Active links", "Unavailable", "No local link summary"],
+      ["Receipt delivery", "Unavailable", "No local receipt observation"],
+      ["Expected / establish rate", "Unavailable", "No application link-rate summary"],
+      ["Measured goodput", "Unavailable", "No controlled resource transfer"]
+    ],
+    details: [
+      ["activity", "Link evidence", "For wallet-owned applications, expose link age, idle time, request response time, MTU, MDU, receipt state, resource-transfer progress, and optional local physical stats when track_phy_stats is enabled."],
+      ["shield", "No link tracing", "Remote identities, destinations, payload content, individual-link history, and teardown internals remain outside the wallet surface." ]
+    ]
+  }
+];
+
+const onionnetTelemetryTabs = [
+  {
+    id: "overview",
+    labelKey: "onionnet.tabs.overview",
+    iconName: "activity",
+    summary: "A boundary-aware view of public control-plane state, local evidence, and aggregate synthetic health. It never reconstructs a user route.",
+    metrics: [
+      ["Public epoch data", "Unavailable", "No verified registry or policy snapshot"],
+      ["Local route evidence", "Unavailable", "No wallet or SDK status bridge"],
+      ["Synthetic health", "Unavailable", "No aggregate probe feed"],
+      ["Protected fields", "Hidden", "No paths, endpoints, or session IDs"]
+    ],
+    details: [
+      ["activity", "Evidence classes", "Public deterministic state may describe an epoch, registry, policy, active/reserve selection, lane contract, and diversity constraints. Local route construction and forwarding observations remain local."],
+      ["shield", "No reachability inference", "Selected active nodes are not currently reachable nodes. A future dashboard must label deterministic selection, observed reachability, and synthetic probe coverage as separate signals." ]
+    ]
+  },
+  {
+    id: "epoch",
+    labelKey: "onionnet.tabs.epoch",
+    iconName: "activity",
+    summary: "Epoch, registry, beacon, policy, and lane-contract agreement are public deterministic control-plane evidence.",
+    metrics: [
+      ["Epoch ID", "Unavailable", "No fresh verified epoch view"],
+      ["Independent derivation", "Unavailable", "No observer agreement snapshot"],
+      ["Registry / policy freshness", "Unavailable", "No verified roots or snapshot age"],
+      ["Lane contract expiry", "Unavailable", "No active contract snapshot"]
+    ],
+    details: [
+      ["activity", "Epoch view agreement", "Independent observers may derive the same EpochView from the registry root, beacon, and policy root. A disagreement is a control-plane alert, not a normal node-down event."],
+      ["shield", "Rollback and split-view boundary", "Snapshot rollback, stale policy, beacon problems, and incompatible generations need explicit evidence. This UI never infers agreement from an unavailable source." ]
+    ]
+  },
+  {
+    id: "privacy",
+    labelKey: "onionnet.tabs.privacy",
+    iconName: "shield",
+    summary: "Privacy is described through separate lane, diversity, route-floor, and cover-traffic contract signals — never one universal score.",
+    metrics: [
+      ["Privacy floor", "Unavailable", "No active profile evaluation"],
+      ["Active lanes", "Unavailable", "No lane-contract snapshot"],
+      ["Minimum bucket population", "Unavailable", "No bucket aggregate"],
+      ["Compliant route floor", "Unavailable", "No policy-bound route count"]
+    ],
+    details: [
+      ["shield", "Privacy contract", "A future source may expose active lanes, minimum bucket population, disjoint compliant-route floor, concentration headroom, cover budget, and low-load state as distinct descriptive signals."],
+      ["alert", "Fail-closed behavior", "Thin lanes are a privacy event. Low-load contraction may delay admission, increase cover requirements, or fail closed; the UI must never silently replace that outcome with a direct fallback." ]
+    ]
+  },
+  {
+    id: "transport",
+    labelKey: "onionnet.tabs.transport",
+    iconName: "network",
+    summary: "Carrier-neutral aggregate transport evidence keeps adjacent-link health separate from end-to-end user outcomes.",
+    metrics: [
+      ["Carrier availability", "Unavailable", "No local carrier snapshot"],
+      ["Aggregate RTT / loss", "Unavailable", "No aggregate measurement window"],
+      ["Carrier distribution", "Unavailable", "No coarse traffic-class aggregate"],
+      ["Geometry compliance", "Unavailable", "No packet-class validation aggregate"]
+    ],
+    details: [
+      ["network", "Carrier observability", "QUIC, WebSocket/TLS, Tor ingress, and future adapters may report coarse carrier availability, handshake outcomes, RTT, loss, goodput, MTU, and packet-class geometry compliance."],
+      ["shield", "No endpoint telemetry", "Raw addresses, connection IDs, TLS sessions, Tor circuits, exact endpoints, hop pairs, and packet timing traces are excluded because together they could reveal route structure." ]
+    ]
+  },
+  {
+    id: "queues",
+    labelKey: "onionnet.tabs.queues",
+    iconName: "backup",
+    summary: "Bounded queues, durable replay protection, and explicit backpressure are local safety evidence, never a cross-hop trace.",
+    metrics: [
+      ["Queue utilization", "Unavailable", "No local bounded-queue aggregate"],
+      ["Replay ledger", "Unavailable", "No durable replay snapshot"],
+      ["Backpressure actions", "Unavailable", "No aggregated reason counts"],
+      ["Forwarding invariant", "Unavailable", "No verified replay-before-forward proof"]
+    ],
+    details: [
+      ["activity", "Durable replay boundary", "Outer transport and inner canonical-envelope replay acceptance must complete durably before forwarding side effects. A future source may expose only aggregates and the required zero-violation invariant."],
+      ["shield", "No correlation database", "Replay tags, ciphertext hashes, transaction identifiers, packet timestamps, and a shared packet correlation ID remain hidden. Queue latency may be reported only at the observing local boundary." ]
+    ]
+  },
+  {
+    id: "probation",
+    labelKey: "onionnet.tabs.probation",
+    iconName: "user",
+    summary: "Probation and reserve readiness use aggregate shadow traffic and controlled challenges without automatic irreversible punishment.",
+    metrics: [
+      ["Probation population", "Unavailable", "No lifecycle aggregate"],
+      ["Shadow-probe coverage", "Unavailable", "No aggregate probe results"],
+      ["Reserve activation", "Unavailable", "No activation-time observation"],
+      ["Challenge outcomes", "Unavailable", "No bounded outcome summary"]
+    ],
+    details: [
+      ["activity", "Readiness evidence", "A future source may aggregate probation age, shadow-probe success, loss, replay correctness, queue stability, descriptor consistency, and reserve-activation time without exposing individual route evidence."],
+      ["shield", "Observation before punishment", "Until the anti-griefing contract is frozen, challenge telemetry may initiate re-probing but must not directly trigger slashing or irreversible demotion." ]
+    ]
+  },
+  {
+    id: "ingress",
+    labelKey: "onionnet.tabs.ingress",
+    iconName: "wallet",
+    summary: "The double-envelope exit and ingress-decryptor boundary is visible through aggregate correctness and admission evidence only.",
+    metrics: [
+      ["Exit boundary", "Unavailable", "No opaque-handoff aggregate"],
+      ["Inner decrypt", "Unavailable", "No result-count aggregate"],
+      ["Recipient-key lifecycle", "Unavailable", "No key-age or rotation snapshot"],
+      ["Runtime admission", "Unavailable", "No WorkItem admission aggregate"]
+    ],
+    details: [
+      ["activity", "Boundary correctness", "A future source may aggregate outer unwrap, transport validation, opaque handoff, inner decrypt, AAD binding, key rotation, WorkItem formation, and runtime-admission results by bounded reason code."],
+      ["shield", "Payload and identity boundary", "It must never show recipient keys, ciphertext, transaction identifiers, outer or inner envelope material, predecessor/next-hop details, or a user-session timeline." ]
+    ]
+  }
+];
+
+function telemetryTabbedView({ source, tabs, selectedTabId, eyebrowKey, titleKey, summaryKey, localCapabilityKey, localCapabilityHelpKey, notice }) {
+  const activeTab = tabs.find((tab) => tab.id === selectedTabId) || tabs[0];
+  const tabLabel = t(activeTab.labelKey);
+  return `<section class="view-enter telemetry-view ${source}-telemetry-view" aria-labelledby="telemetry-heading">
+    <div class="page-intro"><div><p class="eyebrow">${t(eyebrowKey)}</p><h2 id="telemetry-heading">${t(titleKey)}</h2><p>${t(summaryKey)}</p></div><span class="status-badge">${t("common.readOnly")}</span></div>
+    <div class="capability-note">${icon("alert")}<span><strong>${t(localCapabilityKey)}</strong><small>${t(localCapabilityHelpKey)}</small></span></div>
+    <section id="${source}-panel-${activeTab.id}" class="telemetry-tab-detail" role="tabpanel" aria-label="${tabLabel}" aria-labelledby="${source}-tab-${activeTab.id}">
+      <div class="telemetry-tab-heading"><div><h3>${tabLabel}</h3><p>${activeTab.summary}</p></div><span class="status-badge">${t("common.unavailable")}</span></div>
+      <section class="network-summary-grid telemetry-summary" aria-label="${tabLabel} parameters">${activeTab.metrics.map(([label, value, helper]) => telemetryValue(label, value, helper)).join("")}</section>
+      <section class="telemetry-grid telemetry-tab-grid" aria-label="${tabLabel} boundary details">
+        ${activeTab.details.map(([iconName, title, detail]) => `<article class="card telemetry-card">${telemetryLine(iconName, title, detail)}</article>`).join("")}
+      </section>
+    </section>
+    <div class="notice">${icon("shield")} ${notice}</div>
+  </section>`;
+}
+
+function reticulumTelemetryView() {
+  return telemetryTabbedView({
+    source: "reticulum",
+    tabs: reticulumTelemetryTabs,
+    selectedTabId: state.reticulumTelemetryTab,
+    eyebrowKey: "network.carrierTelemetry",
+    titleKey: "reticulum.title",
+    summaryKey: "reticulum.summary",
+    localCapabilityKey: "reticulum.localCapability",
+    localCapabilityHelpKey: "reticulum.localCapabilityHelp",
+    notice: "Telemetry is local evidence, not a control plane. It remains read-only, scope-labelled, freshness-labelled, and separate from wallet and application setup."
+  });
+}
+
+function onionnetTelemetryView() {
+  return telemetryTabbedView({
+    source: "onionnet",
+    tabs: onionnetTelemetryTabs,
+    selectedTabId: state.onionnetTelemetryTab,
+    eyebrowKey: "network.routeTelemetry",
+    titleKey: "onionnet.title",
+    summaryKey: "onionnet.summary",
+    localCapabilityKey: "onionnet.localCapability",
+    localCapabilityHelpKey: "onionnet.localCapabilityHelp",
+    notice: "Telemetry is evidence, not a route controller. It remains read-only, scope-labelled, freshness-labelled, and separate from wallet and application setup."
+  });
+}
+
+function telemetryView() {
+  const source = state.telemetrySource;
+  if (source === "reticulum") return reticulumTelemetryView();
+  if (source === "onionnet") return onionnetTelemetryView();
+  const definitions = {
+    aggregators: {
+      label: "Aggregators",
+      eyebrow: "Publication telemetry",
+      summary: "Read-only service and publication evidence for aggregation work. It is not a wallet setup page and never receives wallet keys, seeds, or policy secrets.",
+      metrics: [
+        ["Service bindings", "Unavailable", "No wallet-to-node status bridge"],
+        ["Publication", "Unavailable", "No latest publication record"],
+        ["Placement", "Unavailable", "No batch placement observation"],
+        ["Verdict", "Unavailable", "No validation or lifecycle evidence"]
+      ],
+      sections: [
+        ["activity", "Service bindings", "When a verified local bridge exists, report whether aggregator, validator, and watcher services are attached. A detached service is not an error by itself."],
+        ["exchange", "Publication and placement", "Report a batch or publication lifecycle only when an authoritative record exists. Do not claim settlement, acceptance, or a recipient outcome from a queued publication."],
+        ["shield", "Verification evidence", "Expose a local verdict, lifecycle state, provider signal, and observation only with their freshness and scope. Keep wallet-specific identifiers and private payloads out of this page."]
+      ],
+      note: "The rollup node can build a StatusSnapshot with service bindings, publication, placement, verdict, lifecycle, provider signal, and observation. The wallet has no registered bridge to that snapshot yet, so this page correctly shows unavailable."
+    }
+  };
+  const item = definitions[source] || definitions.aggregators;
+  return `<section class="view-enter telemetry-view" aria-labelledby="telemetry-heading">
+    <div class="page-intro"><div><p class="eyebrow">${item.eyebrow}</p><h2 id="telemetry-heading">${item.label} telemetry</h2><p>${item.summary}</p></div><span class="status-badge">Read-only</span></div>
+    <div class="capability-note">${icon("alert")}<span><strong>Local capability unavailable</strong><small>${item.note}</small></span></div>
+    <section class="network-summary-grid telemetry-summary" aria-label="${item.label} telemetry summary">${item.metrics.map(([label, value, helper]) => telemetryValue(label, value, helper)).join("")}</section>
+    <section class="telemetry-grid" aria-label="${item.label} telemetry details">
+      ${item.sections.map(([iconName, title, detail]) => `<article class="card telemetry-card">${telemetryLine(iconName, title, detail)}</article>`).join("")}
+    </section>
+    <div class="notice">${icon("shield")} Telemetry is evidence, not a control plane. It remains read-only, scope-labelled, freshness-labelled, and separate from application and wallet setup.</div>
+  </section>`;
 }
 
 function render(options = {}) {
@@ -1209,9 +1648,16 @@ function render(options = {}) {
   const walletScreen = hasSelectedWalletContext();
   const wallet = activeWallet();
   const [title, context] = headings[state.view];
-  pageTitle.textContent = walletScreen ? wallet.address : title;
-  pageContext.textContent = walletScreen ? `${wallet.name} wallet` : context;
+  const [telemetryTitle, telemetryContext] = telemetryTopbar[state.telemetrySource] || telemetryTopbar.onionnet;
+  const telemetryScreen = state.view === "telemetry";
+  pageTitle.textContent = walletScreen ? wallet.address : telemetryScreen ? telemetryTitle : t(title);
+  pageContext.textContent = walletScreen
+    ? t("app.walletContext", { wallet: wallet.name })
+    : telemetryScreen
+      ? t(telemetryContext)
+      : t(context);
   pageTitle.classList.toggle("is-wallet-address", walletScreen);
+  pageTitle.classList.toggle("is-telemetry-title", telemetryScreen);
   copyWalletAddress.hidden = !walletScreen;
   walletIdentity.hidden = !walletScreen;
 
@@ -1228,6 +1674,8 @@ function render(options = {}) {
   main.innerHTML = {
     home: homeView,
     wallet: walletView,
+    "wallet-send": () => walletTransferView("send"),
+    "wallet-receive": () => walletTransferView("receive"),
     activity: activityView,
     swap: swapView,
     exchange: exchangeView,
@@ -1235,7 +1683,7 @@ function render(options = {}) {
     "wallet-backup": walletBackupView,
     "wallet-settings": walletSettingsView,
     settings: settingsView,
-    "add-wallet": addWalletView
+    telemetry: telemetryView
   }[state.view]();
 
   syncBalanceButtons();
@@ -1384,7 +1832,8 @@ function sensitiveWalletDialog(type) {
   });
 }
 
-function dialogFrame({ title, subtitle, body, footer = "", steps = 0, activeStep = 0, closeLabel = "Close" }) {
+function dialogFrame({ title, subtitle, body, footer = "", footerClass = "", steps = 0, activeStep = 0, closeLabel }) {
+  const resolvedCloseLabel = closeLabel || t("common.close");
   const indicators = steps > 1
     ? `<div class="step-indicator" aria-label="Step ${activeStep + 1} of ${steps}">${Array.from({ length: steps }, (_, index) => `<span class="${index < activeStep ? "is-done" : index === activeStep ? "is-active" : ""}"></span>`).join("")}</div>`
     : "";
@@ -1393,10 +1842,10 @@ function dialogFrame({ title, subtitle, body, footer = "", steps = 0, activeStep
       <header class="dialog-header">
         <div class="dialog-header-copy"><h2 id="dialog-title">${title}</h2><p>${subtitle}</p></div>
         ${indicators}
-        <button class="icon-button" type="button" data-dialog-close aria-label="${closeLabel}">${icon("close")}</button>
+        <button class="icon-button" type="button" data-dialog-close aria-label="${escapeHtml(resolvedCloseLabel)}">${icon("close")}</button>
       </header>
       <div class="dialog-body">${body}</div>
-      ${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}
+      ${footer ? `<footer class="dialog-footer${footerClass ? ` ${footerClass}` : ""}">${footer}</footer>` : ""}
     </div>`;
 }
 
@@ -1615,15 +2064,15 @@ function permissionDetailDialog() {
 }
 
 function activityDialog(item) {
-  const lifecycle = item.status === "settling" ? "created → submitted → admitted" : "created → submitted → admitted → confirmed";
+  const lifecycle = t(item.status === "settling" ? "history.lifecyclePending" : "history.lifecycleConfirmed");
   return dialogFrame({
-    title: item.title,
-    subtitle: "History details",
+    title: activityText(item, "title"),
+    subtitle: t("history.details"),
     body: `
-      <div class="review-card review-hero"><span class="list-icon ${item.direction === "in" ? "is-claim" : ""}">${icon(item.direction === "in" ? "receive" : item.direction === "out" ? "send" : "activity")}</span><strong>${escapeHtml(item.amount || statusText(item.status))}</strong><span>${escapeHtml(item.detail)}</span></div>
-      <div class="review-card"><div class="summary-row"><span>Status</span><strong><span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span></strong></div><div class="summary-row"><span>When</span><strong>${escapeHtml(item.time)}</strong></div><div class="summary-row"><span>Fee</span><strong>${item.type === "money" ? "Included" : "Not applicable"}</strong></div><div class="summary-row"><span>Privacy</span><strong>Target simulation · not live telemetry</strong></div><div class="summary-row"><span>Carrier & chain</span><strong>Reticulum target · Main mock</strong></div></div>
-      <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>ID: ${escapeHtml(item.id)}-b4c9…8e20</span><span>Lifecycle: ${lifecycle}</span><span>Receipt: public_4a92…c71e</span></div></details>`,
-    footer: `<button class="button" type="button" data-demo-action="copy-receipt">${icon("copy")} Copy receipt</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
+      <div class="review-card review-hero"><span class="list-icon ${item.direction === "in" ? "is-claim" : ""}">${icon(item.direction === "in" ? "receive" : item.direction === "out" ? "send" : "activity")}</span><strong>${escapeHtml(activityText(item, "amount") || statusText(item.status))}</strong><span>${escapeHtml(activityText(item, "detail"))}</span></div>
+      <div class="review-card"><div class="summary-row"><span>${t("history.status")}</span><strong><span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span></strong></div><div class="summary-row"><span>${t("history.when")}</span><strong>${escapeHtml(activityText(item, "time"))}</strong></div><div class="summary-row"><span>${t("history.fee")}</span><strong>${t(item.type === "money" ? "history.feeIncluded" : "history.feeNotApplicable")}</strong></div><div class="summary-row"><span>${t("history.privacy")}</span><strong>${t("history.privacyValue")}</strong></div><div class="summary-row"><span>${t("history.carrierChain")}</span><strong>${t("history.carrierChainValue")}</strong></div></div>
+      <details class="technical"><summary>${t("history.technicalDetails")}</summary><div class="technical-content mono"><span>${t("history.idLabel")}: ${escapeHtml(item.id)}-b4c9…8e20</span><span>${t("history.lifecycleLabel")}: ${lifecycle}</span><span>${t("history.receiptLabel")}: public_4a92…c71e</span></div></details>`,
+    footer: `<button class="button" type="button" data-demo-action="copy-receipt">${icon("copy")} ${t("history.copyReceipt")}</button><button class="button button-primary" type="button" data-dialog-close>${t("history.done")}</button>`
   });
 }
 
@@ -1711,7 +2160,24 @@ function removeWalletDialog() {
       </fieldset>
       <p class="remove-selection-summary" id="wallet-remove-summary">${selectedCount} of ${state.wallets.length} selected. This removes concept profiles only.</p>
       ${selectedCount === state.wallets.length ? `<p class="field-error">All concept profiles will be removed. You can add a wallet again afterward.</p>` : ""}`,
-    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-danger" type="button" data-dialog-action="confirm-remove-wallet"${canRemove ? "" : " disabled"}>${icon("remove")} Remove profiles${selectedCount ? ` (${selectedCount})` : ""}</button>`
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-danger" type="button" data-dialog-action="confirm-remove-wallet"${canRemove ? "" : " disabled"}>${icon("remove")} Remove profiles${selectedCount ? ` (${selectedCount})` : ""}</button>`,
+    footerClass: "dialog-footer-centered"
+  });
+}
+
+function addWalletDialog() {
+  return dialogFrame({
+    title: "Add wallet",
+    subtitle: "Create, open, or restore a local wallet",
+    body: `
+      <div class="add-wallet-dialog-options" aria-label="Add wallet options">
+        <p class="add-wallet-copy">Wallet keys, passwords, and recovery words remain local to this device in this concept.</p>
+        <button class="button add-wallet-choice is-primary" type="button" data-demo-action="create-wallet">${icon("plus")} Create new wallet</button>
+        <button class="button add-wallet-choice is-primary" type="button" data-demo-action="open-existing-wallet">${icon("wallet")} Open existing wallet</button>
+        <button class="button add-wallet-choice" type="button" data-demo-action="restore-wallet">${icon("backup")} Restore from backup</button>
+      </div>`,
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button>`,
+    footerClass: "dialog-footer-centered"
   });
 }
 
@@ -1837,6 +2303,7 @@ function renderDialog() {
     : type === "connection" ? connectionDialog()
     : type === "wallets" ? walletsDialog()
     : type === "remove-wallet" ? removeWalletDialog()
+    : type === "add-wallet" ? addWalletDialog()
     : type === "create-wallet" ? createWalletDialog()
     : type === "open-wallet" ? openWalletDialog()
     : type === "recover-wallet" ? recoverWalletDialog()
@@ -2110,9 +2577,10 @@ function handleDialogAction(action, button) {
     const selectedIndex = state.wallets.findIndex((wallet) => wallet.id === state.selectedWalletId);
     const remainingWallets = state.wallets.filter((wallet) => !selectedIds.has(wallet.id));
     state.wallets = remainingWallets;
-    if (remainingWallets.length === 0) {
+    const needsWalletSetup = remainingWallets.length === 0;
+    if (needsWalletSetup) {
       state.selectedWalletId = null;
-      state.view = "add-wallet";
+      state.view = "home";
     } else if (selectedIds.has(state.selectedWalletId)) {
       state.selectedWalletId = remainingWallets[Math.min(selectedIndex, remainingWallets.length - 1)].id;
       state.view = "wallet";
@@ -2123,18 +2591,13 @@ function handleDialogAction(action, button) {
     closeDialog();
     render({ focusMain: true });
     showToast(remainingWallets.length === 0 ? "All wallet profiles removed. Add a wallet to continue." : `${walletsToRemove.length} wallet${walletsToRemove.length === 1 ? "" : "s"} removed from this concept.`);
+    if (needsWalletSetup) window.setTimeout(() => openFlow("add-wallet", button), 0);
   } else if (action === "add-wallet") {
-    closeDialog();
-    state.view = "add-wallet";
-    render({ focusMain: true });
+    openFlow("add-wallet", button);
   } else if (["start-create", "start-recover"].includes(action)) {
-    closeDialog();
-    state.view = "add-wallet";
-    render({ focusMain: true });
+    openFlow("add-wallet", button);
   } else if (["create-back-wallets", "recover-back-wallets"].includes(action)) {
-    closeDialog();
-    state.view = "add-wallet";
-    render({ focusMain: true });
+    openFlow("add-wallet", button);
   } else if (action === "create-seed-saved") {
     state.flow.step = 2;
     renderDialog();
@@ -2179,12 +2642,10 @@ function handleDemoAction(action, button) {
     document.querySelector("#unlock-password").focus();
     if (action === "logout") showToast("Wallet session ended.");
   } else if (action === "add-wallet") {
-    state.view = "add-wallet";
-    render({ focusMain: true });
+    openFlow("add-wallet", button);
   } else if (action === "remove-wallet") {
     if (state.wallets.length === 0) {
-      state.view = "add-wallet";
-      render({ focusMain: true });
+      openFlow("add-wallet", button);
       return;
     }
     openFlow("remove-wallet", button);
@@ -2369,6 +2830,13 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const assetFilterButton = event.target.closest("[data-asset-filter]");
+  if (assetFilterButton) {
+    state.assetFilter = assetFilterButton.dataset.assetFilter;
+    render();
+    return;
+  }
+
   const settingButton = event.target.closest("[data-settings-section]");
   if (settingButton) {
     const section = settingButton.dataset.settingsSection;
@@ -2391,10 +2859,31 @@ document.addEventListener("click", (event) => {
 
   const networkButton = event.target.closest("[data-network-section]");
   if (networkButton) {
+    if (networkButton.closest("#network-nav")) {
+      state.view = "telemetry";
+      state.telemetrySource = networkButton.dataset.networkSection;
+      state.isNetworkOpen = false;
+      render({ focusMain: true });
+      return;
+    }
     state.view = "settings";
     state.settingsSection = "network";
     state.networkSection = networkButton.dataset.networkSection;
     state.isNetworkOpen = true;
+    render();
+    return;
+  }
+
+  const reticulumTelemetryButton = event.target.closest("[data-reticulum-telemetry-tab]");
+  if (reticulumTelemetryButton) {
+    state.reticulumTelemetryTab = reticulumTelemetryButton.dataset.reticulumTelemetryTab;
+    render();
+    return;
+  }
+
+  const onionnetTelemetryButton = event.target.closest("[data-onionnet-telemetry-tab]");
+  if (onionnetTelemetryButton) {
+    state.onionnetTelemetryTab = onionnetTelemetryButton.dataset.onionnetTelemetryTab;
     render();
     return;
   }
@@ -2426,7 +2915,7 @@ document.addEventListener("click", (event) => {
     syncConfigDraftFromState();
     applyAppearancePreferences();
     render();
-    showToast(`${codeThemeOptions.find((theme) => theme.id === state.codeTheme)?.label || "Code"} highlighting applied locally.`);
+    showToast(`${codeThemeOptions.find((theme) => theme.id === state.codeTheme)?.label || "Code"} highlighting applied across the application.`);
     return;
   }
 
@@ -2584,7 +3073,7 @@ document.addEventListener("input", (event) => {
     const term = event.target.value.trim().toLowerCase();
     const items = activeWallet().activities.filter((item) => {
       const matchesFilter = matchesActivityFilter(item, state.activityFilter);
-      return matchesFilter && `${item.title} ${item.detail} ${item.id}`.toLowerCase().includes(term);
+      return matchesFilter && `${activityText(item, "title")} ${activityText(item, "detail")} ${item.id}`.toLowerCase().includes(term);
     });
     document.querySelector("#activity-results").innerHTML = activityRows(items);
   } else if (event.target.classList.contains("seed-entry")) {
@@ -2643,10 +3132,14 @@ document.addEventListener("change", (event) => {
   }
   const configControl = event.target.dataset.configControl;
   if (configControl) {
-    if (configControl === "language") state.language = event.target.value;
+    const languageChanged = configControl === "language" && state.language !== event.target.value;
+    if (configControl === "language") state.language = i18n.resolveLanguage(event.target.value);
+    if (configControl === "regional-locale") state.regionalLocale = event.target.value;
+    if (configControl === "time-zone") state.timeZone = event.target.value;
+    if (configControl === "network-units") state.networkUnits = event.target.value;
     if (configControl === "palette") state.palette = event.target.value;
-    if (configControl === "code-theme") state.codeTheme = event.target.value;
     if (configControl === "text-scale") state.textScale = event.target.value;
+    if (configControl === "code-theme") state.codeTheme = event.target.value;
     if (configControl === "lock-after") {
       state.autoLockMinutes = event.target.value;
       activeWalletPreferences().lockAfterMinutes = event.target.value;
@@ -2664,6 +3157,7 @@ document.addEventListener("change", (event) => {
     syncConfigDraftFromState();
     applyAppearancePreferences();
     render();
+    if (languageChanged) showToast(t("app.languageChanged"));
     return;
   }
   if (["pay-asset", "receive-asset"].includes(event.target.id)) {

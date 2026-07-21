@@ -115,7 +115,8 @@ impl CheckpointTransitionConsistencyV2 {
             machine.accept(event, source_record)?;
             on_accepted(event);
             Ok(())
-        })?;
+        });
+        let pass = pass?;
         let declared_event_counts = pass.event_counts();
         let update_trace_digest = machine.update_trace_digest()?;
         let update_trace_count = machine.update_trace_count()?;
@@ -182,7 +183,7 @@ fn semantic_row(item: &CanonicalFlowItemV2) -> UniquenessSemanticRowV2 {
     }
 }
 
-fn global_semantic_order_is_valid(
+fn is_global_semantic_order_valid(
     previous: Option<(UniquenessSetKindV2, UniquenessSemanticRowV2)>,
     current_set: UniquenessSetKindV2,
     current: UniquenessSemanticRowV2,
@@ -328,7 +329,7 @@ impl PendingCanonicalSourceChunksV2 {
         Ok(())
     }
 
-    fn complete(&self) -> bool {
+    fn is_complete(&self) -> bool {
         self.next_chunk == self.chunk_count
     }
 }
@@ -372,7 +373,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
         // crate-internal caller cannot turn the typed empty marker into a
         // second admission path by bypassing the orchestrator.
         if checkpoint.is_recursive_v2_noop()
-            && !context.allows_noop_execution_input_version(checkpoint.exec_version())
+            && !context.is_noop_input_version_allowed(checkpoint.exec_version())
         {
             return Err(CheckpointError::Authority);
         }
@@ -486,15 +487,6 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 self.expect_hash(event)
             }
         };
-        #[cfg(test)]
-        if let Err(error) = &accepted {
-            eprintln!(
-                "recursive evaluator rejected source ordinal={} opcode={:?} phase={:?}: {error:?}",
-                event.ordinal(),
-                event.opcode(),
-                self.phase,
-            );
-        }
         accepted?;
         self.consumed_event_counts.increment(event.opcode())?;
         Ok(())
@@ -694,17 +686,6 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     RecursiveTraceOpcodeV2::grammar_digest(),
                     precommit,
                 )?);
-                // The commit pass counters have reached the declared row
-                // counts. Product pass owns an independent reconstruction, so
-                // both its hashers and counters must restart from the domain
-                // prefix before any challenge-dependent row is accepted.
-                self.spent_product_count = 0;
-                self.output_product_count = 0;
-                self.spent_sorted_count = 0;
-                self.output_sorted_count = 0;
-                self.prior_spent_sorted_id = None;
-                self.prior_output_sorted_id = None;
-                self.prior_sorted_row = None;
                 self.spent_product_ids =
                     Some(CheckpointSha256V2::new(CheckpointShaRole::SpentOriginalIds));
                 self.output_product_ids = Some(CheckpointSha256V2::new(
@@ -822,7 +803,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                             || self.spent_sorted_count >= self.inputs
                             || self.prior_spent_sorted_id.is_some_and(|prior| prior >= id)
                             || (!commit_pass
-                                && !global_semantic_order_is_valid(self.prior_sorted_row, set, row))
+                                && !is_global_semantic_order_valid(self.prior_sorted_row, set, row))
                         {
                             return Err(CheckpointError::DuplicateIdentifier);
                         }
@@ -845,7 +826,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                             || self.output_sorted_count >= self.outputs
                             || self.prior_output_sorted_id.is_some_and(|prior| prior >= id)
                             || (!commit_pass
-                                && !global_semantic_order_is_valid(self.prior_sorted_row, set, row))
+                                && !is_global_semantic_order_valid(self.prior_sorted_row, set, row))
                         {
                             return Err(CheckpointError::DuplicateIdentifier);
                         }
@@ -1290,7 +1271,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 HashControlStageV2::Block => RecursiveTraceOpcodeV2::ShaBlock,
                 HashControlStageV2::End => RecursiveTraceOpcodeV2::EndHash,
             };
-            if event.opcode() != expected_opcode || !same_hash_binding(&control, pending) {
+            if event.opcode() != expected_opcode || !has_same_hash_binding(&control, pending) {
                 return Err(CheckpointError::Canonical);
             }
             match control.stage {
@@ -1327,7 +1308,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                                     .ok_or(CheckpointError::Overflow)?,
                             )?
                         || block.chaining_before != pending.chaining_state.unwrap_or(SHA256_IV_V2)
-                        || !block.verifies_transition()
+                        || !block.is_transition_verified()
                     {
                         return Err(CheckpointError::Canonical);
                     }
@@ -1353,7 +1334,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         || control.block.is_some()
                         || pending.blocks_seen != pending.block_count
                         || pending.source_memory_window_open
-                        || !pending.chunks.complete()
+                        || !pending.chunks.is_complete()
                         || CheckpointSha256BlockV2::digest_from_chaining(
                             &pending.chaining_state.ok_or(CheckpointError::Invariant)?,
                         ) != pending.source_hash
@@ -1371,7 +1352,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
     }
 }
 
-fn same_hash_binding(control: &HashControlBindingV2, pending: &PendingHashV2) -> bool {
+fn has_same_hash_binding(control: &HashControlBindingV2, pending: &PendingHashV2) -> bool {
     control.schema == HashControlSchemaV2::SourceRecord
         && control.stage == pending.next_stage
         && control.source_ordinal == pending.source_ordinal

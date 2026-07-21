@@ -75,5 +75,9 @@ crates/z00z_utils/src/compression.rs
 crates/z00z_utils/src/codec/mod.rs
 crates/z00z_utils/src/codec/bincode.rs
 crates/z00z_utils/src/io/atomic_write.rs
+crates/z00z_utils/src/io/error.rs
 crates/z00z_utils/src/io/file_read.rs
+crates/z00z_utils/src/io/fs.rs
+crates/z00z_utils/src/io/fs_codec.rs
 crates/z00z_utils/src/io/mod.rs
+crates/z00z_utils/src/io/secure.rs

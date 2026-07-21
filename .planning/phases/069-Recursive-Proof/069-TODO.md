@@ -16,7 +16,7 @@ source revision and do not authorize the current tree. The current T3/T4
 candidate source is pinned by
 `crates/z00z_storage/src/checkpoint/recursive_source_manifest_v2.txt` and the
 independent golden
-`5169ae837c7ee891f076ae51702698cf7be77cd78fdb2856b04225991006a876`.
+`5a381948457e9a8aa69792c43285e28597ef2779687457221a6d56a8b3cbad2d`.
 It remains NOT ACCEPTED until source-current release verification and
 independent review are clean. Plan 06 and Plans 07–13 remain locked;
 `CheckpointProofSystem::VERIFIED` remains disabled.

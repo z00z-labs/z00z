@@ -37,9 +37,9 @@ pub use fs::{
     file_len, hash_root_inputs, load_bincode, load_bincode_bounded, load_json, load_json_bounded,
     load_with_codec, load_yaml, load_yaml_bounded, open_lock_file, path_exists,
     path_exists_no_follow, prepare_managed_root, prune_hex_dirs, prune_scope_alias_dirs, read_dir,
-    read_file, read_file_bounded, read_link, read_to_string, remove_dir_all, remove_file,
-    rename_file, reset_managed_root, reset_managed_root_once, save_bincode, save_json,
+    read_dir_bounded, read_file, read_file_bounded, read_link, read_to_string, remove_dir_all,
+    remove_file, rename_file, reset_managed_root, reset_managed_root_once, save_bincode, save_json,
     save_with_codec, save_yaml, set_file_mode, set_permissions_mode, stable_current_exe_scope,
-    symlink_metadata, sync_directory, write_file, write_file_private_new,
+    symlink_metadata, sync_directory, write_file, write_file_private_new, SecureDir,
 };
 pub use spool::PrivateSpoolFile;

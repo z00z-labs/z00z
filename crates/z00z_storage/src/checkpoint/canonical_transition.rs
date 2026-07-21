@@ -312,7 +312,7 @@ impl CanonicalCheckpointTransitionV2 {
         authority.revalidate_config()?;
         let context = authority.authority();
         if checkpoint.is_recursive_v2_noop()
-            && !context.allows_noop_execution_input_version(checkpoint.exec_version())
+            && !context.is_noop_input_version_allowed(checkpoint.exec_version())
         {
             return Err(CheckpointError::Authority);
         }
@@ -1181,10 +1181,14 @@ mod tests {
         RecursiveCircuitProfileV2::authority_pinned()
     }
 
-    #[test]
-    fn durable_cutover_generation_cas_failure_is_atomic() {
+    fn ensure_chain_identity() {
         crate::fixture_support::genesis_chain_identity::ensure_test_process_chain_identity()
             .expect("validated canonical devnet genesis identity");
+    }
+
+    #[test]
+    fn test_durable_cutover_cas_atomic() {
+        ensure_chain_identity();
         let temp = tempfile::TempDir::new().expect("durable CAS directory");
         let mut store =
             SettlementStore::load_with_backend_mode(temp.path(), SettlementBackendMode::Hjmt)
@@ -1352,7 +1356,8 @@ mod tests {
     }
 
     #[test]
-    fn evaluator_rejects_a_real_jmt_envelope_from_a_converging_pre_state() {
+    fn test_evaluator_rejects_jmt_prestate() {
+        ensure_chain_identity();
         let temp = tempfile::TempDir::new().expect("temp dir");
         let input = path(1, 1, 1);
         let output = item(path(2, 2, 2), 20);
@@ -1375,12 +1380,12 @@ mod tests {
 
         let mut post_a = store_a.recursive_v2_preflight_clone();
         let (_, _) = post_a
-            .apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
+            .apply_test_exec_handoff_v2(handoff.clone(), temp.path())
             .expect("converging A transition");
         let post_root = post_a.settlement_root_v2(7).expect("shared V2 post-root");
         let mut post_b = store_b.recursive_v2_preflight_clone();
         let (flow_b, envelope_b) = post_b
-            .apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
+            .apply_test_exec_handoff_v2(handoff.clone(), temp.path())
             .expect("converging B transition");
         assert_eq!(
             post_b.settlement_root_v2(7).expect("shared V2 post-root"),
@@ -1447,7 +1452,8 @@ mod tests {
     }
 
     #[test]
-    fn evaluator_rejects_a_recommitted_sorted_identifier_substitution() {
+    fn test_evaluator_rejects_sorted_substitution() {
+        ensure_chain_identity();
         let temp = tempfile::TempDir::new().expect("temp dir");
         let input = path(1, 1, 1);
         let output = item(path(2, 2, 2), 20);
@@ -1460,7 +1466,7 @@ mod tests {
 
         let mut post = store.recursive_v2_preflight_clone();
         let (flow, envelope) = post
-            .apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
+            .apply_test_exec_handoff_v2(handoff.clone(), temp.path())
             .expect("preflight transition");
         let post_root = post.settlement_root_v2(7).expect("V2 post-root");
         let post_definition_root = post.recursive_v2_definition_root();

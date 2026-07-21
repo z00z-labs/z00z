@@ -13,40 +13,29 @@ fn test_receipt_requires_postwrite_check() {
     assert!(!receipt.contains("accepted:"));
     assert!(!receipt.contains("verdict:"));
     assert_eq!(
-        production
-            .matches("CryptographicVerificationReceiptV2::issue_postwrite(")
-            .count(),
+        production.matches("postwrite.prepare_receipt()?").count(),
         1
     );
     let prepare = production
-        .find("CryptographicVerificationReceiptV2::prepare_postwrite")
-        .expect("private receipt preparation");
-    let write = production[prepare..]
-        .find("persist_content_addressed(&receipt_path")
+        .find("postwrite.prepare_receipt()?")
+        .expect("pre-gate receipt validation");
+    let issue = production[prepare..]
+        .find("let receipt = ready.issue()?")
         .map(|offset| offset + prepare)
-        .expect("prepared receipt write");
-    let reload = production[write..]
-        .find("read_exact_bounded(&receipt_path")
-        .map(|offset| offset + write)
-        .expect("prepared receipt reload");
-    let authority = production[reload..]
-        .find("revalidate_or_quarantine(")
-        .map(|offset| offset + reload)
-        .expect("final receipt authority check");
-    let issue = production[authority..]
-        .find("CryptographicVerificationReceiptV2::issue_postwrite(")
-        .map(|offset| offset + authority)
-        .expect("final receipt issuance");
-    assert!(prepare < write && write < reload && reload < authority && authority < issue);
+        .expect("final receipt gate");
+    assert!(prepare < issue);
+    assert!(!production.contains("self.receipts"));
+    assert!(!production.contains("ensure_dir(\"receipts\")"));
     let return_tail = &production[issue..];
     let issuance_tail = &return_tail[..return_tail
-        .find("Ok(RecursiveCheckpointEvidenceV2")
+        .find("Ok(RecursiveEvidenceOutcomeV2::Snapshot")
         .unwrap()];
-    assert!(issuance_tail.contains("issue_postwrite"));
-    assert!(issuance_tail.contains("prepared"));
-    assert!(issuance_tail.contains("?"));
-    assert!(receipt.contains("postwrite: PostwriteVerifiedV2"));
+    assert!(!issuance_tail["let receipt = ready.issue()?".len()..].contains('?'));
+    assert!(receipt.contains("issued: ReceiptIssuedPartsV2"));
     assert!(receipt.contains("pub(super) struct PreparedReceiptV2"));
+    assert!(!receipt.contains("EncodedReceiptV2"));
+    assert!(receipt.contains("_reloaded: ReloadedEvidenceV2"));
+    assert!(adapter.contains("pub(super) struct ReloadedEvidenceV2"));
     assert!(adapter.contains("struct LiveGateStageV2<S>"));
     assert!(adapter.contains("pub(super) struct PostwriteVerifiedV2"));
     assert!(!adapter.contains("success_digest"));

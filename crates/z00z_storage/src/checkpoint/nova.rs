@@ -5,16 +5,10 @@
 //! JMT, hierarchy, commitment, prior-IVC, and final-successor relation through
 //! one fixed-shape transition table.
 
-use std::{
-    fs::{self, File, OpenOptions},
-    io::{Read, Write},
-    path::{Path, PathBuf},
-    sync::Arc,
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
 };
-
-use fs2::FileExt;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 use ff::PrimeField;
 #[cfg(test)]
@@ -37,64 +31,70 @@ use nova_snark::{
     traits::{circuit::StepCircuit, commitment::CommitmentEngineTrait, Engine},
 };
 use serde::{de::DeserializeOwned, Serialize};
-
-use crate::checkpoint::{
-    canonical_transition::CanonicalCheckpointTransitionV2,
-    recursive_circuit::{
-        RecursiveCircuitProfileV2, RecursiveCircuitSpecV2, RECURSIVE_CIRCUIT_PROFILE_VERSION_V2,
-        RECURSIVE_CIRCUIT_SPEC_VERSION_V2, RECURSIVE_NOVA_CACHE_BYTES_V2,
-        RECURSIVE_RECOVERY_REPLAY_V2,
-    },
-    recursive_context::RecursiveAuthoritySnapshotV2,
-    recursive_encoding::{
-        effective_nova_proof_body_cap, effective_object_cap, validate_object_ingress,
-    },
-    recursive_predicate::EvaluatedCheckpointTransitionV2,
-    recursive_reject::RecursiveCheckpointRejectReasonV2,
-    recursive_semantics::{
-        decode_flow_item, UniquenessSemanticRowV2, UniquenessSetKindV2, NET_MERGE_BYTES_V2,
-        TYPED_CHECKPOINT_COMMITMENT_BYTES_V2, TYPED_CHECKPOINT_COMMITMENT_VERSION_V2,
-        UNIQUENESS_CHALLENGES_PER_SET_V2, UNIQUENESS_CHALLENGE_BITS_V2,
-        UNIQUENESS_CHALLENGE_BYTES_V2, UNIQUENESS_PRECOMMIT_BYTES_V2,
-        UNIQUENESS_PRECOMMIT_VERSION_V2, UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
-        UNIQUENESS_SEMANTIC_ROW_LIMBS_V2, UNIQUENESS_SORTED_ROW_BYTES_V2,
-    },
-    recursive_statement::{
-        RecursiveCheckpointPublicInputV2, RecursiveDeclaredWorkV2, RecursiveFinalizedIvcStateV2,
-        RecursiveNovaStepInputV2, RecursivePreUniquenessContextV2, RecursiveVerifierAuthorityV2,
-        RecursiveVerifierInputBindingV2, RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2,
-        RECURSIVE_FINALIZED_IVC_STATE_MAGIC_V2, RECURSIVE_FINALIZED_IVC_STATE_VERSION_V2,
-    },
-    version_registry::{
-        CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2,
-        NOVA_PROOF_ENVELOPE_DOMAIN_V2, RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
-    },
-};
-use crate::CheckpointError;
-
-use crate::checkpoint::recursive_trace::{
-    decode_hash_control, decode_source_memory_write_control, decode_trace_chunk_control,
-    HashControlBindingV2, HashControlSchemaV2, HashControlStageV2, RecursiveTraceChunkControlV2,
-    RecursiveTraceEventCountsV2, RecursiveTraceEventV2, RecursiveTraceOpcodeV2,
-    UniquenessListHashJobV2, UniquenessTranscriptHashJobV2, SOURCE_RECORD_HASH_LABEL_V2,
-    TRACE_CANONICAL_CHUNK_BYTES_V2, TRACE_EVENT_HEADER_BYTES_V2,
-};
-use crate::settlement::{
-    derive_settlement_root_v2, keys::hierarchy_parent_key_poseidon2_words_v1,
-    noop_update_trace_digest, RootGeneration, JMT_CIRCUIT_HEADER_BYTES_V2,
-    JMT_CIRCUIT_MICRO_OP_VERSION_V2, JMT_CIRCUIT_OPERATION_BEGIN_V2, JMT_CIRCUIT_OPERATION_END_V2,
-    JMT_CIRCUIT_OPERATION_PROOF_END_V2, JMT_CIRCUIT_OPERATION_PROOF_V2,
-    JMT_CIRCUIT_OPERATION_SIBLING_V2, JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2,
-    JMT_CIRCUIT_OPERATION_VALUE_V2, JMT_CIRCUIT_UPDATE_BEGIN_V2, JMT_CIRCUIT_UPDATE_END_V2,
-    JMT_SPARSE_PLACEHOLDER_HASH_V2, JMT_UPDATE_TRACE_KIND_MUTATING_V2,
-    JMT_UPDATE_TRACE_KIND_NOOP_V2, JMT_UPDATE_TRACE_VERSION_V2,
-};
 use z00z_crypto::{
-    poseidon2_goldilocks_params_v1, POSEIDON2_GOLDILOCKS_MODULUS_V1, POSEIDON2_GOLDILOCKS_RATE_V1,
+    poseidon2_goldilocks_params_v1, CheckpointSha256BlockStreamV2, CheckpointSha256BlockV2,
+    CheckpointShaRole, POSEIDON2_GOLDILOCKS_MODULUS_V1, POSEIDON2_GOLDILOCKS_RATE_V1,
     POSEIDON2_GOLDILOCKS_WIDTH_V1, SHA256_IV_V2,
 };
-use z00z_crypto::{CheckpointSha256BlockStreamV2, CheckpointSha256BlockV2, CheckpointShaRole};
+use z00z_utils::{codec::BincodeCodec, time::Instant};
+use zeroize::Zeroize;
 
+use crate::{
+    checkpoint::{
+        canonical_transition::CanonicalCheckpointTransitionV2,
+        recursive_circuit::{
+            RecursiveCircuitProfileV2, RecursiveCircuitSpecV2,
+            RECURSIVE_CIRCUIT_PROFILE_VERSION_V2, RECURSIVE_CIRCUIT_SPEC_VERSION_V2,
+            RECURSIVE_RECOVERY_REPLAY_V2,
+        },
+        recursive_context::RecursiveAuthoritySnapshotV2,
+        recursive_encoding::{
+            effective_nova_proof_body_cap, effective_object_cap, validate_object_ingress,
+        },
+        recursive_predicate::EvaluatedCheckpointTransitionV2,
+        recursive_reject::RecursiveCheckpointRejectReasonV2,
+        recursive_semantics::{
+            decode_flow_item, UniquenessSemanticRowV2, UniquenessSetKindV2, NET_MERGE_BYTES_V2,
+            TYPED_CHECKPOINT_COMMITMENT_BYTES_V2, TYPED_CHECKPOINT_COMMITMENT_VERSION_V2,
+            UNIQUENESS_CHALLENGES_PER_SET_V2, UNIQUENESS_CHALLENGE_BITS_V2,
+            UNIQUENESS_CHALLENGE_BYTES_V2, UNIQUENESS_PRECOMMIT_BYTES_V2,
+            UNIQUENESS_PRECOMMIT_VERSION_V2, UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
+            UNIQUENESS_SEMANTIC_ROW_LIMBS_V2, UNIQUENESS_SORTED_ROW_BYTES_V2,
+        },
+        recursive_statement::{
+            RecursiveCheckpointPublicInputV2, RecursiveDeclaredWorkV2,
+            RecursiveFinalizedIvcStateV2, RecursiveNovaStepInputV2,
+            RecursivePreUniquenessContextV2, RecursiveVerifierAuthorityV2,
+            RecursiveVerifierInputBindingV2, CHECKPOINT_PUBLIC_INPUT_BYTES_V2,
+            FINAL_IVC_STATE_MAGIC_V2, FINAL_IVC_STATE_VERSION_V2,
+        },
+        recursive_trace::{
+            decode_hash_control, decode_source_memory_write_control, decode_trace_chunk_control,
+            HashControlBindingV2, HashControlSchemaV2, HashControlStageV2,
+            RecursiveTraceChunkControlV2, RecursiveTraceEventCountsV2, RecursiveTraceEventV2,
+            RecursiveTraceOpcodeV2, UniquenessListHashJobV2, UniquenessTranscriptHashJobV2,
+            SOURCE_RECORD_HASH_LABEL_V2, TRACE_CANONICAL_CHUNK_BYTES_V2,
+            TRACE_EVENT_HEADER_BYTES_V2,
+        },
+        version_registry::{
+            CheckpointVersionRegistryV2, RecursiveBoundedObjectV2,
+            NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2, NOVA_PROOF_ENVELOPE_DOMAIN_V2,
+            RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
+        },
+    },
+    settlement::{
+        derive_settlement_root_v2, keys::hierarchy_parent_key_poseidon2_words_v1,
+        noop_update_trace_digest, RootGeneration, JMT_CIRCUIT_HEADER_BYTES_V2,
+        JMT_CIRCUIT_MICRO_OP_VERSION_V2, JMT_CIRCUIT_OPERATION_BEGIN_V2,
+        JMT_CIRCUIT_OPERATION_END_V2, JMT_CIRCUIT_OPERATION_PROOF_END_V2,
+        JMT_CIRCUIT_OPERATION_PROOF_V2, JMT_CIRCUIT_OPERATION_SIBLING_V2,
+        JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2, JMT_CIRCUIT_OPERATION_VALUE_V2,
+        JMT_CIRCUIT_UPDATE_BEGIN_V2, JMT_CIRCUIT_UPDATE_END_V2, JMT_SPARSE_PLACEHOLDER_HASH_V2,
+        JMT_UPDATE_TRACE_KIND_MUTATING_V2, JMT_UPDATE_TRACE_KIND_NOOP_V2,
+        JMT_UPDATE_TRACE_VERSION_V2,
+    },
+    CheckpointError,
+};
 type Scalar = pallas::Scalar;
 type NovaSnark<E> = RelaxedR1CSSNARK<E, EvaluationEngine<E>>;
 type NovaProof = CompressedSNARK<
@@ -128,7 +128,7 @@ const PREDECESSOR_ID_ANCHOR_DIGEST: usize = CHECKPOINT_ID_ANCHOR_DIGEST + 1;
 const ANCHOR_DIGESTS: usize = PREDECESSOR_ID_ANCHOR_DIGEST + 1;
 const ANCHOR_DIGEST_CELLS: usize = DIGEST_LIMBS * ANCHOR_DIGESTS;
 const ANCHOR_SCALAR_START: usize = ANCHOR_DIGEST_CELLS;
-const PRE_UNIQUENESS_ANCHOR_SCALARS: usize = 6;
+const PRE_UNIQUENESS_ANCHOR_SCALARS: usize = 7;
 const PREDECESSOR_PRESENT_ANCHOR_SCALAR: usize =
     ANCHOR_SCALAR_START + PRE_UNIQUENESS_ANCHOR_SCALARS;
 const ANCHOR_SCALAR_COUNT: usize = PRE_UNIQUENESS_ANCHOR_SCALARS + 1;
@@ -149,12 +149,11 @@ const SOURCE_TRACE_BYTE_COUNT_CELL: usize = SOURCE_TRACE_ORDINAL_CELL + 1;
 const SOURCE_EVENT_DIGEST_START: usize = CHAIN_START + 3;
 const SOURCE_EVENT_DIGEST_END: usize = SOURCE_EVENT_DIGEST_START + DIGEST_LIMBS;
 const SOURCE_MEMORY_PENDING_ACTIVE_CELL: usize = SOURCE_EVENT_DIGEST_END;
-const SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL: usize = SOURCE_MEMORY_PENDING_ACTIVE_CELL + 1;
-const SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL: usize =
-    SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL + 1;
-const SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL: usize = SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL + 1;
-const SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL: usize = SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL + 1;
-const SOURCE_MEMORY_PENDING_BYTES_START: usize = SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL + 1;
+const SOURCE_PENDING_ORDINAL_CELL: usize = SOURCE_MEMORY_PENDING_ACTIVE_CELL + 1;
+const PENDING_CHUNK_ORDINAL_CELL: usize = SOURCE_PENDING_ORDINAL_CELL + 1;
+const PENDING_CHUNK_COUNT_CELL: usize = PENDING_CHUNK_ORDINAL_CELL + 1;
+const PENDING_BYTE_COUNT_CELL: usize = PENDING_CHUNK_COUNT_CELL + 1;
+const SOURCE_MEMORY_PENDING_BYTES_START: usize = PENDING_BYTE_COUNT_CELL + 1;
 const SOURCE_MEMORY_PENDING_BYTES_END: usize =
     SOURCE_MEMORY_PENDING_BYTES_START + SOURCE_MEMORY_PENDING_BYTES;
 const CHAIN_END: usize = SOURCE_MEMORY_PENDING_BYTES_END;
@@ -173,8 +172,8 @@ const HASH_SCHEDULE_ORDINAL_CELL: usize = HASH_SCHEDULE_ACTIVE_CELL + 1;
 const HASH_SCHEDULE_SOURCE_ORDINAL_CELL: usize = HASH_SCHEDULE_ORDINAL_CELL + 1;
 const HASH_SCHEDULE_MESSAGE_BYTES_CELL: usize = HASH_SCHEDULE_SOURCE_ORDINAL_CELL + 1;
 const HASH_SCHEDULE_BLOCK_COUNT_CELL: usize = HASH_SCHEDULE_MESSAGE_BYTES_CELL + 1;
-const HASH_SCHEDULE_NEXT_BLOCK_INDEX_CELL: usize = HASH_SCHEDULE_BLOCK_COUNT_CELL + 1;
-const HASH_SCHEDULE_FINAL_BLOCK_CELL: usize = HASH_SCHEDULE_NEXT_BLOCK_INDEX_CELL + 1;
+const HASH_NEXT_BLOCK_INDEX_CELL: usize = HASH_SCHEDULE_BLOCK_COUNT_CELL + 1;
+const HASH_SCHEDULE_FINAL_BLOCK_CELL: usize = HASH_NEXT_BLOCK_INDEX_CELL + 1;
 const HASH_SCHEDULE_SOURCE_HASH_START: usize = HASH_SCHEDULE_FINAL_BLOCK_CELL + 1;
 const HASH_SCHEDULE_SOURCE_HASH_END: usize = HASH_SCHEDULE_SOURCE_HASH_START + DIGEST_LIMBS;
 const HASH_SCHEDULE_ROLE_CELL: usize = HASH_SCHEDULE_SOURCE_HASH_END;
@@ -346,8 +345,8 @@ const JMT_MICRO_CURRENT_UPDATE_CELL: usize = JMT_HEADER_STATE_END + 2;
 const JMT_MICRO_NEXT_OPERATION_CELL: usize = JMT_HEADER_STATE_END + 3;
 const JMT_MICRO_RECORD_KIND_CELL: usize = JMT_HEADER_STATE_END + 4;
 const JMT_MICRO_PROOF_STAGE_CELL: usize = JMT_HEADER_STATE_END + 5;
-const JMT_MICRO_VALUE_NEXT_CHUNK_CELL: usize = JMT_HEADER_STATE_END + 6;
-const JMT_MICRO_VALUE_CHUNK_COUNT_CELL: usize = JMT_HEADER_STATE_END + 7;
+const JMT_VALUE_NEXT_CHUNK_CELL: usize = JMT_HEADER_STATE_END + 6;
+const JMT_VALUE_CHUNK_COUNT_CELL: usize = JMT_HEADER_STATE_END + 7;
 // Offset +8 remains reserved so historical state layouts cannot alias the
 // typed tree coordinates below.
 const JMT_MICRO_TREE_TAG_CELL: usize = JMT_HEADER_STATE_END + 9;
@@ -367,26 +366,26 @@ const JMT_MICRO_OPERATION_KEY_START: usize = JMT_HEADER_STATE_END + 142;
 const JMT_MICRO_OPERATION_KEY_END: usize = JMT_HEADER_STATE_END + 174;
 const JMT_MICRO_VALUE_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 174;
 const JMT_MICRO_VALUE_LENGTH_CELL: usize = JMT_HEADER_STATE_END + 175;
-const JMT_MICRO_PROOF_LEAF_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 176;
-const JMT_MICRO_PROOF_LEAF_DATA_START: usize = JMT_HEADER_STATE_END + 177;
-const JMT_MICRO_PROOF_LEAF_DATA_END: usize = JMT_HEADER_STATE_END + 241;
+const JMT_PROOF_LEAF_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 176;
+const JMT_LEAF_DATA_START_CELL: usize = JMT_HEADER_STATE_END + 177;
+const JMT_LEAF_DATA_END_CELL: usize = JMT_HEADER_STATE_END + 241;
 const JMT_MICRO_EXPECTED_SIBLING_CELL: usize = JMT_HEADER_STATE_END + 241;
 const JMT_MICRO_NEXT_SIBLING_CELL: usize = JMT_HEADER_STATE_END + 242;
 const JMT_MICRO_SIBLING_TYPE_CELL: usize = JMT_HEADER_STATE_END + 243;
 const JMT_MICRO_SIBLING_DIRECTION_CELL: usize = JMT_HEADER_STATE_END + 244;
-const JMT_MICRO_PREVIOUS_OPERATION_KEY_START: usize = JMT_HEADER_STATE_END + 245;
-const JMT_MICRO_PREVIOUS_OPERATION_KEY_END: usize = JMT_HEADER_STATE_END + 277;
+const JMT_PREV_OPERATION_KEY_START: usize = JMT_HEADER_STATE_END + 245;
+const JMT_PREV_OPERATION_KEY_END: usize = JMT_HEADER_STATE_END + 277;
 const JMT_MICRO_MUTATION_CASE_CELL: usize = JMT_HEADER_STATE_END + 277;
 const JMT_MICRO_EXPECTED_SPLIT_CELL: usize = JMT_HEADER_STATE_END + 278;
 const JMT_MICRO_NEXT_SPLIT_CELL: usize = JMT_HEADER_STATE_END + 279;
-const JMT_MICRO_NEW_PARENT_STARTED_CELL: usize = JMT_HEADER_STATE_END + 280;
-const JMT_MICRO_COALESCED_LEAF_SEEN_CELL: usize = JMT_HEADER_STATE_END + 281;
-const JMT_MICRO_NEW_PARENT_ACTIVE_CELL: usize = JMT_HEADER_STATE_END + 282;
-const JMT_MICRO_PRIOR_OPERATION_ROOT_START: usize = JMT_HEADER_STATE_END + 283;
-const JMT_MICRO_PRIOR_VALUE_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 291;
-const JMT_MICRO_PRIOR_VALUE_LENGTH_CELL: usize = JMT_HEADER_STATE_END + 292;
-const JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL: usize = JMT_HEADER_STATE_END + 293;
-const JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL: usize = JMT_HEADER_STATE_END + 294;
+const JMT_NEW_PARENT_STARTED_CELL: usize = JMT_HEADER_STATE_END + 280;
+const JMT_COALESCED_LEAF_SEEN_CELL: usize = JMT_HEADER_STATE_END + 281;
+const JMT_NEW_PARENT_ACTIVE_CELL: usize = JMT_HEADER_STATE_END + 282;
+const JMT_PRIOR_OPERATION_ROOT_START: usize = JMT_HEADER_STATE_END + 283;
+const JMT_PRIOR_VALUE_PRESENT_CELL: usize = JMT_HEADER_STATE_END + 291;
+const JMT_PRIOR_VALUE_LENGTH_CELL: usize = JMT_HEADER_STATE_END + 292;
+const JMT_PRIOR_NEXT_CHUNK_CELL: usize = JMT_HEADER_STATE_END + 293;
+const JMT_PRIOR_CHUNK_COUNT_CELL: usize = JMT_HEADER_STATE_END + 294;
 const JMT_PRIOR_VALUE_HASH_START: usize = JMT_HEADER_STATE_END + 295;
 const JMT_MICRO_VALUE_KIND_CELL: usize = JMT_HEADER_STATE_END + 303;
 // Offsets +304..+309 remain reserved for bounded hierarchy counters.
@@ -434,9 +433,9 @@ const HIERARCHY_STATE_END: usize = HIERARCHY_START + 204;
 const HIERARCHY_END: usize = HIERARCHY_START + 204;
 const COMMITMENTS_START: usize = HIERARCHY_END;
 const COMMITMENTS_END: usize = COMMITMENTS_START + 96;
-const FINALIZE_POST_SETTLEMENT_ROOT_HEX_START: usize = COMMITMENTS_START;
-const FINALIZE_POST_SETTLEMENT_ROOT_HEX_END: usize = FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + 64;
-const TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL: usize = FINALIZE_POST_SETTLEMENT_ROOT_HEX_END;
+const FINALIZE_POST_ROOT_HEX_START: usize = COMMITMENTS_START;
+const FINALIZE_POST_ROOT_HEX_END: usize = FINALIZE_POST_ROOT_HEX_START + 64;
+const TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL: usize = FINALIZE_POST_ROOT_HEX_END;
 const TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL: usize =
     TYPED_CHECKPOINT_COMMITMENT_PROGRESS_CELL + 1;
 // Net effects are globally terminal-id sorted while terminal JMT operations
@@ -446,8 +445,8 @@ const TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL: usize =
 // writes them.
 const NET_JMT_NET_PRODUCT_START: usize = TYPED_CHECKPOINT_COMMITMENT_ACTIVE_CELL + 1;
 const NET_JMT_JMT_PRODUCT_START: usize = NET_JMT_NET_PRODUCT_START + 2;
-const NET_JMT_TERMINAL_OPERATION_COUNT_CELL: usize = NET_JMT_JMT_PRODUCT_START + 2;
-const NET_JMT_STATE_END: usize = NET_JMT_TERMINAL_OPERATION_COUNT_CELL + 1;
+const NET_JMT_OPERATION_COUNT_CELL: usize = NET_JMT_JMT_PRODUCT_START + 2;
+const NET_JMT_STATE_END: usize = NET_JMT_OPERATION_COUNT_CELL + 1;
 const NET_JMT_ROW_BYTES: usize = 32 + 4 + 32 + 32 + 32;
 const _: () = assert!(NET_JMT_STATE_END <= COMMITMENTS_END);
 const EXPECTED_FINALS_START: usize = COMMITMENTS_END;
@@ -498,7 +497,7 @@ const BYTE_CONTEXT_PADDING_BLOCKS_OFFSET: usize = 11;
 // SHA schedules interleave, so a single shared `SHA_BLOCK_ORDINAL_CELL` would
 // let one transcript overwrite the other.
 const BYTE_CONTEXT_BLOCK_COUNT_OFFSET: usize = 12;
-const BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET: usize = 13;
+const BYTE_NEXT_BLOCK_INDEX_OFFSET: usize = 13;
 const BYTE_CONTEXT_CHAINING_START_OFFSET: usize = BYTE_CONTEXT_COUNTERS;
 const BYTE_CONTEXT_CHAINING_END_OFFSET: usize = BYTE_CONTEXT_CHAINING_START_OFFSET + 8;
 const BYTE_CONTEXT_BUFFER_START_OFFSET: usize = BYTE_CONTEXT_CHAINING_END_OFFSET;
@@ -1320,6 +1319,15 @@ impl SourceRecordIdentityWitnessV2 {
     }
 }
 
+impl Zeroize for SourceRecordIdentityWitnessV2 {
+    fn zeroize(&mut self) {
+        self.opcode.zeroize();
+        self.ordinal.zeroize();
+        self.object_id.zeroize();
+        self.payload_len.zeroize();
+    }
+}
+
 /// One typed source event in the only recursive V2 owner. Its digest commits
 /// the canonical source record, including the opcode, ordinal, object ID, and
 /// bounded payload, without placing raw payload bytes in the circuit witness.
@@ -1450,6 +1458,26 @@ impl NovaTypedSourceEventV2 {
     }
 }
 
+impl Zeroize for NovaTypedSourceEventV2 {
+    fn zeroize(&mut self) {
+        self.ordinal.zeroize();
+        self.payload_digest_limbs.zeroize();
+        self.next_payload_digest_limbs.zeroize();
+        self.hash_control.zeroize();
+        self.sha_compression.zeroize();
+        self.source_memory_write.zeroize();
+        self.trace_chunk.zeroize();
+        self.source_identity.zeroize();
+        self.replay_semantic_row.zeroize();
+    }
+}
+
+impl Drop for NovaTypedSourceEventV2 {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
 /// Private decoded values from the sole derived hash-control expander.  The
 /// values are all allocated on every step; the stage selectors decide which
 /// canonical transition may consume them.
@@ -1558,6 +1586,30 @@ impl HashControlWitnessV2 {
     }
 }
 
+impl Zeroize for HashControlWitnessV2 {
+    fn zeroize(&mut self) {
+        self.schema.zeroize();
+        self.stage.zeroize();
+        self.role.zeroize();
+        self.source_ordinal.zeroize();
+        self.source_hash.zeroize();
+        self.source_record_bytes.zeroize();
+        self.trace_event_count.zeroize();
+        self.trace_byte_count.zeroize();
+        self.trace_padding_bytes.zeroize();
+        self.trace_bit_length.zeroize();
+        self.trace_eof.zeroize();
+        self.uniqueness_list_job.zeroize();
+        self.uniqueness_list_count.zeroize();
+        self.uniqueness_transcript_job.zeroize();
+        self.message_bytes.zeroize();
+        self.block_count.zeroize();
+        self.block_index.zeroize();
+        self.byte_offset.zeroize();
+        self.final_block.zeroize();
+    }
+}
+
 /// Exact witness bytes for one FIPS compression invocation. The native trace
 /// expander owns framing and produces these values; this circuit only proves
 /// the one already-framed 64-byte compression transition.
@@ -1590,6 +1642,15 @@ impl ShaCompressionLaneWitnessV2 {
             None if control.stage != HashControlStageV2::Block => Ok(Self::inactive()),
             _ => Err(CheckpointError::Canonical),
         }
+    }
+}
+
+impl Zeroize for ShaCompressionLaneWitnessV2 {
+    fn zeroize(&mut self) {
+        self.ordinal.zeroize();
+        self.block.zeroize();
+        self.chaining_before.zeroize();
+        self.chaining_after.zeroize();
     }
 }
 
@@ -1645,6 +1706,16 @@ impl TraceChunkWitnessV2 {
             byte_count: self.byte_count | other.byte_count,
             bytes,
         }
+    }
+}
+
+impl Zeroize for TraceChunkWitnessV2 {
+    fn zeroize(&mut self) {
+        self.source_ordinal.zeroize();
+        self.chunk_ordinal.zeroize();
+        self.chunk_count.zeroize();
+        self.byte_count.zeroize();
+        self.bytes.zeroize();
     }
 }
 
@@ -2516,7 +2587,7 @@ pub(crate) struct CheckpointNovaCircuitV2 {
     finalize_chain: bool,
 }
 
-const fn chain_done(block_done: bool, finalize_chain: bool) -> bool {
+const fn is_chain_done(block_done: bool, finalize_chain: bool) -> bool {
     block_done && finalize_chain
 }
 
@@ -2720,6 +2791,7 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
             ANCHOR_SCALAR_START + 3,
             ANCHOR_SCALAR_START + 4,
             ANCHOR_SCALAR_START + 5,
+            ANCHOR_SCALAR_START + 6,
         ] {
             enforce_gated_equal(
                 cs.namespace(|| format!("next_block_fixed_scalar_{index}")),
@@ -2793,7 +2865,7 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
         }
         let mut active_state = z.to_vec();
         for index in 0..CONSUMED_OPCODE_COUNT_START {
-            if index < ANCHOR_CELLS || index >= EXPECTED_TRACE_DIGEST_START {
+            if !(ANCHOR_CELLS..EXPECTED_TRACE_DIGEST_START).contains(&index) {
                 active_state[index] = select_bit_num(
                     cs.namespace(|| format!("next_block_prefix_select_{index}")),
                     &continuation_start,
@@ -3169,7 +3241,7 @@ impl StepCircuit<Scalar> for CheckpointNovaCircuitV2 {
         )?;
         let out_done = allocate_witness_u64(
             cs.namespace(|| "out_done"),
-            u64::from(chain_done(self.witness.next_done, self.finalize_chain)),
+            u64::from(is_chain_done(self.witness.next_done, self.finalize_chain)),
         )?;
         range_bits(cs.namespace(|| "out_phase_range"), &out_phase, 8)?;
         range_bits(cs.namespace(|| "out_opcode_range"), &out_opcode, 8)?;
@@ -4115,7 +4187,7 @@ fn source_object_hex_bytes<CS: ConstraintSystem<Scalar>>(
 /// Derive canonical lowercase hexadecimal text from already range-constrained
 /// raw bytes. This is used only to compare replay's canonical text field with
 /// the fixed-width semantic row loaded at the replay source boundary.
-fn raw_bytes_to_lower_hex_ascii<CS: ConstraintSystem<Scalar>>(
+fn encode_lower_hex_ascii<CS: ConstraintSystem<Scalar>>(
     mut cs: CS,
     raw_bytes: &[AllocatedNum<Scalar>],
 ) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
@@ -4223,8 +4295,8 @@ fn synthesize_finalize_settlement_payload<CS: ConstraintSystem<Scalar>>(
     for (index, value) in z
         .iter()
         .enumerate()
-        .take(FINALIZE_POST_SETTLEMENT_ROOT_HEX_END)
-        .skip(FINALIZE_POST_SETTLEMENT_ROOT_HEX_START)
+        .take(FINALIZE_POST_ROOT_HEX_END)
+        .skip(FINALIZE_POST_ROOT_HEX_START)
     {
         enforce_gated_constant(
             cs.namespace(|| format!("finalize_requires_clean_post_root_{index}")),
@@ -4309,8 +4381,7 @@ fn synthesize_finalize_settlement_payload<CS: ConstraintSystem<Scalar>>(
         DIGEST_LIMBS * 4,
         "finalize_pre_root_anchor",
     )?;
-    let pre_hex =
-        raw_bytes_to_lower_hex_ascii(cs.namespace(|| "finalize_pre_root_hex"), &pre_root)?;
+    let pre_hex = encode_lower_hex_ascii(cs.namespace(|| "finalize_pre_root_hex"), &pre_root)?;
     enforce_gated_equal(
         cs.namespace(|| "finalize_pre_root_hex_0"),
         &chunk_gates[2],
@@ -4327,8 +4398,7 @@ fn synthesize_finalize_settlement_payload<CS: ConstraintSystem<Scalar>>(
     }
 
     let hex_alphabet = b"0123456789abcdef";
-    let mut outputs =
-        z[FINALIZE_POST_SETTLEMENT_ROOT_HEX_START..FINALIZE_POST_SETTLEMENT_ROOT_HEX_END].to_vec();
+    let mut outputs = z[FINALIZE_POST_ROOT_HEX_START..FINALIZE_POST_ROOT_HEX_END].to_vec();
     for (index, output) in outputs.iter_mut().enumerate().take(63) {
         let byte = &trace_chunk.bytes[index + 1];
         enforce_gated_byte_set(
@@ -4365,7 +4435,7 @@ fn synthesize_finalize_settlement_payload<CS: ConstraintSystem<Scalar>>(
         cells: outputs
             .into_iter()
             .enumerate()
-            .map(|(offset, value)| (FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + offset, value))
+            .map(|(offset, value)| (FINALIZE_POST_ROOT_HEX_START + offset, value))
             .collect(),
     })
 }
@@ -4536,7 +4606,7 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
             &source_identity.object_id[index],
         );
     }
-    let semantic_definition_hex = raw_bytes_to_lower_hex_ascii(
+    let semantic_definition_hex = encode_lower_hex_ascii(
         cs.namespace(|| "semantic_definition_hex"),
         &z[REPLAY_PENDING_SEMANTIC_ROW_START..REPLAY_PENDING_SEMANTIC_ROW_START + 32],
     )?;
@@ -10262,16 +10332,8 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         "jmt_prior_value_length",
     )?;
     for (state, value, label) in [
-        (
-            JMT_MICRO_PRIOR_VALUE_PRESENT_CELL,
-            prior_value_present,
-            "present",
-        ),
-        (
-            JMT_MICRO_PRIOR_VALUE_LENGTH_CELL,
-            &prior_value_length,
-            "length",
-        ),
+        (JMT_PRIOR_VALUE_PRESENT_CELL, prior_value_present, "present"),
+        (JMT_PRIOR_VALUE_LENGTH_CELL, &prior_value_length, "length"),
     ] {
         cells.push((
             state,
@@ -10297,12 +10359,12 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         "jmt_leaf_present",
     )?;
     cells.push((
-        JMT_MICRO_PROOF_LEAF_PRESENT_CELL,
+        JMT_PROOF_LEAF_PRESENT_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_leaf_present_output"),
             &proof_chunks[0],
             leaf_present,
-            &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+            &z[JMT_PROOF_LEAF_PRESENT_CELL],
             "value",
         )?,
     ));
@@ -10366,12 +10428,12 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     }
     for (index, source) in (13..45).enumerate() {
         cells.push((
-            JMT_MICRO_PROOF_LEAF_DATA_START + index,
+            JMT_LEAF_DATA_START_CELL + index,
             select_bit_num(
                 cs.namespace(|| format!("jmt_leaf_key_{index}_output")),
                 &proof_chunks[1],
                 &trace_chunk.bytes[source],
-                &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+                &z[JMT_LEAF_DATA_START_CELL + index],
                 "value",
             )?,
         ));
@@ -10383,12 +10445,12 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             (&proof_chunks[2], index - 19)
         };
         cells.push((
-            JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index,
+            JMT_LEAF_DATA_START_CELL + 32 + index,
             select_bit_num(
                 cs.namespace(|| format!("jmt_leaf_value_{index}_output")),
                 gate,
                 &trace_chunk.bytes[source],
-                &z[JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index],
+                &z[JMT_LEAF_DATA_START_CELL + 32 + index],
                 "value",
             )?,
         ));
@@ -10448,7 +10510,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_new_parent_active_after_proof"),
         &proof_chunks[0],
         &zero,
-        &z[JMT_MICRO_NEW_PARENT_ACTIVE_CELL],
+        &z[JMT_NEW_PARENT_ACTIVE_CELL],
         "value",
     )?;
     let new_parent_active_after_sibling = select_bit_num(
@@ -10459,7 +10521,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         "value",
     )?;
     cells.push((
-        JMT_MICRO_NEW_PARENT_ACTIVE_CELL,
+        JMT_NEW_PARENT_ACTIVE_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_new_parent_active_after_operation"),
             &micro_kind_gates[4],
@@ -10527,14 +10589,14 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     );
     let direction_leaf_present = allocate_state_bit(
         cs.namespace(|| "jmt_direction_leaf_present_state"),
-        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+        &z[JMT_PROOF_LEAF_PRESENT_CELL],
     )?;
     let mut operation_key_bits = Vec::with_capacity(256);
     for index in 0..32 {
         let byte = select_bit_num_compact(
             cs.namespace(|| format!("jmt_old_path_key_byte_{index}")),
             &direction_leaf_present,
-            &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+            &z[JMT_LEAF_DATA_START_CELL + index],
             &z[JMT_MICRO_OPERATION_KEY_START + index],
             "value",
         )?;
@@ -10829,15 +10891,15 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     let active_value_next_chunk = select_bit_num_compact(
         cs.namespace(|| "jmt_active_value_next_chunk"),
         &value_kind_is_prior_current,
-        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
-        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_PRIOR_NEXT_CHUNK_CELL],
+        &z[JMT_VALUE_NEXT_CHUNK_CELL],
         "value",
     )?;
     let active_value_chunk_count = select_bit_num_compact(
         cs.namespace(|| "jmt_active_value_chunk_count"),
         &value_kind_is_prior_current,
-        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
-        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_PRIOR_CHUNK_COUNT_CELL],
+        &z[JMT_VALUE_CHUNK_COUNT_CELL],
         "value",
     )?;
     enforce_gated_equal(
@@ -10870,19 +10932,19 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     enforce_gated_constant(
         cs.namespace(|| "jmt_prior_records_precede_new_records"),
         &prior_value_record,
-        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_VALUE_NEXT_CHUNK_CELL],
         0,
     );
     enforce_gated_equal(
         cs.namespace(|| "jmt_new_records_follow_all_prior_records"),
         &new_value_record,
-        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
-        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_PRIOR_NEXT_CHUNK_CELL],
+        &z[JMT_PRIOR_CHUNK_COUNT_CELL],
     );
     enforce_gated_constant(
         cs.namespace(|| "jmt_prior_value_record_requires_present_value"),
         &prior_value_record,
-        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+        &z[JMT_PRIOR_VALUE_PRESENT_CELL],
         1,
     );
     enforce_gated_constant(
@@ -10904,7 +10966,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
 
     let leaf_present_state = allocate_state_bit(
         cs.namespace(|| "jmt_leaf_present_state"),
-        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+        &z[JMT_PROOF_LEAF_PRESENT_CELL],
     )?;
     let proof_raw_first = AllocatedBit::and(
         cs.namespace(|| "jmt_proof_raw_first"),
@@ -11004,15 +11066,15 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     let sibling_parent_raw_second = sibling_chunks[4].clone();
     let new_parent_active_state = allocate_state_bit(
         cs.namespace(|| "jmt_new_parent_active_state"),
-        &z[JMT_MICRO_NEW_PARENT_ACTIVE_CELL],
+        &z[JMT_NEW_PARENT_ACTIVE_CELL],
     )?;
     let new_parent_started_state = allocate_state_bit(
         cs.namespace(|| "jmt_new_parent_started_state"),
-        &z[JMT_MICRO_NEW_PARENT_STARTED_CELL],
+        &z[JMT_NEW_PARENT_STARTED_CELL],
     )?;
     let coalesced_leaf_seen_state = allocate_state_bit(
         cs.namespace(|| "jmt_coalesced_leaf_seen_state"),
-        &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+        &z[JMT_COALESCED_LEAF_SEEN_CELL],
     )?;
     let current_sibling_internal = {
         let expected = allocate_constant(cs.namespace(|| "jmt_current_sibling_internal_tag"), 1)?;
@@ -11194,7 +11256,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_started_after_proof"),
         &proof_chunks[0],
         &z[JMT_MICRO_VALUE_PRESENT_CELL],
-        &z[JMT_MICRO_NEW_PARENT_STARTED_CELL],
+        &z[JMT_NEW_PARENT_STARTED_CELL],
         "value",
     )?;
     let started_after_record = select_bit_num(
@@ -11205,7 +11267,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         "value",
     )?;
     cells.push((
-        JMT_MICRO_NEW_PARENT_STARTED_CELL,
+        JMT_NEW_PARENT_STARTED_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_started_after_operation"),
             &micro_kind_gates[4],
@@ -11218,7 +11280,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_coalesced_after_proof"),
         &proof_chunks[0],
         &zero,
-        &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+        &z[JMT_COALESCED_LEAF_SEEN_CELL],
         "value",
     )?;
     let coalesced_after_record = select_bit_num(
@@ -11229,7 +11291,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         "value",
     )?;
     cells.push((
-        JMT_MICRO_COALESCED_LEAF_SEEN_CELL,
+        JMT_COALESCED_LEAF_SEEN_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_coalesced_after_operation"),
             &micro_kind_gates[4],
@@ -11262,21 +11324,21 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     let active_raw_value_next_chunk = select_bit_num_compact(
         cs.namespace(|| "jmt_active_raw_value_next_chunk"),
         &value_kind_is_prior_state,
-        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
-        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_PRIOR_NEXT_CHUNK_CELL],
+        &z[JMT_VALUE_NEXT_CHUNK_CELL],
         "value",
     )?;
     let active_raw_value_chunk_count = select_bit_num_compact(
         cs.namespace(|| "jmt_active_raw_value_chunk_count"),
         &value_kind_is_prior_state,
-        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
-        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_PRIOR_CHUNK_COUNT_CELL],
+        &z[JMT_VALUE_CHUNK_COUNT_CELL],
         "value",
     )?;
     let active_raw_value_length = select_bit_num_compact(
         cs.namespace(|| "jmt_active_raw_value_length"),
         &value_kind_is_prior_state,
-        &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+        &z[JMT_PRIOR_VALUE_LENGTH_CELL],
         &z[JMT_MICRO_VALUE_LENGTH_CELL],
         "value",
     )?;
@@ -11480,7 +11542,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("jmt_split_former_leaf_key_{index}")),
             &split_leaf_raw_first,
             &trace_chunk.bytes[13 + index],
-            &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+            &z[JMT_LEAF_DATA_START_CELL + index],
         );
         let (gate, raw) = if index < 19 {
             (&split_leaf_raw_first, &trace_chunk.bytes[45 + index])
@@ -11491,7 +11553,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("jmt_split_former_leaf_value_{index}")),
             gate,
             raw,
-            &z[JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index],
+            &z[JMT_LEAF_DATA_START_CELL + 32 + index],
         );
     }
     enforce_gated_constant(
@@ -12328,7 +12390,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("jmt_old_root_matches_prior_operation_{word}")),
             &proof_checks_prior_operation,
             &z[JMT_OLD_CURRENT_HASH_START + word],
-            &z[JMT_MICRO_PRIOR_OPERATION_ROOT_START + word],
+            &z[JMT_PRIOR_OPERATION_ROOT_START + word],
         );
     }
 
@@ -12373,11 +12435,11 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         (4, &z[JMT_MICRO_VALUE_LENGTH_CELL], 17),
         (5, &z[JMT_MICRO_EXPECTED_SIBLING_CELL], 9),
         (6, &z[JMT_MICRO_NEXT_SIBLING_CELL], 9),
-        (7, &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL], 11),
-        (8, &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL], 11),
-        (9, &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL], 17),
-        (10, &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL], 11),
-        (11, &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL], 11),
+        (7, &z[JMT_VALUE_NEXT_CHUNK_CELL], 11),
+        (8, &z[JMT_VALUE_CHUNK_COUNT_CELL], 11),
+        (9, &z[JMT_PRIOR_VALUE_LENGTH_CELL], 17),
+        (10, &z[JMT_PRIOR_NEXT_CHUNK_CELL], 11),
+        (11, &z[JMT_PRIOR_CHUNK_COUNT_CELL], 11),
     ] {
         range_bits(
             cs.namespace(|| format!("jmt_semantic_state_{index}_range")),
@@ -12396,9 +12458,8 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
                 || (JMT_MICRO_OLD_ROOT_START..JMT_MICRO_OLD_ROOT_END).contains(index)
                 || (JMT_MICRO_NEW_ROOT_START..JMT_MICRO_NEW_ROOT_END).contains(index)
                 || (JMT_MICRO_OPERATION_KEY_START..JMT_MICRO_OPERATION_KEY_END).contains(index)
-                || (JMT_MICRO_PROOF_LEAF_DATA_START..JMT_MICRO_PROOF_LEAF_DATA_END).contains(index)
-                || (JMT_MICRO_PREVIOUS_OPERATION_KEY_START..JMT_MICRO_PREVIOUS_OPERATION_KEY_END)
-                    .contains(index)
+                || (JMT_LEAF_DATA_START_CELL..JMT_LEAF_DATA_END_CELL).contains(index)
+                || (JMT_PREV_OPERATION_KEY_START..JMT_PREV_OPERATION_KEY_END).contains(index)
         })
     {
         range_bits(
@@ -12818,14 +12879,14 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     );
     enforce_num_at_most_constant(
         cs.namespace(|| "jmt_prior_value_length_bound"),
-        &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+        &z[JMT_PRIOR_VALUE_LENGTH_CELL],
         64 * 1024,
         17,
         "jmt_prior_value_length",
     )?;
     let prior_value_absent = nova_snark::gadgets::utils::alloc_num_equals(
         cs.namespace(|| "jmt_prior_value_absent"),
-        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+        &z[JMT_PRIOR_VALUE_PRESENT_CELL],
         &zero,
     )?;
     let absent_prior_value_gate = AllocatedBit::and(
@@ -12836,7 +12897,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     enforce_gated_constant(
         cs.namespace(|| "jmt_absent_prior_value_has_zero_length"),
         &absent_prior_value_gate,
-        &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+        &z[JMT_PRIOR_VALUE_LENGTH_CELL],
         0,
     );
     let operation_is_first = nova_snark::gadgets::utils::alloc_num_equals(
@@ -12856,7 +12917,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     )?;
     let operation_key_is_strictly_ordered = strict_byte_lex_less(
         cs.namespace(|| "jmt_operation_key_strict_order"),
-        &z[JMT_MICRO_PREVIOUS_OPERATION_KEY_START..JMT_MICRO_PREVIOUS_OPERATION_KEY_END],
+        &z[JMT_PREV_OPERATION_KEY_START..JMT_PREV_OPERATION_KEY_END],
         &z[JMT_MICRO_OPERATION_KEY_START..JMT_MICRO_OPERATION_KEY_END],
     )?;
     cs.enforce(
@@ -12954,7 +13015,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     let raw_prior_value_block_count =
         AllocatedNum::alloc(cs.namespace(|| "jmt_raw_prior_value_block_count"), || {
             let length = scalar_u64(
-                z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL]
+                z[JMT_PRIOR_VALUE_LENGTH_CELL]
                     .get_value()
                     .ok_or(SynthesisError::AssignmentMissing)?,
             );
@@ -12974,7 +13035,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     let raw_prior_value_padding =
         AllocatedNum::alloc(cs.namespace(|| "jmt_raw_prior_value_padding"), || {
             let length = scalar_u64(
-                z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL]
+                z[JMT_PRIOR_VALUE_LENGTH_CELL]
                     .get_value()
                     .ok_or(SynthesisError::AssignmentMissing)?,
             );
@@ -13018,7 +13079,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             lc + (
                 Scalar::from(64_u64),
                 raw_prior_value_block_count.get_variable(),
-            ) - z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL].get_variable()
+            ) - z[JMT_PRIOR_VALUE_LENGTH_CELL].get_variable()
                 - raw_prior_value_padding.get_variable()
         },
         |lc| lc + CS::one(),
@@ -13035,7 +13096,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     );
     let prior_value_present_state = allocate_state_bit(
         cs.namespace(|| "jmt_prior_value_present_state"),
-        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+        &z[JMT_PRIOR_VALUE_PRESENT_CELL],
     )?;
     let expected_prior_value_chunks = select_bit_num(
         cs.namespace(|| "jmt_expected_prior_value_blocks"),
@@ -13084,7 +13145,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         enforce_gated_constant(
             cs.namespace(|| format!("{label}_prior_parent_value_length")),
             &prior_begin,
-            &z[JMT_MICRO_PRIOR_VALUE_LENGTH_CELL],
+            &z[JMT_PRIOR_VALUE_LENGTH_CELL],
             expected_length,
         );
         enforce_gated_constant(
@@ -13807,7 +13868,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     )?;
     let leaf_absent = nova_snark::gadgets::utils::alloc_num_equals(
         cs.namespace(|| "jmt_leaf_absent"),
-        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+        &z[JMT_PROOF_LEAF_PRESENT_CELL],
         &zero,
     )?;
     let leaf_absent_gate = AllocatedBit::and(
@@ -13818,8 +13879,8 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     for (index, value) in z
         .iter()
         .enumerate()
-        .take(JMT_MICRO_PROOF_LEAF_DATA_END)
-        .skip(JMT_MICRO_PROOF_LEAF_DATA_START)
+        .take(JMT_LEAF_DATA_END_CELL)
+        .skip(JMT_LEAF_DATA_START_CELL)
     {
         enforce_gated_constant(
             cs.namespace(|| format!("jmt_absent_leaf_zero_{index}")),
@@ -13835,7 +13896,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     for index in 0..32 {
         let equal = nova_snark::gadgets::utils::alloc_num_equals(
             cs.namespace(|| format!("jmt_old_leaf_key_equals_operation_{index}")),
-            &z[JMT_MICRO_PROOF_LEAF_DATA_START + index],
+            &z[JMT_LEAF_DATA_START_CELL + index],
             &z[JMT_MICRO_OPERATION_KEY_START + index],
         )?;
         old_leaf_key_equals_operation = AllocatedBit::and(
@@ -13846,7 +13907,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     }
     let leaf_present_for_case = allocate_state_bit(
         cs.namespace(|| "jmt_leaf_present_for_case"),
-        &z[JMT_MICRO_PROOF_LEAF_PRESENT_CELL],
+        &z[JMT_PROOF_LEAF_PRESENT_CELL],
     )?;
     let old_leaf_is_operation = AllocatedBit::and(
         cs.namespace(|| "jmt_old_leaf_is_operation"),
@@ -13880,7 +13941,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("jmt_prior_value_hash_matches_old_leaf_{index}")),
             &authenticated_prior_value_gate,
             byte,
-            &z[JMT_MICRO_PROOF_LEAF_DATA_START + 32 + index],
+            &z[JMT_LEAF_DATA_START_CELL + 32 + index],
         );
     }
     let value_present_for_case = allocate_state_bit(
@@ -13989,20 +14050,20 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         enforce_gated_constant(
             cs.namespace(|| format!("jmt_{label}_parent_started")),
             gate,
-            &z[JMT_MICRO_NEW_PARENT_STARTED_CELL],
+            &z[JMT_NEW_PARENT_STARTED_CELL],
             started,
         );
         enforce_gated_constant(
             cs.namespace(|| format!("jmt_{label}_coalesced_leaf")),
             gate,
-            &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+            &z[JMT_COALESCED_LEAF_SEEN_CELL],
             coalesced,
         );
     }
     enforce_gated_constant(
         cs.namespace(|| "jmt_delete_coalesce_saw_leaf"),
         &delete_coalesce_proof_end,
-        &z[JMT_MICRO_COALESCED_LEAF_SEEN_CELL],
+        &z[JMT_COALESCED_LEAF_SEEN_CELL],
         1,
     );
     enforce_num_at_most_constant(
@@ -14226,11 +14287,11 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("jmt_previous_operation_key_after_operation_{index}")),
             &micro_kind_gates[4],
             &z[JMT_MICRO_OPERATION_KEY_START + index],
-            &z[JMT_MICRO_PREVIOUS_OPERATION_KEY_START + index],
+            &z[JMT_PREV_OPERATION_KEY_START + index],
             "value",
         )?;
         cells.push((
-            JMT_MICRO_PREVIOUS_OPERATION_KEY_START + index,
+            JMT_PREV_OPERATION_KEY_START + index,
             select_bit_num(
                 cs.namespace(|| format!("jmt_previous_operation_key_after_update_{index}")),
                 &micro_kind_gates[5],
@@ -14245,11 +14306,11 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("jmt_prior_operation_root_after_operation_{word}")),
             &micro_kind_gates[4],
             &z[JMT_NEW_CURRENT_HASH_START + word],
-            &z[JMT_MICRO_PRIOR_OPERATION_ROOT_START + word],
+            &z[JMT_PRIOR_OPERATION_ROOT_START + word],
             "value",
         )?;
         cells.push((
-            JMT_MICRO_PRIOR_OPERATION_ROOT_START + word,
+            JMT_PRIOR_OPERATION_ROOT_START + word,
             select_bit_num(
                 cs.namespace(|| format!("jmt_prior_operation_root_after_update_{word}")),
                 &micro_kind_gates[5],
@@ -14344,12 +14405,12 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     ));
     let next_value_chunk = allocate_incremented(
         cs.namespace(|| "jmt_next_value_chunk"),
-        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_VALUE_NEXT_CHUNK_CELL],
         "value",
     )?;
     let next_prior_value_chunk = allocate_incremented(
         cs.namespace(|| "jmt_next_prior_value_chunk"),
-        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_PRIOR_NEXT_CHUNK_CELL],
         "value",
     )?;
     let prior_value_record_end = AllocatedBit::and(
@@ -14366,11 +14427,11 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_value_count_after_begin"),
         &operation_begin_record_end,
         &expected_value_chunks,
-        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_VALUE_CHUNK_COUNT_CELL],
         "value",
     )?;
     cells.push((
-        JMT_MICRO_VALUE_CHUNK_COUNT_CELL,
+        JMT_VALUE_CHUNK_COUNT_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_value_count_after_operation_end"),
             &micro_kind_gates[4],
@@ -14383,11 +14444,11 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_prior_value_count_after_begin"),
         &operation_begin_record_end,
         &expected_prior_value_chunks,
-        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_PRIOR_CHUNK_COUNT_CELL],
         "value",
     )?;
     cells.push((
-        JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL,
+        JMT_PRIOR_CHUNK_COUNT_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_prior_value_count_after_operation_end"),
             &micro_kind_gates[4],
@@ -14400,7 +14461,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_value_next_after_begin"),
         &operation_begin_record_end,
         &zero,
-        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_VALUE_NEXT_CHUNK_CELL],
         "value",
     )?;
     let value_next_after_record = select_bit_num(
@@ -14411,7 +14472,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         "value",
     )?;
     cells.push((
-        JMT_MICRO_VALUE_NEXT_CHUNK_CELL,
+        JMT_VALUE_NEXT_CHUNK_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_value_next_after_operation_end"),
             &micro_kind_gates[4],
@@ -14424,7 +14485,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_prior_value_next_after_begin"),
         &operation_begin_record_end,
         &zero,
-        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_PRIOR_NEXT_CHUNK_CELL],
         "value",
     )?;
     let prior_value_next_after_record = select_bit_num(
@@ -14435,7 +14496,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         "value",
     )?;
     cells.push((
-        JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL,
+        JMT_PRIOR_NEXT_CHUNK_CELL,
         select_bit_num(
             cs.namespace(|| "jmt_prior_value_next_after_operation_end"),
             &micro_kind_gates[4],
@@ -14447,14 +14508,14 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     enforce_gated_equal(
         cs.namespace(|| "jmt_proof_begin_requires_all_value_records"),
         &micro_kind_gates[3],
-        &z[JMT_MICRO_VALUE_NEXT_CHUNK_CELL],
-        &z[JMT_MICRO_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_VALUE_NEXT_CHUNK_CELL],
+        &z[JMT_VALUE_CHUNK_COUNT_CELL],
     );
     enforce_gated_equal(
         cs.namespace(|| "jmt_proof_begin_requires_all_prior_value_records"),
         &micro_kind_gates[3],
-        &z[JMT_MICRO_PRIOR_VALUE_NEXT_CHUNK_CELL],
-        &z[JMT_MICRO_PRIOR_VALUE_CHUNK_COUNT_CELL],
+        &z[JMT_PRIOR_NEXT_CHUNK_CELL],
+        &z[JMT_PRIOR_CHUNK_COUNT_CELL],
     );
     enforce_gated_equal(
         cs.namespace(|| "jmt_update_end_operation_count"),
@@ -14467,7 +14528,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("jmt_update_new_root_matches_operations_{word}")),
             &micro_kind_gates[5],
             &source_hash_word_lc(&z[JMT_MICRO_NEW_ROOT_START..JMT_MICRO_NEW_ROOT_END], word),
-            &z[JMT_MICRO_PRIOR_OPERATION_ROOT_START + word],
+            &z[JMT_PRIOR_OPERATION_ROOT_START + word],
         );
     }
 
@@ -14797,7 +14858,7 @@ fn synthesize_net_jmt_permutation<CS: ConstraintSystem<Scalar>>(
     jmt_bytes.extend_from_slice(&z[JMT_MICRO_OPERATION_KEY_START..JMT_MICRO_OPERATION_KEY_END]);
     let prior_present = allocate_state_bit(
         cs.namespace(|| "prior_value_present"),
-        &z[JMT_MICRO_PRIOR_VALUE_PRESENT_CELL],
+        &z[JMT_PRIOR_VALUE_PRESENT_CELL],
     )?;
     let value_present = allocate_state_bit(
         cs.namespace(|| "value_present"),
@@ -14901,7 +14962,7 @@ fn synthesize_net_jmt_permutation<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "terminal_operation_count_initialize"),
         challenge_source,
         &zero,
-        &z[NET_JMT_TERMINAL_OPERATION_COUNT_CELL],
+        &z[NET_JMT_OPERATION_COUNT_CELL],
         "value",
     )?;
     let count_incremented = allocate_incremented(
@@ -14961,7 +15022,7 @@ fn synthesize_net_jmt_permutation<CS: ConstraintSystem<Scalar>>(
         ));
     }
     cells.push((
-        NET_JMT_TERMINAL_OPERATION_COUNT_CELL,
+        NET_JMT_OPERATION_COUNT_CELL,
         select_bit_num(
             cs.namespace(|| "terminal_operation_count_clear"),
             promote_source,
@@ -14994,12 +15055,12 @@ fn synthesize_sha_compression_lane<CS: ConstraintSystem<Scalar>>(
         sha_block_selector,
         &lane_ordinal,
     );
-    let source_block_index = &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
-    let trace_block_index = &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
+    let source_block_index = &z[SOURCE_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET];
+    let trace_block_index = &z[GLOBAL_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET];
     let uniqueness_list_block_index =
-        &z[UNIQUENESS_LIST_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
+        &z[UNIQUENESS_LIST_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET];
     let uniqueness_transcript_block_index =
-        &z[UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET];
+        &z[UNIQUENESS_TRANSCRIPT_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET];
     let selected_block_index = select_hash_schema_value(
         cs.namespace(|| "selected_context_block_index"),
         &control.schema_selectors,
@@ -15499,7 +15560,7 @@ fn synthesize_uniqueness_list_hash_context<CS: ConstraintSystem<Scalar>>(
         &block,
         event_ordinal,
         &control.source_ordinal,
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         true,
     );
     enforce_gated_hash_control_ordinal(
@@ -15722,7 +15783,7 @@ fn synthesize_uniqueness_list_hash_context<CS: ConstraintSystem<Scalar>>(
     enforce_gated_equal(
         cs.namespace(|| "end_seen_all_blocks"),
         &end,
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
     );
     for word_index in 0..8 {
@@ -15876,7 +15937,7 @@ fn sha256_exact_message_words<CS: ConstraintSystem<Scalar>>(
             u64::from(byte),
         )?);
     }
-    if message.len() % 64 != 0 {
+    if !message.len().is_multiple_of(64) {
         return Err(SynthesisError::Unsatisfiable(
             "SHA padding did not close on a block boundary".to_owned(),
         ));
@@ -15919,9 +15980,9 @@ fn finalized_successor_digest_words<CS: ConstraintSystem<Scalar>>(
     z: &[AllocatedNum<Scalar>],
 ) -> Result<Vec<UInt32>, SynthesisError> {
     let mut canonical = Vec::with_capacity(8 + 1 + 8 * 2 + 32 * 6);
-    for (index, byte) in RECURSIVE_FINALIZED_IVC_STATE_MAGIC_V2
+    for (index, byte) in FINAL_IVC_STATE_MAGIC_V2
         .into_iter()
-        .chain([RECURSIVE_FINALIZED_IVC_STATE_VERSION_V2])
+        .chain([FINAL_IVC_STATE_VERSION_V2])
         .enumerate()
     {
         canonical.push(allocate_constant(
@@ -16059,7 +16120,7 @@ fn synthesize_uniqueness_transcript_hash_context<CS: ConstraintSystem<Scalar>>(
             );
         }
     }
-    let post_root_hex = raw_bytes_to_lower_hex_ascii(
+    let post_root_hex = encode_lower_hex_ascii(
         cs.namespace(|| "settlement_post_control_hex"),
         &control.source_hash_bytes,
     )?;
@@ -16068,7 +16129,7 @@ fn synthesize_uniqueness_transcript_hash_context<CS: ConstraintSystem<Scalar>>(
             cs.namespace(|| format!("settlement_post_control_binding_{index}")),
             &job_schema_gates[UniquenessTranscriptHashJobV2::SettlementPostRoot as usize],
             byte,
-            &z[FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + index],
+            &z[FINALIZE_POST_ROOT_HEX_START + index],
         );
     }
     for (limb, actual) in control.source_hash_limbs.iter().enumerate() {
@@ -16256,6 +16317,11 @@ fn synthesize_uniqueness_transcript_hash_context<CS: ConstraintSystem<Scalar>>(
         &z[ANCHOR_SCALAR_START + 5],
         1,
         "anchor_noop_execution_input_version",
+    )?);
+    context_parts.push(u64_state_bytes(
+        cs.namespace(|| "anchor_epoch_cadence_blocks"),
+        &z[ANCHOR_SCALAR_START + 6],
+        "anchor_epoch_cadence_blocks",
     )?);
     for (digest_index, label) in [
         (4, "anchor_old_settlement_root"),
@@ -16694,7 +16760,7 @@ fn synthesize_uniqueness_transcript_hash_context<CS: ConstraintSystem<Scalar>>(
         &block,
         event_ordinal,
         &control.source_ordinal,
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         true,
     );
     enforce_gated_hash_control_ordinal(
@@ -16815,7 +16881,7 @@ fn synthesize_uniqueness_transcript_hash_context<CS: ConstraintSystem<Scalar>>(
     enforce_gated_equal(
         cs.namespace(|| "end_seen_all_blocks"),
         &end,
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         &z[start + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
     );
     for word_index in 0..8 {
@@ -17283,7 +17349,7 @@ fn consume_context_block<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| format!("{label}_block_index_matches_context")),
         selector,
         &control.block_index,
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
     );
     enforce_gated_equal(
         cs.namespace(|| format!("{label}_block_count_matches_context")),
@@ -17543,7 +17609,7 @@ fn consume_context_block<CS: ConstraintSystem<Scalar>>(
     )?;
     let next_block_index = allocate_incremented(
         cs.namespace(|| format!("{label}_next_block_index")),
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         &format!("{label}_next_block_index_value"),
     )?;
     let next_pending = if clear_static_prefix_pending {
@@ -17573,10 +17639,7 @@ fn consume_context_block<CS: ConstraintSystem<Scalar>>(
     outputs.push((start + BYTE_CONTEXT_BUFFER_LEN_OFFSET, next_len));
     outputs.push((start + BYTE_CONTEXT_PADDING_BLOCKS_OFFSET, next_padding));
     outputs.push((start + BYTE_CONTEXT_PENDING_OFFSET, next_pending));
-    outputs.push((
-        start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET,
-        next_block_index,
-    ));
+    outputs.push((start + BYTE_NEXT_BLOCK_INDEX_OFFSET, next_block_index));
     for index in 0..BYTE_CONTEXT_BUFFER_BYTES {
         let shifted = if index + 64 < BYTE_CONTEXT_BUFFER_BYTES {
             &z[start + BYTE_CONTEXT_BUFFER_START_OFFSET + index + 64]
@@ -17643,7 +17706,7 @@ fn consume_static_context_block<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| format!("{label}_block_index_matches_context")),
         selector,
         &control.block_index,
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
     );
     enforce_gated_equal(
         cs.namespace(|| format!("{label}_block_count_matches_context")),
@@ -17706,7 +17769,7 @@ fn consume_static_context_block<CS: ConstraintSystem<Scalar>>(
 
     let next_block_index = allocate_incremented(
         cs.namespace(|| format!("{label}_next_block_index")),
-        &z[start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[start + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         &format!("{label}_next_block_index_value"),
     )?;
     let next_pending =
@@ -17787,10 +17850,7 @@ fn consume_static_context_block<CS: ConstraintSystem<Scalar>>(
     }
 
     let mut outputs = Vec::with_capacity(10);
-    outputs.push((
-        start + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET,
-        next_block_index,
-    ));
+    outputs.push((start + BYTE_NEXT_BLOCK_INDEX_OFFSET, next_block_index));
     outputs.push((start + BYTE_CONTEXT_PENDING_OFFSET, next_pending));
     for (index, after) in sha.block_next_chaining.iter().enumerate() {
         outputs.push((
@@ -17932,24 +17992,16 @@ fn synthesize_source_memory_window<CS: ConstraintSystem<Scalar>>(
     for (label, state_index, value) in [
         (
             "source_ordinal",
-            SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL,
+            SOURCE_PENDING_ORDINAL_CELL,
             &chunk.source_ordinal,
         ),
         (
             "chunk_ordinal",
-            SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL,
+            PENDING_CHUNK_ORDINAL_CELL,
             &chunk.chunk_ordinal,
         ),
-        (
-            "chunk_count",
-            SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL,
-            &chunk.chunk_count,
-        ),
-        (
-            "byte_count",
-            SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL,
-            &chunk.byte_count,
-        ),
+        ("chunk_count", PENDING_CHUNK_COUNT_CELL, &chunk.chunk_count),
+        ("byte_count", PENDING_BYTE_COUNT_CELL, &chunk.byte_count),
     ] {
         enforce_gated_equal(
             cs.namespace(|| format!("read_matches_window_{label}")),
@@ -17981,22 +18033,22 @@ fn synthesize_source_memory_window<CS: ConstraintSystem<Scalar>>(
         ),
         (
             "source_ordinal",
-            SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL,
+            SOURCE_PENDING_ORDINAL_CELL,
             chunk.source_ordinal.clone(),
         ),
         (
             "chunk_ordinal",
-            SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL,
+            PENDING_CHUNK_ORDINAL_CELL,
             chunk.chunk_ordinal.clone(),
         ),
         (
             "chunk_count",
-            SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL,
+            PENDING_CHUNK_COUNT_CELL,
             chunk.chunk_count.clone(),
         ),
         (
             "byte_count",
-            SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL,
+            PENDING_BYTE_COUNT_CELL,
             chunk.byte_count.clone(),
         ),
     ] {
@@ -18466,20 +18518,20 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "trace_block_index_matches_context"),
         &trace_block,
         &control.block_index,
-        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET],
     );
     enforce_gated_hash_control_ordinal(
         cs.namespace(|| "trace_block_control_ordinal"),
         &trace_block,
         event_ordinal,
         &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_SOURCE_ORDINAL_OFFSET],
-        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         true,
     );
     enforce_gated_equal(
         cs.namespace(|| "trace_end_seen_all_blocks"),
         &trace_end,
-        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[GLOBAL_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         &z[GLOBAL_BYTE_CONTEXT_START + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
     );
     enforce_gated_hash_control_ordinal(
@@ -18503,7 +18555,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
         HASH_SCHEDULE_ORDINAL_CELL,
         HASH_SCHEDULE_MESSAGE_BYTES_CELL,
         HASH_SCHEDULE_BLOCK_COUNT_CELL,
-        HASH_SCHEDULE_NEXT_BLOCK_INDEX_CELL,
+        HASH_NEXT_BLOCK_INDEX_CELL,
         HASH_SCHEDULE_FINAL_BLOCK_CELL,
     ] {
         enforce_gated_constant(
@@ -18553,7 +18605,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
     for (index, (state_index, witness_value)) in [
         (HASH_SCHEDULE_MESSAGE_BYTES_CELL, &control.message_bytes),
         (HASH_SCHEDULE_BLOCK_COUNT_CELL, &control.block_count),
-        (HASH_SCHEDULE_NEXT_BLOCK_INDEX_CELL, &control.block_index),
+        (HASH_NEXT_BLOCK_INDEX_CELL, &control.block_index),
     ]
     .into_iter()
     .enumerate()
@@ -18670,7 +18722,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
     enforce_gated_equal(
         cs.namespace(|| "end_seen_all_blocks"),
         &source_end,
-        &z[HASH_SCHEDULE_NEXT_BLOCK_INDEX_CELL],
+        &z[HASH_NEXT_BLOCK_INDEX_CELL],
         &control.block_count,
     );
     enforce_gated_constant(
@@ -18715,7 +18767,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
     enforce_gated_equal(
         cs.namespace(|| "source_end_context_seen_all_blocks"),
         &source_end,
-        &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET],
+        &z[SOURCE_BYTE_CONTEXT_START + BYTE_NEXT_BLOCK_INDEX_OFFSET],
         &z[SOURCE_BYTE_CONTEXT_START + BYTE_CONTEXT_BLOCK_COUNT_OFFSET],
     );
     for (name, offset, expected) in [
@@ -18878,12 +18930,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
             &control.block_count,
             &z[HASH_SCHEDULE_BLOCK_COUNT_CELL],
         ),
-        (
-            HASH_SCHEDULE_NEXT_BLOCK_INDEX_CELL,
-            &zero,
-            &zero,
-            &block_index_next,
-        ),
+        (HASH_NEXT_BLOCK_INDEX_CELL, &zero, &zero, &block_index_next),
         (
             HASH_SCHEDULE_FINAL_BLOCK_CELL,
             &zero,
@@ -18994,7 +19041,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
             &source_static_tail_len_value
         } else if offset == BYTE_CONTEXT_BLOCK_COUNT_OFFSET {
             &control.block_count
-        } else if offset == BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET {
+        } else if offset == BYTE_NEXT_BLOCK_INDEX_OFFSET {
             &zero
         } else if (BYTE_CONTEXT_CHAINING_START_OFFSET..BYTE_CONTEXT_CHAINING_END_OFFSET)
             .contains(&offset)
@@ -19056,7 +19103,7 @@ fn synthesize_hash_control_schedule<CS: ConstraintSystem<Scalar>>(
             &control.trace_event_count
         } else if offset == BYTE_CONTEXT_BLOCK_COUNT_OFFSET {
             &control.block_count
-        } else if offset == BYTE_CONTEXT_NEXT_BLOCK_INDEX_OFFSET {
+        } else if offset == BYTE_NEXT_BLOCK_INDEX_OFFSET {
             &zero
         } else if offset == BYTE_CONTEXT_BUFFER_LEN_OFFSET {
             &trace_role_prefix_tail_len_value
@@ -20295,7 +20342,7 @@ fn constrain_state_ranges<CS: ConstraintSystem<Scalar>>(
         HASH_SCHEDULE_SOURCE_ORDINAL_CELL,
         HASH_SCHEDULE_MESSAGE_BYTES_CELL,
         HASH_SCHEDULE_BLOCK_COUNT_CELL,
-        HASH_SCHEDULE_NEXT_BLOCK_INDEX_CELL,
+        HASH_NEXT_BLOCK_INDEX_CELL,
     ] {
         range_bits(
             cs.namespace(|| format!("hash_schedule_counter_{index}")),
@@ -20495,22 +20542,22 @@ fn constrain_state_ranges<CS: ConstraintSystem<Scalar>>(
     for (label, index, bits) in [
         (
             "source_memory_pending_source_ordinal",
-            SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL,
+            SOURCE_PENDING_ORDINAL_CELL,
             64,
         ),
         (
             "source_memory_pending_chunk_ordinal",
-            SOURCE_MEMORY_PENDING_CHUNK_ORDINAL_CELL,
+            PENDING_CHUNK_ORDINAL_CELL,
             32,
         ),
         (
             "source_memory_pending_chunk_count",
-            SOURCE_MEMORY_PENDING_CHUNK_COUNT_CELL,
+            PENDING_CHUNK_COUNT_CELL,
             32,
         ),
         (
             "source_memory_pending_byte_count",
-            SOURCE_MEMORY_PENDING_BYTE_COUNT_CELL,
+            PENDING_BYTE_COUNT_CELL,
             7,
         ),
     ] {
@@ -20533,7 +20580,7 @@ fn constrain_state_ranges<CS: ConstraintSystem<Scalar>>(
         .iter()
         .enumerate()
         .take(SOURCE_MEMORY_PENDING_BYTES_END)
-        .skip(SOURCE_MEMORY_PENDING_SOURCE_ORDINAL_CELL)
+        .skip(SOURCE_PENDING_ORDINAL_CELL)
     {
         cs.enforce(
             || format!("source_memory_inactive_window_zero_{index}"),
@@ -20873,23 +20920,23 @@ const NOVA_FEATURE_ID_V2: &[u8] = b"io";
 // One SHA compression block is consumed by every derived SHA_BLOCK step.  It
 // is a compile-time relation identity, never a proof/config/runtime selector.
 const NOVA_SHA_BATCH_WIDTH_V2: u16 = 1;
-const MAX_NOVA_PUBLIC_PARAMETERS_BYTES_V2: usize = 1024 * 1024 * 1024;
-// Decoder-safety ceilings for encrypted prover-local recovery material. They
+const NOVA_PUBLIC_PARAMS_MAX_BYTES: usize = 1024 * 1024 * 1024;
+// Decoder-safety ceilings for private prover-only material. They
 // are not authority operating budgets and never authorize setup/proving.
 // The pinned non-preprocessing Spartan key is a small digest-only object
 // (208 bytes for the current relation); keep a finite 1 MiB drift allowance
 // instead of granting it a PP-sized allocation budget.
-const MAX_NOVA_PROVER_KEY_BYTES_V2: usize = 1024 * 1024;
-const NOVA_PROVER_MATERIAL_SAFETY_CAP_V2: usize =
-    MAX_NOVA_PUBLIC_PARAMETERS_BYTES_V2 + MAX_NOVA_PROVER_KEY_BYTES_V2 + 1024;
+const NOVA_PROVER_KEY_MAX_BYTES: usize = 1024 * 1024;
+const NOVA_PROVER_MATERIAL_CAP_V2: usize =
+    NOVA_PUBLIC_PARAMS_MAX_BYTES + NOVA_PROVER_KEY_MAX_BYTES + 1024;
 // This prevents bundle amplification at the decoder boundary. It is not an
 // authority-approved watcher distribution or operating-memory budget.
 // The verifier artifact carries one canonical Zstd frame. The independently
 // bounded decoded bincode is larger for non-preprocessing Spartan because its
 // verifier key retains the complete R1CS shape.
 const NOVA_VK_SAFETY_CAP_V2: usize = 384 * 1024 * 1024;
-const NOVA_VK_DECODE_SAFETY_CAP_V2: usize = 1024 * 1024 * 1024;
-const MAX_NOVA_COMPRESSED_PROOF_BYTES_V2: usize = 128 * 1024;
+const NOVA_VK_DECODE_CAP_V2: usize = 1024 * 1024 * 1024;
+const NOVA_PROOF_MAX_BYTES_V2: usize = 128 * 1024;
 // A verifier bundle carries only an authority-pinned header and VK. PP and PK
 // are prover-local recovery material and are never verifier-bundle payloads.
 const NOVA_BUNDLE_SAFETY_CAP_V2: usize = NOVA_VK_SAFETY_CAP_V2 + 1024;
@@ -20900,7 +20947,7 @@ const NOVA_PUBLIC_STATE_BYTES_V2: usize = RUNNING_STATE_ARITY_V2 * NOVA_SCALAR_W
 // The envelope is exactly one header, two portable public inputs, two public
 // IVC endpoints, and one compressed Nova body. It has no extensible field or
 // key-material slot.
-const NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2: usize = 8
+const NOVA_ENVELOPE_HEADER_BYTES_V2: usize = 8
     + 1
     + 1
     + NOVA_SUITE_ID_V2.len()
@@ -20911,10 +20958,10 @@ const NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2: usize = 8
     + (10 * 32)
     + 4
     + 32;
-const NOVA_PROOF_ENVELOPE_SAFETY_CAP_V2: usize = NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
-    + (2 * RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2)
+const NOVA_ENVELOPE_SAFETY_CAP_V2: usize = NOVA_ENVELOPE_HEADER_BYTES_V2
+    + (2 * CHECKPOINT_PUBLIC_INPUT_BYTES_V2)
     + (2 * NOVA_PUBLIC_STATE_BYTES_V2)
-    + MAX_NOVA_COMPRESSED_PROOF_BYTES_V2;
+    + NOVA_PROOF_MAX_BYTES_V2;
 
 fn map_envelope_cap_error(error: CheckpointError) -> CheckpointError {
     match error {
@@ -20925,7 +20972,7 @@ fn map_envelope_cap_error(error: CheckpointError) -> CheckpointError {
     }
 }
 #[cfg(test)]
-const NOVA_PALLAS_AFFINE_WIRE_BYTES_V2: u64 = 32;
+const PALLAS_AFFINE_WIRE_BYTES_V2: u64 = 32;
 #[cfg(test)]
 const NOVA_USIZE_WIRE_BYTES_V2: u64 = 8;
 #[cfg(test)]
@@ -20973,8 +21020,8 @@ struct NovaResourceLimitsV2 {
 
 #[cfg(test)]
 const NOVA_RESOURCE_LIMITS_V2: NovaResourceLimitsV2 = NovaResourceLimitsV2 {
-    pp_payload_bytes: MAX_NOVA_PUBLIC_PARAMETERS_BYTES_V2 as u64,
-    vk_decoded_bytes: NOVA_VK_DECODE_SAFETY_CAP_V2 as u64,
+    pp_payload_bytes: NOVA_PUBLIC_PARAMS_MAX_BYTES as u64,
+    vk_decoded_bytes: NOVA_VK_DECODE_CAP_V2 as u64,
     bundle_bytes: NOVA_BUNDLE_SAFETY_CAP_V2 as u64,
     setup_and_proof_rss_bytes: NOVA_WORKER_SAFETY_CAP_V2,
 };
@@ -21025,8 +21072,7 @@ fn nova_resource_preflight_from_shape(
         .checked_next_power_of_two()
         .and_then(|power| power.checked_add(1))
         .ok_or(CheckpointError::Overflow)?;
-    let primary_ck_wire_bytes =
-        checked_resource_mul(generator_count, NOVA_PALLAS_AFFINE_WIRE_BYTES_V2)?;
+    let primary_ck_wire_bytes = checked_resource_mul(generator_count, PALLAS_AFFINE_WIRE_BYTES_V2)?;
 
     // A bincode-legacy `SparseMatrix` stores data (32-byte Pallas scalar),
     // column indices and row pointers (both u64), plus three Vec lengths and
@@ -21173,6 +21219,7 @@ struct VerifierBundleBindingV2 {
     authority_generation: u64,
     activation_start_height: u64,
     activation_end_height: u64,
+    max_cumulative_steps: u64,
     expected_shape: NovaAugmentedShapeV2,
 }
 
@@ -21201,6 +21248,7 @@ impl VerifierBundleBindingV2 {
             authority_generation: authority.authority().authority_generation(),
             activation_start_height,
             activation_end_height,
+            max_cumulative_steps: profile.max_cumulative_steps(),
             expected_shape,
         })
     }
@@ -21478,7 +21526,7 @@ impl VerifierBundleHeaderV2 {
 }
 
 /// Immutable identity parsed before either dependency-owned prover object.
-/// The material is private recovery/cache state, never a verifier input.
+/// The material is private in-memory load state, never a verifier input.
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
 struct ProverMaterialHeaderV2 {
@@ -21714,7 +21762,7 @@ impl ProverMaterialHeaderV2 {
 }
 
 /// Prover-only material. Neither field is serialised into a verifier artifact:
-/// PP and PK stay in the encrypted prover-recovery store owned by the runner.
+/// PP and PK stay only in the in-memory runner after caller-supplied loading.
 #[allow(dead_code)] // The private runner is the sole production owner.
 struct NovaProverMaterialV2 {
     pp: NovaPublicParameters,
@@ -21736,24 +21784,24 @@ impl NovaProverMaterialV2 {
     }
 
     fn encode(&self, binding: VerifierBundleBindingV2) -> Result<Vec<u8>, CheckpointError> {
-        let pp_payload = encode_bincode(&self.pp, MAX_NOVA_PUBLIC_PARAMETERS_BYTES_V2)?;
-        let pk_payload = encode_bincode(&self.pk, MAX_NOVA_PROVER_KEY_BYTES_V2)?;
+        let pp_payload = encode_bincode(&self.pp, NOVA_PUBLIC_PARAMS_MAX_BYTES)?;
+        let pk_payload = encode_bincode(&self.pk, NOVA_PROVER_KEY_MAX_BYTES)?;
         let header = ProverMaterialHeaderV2::new(&self.pp, binding, &pp_payload, &pk_payload)?;
         let mut bytes = header.encode();
         bytes.extend_from_slice(&pp_payload);
         bytes.extend_from_slice(&pk_payload);
-        if bytes.len() > NOVA_PROVER_MATERIAL_SAFETY_CAP_V2 {
+        if bytes.len() > NOVA_PROVER_MATERIAL_CAP_V2 {
             return Err(CheckpointError::Limit);
         }
         Ok(bytes)
     }
 
     fn load(bytes: &[u8], binding: VerifierBundleBindingV2) -> Result<Self, CheckpointError> {
-        if bytes.len() > NOVA_PROVER_MATERIAL_SAFETY_CAP_V2 {
+        if bytes.len() > NOVA_PROVER_MATERIAL_CAP_V2 {
             return Err(CheckpointError::Limit);
         }
         // Generation/source/shape identity is rejected before PP or PK enters
-        // bincode. This is the only permitted private cache/recovery decoder.
+        // bincode. This is the only permitted prover-material decoder.
         let header = ProverMaterialHeaderV2::decode(bytes)?;
         header.validate_binding(binding)?;
         let pp_len =
@@ -21761,9 +21809,9 @@ impl NovaProverMaterialV2 {
         let pk_len =
             usize::try_from(header.pk_payload_bytes).map_err(|_| CheckpointError::Limit)?;
         if pp_len == 0
-            || pp_len > MAX_NOVA_PUBLIC_PARAMETERS_BYTES_V2
+            || pp_len > NOVA_PUBLIC_PARAMS_MAX_BYTES
             || pk_len == 0
-            || pk_len > MAX_NOVA_PROVER_KEY_BYTES_V2
+            || pk_len > NOVA_PROVER_KEY_MAX_BYTES
         {
             return Err(CheckpointError::Limit);
         }
@@ -21787,296 +21835,25 @@ impl NovaProverMaterialV2 {
         {
             return Err(CheckpointError::Canonical);
         }
-        let pp = decode_bincode::<NovaPublicParameters, MAX_NOVA_PUBLIC_PARAMETERS_BYTES_V2>(
-            pp_payload,
-        )?;
+        let pp = decode_bincode::<NovaPublicParameters, NOVA_PUBLIC_PARAMS_MAX_BYTES>(pp_payload)?;
         if scalar_digest(pp.digest())? != header.pp_digest
             || NovaAugmentedShapeV2::from_public_parameters(&pp)? != binding.expected_shape
         {
             return Err(CheckpointError::Authority);
         }
-        let pk = decode_bincode::<NovaProverKey, MAX_NOVA_PROVER_KEY_BYTES_V2>(pk_payload)?;
+        let pk = decode_bincode::<NovaProverKey, NOVA_PROVER_KEY_MAX_BYTES>(pk_payload)?;
         // A canonical dependency object is not enough: a syntactically valid
         // PK from another setup must not enter the recovery state.  The pinned
         // non-preprocessing Spartan setup is deterministic for these PP, so
         // regenerate its one admissible key and compare the canonical wire.
-        // This runs only on the private recovery/cache load path, after every
+        // This runs only on the private prover-material load path, after every
         // identity, length, digest, and PP-shape check above.
         let (expected_pk, _) = NovaProof::setup(&pp).map_err(|_| CheckpointError::Authority)?;
-        if encode_bincode(&expected_pk, MAX_NOVA_PROVER_KEY_BYTES_V2)? != pk_payload {
+        if encode_bincode(&expected_pk, NOVA_PROVER_KEY_MAX_BYTES)? != pk_payload {
             return Err(CheckpointError::Authority);
         }
         Ok(Self { pp, pk })
     }
-}
-
-const NOVA_CACHE_FORMAT_V2: u8 = 1;
-const NOVA_CACHE_SUFFIX_V2: &str = ".pppk-v2";
-const NOVA_CACHE_LOCK_V2: &str = ".pppk-v2.lock";
-
-/// Sole private PP/PK setup cache.  The path is derived only from the complete
-/// selected authority/material identity; proof, verdict, source, recovery and
-/// verifier-key bytes have no write API here.
-#[allow(dead_code)] // Activated by the private T3 runner; T2 freezes the owner.
-struct NovaProverMaterialCacheV2 {
-    root: PathBuf,
-}
-
-#[allow(dead_code)]
-impl NovaProverMaterialCacheV2 {
-    fn open(root: impl AsRef<Path>) -> Result<Self, CheckpointError> {
-        let root = root.as_ref().to_path_buf();
-        if root.exists() {
-            let metadata = fs::symlink_metadata(&root).map_err(|_| CheckpointError::Canonical)?;
-            if !metadata.file_type().is_dir() || metadata.file_type().is_symlink() {
-                return Err(CheckpointError::Canonical);
-            }
-        } else {
-            fs::create_dir(&root).map_err(|_| CheckpointError::Canonical)?;
-        }
-        #[cfg(unix)]
-        {
-            fs::set_permissions(&root, fs::Permissions::from_mode(0o700))
-                .map_err(|_| CheckpointError::Canonical)?;
-            let mode = fs::symlink_metadata(&root)
-                .map_err(|_| CheckpointError::Canonical)?
-                .permissions()
-                .mode()
-                & 0o777;
-            if mode != 0o700 {
-                return Err(CheckpointError::Canonical);
-            }
-        }
-        Ok(Self { root })
-    }
-
-    fn store(
-        &self,
-        material: &NovaProverMaterialV2,
-        binding: VerifierBundleBindingV2,
-    ) -> Result<[u8; 32], CheckpointError> {
-        let cache_key = nova_cache_key(binding)?;
-        let cache_path = self.cache_path(cache_key);
-        let _lock = self.lock()?;
-        self.prune_other_cache_entries(&cache_path)?;
-        if self.cache_entry_exists(&cache_path)? {
-            match self.load_unlocked(&cache_path, binding) {
-                Ok(_) => return Ok(cache_key),
-                Err(_) => self.delete_invalid_cache_entry(&cache_path)?,
-            }
-        }
-        let bytes = zeroize::Zeroizing::new(material.encode(binding)?);
-        if bytes.is_empty()
-            || u64::try_from(bytes.len()).map_err(|_| CheckpointError::Limit)?
-                > RECURSIVE_NOVA_CACHE_BYTES_V2
-        {
-            return Err(CheckpointError::Limit);
-        }
-        let mut temporary = tempfile::Builder::new()
-            .prefix(".z00z-nova-cache-")
-            .tempfile_in(&self.root)
-            .map_err(|_| CheckpointError::Canonical)?;
-        #[cfg(unix)]
-        temporary
-            .as_file_mut()
-            .set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(|_| CheckpointError::Canonical)?;
-        temporary
-            .as_file_mut()
-            .write_all(&bytes)
-            .and_then(|()| temporary.as_file_mut().sync_all())
-            .map_err(|_| CheckpointError::Canonical)?;
-        temporary
-            .persist_noclobber(&cache_path)
-            .map_err(|_| CheckpointError::Canonical)?;
-        File::open(&self.root)
-            .and_then(|directory| directory.sync_all())
-            .map_err(|_| CheckpointError::Canonical)?;
-        self.verify_cache_file(&cache_path)?;
-        Ok(cache_key)
-    }
-
-    fn load(
-        &self,
-        binding: VerifierBundleBindingV2,
-    ) -> Result<NovaProverMaterialV2, CheckpointError> {
-        let cache_path = self.cache_path(nova_cache_key(binding)?);
-        let _lock = self.lock()?;
-        self.prune_other_cache_entries(&cache_path)?;
-        match self.load_unlocked(&cache_path, binding) {
-            Ok(material) => Ok(material),
-            Err(error) => {
-                self.delete_invalid_cache_entry(&cache_path)?;
-                Err(error)
-            }
-        }
-    }
-
-    fn load_unlocked(
-        &self,
-        cache_path: &Path,
-        binding: VerifierBundleBindingV2,
-    ) -> Result<NovaProverMaterialV2, CheckpointError> {
-        self.verify_cache_file(cache_path)?;
-        let metadata = fs::symlink_metadata(cache_path).map_err(|_| CheckpointError::Canonical)?;
-        let length = usize::try_from(metadata.len()).map_err(|_| CheckpointError::Limit)?;
-        if length == 0
-            || metadata.len() > RECURSIVE_NOVA_CACHE_BYTES_V2
-            || length > NOVA_PROVER_MATERIAL_SAFETY_CAP_V2
-        {
-            return Err(CheckpointError::Limit);
-        }
-        let mut bytes = zeroize::Zeroizing::new(Vec::new());
-        bytes
-            .try_reserve_exact(length)
-            .map_err(|_| CheckpointError::Resource)?;
-        File::open(cache_path)
-            .and_then(|mut file| file.read_to_end(&mut bytes))
-            .map_err(|_| CheckpointError::Canonical)?;
-        if bytes.len() != length {
-            return Err(CheckpointError::Canonical);
-        }
-        NovaProverMaterialV2::load(&bytes, binding)
-    }
-
-    fn delete_invalid_cache_entry(&self, path: &Path) -> Result<(), CheckpointError> {
-        match fs::remove_file(path) {
-            Ok(()) => File::open(&self.root)
-                .and_then(|directory| directory.sync_all())
-                .map_err(|_| CheckpointError::Canonical),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(_) => Err(CheckpointError::Canonical),
-        }
-    }
-
-    fn cache_entry_exists(&self, path: &Path) -> Result<bool, CheckpointError> {
-        match fs::symlink_metadata(path) {
-            Ok(_) => Ok(true),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-            Err(_) => Err(CheckpointError::Canonical),
-        }
-    }
-
-    fn prune_other_cache_entries(&self, keep: &Path) -> Result<(), CheckpointError> {
-        let mut removed = false;
-        for entry in fs::read_dir(&self.root).map_err(|_| CheckpointError::Canonical)? {
-            let entry = entry.map_err(|_| CheckpointError::Canonical)?;
-            let path = entry.path();
-            if path == keep || path == self.root.join(NOVA_CACHE_LOCK_V2) {
-                continue;
-            }
-            let name = entry
-                .file_name()
-                .into_string()
-                .map_err(|_| CheckpointError::Canonical)?;
-            if !(name.ends_with(NOVA_CACHE_SUFFIX_V2) || name.starts_with(".z00z-nova-cache-")) {
-                return Err(CheckpointError::Canonical);
-            }
-            let metadata = fs::symlink_metadata(&path).map_err(|_| CheckpointError::Canonical)?;
-            if metadata.file_type().is_dir() {
-                return Err(CheckpointError::Canonical);
-            }
-            fs::remove_file(path).map_err(|_| CheckpointError::Canonical)?;
-            removed = true;
-        }
-        if removed {
-            File::open(&self.root)
-                .and_then(|directory| directory.sync_all())
-                .map_err(|_| CheckpointError::Canonical)?;
-        }
-        Ok(())
-    }
-
-    fn lock(&self) -> Result<NovaCacheLockV2, CheckpointError> {
-        let path = self.root.join(NOVA_CACHE_LOCK_V2);
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .truncate(false)
-            .open(&path)
-            .map_err(|_| CheckpointError::Canonical)?;
-        #[cfg(unix)]
-        file.set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(|_| CheckpointError::Canonical)?;
-        file.try_lock_exclusive()
-            .map_err(|_| CheckpointError::Resource)?;
-        Ok(NovaCacheLockV2 { file })
-    }
-
-    fn verify_cache_file(&self, path: &Path) -> Result<(), CheckpointError> {
-        let metadata = fs::symlink_metadata(path).map_err(|_| CheckpointError::Canonical)?;
-        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
-            return Err(CheckpointError::Canonical);
-        }
-        #[cfg(unix)]
-        if metadata.permissions().mode() & 0o777 != 0o600 {
-            return Err(CheckpointError::Canonical);
-        }
-        Ok(())
-    }
-
-    fn cache_path(&self, key: [u8; 32]) -> PathBuf {
-        self.root
-            .join(format!("{}{}", lowercase_hex(key), NOVA_CACHE_SUFFIX_V2))
-    }
-}
-
-struct NovaCacheLockV2 {
-    file: File,
-}
-
-impl Drop for NovaCacheLockV2 {
-    fn drop(&mut self) {
-        let _ = self.file.unlock();
-    }
-}
-
-fn nova_cache_key(binding: VerifierBundleBindingV2) -> Result<[u8; 32], CheckpointError> {
-    let mut bytes = Vec::with_capacity(1 + 9 * 32 + 9 * 8 + 8);
-    bytes.push(NOVA_CACHE_FORMAT_V2);
-    bytes.extend_from_slice(NOVA_SUITE_ID_V2);
-    bytes.extend_from_slice(NOVA_FEATURE_ID_V2);
-    bytes.extend_from_slice(&NOVA_SHA_BATCH_WIDTH_V2.to_le_bytes());
-    for digest in [
-        binding.authority_digest,
-        binding.profile_digest,
-        binding.spec_digest,
-        binding.pp_digest,
-        transition_table_digest(),
-        circuit_shape_digest()?,
-        source_revision_digest(),
-        lockfile_digest(),
-        manifest_digest(),
-    ] {
-        bytes.extend_from_slice(&digest);
-    }
-    for value in [
-        binding.authority_generation,
-        binding.activation_start_height,
-        binding.activation_end_height,
-        binding.expected_shape.primary_constraints,
-        binding.expected_shape.secondary_constraints,
-        binding.expected_shape.primary_variables,
-        binding.expected_shape.secondary_variables,
-        RECURSIVE_NOVA_CACHE_BYTES_V2,
-    ] {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
-    Ok(bundle_payload_digest(
-        b"prover-material-cache-identity",
-        &bytes,
-    ))
-}
-
-fn lowercase_hex(bytes: [u8; 32]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(64);
-    for byte in bytes {
-        out.push(char::from(DIGITS[usize::from(byte >> 4)]));
-        out.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-    }
-    out
 }
 
 /// Frozen recovery choice: deterministic replay from authenticated sealed
@@ -22145,6 +21922,17 @@ impl NovaReplayRecoveryV2 {
     }
 }
 
+#[cfg(test)]
+fn lowercase_hex(bytes: [u8; 32]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(64);
+    for byte in bytes {
+        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    output
+}
+
 /// The only owner of decoded Nova verifier objects. It is intentionally
 /// private, immutable, and validated before a compressed proof is decoded.
 #[allow(dead_code)] // Wired by the retained mixed-proof runner/artifact closure.
@@ -22152,9 +21940,10 @@ struct NovaVerifierBundleV2 {
     header: VerifierBundleHeaderV2,
     vk: NovaVerifierKey,
     bundle_digest: [u8; 32],
+    max_cumulative_steps: u64,
 }
 
-const PINNED_KEY_PROBE_WIRE_CAP_V2: usize = 128;
+const KEY_PROBE_WIRE_CAP_V2: usize = 128;
 
 fn pinned_commitment_key_probe<E: Engine>(
     label: &'static [u8],
@@ -22163,7 +21952,7 @@ where
     E::CE: CommitmentEngineTrait<E>,
 {
     let probe = E::CE::setup(label, 1).map_err(|_| CheckpointError::Invariant)?;
-    let wire = encode_bincode(&probe, PINNED_KEY_PROBE_WIRE_CAP_V2)?;
+    let wire = encode_bincode(&probe, KEY_PROBE_WIRE_CAP_V2)?;
     let encoded_count = u64::from_le_bytes(
         wire.get(..8)
             .ok_or(CheckpointError::Canonical)?
@@ -22288,7 +22077,7 @@ impl NovaVerifierBundleV2 {
         vk: &NovaVerifierKey,
         binding: VerifierBundleBindingV2,
     ) -> Result<Vec<u8>, CheckpointError> {
-        let vk_decoded = encode_bincode(vk, NOVA_VK_DECODE_SAFETY_CAP_V2)?;
+        let vk_decoded = encode_bincode(vk, NOVA_VK_DECODE_CAP_V2)?;
         let vk_payload = z00z_utils::compression::zstd_compress(&vk_decoded)
             .map_err(|_| CheckpointError::Canonical)?;
         if vk_payload.len() > NOVA_VK_SAFETY_CAP_V2 {
@@ -22308,6 +22097,9 @@ impl NovaVerifierBundleV2 {
     fn load(bytes: &[u8], selection: VerifierBundleSelectionV2) -> Result<Self, CheckpointError> {
         if bytes.len() > NOVA_BUNDLE_SAFETY_CAP_V2 {
             return Err(CheckpointError::Limit);
+        }
+        if selection.binding.max_cumulative_steps == 0 {
+            return Err(CheckpointError::Authority);
         }
         let bundle_digest = bundle_payload_digest(b"verifier-bundle", bytes);
         if bundle_digest != selection.bundle_digest {
@@ -22334,11 +22126,9 @@ impl NovaVerifierBundleV2 {
         if bundle_payload_digest(b"vk-zstd", vk_payload) != header.vk_payload_digest {
             return Err(CheckpointError::Canonical);
         }
-        let vk_decoded = z00z_utils::compression::zstd_decompress_bounded(
-            vk_payload,
-            NOVA_VK_DECODE_SAFETY_CAP_V2,
-        )
-        .map_err(|_| CheckpointError::Canonical)?;
+        let vk_decoded =
+            z00z_utils::compression::zstd_decompress_bounded(vk_payload, NOVA_VK_DECODE_CAP_V2)
+                .map_err(|_| CheckpointError::Canonical)?;
         if vk_decoded.len()
             != usize::try_from(header.vk_decoded_bytes).map_err(|_| CheckpointError::Limit)?
             || bundle_payload_digest(b"vk-canonical", &vk_decoded) != header.vk_digest
@@ -22346,7 +22136,7 @@ impl NovaVerifierBundleV2 {
             return Err(CheckpointError::Canonical);
         }
         validate_pinned_verifier_key_wire(&vk_decoded)?;
-        let vk = decode_bincode::<NovaVerifierKey, NOVA_VK_DECODE_SAFETY_CAP_V2>(&vk_decoded)?;
+        let vk = decode_bincode::<NovaVerifierKey, NOVA_VK_DECODE_CAP_V2>(&vk_decoded)?;
         let canonical_payload = z00z_utils::compression::zstd_compress(&vk_decoded)
             .map_err(|_| CheckpointError::Canonical)?;
         if canonical_payload != vk_payload {
@@ -22356,7 +22146,15 @@ impl NovaVerifierBundleV2 {
             header,
             vk,
             bundle_digest,
+            max_cumulative_steps: selection.binding.max_cumulative_steps,
         })
+    }
+
+    fn check_steps(&self, steps: u64) -> Result<(), CheckpointError> {
+        if steps == 0 || steps > self.max_cumulative_steps {
+            return Err(CheckpointError::Resource);
+        }
+        Ok(())
     }
 
     fn decode_compressed_proof(&self, bytes: &[u8]) -> Result<NovaProof, CheckpointError> {
@@ -22369,7 +22167,7 @@ impl NovaVerifierBundleV2 {
             ));
         }
         let body_cap = effective_nova_proof_body_cap()?;
-        if body_cap != MAX_NOVA_COMPRESSED_PROOF_BYTES_V2 {
+        if body_cap != NOVA_PROOF_MAX_BYTES_V2 {
             return Err(CheckpointError::Authority);
         }
         if bytes.len() > body_cap {
@@ -22377,7 +22175,7 @@ impl NovaVerifierBundleV2 {
                 RecursiveCheckpointRejectReasonV2::ProofBytesTooLarge,
             ));
         }
-        decode_bincode::<NovaProof, MAX_NOVA_COMPRESSED_PROOF_BYTES_V2>(bytes)
+        decode_bincode::<NovaProof, NOVA_PROOF_MAX_BYTES_V2>(bytes)
     }
 
     fn verify(
@@ -22386,6 +22184,8 @@ impl NovaVerifierBundleV2 {
         steps: usize,
         initial_state: &[Scalar],
     ) -> Result<Vec<Scalar>, CheckpointError> {
+        let steps_u64 = u64::try_from(steps).map_err(|_| CheckpointError::Limit)?;
+        self.check_steps(steps_u64)?;
         if initial_state.len() != RUNNING_STATE_ARITY_V2 {
             return Err(CheckpointError::Invariant);
         }
@@ -22402,7 +22202,7 @@ impl NovaVerifierBundleV2 {
         self.bundle_digest
     }
 
-    fn permits_height_range(&self, start_height: u64, end_height: u64) -> bool {
+    fn is_height_range_permitted(&self, start_height: u64, end_height: u64) -> bool {
         start_height >= self.header.activation_start_height
             && end_height <= self.header.activation_end_height
             && end_height >= start_height
@@ -22458,7 +22258,7 @@ pub(crate) fn resolve_verifier_authority_v2(
     if expected_bundle_digest == [0; 32] {
         return Err(CheckpointError::Authority);
     }
-    if prover_material_bytes.len() > NOVA_PROVER_MATERIAL_SAFETY_CAP_V2
+    if prover_material_bytes.len() > NOVA_PROVER_MATERIAL_CAP_V2
         || verifier_bundle_bytes.len() > NOVA_BUNDLE_SAFETY_CAP_V2
     {
         return Err(CheckpointError::Limit);
@@ -22474,6 +22274,7 @@ pub(crate) fn resolve_verifier_authority_v2(
         authority_generation: context.authority_generation(),
         activation_start_height: header.activation_start_height,
         activation_end_height: header.activation_end_height,
+        max_cumulative_steps: profile.max_cumulative_steps(),
         expected_shape: NovaAugmentedShapeV2 {
             primary_constraints: header.primary_constraints,
             secondary_constraints: header.secondary_constraints,
@@ -22508,7 +22309,7 @@ impl NovaCompressedSnapshotV2 {
             ));
         }
         let body_cap = effective_nova_proof_body_cap()?;
-        if body_cap != MAX_NOVA_COMPRESSED_PROOF_BYTES_V2 {
+        if body_cap != NOVA_PROOF_MAX_BYTES_V2 {
             return Err(CheckpointError::Authority);
         }
         if proof_bytes.len() > body_cap {
@@ -22608,7 +22409,7 @@ impl NovaProofEnvelopeHeaderV2 {
     }
 
     fn canonical_prefix(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2);
+        let mut bytes = Vec::with_capacity(NOVA_ENVELOPE_HEADER_BYTES_V2);
         bytes.extend_from_slice(&NOVA_PROOF_ENVELOPE_MAGIC_V2);
         bytes.push(NOVA_PROOF_ENVELOPE_FORMAT_V2);
         append_fixed_bytes(&mut bytes, NOVA_SUITE_ID_V2);
@@ -22636,7 +22437,7 @@ impl NovaProofEnvelopeHeaderV2 {
     }
 
     fn decode(bytes: &[u8]) -> Result<Self, CheckpointError> {
-        if bytes.len() < NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2 {
+        if bytes.len() < NOVA_ENVELOPE_HEADER_BYTES_V2 {
             return Err(CheckpointError::Canonical);
         }
         let mut cursor = 0_usize;
@@ -22668,7 +22469,7 @@ impl NovaProofEnvelopeHeaderV2 {
         let proof_digest = take_fixed::<32>(bytes, &mut cursor)?;
         let proof_payload_bytes = take_u32_bundle(bytes, &mut cursor)?;
         let project_digest = take_fixed::<32>(bytes, &mut cursor)?;
-        if cursor != NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
+        if cursor != NOVA_ENVELOPE_HEADER_BYTES_V2
             || end_height < start_height
             || steps == 0
             || [
@@ -22720,14 +22521,29 @@ pub struct NovaProofEnvelopeV2 {
 }
 
 trait LocalChainEnvelopePolicyV2 {
-    fn validate(input: &RecursiveCheckpointPublicInputV2) -> Result<(), CheckpointError>;
+    fn validate(
+        input: &RecursiveCheckpointPublicInputV2,
+        chain_length: u32,
+    ) -> Result<(), CheckpointError>;
 }
 
 struct RequiredLocalChainEnvelopeV2;
 
+fn check_local_chain(chain_length: u32) -> Result<(), CheckpointError> {
+    if chain_length < 3 {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::ChainTooShort,
+        ));
+    }
+    Ok(())
+}
+
 impl LocalChainEnvelopePolicyV2 for RequiredLocalChainEnvelopeV2 {
-    fn validate(input: &RecursiveCheckpointPublicInputV2) -> Result<(), CheckpointError> {
-        input.validate_required_local_chain()
+    fn validate(
+        _input: &RecursiveCheckpointPublicInputV2,
+        chain_length: u32,
+    ) -> Result<(), CheckpointError> {
+        check_local_chain(chain_length)
     }
 }
 
@@ -22737,7 +22553,13 @@ struct DiagnosticSingleStepEnvelopeV2;
 
 #[cfg(test)]
 impl LocalChainEnvelopePolicyV2 for DiagnosticSingleStepEnvelopeV2 {
-    fn validate(input: &RecursiveCheckpointPublicInputV2) -> Result<(), CheckpointError> {
+    fn validate(
+        input: &RecursiveCheckpointPublicInputV2,
+        chain_length: u32,
+    ) -> Result<(), CheckpointError> {
+        if chain_length != 1 {
+            return Err(CheckpointError::Invariant);
+        }
         input.validate_diagnostic_single_step()
     }
 }
@@ -22807,6 +22629,7 @@ impl NovaProofEnvelopeV2 {
         proof_bytes: Vec<u8>,
     ) -> Result<Self, CheckpointError> {
         let steps = u64::try_from(steps).map_err(|_| CheckpointError::Limit)?;
+        bundle.check_steps(steps)?;
         let chain_length = end_height
             .checked_sub(start_height)
             .and_then(|value| value.checked_add(1))
@@ -22824,11 +22647,11 @@ impl NovaProofEnvelopeV2 {
                 .ok_or(CheckpointError::Overflow)?,
             chain_length,
         )?;
-        Policy::validate(&initial_portable_input)?;
-        Policy::validate(&portable_input)?;
+        Policy::validate(&initial_portable_input, chain_length)?;
+        Policy::validate(&portable_input, chain_length)?;
         let successor =
             RecursiveFinalizedIvcStateV2::expected_successor(final_public_input, steps)?;
-        if !bundle.permits_height_range(start_height, end_height)
+        if !bundle.is_height_range_permitted(start_height, end_height)
             || start_height != initial_public_input.height()
             || end_height != final_public_input.height()
             || successor.height() != end_height
@@ -22895,7 +22718,7 @@ impl NovaProofEnvelopeV2 {
         bytes.extend_from_slice(&initial_bytes);
         bytes.extend_from_slice(&final_bytes);
         bytes.extend_from_slice(&self.body.proof_bytes);
-        if bytes.len() > NOVA_PROOF_ENVELOPE_SAFETY_CAP_V2 {
+        if bytes.len() > NOVA_ENVELOPE_SAFETY_CAP_V2 {
             return Err(CheckpointError::RecursiveRejected(
                 RecursiveCheckpointRejectReasonV2::ProofSizeBudgetExceeded,
             ));
@@ -22938,12 +22761,13 @@ impl NovaProofEnvelopeV2 {
         initial_public_input: &RecursiveNovaStepInputV2,
         final_public_input: &RecursiveNovaStepInputV2,
     ) -> Result<Self, CheckpointError> {
-        if bytes.len() > NOVA_PROOF_ENVELOPE_SAFETY_CAP_V2 {
+        if bytes.len() > NOVA_ENVELOPE_SAFETY_CAP_V2 {
             return Err(CheckpointError::RecursiveRejected(
                 RecursiveCheckpointRejectReasonV2::ProofBytesTooLarge,
             ));
         }
         let header = NovaProofEnvelopeHeaderV2::decode(bytes)?;
+        bundle.check_steps(header.steps)?;
         let chain_length = header
             .end_height
             .checked_sub(header.start_height)
@@ -22962,12 +22786,12 @@ impl NovaProofEnvelopeV2 {
                 .ok_or(CheckpointError::Overflow)?,
             chain_length,
         )?;
-        Policy::validate(&expected_initial_portable)?;
-        Policy::validate(&expected_portable)?;
+        Policy::validate(&expected_initial_portable, chain_length)?;
+        Policy::validate(&expected_portable, chain_length)?;
         let successor =
             RecursiveFinalizedIvcStateV2::expected_successor(final_public_input, header.steps)?;
         if header.bundle_digest != bundle.digest()
-            || !bundle.permits_height_range(header.start_height, header.end_height)
+            || !bundle.is_height_range_permitted(header.start_height, header.end_height)
             || header.initial_nova_step_input_digest != initial_public_input.digest()
             || header.final_nova_step_input_digest != final_public_input.digest()
             || header.initial_portable_input_digest != expected_initial_portable.digest()
@@ -22982,9 +22806,9 @@ impl NovaProofEnvelopeV2 {
         {
             return Err(CheckpointError::Authority);
         }
-        let portable_end = NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
-            .checked_add(RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2)
-            .and_then(|value| value.checked_add(RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2))
+        let portable_end = NOVA_ENVELOPE_HEADER_BYTES_V2
+            .checked_add(CHECKPOINT_PUBLIC_INPUT_BYTES_V2)
+            .and_then(|value| value.checked_add(CHECKPOINT_PUBLIC_INPUT_BYTES_V2))
             .ok_or(CheckpointError::Overflow)?;
         let public_end = portable_end
             .checked_add(NOVA_PUBLIC_STATE_BYTES_V2)
@@ -22993,7 +22817,7 @@ impl NovaProofEnvelopeV2 {
         let proof_len =
             usize::try_from(header.proof_payload_bytes).map_err(|_| CheckpointError::Limit)?;
         let body_cap = effective_nova_proof_body_cap()?;
-        if body_cap != MAX_NOVA_COMPRESSED_PROOF_BYTES_V2 {
+        if body_cap != NOVA_PROOF_MAX_BYTES_V2 {
             return Err(CheckpointError::Authority);
         }
         if proof_len == 0 || proof_len > body_cap {
@@ -23012,16 +22836,12 @@ impl NovaProofEnvelopeV2 {
         }
         let initial_portable_bytes = bytes
             .get(
-                NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
-                    ..NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2
-                        + RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2,
+                NOVA_ENVELOPE_HEADER_BYTES_V2
+                    ..NOVA_ENVELOPE_HEADER_BYTES_V2 + CHECKPOINT_PUBLIC_INPUT_BYTES_V2,
             )
             .ok_or(CheckpointError::Canonical)?;
         let portable_bytes = bytes
-            .get(
-                NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2 + RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2
-                    ..portable_end,
-            )
+            .get(NOVA_ENVELOPE_HEADER_BYTES_V2 + CHECKPOINT_PUBLIC_INPUT_BYTES_V2..portable_end)
             .ok_or(CheckpointError::Canonical)?;
         let initial_bytes = bytes
             .get(portable_end..portable_end + NOVA_PUBLIC_STATE_BYTES_V2)
@@ -23044,8 +22864,8 @@ impl NovaProofEnvelopeV2 {
         let initial_portable_input =
             RecursiveCheckpointPublicInputV2::decode_canonical(initial_portable_bytes)?;
         let portable_input = RecursiveCheckpointPublicInputV2::decode_canonical(portable_bytes)?;
-        Policy::validate(&initial_portable_input)?;
-        Policy::validate(&portable_input)?;
+        Policy::validate(&initial_portable_input, chain_length)?;
+        Policy::validate(&portable_input, chain_length)?;
         if initial_portable_input != expected_initial_portable
             || portable_input != expected_portable
             || initial_portable_input.digest() != header.initial_portable_input_digest
@@ -23065,9 +22885,6 @@ impl NovaProofEnvelopeV2 {
             return Err(CheckpointError::Invariant);
         }
         let body = NovaCompressedSnapshotV2::new(proof_bytes.to_vec())?;
-        // Strict bundle validation precedes this proof decode by the load API;
-        // the decoder accepts a bounded canonical compressed proof only.
-        let _ = bundle.decode_compressed_proof(&body.proof_bytes)?;
         Ok(Self {
             header,
             initial_portable_input,
@@ -23111,14 +22928,21 @@ impl NovaProofEnvelopeV2 {
         initial_public_input: &RecursiveNovaStepInputV2,
         final_public_input: &RecursiveNovaStepInputV2,
     ) -> Result<Vec<Scalar>, CheckpointError> {
-        Policy::validate(&self.initial_portable_input)?;
-        Policy::validate(&self.portable_input)?;
+        let chain_length = self
+            .header
+            .end_height
+            .checked_sub(self.header.start_height)
+            .and_then(|value| value.checked_add(1))
+            .and_then(|value| u32::try_from(value).ok())
+            .ok_or(CheckpointError::Overflow)?;
+        Policy::validate(&self.initial_portable_input, chain_length)?;
+        Policy::validate(&self.portable_input, chain_length)?;
         let successor = RecursiveFinalizedIvcStateV2::expected_successor(
             final_public_input,
             self.header.steps,
         )?;
         if self.header.bundle_digest != bundle.digest()
-            || !bundle.permits_height_range(self.header.start_height, self.header.end_height)
+            || !bundle.is_height_range_permitted(self.header.start_height, self.header.end_height)
             || self.header.initial_nova_step_input_digest != initial_public_input.digest()
             || self.header.final_nova_step_input_digest != final_public_input.digest()
             || self.header.prior_finalized_state_digest
@@ -23129,6 +22953,9 @@ impl NovaProofEnvelopeV2 {
         {
             return Err(CheckpointError::Authority);
         }
+        // The authenticated envelope header is budget-checked independently
+        // before any dependency proof decoder or backend verifier is entered.
+        bundle.check_steps(self.header.steps)?;
         let steps = usize::try_from(self.header.steps).map_err(|_| CheckpointError::Limit)?;
         let proof = bundle.decode_compressed_proof(&self.body.proof_bytes)?;
         let output = bundle.verify(&proof, steps, &self.initial_state)?;
@@ -23151,12 +22978,68 @@ pub(crate) struct NovaRunnerReadyV2;
 /// Private typestate marker: at least one source event has been accepted.
 pub(crate) struct NovaRunnerFoldingV2;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NovaRunStopV2 {
+    Cancelled,
+    Deadline,
+    Resource,
+}
+
+impl NovaRunStopV2 {
+    const fn checkpoint_error(self) -> CheckpointError {
+        match self {
+            Self::Cancelled => CheckpointError::RecursiveCancelled,
+            Self::Deadline => CheckpointError::RecursiveDeadline,
+            Self::Resource => CheckpointError::Resource,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct NovaRunGuardV2 {
+    deadline: Instant,
+    cancellation: Arc<AtomicBool>,
+    max_cumulative_steps: u64,
+}
+
+impl NovaRunGuardV2 {
+    pub(crate) fn from_profile(
+        deadline: Instant,
+        cancellation: Arc<AtomicBool>,
+        profile: &RecursiveCircuitProfileV2,
+    ) -> Result<Self, CheckpointError> {
+        let max_cumulative_steps = profile.max_cumulative_steps();
+        if max_cumulative_steps == 0 {
+            return Err(CheckpointError::Authority);
+        }
+        Ok(Self {
+            deadline,
+            cancellation,
+            max_cumulative_steps,
+        })
+    }
+
+    pub(crate) fn check(&self, steps: u64) -> Result<(), NovaRunStopV2> {
+        if self.cancellation.load(Ordering::Acquire) {
+            return Err(NovaRunStopV2::Cancelled);
+        }
+        if Instant::now() >= self.deadline {
+            return Err(NovaRunStopV2::Deadline);
+        }
+        if steps > self.max_cumulative_steps {
+            return Err(NovaRunStopV2::Resource);
+        }
+        Ok(())
+    }
+}
+
 /// Continuous, single-accumulator Nova runner. Backend objects never cross
 /// this module boundary; callers provide only storage-owned transition data
 /// and receive one registry-framed, keyless proof envelope.
 pub(crate) struct CheckpointNovaRunnerV2<State> {
     material: NovaProverMaterialV2,
     bundle: Arc<NovaVerifierBundleV2>,
+    guard: NovaRunGuardV2,
     initial_public_input: RecursiveNovaStepInputV2,
     public_input: RecursiveNovaStepInputV2,
     anchors: CheckpointNovaAnchorsV2,
@@ -23170,9 +23053,9 @@ pub(crate) struct CheckpointNovaRunnerV2<State> {
     _state: std::marker::PhantomData<State>,
 }
 
-/// Fully verified proof result retained behind the same loaded verifier. It
-/// can re-verify exact bytes after an untrusted persistence round trip.
-pub(crate) struct VerifiedNovaCheckpointV2 {
+/// Unverified snapshot candidate. Each consuming check below advances one
+/// adapter gate and the final limb check produces the verified result.
+pub(crate) struct NovaCheckpointCandidateV2 {
     bundle: Arc<NovaVerifierBundleV2>,
     initial_public_input: RecursiveNovaStepInputV2,
     public_input: RecursiveNovaStepInputV2,
@@ -23183,17 +23066,55 @@ pub(crate) struct VerifiedNovaCheckpointV2 {
     envelope_digest: [u8; 32],
 }
 
+pub(crate) struct VerifiedNovaCheckpointV2 {
+    checkpoint: NovaCheckpointCandidateV2,
+    bindings: NovaVerificationBindingsV2,
+}
+
+pub(crate) struct NovaOuterCheckV2 {
+    checkpoint: NovaCheckpointCandidateV2,
+    payload_offset: usize,
+}
+
+pub(crate) struct NovaInnerCheckV2 {
+    checkpoint: NovaCheckpointCandidateV2,
+    envelope: NovaProofEnvelopeV2,
+}
+
+pub(crate) struct NovaCurveCheckV2 {
+    checkpoint: NovaCheckpointCandidateV2,
+    envelope: NovaProofEnvelopeV2,
+    proof: NovaProof,
+}
+
+pub(crate) struct NovaBundleCheckV2 {
+    checkpoint: NovaCheckpointCandidateV2,
+    envelope: NovaProofEnvelopeV2,
+    proof: NovaProof,
+}
+
+pub(crate) struct NovaBackendCheckV2 {
+    checkpoint: NovaCheckpointCandidateV2,
+    envelope: NovaProofEnvelopeV2,
+    output: Vec<Scalar>,
+}
+
 impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn load_for_transition(
+    fn load_for_transition(
         prover_material_bytes: &[u8],
         verifier_bundle_bytes: &[u8],
         transition: &CanonicalCheckpointTransitionV2,
         evaluated: EvaluatedCheckpointTransitionV2,
         prior: RecursiveFinalizedIvcStateV2,
+        guard: NovaRunGuardV2,
     ) -> Result<Self, CheckpointError> {
         let authority = transition.recursive_authority_context();
         let profile = transition.recursive_profile();
+        guard.check(0).map_err(NovaRunStopV2::checkpoint_error)?;
+        if guard.max_cumulative_steps != profile.max_cumulative_steps() {
+            return Err(CheckpointError::Authority);
+        }
         let spec = RecursiveCircuitSpecV2::new(authority.layout(), profile)?;
 
         // Parse only the fixed material header to recover dependency object
@@ -23208,6 +23129,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
             authority_generation: authority.authority_generation(),
             activation_start_height: header.activation_start_height,
             activation_end_height: header.activation_end_height,
+            max_cumulative_steps: profile.max_cumulative_steps(),
             expected_shape: NovaAugmentedShapeV2 {
                 primary_constraints: header.primary_constraints,
                 secondary_constraints: header.secondary_constraints,
@@ -23230,6 +23152,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
         Ok(Self {
             material,
             bundle,
+            guard,
             initial_public_input: public_input,
             public_input,
             anchors,
@@ -23244,7 +23167,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
         })
     }
 
-    pub(crate) fn first_event(
+    fn first_event(
         mut self,
         source: &RecursiveTraceEventV2,
     ) -> Result<CheckpointNovaRunnerV2<NovaRunnerFoldingV2>, CheckpointError> {
@@ -23254,6 +23177,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
         Ok(CheckpointNovaRunnerV2 {
             material: self.material,
             bundle: self.bundle,
+            guard: self.guard,
             initial_public_input: self.initial_public_input,
             public_input: self.public_input,
             anchors: self.anchors,
@@ -23270,10 +23194,19 @@ impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
 }
 
 impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
-    pub(crate) fn push_event(
-        &mut self,
-        source: &RecursiveTraceEventV2,
-    ) -> Result<(), CheckpointError> {
+    fn renew_guard(&mut self, guard: NovaRunGuardV2) -> Result<(), CheckpointError> {
+        let steps = u64::try_from(self.steps).map_err(|_| CheckpointError::Limit)?;
+        guard
+            .check(steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
+        if guard.max_cumulative_steps != self.bundle.max_cumulative_steps {
+            return Err(CheckpointError::Authority);
+        }
+        self.guard = guard;
+        Ok(())
+    }
+
+    fn push_event(&mut self, source: &RecursiveTraceEventV2) -> Result<(), CheckpointError> {
         if self.terminalized {
             return Err(CheckpointError::TraceState);
         }
@@ -23290,6 +23223,13 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
         event: NovaTypedSourceEventV2,
         finalize_chain: bool,
     ) -> Result<(), CheckpointError> {
+        let next_steps = u64::try_from(self.steps)
+            .map_err(|_| CheckpointError::Limit)?
+            .checked_add(1)
+            .ok_or(CheckpointError::Overflow)?;
+        self.guard
+            .check(next_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
         let witness =
             NovaStepWitnessV2::new(false, event).map_err(|_| CheckpointError::EventOrder)?;
         let circuit = if self.block_index == 0 {
@@ -23315,14 +23255,17 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
                 self.recursive = Some(recursive);
             }
         }
-        self.steps = self.steps.checked_add(1).ok_or(CheckpointError::Overflow)?;
+        self.steps = usize::try_from(next_steps).map_err(|_| CheckpointError::Limit)?;
+        self.guard
+            .check(next_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
         Ok(())
     }
 
     /// Close the current block inside the same accumulator. Intermediate
     /// blocks deliberately leave `DONE=0`; only an explicit terminal snapshot
     /// request seals the chain endpoint with `DONE=1`.
-    pub(crate) fn finish_block(
+    fn finish_block(
         &mut self,
         finalize_chain: bool,
     ) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
@@ -23339,11 +23282,17 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
         }
         let recursive = self.recursive.as_ref().ok_or(CheckpointError::TraceState)?;
         let cumulative_steps = u64::try_from(self.steps).map_err(|_| CheckpointError::Limit)?;
+        self.guard
+            .check(cumulative_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
         let expected_final =
             expected_public_state(&self.public_input, cumulative_steps, finalize_chain)?;
         let uncompressed = recursive
             .verify(&self.material.pp, self.steps, &self.initial_state)
             .map_err(|_| CheckpointError::Invariant)?;
+        self.guard
+            .check(cumulative_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
         if uncompressed != expected_final {
             return Err(CheckpointError::Invariant);
         }
@@ -23353,7 +23302,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
 
     /// Advance to the next block relation while retaining the exact same Nova
     /// accumulator and construction-time `z_0`.
-    pub(crate) fn advance_transition(
+    fn advance_transition(
         &mut self,
         transition: &CanonicalCheckpointTransitionV2,
         evaluated: EvaluatedCheckpointTransitionV2,
@@ -23366,6 +23315,9 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
             return Err(CheckpointError::TraceState);
         }
         let cumulative_steps = u64::try_from(self.steps).map_err(|_| CheckpointError::Limit)?;
+        self.guard
+            .check(cumulative_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
         let prior =
             RecursiveFinalizedIvcStateV2::expected_successor(&self.public_input, cumulative_steps)?;
         let profile = transition.recursive_profile();
@@ -23381,7 +23333,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
                 return Err(CheckpointError::Invariant);
             }
         }
-        for stable_scalar in [0, 3, 4, 5] {
+        for stable_scalar in [0, 3, 4, 5, 6] {
             if next_bindings.anchor_scalars[stable_scalar]
                 != initial_bindings.anchor_scalars[stable_scalar]
             {
@@ -23413,18 +23365,24 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
     /// observationally non-consuming. A normally finalized block snapshots
     /// with `DONE=0`; `DONE=1` is possible only after the caller explicitly
     /// sealed a real terminal block through `finish_block(true)`.
-    pub(crate) fn snapshot(&self) -> Result<VerifiedNovaCheckpointV2, CheckpointError> {
+    fn snapshot(&self) -> Result<NovaCheckpointCandidateV2, CheckpointError> {
         if self.pending.is_some() || self.phase != ControlPhaseV2::Idle {
             return Err(CheckpointError::TraceState);
         }
         let recursive = self.recursive.as_ref().ok_or(CheckpointError::TraceState)?;
         let cumulative_steps = u64::try_from(self.steps).map_err(|_| CheckpointError::Limit)?;
+        self.guard
+            .check(cumulative_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
         let expected_final =
             expected_public_state(&self.public_input, cumulative_steps, self.terminalized)?;
-        let compressed = NovaProof::prove(&self.material.pp, &self.material.pk, &recursive)
+        let compressed = NovaProof::prove(&self.material.pp, &self.material.pk, recursive)
             .map_err(|_| CheckpointError::Invariant)?;
+        self.guard
+            .check(cumulative_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
         let body_cap = effective_nova_proof_body_cap()?;
-        if body_cap != MAX_NOVA_COMPRESSED_PROOF_BYTES_V2 {
+        if body_cap != NOVA_PROOF_MAX_BYTES_V2 {
             return Err(CheckpointError::Authority);
         }
         let proof_bytes = encode_bincode(&compressed, body_cap)?;
@@ -23455,7 +23413,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
         .map_err(map_envelope_cap_error)?;
         let envelope_digest =
             proof_envelope_component_digest(b"registry-framed-envelope", &framed_envelope);
-        let verified = VerifiedNovaCheckpointV2 {
+        let candidate = NovaCheckpointCandidateV2 {
             bundle: Arc::clone(&self.bundle),
             initial_public_input: self.initial_public_input,
             public_input: self.public_input,
@@ -23465,8 +23423,10 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
             is_terminal: self.terminalized,
             envelope_digest,
         };
-        verified.verify_exact_bytes(verified.framed_envelope())?;
-        Ok(verified)
+        self.guard
+            .check(cumulative_steps)
+            .map_err(NovaRunStopV2::checkpoint_error)?;
+        Ok(candidate)
     }
 }
 
@@ -23482,7 +23442,7 @@ fn runner_successor_phase(
         .map_err(|_| CheckpointError::EventOrder)
 }
 
-impl VerifiedNovaCheckpointV2 {
+impl NovaCheckpointCandidateV2 {
     #[must_use]
     pub(crate) fn framed_envelope(&self) -> &[u8] {
         &self.framed_envelope
@@ -23496,11 +23456,6 @@ impl VerifiedNovaCheckpointV2 {
     #[must_use]
     pub(crate) fn bundle_digest(&self) -> [u8; 32] {
         self.bundle.bundle_digest
-    }
-
-    #[must_use]
-    pub(crate) const fn portable_input(&self) -> RecursiveCheckpointPublicInputV2 {
-        self.portable_input
     }
 
     pub(crate) fn bindings(&self) -> Result<NovaVerificationBindingsV2, CheckpointError> {
@@ -23543,48 +23498,179 @@ impl VerifiedNovaCheckpointV2 {
         })
     }
 
-    pub(crate) fn verify_exact_bytes(&self, bytes: &[u8]) -> Result<(), CheckpointError> {
+    pub(crate) fn check_outer(self) -> Result<NovaOuterCheckV2, CheckpointError> {
         // The fixed registry preheader is the sole family/version dispatcher.
         // It runs before config-derived cap selection, hashing, proof decode,
         // or any body allocation, and V2 failure has no fallback path.
         let registry = CheckpointVersionRegistryV2::authority_pinned()
             .map_err(|_| CheckpointError::Authority)?;
         let validated = registry
-            .validate_preheader(bytes, RecursiveBoundedObjectV2::NovaBlockProof)
+            .validate_preheader(
+                &self.framed_envelope,
+                RecursiveBoundedObjectV2::NovaBlockProof,
+            )
             .map_err(|_| CheckpointError::Canonical)?;
         if validated.header_len != RECURSIVE_OBJECT_PREHEADER_BYTES_V2 {
             return Err(CheckpointError::Canonical);
         }
         let envelope_cap = effective_object_cap(RecursiveBoundedObjectV2::NovaBlockProof)?;
-        let minimum_full_cap = NOVA_PROOF_ENVELOPE_SAFETY_CAP_V2
+        let minimum_full_cap = NOVA_ENVELOPE_SAFETY_CAP_V2
             .checked_add(RECURSIVE_OBJECT_PREHEADER_BYTES_V2)
             .ok_or(CheckpointError::Overflow)?;
         if envelope_cap < minimum_full_cap {
             return Err(CheckpointError::Authority);
         }
-        validate_object_ingress(RecursiveBoundedObjectV2::NovaBlockProof, bytes.len())
-            .map_err(map_envelope_cap_error)?;
-        if proof_envelope_component_digest(b"registry-framed-envelope", bytes)
+        validate_object_ingress(
+            RecursiveBoundedObjectV2::NovaBlockProof,
+            self.framed_envelope.len(),
+        )
+        .map_err(map_envelope_cap_error)?;
+        if proof_envelope_component_digest(b"registry-framed-envelope", &self.framed_envelope)
             != self.envelope_digest
         {
             return Err(CheckpointError::Canonical);
         }
+        Ok(NovaOuterCheckV2 {
+            checkpoint: self,
+            payload_offset: validated.header_len,
+        })
+    }
+
+    pub(crate) fn verify_exact_bytes(&self, bytes: &[u8]) -> Result<(), CheckpointError> {
+        let candidate = Self {
+            bundle: Arc::clone(&self.bundle),
+            initial_public_input: self.initial_public_input,
+            public_input: self.public_input,
+            portable_input: self.portable_input,
+            framed_envelope: bytes.to_vec(),
+            steps: self.steps,
+            is_terminal: self.is_terminal,
+            envelope_digest: self.envelope_digest,
+        };
+        let _ = candidate
+            .check_outer()?
+            .check_inner()?
+            .check_curve()?
+            .check_bundle()?
+            .check_backend()?
+            .check_limbs()?;
+        Ok(())
+    }
+}
+
+impl NovaOuterCheckV2 {
+    pub(crate) fn check_inner(self) -> Result<NovaInnerCheckV2, CheckpointError> {
+        let payload = self
+            .checkpoint
+            .framed_envelope
+            .get(self.payload_offset..)
+            .ok_or(CheckpointError::Canonical)?;
         let envelope = NovaProofEnvelopeV2::load_chain(
-            &bytes[validated.header_len..],
-            &self.bundle,
-            &self.initial_public_input,
-            &self.public_input,
+            payload,
+            &self.checkpoint.bundle,
+            &self.checkpoint.initial_public_input,
+            &self.checkpoint.public_input,
         )?;
-        if envelope.portable_input != self.portable_input {
-            return Err(CheckpointError::RecursiveRejected(
-                RecursiveCheckpointRejectReasonV2::PublicInputDigestMismatch,
-            ));
+        Ok(NovaInnerCheckV2 {
+            checkpoint: self.checkpoint,
+            envelope,
+        })
+    }
+}
+
+impl NovaInnerCheckV2 {
+    pub(crate) fn check_curve(self) -> Result<NovaCurveCheckV2, CheckpointError> {
+        let proof = self
+            .checkpoint
+            .bundle
+            .decode_compressed_proof(&self.envelope.body.proof_bytes)?;
+        Ok(NovaCurveCheckV2 {
+            checkpoint: self.checkpoint,
+            envelope: self.envelope,
+            proof,
+        })
+    }
+}
+
+impl NovaCurveCheckV2 {
+    pub(crate) fn check_bundle(self) -> Result<NovaBundleCheckV2, CheckpointError> {
+        if self.envelope.header.bundle_digest != self.checkpoint.bundle.digest()
+            || self.envelope.portable_input != self.checkpoint.portable_input
+            || self.envelope.header.steps != self.checkpoint.steps
+            || public_state_terminal(&self.envelope.final_state)? != self.checkpoint.is_terminal
+        {
+            return Err(CheckpointError::Authority);
         }
-        if public_state_terminal(&envelope.final_state)? != self.is_terminal {
+        Ok(NovaBundleCheckV2 {
+            checkpoint: self.checkpoint,
+            envelope: self.envelope,
+            proof: self.proof,
+        })
+    }
+}
+
+impl NovaBundleCheckV2 {
+    pub(crate) fn check_backend(self) -> Result<NovaBackendCheckV2, CheckpointError> {
+        self.checkpoint
+            .bundle
+            .check_steps(self.envelope.header.steps)?;
+        let steps =
+            usize::try_from(self.envelope.header.steps).map_err(|_| CheckpointError::Limit)?;
+        let output =
+            self.checkpoint
+                .bundle
+                .verify(&self.proof, steps, &self.envelope.initial_state)?;
+        Ok(NovaBackendCheckV2 {
+            checkpoint: self.checkpoint,
+            envelope: self.envelope,
+            output,
+        })
+    }
+}
+
+impl NovaBackendCheckV2 {
+    pub(crate) fn check_limbs(self) -> Result<VerifiedNovaCheckpointV2, CheckpointError> {
+        if self.output != self.envelope.final_state {
             return Err(CheckpointError::Invariant);
         }
-        envelope.verify_chain(&self.bundle, &self.initial_public_input, &self.public_input)?;
-        Ok(())
+        let _ = require_expected_public_endpoint(
+            self.output,
+            &self.checkpoint.public_input,
+            self.envelope.header.steps,
+            public_state_terminal(&self.envelope.final_state)?,
+        )?;
+        let bindings = self.checkpoint.bindings()?;
+        if bindings.steps != self.envelope.header.steps
+            || bindings.final_state_limbs
+                != u64::try_from(self.envelope.final_state.len())
+                    .map_err(|_| CheckpointError::Limit)?
+        {
+            return Err(CheckpointError::Invariant);
+        }
+        Ok(VerifiedNovaCheckpointV2 {
+            checkpoint: self.checkpoint,
+            bindings,
+        })
+    }
+}
+
+impl VerifiedNovaCheckpointV2 {
+    #[must_use]
+    pub(crate) fn framed_envelope(&self) -> &[u8] {
+        self.checkpoint.framed_envelope()
+    }
+
+    #[must_use]
+    pub(crate) const fn envelope_digest(&self) -> [u8; 32] {
+        self.checkpoint.envelope_digest()
+    }
+
+    pub(crate) fn bindings(&self) -> Result<NovaVerificationBindingsV2, CheckpointError> {
+        Ok(self.bindings)
+    }
+
+    pub(crate) fn verify_exact_bytes(&self, bytes: &[u8]) -> Result<(), CheckpointError> {
+        self.checkpoint.verify_exact_bytes(bytes)
     }
 }
 
@@ -23616,47 +23702,152 @@ pub(crate) struct NovaChainTransitionV2<'a> {
     pub(crate) store: &'a crate::settlement::SettlementStore,
 }
 
-pub(crate) fn prove_continuous_chain_v2(
-    blocks: &mut [NovaChainTransitionV2<'_>],
-    prover_material_bytes: &[u8],
-    verifier_bundle_bytes: &[u8],
-    prior: RecursiveFinalizedIvcStateV2,
-) -> Result<VerifiedNovaCheckpointV2, CheckpointError> {
-    let (first, rest) = blocks.split_first_mut().ok_or(CheckpointError::Invariant)?;
-    let evaluated = first.transition.evaluate(first.store)?;
-    let ready = CheckpointNovaRunnerV2::<NovaRunnerReadyV2>::load_for_transition(
-        prover_material_bytes,
-        verifier_bundle_bytes,
-        first.transition,
-        evaluated,
-        prior,
-    )?;
-    let mut ready = Some(ready);
-    let mut folding: Option<CheckpointNovaRunnerV2<NovaRunnerFoldingV2>> = None;
-    first.transition.replay_nova_events(first.store, |event| {
-        if let Some(mut active) = folding.take() {
-            active.push_event(event)?;
-            folding = Some(active);
-        } else {
-            let initial = ready.take().ok_or(CheckpointError::TraceState)?;
-            folding = Some(initial.first_event(event)?);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct NovaSessionStateV2 {
+    block_count: u32,
+    is_poisoned: bool,
+}
+
+impl NovaSessionStateV2 {
+    const fn started() -> Self {
+        Self {
+            block_count: 1,
+            is_poisoned: false,
+        }
+    }
+
+    fn ensure_live(self) -> Result<(), CheckpointError> {
+        if self.is_poisoned {
+            return Err(CheckpointError::TraceState);
         }
         Ok(())
-    })?;
-    let mut runner = folding.ok_or(CheckpointError::TraceState)?;
-    runner.finish_block(false)?;
-    first.transition.finish(first.store)?;
-
-    for block in rest.iter_mut() {
-        let evaluated = block.transition.evaluate(block.store)?;
-        runner.advance_transition(block.transition, evaluated)?;
-        block
-            .transition
-            .replay_nova_events(block.store, |event| runner.push_event(event))?;
-        runner.finish_block(false)?;
-        block.transition.finish(block.store)?;
     }
-    runner.snapshot()
+
+    fn begin_fold(&mut self) -> Result<(), CheckpointError> {
+        self.ensure_live()?;
+        self.is_poisoned = true;
+        Ok(())
+    }
+
+    fn commit_fold(&mut self) -> Result<(), CheckpointError> {
+        self.block_count = self
+            .block_count
+            .checked_add(1)
+            .ok_or(CheckpointError::Overflow)?;
+        self.is_poisoned = false;
+        Ok(())
+    }
+}
+
+/// Storage-owned continuous accumulator. A failed mutating fold permanently
+/// poisons the session so a partially advanced backend state cannot be reused.
+pub(crate) struct NovaContinuousSessionV2 {
+    runner: CheckpointNovaRunnerV2<NovaRunnerFoldingV2>,
+    state: NovaSessionStateV2,
+}
+
+impl NovaContinuousSessionV2 {
+    pub(crate) fn start(
+        first: NovaChainTransitionV2<'_>,
+        prover_material_bytes: &[u8],
+        verifier_bundle_bytes: &[u8],
+        prior: RecursiveFinalizedIvcStateV2,
+        guard: NovaRunGuardV2,
+    ) -> Result<Self, CheckpointError> {
+        let evaluated = first.transition.evaluate(first.store)?;
+        let ready = CheckpointNovaRunnerV2::<NovaRunnerReadyV2>::load_for_transition(
+            prover_material_bytes,
+            verifier_bundle_bytes,
+            first.transition,
+            evaluated,
+            prior,
+            guard,
+        )?;
+        let mut ready = Some(ready);
+        let mut folding: Option<CheckpointNovaRunnerV2<NovaRunnerFoldingV2>> = None;
+        first.transition.replay_nova_events(first.store, |event| {
+            if let Some(mut active) = folding.take() {
+                active.push_event(event)?;
+                folding = Some(active);
+            } else {
+                let initial = ready.take().ok_or(CheckpointError::TraceState)?;
+                folding = Some(initial.first_event(event)?);
+            }
+            Ok(())
+        })?;
+        let mut runner = folding.ok_or(CheckpointError::TraceState)?;
+        runner.finish_block(false)?;
+        first.transition.finish(first.store)?;
+        Ok(Self {
+            runner,
+            state: NovaSessionStateV2::started(),
+        })
+    }
+
+    pub(crate) fn fold_block(
+        &mut self,
+        block: NovaChainTransitionV2<'_>,
+    ) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
+        self.state.begin_fold()?;
+        let result = (|| {
+            let evaluated = block.transition.evaluate(block.store)?;
+            self.runner
+                .advance_transition(block.transition, evaluated)?;
+            block
+                .transition
+                .replay_nova_events(block.store, |event| self.runner.push_event(event))?;
+            let successor = self.runner.finish_block(false)?;
+            block.transition.finish(block.store)?;
+            Ok(successor)
+        })();
+        if result.is_ok() {
+            self.state.commit_fold()?;
+        }
+        result
+    }
+
+    pub(crate) fn renew_guard(&mut self, guard: NovaRunGuardV2) -> Result<(), CheckpointError> {
+        self.state.ensure_live()?;
+        self.runner.renew_guard(guard)
+    }
+
+    pub(crate) fn fold_blocks(
+        &mut self,
+        blocks: &mut [NovaChainTransitionV2<'_>],
+    ) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
+        if blocks.is_empty() {
+            return Err(CheckpointError::TraceState);
+        }
+        let mut successor = self.successor()?;
+        for block in blocks {
+            successor = self.fold_block(NovaChainTransitionV2 {
+                transition: &mut *block.transition,
+                store: block.store,
+            })?;
+        }
+        Ok(successor)
+    }
+
+    pub(crate) fn snapshot(&self) -> Result<NovaCheckpointCandidateV2, CheckpointError> {
+        self.state.ensure_live()?;
+        if self.state.block_count < 3 {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::ChainTooShort,
+            ));
+        }
+        self.runner.snapshot()
+    }
+
+    pub(crate) fn successor(&self) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
+        self.state.ensure_live()?;
+        let steps = u64::try_from(self.runner.steps).map_err(|_| CheckpointError::Limit)?;
+        RecursiveFinalizedIvcStateV2::expected_successor(&self.runner.public_input, steps)
+    }
+
+    pub(crate) fn bundle_digest(&self) -> Result<[u8; 32], CheckpointError> {
+        self.state.ensure_live()?;
+        Ok(self.runner.bundle.digest())
+    }
 }
 
 /// The sole post-Nova application comparator.  The backend verifier returns
@@ -23779,7 +23970,8 @@ fn decode_public_state(bytes: &[u8]) -> Result<Vec<Scalar>, CheckpointError> {
 }
 
 fn encode_bincode<T: Serialize>(value: &T, cap: usize) -> Result<Vec<u8>, CheckpointError> {
-    let bytes = bincode::serde::encode_to_vec(value, bincode::config::legacy())
+    let bytes = BincodeCodec
+        .serialize_legacy(value)
         .map_err(|_| CheckpointError::Canonical)?;
     if bytes.len() > cap {
         return Err(CheckpointError::Limit);
@@ -23793,10 +23985,10 @@ fn decode_bincode<T: DeserializeOwned + Serialize, const CAP: usize>(
     if bytes.len() > CAP {
         return Err(CheckpointError::Limit);
     }
-    let (decoded, consumed) =
-        bincode::serde::decode_from_slice(bytes, bincode::config::legacy().with_limit::<CAP>())
-            .map_err(|_| CheckpointError::Canonical)?;
-    if consumed != bytes.len() || encode_bincode(&decoded, CAP)? != bytes {
+    let decoded = BincodeCodec
+        .deserialize_legacy_bounded::<T, CAP>(bytes)
+        .map_err(|_| CheckpointError::Canonical)?;
+    if encode_bincode(&decoded, CAP)? != bytes {
         return Err(CheckpointError::Canonical);
     }
     Ok(decoded)
@@ -24121,16 +24313,32 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         include_bytes!("../../../z00z_utils/src/io/atomic_write.rs"),
     ),
     (
+        "crates/z00z_utils/src/io/error.rs",
+        include_bytes!("../../../z00z_utils/src/io/error.rs"),
+    ),
+    (
         "crates/z00z_utils/src/io/file_read.rs",
         include_bytes!("../../../z00z_utils/src/io/file_read.rs"),
+    ),
+    (
+        "crates/z00z_utils/src/io/fs.rs",
+        include_bytes!("../../../z00z_utils/src/io/fs.rs"),
+    ),
+    (
+        "crates/z00z_utils/src/io/fs_codec.rs",
+        include_bytes!("../../../z00z_utils/src/io/fs_codec.rs"),
     ),
     (
         "crates/z00z_utils/src/io/mod.rs",
         include_bytes!("../../../z00z_utils/src/io/mod.rs"),
     ),
+    (
+        "crates/z00z_utils/src/io/secure.rs",
+        include_bytes!("../../../z00z_utils/src/io/secure.rs"),
+    ),
 ];
 
-fn source_revision_manifest_matches() -> bool {
+fn is_source_manifest_current() -> bool {
     let manifest_paths = SOURCE_REVISION_MANIFEST_V2
         .lines()
         .filter(|line| !line.is_empty());
@@ -24144,7 +24352,7 @@ fn source_revision_digest() -> [u8; 32] {
     // trust boundary consumed by the six-field context. The independently
     // reviewed manifest fixes path order; a list mismatch fails closed to the
     // zero sentinel and cannot identify an authority-selected bundle.
-    if !source_revision_manifest_matches() {
+    if !is_source_manifest_current() {
         return [0; 32];
     }
     let mut parts: Vec<&[u8]> = Vec::with_capacity(2 + 2 * SOURCE_REVISION_ENTRIES_V2.len());
@@ -24333,10 +24541,10 @@ mod tests {
         NovaTypedSourceEventV2, NovaVerifierBundleV2, RecursiveAuthoritySnapshotV2,
         RecursiveCheckpointRejectReasonV2, RecursiveCircuitProfileV2, RecursiveCircuitSpecV2,
         RecursiveNovaStepInputV2, Scalar, VerifierBundleBindingV2, VerifierBundleHeaderV2,
-        VerifierBundleSelectionV2, CONTROL_TRANSITION_TABLE_V2, MAX_NOVA_COMPRESSED_PROOF_BYTES_V2,
-        NOVA_BUNDLE_SAFETY_CAP_V2, NOVA_PALLAS_AFFINE_WIRE_BYTES_V2,
-        NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2, NOVA_RESOURCE_LIMITS_V2, NOVA_VK_SAFETY_CAP_V2,
-        NOVA_WORKER_SAFETY_CAP_V2, RUNNING_STATE_ARITY_V2, VERIFIER_BUNDLE_HEADER_BYTES_V2,
+        VerifierBundleSelectionV2, CONTROL_TRANSITION_TABLE_V2, NOVA_BUNDLE_SAFETY_CAP_V2,
+        NOVA_ENVELOPE_HEADER_BYTES_V2, NOVA_PROOF_MAX_BYTES_V2, NOVA_RESOURCE_LIMITS_V2,
+        NOVA_VK_SAFETY_CAP_V2, NOVA_WORKER_SAFETY_CAP_V2, PALLAS_AFFINE_WIRE_BYTES_V2,
+        RUNNING_STATE_ARITY_V2, VERIFIER_BUNDLE_HEADER_BYTES_V2,
     };
     use ff::PrimeField;
     use fs2::FileExt;
@@ -24356,6 +24564,7 @@ mod tests {
     };
     use tempfile::TempDir;
     use z00z_crypto::{hash::sha256_256_simple, CheckpointSha256BlockV2};
+    use zeroize::Zeroize;
 
     use crate::{
         checkpoint::{
@@ -24369,9 +24578,9 @@ mod tests {
                 UniquenessSemanticRowV2, UniquenessSetKindV2,
             },
             recursive_trace::{
-                decode_hash_control, emit_settlement_transcript_hash_controls_for_test,
-                structural_event_id, HashControlSchemaV2, HashControlStageV2,
-                RecursiveTraceEventV2, RecursiveTraceOpcodeV2, RecursiveTransitionTraceSourceV2,
+                decode_hash_control, emit_test_transcript_controls, structural_event_id,
+                HashControlSchemaV2, HashControlStageV2, RecursiveTraceEventV2,
+                RecursiveTraceOpcodeV2, RecursiveTransitionTraceSourceV2,
                 UniquenessTranscriptHashJobV2,
             },
             CheckpointDraft, CheckpointExecInput, CheckpointExecOut, CheckpointExecTx,
@@ -24405,8 +24614,8 @@ mod tests {
     }
 
     #[test]
-    fn envelope_magic_and_format_have_distinct_error_classes() {
-        let mut bytes = vec![0_u8; super::NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2];
+    fn test_envelope_errors_are_distinct() {
+        let mut bytes = vec![0_u8; super::NOVA_ENVELOPE_HEADER_BYTES_V2];
         bytes[..8].copy_from_slice(b"BADMAGIC");
         bytes[8] = super::NOVA_PROOF_ENVELOPE_FORMAT_V2;
         assert!(matches!(
@@ -24425,7 +24634,7 @@ mod tests {
     }
 
     #[test]
-    fn envelope_digests_consume_registry_owned_domain_identity() {
+    fn test_envelope_digests_bind_registry() {
         assert_eq!(
             super::proof_envelope_component_digest(b"component", b"payload"),
             z00z_crypto::sha256_256(
@@ -24680,13 +24889,13 @@ mod tests {
     }
 
     const NOVA_WORKER_MARKER_V2: &str = "Z00Z_NOVA_WORKER_V2";
-    const NOVA_WORKER_EXECUTION_MARKER_PATH_V2: &str = "Z00Z_NOVA_WORKER_EXECUTION_MARKER_PATH_V2";
-    const NOVA_SINGLE_FLIGHT_PROBE_MARKER_V2: &str = "Z00Z_NOVA_SINGLE_FLIGHT_PROBE_V2";
+    const NOVA_WORKER_MARKER_PATH_V2: &str = "Z00Z_NOVA_WORKER_MARKER_PATH_V2";
+    const NOVA_FLIGHT_PROBE_MARKER_V2: &str = "Z00Z_NOVA_SINGLE_FLIGHT_PROBE_V2";
     const NOVA_VERIFIER_ONLY_MARKER_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_V2";
-    const NOVA_VERIFIER_ONLY_BUNDLE_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2";
-    const NOVA_VERIFIER_ONLY_ENVELOPE_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_ENVELOPE_V2";
-    const NOVA_VERIFIER_ONLY_SELECTION_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_SELECTION_V2";
-    const NOVA_VERIFIER_ONLY_SELECTION_BYTES_V2: usize = 32 * 5 + 8 * 7;
+    const NOVA_VERIFIER_BUNDLE_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2";
+    const NOVA_VERIFIER_ENVELOPE_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_ENVELOPE_V2";
+    const NOVA_VERIFIER_SELECTION_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_SELECTION_V2";
+    const NOVA_VERIFIER_SELECTION_BYTES_V2: usize = 32 * 5 + 8 * 7;
     // Emergency diagnostic hard-stop only. The complete 1,727-step relation
     // plus a second recomputed Model C proof exceeds the former 900-second
     // harness limit at measured fold latency. This is not an authority
@@ -24805,7 +25014,7 @@ mod tests {
         let _lease = acquire_nova_worker_lease(&test_name)
             .unwrap_or_else(|error| panic!("cannot start bounded Nova worker: {error}"));
         if std::env::var_os(NOVA_WORKER_MARKER_V2).is_some() {
-            let marker_path = std::env::var_os(NOVA_WORKER_EXECUTION_MARKER_PATH_V2)
+            let marker_path = std::env::var_os(NOVA_WORKER_MARKER_PATH_V2)
                 .expect("bounded Nova child requires an execution-marker path");
             fs::write(&marker_path, &test_name)
                 .expect("bounded Nova child records the exact executed test");
@@ -24841,10 +25050,7 @@ mod tests {
             .arg("--ignored")
             .arg("--nocapture")
             .env(NOVA_WORKER_MARKER_V2, "1")
-            .env(
-                NOVA_WORKER_EXECUTION_MARKER_PATH_V2,
-                execution_marker.path(),
-            )
+            .env(NOVA_WORKER_MARKER_PATH_V2, execution_marker.path())
             // The safety boundary is virtual address space, not resident
             // memory.  Glibc's per-thread arenas retain freed mappings across
             // the disjoint Nova setup/compression phases and can exhaust
@@ -24897,8 +25103,8 @@ mod tests {
     }
 
     #[test]
-    fn nova_worker_single_flight_probe() {
-        if std::env::var_os(NOVA_SINGLE_FLIGHT_PROBE_MARKER_V2).is_none() {
+    fn test_nova_worker_flight_probe() {
+        if std::env::var_os(NOVA_FLIGHT_PROBE_MARKER_V2).is_none() {
             return;
         }
         let test_name = std::thread::current()
@@ -24919,7 +25125,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_worker_single_flight_rejects_cross_process_parent() {
+    fn test_nova_worker_rejects_parent() {
         // All parent-side users of the repository-wide worker lease must also
         // serialize inside this test process.  Otherwise the Rust test harness
         // can run this deliberate contention probe beside a real-Nova parent,
@@ -24936,13 +25142,13 @@ mod tests {
         let lease = acquire_nova_worker_lease(&test_name)
             .expect("open parent single-flight lease")
             .expect("a parent must own a lease");
-        let probe = "checkpoint::nova::tests::nova_worker_single_flight_probe";
+        let probe = "checkpoint::nova::tests::test_nova_worker_flight_probe";
         let test_binary = format!("/proc/{}/exe", std::process::id());
         let output = Command::new(test_binary)
             .arg("--exact")
             .arg(probe)
             .arg("--nocapture")
-            .env(NOVA_SINGLE_FLIGHT_PROBE_MARKER_V2, "1")
+            .env(NOVA_FLIGHT_PROBE_MARKER_V2, "1")
             .output()
             .expect("start competing Nova-worker parent probe");
         drop(lease);
@@ -24966,9 +25172,9 @@ mod tests {
     }
 
     #[test]
-    fn verifier_identity_binds_live_path() {
+    fn test_verifier_identity_binds_path() {
         ensure_test_identity();
-        assert!(super::source_revision_manifest_matches());
+        assert!(super::is_source_manifest_current());
         let expected = include_str!("../../tests/fixtures/recursive_source_revision_v2.hex").trim();
         assert_eq!(
             super::lowercase_hex(super::source_revision_digest()),
@@ -24992,7 +25198,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_backend_manifest_lock_and_private_owner_are_exact() {
+    fn test_nova_backend_owner_locked() {
         let workspace_manifest = include_str!("../../../../Cargo.toml");
         let storage_manifest = include_str!("../../Cargo.toml");
         let lockfile = include_str!("../../../../Cargo.lock");
@@ -25056,7 +25262,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_dependency_transcript_entropy_and_source_files_are_exact() {
+    fn test_nova_dependency_transcript_pinned() {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
             .canonicalize()
@@ -25207,7 +25413,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_poseidon_constant_wires_are_pinned_for_both_cycle_fields() {
+    fn test_nova_poseidon_wires_pinned() {
         use nova_snark::provider::poseidon::PoseidonConstantsCircuit;
 
         let pallas_scalar = measured_bincode(&PoseidonConstantsCircuit::<Scalar>::default());
@@ -25245,7 +25451,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_pasta_identity_and_first_generator_wires_are_explicit() {
+    fn test_nova_pasta_identity_pinned() {
         type PrimaryCommitmentEngine = <PallasEngine as Engine>::CE;
         type SecondaryCommitmentEngine = <VestaEngine as Engine>::CE;
         type PrimaryGroup = <PallasEngine as Engine>::GE;
@@ -25326,7 +25532,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_pasta_keccak_transcript_is_non_evm_and_pinned() {
+    fn test_nova_keccak_transcript_pinned() {
         fn challenges<E: Engine>() -> [[u8; 32]; 2] {
             let mut transcript = <E as Engine>::TE::new(b"test");
             transcript.absorb(b"s1", &E::Scalar::from(2_u64));
@@ -25389,7 +25595,7 @@ mod tests {
     }
 
     fn encode_test_verifier_selection(selection: VerifierBundleSelectionV2) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(NOVA_VERIFIER_ONLY_SELECTION_BYTES_V2);
+        let mut bytes = Vec::with_capacity(NOVA_VERIFIER_SELECTION_BYTES_V2);
         bytes.extend_from_slice(&selection.binding.authority_digest);
         bytes.extend_from_slice(&selection.binding.profile_digest);
         bytes.extend_from_slice(&selection.binding.spec_digest);
@@ -25401,14 +25607,14 @@ mod tests {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         bytes.extend_from_slice(&selection.bundle_digest);
-        assert_eq!(bytes.len(), NOVA_VERIFIER_ONLY_SELECTION_BYTES_V2);
+        assert_eq!(bytes.len(), NOVA_VERIFIER_SELECTION_BYTES_V2);
         bytes
     }
 
     fn decode_test_verifier_selection(bytes: &[u8]) -> VerifierBundleSelectionV2 {
         assert_eq!(
             bytes.len(),
-            NOVA_VERIFIER_ONLY_SELECTION_BYTES_V2,
+            NOVA_VERIFIER_SELECTION_BYTES_V2,
             "verifier selection fixture has one exact encoding",
         );
         let mut cursor = 0;
@@ -25447,6 +25653,8 @@ mod tests {
                 authority_generation,
                 activation_start_height,
                 activation_end_height,
+                max_cumulative_steps: RecursiveCircuitProfileV2::authority_pinned()
+                    .max_cumulative_steps(),
                 expected_shape,
             },
             bundle_digest,
@@ -25517,7 +25725,7 @@ mod tests {
     }
 
     #[test]
-    fn real_nova_verifier_only_clean_process() {
+    fn test_nova_clean_verifier_process() {
         if std::env::var_os(NOVA_VERIFIER_ONLY_MARKER_V2).is_none() {
             return;
         }
@@ -25526,17 +25734,15 @@ mod tests {
             "verifier-only evidence must descend from the bounded proof worker",
         );
         let selection_bytes = read_bounded_verifier_artifact(
-            NOVA_VERIFIER_ONLY_SELECTION_PATH_V2,
-            NOVA_VERIFIER_ONLY_SELECTION_BYTES_V2,
+            NOVA_VERIFIER_SELECTION_PATH_V2,
+            NOVA_VERIFIER_SELECTION_BYTES_V2,
         );
         let selection = decode_test_verifier_selection(&selection_bytes);
-        let bundle_bytes = read_bounded_verifier_artifact(
-            NOVA_VERIFIER_ONLY_BUNDLE_PATH_V2,
-            NOVA_BUNDLE_SAFETY_CAP_V2,
-        );
+        let bundle_bytes =
+            read_bounded_verifier_artifact(NOVA_VERIFIER_BUNDLE_PATH_V2, NOVA_BUNDLE_SAFETY_CAP_V2);
         let envelope_bytes = read_bounded_verifier_artifact(
-            NOVA_VERIFIER_ONLY_ENVELOPE_PATH_V2,
-            super::NOVA_PROOF_ENVELOPE_SAFETY_CAP_V2,
+            NOVA_VERIFIER_ENVELOPE_PATH_V2,
+            super::NOVA_ENVELOPE_SAFETY_CAP_V2,
         );
 
         // There is intentionally no PP/PK/setup object in this process. The
@@ -25581,7 +25787,7 @@ mod tests {
         mutated
     }
 
-    fn assert_bundle_rejected_before_proof_decode(
+    fn assert_bundle_rejected_early(
         bundle: &[u8],
         binding: VerifierBundleBindingV2,
         expected_bundle_digest: [u8; 32],
@@ -25601,10 +25807,9 @@ mod tests {
         label: &str,
     ) {
         assert!(
-            super::decode_bincode::<
-                super::NovaVerifierKey,
-                { super::NOVA_VK_DECODE_SAFETY_CAP_V2 },
-            >(invalid_vk)
+            super::decode_bincode::<super::NovaVerifierKey, { super::NOVA_VK_DECODE_CAP_V2 }>(
+                invalid_vk
+            )
             .is_err(),
             "{label} must fail the dependency key decoder"
         );
@@ -25632,7 +25837,7 @@ mod tests {
         let mut selected_bundle = header.encode();
         selected_bundle.extend_from_slice(&invalid_payload);
         let selected_digest = super::bundle_payload_digest(b"verifier-bundle", &selected_bundle);
-        assert_bundle_rejected_before_proof_decode(&selected_bundle, binding, selected_digest);
+        assert_bundle_rejected_early(&selected_bundle, binding, selected_digest);
     }
 
     fn mutate_prover_material_header(
@@ -26127,12 +26332,12 @@ mod tests {
             .expect("mixed pre-settlement root");
         let pre_definition_root = store.recursive_v2_definition_root();
         let mut post = store.recursive_v2_preflight_clone();
-        post.apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
+        post.apply_test_exec_handoff_v2(handoff.clone(), temp.path())
             .expect("mixed transition preflight");
         let post_settlement_root = post
             .settlement_root_v2(7)
             .expect("mixed post-settlement root");
-        let prior = super::RecursiveFinalizedIvcStateV2::cutover(
+        let prior = super::RecursiveFinalizedIvcStateV2::cutover_fixture(
             CheckpointId::new([predecessor_tag; 32]),
             *pre_settlement_root.as_bytes(),
             pre_definition_root,
@@ -26254,11 +26459,12 @@ mod tests {
         let compressed = Proof::prove(&prover.pp, &prover.pk, &recursive)
             .expect("compress recomputed mixed candidate");
         let bytes = measured_bincode(&compressed);
-        assert!(bytes.len() <= MAX_NOVA_COMPRESSED_PROOF_BYTES_V2);
+        assert!(bytes.len() <= NOVA_PROOF_MAX_BYTES_V2);
         bytes
     }
 
     fn canonical_mixed_schedule_counts() -> (usize, BTreeMap<u8, usize>, Vec<(u8, u8)>) {
+        ensure_test_identity();
         let temp = TempDir::new().expect("mixed schedule tempdir");
         let profile = RecursiveCircuitProfileV2::authority_pinned();
         let input = mixed_path(1, 1, 1);
@@ -26273,12 +26479,12 @@ mod tests {
             .expect("mixed schedule pre-settlement root");
         let pre_definition_root = store.recursive_v2_definition_root();
         let mut post = store.recursive_v2_preflight_clone();
-        post.apply_exec_handoff_v2_for_test(handoff.clone(), temp.path())
+        post.apply_test_exec_handoff_v2(handoff.clone(), temp.path())
             .expect("mixed schedule transition preflight");
         let post_settlement_root = post
             .settlement_root_v2(7)
             .expect("mixed schedule post-settlement root");
-        let prior = super::RecursiveFinalizedIvcStateV2::cutover(
+        let prior = super::RecursiveFinalizedIvcStateV2::cutover_fixture(
             CheckpointId::new([1; 32]),
             *pre_settlement_root.as_bytes(),
             pre_definition_root,
@@ -26330,7 +26536,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_mixed_schedule_has_every_opcode_and_reports_exact_steps() {
+    fn test_mixed_schedule_reports_steps() {
         let (steps, counts, suffix) = canonical_mixed_schedule_counts();
         let expected = opcode_list()
             .into_iter()
@@ -26342,15 +26548,17 @@ mod tests {
         );
     }
 
-    fn cache_binding_fixture() -> super::VerifierBundleBindingV2 {
+    fn replay_binding_fixture() -> super::VerifierBundleBindingV2 {
+        let profile = RecursiveCircuitProfileV2::authority_pinned();
         super::VerifierBundleBindingV2 {
             authority_digest: [1; 32],
-            profile_digest: RecursiveCircuitProfileV2::authority_pinned().digest(),
+            profile_digest: profile.digest(),
             spec_digest: [3; 32],
             pp_digest: [4; 32],
             authority_generation: 1,
             activation_start_height: 1,
             activation_end_height: 10,
+            max_cumulative_steps: profile.max_cumulative_steps(),
             expected_shape: super::NovaAugmentedShapeV2 {
                 primary_constraints: 1,
                 secondary_constraints: 2,
@@ -26361,23 +26569,8 @@ mod tests {
     }
 
     #[test]
-    fn prover_cache_identity_lock_and_replay_recovery_are_strict() {
-        let temp = TempDir::new().expect("cache tempdir");
-        let cache = super::NovaProverMaterialCacheV2::open(temp.path().join("pppk"))
-            .expect("private cache root");
-        let binding = cache_binding_fixture();
-        let key = super::nova_cache_key(binding).expect("cache identity");
-        let mut changed = binding;
-        changed.authority_generation += 1;
-        assert_ne!(
-            key,
-            super::nova_cache_key(changed).expect("changed cache identity")
-        );
-        let lock = cache.lock().expect("first cache lock");
-        assert!(matches!(cache.lock(), Err(CheckpointError::Resource)));
-        drop(lock);
-        cache.lock().expect("lock released after owner drop");
-
+    fn test_replay_recovery_strict() {
+        let binding = replay_binding_fixture();
         let recovery = super::NovaReplayRecoveryV2::new(binding, [0x77; 32], 2)
             .expect("replay recovery boundary");
         let bytes = recovery.canonical_bytes();
@@ -26392,7 +26585,7 @@ mod tests {
 
     #[test]
     #[ignore = "real prover-material setup is milestone-only; run nova_milestone_tests.sh artifacts"]
-    fn prover_material_roundtrip_rejects_identity_length_payload_and_key_substitution() {
+    fn test_prover_material_rejects_substitution() {
         ensure_test_identity();
         let _guard = real_nova_proof_lock()
             .lock()
@@ -26475,81 +26668,6 @@ mod tests {
             material,
             "accepted recovery material has exactly one wire encoding"
         );
-        let cache_dir = TempDir::new().expect("private prover cache tempdir");
-        let cache = super::NovaProverMaterialCacheV2::open(cache_dir.path().join("pppk"))
-            .expect("private prover cache");
-        let cache_key = cache
-            .store(&loaded, binding)
-            .expect("atomic private PP/PK cache store");
-        assert_eq!(
-            cache
-                .load(binding)
-                .expect("strict private PP/PK cache load")
-                .encode(binding)
-                .expect("cached material canonical re-encode"),
-            material
-        );
-        let cache_path = cache.cache_path(cache_key);
-        #[cfg(unix)]
-        assert_eq!(
-            std::fs::symlink_metadata(&cache_path)
-                .expect("cache metadata")
-                .permissions()
-                .mode()
-                & 0o777,
-            0o600
-        );
-        let mut stale_binding = binding;
-        stale_binding.authority_generation += 1;
-        assert!(cache.load(stale_binding).is_err());
-        let mut corrupt_cache = material.clone();
-        corrupt_cache[super::PROVER_MATERIAL_HEADER_BYTES_V2] ^= 1;
-        std::fs::write(&cache_path, corrupt_cache).expect("replace cache with corrupt fixture");
-        assert!(cache.load(binding).is_err());
-        assert!(
-            !cache_path.exists(),
-            "a corrupt private cache entry is deleted under the cache lock"
-        );
-        cache
-            .store(&loaded, binding)
-            .expect("a deleted corrupt cache entry can be regenerated atomically");
-        assert_eq!(
-            cache
-                .load(binding)
-                .expect("regenerated private cache load")
-                .encode(binding)
-                .expect("regenerated cache canonical re-encode"),
-            material
-        );
-        let stale_cache_path = cache.root.join(format!(
-            "{}{}",
-            "00".repeat(32),
-            super::NOVA_CACHE_SUFFIX_V2
-        ));
-        let partial_cache_path = cache.root.join(".z00z-nova-cache-crash-partial");
-        std::fs::write(&stale_cache_path, b"stale").expect("stale cache fixture");
-        std::fs::write(&partial_cache_path, b"partial").expect("partial cache fixture");
-        cache
-            .store(&loaded, binding)
-            .expect("single cache owner prunes stale and partial entries under lock");
-        assert!(!stale_cache_path.exists());
-        assert!(!partial_cache_path.exists());
-        #[cfg(unix)]
-        {
-            std::fs::remove_file(&cache_path).expect("remove regenerated cache fixture");
-            std::os::unix::fs::symlink("missing-prover-material", &cache_path)
-                .expect("install dangling cache symlink");
-            cache
-                .store(&loaded, binding)
-                .expect("dangling cache symlink is removed before atomic regeneration");
-            assert!(
-                !std::fs::symlink_metadata(&cache_path)
-                    .expect("regenerated cache metadata")
-                    .file_type()
-                    .is_symlink(),
-                "the regenerated cache entry is a private regular file"
-            );
-        }
 
         for mutate in [
             |header: &mut super::ProverMaterialHeaderV2| {
@@ -26586,12 +26704,12 @@ mod tests {
             |header: &mut super::ProverMaterialHeaderV2| header.lockfile_digest[0] ^= 1,
             |header: &mut super::ProverMaterialHeaderV2| header.manifest_digest[0] ^= 1,
             |header: &mut super::ProverMaterialHeaderV2| {
-                header.pp_payload_bytes = u32::try_from(super::MAX_NOVA_PUBLIC_PARAMETERS_BYTES_V2)
+                header.pp_payload_bytes = u32::try_from(super::NOVA_PUBLIC_PARAMS_MAX_BYTES)
                     .expect("PP safety cap fits u32")
                     .saturating_add(1)
             },
             |header: &mut super::ProverMaterialHeaderV2| {
-                header.pk_payload_bytes = u32::try_from(super::MAX_NOVA_PROVER_KEY_BYTES_V2)
+                header.pk_payload_bytes = u32::try_from(super::NOVA_PROVER_KEY_MAX_BYTES)
                     .expect("PK safety cap fits u32")
                     .saturating_add(1)
             },
@@ -26617,7 +26735,7 @@ mod tests {
             .checked_sub(32)
             .expect("Nova PK contains the secondary VK digest");
         pk_payload[vk_digest_offset] ^= 1;
-        super::decode_bincode::<super::NovaProverKey, { super::MAX_NOVA_PROVER_KEY_BYTES_V2 }>(
+        super::decode_bincode::<super::NovaProverKey, { super::NOVA_PROVER_KEY_MAX_BYTES }>(
             pk_payload,
         )
         .expect("the substituted PK remains a canonical dependency object");
@@ -26632,7 +26750,7 @@ mod tests {
 
     #[test]
     #[ignore = "full 1,727-step TestCS replay is milestone-only; run nova_milestone_tests.sh testcs"]
-    fn complete_mixed_fixture_satisfies_every_test_cs_step() {
+    fn test_mixed_fixture_satisfies_testcs() {
         ensure_test_identity();
         let _guard = real_nova_proof_lock()
             .lock()
@@ -26960,7 +27078,7 @@ mod tests {
         .as_bytes();
         let profile = RecursiveCircuitProfileV2::authority_pinned();
         let mut controls = Vec::new();
-        emit_settlement_transcript_hash_controls_for_test(
+        emit_test_transcript_controls(
             job,
             context,
             precommit,
@@ -27007,7 +27125,7 @@ mod tests {
         }
         let post_hex = z00z_crypto::expert::encoding::to_hex(&post_settlement_root);
         for (index, byte) in post_hex.bytes().enumerate() {
-            state.cells[super::FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + index] =
+            state.cells[super::FINALIZE_POST_ROOT_HEX_START + index] =
                 Scalar::from(u64::from(byte));
         }
         (state, controls, post_settlement_root)
@@ -27032,7 +27150,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive settlement transcript R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn settlement_root_sha_jobs_bind_policy_layout_definition_and_finalize_post_root() {
+    fn test_settlement_sha_jobs_bind() {
         for job in [
             UniquenessTranscriptHashJobV2::SettlementPreRoot,
             UniquenessTranscriptHashJobV2::SettlementPostRoot,
@@ -27071,8 +27189,7 @@ mod tests {
 
             if job == UniquenessTranscriptHashJobV2::SettlementPostRoot {
                 let mut changed = state;
-                changed.cells[super::FINALIZE_POST_SETTLEMENT_ROOT_HEX_START] =
-                    Scalar::from(u64::from(b'0'));
+                changed.cells[super::FINALIZE_POST_ROOT_HEX_START] = Scalar::from(u64::from(b'0'));
                 let failure = match run_settlement_transcript_until_failure(changed, &controls) {
                     Err(failure) => failure,
                     Ok(_) => panic!("changed FinalizeBlock post-root must reject"),
@@ -27087,7 +27204,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive FinalizeBlock R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn finalize_settlement_roots_are_decoded_from_the_canonical_r1cs_window() {
+    fn test_finalize_roots_decode_window() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let mut pre_root_bytes = [0_u8; 32];
         for limb in 0..super::DIGEST_LIMBS {
@@ -27129,9 +27246,7 @@ mod tests {
         }
         for index in 0..64 {
             assert_eq!(
-                super::scalar_u64(
-                    state.cells[super::FINALIZE_POST_SETTLEMENT_ROOT_HEX_START + index]
-                ),
+                super::scalar_u64(state.cells[super::FINALIZE_POST_ROOT_HEX_START + index]),
                 u64::from(b"44".repeat(32)[index]),
                 "post-root hexadecimal byte {index} must come from the sole canonical window"
             );
@@ -27167,7 +27282,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive JMT R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn jmt_header_and_promoted_root_are_bound_directly_in_r1cs() {
+    fn test_jmt_header_binds_root() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let initial = CheckpointRunningStateV2::initial(&anchors);
         let trace_digest = super::noop_update_trace_digest();
@@ -27373,7 +27488,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive JMT mutation R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn jmt_new_root_machine_accepts_all_native_mutation_cases() {
+    fn test_jmt_machine_accepts_mutations() {
         for (label, header, records) in jmt_mutation_case_circuit_transcripts_for_test() {
             let update_trace_digest: [u8; 32] = header[3..35]
                 .try_into()
@@ -27462,7 +27577,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive hierarchy R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn hierarchy_r1cs_consumes_canonical_roles_parent_values_and_definition_root() {
+    fn test_hierarchy_r1cs_binds_definition() {
         let (header, records, definition_root) = hierarchy_circuit_transcript_for_test();
         let mut event_counts = super::RecursiveTraceEventCountsV2::default();
         event_counts
@@ -27628,7 +27743,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive typed-commitment R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn typed_checkpoint_commitments_bind_x_h_fields_in_canonical_order() {
+    fn test_checkpoint_commitments_bind_fields() {
         use crate::checkpoint::recursive_semantics::{
             encode_typed_checkpoint_commitment, TypedCheckpointCommitmentKindV2,
         };
@@ -27749,7 +27864,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive authenticated JMT mutation corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn jmt_new_root_machine_rejects_authenticated_transcript_mutations() {
+    fn test_jmt_machine_rejects_mutations() {
         let transcript_is_satisfied = |header: &[u8], records: &[Vec<u8>]| {
             let update_trace_digest: [u8; 32] = header[3..35]
                 .try_into()
@@ -27889,7 +28004,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive JMT framing R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn jmt_micro_operation_framing_is_ordered_and_counted_in_r1cs() {
+    fn test_jmt_framing_ordered_counted() {
         let trace_digest = [0x33_u8; 32];
         let mut event_counts = super::RecursiveTraceEventCountsV2::default();
         event_counts
@@ -28163,21 +28278,17 @@ mod tests {
         crate::checkpoint::recursive_trace::RecursiveTracePrecommitV2,
         Vec<NovaTypedSourceEventV2>,
     ) {
-        canonical_hash_control_events_for_replay(
-            RecursiveTraceOpcodeV2::ReplayInput,
-            ScopeOpKind::Delete,
-        )
+        build_replay_hash_controls(RecursiveTraceOpcodeV2::ReplayInput, ScopeOpKind::Delete)
     }
 
-    fn canonical_hash_control_events_for_replay(
+    fn build_replay_hash_controls(
         replay_opcode: RecursiveTraceOpcodeV2,
         replay_op_kind: ScopeOpKind,
     ) -> (
         crate::checkpoint::recursive_trace::RecursiveTracePrecommitV2,
         Vec<NovaTypedSourceEventV2>,
     ) {
-        let (precommit, schedule) =
-            global_trace_hash_control_fixture_for_replay(replay_opcode, replay_op_kind);
+        let (precommit, schedule) = build_global_hash_fixture(replay_opcode, replay_op_kind);
         let mut phase = ControlPhaseV2::Idle;
         let mut events = Vec::with_capacity(schedule.len());
         for event in schedule {
@@ -28678,7 +28789,7 @@ mod tests {
     /// direct state mutation. The exhaustive semantic corpus and all Nova
     /// setup/folding/proof work remain explicit milestone-only gates.
     #[test]
-    fn nova_r1cs_canonical_and_mutation_smoke() {
+    fn test_nova_r1cs_mutation_smoke() {
         let (anchors, events, state) = canonical_hash_control_initial_fixture();
         let circuit = source_circuit(
             anchors.clone(),
@@ -28709,13 +28820,10 @@ mod tests {
         crate::checkpoint::recursive_trace::RecursiveTracePrecommitV2,
         Vec<RecursiveTraceEventV2>,
     ) {
-        global_trace_hash_control_fixture_for_replay(
-            RecursiveTraceOpcodeV2::ReplayInput,
-            ScopeOpKind::Delete,
-        )
+        build_global_hash_fixture(RecursiveTraceOpcodeV2::ReplayInput, ScopeOpKind::Delete)
     }
 
-    fn global_trace_hash_control_fixture_for_replay(
+    fn build_global_hash_fixture(
         replay_opcode: RecursiveTraceOpcodeV2,
         replay_op_kind: ScopeOpKind,
     ) -> (
@@ -28880,7 +28988,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive fixed-FIPS R1CS schedule is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn canonical_hash_controls_bind_the_fixed_fips_schedule() {
+    fn test_hash_controls_bind_fips() {
         let (anchors, events, states, final_state) = canonical_hash_control_fixture();
         let shapes = events
             .iter()
@@ -28920,7 +29028,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive replay-grammar R1CS mutation is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn replay_grammar_rejects_input_after_output_prefix() {
+    fn test_replay_grammar_rejects_prefix() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let replay_input = events
             .iter()
@@ -28981,10 +29089,8 @@ mod tests {
     #[ignore = "exhaustive replay-output R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
     fn test_output_put_trace() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
-        let (precommit, events) = canonical_hash_control_events_for_replay(
-            RecursiveTraceOpcodeV2::ReplayOutput,
-            ScopeOpKind::Put,
-        );
+        let (precommit, events) =
+            build_replay_hash_controls(RecursiveTraceOpcodeV2::ReplayOutput, ScopeOpKind::Put);
         let trace_authority =
             NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
         let mut state =
@@ -29017,7 +29123,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive replay-payload R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn replay_payload_terminal_is_bound_to_the_source_object_id_in_r1cs() {
+    fn test_replay_terminal_binds_object() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let replay_chunk = events
             .iter()
@@ -29050,16 +29156,14 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive replay-prefix R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn replay_output_switches_the_exact_canonical_replay_prefix() {
+    fn test_replay_output_switches_prefix() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let replay_input = events
             .iter()
             .position(|event| event.opcode == RecursiveTraceOpcodeV2::ReplayInput)
             .expect("canonical schedule contains the input-prefix state");
-        let (_, output_events) = canonical_hash_control_events_for_replay(
-            RecursiveTraceOpcodeV2::ReplayOutput,
-            ScopeOpKind::Put,
-        );
+        let (_, output_events) =
+            build_replay_hash_controls(RecursiveTraceOpcodeV2::ReplayOutput, ScopeOpKind::Put);
         let replay_output = output_events
             .into_iter()
             .find(|event| event.opcode == RecursiveTraceOpcodeV2::ReplayOutput)
@@ -29091,7 +29195,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive precommit R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn precommit_allows_a_delete_only_replay_set() {
+    fn test_precommit_allows_delete_replay() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let replay_input = events
             .iter()
@@ -29143,7 +29247,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive uniqueness-precommit R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn uniqueness_precommit_payload_is_streamed_and_count_bound_in_r1cs() {
+    fn test_uniqueness_precommit_binds_count() {
         let (anchors, precommit, events, payload, _, _) = canonical_uniqueness_precommit_events();
         let trace_authority =
             NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
@@ -29287,7 +29391,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive uniqueness-row R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn uniqueness_sorted_row_version_is_constrained_from_the_same_memory_window() {
+    fn test_uniqueness_row_version_bound() {
         let (anchors, precommit, events, _, _, _) = canonical_uniqueness_precommit_events();
         let trace_authority =
             NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
@@ -29353,7 +29457,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive uniqueness permutation R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn uniqueness_sorted_rows_bind_order_and_precommit_cardinality_in_r1cs() {
+    fn test_uniqueness_rows_bind_cardinality() {
         let (anchors, precommit, events, _, _, _) = canonical_uniqueness_precommit_events();
         let trace_authority =
             NovaTraceRootAuthorityV2::new(super::digest_limbs(precommit.trace_digest()));
@@ -29510,7 +29614,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive uniqueness-challenge R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn uniqueness_challenge_payload_binds_precommit_bytes_in_r1cs() {
+    fn test_uniqueness_challenge_binds_precommit() {
         let (anchors, precommit, events, precommit_payload, challenge_payload, _) =
             canonical_uniqueness_precommit_events();
         let trace_authority =
@@ -29642,7 +29746,7 @@ mod tests {
             super::CheckpointShaRole::UniquenessContext,
         )
         .len()
-            + [1_usize, 32, 32, 32, 32, 8, 8, 4, 8, 1, 32, 32, 32, 32]
+            + [1_usize, 32, 32, 32, 32, 8, 8, 4, 8, 1, 8, 32, 32, 32, 32]
                 .into_iter()
                 .map(|part_bytes| 8 + part_bytes)
                 .sum::<usize>();
@@ -29721,7 +29825,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive NetMerge R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn net_merge_payload_is_streamed_from_canonical_source_bytes_in_r1cs() {
+    fn test_net_merge_streams_source() {
         let (anchors, precommit, events, _, _, net_merge_payload) =
             canonical_uniqueness_precommit_events();
         let trace_authority =
@@ -29852,7 +29956,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive net/JMT mutation R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn net_mutations_are_permuted_into_exact_terminal_jmt_operations() {
+    fn test_net_mutations_map_jmt() {
         fn bridge_step(
             state: &CheckpointRunningStateV2,
             opcode: RecursiveTraceOpcodeV2,
@@ -29977,7 +30081,7 @@ mod tests {
         after_net.cells[super::JMT_MICRO_TREE_SERIAL_CELL] = Scalar::from(u64::from(serial));
         after_net.cells[super::JMT_MICRO_OPERATION_KEY_START..super::JMT_MICRO_OPERATION_KEY_END]
             .copy_from_slice(&terminal.map(|byte| Scalar::from(u64::from(byte))));
-        after_net.cells[super::JMT_MICRO_PRIOR_VALUE_PRESENT_CELL] = Scalar::from(1_u64);
+        after_net.cells[super::JMT_PRIOR_VALUE_PRESENT_CELL] = Scalar::from(1_u64);
         after_net.cells[super::JMT_MICRO_VALUE_PRESENT_CELL] = Scalar::from(1_u64);
         for (word, bytes) in old_hash.chunks_exact(4).enumerate() {
             after_net.cells[super::JMT_PRIOR_VALUE_HASH_START + word] = Scalar::from(u64::from(
@@ -30044,7 +30148,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive fixed-FIPS mutation corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn canonical_hash_controls_reject_binding_and_order_mutations() {
+    fn test_hash_controls_reject_mutations() {
         use crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2;
 
         let (anchors, events, states, _) = canonical_hash_control_fixture();
@@ -30127,7 +30231,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive TraceChunk/FIPS R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn trace_chunk_payload_reaches_the_constrained_source_and_global_sha_contexts() {
+    fn test_trace_chunk_binds_contexts() {
         use crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2;
 
         let (anchors, events, states, _) = canonical_hash_control_fixture();
@@ -30412,7 +30516,7 @@ mod tests {
     }
 
     #[test]
-    fn global_trace_hash_controls_share_live_chunks() {
+    fn test_global_hash_shares_chunks() {
         let (precommit, events) = global_trace_hash_control_fixture();
         let decoded = events
             .iter()
@@ -30467,14 +30571,14 @@ mod tests {
             assert_eq!(trace.bit_length, control.message_bytes * 8);
             assert!(trace.eof);
             if let Some(block) = control.block {
-                assert!(block.verifies_transition());
+                assert!(block.is_transition_verified());
             }
         }
     }
 
     #[test]
     #[ignore = "full fixed-shape measurement is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn hash_control_shape_metrics_cover_the_canonical_schedule() {
+    fn test_hash_shape_matches_schedule() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let circuit = source_circuit(anchors, events[0].clone());
         let state = &states[0];
@@ -30494,7 +30598,7 @@ mod tests {
     }
 
     #[test]
-    fn final_transient_zeroization_preserves_every_public_endpoint_limb() {
+    fn test_transient_zeroizes_endpoints() {
         let transient = super::transient_cells()
             .into_iter()
             .collect::<BTreeSet<_>>();
@@ -30514,8 +30618,120 @@ mod tests {
     }
 
     #[test]
+    fn test_source_witness_zeroizes() {
+        let mut event = NovaTypedSourceEventV2::control(
+            ControlPhaseV2::Idle,
+            RecursiveTraceOpcodeV2::BeginBlock,
+            7,
+        );
+        event.payload_digest_limbs.fill(1);
+        event.next_payload_digest_limbs.fill(2);
+        event.hash_control.source_hash.fill(3);
+        event.hash_control.source_ordinal = 4;
+        event.sha_compression.block.fill(5);
+        event.sha_compression.chaining_before.fill(6);
+        event.sha_compression.chaining_after.fill(7);
+        event.source_memory_write.bytes.fill(8);
+        event.source_memory_write.byte_count = 9;
+        event.trace_chunk.bytes.fill(10);
+        event.trace_chunk.byte_count = 11;
+        event.source_identity.object_id.fill(12);
+        event.source_identity.payload_len = 13;
+        event.replay_semantic_row.fill(14);
+
+        event.zeroize();
+
+        assert_eq!(event.ordinal, 0);
+        assert_eq!(event.payload_digest_limbs, [0; super::DIGEST_LIMBS]);
+        assert_eq!(event.next_payload_digest_limbs, [0; super::DIGEST_LIMBS]);
+        assert_eq!(event.hash_control.source_hash, [0; 32]);
+        assert_eq!(event.hash_control.source_ordinal, 0);
+        assert_eq!(event.sha_compression.block, [0; 64]);
+        assert_eq!(event.sha_compression.chaining_before, [0; 8]);
+        assert_eq!(event.sha_compression.chaining_after, [0; 8]);
+        assert_eq!(event.source_memory_write.bytes, [0; 64]);
+        assert_eq!(event.source_memory_write.byte_count, 0);
+        assert_eq!(event.trace_chunk.bytes, [0; 64]);
+        assert_eq!(event.trace_chunk.byte_count, 0);
+        assert_eq!(event.source_identity.object_id, [0; 32]);
+        assert_eq!(event.source_identity.payload_len, 0);
+        assert_eq!(
+            event.replay_semantic_row,
+            [0; super::UNIQUENESS_SEMANTIC_ROW_BYTES_V2]
+        );
+    }
+
+    #[test]
+    fn test_run_guard_outcomes() {
+        let profile = RecursiveCircuitProfileV2::authority_pinned();
+        let cancellation = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let guard = super::NovaRunGuardV2::from_profile(
+            Instant::now() + Duration::from_secs(60),
+            std::sync::Arc::clone(&cancellation),
+            &profile,
+        )
+        .expect("active profile guard");
+        assert!(guard.check(profile.max_cumulative_steps()).is_ok());
+        let resource = guard
+            .check(profile.max_cumulative_steps() + 1)
+            .expect_err("step budget must reject overflow");
+        assert_eq!(resource, super::NovaRunStopV2::Resource);
+        assert!(matches!(
+            resource.checkpoint_error(),
+            CheckpointError::Resource
+        ));
+
+        cancellation.store(true, std::sync::atomic::Ordering::Release);
+        let cancelled = guard.check(0).expect_err("cancellation must stop work");
+        assert_eq!(cancelled, super::NovaRunStopV2::Cancelled);
+        assert!(matches!(
+            cancelled.checkpoint_error(),
+            CheckpointError::RecursiveCancelled
+        ));
+
+        let expired = super::NovaRunGuardV2::from_profile(
+            Instant::now() - Duration::from_secs(1),
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            &profile,
+        )
+        .expect("expired guard remains structurally valid");
+        let deadline = expired.check(0).expect_err("deadline must stop work");
+        assert_eq!(deadline, super::NovaRunStopV2::Deadline);
+        assert!(matches!(
+            deadline.checkpoint_error(),
+            CheckpointError::RecursiveDeadline
+        ));
+    }
+
+    #[test]
+    fn test_chain_has_no_cap() {
+        assert!(matches!(
+            super::check_local_chain(2),
+            Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::ChainTooShort
+            ))
+        ));
+        assert!(super::check_local_chain(3).is_ok());
+        assert!(super::check_local_chain(u32::MAX).is_ok());
+    }
+
+    #[test]
+    fn test_session_error_poisons() {
+        let mut state = super::NovaSessionStateV2::started();
+        state.begin_fold().expect("live session begins a fold");
+        assert!(matches!(
+            state.ensure_live(),
+            Err(CheckpointError::TraceState)
+        ));
+        assert!(matches!(
+            state.begin_fold(),
+            Err(CheckpointError::TraceState)
+        ));
+    }
+
+    #[test]
     #[ignore = "exhaustive final-successor R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn final_successor_erases_private_uniqueness_job_cursors() {
+    fn test_successor_erases_cursors() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let final_index = events.len() - 1;
         let mut state = states[final_index].clone();
@@ -30546,7 +30762,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive final-count mutation R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn final_successor_rejects_a_changed_declared_opcode_count() {
+    fn test_successor_rejects_opcode_change() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let final_index = events.len() - 1;
         let replay_input_anchor = super::ANCHOR_OPCODE_COUNT_START
@@ -30585,7 +30801,7 @@ mod tests {
 
     #[test]
     #[ignore = "full R1CS namespace profile is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn nova_shape_profile_identifies_exact_top_level_resource_owners() {
+    fn test_nova_profile_identifies_owners() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let circuit = source_circuit(anchors, events[0].clone());
         let mut cs = ShapeProfileCsV2::new();
@@ -30660,7 +30876,7 @@ mod tests {
 
     #[test]
     #[ignore = "full shape/preflight measurement is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn sha_lane_resource_preflight_uses_pinned_wire_and_pedersen_sizes() {
+    fn test_sha_preflight_uses_sizes() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let circuit = source_circuit(anchors, events[0].clone());
         let plan = nova_resource_preflight(&circuit, &states[0])
@@ -30668,7 +30884,7 @@ mod tests {
 
         assert_eq!(
             measured_bincode(&super::pallas::Affine::default()).len(),
-            NOVA_PALLAS_AFFINE_WIRE_BYTES_V2 as usize,
+            PALLAS_AFFINE_WIRE_BYTES_V2 as usize,
             "legacy bincode must retain the pinned Pallas affine wire width"
         );
         assert_eq!(std::mem::size_of::<super::pallas::Affine>(), 64);
@@ -30706,7 +30922,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_resource_preflight_rejects_every_cap_plus_one_before_setup() {
+    fn test_nova_preflight_rejects_caps() {
         let metrics = NovaShapeMetricsV2 {
             constraints: 56_650,
             inputs: 1,
@@ -30745,7 +30961,7 @@ mod tests {
     }
 
     #[test]
-    fn nova_resource_preflight_checked_arithmetic_rejects_overflow() {
+    fn test_nova_preflight_rejects_overflow() {
         let overflow = NovaShapeMetricsV2 {
             constraints: 1,
             inputs: 1,
@@ -30759,7 +30975,7 @@ mod tests {
     }
 
     #[test]
-    fn finite_control_machine_matches_independent_frozen_edge_matrix() {
+    fn test_control_machine_matches_matrix() {
         let mut accepted_edges = 0_usize;
 
         for phase in ControlPhaseV2::ALL {
@@ -30852,7 +31068,7 @@ mod tests {
 
     #[test]
     #[ignore = "covered by the canonical+mutation release smoke; exhaustive direct TestCS case is milestone-only"]
-    fn non_boolean_done_cell_is_unsatisfied() {
+    fn test_done_cell_rejects_nonboolean() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let event = source_event(
             ControlPhaseV2::Idle,
@@ -30887,7 +31103,7 @@ mod tests {
 
     #[test]
     #[ignore = "real verifier artifact setup is milestone-only; run nova_milestone_tests.sh artifacts"]
-    fn real_nova_verifier_bundle_loads_and_verifies_compressed_proof() {
+    fn test_nova_bundle_verifies_proof() {
         ensure_test_identity();
         let _guard = real_nova_proof_lock()
             .lock()
@@ -30989,10 +31205,10 @@ mod tests {
             VERIFIER_BUNDLE_HEADER_BYTES_V2,
         );
         assert!(
-            vk_payload.len() <= super::NOVA_VK_DECODE_SAFETY_CAP_V2,
+            vk_payload.len() <= super::NOVA_VK_DECODE_CAP_V2,
             "decoded VK safety-cap breach: {} > {}",
             vk_payload.len(),
-            super::NOVA_VK_DECODE_SAFETY_CAP_V2
+            super::NOVA_VK_DECODE_CAP_V2
         );
         assert!(
             compressed_vk_payload.len() <= NOVA_VK_SAFETY_CAP_V2,
@@ -31001,10 +31217,10 @@ mod tests {
             NOVA_VK_SAFETY_CAP_V2
         );
         assert!(
-            proof_payload.len() <= MAX_NOVA_COMPRESSED_PROOF_BYTES_V2,
+            proof_payload.len() <= NOVA_PROOF_MAX_BYTES_V2,
             "compressed-proof cap breach: {} > {}",
             proof_payload.len(),
-            MAX_NOVA_COMPRESSED_PROOF_BYTES_V2
+            NOVA_PROOF_MAX_BYTES_V2
         );
 
         let mut wrong_pp_binding = binding;
@@ -31079,7 +31295,7 @@ mod tests {
         // point; the latter is the zero/default-key edge.
         let mut identity_generator_vk = vk_payload.clone();
         identity_generator_vk[generator_offset..generator_offset + generator_wire.len()].fill(0);
-        super::decode_bincode::<super::NovaVerifierKey, { super::NOVA_VK_DECODE_SAFETY_CAP_V2 }>(
+        super::decode_bincode::<super::NovaVerifierKey, { super::NOVA_VK_DECODE_CAP_V2 }>(
             &identity_generator_vk,
         )
         .expect("dependency serde admits the canonical identity encoding");
@@ -31107,7 +31323,7 @@ mod tests {
         );
         let mut default_blinding_vk = vk_payload.clone();
         default_blinding_vk[primary_blinding_offset..primary_blinding_offset + 32].fill(0);
-        super::decode_bincode::<super::NovaVerifierKey, { super::NOVA_VK_DECODE_SAFETY_CAP_V2 }>(
+        super::decode_bincode::<super::NovaVerifierKey, { super::NOVA_VK_DECODE_CAP_V2 }>(
             &default_blinding_vk,
         )
         .expect("dependency serde admits the canonical default blinding identity");
@@ -31173,7 +31389,7 @@ mod tests {
         drop(invalid_scalar_vk);
         assert!(
             loaded
-                .decode_compressed_proof(&vec![0_u8; MAX_NOVA_COMPRESSED_PROOF_BYTES_V2 + 1])
+                .decode_compressed_proof(&vec![0_u8; NOVA_PROOF_MAX_BYTES_V2 + 1])
                 .is_err(),
             "the 128 KiB proof cap must reject before compressed-proof decoding"
         );
@@ -31239,7 +31455,7 @@ mod tests {
             "real Nova diagnostic bytes: compressed_proof={}, public_state_each={}, production_envelope_header={}, verifier_bundle={}",
             proof_payload.len(),
             super::NOVA_PUBLIC_STATE_BYTES_V2,
-            NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2,
+            NOVA_ENVELOPE_HEADER_BYTES_V2,
             bundle.len(),
         );
         let mut wrong_final_state = expected_final.scalars();
@@ -31301,23 +31517,19 @@ mod tests {
             },
         ] {
             let mutated = mutate_bundle_header(&bundle, mutate);
-            assert_bundle_rejected_before_proof_decode(&mutated, binding, bundle_digest);
+            assert_bundle_rejected_early(&mutated, binding, bundle_digest);
         }
         let mut vk_payload_mutation = bundle.clone();
         vk_payload_mutation[VERIFIER_BUNDLE_HEADER_BYTES_V2] ^= 1;
-        assert_bundle_rejected_before_proof_decode(&vk_payload_mutation, binding, bundle_digest);
+        assert_bundle_rejected_early(&vk_payload_mutation, binding, bundle_digest);
 
         // The authority-selected content digest is the first and immutable
         // invalid-key gate. Exercise the retained wire corpus one mutation at
         // a time so a large VK is never duplicated into an adversarial arena.
-        assert_bundle_rejected_before_proof_decode(
-            &bundle[..bundle.len() - 1],
-            binding,
-            bundle_digest,
-        );
+        assert_bundle_rejected_early(&bundle[..bundle.len() - 1], binding, bundle_digest);
         let mut trailing_bundle = bundle.clone();
         trailing_bundle.push(0);
-        assert_bundle_rejected_before_proof_decode(&trailing_bundle, binding, bundle_digest);
+        assert_bundle_rejected_early(&trailing_bundle, binding, bundle_digest);
         drop(trailing_bundle);
 
         let payload_start = VERIFIER_BUNDLE_HEADER_BYTES_V2;
@@ -31343,14 +31555,14 @@ mod tests {
         ] {
             let mut invalid = bundle.clone();
             invalid[offset] ^= 0xff;
-            assert_bundle_rejected_before_proof_decode(&invalid, binding, bundle_digest);
+            assert_bundle_rejected_early(&invalid, binding, bundle_digest);
             eprintln!("invalid VK corpus rejected before proof decode: {label}");
         }
     }
 
     #[test]
     #[ignore = "fresh full Nova proof and recomputed Model C are milestone-only; run nova_milestone_tests.sh proof"]
-    fn real_nova_mixed_checkpoint_proves_the_complete_t2_relation() {
+    fn test_nova_checkpoint_proves_relation() {
         ensure_test_identity();
         let _guard = real_nova_proof_lock()
             .lock()
@@ -31416,7 +31628,7 @@ mod tests {
         let selection = VerifierBundleSelectionV2::new(binding, bundle_digest)
             .expect("mixed authority-selected bundle digest");
         eprintln!(
-            "mixed Nova final identities: authority_digest={}, profile_digest={}, spec_digest={}, pp_digest={}, grammar_digest={}, shape_digest={}, source_revision_digest={}, lockfile_digest={}, manifest_digest={}, verifier_bundle_digest={}, cache_key={}",
+            "mixed Nova final identities: authority_digest={}, profile_digest={}, spec_digest={}, pp_digest={}, grammar_digest={}, shape_digest={}, source_revision_digest={}, lockfile_digest={}, manifest_digest={}, verifier_bundle_digest={}",
             super::lowercase_hex(binding.authority_digest),
             super::lowercase_hex(binding.profile_digest),
             super::lowercase_hex(binding.spec_digest),
@@ -31427,7 +31639,6 @@ mod tests {
             super::lowercase_hex(super::lockfile_digest()),
             super::lowercase_hex(super::manifest_digest()),
             super::lowercase_hex(bundle_digest),
-            super::lowercase_hex(super::nova_cache_key(binding).expect("mixed cache identity")),
         );
         let loaded = NovaVerifierBundleV2::load(&bundle_bytes, selection)
             .expect("load mixed VK-only verifier bundle");
@@ -31517,10 +31728,10 @@ mod tests {
         );
         let proof_bytes = measured_bincode(&compressed);
         assert!(
-            proof_bytes.len() <= MAX_NOVA_COMPRESSED_PROOF_BYTES_V2,
+            proof_bytes.len() <= NOVA_PROOF_MAX_BYTES_V2,
             "complete mixed proof exceeds the retained proof decoder cap: {} > {}",
             proof_bytes.len(),
-            MAX_NOVA_COMPRESSED_PROOF_BYTES_V2
+            NOVA_PROOF_MAX_BYTES_V2
         );
 
         let verify_started = Instant::now();
@@ -31607,7 +31818,7 @@ mod tests {
         write_verifier_artifact(&selection_path, &encode_test_verifier_selection(selection));
         write_verifier_artifact(&bundle_path, &bundle_bytes);
         write_verifier_artifact(&envelope_path, &envelope_bytes);
-        let verifier_test = "checkpoint::nova::tests::real_nova_verifier_only_clean_process";
+        let verifier_test = "checkpoint::nova::tests::test_nova_clean_verifier_process";
         let test_binary = format!("/proc/{}/exe", std::process::id());
         let clean_verify_started = Instant::now();
         let verifier_status = Command::new("/usr/bin/timeout")
@@ -31619,9 +31830,9 @@ mod tests {
             .arg("--nocapture")
             .env(NOVA_WORKER_MARKER_V2, "1")
             .env(NOVA_VERIFIER_ONLY_MARKER_V2, "1")
-            .env(NOVA_VERIFIER_ONLY_SELECTION_PATH_V2, &selection_path)
-            .env(NOVA_VERIFIER_ONLY_BUNDLE_PATH_V2, &bundle_path)
-            .env(NOVA_VERIFIER_ONLY_ENVELOPE_PATH_V2, &envelope_path)
+            .env(NOVA_VERIFIER_SELECTION_PATH_V2, &selection_path)
+            .env(NOVA_VERIFIER_BUNDLE_PATH_V2, &bundle_path)
+            .env(NOVA_VERIFIER_ENVELOPE_PATH_V2, &envelope_path)
             .status()
             .expect("start clean verifier-only process");
         assert!(
@@ -31709,7 +31920,7 @@ mod tests {
             "complete mixed Nova DA accounting: proof_bytes={}, envelope_bytes={}, envelope_header_bytes={}, initial_public_state_bytes={}, final_public_state_bytes={}, verifier_bundle_bytes={} (VK bundle is authority-distributed and is not in each DA envelope)",
             proof_bytes.len(),
             envelope_bytes.len(),
-            NOVA_PROOF_ENVELOPE_HEADER_BYTES_V2,
+            NOVA_ENVELOPE_HEADER_BYTES_V2,
             super::NOVA_PUBLIC_STATE_BYTES_V2,
             super::NOVA_PUBLIC_STATE_BYTES_V2,
             bundle_bytes.len(),
@@ -31718,7 +31929,7 @@ mod tests {
 
     #[test]
     #[ignore = "all-opcode full-shape corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn every_opcode_uses_one_fixed_shape() {
+    fn test_opcodes_use_fixed_shape() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let mut expected = None;
         for opcode in opcode_list() {
@@ -31778,7 +31989,7 @@ mod tests {
 
     #[test]
     #[ignore = "real two-step Nova proof is milestone-only; run nova_milestone_tests.sh artifacts"]
-    fn real_nova_proof_binds_one_source_event_after_trace_begin() {
+    fn test_nova_proof_binds_event() {
         let _guard = real_nova_proof_lock()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -31971,7 +32182,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive source-schedule R1CS mutation is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn source_record_rejects_a_second_record_before_hash_completion() {
+    fn test_source_record_rejects_second() {
         use crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2;
 
         let (anchors, events, states, _) = canonical_hash_control_fixture();
@@ -32007,7 +32218,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive source-stage R1CS mutation is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn source_stage_cannot_masquerade_as_a_hash_control() {
+    fn test_source_stage_rejects_control() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let mut forged = source_event(
             ControlPhaseV2::Idle,
@@ -32036,7 +32247,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive source-context R1CS mutation is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn source_record_requires_a_live_global_trace_context() {
+    fn test_source_record_requires_context() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let event = source_event(
             ControlPhaseV2::Idle,
@@ -32083,7 +32294,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive final-source R1CS mutation is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn final_source_record_requires_global_hash_closure() {
+    fn test_final_source_requires_closure() {
         let anchors = CheckpointNovaAnchorsV2::for_test();
         let mut pre_root_bytes = [0_u8; 32];
         for limb in 0..super::DIGEST_LIMBS {
@@ -32139,7 +32350,7 @@ mod tests {
     }
 
     #[test]
-    fn runner_tracks_trace_closure_edge() {
+    fn test_runner_tracks_trace_closure() {
         let mut local = NovaTypedSourceEventV2::control(
             ControlPhaseV2::TraceClosure,
             RecursiveTraceOpcodeV2::EndHash,
@@ -32190,7 +32401,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive trace-closure R1CS mutation is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn schema_bound_trace_end_is_the_only_trace_closure_terminal_edge() {
+    fn test_trace_end_is_terminal() {
         let (anchors, events, states, _) = canonical_hash_control_fixture();
         let global_end = events
             .iter()
@@ -32287,8 +32498,8 @@ mod tests {
             );
         }
         let mut finalized_prefix = Vec::with_capacity(8 + 1 + 8 * 2 + 32 * 6);
-        finalized_prefix.extend_from_slice(&super::RECURSIVE_FINALIZED_IVC_STATE_MAGIC_V2);
-        finalized_prefix.push(super::RECURSIVE_FINALIZED_IVC_STATE_VERSION_V2);
+        finalized_prefix.extend_from_slice(&super::FINAL_IVC_STATE_MAGIC_V2);
+        finalized_prefix.push(super::FINAL_IVC_STATE_VERSION_V2);
         finalized_prefix.extend_from_slice(&prior_height.to_le_bytes());
         for start in [
             super::CHECKPOINT_ID_ANCHOR_DIGEST * super::DIGEST_LIMBS,
@@ -32369,12 +32580,12 @@ mod tests {
             "a non-parent predecessor checkpoint entered the continuous accumulator"
         );
 
-        assert!(!super::chain_done(true, false));
-        assert!(super::chain_done(true, true));
+        assert!(!super::is_chain_done(true, false));
+        assert!(super::is_chain_done(true, true));
     }
 
     #[test]
-    fn compressed_snapshot_boundaries_are_exact() {
+    fn test_snapshot_boundaries_are_exact() {
         assert!(super::NovaCompressedSnapshotV2::new(Vec::new()).is_err());
         for length in [1, 131_071, 131_072] {
             assert_eq!(
@@ -32394,12 +32605,11 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_terminal_flag_is_explicit() {
+    fn test_snapshot_terminal_flag_explicit() {
         let mut endpoint = vec![Scalar::from(0_u64); super::RUNNING_STATE_ARITY_V2];
         endpoint[super::ORDINAL_CELL] = Scalar::from(5_u64);
-        assert_eq!(
-            super::public_state_terminal(&endpoint).expect("intermediate endpoint"),
-            false,
+        assert!(
+            !super::public_state_terminal(&endpoint).expect("intermediate endpoint"),
             "a nonzero cumulative step count must not terminalize a snapshot"
         );
 

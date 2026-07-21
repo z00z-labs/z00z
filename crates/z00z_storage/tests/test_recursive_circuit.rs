@@ -24,8 +24,8 @@ fn test_snapshot_terminal_is_explicit() {
         .find("pub(crate) fn snapshot(&self)")
         .expect("one non-consuming snapshot method");
     let continuous = NOVA
-        .find("pub(crate) fn prove_continuous_chain_v2")
-        .expect("one continuous chain ingress");
+        .find("pub(crate) struct NovaContinuousSessionV2")
+        .expect("one continuous session owner");
     assert!(snapshot < continuous);
     assert!(NOVA.contains(
         "expected_public_state(&self.public_input, cumulative_steps, self.terminalized)"

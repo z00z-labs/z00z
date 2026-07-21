@@ -24,15 +24,15 @@ fn newest_storage_rlib(deps: &Path) -> PathBuf {
 }
 
 #[test]
-fn recursive_v2_typestate_and_diagnostic_internals_are_not_downstream_constructible() {
+fn test_private_stages_not_constructible() {
     let deps = std::env::current_exe()
         .expect("current integration test executable")
         .parent()
         .expect("target dependency directory")
         .to_path_buf();
     let rlib = newest_storage_rlib(&deps);
-    let fixture =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/ui/recursive_v2_private_stages.rs");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/test_recursive_v2_private_stages.rs");
     let output = tempfile::tempdir().expect("compile-fail output directory");
     let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
     let result = Command::new(rustc)
@@ -44,7 +44,7 @@ fn recursive_v2_typestate_and_diagnostic_internals_are_not_downstream_constructi
         .arg("-L")
         .arg(format!("dependency={}", deps.display()))
         .arg("-o")
-        .arg(output.path().join("recursive_v2_private_stages.rmeta"))
+        .arg(output.path().join("test_recursive_v2_private_stages.rmeta"))
         .arg(&fixture)
         .output()
         .expect("run rustc compile-fail fixture");
@@ -59,6 +59,8 @@ fn recursive_v2_typestate_and_diagnostic_internals_are_not_downstream_constructi
         "LiveGateStageV2",
         "PostwriteVerifiedV2",
         "PreparedReceiptV2",
+        "ReceiptReadyToIssueV2",
+        "ReloadedEvidenceV2",
         "RecursiveNovaStepInputV2",
     ] {
         assert!(

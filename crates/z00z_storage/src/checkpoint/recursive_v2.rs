@@ -3,7 +3,8 @@
 pub use super::{
     adapter::{
         RecursiveCheckpointChainBlockV2, RecursiveCheckpointEvidenceStoreV2,
-        RecursiveCheckpointEvidenceV2,
+        RecursiveCheckpointEvidenceV2, RecursiveEvidenceCancellationV2, RecursiveEvidenceOutcomeV2,
+        RecursiveEvidenceRequestV2,
     },
     canonical_transition::{
         CanonicalCheckpointTransitionV2, SettlementRootCutoverModeV2,

@@ -22,48 +22,48 @@ case "$T3_ARTIFACT_DIR" in
 esac
 
 SEMANTIC_TESTS=(
-  settlement_root_sha_jobs_bind_policy_layout_definition_and_finalize_post_root
-  finalize_settlement_roots_are_decoded_from_the_canonical_r1cs_window
-  jmt_header_and_promoted_root_are_bound_directly_in_r1cs
-  jmt_new_root_machine_accepts_all_native_mutation_cases
-  hierarchy_r1cs_consumes_canonical_roles_parent_values_and_definition_root
-  typed_checkpoint_commitments_bind_x_h_fields_in_canonical_order
-  jmt_new_root_machine_rejects_authenticated_transcript_mutations
-  jmt_micro_operation_framing_is_ordered_and_counted_in_r1cs
-  canonical_hash_controls_bind_the_fixed_fips_schedule
-  replay_grammar_rejects_input_after_output_prefix
+  test_settlement_sha_jobs_bind
+  test_finalize_roots_decode_window
+  test_jmt_header_binds_root
+  test_jmt_machine_accepts_mutations
+  test_hierarchy_r1cs_binds_definition
+  test_checkpoint_commitments_bind_fields
+  test_jmt_machine_rejects_mutations
+  test_jmt_framing_ordered_counted
+  test_hash_controls_bind_fips
+  test_replay_grammar_rejects_prefix
   test_op_kind_replay_independent
   test_output_put_trace
-  replay_payload_terminal_is_bound_to_the_source_object_id_in_r1cs
-  replay_output_switches_the_exact_canonical_replay_prefix
-  precommit_allows_a_delete_only_replay_set
-  uniqueness_precommit_payload_is_streamed_and_count_bound_in_r1cs
-  uniqueness_sorted_row_version_is_constrained_from_the_same_memory_window
-  uniqueness_sorted_rows_bind_order_and_precommit_cardinality_in_r1cs
-  uniqueness_challenge_payload_binds_precommit_bytes_in_r1cs
-  net_merge_payload_is_streamed_from_canonical_source_bytes_in_r1cs
-  net_mutations_are_permuted_into_exact_terminal_jmt_operations
-  canonical_hash_controls_reject_binding_and_order_mutations
-  trace_chunk_payload_reaches_the_constrained_source_and_global_sha_contexts
+  test_replay_terminal_binds_object
+  test_replay_output_switches_prefix
+  test_precommit_allows_delete_replay
+  test_uniqueness_precommit_binds_count
+  test_uniqueness_row_version_bound
+  test_uniqueness_rows_bind_cardinality
+  test_uniqueness_challenge_binds_precommit
+  test_net_merge_streams_source
+  test_net_mutations_map_jmt
+  test_hash_controls_reject_mutations
+  test_trace_chunk_binds_contexts
   test_source_window_binding
-  hash_control_shape_metrics_cover_the_canonical_schedule
-  final_successor_erases_private_uniqueness_job_cursors
-  final_successor_rejects_a_changed_declared_opcode_count
-  nova_shape_profile_identifies_exact_top_level_resource_owners
-  sha_lane_resource_preflight_uses_pinned_wire_and_pedersen_sizes
-  non_boolean_done_cell_is_unsatisfied
-  every_opcode_uses_one_fixed_shape
-  source_record_rejects_a_second_record_before_hash_completion
-  source_stage_cannot_masquerade_as_a_hash_control
-  source_record_requires_a_live_global_trace_context
-  final_source_record_requires_global_hash_closure
-  schema_bound_trace_end_is_the_only_trace_closure_terminal_edge
+  test_hash_shape_matches_schedule
+  test_successor_erases_cursors
+  test_successor_rejects_opcode_change
+  test_nova_profile_identifies_owners
+  test_sha_preflight_uses_sizes
+  test_done_cell_rejects_nonboolean
+  test_opcodes_use_fixed_shape
+  test_source_record_rejects_second
+  test_source_stage_rejects_control
+  test_source_record_requires_context
+  test_final_source_requires_closure
+  test_trace_end_is_terminal
 )
 
 ARTIFACT_TESTS=(
-  prover_material_roundtrip_rejects_identity_length_payload_and_key_substitution
-  real_nova_verifier_bundle_loads_and_verifies_compressed_proof
-  real_nova_proof_binds_one_source_event_after_trace_begin
+  test_prover_material_rejects_substitution
+  test_nova_bundle_verifies_proof
+  test_nova_proof_binds_event
 )
 
 run_unit_exact() {
@@ -84,9 +84,9 @@ run_guards() {
   local contract dollar='$'
   local -a verifier_rss_contract=(
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
-    'readonly EXPECTED_SOURCE_REVISION="5169ae837c7ee891f076ae51702698cf7be77cd78fdb2856b04225991006a876"'
-    'readonly EXPECTED_WORKER_SOURCE="09213786e26916ff72237c4a4c61c56770fe370937086e29005f9731db9038af"'
-    'readonly EXPECTED_NOVA_SHA256="ab2e30c2c10f3ba5cad754a25a5717469318550e9b63ffc0f1d1305f14579090"'
+    'readonly EXPECTED_SOURCE_REVISION="0cd690bc4c04ee14e5047861ac50d68f473fcc6c7e59e383540f8ba05d6c61c3"'
+    'readonly EXPECTED_WORKER_SOURCE="2669cb5f92fdc176d560b89e5ce725c339911bcd6a421b58e158090b256e39e3"'
+    'readonly EXPECTED_NOVA_SHA256="c8438031a65433118435bc486fb29d29b45186eab79d1fbe74597e912fa004d9"'
     'readonly EXPECTED_CARGO_LOCK_SHA256="23a86f3341579b25ad5be96080a642405633df5f8c6e99dd4c3329d7d51f2a11"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
     "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}ROOT_DIR/target/workspace\""
@@ -150,8 +150,8 @@ ignored_tests = set(
     )
 )
 
-testcs = "complete_mixed_fixture_satisfies_every_test_cs_step"
-proof = "real_nova_mixed_checkpoint_proves_the_complete_t2_relation"
+testcs = "test_mixed_fixture_satisfies_testcs"
+proof = "test_nova_checkpoint_proves_relation"
 for test_name in (testcs, proof):
     pattern = re.compile(
         rf'#\[test\]\s*#\[ignore = "[^"]*milestone-only[^"]*"\]\s*fn {test_name}\(',
@@ -168,12 +168,12 @@ if ignored_tests != expected_ignored:
     )
 
 smoke = re.search(
-    r'(?P<attrs>(?:\s*#\[[^\n]+\]\n)+)\s*fn nova_r1cs_canonical_and_mutation_smoke\(',
+    r'(?P<attrs>(?:\s*#\[[^\n]+\]\n)+)\s*fn test_nova_r1cs_mutation_smoke\(',
     source,
 )
 if smoke is None or "ignore" in smoke.group("attrs"):
     raise SystemExit("canonical+mutation R1CS smoke must exist and remain unignored")
-if source.count("fn nova_r1cs_canonical_and_mutation_smoke(") != 1:
+if source.count("fn test_nova_r1cs_mutation_smoke(") != 1:
     raise SystemExit("canonical+mutation R1CS smoke must have exactly one owner")
 
 print(
@@ -198,13 +198,13 @@ run_curated() {
   run_guards
   echo "=== curated Nova release packet: 7 source/dependency/R1CS units + 2 integration targets; features=production ==="
   for test_name in \
-    verifier_identity_binds_live_path \
-    nova_backend_manifest_lock_and_private_owner_are_exact \
-    nova_dependency_transcript_entropy_and_source_files_are_exact \
-    nova_poseidon_constant_wires_are_pinned_for_both_cycle_fields \
-    nova_pasta_identity_and_first_generator_wires_are_explicit \
-    nova_pasta_keccak_transcript_is_non_evm_and_pinned \
-    nova_r1cs_canonical_and_mutation_smoke
+    test_verifier_identity_binds_path \
+    test_nova_backend_owner_locked \
+    test_nova_dependency_transcript_pinned \
+    test_nova_poseidon_wires_pinned \
+    test_nova_pasta_identity_pinned \
+    test_nova_keccak_transcript_pinned \
+    test_nova_r1cs_mutation_smoke
   do
     run_unit_exact "$test_name"
   done
@@ -237,12 +237,12 @@ case "$MODE" in
   testcs)
     run_guards
     echo "=== milestone full 1,727-step TestCS replay ==="
-    run_ignored_exact complete_mixed_fixture_satisfies_every_test_cs_step
+    run_ignored_exact test_mixed_fixture_satisfies_testcs
     ;;
   proof)
     run_guards
     echo "=== milestone fresh full proof + independently recomputed Model C ==="
-    run_ignored_exact real_nova_mixed_checkpoint_proves_the_complete_t2_relation
+    run_ignored_exact test_nova_checkpoint_proves_relation
     ;;
   artifacts)
     run_guards

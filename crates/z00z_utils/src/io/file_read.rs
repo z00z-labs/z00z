@@ -3,6 +3,8 @@ use super::{read_file_bounded, ErrorKind, IoError, Path, PathBuf};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+const DEFAULT_MAX_DIR_ENTRIES: usize = 100_000;
+
 /// Read raw bytes from a file using the default bounded size limit.
 pub fn read_file(path: impl AsRef<Path>) -> Result<Vec<u8>, IoError> {
     let path = path.as_ref();
@@ -132,14 +134,34 @@ pub fn set_file_mode(file: &std::fs::File, mode: u32) -> Result<(), IoError> {
     Ok(())
 }
 
-/// Read directory entries into a deterministically sorted path list.
+/// Read directory entries into a bounded, deterministically sorted path list.
 pub fn read_dir(path: impl AsRef<Path>) -> Result<Vec<PathBuf>, IoError> {
+    read_dir_bounded(path, DEFAULT_MAX_DIR_ENTRIES)
+}
+
+/// Read sorted directory paths while enforcing an entry-count limit.
+///
+/// At most `max_entries + 1` paths are collected so oversized directories fail
+/// without first allocating or traversing the full directory.
+pub fn read_dir_bounded(
+    path: impl AsRef<Path>,
+    max_entries: usize,
+) -> Result<Vec<PathBuf>, IoError> {
     let path = path.as_ref();
-    let mut entries = Vec::new();
+    let probe_limit = max_entries.checked_add(1).ok_or_else(|| {
+        IoError::Io(std::io::Error::new(
+            ErrorKind::InvalidInput,
+            "directory entry limit must allow a one-entry overflow probe",
+        ))
+    })?;
+    let mut entries = Vec::with_capacity(probe_limit.min(256));
 
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         entries.push(entry.path());
+        if entries.len() == probe_limit {
+            return Err(IoError::DirectoryTooLarge { max: max_entries });
+        }
     }
 
     entries.sort();

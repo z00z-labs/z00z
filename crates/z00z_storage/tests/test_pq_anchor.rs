@@ -4,7 +4,7 @@ use z00z_storage::{
         repo_default_path, CheckpointContractConfigV3, PostQuantumCheckpointAnchorModeV1,
         PostQuantumCheckpointAnchorV1, PostQuantumCheckpointAnchorVersion,
         PostQuantumCheckpointEnforcementStageV1, StateSnapshotV1, StateSnapshotVersion,
-        POST_QUANTUM_ENFORCEMENT_STAGE, POST_QUANTUM_REQUIRED_ARTIFACTS,
+        POST_QUANTUM_ENFORCEMENT_STAGE, POST_QUANTUM_REQUIRED_ARTIFACTS_V3,
         VERIFIED_BACKEND_CANDIDATE_STAGE,
     },
     CheckpointError,
@@ -19,7 +19,7 @@ fn root(byte: u8) -> [u8; 32] {
 }
 
 #[test]
-fn test_pq_cadence_distinguishes_height_999_and_1000() {
+fn test_pq_cadence_distinguishes_heights() {
     let cfg = cfg();
 
     assert!(!cfg.has_pq_checkpoint(999));
@@ -28,12 +28,12 @@ fn test_pq_cadence_distinguishes_height_999_and_1000() {
 }
 
 #[test]
-fn test_pq_required_artifacts_match_contract() {
+fn test_pq_artifacts_match_contract() {
     let cfg = cfg();
 
     assert_eq!(
         cfg.post_quantum.required_artifacts,
-        POST_QUANTUM_REQUIRED_ARTIFACTS
+        POST_QUANTUM_REQUIRED_ARTIFACTS_V3
             .iter()
             .map(|field| (*field).to_string())
             .collect::<Vec<_>>()
@@ -41,7 +41,7 @@ fn test_pq_required_artifacts_match_contract() {
 }
 
 #[test]
-fn test_state_snapshot_requires_nonzero_pq_anchor_root() {
+fn test_snapshot_requires_pq_anchor() {
     let err = StateSnapshotV1::new(
         StateSnapshotVersion::CURRENT,
         10_000,
@@ -62,7 +62,7 @@ fn test_state_snapshot_requires_nonzero_pq_anchor_root() {
 }
 
 #[test]
-fn test_pq_anchor_writer_stays_non_authoritative_without_a_bound_writer() {
+fn test_pq_writer_stays_shadow() {
     let cfg = cfg();
 
     assert!(cfg
@@ -86,7 +86,7 @@ fn test_pq_anchor_writer_stays_non_authoritative_without_a_bound_writer() {
 }
 
 #[test]
-fn test_live_pq_stage_rejects_without_a_bound_writer() {
+fn test_pq_stage_rejects_unbound() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages =
@@ -123,7 +123,7 @@ fn test_live_pq_stage_rejects_without_a_bound_writer() {
 }
 
 #[test]
-fn test_live_pq_entry_points_reject_disabled_live_cadence() {
+fn test_pq_ingress_rejects_disabled() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages =
@@ -152,7 +152,7 @@ fn test_live_pq_entry_points_reject_disabled_live_cadence() {
 }
 
 #[test]
-fn test_pq_anchor_roundtrip_and_unknown_field_reject() {
+fn test_pq_roundtrip_rejects_unknown() {
     let anchor = retained_phase068_anchor();
 
     assert_eq!(
@@ -176,7 +176,7 @@ fn test_pq_anchor_roundtrip_and_unknown_field_reject() {
 }
 
 #[test]
-fn test_pq_anchor_live_validation_rejects_without_a_bound_backend() {
+fn test_pq_rejects_unbound_backend() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages =
@@ -192,7 +192,7 @@ fn test_pq_anchor_live_validation_rejects_without_a_bound_backend() {
 }
 
 #[test]
-fn test_verified_backend_candidate_stage_rejects_without_promotion_evidence() {
+fn test_candidate_rejects_missing_promotion() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = VERIFIED_BACKEND_CANDIDATE_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages = vec!["verified_backend_enabled".to_string()];

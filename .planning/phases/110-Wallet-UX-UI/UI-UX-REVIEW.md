@@ -17,11 +17,11 @@
 
 The executable demo now applies the P0/P1 findings in this review. It uses the normalized Geist/Geist Mono lookup table, with a reserved variable-weight Geist wordmark matching the public Z00Z docs header. It has no raw visible component font sizes below the documented token floor, and keeps prose in Geist while literal addresses, quantities, IDs, and YAML stay in Geist Mono—except the selected desktop-wallet address, which uses normal-weight Geist at the same desktop size and tracking as the Z00Z wordmark. All textual Cancel actions use the same neutral bordered secondary button; wallet selection uses the same horizontal rail grammar as the internal tabs; the wallet rail scrolls independently; route telemetry is a non-interactive item in the selected-wallet status bar rather than a top-bar button; and the mobile status surface is document-flow content rather than a viewport overlay.
 
-Appearance now offers the preserved Z00Z Default palette plus Black & Gold, Deep Blue Sea, Golden Twilight, and Midnight Sky. Each preset maps the full token set in light and dark modes. A contrast-gated custom Brand/Privacy Rail adjustment may tune decorative colors only; semantic success, warning, failure, focus, and environment colours remain protected.
+Appearance now offers the preserved Z00Z Default palette plus Black & Gold, Deep Blue Sea, Golden Twilight, and Midnight Sky. Each preset maps the full token set in light and dark modes. A contrast-gated custom Brand/Privacy Rail adjustment may tune decorative colors only; semantic success, warning, failure, focus, and environment colours remain protected. YAML syntax is configured application-wide with the canonical One Light, Xcode, One Dark, and Night Owl token sets from the Z00Z website; it never changes safety colours, wallet data, or runtime data.
 
-Advanced Settings now exposes a safe, editable local concept YAML/Form/Mapping draft. Common UI controls and YAML update the same demo state, while secrets and local paths are rejected. `Apply locally` is deliberately restricted to the browser concept; the boundary explaining that runtime configuration write, watch, revision, conflict, and rollback RPCs do not exist remains visible. This is not a claim that a real wallet file can be changed.
+Selected-wallet Advanced now exposes a safe, editable local concept YAML draft. Security, Backup, Policies, and Advanced are selected-wallet settings; General, Appearance, and Network & privacy remain application settings. Wallet controls and YAML update the same demo state, while secrets and local paths are rejected. `Apply locally` is deliberately restricted to the browser concept; the boundary explaining that runtime configuration write, watch, revision, conflict, and rollback RPCs do not exist remains visible. This is not a claim that a real wallet file can be changed.
 
-Verification completed: `node --check`, `git diff --check`, and all 13 Playwright smoke tests pass. Desktop Home/Advanced and 390 × 844 Appearance screenshots were inspected after the change.
+Verification completed: `node --check`, `git diff --check`, and all 16 Playwright smoke tests pass. Desktop Wallets, Appearance, Advanced YAML, and telemetry screenshots were inspected after the change.
 
 Public reference check: [`z00z.io/docs`](https://www.z00z.io/docs) renders its header wordmark with the Geist family, variable weight around 780, uppercase lettering, `0.045em` tracking, a 44 px desktop mark, and a 26 px desktop wordmark. The demo keeps the same font treatment but deliberately enlarges the desktop workspace lockup to a 52 px mark and 34 px wordmark for the requested navigation prominence; it does not copy the documentation site's web navigation or content density.
 
@@ -154,7 +154,7 @@ All textual `Cancel` controls must share the same 44 px minimum height, 1 px neu
 
 ### ⚙️ Wallet rail
 
-- Keep the left rail organized as a wallet-card placeholder that visibly holds three cards, a compact Network shortcut group (OnionNet, Reticulum, TBD), and fixed utility actions below it. Wallet cards and Add/Remove share one scroll area; Add/Remove follow the cards and settle at the lower edge when the list is short. Network shortcuts navigate to Settings; they do not display live telemetry.
+- Keep the left rail organized as a single three-row wallet placeholder, a compact Network telemetry group (OnionNet, Reticulum, Aggregators), and fixed utility actions below it. Wallet cards, Add, and Remove are direct children of one ordered scroll list; they scroll together. Network shortcuts open read-only telemetry workspaces, never Settings.
 - The left rail has exactly one active destination at a time: wallet, Network shortcut, or Settings. Selecting one clears the active state and `aria-current` from the other rail groups; inner wallet tabs and the Settings context rail remain separately scoped navigation.
 - Wallet cards use one height/padding/icon/text grid. Long names truncate only after preserving the amount/status line.
 - The active wallet uses the same bottom gold indicator grammar as the internal active tab, not an arbitrary full-height side stripe.
@@ -298,7 +298,7 @@ Status definitions:
 | Permanent delete wallet | LIVE | `app.wallet.delete_wallet` requires password | Use explicit permanent-delete semantics, not ambiguous Remove |
 | Safe local profile detach | TARGET | No distinct route | Keep concept-only or define API/storage semantics |
 | Remove all local profiles | UI-valid | Demo supports empty wallet list | Must not imply underlying wallet files were permanently deleted |
-| Wallet lock/unlock/lifecycle | LIVE | Session and lifecycle routes | App Security can expose lock timeout and Lock now when configured |
+| Wallet lock/unlock/lifecycle | LIVE | Session and lifecycle routes | Selected-wallet Security can expose lock timeout and Lock now when configured |
 | Wallet rename | TARGET runtime / concept-local demo | No registered route | Re-authenticated local demo may show the intended flow, but labels it local-only until a durable rename capability exists |
 | Asset list/balance/details/metadata | LIVE | Registered asset routes and typed responses | Populate Assets and detail fields from RPC |
 | Fiat Value/Price | TARGET | No market-data response/provider | Hide or label indicative with provider and timestamp |
@@ -478,9 +478,9 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 | Tabs | Start at main-content edge, remain sticky/opaque, do not move on content scroll, and retain readable labels |
 | Copy | One Copy button beside address; ordinary panel hover; shared tooltip shows full address; no blue strip or gold button hover |
 | Assets | Name/Balance/Value/Price headers align with their data; value/price disclose source/time or remain unavailable |
-| Appearance | Default palette is unchanged; four optional presets update full semantic tokens and pass contrast tests |
-| YAML | UI and YAML reflect the same typed draft; validation, provenance, revision conflicts, atomic apply, rollback, and secret exclusion are enforced |
-| Capability honesty | Every nonlive function is disabled or labelled Preview/Unavailable/Experimental; no route telemetry or finality is fabricated |
+| Appearance | Default palette is unchanged; four optional presets update full semantic tokens and four application-wide code themes change YAML syntax only |
+| YAML | UI and YAML reflect the same typed draft; syntax highlighting remains an accessible overlay above the editable source; validation, provenance, revision conflicts, atomic apply, rollback, and secret exclusion are enforced |
+| Capability honesty | Every nonlive function is disabled or labelled Preview/Unavailable/Experimental; telemetry is read-only, local, freshness-labelled, and never fabricated |
 | Responsive | 390 × 844 and 1440 × 1000 screenshots show no overlap, clipping, transparent wallet tabs, or unreachable actions |
 
 ## 🔍 Verification plan

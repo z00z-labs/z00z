@@ -66,12 +66,21 @@ fn test_crypto_ingress_v2_only() {
     assert!(!adapter.contains("verify_sidecar"));
     assert!(!adapter.contains("verifier_verdict"));
     assert!(!adapter.contains("accepted:"));
-    assert!(adapter.contains("if blocks.len() < 3"));
+    assert!(adapter.contains("if blocks.is_empty()"));
+    assert!(!adapter.contains("if blocks.len() < 3"));
     assert!(adapter.contains("if blocks.len() > 5"));
     assert!(nova.contains("Self::new_chain_scoped::<RequiredLocalChainEnvelopeV2>"));
     assert!(nova.contains("Self::load_chain_scoped::<RequiredLocalChainEnvelopeV2>"));
     assert!(nova.contains("self.verify_chain_scoped::<RequiredLocalChainEnvelopeV2>"));
-    assert!(nova.contains("#[cfg(test)]\nstruct DiagnosticSingleStepEnvelopeV2"));
+    let diagnostic_decl = nova
+        .find("struct DiagnosticSingleStepEnvelopeV2")
+        .expect("diagnostic-only single-step envelope declaration");
+    let diagnostic_cfg = nova[..diagnostic_decl]
+        .rfind("#[cfg(test)]")
+        .expect("diagnostic envelope is test-only");
+    assert!(nova[diagnostic_cfg..diagnostic_decl]
+        .lines()
+        .all(|line| line.trim().is_empty() || line.trim_start().starts_with("#[")));
     let block_start = adapter
         .find("pub struct RecursiveCheckpointChainBlockV2")
         .expect("raw chain-block request");

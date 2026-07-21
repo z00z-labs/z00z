@@ -9,6 +9,195 @@ struct TestData {
     values: Vec<i32>,
 }
 
+#[cfg(unix)]
+fn secure_root(dir: &TempDir) -> std::path::PathBuf {
+    let root = dir.path().join("secure");
+    std::fs::create_dir(&root).expect("create secure root");
+    set_permissions_mode(&root, 0o700).expect("set secure root mode");
+    root
+}
+
+#[cfg(unix)]
+fn write_secure(dir: &SecureDir, name: &str, bytes: &[u8]) {
+    use std::io::Write as _;
+
+    let mut file = dir.create_file(name).expect("create secure file");
+    file.write_all(bytes).expect("write secure file");
+    file.sync_all().expect("sync secure file");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_lock_rejects_symlink() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let victim = temp.path().join("victim");
+    std::fs::write(&victim, b"keep").expect("write victim");
+    std::os::unix::fs::symlink(&victim, root.join("lock")).expect("create symlink");
+    let dir = SecureDir::open(&root).expect("open secure root");
+
+    assert!(dir.open_lock("lock").is_err());
+    assert_eq!(std::fs::read(victim).expect("read victim"), b"keep");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_lock_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    std::fs::write(root.join("lock"), b"state").expect("seed lock");
+    set_permissions_mode(root.join("lock"), 0o644).expect("set broad mode");
+    let dir = SecureDir::open(root).expect("open secure root");
+
+    let file = dir.open_lock("lock").expect("open lock");
+    let mode = file.metadata().expect("lock fstat").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_child_rejects_symlink() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let target = temp.path().join("target");
+    std::fs::create_dir(&target).expect("create child target");
+    set_permissions_mode(&target, 0o700).expect("set target mode");
+    std::os::unix::fs::symlink(&target, root.join("child")).expect("create child symlink");
+    let dir = SecureDir::open(root).expect("open secure root");
+
+    assert!(dir.open_child("child").is_err());
+    assert!(dir.ensure_dir("child").is_err());
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_child_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    std::fs::create_dir(root.join("child")).expect("create child");
+    set_permissions_mode(root.join("child"), 0o755).expect("set broad child mode");
+    let dir = SecureDir::open(root).expect("open secure root");
+
+    assert!(dir.open_child("child").is_err());
+    let child = dir.ensure_dir("child").expect("ensure private child");
+    write_secure(&child, "entry", b"anchored");
+    let mode = std::fs::metadata(temp.path().join("secure/child"))
+        .expect("child metadata")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o700);
+    assert_eq!(
+        child.read_file_bounded("entry", 64).expect("read child"),
+        b"anchored"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_read_rejects_symlink() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let victim = temp.path().join("victim");
+    std::fs::write(&victim, b"secret").expect("write victim");
+    std::os::unix::fs::symlink(&victim, root.join("entry")).expect("create symlink");
+    let dir = SecureDir::open(root).expect("open secure root");
+
+    assert!(dir.read_file_bounded("entry", 64).is_err());
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_dir_stays_anchored() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let dir = SecureDir::open(&root).expect("open secure root");
+    write_secure(&dir, "entry", b"original");
+
+    let moved = temp.path().join("moved");
+    std::fs::rename(&root, &moved).expect("move opened root");
+    std::fs::create_dir(&root).expect("replace path root");
+    set_permissions_mode(&root, 0o700).expect("set replacement root mode");
+    std::fs::write(root.join("entry"), b"replacement").expect("write replacement");
+    set_permissions_mode(root.join("entry"), 0o600).expect("set replacement mode");
+
+    assert_eq!(
+        dir.read_file_bounded("entry", 64).expect("read anchored"),
+        b"original"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_rename_no_clobber() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let dir = SecureDir::open(root).expect("open secure root");
+    write_secure(&dir, "source", b"source");
+    write_secure(&dir, "target", b"target");
+
+    assert!(dir.rename_no_clobber("source", "target").is_err());
+    assert_eq!(
+        dir.read_file_bounded("source", 64).expect("read source"),
+        b"source"
+    );
+    assert_eq!(
+        dir.read_file_bounded("target", 64).expect("read target"),
+        b"target"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_remove_unlinks_symlink() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let victim = temp.path().join("victim");
+    std::fs::write(&victim, b"keep").expect("write victim");
+    std::os::unix::fs::symlink(&victim, root.join("entry")).expect("create symlink");
+    let dir = SecureDir::open(root).expect("open secure root");
+
+    dir.remove_file("entry").expect("unlink symlink entry");
+    assert_eq!(std::fs::read(victim).expect("read victim"), b"keep");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_dir_limit_one_overflow() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let dir = SecureDir::open(&root).expect("open secure root");
+    write_secure(&dir, "a", b"a");
+    write_secure(&dir, "b", b"b");
+    write_secure(&dir, "c", b"c");
+
+    assert_eq!(dir.read_dir_bounded(3).expect("read exact limit").len(), 3);
+    assert!(matches!(
+        dir.read_dir_bounded(2),
+        Err(IoError::DirectoryTooLarge { max: 2 })
+    ));
+    assert!(matches!(
+        read_dir_bounded(&root, 2),
+        Err(IoError::DirectoryTooLarge { max: 2 })
+    ));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_secure_names_reject_paths() {
+    let temp = TempDir::new().expect("create temp dir");
+    let root = secure_root(&temp);
+    let dir = SecureDir::open(root).expect("open secure root");
+
+    for name in ["", ".", "..", "nested/name", "name/"] {
+        assert!(dir.create_file(name).is_err(), "accepted {name:?}");
+    }
+}
+
 #[test]
 #[cfg(unix)]
 fn test_atomic_write_symlink() {

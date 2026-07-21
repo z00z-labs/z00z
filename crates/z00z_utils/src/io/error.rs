@@ -18,6 +18,13 @@ pub enum IoError {
         max: u64,
     },
 
+    /// Directory contains more entries than the configured limit.
+    #[error("Directory contains more entries than limit {max}")]
+    DirectoryTooLarge {
+        /// Maximum allowed number of directory entries.
+        max: usize,
+    },
+
     /// Serialization error
     #[error("serialization error: {0}")]
     Serialization(String),

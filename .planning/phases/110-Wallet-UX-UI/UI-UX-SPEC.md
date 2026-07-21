@@ -5,9 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Status | Product, interaction, configuration, and target-network baseline for prototype validation |
-| Version | 0.5.1 |
+| Version | 0.5.2 |
 | Date | 2026-07-19 |
-| Last updated | 2026-07-20 |
+| Last updated | 2026-07-21 |
 | Targets | Windows, Linux, iOS |
 | Prototype | [`demo/index.html`](demo/index.html) |
 | Production UI decision | Tauri 2 + Leptos is a packaged standalone shell; no browser, container, or hosted-wallet profile |
@@ -121,7 +121,7 @@ The interface is derived from concrete jobs rather than from RPC namespaces. Eve
 | Give a permission | Held delegable permission | Choose recipient and narrower scope/uses/expiry → review attenuation → delegate | Given permission; source authority remains explicit |
 | Resolve unsafe input | Attention or family filter | Read quarantine reason → discard/export diagnostics or retry with supported policy | Object remains non-spendable until authoritative promotion |
 | Diagnose connectivity | Header health or Settings → Network | Identify overlay, carrier, chain, and scan independently | Actionable degraded/unavailable state; no invented privacy claim |
-| Change configuration | Common control or Advanced YAML | Edit one effective config → validate → preview provenance/restart → apply | UI and YAML converge on one revision |
+| Change configuration | Application control or selected-wallet Advanced YAML | Edit the configuration at its owning scope → validate → preview provenance/restart → apply | UI and YAML converge on one revision |
 
 ### 🧱 UI element work plan
 
@@ -407,7 +407,7 @@ crates/z00z_wallet_ui/
       home/
       wallet/             # Assets, Vouchers, Permissions context routes
       activity/
-      settings/           # General, Security, Network, Policies, Backups, Appearance, Advanced
+      settings/           # Application: General, Appearance, Network & privacy
       onboarding/
     component/
     accessibility/
@@ -434,13 +434,13 @@ Persistent left rail:
 
 1. Z00Z identity lockup
 2. Scrollable wallet profiles
-3. Network route shortcuts: OnionNet, Reticulum, and a clearly labelled TBD route
+3. Network telemetry shortcuts: OnionNet, Reticulum, and Aggregators
 4. Add/Remove wallet actions
 5. Settings and Log out
 
-The Wallets placeholder reserves space for three full wallet cards. Wallet cards and Add/Remove share its vertical scroll area: the actions follow the final card, settle at the lower edge when the list is short or empty, and become reachable by the same scrollbar when the list is long. Remove remains visible but disabled when no local wallet profiles exist.
+The Wallets placeholder reserves the vertical capacity of exactly three list rows. Wallet cards, Add, and Remove are direct children of one ordered scroll area: all three scroll together. Remove becomes disabled when no local wallet profiles exist.
 
-Network shortcuts open the corresponding Settings → Network route; they are navigation, not live telemetry. Runtime route/scan status remains in the selected-wallet status bar. The header contains the selected-wallet address and copy action, balance-visibility toggle, notifications, and account menu.
+Network shortcuts open distinct read-only telemetry workspaces. OnionNet reports future local route evidence, Reticulum reports future local interface and receipt evidence, and Aggregators reports future local publication evidence. They never perform route setup or configuration and must display unavailable until an authoritative bridge is registered. Runtime route/scan summary remains in the selected-wallet status bar. The header contains the selected-wallet address and copy action, balance-visibility toggle, notifications, and account menu.
 
 The desktop rail has one active destination only: a selected wallet profile, a selected Network shortcut, or Settings. Selecting any one clears the other rail active states and leaves exactly one rail `aria-current="page"`; wallet tabs and the Settings context rail keep their own scoped current route.
 
@@ -449,7 +449,7 @@ The global rail selects a workspace. Inside Wallet and Settings, a compact **con
 - Wallet peer entries: **Assets**, **Vouchers**, **Permissions**, and capability-gated **Quarantine**.
 - Wallet tabs start at **Assets** and continue through **History**, **Swap**, **Exchange**, **Stacking**, **Backup**, and **Settings**. `Overview` is not a wallet tab; Home is an app-level snapshot only.
 - Wallet Settings is local to the selected wallet and has its own context rail: **General**, **Security**, **Backup**, **Policies**, and **Advanced**. It must not mutate global language, appearance, notifications, or another wallet profile.
-- Settings groups: **Wallet** (General, Security, Backups), **Connectivity** (Network), and **Rules & interface** (Policies, Appearance, Advanced).
+- Application Settings groups: **Application** (General, Appearance) and **Connectivity** (Network & privacy). Security, Backup, Policies, and Advanced belong only to the selected wallet’s Settings context rail.
 - Network is the only expandable branch. Selecting it opens the **Overview** and expands **Reticulum**, **OnionNet**, **Carriers**, and capability-gated **Diagnostics** in place; selecting it again collapses that branch and restores Overview. A child route reopens its parent branch. Exactly one route has `aria-current="page"`: the parent for Overview, otherwise the selected child.
 
 The context rail is navigation, not a tab widget: use `nav`, links/buttons, and `aria-current="page"`; do not apply `tablist/tab/tabpanel`. Rounded `ChoiceChip` controls are reserved for filtering or a small mutually exclusive view mode. Activity filters therefore remain rounded chips. These two patterns must not be restyled into look-alike third and fourth variants.
@@ -488,14 +488,10 @@ Quick actions are stable two-by-two cards, not a carousel. The context rail beco
 | `/activity` | Unified activity | Activity | Yes |
 | `/activity/:tx_id` | Activity details and receipt | — | Yes |
 | `/settings` | Settings index | Settings | Yes |
-| `/settings/security` | Lock, seed, key rotation | Security | Yes + re-auth for secrets |
-| `/settings/backup` | Backups | Backups | Yes + re-auth for restore |
 | `/settings/network` | Route and chain | Network | Yes |
 | `/settings/network/reticulum` | Resilient carrier and interfaces | Reticulum | Yes |
 | `/settings/network/onionnet` | Privacy overlay and route health | OnionNet | Yes |
-| `/settings/policies` | Safety/compliance profiles | Policies | Yes + re-auth to apply |
 | `/settings/appearance` | Theme and accessibility preferences | Appearance | Yes |
-| `/settings/advanced` | Expert and diagnostics | Advanced | Yes + opt-in |
 
 ## 🖼️ Global shell
 
@@ -607,7 +603,7 @@ Merge, split, stake, unstake, and swap RPCs exist, but code marks several asset 
 Rules:
 
 - Keep them disabled in production until the canonical spend/settlement authority is confirmed end to end.
-- If enabled for testing, place them under Advanced → Experimental recipes.
+- If enabled for testing, place them under Wallet Settings → Advanced → Experimental recipes.
 - Label the environment and risk; never imply final settlement from a compatibility response.
 
 ## 🪄 Wallet → Vouchers and Permissions
@@ -806,7 +802,7 @@ Revocation:
 
 ### 🧾 Backup and restore
 
-Backup lives in Settings → Backups and surfaces a reminder on Home when overdue.
+Backup lives in selected-wallet Settings → Backup and surfaces a reminder on Home when overdue.
 
 - Create: destination summary → re-auth → progress → integrity result.
 - List: date, target label, size, compatibility/version, integrity status.
@@ -825,7 +821,7 @@ Settings uses the grouped context rail defined in the IA; it is neither a horizo
 
 - Application language/number format, notification preferences, and safe startup behavior. Selected-wallet name, display currency, and transaction defaults belong only in Selected-wallet Settings.
 - A compact **Configuration status** card shows the active file, schema version, effective revision, last valid load, external-change status, and restart requirement.
-- Normal users see only validated common controls. Advanced fields remain available in YAML and Advanced → Configuration.
+- Normal users see only validated common controls. Advanced wallet fields remain available in selected-wallet YAML and Wallet Settings → Advanced.
 
 ### 👛 Selected-wallet Settings
 
@@ -895,8 +891,11 @@ Mode behavior:
 Network tree entries:
 
 - **Overview:** effective mode, privacy result, carrier, chain, scan, and one-line degradation reason.
-- **Reticulum:** service state, interfaces, mesh/bridge state, independent identity fingerprint, resource use, and restart requirement. Common UI controls are mode and allowed interface classes; raw interface config is YAML/Advanced.
-- **OnionNet:** route status, privacy floor, route age/epoch, hop count, replay/membership health, and rebuild action. No “anonymous” badge.
+- **Reticulum:** service state, interfaces, mesh/bridge state, independent identity fingerprint, resource use, and restart requirement. Common UI controls are mode and allowed interface classes; raw interface configuration requires a future privileged runtime configuration route.
+
+The standalone Reticulum telemetry workspace uses the same sticky, fully opaque horizontal tab grammar as selected-wallet tabs. Its seven read-only tabs are **Node**, **Interfaces**, **Radio**, **Entry points**, **Paths**, **Probes**, and **Links**. Each tab owns one metric family: a managed RNS instance; local interfaces; RNode/LoRa-only physical metrics; trusted local interface discovery; path/control-plane summaries; probes to controlled destinations; and application-owned logical links/receipts. The UI must label the observing node/scope and freshness. It must never claim a global node count, global topology, global availability/free bandwidth, RF metrics for intermediate hops, or a universal peer list. No tab may offer transport configuration, remote management, route changes, or a raw diagnostics dump.
+The standalone OnionNet telemetry workspace uses the same sticky, fully opaque horizontal tab grammar. Its seven read-only tabs are **Overview**, **Epoch**, **Privacy floor**, **Transport**, **Queues & replay**, **Probation**, and **Ingress boundary**. It separates public deterministic control-plane data from local node/client evidence and aggregate synthetic measurements. Public fields may cover epoch, registry/policy roots, deterministic active/reserve selection, lane contracts, lifecycle counts, diversity headroom, and aggregate carrier distribution. Local-only fields cover queue/replay/backpressure, route construction, and ingress timing; a global view exposes them only in privacy-preserving aggregates. It must never reveal a complete route, next hop, endpoint, circuit/session ID, packet trace, replay tag, ciphertext/hash, recipient identity, or a linkable cross-hop correlation ID. `selected active` is never represented as `currently reachable`; selected, observed, and probe coverage are separate labels. The UI must not synthesize a universal privacy/anonymity score. Privacy-floor, lane, diversity, and cover-traffic contract indicators remain separate and unavailable until a verified source exists. No tab may offer route rebuild, route setup, policy edits, transport configuration, or raw diagnostics.
+- **OnionNet:** the read-only dashboard above; no “anonymous” badge.
 - **Carriers:** priority and allow/deny for Reticulum, QUIC/TLS, and optional Tor compatibility. Changing priority previews fallback consequences.
 - **Diagnostics:** sanitized state transitions, test connection, export support bundle, and capability/backend status.
 
@@ -907,7 +906,7 @@ Rules:
 - Dev uses persistent amber **DEV** label.
 - Switching away from Main requires confirmation and names the consequence.
 - Privacy overlay, carrier, and chain are three separate concepts. Never call Tor or Reticulum a chain, and never present Reticulum as the privacy guarantee.
-- Raw node/port/height/log controls are Advanced only.
+- Raw node/port/height/log controls require a future privileged runtime configuration route.
 - If the active backend only exposes the current `switch_to_onionet` / `switch_to_tor` stubs, the UI shows **Target capability unavailable in this build**. It must not fabricate connected route properties.
 
 ### 🛡️ Policies
@@ -938,6 +937,7 @@ Current wallet-local `PolicyRules` support maximum transaction/daily amounts, al
 ### 🎨 Appearance
 
 - System, Dark, Light.
+- YAML code highlighting is application-wide and independently selectable: One Light, Xcode, One Dark, and Night Owl. These presets change code-surface tokens only and do not alter safety semantics, wallet data, or runtime state.
 - Accent presets: Z00Z Gold, Private Cyan, Neutral, and validated Custom. Brand gold remains the default.
 - Text scale, information density, and high-contrast mode.
 - Compact mode for desktop lists only; it must not reduce touch targets.
@@ -959,7 +959,7 @@ flowchart LR
     P[Managed policy locks] --> M
     M --> S[Effective snapshot + provenance + revision]
     S --> U[Common UI controls]
-    S --> A[Advanced YAML editor / external file]
+    S --> A[Selected-wallet Advanced YAML editor / external file]
     U --> C[Typed field patch]
     A --> C
     C --> V[Validate candidate]
@@ -981,7 +981,7 @@ Required behavior:
 10. Schema versioning, migrations, export, redacted support bundle, and rollback to last known good are required.
 11. In the standalone application, only the native ConfigGateway owns configuration mutation. The renderer cannot directly browse arbitrary paths, rewrite YAML text, or bypass the revisioned validation/reconciliation path; external changes still reconcile through the same snapshot.
 
-Advanced → Configuration has a rounded `ChoiceChip` view selector for **Form**, **YAML**, and **Diff**, plus Validate, Apply, Reload, Export, and Open file. These are peer representations of one document, not route tabs. The YAML editor is optional for normal use and must provide schema-aware completion, inline errors, search, and protected secret paths. External editors remain fully valid.
+Selected-wallet Settings → Advanced has a rounded `ChoiceChip` view selector for **Form**, **YAML**, and **Diff**, plus Validate, Apply, Reload, Export, and Open file. These are peer representations of one selected-wallet document, not route tabs. The YAML editor is optional for normal use and must provide schema-aware completion, inline errors, search, and protected secret paths. External editors remain fully valid.
 
 Target configuration service methods—names to finalize during backend design—are `app.config.get_schema`, `get_snapshot`, `validate_patch`, `apply_patch`, `validate_document`, `apply_document`, `reload`, `rollback`, and a `config.changed` event. These do not exist in the current RPC registry and must not be represented as live in production until implemented.
 
@@ -1010,7 +1010,7 @@ wallet:
     user: personal-safe-v1
 ```
 
-### 🧑‍🔧 Advanced
+### 🧑‍🔧 Selected-wallet Advanced
 
 Off by default. Enabling it requires a plain warning that technical operations can reveal metadata or create unusable packages.
 
@@ -1041,28 +1041,116 @@ The relationship to `z00z.io` is structural and tonal:
 - The wallet remains dark-first because private desktop/mobile sessions benefit from reduced glare, while the light theme uses the site's neutral corporate surfaces.
 - Do not import the site's marketing/documentation density, web links, or browse hierarchy into transactional review screens.
 
-### 🎨 Color tokens
+### 🎨 Color Lookup Table (LUT)
 
-All final pairs must pass WCAG contrast tests in implementation. Initial token contract:
+**Canonical editable source:** [`demo/color-lut.css`](demo/color-lut.css). It is the only file permitted to contain literal application colours (`#…`, `rgb()`, `hsl()`, or named colours). Component CSS and JavaScript consume semantic variables only. This prevents a new yellow, red, blue, or green variant from silently appearing in one screen while remaining absent from the rest of the application.
 
-| Token | Dark | Light | Use |
-| --- | --- | --- | --- |
-| `--bg-canvas` | `#081019` | `#F4F7FA` | App background |
-| `--bg-sidebar` | `#0B1520` | `#FFFFFF` | Navigation |
-| `--bg-surface` | `#101D29` | `#FFFFFF` | Cards and sheets |
-| `--bg-raised` | `#162635` | `#EDF2F6` | Hover/selected/nested |
-| `--text-primary` | `#F5F7F8` | `#12202C` | Primary text |
-| `--text-secondary` | `#A9B6C2` | `#526272` | Supporting text |
-| `--border` | `#263847` | `#D5DEE6` | Dividers |
-| `--brand` | `#E3B341` | `#9C6B00` | Primary authorization/action |
-| `--brand-strong` | `#F4C95D` | `#704B00` | Hover/active |
-| `--rail` | `#32A9E8` | `#006FA8` | Network/private route |
-| `--success` | `#4CD29B` | `#087A52` | Settled/healthy |
-| `--warning` | `#F3B65B` | `#8A5200` | Pending/attention |
-| `--danger` | `#FF6B72` | `#B4232C` | Failure/destructive |
-| `--focus` | `#7CCBFF` | `#005FCC` | Keyboard focus ring |
+The LUT has three layers:
 
-Never encode state by color alone. Pair color with icon and text.
+1. **Source values** use the `--lut-{palette}-{mode}-{role}` convention and hold every literal value.
+2. **Semantic variables** (`--brand`, `--success`, `--rail`, `--danger`, etc.) are the only colour interface for components.
+3. **Derived treatments** use `color-mix()` from a semantic variable; a component may not mix from a literal value.
+
+The following are full review tables for the application palette. Values are authoritative only when they match `color-lut.css`; edit the CSS LUT, not this specification table.
+
+#### Surface and overlay values
+
+| Palette / mode | Canvas | Sidebar | Surface | Raised | Overlay |
+| --- | --- | --- | --- | --- | --- |
+| Z00Z Default / dark | `#081019` | `#0B1520` | `#101D29` | `#162635` | `rgb(1 8 14 / 78%)` |
+| Z00Z Default / light | `#F4F7FA` | `#FFFFFF` | `#FFFFFF` | `#EDF2F6` | `rgb(20 30 40 / 48%)` |
+| Black & Gold / dark | `#000000` | `#14213D` | `#14213D` | `#1D2D4D` | `rgb(0 0 0 / 92%)` |
+| Black & Gold / light | `#F6F7F8` | `#FFFFFF` | `#FFFFFF` | `#E8EBEF` | `rgb(0 0 0 / 48%)` |
+| Deep Blue Sea / dark | `#0B2545` | `#13315C` | `#13315C` | `#134074` | `rgb(11 37 69 / 92%)` |
+| Deep Blue Sea / light | `#F3F7FA` | `#FFFFFF` | `#FFFFFF` | `#E8F0F6` | `rgb(11 37 69 / 44%)` |
+| Golden Twilight / dark | `#000814` | `#001D3D` | `#001D3D` | `#003566` | `rgb(0 8 20 / 92%)` |
+| Golden Twilight / light | `#F5F8FB` | `#FFFFFF` | `#FFFFFF` | `#EAF0F6` | `rgb(0 29 61 / 44%)` |
+| Midnight Sky / dark | `#00296B` | `#003F88` | `#003F88` | `#00509D` | `rgb(0 41 107 / 92%)` |
+| Midnight Sky / light | `#F4F8FC` | `#FFFFFF` | `#FFFFFF` | `#E9F0F7` | `rgb(0 41 107 / 44%)` |
+
+| Semantic token | Meaning |
+| --- | --- |
+| `--bg-canvas` | Application background |
+| `--bg-sidebar` | Global navigation background |
+| `--bg-surface` | Cards, sheets, and content regions |
+| `--bg-raised` | Hover, selected, and nested surface |
+| `--bg-overlay` | Dialog and privacy overlay |
+
+#### Text and divider values
+
+| Palette / mode | Primary text | Secondary text | Tertiary text | Divider | Strong divider |
+| --- | --- | --- | --- | --- | --- |
+| Z00Z Default / dark | `#F5F7F8` | `#A9B6C2` | `#788997` | `#263847` | `#395063` |
+| Z00Z Default / light | `#12202C` | `#526272` | `#728190` | `#D5DEE6` | `#B5C3CF` |
+| Black & Gold / dark | `#FFFFFF` | `#E5E5E5` | `#BFC5CA` | `#37445C` | `#5A6680` |
+| Black & Gold / light | `#14213D` | `#45546A` | `#6C7888` | `#C9D1DA` | `#AEB9C7` |
+| Deep Blue Sea / dark | `#EEF4ED` | `#C8D8D5` | `#A9C0CA` | `#315B83` | `#5B85AA` |
+| Deep Blue Sea / light | `#0B2545` | `#415F7D` | `#6A829A` | `#C4D4E1` | `#A7BDCE` |
+| Golden Twilight / dark | `#FFFFFF` | `#D6E1EF` | `#9FB6CE` | `#1D4F7E` | `#4274A3` |
+| Golden Twilight / light | `#001D3D` | `#405B78` | `#7089A1` | `#C6D4E2` | `#AABBCD` |
+| Midnight Sky / dark | `#FFFFFF` | `#D7E6F7` | `#AEC7E5` | `#2D6FAE` | `#5D99D0` |
+| Midnight Sky / light | `#00296B` | `#405F87` | `#6D87A8` | `#C4D4E6` | `#A6BBD1` |
+
+| Semantic token | Meaning |
+| --- | --- |
+| `--text-primary` | Readable interface language and key values |
+| `--text-secondary` | Supporting copy and secondary data |
+| `--text-tertiary` | Quiet labels and metadata |
+| `--border` | Default component boundary and divider |
+| `--border-strong` | Hover, field, and raised boundary |
+
+#### Brand, network, and state values
+
+| Palette / mode | Brand | Brand strong | Brand ink | Private rail | Success | Warning | Danger | Focus |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Z00Z Default / dark | `#E3B341` | `#F4C95D` | `#1E1704` | `#32A9E8` | `#4CD29B` | `#F3B65B` | `#FF6B72` | `#7CCBFF` |
+| Z00Z Default / light | `#9C6B00` | `#704B00` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+| Black & Gold / dark | `#FCA311` | `#FFD166` | `#1A1200` | `#66C5E8` | `#4CD29B` | `#FCA311` | `#FF6B72` | `#9BDCFF` |
+| Black & Gold / light | `#9C6500` | `#704B00` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+| Deep Blue Sea / dark | `#8DA9C4` | `#C2D4E5` | `#0B2545` | `#78D2EA` | `#61D8A8` | `#F3C86B` | `#FF7B82` | `#9FDCFF` |
+| Deep Blue Sea / light | `#315B83` | `#173C62` | `#FFFFFF` | `#006F94` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+| Golden Twilight / dark | `#FFC300` | `#FFD60A` | `#241B00` | `#55C5EF` | `#4CD29B` | `#FFC300` | `#FF6B72` | `#93DBFF` |
+| Golden Twilight / light | `#9A7000` | `#6F5000` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+| Midnight Sky / dark | `#FDC500` | `#FFD500` | `#271E00` | `#75D4F5` | `#55D7A2` | `#FDC500` | `#FF747B` | `#B4E8FF` |
+| Midnight Sky / light | `#936F00` | `#675000` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+
+| Semantic token | Meaning | Never use for |
+| --- | --- | --- |
+| `--brand` / `--brand-strong` / `--brand-ink` | Authorization, primary action, selection, and its readable foreground | Failure, health, or network state |
+| `--rail` | OnionNet/Reticulum/aggregator route and privacy capability | Success or warning |
+| `--success` | Settled, healthy, trusted, active | Primary action or warning |
+| `--warning` | Pending, review, unsettled, degraded | Failure or confirmation |
+| `--danger` | Failed, destructive, blocked | Attention or selection |
+| `--focus` | Keyboard focus ring only | Persistent selected state |
+
+#### YAML highlighting LUT
+
+| Theme | Background | Border | Foreground | Comment | Key | String | Number | Title |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| One Light | `#FAFAFA` | `#D6D6D6` | `#0D161B` | `#64560D` | `#F23173` | `#BD5200` | `#CF4DFF` | `#007400` |
+| Xcode | `#FAFAFA` | `#D6D6D6` | `#000000` | `#007400` | `#AA0D91` | `#C41A16` | `#1C00CF` | `#1C00CF` |
+| One Dark | `#0D161B` | `#181A1F` | `#CACED6` | `#75715E` | `#F92672` | `#E5C07B` | `#C678DD` | `#98C379` |
+| Night Owl | `#011627` | `#13344A` | `#D6DEEB` | `#637777` | `#C792EA` | `#ECC48D` | `#F78C6C` | `#DCDCAA` |
+
+YAML uses only `--code-bg`, `--code-border`, `--code-fg`, `--code-comment`, `--code-keyword`, `--code-string`, `--code-number`, and `--code-title`; it never inherits app safety colours.
+
+#### Utility and derived values
+
+| Token | Value / source | Use |
+| --- | --- | --- |
+| `--shadow` | Dark: `0 20px 60px rgb(0 0 0 / 32%)`; light: `0 20px 60px rgb(36 50 64 / 18%)` | Dialog/sheet elevation |
+| `--shadow-float` | `0 8px 26px rgb(0 0 0 / 18%)` | Floating controls |
+| `--elevation-highlight-*` | Theme-aware neutral alpha source | Inset elevation only |
+| `--ambient-rail`, `--ambient-rail-mobile` | `color-mix()` from `--rail` | Decorative background glow only |
+| `--logo-glow` | `color-mix()` from `--brand` | Z00Z logo only |
+| `--qr-light`, `--qr-dark` | LUT neutral/contrast values | QR code only |
+
+**Change rules:**
+
+1. Change a colour at the matching `--lut-{palette}-{mode}-{role}` entry and verify both themes plus all five palette cards.
+2. A new colour requires a semantic role, a dark/light value, a palette mapping, a WCAG contrast check, and a documented use. Copying a hex value into component CSS or JavaScript is prohibited.
+3. Custom Appearance may override only `--brand` and `--rail`. It must not override success, warning, danger, focus, code, QR, or security meaning.
+4. Never encode state with colour alone; pair it with a label, icon, or status text.
 
 ### 🔤 Typography
 
@@ -1163,7 +1251,7 @@ Rules:
 2. Quick actions, Activity, Attention, Voucher, Permission, Asset, and sidebar wallet cards match their mapped LUT row without a smaller local override.
 3. The smallest visible supporting text is 12 px or larger at default zoom; 200% zoom does not create clipping or page-level horizontal scroll.
 4. Numeric columns use tabular numerals and their headers align to their own values, including Name/Balance/Value/Price in Assets.
-5. A screenshot review covers dark and light themes, 390 × 844 and 1440 × 1000 viewports, normal/hidden sensitive balance state, an asset table, an activity row, and a destructive wallet-selection dialog.
+5. A screenshot review covers dark and light themes, 320 × 700, 390 × 844, and 1440 × 1000 viewports; it includes normal/hidden sensitive balance state, an asset table, an activity row, a wallet-settings route, a telemetry route, and a destructive wallet-selection dialog.
 6. At desktop width, the `WALLETS` label and wallet tabs are at least 16 px and the sidebar brand/top-bar content centers within the same top navigation frame.
 
 ### 📐 Spacing, shape, elevation
@@ -1207,7 +1295,8 @@ Rules:
 
 | Width | Shell | Content | Dialog behavior |
 | --- | --- | --- | --- |
-| 0–599 px | Top bar + bottom nav | One column, 16 px gutters | Bottom sheet; full screen for seed/recovery |
+| 0–380 px | Top bar + bottom nav | One column, 12 px compact gutters | Bottom sheet; full screen for seed/recovery |
+| 381–599 px | Top bar + bottom nav | One column, 16 px gutters | Bottom sheet; full screen for seed/recovery |
 | 600–1023 px | Compact rail or bottom nav by orientation | One or two columns, 24 px gutters | Center dialog or side sheet |
 | 1024–1439 px | 248 px left rail | Max 1120 px, adaptive grid | Right sheet up to 520 px |
 | 1440+ px | 264 px left rail | Max 1240 px; no uncontrolled stretching | Right sheet up to 560 px |
@@ -1220,6 +1309,9 @@ Additional rules:
 - Use numeric/decimal keyboard for amounts and password manager-compatible semantics for passwords.
 - Cards become stacked lists; tables do not create page-level horizontal scrolling.
 - The longest supported translated labels must fit or wrap without clipping.
+- At 0–380 CSS px, every edge-to-edge scroll strip uses the same 12 px gutter as its containing content. Wallet tabs, context routes, and filters may scroll internally, but `documentElement.scrollWidth` must equal `clientWidth`; no strip may create page-level horizontal scroll.
+- A selected wallet tab or context route is fully visible within its own horizontal strip. Its target is never compressed below 44 px merely to show more neighbours.
+- The fixed mobile bottom nav includes the safe-area inset. Scrollable content, including a static wallet status bar and the final card or notice, can always be brought completely above that navigation surface.
 
 ## ♿ Accessibility contract
 
@@ -1440,7 +1532,7 @@ The demo uses fabricated values and must display **Interactive concept · no rea
 - Adding or refactoring an unexposed internal RPC method causes no UI change. Every new user-visible capability has a scenario, typed contract addition, schema, fixture, mock state, adapter-conformance test, and explicit availability/confirmation rule before a UI control is enabled.
 - No secret reaches renderer-side persistent storage, logs, analytics, panic payloads, or screenshot fixtures.
 - Core flows have deterministic mock-gateway tests and the direct/iOS and local-IPC/desktop adapters pass the same contract suite.
-- Responsive screenshots exist at 390 × 844, 768 × 1024, 1280 × 800, and 1920 × 1080.
+- Responsive screenshots exist at 320 × 700, 390 × 844, 768 × 1024, 1280 × 800, and 1920 × 1080.
 - iOS release candidates pass the mobile-adaptation contract on real/emulated targets: safe areas, keyboard, rotation/window resize, iOS navigation gesture, lifecycle lock, biometrics, share/files, VoiceOver, large text, and reduced motion.
 - Keyboard-only Pay, asset Claim, Voucher, Permission, policy profile, configuration, lock/unlock, and settings flows pass.
 - Config tests cover comment/unknown-key preservation, invalid YAML, external edits, revision conflict, atomic write failure, last-known-good rollback, environment provenance, migration, and secret rejection.

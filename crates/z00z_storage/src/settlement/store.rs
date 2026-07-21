@@ -753,16 +753,7 @@ impl SettlementStore {
                 "recursive V2 cutover requires a durable isolated store".to_string(),
             ));
         }
-        if manifest.policy_digest != self.bucket_policy().bucket_policy_id()
-            || manifest.storage_generation != self.recursive_v2_storage_generation()
-            || manifest.expected_definition_root != self.recursive_v2_definition_root()
-            || manifest.expected_settlement_root
-                != *self.settlement_root_v2(manifest.layout)?.as_bytes()
-        {
-            return Err(SettlementStoreError::Backend(
-                "recursive V2 cutover manifest does not match the live store".to_string(),
-            ));
-        }
+        self.check_recursive_v2_cutover(&manifest)?;
         self.backend
             .install_recursive_v2_cutover(&manifest)
             .map_err(|err| SettlementStoreError::Backend(err.to_string()))?;
@@ -781,6 +772,50 @@ impl SettlementStore {
         crate::backend::redb::recursive_v2_cutover_crash_point(
             "after-durable-readback-before-success",
         );
+        Ok(())
+    }
+
+    /// Load the sole durable recursive-V2 cutover manifest and bind it to the
+    /// unchanged live settlement generation before any prior state is derived.
+    pub(crate) fn load_recursive_v2_cutover(
+        &self,
+    ) -> Result<RecursiveV2CutoverManifestV2, SettlementStoreError> {
+        if !self.backend.is_on() {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 cutover requires durable storage".to_string(),
+            ));
+        }
+        let manifest = self
+            .backend
+            .load_recursive_v2_cutover()
+            .map_err(|err| SettlementStoreError::Backend(err.to_string()))?
+            .ok_or_else(|| {
+                SettlementStoreError::Backend(
+                    "recursive V2 cutover manifest is missing".to_string(),
+                )
+            })?;
+        self.check_recursive_v2_cutover(&manifest)?;
+        Ok(manifest)
+    }
+
+    fn check_recursive_v2_cutover(
+        &self,
+        manifest: &RecursiveV2CutoverManifestV2,
+    ) -> Result<(), SettlementStoreError> {
+        manifest
+            .validate()
+            .map_err(|err| SettlementStoreError::Backend(err.to_string()))?;
+        let expected_root = self.settlement_root_v2(manifest.layout)?;
+        if manifest.policy_digest != self.bucket_policy().bucket_policy_id()
+            || manifest.storage_generation != self.recursive_v2_storage_generation()
+            || manifest.expected_definition_root != self.recursive_v2_definition_root()
+            || manifest.snapshot_root != manifest.expected_settlement_root
+            || manifest.expected_settlement_root != *expected_root.as_bytes()
+        {
+            return Err(SettlementStoreError::Backend(
+                "recursive V2 cutover manifest does not match the live store".to_string(),
+            ));
+        }
         Ok(())
     }
 
@@ -904,7 +939,7 @@ impl SettlementStore {
     }
 
     #[cfg(test)]
-    pub(crate) fn apply_exec_handoff_v2_for_test(
+    pub(crate) fn apply_test_exec_handoff_v2(
         &mut self,
         handoff: SettlementExecHandoff,
         segment_dir: &std::path::Path,

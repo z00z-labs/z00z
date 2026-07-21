@@ -1,20 +1,28 @@
 //! Backend-neutral recursive proof persistence orchestration.
 
 use std::{
+    fs::File,
     marker::PhantomData,
     path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
 };
 
+use fs2::FileExt;
 use z00z_crypto::sha256_256;
-use z00z_utils::io::{
-    create_dir_all, path_exists_no_follow, read_dir, rename_file, set_file_mode,
-    set_permissions_mode, symlink_metadata, sync_directory, File, Read, Write,
-};
+use z00z_utils::io::{SecureDir, Write};
+use z00z_utils::time::Instant;
 
 use super::{
     canonical_transition::CanonicalCheckpointTransitionV2,
-    nova::{prove_continuous_chain_v2, resolve_verifier_authority_v2, NovaChainTransitionV2},
-    receipt::{recursive_receipt_digest, CryptographicVerificationReceiptV2},
+    nova::{
+        resolve_verifier_authority_v2, NovaChainTransitionV2, NovaContinuousSessionV2,
+        NovaRunGuardV2,
+    },
+    receipt::{recursive_receipt_digest, CryptographicVerificationReceiptV2, PreparedReceiptV2},
     recursive_circuit::RecursiveCircuitProfileV2,
     recursive_context::RecursiveAuthoritySnapshotV2,
     recursive_statement::RecursiveFinalizedIvcStateV2,
@@ -32,10 +40,16 @@ use crate::{
 
 const ENVELOPE_READ_CAP_V2: u64 = 512 * 1024 + 32;
 const SIDECAR_READ_CAP_V2: u64 = 64 * 1024 + 32;
-const RECEIPT_READ_CAP_V2: u64 = 16 * 1024 + 32;
 const LIVE_GATE_DOMAIN_V2: &str = "z00z.storage.checkpoint.live_gate.v2";
 const LIVE_GATE_TRACE_LABEL_V2: &str = "gate_trace";
 const LIVE_GATE_CONTEXT_LABEL_V2: &str = "gate_context";
+const CHECKPOINT_CLAIM_LABEL_V2: &str = "checkpoint_claim";
+// Authority generation 2 permits one complete prover run to consume up to one
+// hour. Its separate 5-second cancellation budget limits stop responsiveness;
+// it is not the wall-clock lifetime of a valid proof attempt.
+const LIVE_RUN_MAX_DURATION_V2: Duration = Duration::from_secs(3_600);
+const MAX_VERIFIER_ATTEMPTS_V2: u64 = 1_048_576;
+const VERIFIER_ATTEMPTS_PER_RECEIPT_V2: u64 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -106,19 +120,6 @@ impl LiveGateTraceV2 {
     fn digest(&self) -> Result<[u8; 32], CheckpointError> {
         let context_digest = self.context_digest.ok_or(CheckpointError::Invariant)?;
         Ok(gate_trace_digest(context_digest, &self.ids[..self.len]))
-    }
-
-    fn receipt_digest(&self) -> Result<[u8; 32], CheckpointError> {
-        if self.len + 1 != SUCCESSFUL_GATE_SEQUENCE_V2.len()
-            || SUCCESSFUL_GATE_SEQUENCE_V2.get(self.len).copied()
-                != Some(LiveGateIdV2::ReceiptIssued)
-        {
-            return Err(CheckpointError::Invariant);
-        }
-        let context_digest = self.context_digest.ok_or(CheckpointError::Invariant)?;
-        let mut ids = self.ids;
-        ids[self.len] = LiveGateIdV2::ReceiptIssued as u8;
-        Ok(gate_trace_digest(context_digest, &ids))
     }
 
     #[cfg(test)]
@@ -385,6 +386,45 @@ fn live_gate_context_digest(
     )
 }
 
+fn checkpoint_claim_bytes(
+    storage_generation: u64,
+    envelope_digest: [u8; 32],
+    sidecar_digest: [u8; 32],
+    bindings: super::nova::NovaVerificationBindingsV2,
+) -> Vec<u8> {
+    let mut body = Vec::with_capacity(2 + 4 * 8 + 9 * 32);
+    body.extend_from_slice(&2_u16.to_le_bytes());
+    body.extend_from_slice(&storage_generation.to_le_bytes());
+    body.extend_from_slice(&bindings.authority_generation.to_le_bytes());
+    body.extend_from_slice(&bindings.height.to_le_bytes());
+    body.extend_from_slice(&bindings.steps.to_le_bytes());
+    for digest in [
+        bindings.checkpoint_id,
+        bindings.config_digest,
+        bindings.bundle_digest,
+        bindings.public_input_digest,
+        bindings.successor_finalized_state_digest,
+        bindings.statement_digest,
+        bindings.checkpoint_link_digest,
+        envelope_digest,
+        sidecar_digest,
+    ] {
+        body.extend_from_slice(&digest);
+    }
+    let checksum = sha256_256(LIVE_GATE_DOMAIN_V2, CHECKPOINT_CLAIM_LABEL_V2, &[&body]);
+    body.extend_from_slice(&checksum);
+    body
+}
+
+fn is_checkpoint_claim_canonical(bytes: &[u8]) -> bool {
+    const BODY_BYTES: usize = 2 + 4 * 8 + 9 * 32;
+    if bytes.len() != BODY_BYTES + 32 {
+        return false;
+    }
+    let (body, checksum) = bytes.split_at(BODY_BYTES);
+    checksum == sha256_256(LIVE_GATE_DOMAIN_V2, CHECKPOINT_CLAIM_LABEL_V2, &[body]).as_slice()
+}
+
 /// One-shot capability created only after exact postwrite backend and endpoint
 /// verification. Receipt code can consume it but cannot construct or replay it.
 pub(super) struct PostwriteVerifiedV2 {
@@ -393,14 +433,50 @@ pub(super) struct PostwriteVerifiedV2 {
     envelope_digest: [u8; 32],
     sidecar_digest: [u8; 32],
     bindings: super::nova::NovaVerificationBindingsV2,
-    receipt_trace_digest: [u8; 32],
 }
 
-pub(super) struct PostwriteReceiptPartsV2 {
-    pub(super) storage_generation: u64,
-    pub(super) envelope_digest: [u8; 32],
-    pub(super) sidecar_digest: [u8; 32],
-    pub(super) bindings: super::nova::NovaVerificationBindingsV2,
+/// Private capability produced only by consuming the final receipt gate.
+pub(super) struct ReceiptIssuedPartsV2 {
+    storage_generation: u64,
+    envelope_digest: [u8; 32],
+    sidecar_digest: [u8; 32],
+    bindings: super::nova::NovaVerificationBindingsV2,
+}
+
+/// Private capability created after persisted evidence is reloaded and reverified.
+pub(super) struct ReloadedEvidenceV2 {
+    marker: PhantomData<()>,
+}
+
+struct ReceiptReadyToIssueV2 {
+    postwrite: PostwriteVerifiedV2,
+    prepared: PreparedReceiptV2,
+}
+
+impl ReloadedEvidenceV2 {
+    fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+impl ReceiptIssuedPartsV2 {
+    pub(super) fn into_parts(
+        self,
+    ) -> (
+        u64,
+        [u8; 32],
+        [u8; 32],
+        super::nova::NovaVerificationBindingsV2,
+    ) {
+        (
+            self.storage_generation,
+            self.envelope_digest,
+            self.sidecar_digest,
+            self.bindings,
+        )
+    }
 }
 
 impl PostwriteVerifiedV2 {
@@ -419,51 +495,21 @@ impl PostwriteVerifiedV2 {
                 CheckpointError::Invariant,
             ));
         }
-        let receipt_trace_digest = match stage.trace.receipt_digest() {
-            Ok(digest) => digest,
-            Err(terminal) => return Err(LiveGateFailureV2::new(stage.trace, terminal)),
-        };
         Ok(Self {
             stage,
             storage_generation,
             envelope_digest,
             sidecar_digest,
             bindings,
-            receipt_trace_digest,
         })
     }
 
-    fn retain<T>(self, result: Result<T, CheckpointError>) -> Result<(Self, T), LiveGateFailureV2> {
-        let Self {
-            stage,
-            storage_generation,
-            envelope_digest,
-            sidecar_digest,
-            bindings,
-            receipt_trace_digest,
-        } = self;
-        let (stage, value) = stage.retain(result)?;
-        Ok((
-            Self {
-                stage,
-                storage_generation,
-                envelope_digest,
-                sidecar_digest,
-                bindings,
-                receipt_trace_digest,
-            },
-            value,
-        ))
-    }
-
-    pub(super) fn issue_receipt(self) -> Result<PostwriteReceiptPartsV2, CheckpointError> {
+    pub(super) fn issue_receipt(self) -> Result<ReceiptIssuedPartsV2, CheckpointError> {
         let stage = self.stage.issue_receipt()?;
-        if stage.trace.digest()? != self.receipt_trace_digest {
-            return Err(CheckpointError::Invariant);
-        }
+        let receipt_trace_digest = stage.trace.digest()?;
         let mut bindings = self.bindings;
-        bindings.gate_trace_digest = self.receipt_trace_digest;
-        Ok(PostwriteReceiptPartsV2 {
+        bindings.gate_trace_digest = receipt_trace_digest;
+        Ok(ReceiptIssuedPartsV2 {
             storage_generation: self.storage_generation,
             envelope_digest: self.envelope_digest,
             sidecar_digest: self.sidecar_digest,
@@ -471,15 +517,17 @@ impl PostwriteVerifiedV2 {
         })
     }
 
-    pub(super) fn receipt_preview(&self) -> PostwriteReceiptPartsV2 {
-        let mut bindings = self.bindings;
-        bindings.gate_trace_digest = self.receipt_trace_digest;
-        PostwriteReceiptPartsV2 {
-            storage_generation: self.storage_generation,
-            envelope_digest: self.envelope_digest,
-            sidecar_digest: self.sidecar_digest,
-            bindings,
-        }
+    fn prepare_receipt(self) -> Result<ReceiptReadyToIssueV2, CheckpointError> {
+        let prepared = CryptographicVerificationReceiptV2::prepare(
+            self.storage_generation,
+            self.envelope_digest,
+            self.sidecar_digest,
+            self.bindings,
+        )?;
+        Ok(ReceiptReadyToIssueV2 {
+            postwrite: self,
+            prepared,
+        })
     }
 
     #[cfg(test)]
@@ -488,15 +536,62 @@ impl PostwriteVerifiedV2 {
     }
 }
 
-/// Paths and typed evidence returned only after exact persistence reload and
+impl ReceiptReadyToIssueV2 {
+    fn issue(self) -> Result<CryptographicVerificationReceiptV2, CheckpointError> {
+        let issued = self.postwrite.issue_receipt()?;
+        Ok(self.prepared.issue(issued, ReloadedEvidenceV2::new()))
+    }
+}
+
+/// Digest-bound evidence returned only after exact persistence reload and
 /// unchanged-verifier acceptance.
 #[derive(Debug)]
 pub struct RecursiveCheckpointEvidenceV2 {
     pub sidecar: RecursiveCheckpointSidecarV2,
     pub receipt: CryptographicVerificationReceiptV2,
-    pub envelope_path: PathBuf,
-    pub sidecar_path: PathBuf,
-    pub receipt_path: PathBuf,
+    pub envelope_digest: [u8; 32],
+    pub sidecar_digest: [u8; 32],
+    pub receipt_digest: [u8; 32],
+    pub successor: RecursiveFinalizedIvcStateV2,
+    pub verifier_attempts: u64,
+}
+
+/// Explicit caller intent for the sole fold/evidence ingress. Folding never
+/// implies compression, persistence, publication, or receipt issuance.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecursiveEvidenceRequestV2 {
+    FoldOnly,
+    Snapshot,
+}
+
+/// One canonical production result: either the advanced accumulator endpoint
+/// or fully reloaded and reverified snapshot evidence.
+#[derive(Debug)]
+pub enum RecursiveEvidenceOutcomeV2 {
+    Folded(RecursiveFinalizedIvcStateV2),
+    Snapshot(RecursiveCheckpointEvidenceV2),
+}
+
+/// Cooperative cancellation for one production evidence attempt. It cannot
+/// extend the authority-owned deadline or any resource limit.
+#[derive(Clone, Default)]
+pub struct RecursiveEvidenceCancellationV2 {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl RecursiveEvidenceCancellationV2 {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
+    fn flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.cancelled)
+    }
 }
 
 /// One storage-owned finalized-block construction request supplied to the sole
@@ -509,7 +604,6 @@ pub struct RecursiveCheckpointChainBlockV2<'a> {
     checkpoint_store: &'a dyn CheckpointStore,
     prep_snapshot_store: &'a dyn PrepSnapshotStore,
     checkpoint_id: CheckpointId,
-    settlement_store: &'a mut SettlementStore,
     handoff: SettlementExecHandoff,
 }
 
@@ -521,7 +615,6 @@ impl<'a> RecursiveCheckpointChainBlockV2<'a> {
         checkpoint_store: &'a dyn CheckpointStore,
         prep_snapshot_store: &'a dyn PrepSnapshotStore,
         checkpoint_id: CheckpointId,
-        settlement_store: &'a mut SettlementStore,
         handoff: SettlementExecHandoff,
     ) -> Self {
         Self {
@@ -530,26 +623,79 @@ impl<'a> RecursiveCheckpointChainBlockV2<'a> {
             checkpoint_store,
             prep_snapshot_store,
             checkpoint_id,
-            settlement_store,
             handoff,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LiveAuthorityAttemptV2 {
+    snapshot: RecursiveAuthoritySnapshotV2,
+    profile: RecursiveCircuitProfileV2,
+    cutover: RecursiveFinalizedIvcStateV2,
+}
+
+struct EvidenceProcessLockV2<'a> {
+    file: &'a File,
+}
+
+impl<'a> EvidenceProcessLockV2<'a> {
+    fn acquire(file: &'a File) -> Result<Self, CheckpointError> {
+        file.lock_exclusive()
+            .map_err(|_| CheckpointError::Storage)?;
+        Ok(Self { file })
+    }
+}
+
+impl Drop for EvidenceProcessLockV2<'_> {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(self.file);
     }
 }
 
 /// One fixed-layout local evidence store. It has no scheduler, retry queue,
 /// provider SDK, or authority promotion API.
 pub struct RecursiveCheckpointEvidenceStoreV2 {
-    root: PathBuf,
+    envelopes: SecureDir,
+    sidecars: SecureDir,
+    claims: SecureDir,
+    quarantine: SecureDir,
+    process_lock: File,
+    session: Mutex<Option<NovaContinuousSessionV2>>,
+    verifier_attempts: AtomicU64,
 }
 
 impl RecursiveCheckpointEvidenceStoreV2 {
     pub fn open(root: impl AsRef<Path>) -> Result<Self, CheckpointError> {
         let root = root.as_ref().to_path_buf();
-        ensure_private_directory(&root)?;
-        for child in ["envelopes", "sidecars", "receipts", "quarantine"] {
-            ensure_private_directory(&root.join(child))?;
-        }
-        Ok(Self { root })
+        let root_dir = SecureDir::ensure_private(&root).map_err(|_| CheckpointError::Storage)?;
+        let envelopes = root_dir
+            .ensure_dir("envelopes")
+            .map_err(|_| CheckpointError::Storage)?;
+        let sidecars = root_dir
+            .ensure_dir("sidecars")
+            .map_err(|_| CheckpointError::Storage)?;
+        let claims = root_dir
+            .ensure_dir("claims")
+            .map_err(|_| CheckpointError::Storage)?;
+        let quarantine = root_dir
+            .ensure_dir("quarantine")
+            .map_err(|_| CheckpointError::Storage)?;
+        let process_lock = root_dir
+            .open_lock(".evidence-session.lock")
+            .map_err(|_| CheckpointError::Storage)?;
+        scavenge_temporary_files(&envelopes)?;
+        scavenge_temporary_files(&sidecars)?;
+        scavenge_temporary_files(&claims)?;
+        Ok(Self {
+            envelopes,
+            sidecars,
+            claims,
+            quarantine,
+            process_lock,
+            session: Mutex::new(None),
+            verifier_attempts: AtomicU64::new(0),
+        })
     }
 
     /// Execute the mandatory gate sequence: native evaluation, continuous
@@ -559,128 +705,156 @@ impl RecursiveCheckpointEvidenceStoreV2 {
     pub fn produce(
         &self,
         blocks: &mut [RecursiveCheckpointChainBlockV2<'_>],
+        settlement_store: &mut SettlementStore,
         prover_material_bytes: &[u8],
         verifier_bundle_bytes: &[u8],
-        prior: RecursiveFinalizedIvcStateV2,
-    ) -> Result<RecursiveCheckpointEvidenceV2, CheckpointError> {
-        if blocks.len() < 3 {
+        cancellation: &RecursiveEvidenceCancellationV2,
+        request: RecursiveEvidenceRequestV2,
+    ) -> Result<RecursiveEvidenceOutcomeV2, CheckpointError> {
+        if blocks.is_empty() {
             return Err(CheckpointError::RecursiveRejected(
                 super::recursive_reject::RecursiveCheckpointRejectReasonV2::ChainTooShort,
             ));
         }
-        if blocks.len() > 5 {
-            return Err(CheckpointError::RecursiveRejected(
-                super::recursive_reject::RecursiveCheckpointRejectReasonV2::ChainTooLong,
-            ));
-        }
+        let _process_lock = EvidenceProcessLockV2::acquire(&self.process_lock)?;
+        require_secret_process_hardening()?;
+
         let stage = LiveGateStageV2::<GateStartV2>::start();
-        let authority_result = (|| {
-            let first = blocks.first().ok_or(CheckpointError::Invariant)?;
-            let authority =
-                RecursiveAuthoritySnapshotV2::resolve_active_authority(&*first.settlement_store)?;
-            let authority_context = authority.authority();
-            let profile = first.profile;
-            for block in blocks.iter() {
-                let candidate = RecursiveAuthoritySnapshotV2::resolve_active_authority(
-                    &*block.settlement_store,
-                )?;
-                if candidate.authority() != authority_context || block.profile != profile {
-                    return Err(CheckpointError::Authority);
-                }
-            }
-            Ok((authority, profile))
-        })();
-        let (stage, (authority, profile)) = stage
-            .authority_resolved(authority_result)
+        let (stage, authority) = stage
+            .authority_resolved(capture_live_authority(blocks, settlement_store))
             .map_err(LiveGateFailureV2::into_error)?;
+        let (stage, config_attempt) = stage
+            .retain(authority.snapshot.begin_evidence_attempt())
+            .map_err(LiveGateFailureV2::into_error)?;
+        let _config_attempt = config_attempt;
         let (stage, verifier) = stage
             .family_selected(resolve_verifier_authority_v2(
                 prover_material_bytes,
                 verifier_bundle_bytes,
-                authority,
-                &profile,
+                authority.snapshot,
+                &authority.profile,
             ))
             .map_err(LiveGateFailureV2::into_error)?;
+        let deadline = Instant::now()
+            .checked_add(LIVE_RUN_MAX_DURATION_V2)
+            .ok_or(CheckpointError::Resource)?;
+        let guard =
+            NovaRunGuardV2::from_profile(deadline, cancellation.flag(), &authority.profile)?;
 
-        let transitions_result = blocks
-            .iter_mut()
-            .map(|block| {
-                CanonicalCheckpointTransitionV2::from_exec_with_verifier(
-                    &block.transition_dir,
-                    profile,
-                    block.checkpoint_store,
-                    block.prep_snapshot_store,
-                    block.checkpoint_id,
-                    &mut *block.settlement_store,
-                    block.handoff.clone(),
-                    verifier,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>();
+        let mut transitions_result = Ok(Vec::with_capacity(blocks.len()));
+        for block in blocks.iter() {
+            let transition = CanonicalCheckpointTransitionV2::from_exec_with_verifier(
+                &block.transition_dir,
+                authority.profile,
+                block.checkpoint_store,
+                block.prep_snapshot_store,
+                block.checkpoint_id,
+                &mut *settlement_store,
+                block.handoff.clone(),
+                verifier,
+            );
+            match (&mut transitions_result, transition) {
+                (Ok(transitions), Ok(transition)) => transitions.push(transition),
+                (_, Err(error)) => {
+                    transitions_result = Err(error);
+                    break;
+                }
+                (Err(_), Ok(_)) => unreachable!("failed transition loop must stop"),
+            }
+        }
         let (stage, mut transitions) = stage
             .retain(transitions_result)
             .map_err(LiveGateFailureV2::into_error)?;
         let (stage, ()) = stage
-            .retain(revalidate_chain(&transitions, blocks))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let mut nova_blocks = transitions
-            .iter_mut()
-            .zip(blocks.iter())
-            .map(|(transition, block)| NovaChainTransitionV2 {
-                transition,
-                store: &*block.settlement_store,
-            })
-            .collect::<Vec<_>>();
-        let (stage, verified) = stage
-            .outer_bounded(prove_continuous_chain_v2(
-                &mut nova_blocks,
-                prover_material_bytes,
-                verifier_bundle_bytes,
-                prior,
+            .retain(revalidate_attempt(
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
             ))
             .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, ()) = stage
-            .retain(verified.portable_input().validate_required_local_chain())
-            .map_err(LiveGateFailureV2::into_error)?;
-        drop(nova_blocks);
-        let inner_result = if verified.framed_envelope().is_empty() {
-            Err(CheckpointError::Canonical)
-        } else {
-            Ok(verified)
-        };
-        let (stage, verified) = stage
-            .inner_bounded(inner_result)
-            .map_err(LiveGateFailureV2::into_error)?;
-        // The sealed verified value is created only after the Nova owner's
-        // canonical curve decoder accepts the exact envelope.
-        let (stage, verified) = stage
-            .curve_valid(Ok(verified))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let bundle_result = if verified.bundle_digest() == verifier.verifier_bundle_digest() {
-            Ok(verified)
-        } else {
-            Err(CheckpointError::Authority)
-        };
-        let (stage, verified) = stage
-            .bundle_matched(bundle_result)
-            .map_err(LiveGateFailureV2::into_error)?;
-        // Construction of `VerifiedNovaCheckpointV2` includes the unchanged
-        // backend verifier call. Consuming it prevents replay across stages.
-        let (stage, verified) = stage
-            .backend_verified(Ok(verified))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let bindings_result = verified.bindings().and_then(|bindings| {
-            if bindings.final_state_limbs == 0 {
-                Err(CheckpointError::Invariant)
+        let nova_blocks = transitions
+            .iter_mut()
+            .map(|transition| NovaChainTransitionV2 {
+                transition,
+                store: &*settlement_store,
+            })
+            .collect::<Vec<_>>();
+
+        // Keep the slot locked through receipt issuance. A concurrent caller
+        // cannot observe an empty slot and fork a second accumulator lineage.
+        let mut session_slot = self.session.lock().map_err(|_| CheckpointError::Storage)?;
+        let mut iterator = nova_blocks.into_iter();
+        let session = contain_backend(|| {
+            if let Some(mut existing) = session_slot.take() {
+                existing.renew_guard(guard)?;
+                if existing.bundle_digest()? != verifier.verifier_bundle_digest() {
+                    return Err(CheckpointError::Authority);
+                }
+                let mut pending = iterator.collect::<Vec<_>>();
+                let _ = existing.fold_blocks(&mut pending)?;
+                Ok(existing)
             } else {
-                Ok(bindings)
+                let first = iterator.next().ok_or(CheckpointError::Invariant)?;
+                let mut created = NovaContinuousSessionV2::start(
+                    first,
+                    prover_material_bytes,
+                    verifier_bundle_bytes,
+                    authority.cutover,
+                    guard,
+                )?;
+                let mut remaining = iterator.collect::<Vec<_>>();
+                if !remaining.is_empty() {
+                    let _ = created.fold_blocks(&mut remaining)?;
+                }
+                Ok(created)
             }
-        });
+        })?;
+        if session.bundle_digest()? != verifier.verifier_bundle_digest() {
+            return Err(CheckpointError::Authority);
+        }
+        let successor = session.successor()?;
+        if request == RecursiveEvidenceRequestV2::FoldOnly {
+            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+            *session_slot = Some(session);
+            return Ok(RecursiveEvidenceOutcomeV2::Folded(successor));
+        }
+        let (stage, verifier_attempts) = stage
+            .retain(self.reserve_verifier_attempts(VERIFIER_ATTEMPTS_PER_RECEIPT_V2))
+            .map_err(LiveGateFailureV2::into_error)?;
+
+        let (stage, outer) = stage
+            .outer_bounded(contain_backend(|| {
+                session
+                    .snapshot()
+                    .and_then(|candidate| candidate.check_outer())
+            }))
+            .map_err(LiveGateFailureV2::into_error)?;
+        let (stage, inner) = stage
+            .inner_bounded(contain_backend(|| outer.check_inner()))
+            .map_err(LiveGateFailureV2::into_error)?;
+        let (stage, curve) = stage
+            .curve_valid(contain_backend(|| inner.check_curve()))
+            .map_err(LiveGateFailureV2::into_error)?;
+        let (stage, bundle) = stage
+            .bundle_matched(contain_backend(|| curve.check_bundle()))
+            .map_err(LiveGateFailureV2::into_error)?;
+        let (stage, backend) = stage
+            .backend_verified(contain_backend(|| bundle.check_backend()))
+            .map_err(LiveGateFailureV2::into_error)?;
+        let (stage, verified) = stage
+            .limbs_matched(contain_backend(|| backend.check_limbs()))
+            .map_err(LiveGateFailureV2::into_error)?;
         let (stage, bindings) = stage
-            .limbs_matched(bindings_result)
+            .retain(verified.bindings())
             .map_err(LiveGateFailureV2::into_error)?;
         let (stage, ()) = stage
-            .bindings_matched(revalidate_chain(&transitions, blocks))
+            .bindings_matched(revalidate_attempt(
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
+            ))
             .map_err(LiveGateFailureV2::into_error)?;
         let storage_generation_result = transitions
             .last()
@@ -695,71 +869,60 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             .bind_context(trace_context)
             .map_err(LiveGateFailureV2::into_error)?;
         let (stage, ()) = stage
-            .endpoint_reloaded(revalidate_chain(&transitions, blocks))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, ()) = stage
-            .prewrite_complete(verified.verify_exact_bytes(verified.framed_envelope()))
-            .map_err(LiveGateFailureV2::into_error)?;
-
-        let envelope_path = self.object_path("envelopes", verified.envelope_digest());
-        let (stage, envelope_created) = stage
-            .retain(persist_content_addressed(
-                &envelope_path,
-                verified.framed_envelope(),
-            ))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, ()) = stage
-            .retain(revalidate_or_quarantine(
+            .endpoint_reloaded(revalidate_attempt(
+                &authority,
                 &transitions,
                 blocks,
-                &self.root,
-                &[(&envelope_path, envelope_created)],
+                settlement_store,
             ))
             .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, reloaded_envelope) = stage
-            .retain(read_exact_bounded(&envelope_path, ENVELOPE_READ_CAP_V2))
-            .map_err(LiveGateFailureV2::into_error)?;
         let (stage, ()) = stage
-            .retain(verified.verify_exact_bytes(&reloaded_envelope))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, ()) = stage
-            .retain(revalidate_chain(&transitions, blocks))
+            .prewrite_complete(contain_backend(|| {
+                verified.verify_exact_bytes(verified.framed_envelope())
+            }))
             .map_err(LiveGateFailureV2::into_error)?;
 
-        let (stage, sidecar) = stage
-            .retain(RecursiveCheckpointSidecarV2::new(
+        let envelope_name = object_name(verified.envelope_digest());
+        let mut written = Vec::<(&str, String, bool)>::new();
+        let persisted = (|| {
+            let envelope_created =
+                self.persist_attempt("envelopes", &envelope_name, verified.framed_envelope())?;
+            written.push(("envelopes", envelope_name.clone(), envelope_created));
+            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+            let reloaded_envelope =
+                read_exact_bounded(&self.envelopes, &envelope_name, ENVELOPE_READ_CAP_V2)?;
+            contain_backend(|| verified.verify_exact_bytes(&reloaded_envelope))?;
+            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+
+            let sidecar = RecursiveCheckpointSidecarV2::new(
                 storage_generation,
                 verified.envelope_digest(),
                 verified.framed_envelope().len(),
                 bindings,
-            ))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, ()) = stage
-            .retain(check_shadow_sidecar_binding(
+            )?;
+            check_shadow_sidecar_binding(
                 &sidecar,
                 storage_generation,
                 verified.envelope_digest(),
                 verified.framed_envelope().len(),
                 bindings,
-            ))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, sidecar_bytes) = stage
-            .retain(RecursiveCheckpointSidecarCodecV2::encode_bin(&sidecar))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let sidecar_digest = recursive_sidecar_digest(&sidecar_bytes);
-        let sidecar_path = self.object_path("sidecars", sidecar_digest);
-        let (stage, sidecar_created) = stage
-            .atomic_write(persist_content_addressed(&sidecar_path, &sidecar_bytes))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, reloaded_sidecar_bytes) = stage
-            .bytes_reloaded(read_exact_bounded(&sidecar_path, SIDECAR_READ_CAP_V2))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, reloaded_sidecar) = stage
-            .retain(RecursiveCheckpointSidecarCodecV2::decode_bin(
-                &reloaded_sidecar_bytes,
-            ))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let reloaded_binding = (|| {
+            )?;
+            let sidecar_bytes = RecursiveCheckpointSidecarCodecV2::encode_bin(&sidecar)?;
+            let sidecar_digest = recursive_sidecar_digest(&sidecar_bytes);
+            let sidecar_name = object_name(sidecar_digest);
+            let (stage, sidecar_created) = stage
+                .atomic_write(self.persist_attempt("sidecars", &sidecar_name, &sidecar_bytes))
+                .map_err(LiveGateFailureV2::into_error)?;
+            written.push(("sidecars", sidecar_name.clone(), sidecar_created));
+            let (stage, reloaded_sidecar_bytes) = stage
+                .bytes_reloaded(read_exact_bounded(
+                    &self.sidecars,
+                    &sidecar_name,
+                    SIDECAR_READ_CAP_V2,
+                ))
+                .map_err(LiveGateFailureV2::into_error)?;
+            let reloaded_sidecar =
+                RecursiveCheckpointSidecarCodecV2::decode_bin(&reloaded_sidecar_bytes)?;
             check_shadow_sidecar_binding(
                 &reloaded_sidecar,
                 storage_generation,
@@ -770,219 +933,347 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             if reloaded_sidecar != sidecar {
                 return Err(CheckpointError::Canonical);
             }
-            revalidate_or_quarantine(
-                &transitions,
-                blocks,
-                &self.root,
-                &[
-                    (&envelope_path, envelope_created),
-                    (&sidecar_path, sidecar_created),
-                ],
-            )
-        })();
-        let (stage, ()) = stage
-            .retain(reloaded_binding)
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (stage, ()) = stage
-            .post_backend_verified(verified.verify_exact_bytes(&reloaded_envelope))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let post_endpoint = (|| {
-            check_shadow_sidecar_binding(
-                &reloaded_sidecar,
+            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+            let (stage, ()) = stage
+                .post_backend_verified(contain_backend(|| {
+                    verified.verify_exact_bytes(&reloaded_envelope)
+                }))
+                .map_err(LiveGateFailureV2::into_error)?;
+            let post_endpoint = (|| {
+                check_shadow_sidecar_binding(
+                    &reloaded_sidecar,
+                    storage_generation,
+                    verified.envelope_digest(),
+                    verified.framed_envelope().len(),
+                    bindings,
+                )?;
+                revalidate_attempt(&authority, &transitions, blocks, settlement_store)
+            })();
+            let (stage, ()) = stage
+                .post_endpoint_matched(post_endpoint)
+                .map_err(LiveGateFailureV2::into_error)?;
+            let claim_name = format!("{}.claim", lowercase_hex(bindings.checkpoint_id));
+            let claim_bytes = checkpoint_claim_bytes(
                 storage_generation,
                 verified.envelope_digest(),
-                verified.framed_envelope().len(),
+                sidecar_digest,
                 bindings,
-            )?;
-            revalidate_chain(&transitions, blocks)
+            );
+            let claim_created = self.persist_claim(&claim_name, &claim_bytes)?;
+            written.push(("claims", claim_name, claim_created));
+            let postwrite = PostwriteVerifiedV2::new(
+                stage,
+                storage_generation,
+                verified.envelope_digest(),
+                sidecar_digest,
+                bindings,
+            )
+            .map_err(LiveGateFailureV2::into_error)?;
+            // All registry, field and size checks finish before gate 16. Once
+            // that gate succeeds, final receipt construction is infallible and
+            // no later I/O or authority operation remains.
+            let ready = postwrite.prepare_receipt()?;
+            let receipt = ready.issue()?;
+            let receipt_digest = recursive_receipt_digest(receipt.canonical_bytes());
+            Ok((sidecar, sidecar_digest, receipt, receipt_digest))
         })();
-        let (stage, ()) = stage
-            .post_endpoint_matched(post_endpoint)
-            .map_err(LiveGateFailureV2::into_error)?;
 
-        let postwrite = PostwriteVerifiedV2::new(
-            stage,
-            storage_generation,
-            verified.envelope_digest(),
-            sidecar_digest,
-            bindings,
-        )
-        .map_err(LiveGateFailureV2::into_error)?;
-        let prepared_result = CryptographicVerificationReceiptV2::prepare_postwrite(&postwrite);
-        let (postwrite, prepared) = postwrite
-            .retain(prepared_result)
-            .map_err(LiveGateFailureV2::into_error)?;
-        let receipt_bytes = prepared.canonical_bytes().to_vec();
-        let receipt_digest = recursive_receipt_digest(&receipt_bytes);
-        let receipt_path = self.object_path("receipts", receipt_digest);
-        let (postwrite, receipt_created) = postwrite
-            .retain(persist_content_addressed(&receipt_path, &receipt_bytes))
-            .map_err(LiveGateFailureV2::into_error)?;
-        // Receipts have no decoder. Reload is byte equality only and can never
-        // promote evidence or select a proof/config path.
-        let (postwrite, reloaded_receipt) = postwrite
-            .retain(read_exact_bounded(&receipt_path, RECEIPT_READ_CAP_V2))
-            .map_err(LiveGateFailureV2::into_error)?;
-        let exact_reload = if reloaded_receipt == receipt_bytes {
-            Ok(())
-        } else {
-            Err(CheckpointError::Canonical)
+        let (sidecar, sidecar_digest, receipt, receipt_digest) = match persisted {
+            Ok(output) => output,
+            Err(error) => {
+                self.quarantine_attempt(&written)?;
+                return Err(error);
+            }
         };
-        let (postwrite, ()) = postwrite
-            .retain(exact_reload)
-            .map_err(LiveGateFailureV2::into_error)?;
-        let (postwrite, ()) = postwrite
-            .retain(revalidate_or_quarantine(
-                &transitions,
-                blocks,
-                &self.root,
-                &[
-                    (&envelope_path, envelope_created),
-                    (&sidecar_path, sidecar_created),
-                    (&receipt_path, receipt_created),
-                ],
-            ))
-            .map_err(LiveGateFailureV2::into_error)?;
+        *session_slot = Some(session);
 
-        // This is deliberately the final operation and the only edge that
-        // appends `ReceiptIssued` or constructs a public receipt. The call
-        // release-checks the complete prepared/postwrite binding pair.
-        let receipt = CryptographicVerificationReceiptV2::issue_postwrite(postwrite, prepared)?;
-
-        Ok(RecursiveCheckpointEvidenceV2 {
-            sidecar,
-            receipt,
-            envelope_path,
-            sidecar_path,
-            receipt_path,
-        })
+        Ok(RecursiveEvidenceOutcomeV2::Snapshot(
+            RecursiveCheckpointEvidenceV2 {
+                sidecar,
+                receipt,
+                envelope_digest: verified.envelope_digest(),
+                sidecar_digest,
+                receipt_digest,
+                successor,
+                verifier_attempts,
+            },
+        ))
     }
 
-    fn object_path(&self, class: &str, digest: [u8; 32]) -> PathBuf {
-        self.root
-            .join(class)
-            .join(format!("{}.bin", lowercase_hex(digest)))
+    fn object_dir(&self, class: &str) -> Result<&SecureDir, CheckpointError> {
+        match class {
+            "envelopes" => Ok(&self.envelopes),
+            "sidecars" => Ok(&self.sidecars),
+            "claims" => Ok(&self.claims),
+            _ => Err(CheckpointError::Invariant),
+        }
     }
+
+    fn reserve_verifier_attempts(&self, count: u64) -> Result<u64, CheckpointError> {
+        self.verifier_attempts
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                current
+                    .checked_add(count)
+                    .filter(|next| *next <= MAX_VERIFIER_ATTEMPTS_V2)
+            })
+            .map(|previous| previous + count)
+            .map_err(|_| CheckpointError::Resource)
+    }
+
+    fn persist_attempt(
+        &self,
+        class: &'static str,
+        name: &str,
+        bytes: &[u8],
+    ) -> Result<bool, CheckpointError> {
+        let directory = self.object_dir(class)?;
+        match persist_content_addressed(directory, name, bytes) {
+            Ok(created) => Ok(created),
+            Err(CheckpointError::Canonical) => {
+                let cap = u64::try_from(bytes.len())
+                    .map_err(|_| CheckpointError::Limit)?
+                    .checked_add(1)
+                    .ok_or(CheckpointError::Overflow)?;
+                if directory.read_file_bounded(name, cap).is_err() {
+                    return Err(CheckpointError::Canonical);
+                }
+                quarantine_written(directory, class, name, &self.quarantine)?;
+                persist_content_addressed(directory, name, bytes)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn quarantine_attempt(&self, written: &[(&str, String, bool)]) -> Result<(), CheckpointError> {
+        const MAX_QUARANTINE_OBJECTS_V2: usize = 64;
+        let created = written.iter().filter(|(_, _, created)| *created).count();
+        let existing = self
+            .quarantine
+            .read_dir_bounded(MAX_QUARANTINE_OBJECTS_V2)
+            .map_err(|_| CheckpointError::Limit)?
+            .len();
+        if existing
+            .checked_add(created)
+            .filter(|total| *total <= MAX_QUARANTINE_OBJECTS_V2)
+            .is_none()
+        {
+            return Err(CheckpointError::Limit);
+        }
+        for (class, name, created) in written {
+            if *created {
+                quarantine_written(self.object_dir(class)?, class, name, &self.quarantine)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn persist_claim(&self, name: &str, bytes: &[u8]) -> Result<bool, CheckpointError> {
+        const CLAIM_READ_CAP_V2: u64 = 1024;
+        if let Ok(existing) = self.claims.read_file_bounded(name, CLAIM_READ_CAP_V2) {
+            if existing == bytes {
+                return Ok(false);
+            }
+            if is_checkpoint_claim_canonical(&existing) {
+                return Err(CheckpointError::Canonical);
+            }
+            quarantine_written(&self.claims, "claims", name, &self.quarantine)?;
+        }
+        persist_content_addressed(&self.claims, name, bytes)
+    }
+}
+
+fn capture_live_authority(
+    blocks: &[RecursiveCheckpointChainBlockV2<'_>],
+    settlement_store: &SettlementStore,
+) -> Result<LiveAuthorityAttemptV2, CheckpointError> {
+    let first = blocks.first().ok_or(CheckpointError::Invariant)?;
+    let snapshot = RecursiveAuthoritySnapshotV2::resolve_active_authority(settlement_store)?;
+    let profile = first.profile;
+    let cutover = RecursiveFinalizedIvcStateV2::from_cutover_store(settlement_store)?;
+    let attempt = LiveAuthorityAttemptV2 {
+        snapshot,
+        profile,
+        cutover,
+    };
+    revalidate_live_authority(&attempt, blocks, settlement_store)?;
+    Ok(attempt)
+}
+
+fn require_secret_process_hardening() -> Result<(), CheckpointError> {
+    let report = z00z_utils::os_hardening::apply_best_effort();
+    #[cfg(all(unix, not(target_os = "ios")))]
+    if !report.core_dumps_disabled {
+        return Err(CheckpointError::Resource);
+    }
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    if !report.non_dumpable {
+        return Err(CheckpointError::Resource);
+    }
+    Ok(())
+}
+
+fn contain_backend<T>(
+    operation: impl FnOnce() -> Result<T, CheckpointError>,
+) -> Result<T, CheckpointError> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(operation))
+        .map_err(|_| CheckpointError::BackendVerificationFailed)?
+}
+
+fn revalidate_live_authority(
+    attempt: &LiveAuthorityAttemptV2,
+    blocks: &[RecursiveCheckpointChainBlockV2<'_>],
+    settlement_store: &SettlementStore,
+) -> Result<(), CheckpointError> {
+    attempt.snapshot.revalidate_config()?;
+    for block in blocks {
+        let live = RecursiveAuthoritySnapshotV2::resolve_active_authority(settlement_store)?;
+        let cutover = RecursiveFinalizedIvcStateV2::from_cutover_store(settlement_store)?;
+        if live.authority() != attempt.snapshot.authority()
+            || block.profile != attempt.profile
+            || cutover != attempt.cutover
+        {
+            return Err(CheckpointError::Authority);
+        }
+    }
+    Ok(())
+}
+
+fn revalidate_attempt(
+    attempt: &LiveAuthorityAttemptV2,
+    transitions: &[CanonicalCheckpointTransitionV2],
+    blocks: &[RecursiveCheckpointChainBlockV2<'_>],
+    settlement_store: &SettlementStore,
+) -> Result<(), CheckpointError> {
+    revalidate_live_authority(attempt, blocks, settlement_store)?;
+    revalidate_chain(transitions, blocks, settlement_store)
 }
 
 fn revalidate_chain(
     transitions: &[CanonicalCheckpointTransitionV2],
     blocks: &[RecursiveCheckpointChainBlockV2<'_>],
+    settlement_store: &SettlementStore,
 ) -> Result<(), CheckpointError> {
     if transitions.len() != blocks.len() {
         return Err(CheckpointError::Invariant);
     }
-    for (transition, block) in transitions.iter().zip(blocks) {
-        transition.revalidate_evidence_authority(&*block.settlement_store)?;
+    for transition in transitions {
+        transition.revalidate_evidence_authority(settlement_store)?;
     }
     Ok(())
 }
 
-fn revalidate_or_quarantine(
-    transitions: &[CanonicalCheckpointTransitionV2],
-    blocks: &[RecursiveCheckpointChainBlockV2<'_>],
-    root: &Path,
-    written: &[(&Path, bool)],
+fn quarantine_written(
+    source: &SecureDir,
+    class: &str,
+    name: &str,
+    quarantine: &SecureDir,
 ) -> Result<(), CheckpointError> {
-    if let Err(error) = revalidate_chain(transitions, blocks) {
-        for (path, created) in written {
-            if *created {
-                quarantine_written(root, path)?;
-            }
-        }
-        return Err(error);
-    }
-    Ok(())
-}
-
-fn quarantine_written(root: &Path, path: &Path) -> Result<(), CheckpointError> {
     const MAX_QUARANTINE_OBJECTS_V2: usize = 64;
-    let quarantine = root.join("quarantine");
-    let count = read_dir(&quarantine)
-        .map_err(|_| CheckpointError::Storage)?
-        .into_iter()
-        .take(MAX_QUARANTINE_OBJECTS_V2 + 1)
-        .count();
-    if count >= MAX_QUARANTINE_OBJECTS_V2 {
+    let entries = quarantine
+        .read_dir_bounded(MAX_QUARANTINE_OBJECTS_V2)
+        .map_err(|_| CheckpointError::Limit)?;
+    let destination = format!("{class}-{name}");
+    if entries.iter().any(|entry| entry == destination.as_str()) {
+        source
+            .remove_file(name)
+            .map_err(|_| CheckpointError::Storage)?;
+        source.sync().map_err(|_| CheckpointError::Storage)?;
+        return Ok(());
+    }
+    if entries.len() >= MAX_QUARANTINE_OBJECTS_V2 {
         return Err(CheckpointError::Limit);
     }
-    let class = path
-        .parent()
-        .and_then(Path::file_name)
-        .and_then(|value| value.to_str())
-        .ok_or(CheckpointError::Storage)?;
-    let name = path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .ok_or(CheckpointError::Storage)?;
-    let destination = quarantine.join(format!("{class}-{name}"));
-    if path_exists_no_follow(&destination).map_err(|_| CheckpointError::Storage)? {
-        return Err(CheckpointError::Canonical);
-    }
-    rename_file(path, &destination).map_err(|_| CheckpointError::Storage)?;
-    sync_directory(&quarantine).map_err(|_| CheckpointError::Storage)
+    source
+        .rename_to_no_clobber(name, quarantine, &destination)
+        .map_err(|_| CheckpointError::Storage)?;
+    source.sync().map_err(|_| CheckpointError::Storage)?;
+    quarantine.sync().map_err(|_| CheckpointError::Storage)
 }
 
-fn ensure_private_directory(path: &Path) -> Result<(), CheckpointError> {
-    if path_exists_no_follow(path).map_err(|_| CheckpointError::Storage)? {
-        let metadata = symlink_metadata(path).map_err(|_| CheckpointError::Storage)?;
-        if !metadata.file_type().is_dir() || metadata.file_type().is_symlink() {
-            return Err(CheckpointError::Storage);
+fn scavenge_temporary_files(directory: &SecureDir) -> Result<(), CheckpointError> {
+    const MAX_SCAVENGE_ENTRIES_V2: usize = 256;
+    let entries = directory
+        .read_dir_bounded(MAX_SCAVENGE_ENTRIES_V2)
+        .map_err(|_| CheckpointError::Limit)?;
+    let mut changed = false;
+    for entry in entries {
+        let Some(name) = entry.to_str() else {
+            return Err(CheckpointError::Canonical);
+        };
+        if name.starts_with(".tmp-") {
+            directory
+                .remove_file(name)
+                .map_err(|_| CheckpointError::Storage)?;
+            changed = true;
         }
-    } else {
-        create_dir_all(path).map_err(|_| CheckpointError::Storage)?;
     }
-    #[cfg(unix)]
-    set_permissions_mode(path, 0o700).map_err(|_| CheckpointError::Storage)?;
+    if changed {
+        directory.sync().map_err(|_| CheckpointError::Storage)?;
+    }
     Ok(())
 }
 
-fn persist_content_addressed(path: &Path, bytes: &[u8]) -> Result<bool, CheckpointError> {
-    let parent = path.parent().ok_or(CheckpointError::Storage)?;
-    if path_exists_no_follow(path).map_err(|_| CheckpointError::Storage)? {
-        if read_exact_bounded(path, bytes.len() as u64)? == bytes {
-            return Ok(false);
-        }
-        return Err(CheckpointError::Canonical);
+fn persist_content_addressed(
+    directory: &SecureDir,
+    name: &str,
+    bytes: &[u8],
+) -> Result<bool, CheckpointError> {
+    let byte_cap = u64::try_from(bytes.len()).map_err(|_| CheckpointError::Limit)?;
+    if let Ok(existing) = directory.read_file_bounded(name, byte_cap) {
+        return if existing == bytes {
+            Ok(false)
+        } else {
+            Err(CheckpointError::Canonical)
+        };
     }
-    let mut temporary = tempfile::Builder::new()
-        .prefix(".z00z-recursive-evidence-")
-        .tempfile_in(parent)
-        .map_err(|_| CheckpointError::Storage)?;
-    set_file_mode(temporary.as_file_mut(), 0o600).map_err(|_| CheckpointError::Storage)?;
-    temporary
-        .as_file_mut()
+
+    static TEMP_SEQUENCE_V2: AtomicU64 = AtomicU64::new(0);
+    let mut temporary = None;
+    for _ in 0..8 {
+        let sequence = TEMP_SEQUENCE_V2.fetch_add(1, Ordering::Relaxed);
+        let candidate = format!(".tmp-{}-{sequence}-{name}", std::process::id());
+        if let Ok(file) = directory.create_file(&candidate) {
+            temporary = Some((candidate, file));
+            break;
+        }
+    }
+    let (temporary_name, mut temporary_file) = temporary.ok_or(CheckpointError::Storage)?;
+    if temporary_file
         .write_all(bytes)
-        .and_then(|()| temporary.as_file_mut().sync_all())
-        .map_err(|_| CheckpointError::Storage)?;
-    if temporary.persist_noclobber(path).is_err() {
-        if path_exists_no_follow(path).map_err(|_| CheckpointError::Storage)?
-            && read_exact_bounded(path, bytes.len() as u64)? == bytes
-        {
-            return Ok(false);
-        }
-        return Err(CheckpointError::Canonical);
+        .and_then(|()| temporary_file.sync_all())
+        .is_err()
+    {
+        drop(temporary_file);
+        let _ = directory.remove_file(&temporary_name);
+        let _ = directory.sync();
+        return Err(CheckpointError::Storage);
     }
-    sync_directory(parent).map_err(|_| CheckpointError::Storage)?;
+    drop(temporary_file);
+    if directory.rename_no_clobber(&temporary_name, name).is_err() {
+        let existing = directory.read_file_bounded(name, byte_cap);
+        let _ = directory.remove_file(&temporary_name);
+        let _ = directory.sync();
+        return match existing {
+            Ok(existing) if existing == bytes => Ok(false),
+            _ => Err(CheckpointError::Canonical),
+        };
+    }
+    directory.sync().map_err(|_| CheckpointError::Storage)?;
     Ok(true)
 }
 
-fn read_exact_bounded(path: &Path, cap: u64) -> Result<Vec<u8>, CheckpointError> {
-    let metadata = symlink_metadata(path).map_err(|_| CheckpointError::Storage)?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() || metadata.len() > cap
-    {
-        return Err(CheckpointError::Storage);
-    }
-    let mut bytes = Vec::new();
-    File::open(path)
-        .map_err(|_| CheckpointError::Storage)?
-        .take(cap.saturating_add(1))
-        .read_to_end(&mut bytes)
-        .map_err(|_| CheckpointError::Storage)?;
-    if bytes.len() as u64 != metadata.len() || bytes.len() as u64 > cap {
-        return Err(CheckpointError::Storage);
-    }
-    Ok(bytes)
+fn read_exact_bounded(
+    directory: &SecureDir,
+    name: &str,
+    cap: u64,
+) -> Result<Vec<u8>, CheckpointError> {
+    directory
+        .read_file_bounded(name, cap)
+        .map_err(|_| CheckpointError::Storage)
+}
+
+fn object_name(digest: [u8; 32]) -> String {
+    format!("{}.bin", lowercase_hex(digest))
 }
 
 fn lowercase_hex(digest: [u8; 32]) -> String {
@@ -1000,7 +1291,6 @@ mod tests {
     use super::*;
     use crate::{
         checkpoint::{
-            nova::{CheckpointNovaRunnerV2, NovaRunnerFoldingV2, NovaRunnerReadyV2},
             CheckpointDraft, CheckpointExecInput, CheckpointFsStore, CheckpointStore,
             CheckpointVersion,
         },
@@ -1008,6 +1298,7 @@ mod tests {
         settlement::SettlementStateRoot,
         snapshot::{build_snapshot_v2, PrepFsStore, PrepSnapshotStore},
     };
+    use z00z_utils::io::{create_dir_all, path_exists_no_follow};
 
     fn seal_noop_checkpoint(
         root: &Path,
@@ -1066,7 +1357,8 @@ mod tests {
             std::env::var_os("Z00Z_NOVA_T3_ARTIFACT_DIR_V2")
                 .expect("retained T3 artifact directory"),
         );
-        read_exact_bounded(&root.join(name), cap).expect("read bounded retained T3 artifact")
+        z00z_utils::io::read_file_bounded(root.join(name), cap)
+            .expect("read bounded retained T3 artifact")
     }
 
     #[test]
@@ -1074,7 +1366,7 @@ mod tests {
         let chain = tempfile::tempdir().expect("no-op chain root");
         let store = SettlementStore::new();
         let settlement_root = store.settlement_root_v2(7).expect("no-op chain root");
-        let prior = RecursiveFinalizedIvcStateV2::cutover(
+        let prior = RecursiveFinalizedIvcStateV2::cutover_fixture(
             CheckpointId::new([0x31; 32]),
             *settlement_root.as_bytes(),
             store.recursive_v2_definition_root(),
@@ -1099,15 +1391,22 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().join("evidence");
         let store = RecursiveCheckpointEvidenceStoreV2::open(&root).unwrap();
-        let path = store.object_path("sidecars", [7; 32]);
-        persist_content_addressed(&path, b"canonical").unwrap();
-        persist_content_addressed(&path, b"canonical").unwrap();
-        assert_eq!(read_exact_bounded(&path, 64).unwrap(), b"canonical");
-        assert!(persist_content_addressed(&path, b"different").is_err());
-        assert!(read_dir(&root).unwrap().into_iter().all(|entry| entry
-            .file_name()
-            .map(|name| !name.to_string_lossy().starts_with(".z00z"))
-            .unwrap_or(true)));
+        let path = root.join("sidecars").join(object_name([7; 32]));
+        let name = object_name([7; 32]);
+        persist_content_addressed(&store.sidecars, &name, b"canonical").unwrap();
+        persist_content_addressed(&store.sidecars, &name, b"canonical").unwrap();
+        assert_eq!(
+            read_exact_bounded(&store.sidecars, &name, 64).unwrap(),
+            b"canonical"
+        );
+        assert!(persist_content_addressed(&store.sidecars, &name, b"different").is_err());
+        assert!(path_exists_no_follow(path).unwrap());
+        assert!(store
+            .sidecars
+            .read_dir_bounded(64)
+            .unwrap()
+            .into_iter()
+            .all(|name| !name.to_string_lossy().starts_with(".tmp-")));
     }
 
     fn stage_through_reload(context: [u8; 32]) -> LiveGateStageV2<ReloadedV2> {
@@ -1242,22 +1541,46 @@ mod tests {
     }
 
     #[test]
-    fn test_receipt_gate_is_last() {
-        let postwrite = postwrite_token([7; 32]);
+    fn test_bytes_follow_receipt_gate() {
+        let context = [7; 32];
+        let postwrite = postwrite_token(context);
         assert_eq!(
             postwrite.gate_ids().last(),
             Some(&(LiveGateIdV2::PostwriteEndpointMatched as u8))
         );
         assert_eq!(postwrite.gate_ids().len(), 15);
-        let prepared = CryptographicVerificationReceiptV2::prepare_postwrite(&postwrite).unwrap();
-        let prepared_bytes = prepared.canonical_bytes().to_vec();
-        let (postwrite, ()) = postwrite
-            .retain(Ok(()))
-            .map_err(LiveGateFailureV2::into_error)
+
+        let ready = postwrite.prepare_receipt().unwrap();
+        assert_eq!(ready.postwrite.gate_ids().len(), 15);
+        let receipt = ready.issue().unwrap();
+        assert!(!receipt.canonical_bytes().is_empty());
+    }
+
+    #[test]
+    fn test_receipt_stays_opaque() {
+        let context = [8; 32];
+        let temp = tempfile::tempdir().unwrap();
+        let evidence_root = temp.path().join("evidence");
+        let store = RecursiveCheckpointEvidenceStoreV2::open(&evidence_root).unwrap();
+        let receipt = postwrite_token(context)
+            .prepare_receipt()
+            .unwrap()
+            .issue()
             .unwrap();
-        let receipt =
-            CryptographicVerificationReceiptV2::issue_postwrite(postwrite, prepared).unwrap();
-        assert_eq!(receipt.canonical_bytes(), prepared_bytes);
+        let receipt_bytes = receipt.canonical_bytes().to_vec();
+        assert_eq!(
+            receipt_bytes.len(),
+            super::version_registry::RECURSIVE_OBJECT_PREHEADER_BYTES_V2
+                + super::receipt::RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2
+        );
+        assert!(!evidence_root.join("receipts").exists());
+        assert!(store
+            .quarantine
+            .read_dir_bounded(1)
+            .expect("bounded quarantine read")
+            .is_empty());
+
+        assert_eq!(receipt.canonical_bytes(), receipt_bytes);
         assert_eq!(
             receipt.result(),
             super::super::receipt::RecursiveVerificationResultV2::VerifiedExactReload
@@ -1265,265 +1588,127 @@ mod tests {
     }
 
     #[test]
-    fn test_receipt_issuance_rejects_mismatched_prepared_pair() {
-        let postwrite = postwrite_token([7; 32]);
-        let mut prepared =
-            CryptographicVerificationReceiptV2::prepare_postwrite(&postwrite).unwrap();
-        prepared.corrupt_wire_for_test();
-        assert!(matches!(
-            CryptographicVerificationReceiptV2::issue_postwrite(postwrite, prepared),
-            Err(CheckpointError::Invariant)
-        ));
-
-        let postwrite = postwrite_token([7; 32]);
-        let mut prepared =
-            CryptographicVerificationReceiptV2::prepare_postwrite(&postwrite).unwrap();
-        prepared.corrupt_bytes_for_test();
-        assert!(matches!(
-            CryptographicVerificationReceiptV2::issue_postwrite(postwrite, prepared),
-            Err(CheckpointError::Invariant)
-        ));
-    }
-
-    #[test]
-    fn test_receipt_failpoints_keep_prefix() {
-        #[derive(Clone, Copy)]
-        enum ReceiptFailpointV2 {
-            Encode,
-            Write,
-            Reload,
-            Quarantine,
-            AuthorityDrift,
-        }
-        let failpoints = [
-            ReceiptFailpointV2::Encode,
-            ReceiptFailpointV2::Write,
-            ReceiptFailpointV2::Reload,
-            ReceiptFailpointV2::Quarantine,
-            ReceiptFailpointV2::AuthorityDrift,
-        ];
-        let expected = SUCCESSFUL_GATE_SEQUENCE_V2[..15]
-            .iter()
-            .map(|gate| *gate as u8)
-            .collect::<Vec<_>>();
-
-        for failpoint in failpoints {
-            let name = match failpoint {
-                ReceiptFailpointV2::Encode => "encode",
-                ReceiptFailpointV2::Write => "write",
-                ReceiptFailpointV2::Reload => "reload",
-                ReceiptFailpointV2::Quarantine => "quarantine",
-                ReceiptFailpointV2::AuthorityDrift => "authority-drift",
-            };
-            let mut bindings = receipt_bindings();
-            if matches!(failpoint, ReceiptFailpointV2::Encode) {
-                bindings.steps = 0;
-            }
-            let postwrite = postwrite_token_with([15; 32], bindings);
-            let temp = tempfile::tempdir().unwrap();
-            let result = match failpoint {
-                ReceiptFailpointV2::Encode => {
-                    CryptographicVerificationReceiptV2::prepare_postwrite(&postwrite).map(|_| ())
-                }
-                ReceiptFailpointV2::Write => persist_content_addressed(
-                    &temp.path().join("missing").join("receipt.bin"),
-                    b"prepared-receipt",
-                )
-                .map(|_| ()),
-                ReceiptFailpointV2::Reload => {
-                    read_exact_bounded(&temp.path().join("missing.bin"), 64).map(|_| ())
-                }
-                ReceiptFailpointV2::Quarantine => {
-                    let root = temp.path().join("evidence");
-                    let _store = RecursiveCheckpointEvidenceStoreV2::open(&root).unwrap();
-                    quarantine_written(&root, &root.join("receipts").join("missing.bin"))
-                }
-                ReceiptFailpointV2::AuthorityDrift => Err(CheckpointError::Authority),
-            };
-            let failure = match postwrite.retain(result) {
-                Ok(_) => panic!("receipt failpoint advanced: {name}"),
-                Err(failure) => failure,
-            };
-            assert_eq!(failure.ids(), expected, "wrong prefix at {name}");
-            assert!(!failure.ids().contains(&(LiveGateIdV2::ReceiptIssued as u8)));
-            let terminal_matches = match failpoint {
-                ReceiptFailpointV2::Encode => {
-                    matches!(failure.terminal(), CheckpointError::Invariant)
-                }
-                ReceiptFailpointV2::Write
-                | ReceiptFailpointV2::Reload
-                | ReceiptFailpointV2::Quarantine => {
-                    matches!(failure.terminal(), CheckpointError::Storage)
-                }
-                ReceiptFailpointV2::AuthorityDrift => {
-                    matches!(failure.terminal(), CheckpointError::Authority)
-                }
-            };
-            assert!(terminal_matches, "wrong terminal at {name}");
-        }
+    fn test_invalid_receipt_parts_reject() {
+        let mut bindings = receipt_bindings();
+        bindings.steps = 0;
+        let error = match postwrite_token_with([15; 32], bindings).prepare_receipt() {
+            Ok(_) => panic!("invalid receipt must not prepare"),
+            Err(error) => error,
+        };
+        assert!(matches!(error, CheckpointError::Invariant));
     }
 
     #[test]
     #[ignore = "real continuous 1/3/5-block Nova ingress is milestone-only; run nova_milestone_tests.sh t3-chain"]
     fn test_real_chain_public_receipt() {
+        use crate::{
+            checkpoint::canonical_transition::SettlementRootGenerationCutoverV2,
+            fixture_support::settlement_corpus::{asset_item, load_fixture, redb_store_with_bits},
+        };
+        use z00z_crypto::{sha256_256_role, CheckpointShaRole};
+
         crate::fixture_support::genesis_chain_identity::ensure_test_process_chain_identity()
             .expect("validated canonical devnet genesis identity");
         let material = retained_t3_artifact("prover-material.bin", 1024 * 1024 * 1024);
-        // Mirror the production Nova verifier-bundle safety ceiling. This
-        // test-only file intake stays bounded while accommodating the current
-        // canonical 83 MB compressed VK artifact.
         let bundle = retained_t3_artifact("verifier-bundle.bin", 384 * 1024 * 1024 + 1024);
         let profile = RecursiveCircuitProfileV2::authority_pinned();
         let chain = tempfile::tempdir().expect("continuous T3 chain root");
-        let mut store = SettlementStore::new();
-        let authority = RecursiveAuthoritySnapshotV2::resolve_active_authority(&store)
-            .expect("T3 repository authority");
-        let verifier = resolve_verifier_authority_v2(&material, &bundle, authority, &profile)
-            .expect("T3 material and bundle authority");
-        let settlement_root = store.settlement_root_v2(7).expect("T3 settlement root");
-        let mut prior = RecursiveFinalizedIvcStateV2::cutover(
-            CheckpointId::new([0x41; 32]),
-            *settlement_root.as_bytes(),
-            store.recursive_v2_definition_root(),
-            [0x42; 32],
+        let evidence_root = chain.path().join("evidence");
+        let checkpoint_root = chain.path().join("checkpoints");
+        create_dir_all(&checkpoint_root).expect("create checkpoint root");
+
+        let (_hjmt_guard, _settlement_dir, mut settlement_store) =
+            redb_store_with_bits(Some("2")).expect("durable T3 settlement store");
+        let fixture = load_fixture();
+        settlement_store
+            .put_settlement_item(asset_item(&fixture.assets[0]))
+            .expect("persist T3 settlement root");
+        let authority = RecursiveAuthoritySnapshotV2::resolve_active_authority(&settlement_store)
+            .expect("resolve cutover authority");
+        let settlement_root = settlement_store
+            .settlement_root_v2(7)
+            .expect("T3 settlement root");
+        let opaque = [0x42; 32];
+        let pinned_opaque = sha256_256_role(
+            CheckpointShaRole::Link,
+            &[b"z00z.recursive.v2.opaque-last-root-record", &opaque],
+        );
+        let mut cutover = SettlementRootGenerationCutoverV2::active_authority(
+            authority,
+            &settlement_store,
+            1,
+            opaque,
+            pinned_opaque,
+            settlement_root,
+            11,
         )
-        .expect("T3 cutover z0");
-        let mut runner: Option<CheckpointNovaRunnerV2<NovaRunnerFoldingV2>> = None;
+        .expect("construct active T3 cutover");
+        cutover
+            .install_active_authority(&mut settlement_store, 11)
+            .expect("install durable T3 cutover");
+        let mut prior = RecursiveFinalizedIvcStateV2::from_cutover_store(&settlement_store)
+            .expect("derive T3 z0 from durable cutover");
+
+        let evidence_store = RecursiveCheckpointEvidenceStoreV2::open(&evidence_root)
+            .expect("open public T3 evidence store");
+        let cancellation = RecursiveEvidenceCancellationV2::new();
         let mut snapshots = Vec::new();
-        let mut initial_state_digest = None;
 
         for height in 1_u64..=5 {
             let (checkpoint_store, prep_store, checkpoint_id) =
-                seal_noop_checkpoint(chain.path(), height, settlement_root, prior);
+                seal_noop_checkpoint(&checkpoint_root, height, settlement_root, prior);
             let transition_dir = chain.path().join(format!("transition-{height}"));
-            create_dir_all(&transition_dir).expect("create isolated T3 transition directory");
-            let mut transition = CanonicalCheckpointTransitionV2::from_exec_with_verifier(
-                &transition_dir,
+            create_dir_all(&transition_dir).expect("create T3 transition directory");
+            let mut blocks = [RecursiveCheckpointChainBlockV2::new(
+                transition_dir,
                 profile,
                 &checkpoint_store,
                 &prep_store,
                 checkpoint_id,
-                &mut store,
                 SettlementExecHandoff::recursive_v2_noop(),
-                verifier,
-            )
-            .expect("construct bundle-bound T3 transition");
-            let evaluated = transition.evaluate(&store).expect("evaluate T3 transition");
-            if let Some(active) = runner.as_mut() {
-                active
-                    .advance_transition(&transition, evaluated)
-                    .expect("advance the same T3 accumulator");
-                transition
-                    .replay_nova_events(&store, |event| active.push_event(event))
-                    .expect("replay next T3 block into the same accumulator");
+            )];
+            let request = if matches!(height, 3 | 5) {
+                RecursiveEvidenceRequestV2::Snapshot
             } else {
-                let ready = CheckpointNovaRunnerV2::<NovaRunnerReadyV2>::load_for_transition(
+                RecursiveEvidenceRequestV2::FoldOnly
+            };
+            let outcome = evidence_store
+                .produce(
+                    &mut blocks,
+                    &mut settlement_store,
                     &material,
                     &bundle,
-                    &transition,
-                    evaluated,
-                    prior,
+                    &cancellation,
+                    request,
                 )
-                .expect("load the sole T3 runner from z0");
-                let mut ready = Some(ready);
-                let mut folding: Option<CheckpointNovaRunnerV2<NovaRunnerFoldingV2>> = None;
-                transition
-                    .replay_nova_events(&store, |event| {
-                        if let Some(active) = folding.as_mut() {
-                            active.push_event(event)
-                        } else {
-                            folding = Some(
-                                ready
-                                    .take()
-                                    .ok_or(CheckpointError::TraceState)?
-                                    .first_event(event)?,
-                            );
-                            Ok(())
-                        }
-                    })
-                    .expect("replay first T3 block from z0");
-                runner = folding;
-            }
-            let active = runner.as_mut().expect("T3 runner entered folding state");
-            prior = active
-                .finish_block(false)
-                .expect("finish one nonterminal T3 block");
-            transition.finish(&store).expect("finish T3 trace source");
-
-            if matches!(height, 1 | 3 | 5) {
-                let snapshot = active.snapshot().expect("real non-consuming T3 snapshot");
-                snapshot
-                    .verify_exact_bytes(snapshot.framed_envelope())
-                    .expect("unchanged verifier accepts exact T3 snapshot bytes");
-                let bindings = snapshot.bindings().expect("T3 snapshot bindings");
-                assert_eq!(bindings.height, height);
-                assert_eq!(bindings.steps, prior.cumulative_steps());
-                match initial_state_digest {
-                    Some(expected) => assert_eq!(bindings.initial_state_digest, expected),
-                    None => initial_state_digest = Some(bindings.initial_state_digest),
+                .expect("sole public ingress advances or issues verified evidence");
+            match outcome {
+                RecursiveEvidenceOutcomeV2::Folded(successor) => {
+                    assert_eq!(request, RecursiveEvidenceRequestV2::FoldOnly);
+                    prior = successor;
                 }
-                if height == 1 {
-                    let repeated = active
-                        .snapshot()
-                        .expect("second consecutive snapshot is non-consuming");
-                    let repeated_bindings = repeated.bindings().expect("repeated bindings");
-                    assert_eq!(
-                        bindings.initial_state_digest,
-                        repeated_bindings.initial_state_digest
-                    );
-                    assert_eq!(
-                        bindings.final_state_digest,
-                        repeated_bindings.final_state_digest
-                    );
-                    assert_eq!(bindings.steps, repeated_bindings.steps);
+                RecursiveEvidenceOutcomeV2::Snapshot(evidence) => {
+                    assert_eq!(request, RecursiveEvidenceRequestV2::Snapshot);
+                    assert_eq!(evidence.receipt.height(), height);
+                    assert_eq!(evidence.successor.height(), height);
+                    assert_eq!(evidence.verifier_attempts, snapshots.len() as u64 * 4 + 4);
+                    assert!(evidence_root
+                        .join("envelopes")
+                        .join(object_name(evidence.envelope_digest))
+                        .is_file());
+                    assert!(evidence_root
+                        .join("sidecars")
+                        .join(object_name(evidence.sidecar_digest))
+                        .is_file());
+                    assert!(!evidence_root.join("receipts").exists());
+                    prior = evidence.successor;
+                    snapshots.push((height, evidence.envelope_digest, evidence.receipt_digest));
                 }
-                snapshots.push((height, bindings.steps, snapshot.framed_envelope().len()));
             }
         }
-        assert_eq!(snapshots.len(), 3);
-        assert!(initial_state_digest.is_some());
-        eprintln!("real continuous same-z0 T3 snapshots: {snapshots:?}");
-
-        // Exercise the public production ingress and write-only receipt on a
-        // fresh one-block chain. The raw block carries no prebuilt transition
-        // and therefore cannot inject a transition-only verifier digest.
-        let ingress = tempfile::tempdir().expect("T3 public ingress root");
-        let evidence_root = ingress.path().join("evidence");
-        let checkpoint_root = ingress.path().join("checkpoint");
-        create_dir_all(&checkpoint_root).expect("create public ingress checkpoint root");
-        let mut ingress_store = SettlementStore::new();
-        let ingress_root = ingress_store
-            .settlement_root_v2(7)
-            .expect("public ingress settlement root");
-        let ingress_prior = RecursiveFinalizedIvcStateV2::cutover(
-            CheckpointId::new([0x51; 32]),
-            *ingress_root.as_bytes(),
-            ingress_store.recursive_v2_definition_root(),
-            [0x52; 32],
-        )
-        .expect("public ingress cutover");
-        let (checkpoint_store, prep_store, checkpoint_id) =
-            seal_noop_checkpoint(&checkpoint_root, 1, ingress_root, ingress_prior);
-        let transition_dir = ingress.path().join("transition");
-        create_dir_all(&transition_dir).expect("create public ingress transition root");
-        let mut blocks = [RecursiveCheckpointChainBlockV2::new(
-            transition_dir,
-            profile,
-            &checkpoint_store,
-            &prep_store,
-            checkpoint_id,
-            &mut ingress_store,
-            SettlementExecHandoff::recursive_v2_noop(),
-        )];
-        let evidence_store = RecursiveCheckpointEvidenceStoreV2::open(&evidence_root)
-            .expect("open public T3 evidence store");
-        let evidence = evidence_store
-            .produce(&mut blocks, &material, &bundle, ingress_prior)
-            .expect("public ingress issues receipt only after exact reload verification");
-        assert_eq!(evidence.receipt.height(), 1);
-        assert!(evidence.envelope_path.is_file());
-        assert!(evidence.sidecar_path.is_file());
-        assert!(evidence.receipt_path.is_file());
+        assert_eq!(snapshots.len(), 2);
+        assert_eq!(snapshots[0].0, 3);
+        assert_eq!(snapshots[1].0, 5);
     }
 
     #[cfg(unix)]

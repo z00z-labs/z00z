@@ -9,13 +9,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT_DIR"
 
-readonly TEST_NAME="checkpoint::nova::tests::real_nova_mixed_checkpoint_proves_the_complete_t2_relation"
-readonly VERIFIER_TEST_NAME="checkpoint::nova::tests::real_nova_verifier_only_clean_process"
+readonly TEST_NAME="checkpoint::nova::tests::test_nova_checkpoint_proves_relation"
+readonly VERIFIER_TEST_NAME="checkpoint::nova::tests::test_nova_clean_verifier_process"
 readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"
 readonly VERIFIER_BUNDLE_ENV="Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2"
-readonly EXPECTED_SOURCE_REVISION="5169ae837c7ee891f076ae51702698cf7be77cd78fdb2856b04225991006a876"
-readonly EXPECTED_WORKER_SOURCE="09213786e26916ff72237c4a4c61c56770fe370937086e29005f9731db9038af"
-readonly EXPECTED_NOVA_SHA256="ab2e30c2c10f3ba5cad754a25a5717469318550e9b63ffc0f1d1305f14579090"
+readonly EXPECTED_SOURCE_REVISION="0cd690bc4c04ee14e5047861ac50d68f473fcc6c7e59e383540f8ba05d6c61c3"
+readonly EXPECTED_WORKER_SOURCE="2669cb5f92fdc176d560b89e5ce725c339911bcd6a421b58e158090b256e39e3"
+readonly EXPECTED_NOVA_SHA256="c8438031a65433118435bc486fb29d29b45186eab79d1fbe74597e912fa004d9"
 readonly EXPECTED_CARGO_LOCK_SHA256="23a86f3341579b25ad5be96080a642405633df5f8c6e99dd4c3329d7d51f2a11"
 readonly NOVA_SOURCE="crates/z00z_storage/src/checkpoint/nova.rs"
 readonly WORKER_LOCK="target/workspace/z00z-nova-worker-v2.lock"
@@ -43,7 +43,7 @@ preflight() {
     [[ -f "$NOVA_SOURCE" ]] || die "missing proof-bound source: $NOVA_SOURCE"
     [[ -f Cargo.lock ]] || die "missing Cargo.lock"
     grep -Fq \
-        'const NOVA_VERIFIER_ONLY_BUNDLE_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2";' \
+        'const NOVA_VERIFIER_BUNDLE_PATH_V2: &str = "Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2";' \
         "$NOVA_SOURCE" || die "clean-verifier bundle environment name drifted"
     for command in awk cargo cat chmod date dd flock grep head mkdir mv od pgrep ps readlink sed setsid sha256sum sleep tail tr uname; do
         require_command "$command"
