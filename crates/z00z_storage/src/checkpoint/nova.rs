@@ -20911,7 +20911,7 @@ pub(crate) fn circuit_shape_digest() -> Result<[u8; 32], CheckpointError> {
 // make its wire contract immutable now: a caller cannot choose a Nova
 // suite, codec, feature set, or allocation bound at load time.
 const VERIFIER_BUNDLE_MAGIC_V2: [u8; 8] = *b"Z00ZNBV2";
-const VERIFIER_BUNDLE_FORMAT_V2: u8 = 3;
+const VERIFIER_BUNDLE_FORMAT_V2: u8 = 4;
 const PROVER_MATERIAL_MAGIC_V2: [u8; 8] = *b"Z00ZNPV2";
 const PROVER_MATERIAL_FORMAT_V2: u8 = 1;
 const NOVA_OWNER_PATH_V2: &[u8] = b"z00z_storage::checkpoint::nova";
@@ -20931,15 +20931,22 @@ const NOVA_PROVER_MATERIAL_CAP_V2: usize =
     NOVA_PUBLIC_PARAMS_MAX_BYTES + NOVA_PROVER_KEY_MAX_BYTES + 1024;
 // This prevents bundle amplification at the decoder boundary. It is not an
 // authority-approved watcher distribution or operating-memory budget.
-// The verifier artifact carries one canonical Zstd frame. The independently
-// bounded decoded bincode is larger for non-preprocessing Spartan because its
-// verifier key retains the complete R1CS shape.
-const NOVA_VK_SAFETY_CAP_V2: usize = 384 * 1024 * 1024;
+// The verifier artifact carries one canonical Zstd frame over a compact VK
+// wire. Deterministic Pedersen keys are regenerated from pinned labels and
+// exact authority-bound counts instead of being distributed as repeated
+// generator vectors. The independently bounded expanded bincode is larger for
+// non-preprocessing Spartan because its verifier key retains the complete R1CS
+// shape.
+const NOVA_VK_SAFETY_CAP_V2: usize = 64 * 1024 * 1024;
 const NOVA_VK_DECODE_CAP_V2: usize = 1024 * 1024 * 1024;
 const NOVA_PROOF_MAX_BYTES_V2: usize = 128 * 1024;
 // A verifier bundle carries only an authority-pinned header and VK. PP and PK
 // are prover-local recovery material and are never verifier-bundle payloads.
-const NOVA_BUNDLE_SAFETY_CAP_V2: usize = NOVA_VK_SAFETY_CAP_V2 + 1024;
+const NOVA_BUNDLE_SAFETY_CAP_V2: usize = 64 * 1024 * 1024;
+const VERIFIER_KEY_COMPACT_MAGIC_V2: [u8; 8] = *b"Z00ZVKC2";
+const VERIFIER_KEY_COMPACT_FORMAT_V2: u8 = 1;
+const VK_COMPACT_KEY_COUNT_V2: usize = 4;
+const VK_COMPACT_HEADER_BYTES_V2: usize = 8 + 1 + 8 + VK_COMPACT_KEY_COUNT_V2 * (8 + 8);
 const NOVA_PROOF_ENVELOPE_MAGIC_V2: [u8; 8] = *b"Z00ZNPE2";
 const NOVA_PROOF_ENVELOPE_FORMAT_V2: u8 = 2;
 const NOVA_SCALAR_WIRE_BYTES_V2: usize = 32;
@@ -21994,6 +22001,73 @@ fn wire_occurrences(bytes: &[u8], wire: &[u8; 32]) -> usize {
         .count()
 }
 
+struct VerifierKeyWireLayoutV2 {
+    ranges: [std::ops::Range<usize>; VK_COMPACT_KEY_COUNT_V2],
+    counts: [usize; VK_COMPACT_KEY_COUNT_V2],
+}
+
+fn key_wire_count(range: &std::ops::Range<usize>) -> Result<usize, CheckpointError> {
+    range
+        .len()
+        .checked_sub(8 + 32)
+        .filter(|bytes| bytes % 32 == 0)
+        .map(|bytes| bytes / 32)
+        .ok_or(CheckpointError::Canonical)
+}
+
+fn expected_key_counts(
+    binding: VerifierBundleBindingV2,
+) -> Result<[usize; VK_COMPACT_KEY_COUNT_V2], CheckpointError> {
+    fn shape_key_count(constraints: u64, variables: u64) -> Result<usize, CheckpointError> {
+        let count = constraints
+            .max(variables)
+            .checked_next_power_of_two()
+            .ok_or(CheckpointError::Overflow)?;
+        usize::try_from(count).map_err(|_| CheckpointError::Limit)
+    }
+
+    Ok([
+        shape_key_count(
+            binding.expected_shape.primary_constraints,
+            binding.expected_shape.primary_variables,
+        )?,
+        1,
+        shape_key_count(
+            binding.expected_shape.secondary_constraints,
+            binding.expected_shape.secondary_variables,
+        )?,
+        1,
+    ])
+}
+
+fn deterministic_key_wire<E>(label: &'static [u8], count: usize) -> Result<Vec<u8>, CheckpointError>
+where
+    E: Engine,
+    E::CE: CommitmentEngineTrait<E>,
+    <E::CE as CommitmentEngineTrait<E>>::CommitmentKey: Serialize,
+{
+    if count == 0 || !count.is_power_of_two() {
+        return Err(CheckpointError::Canonical);
+    }
+    let key = E::CE::setup(label, count).map_err(|_| CheckpointError::Invariant)?;
+    let wire = encode_bincode(&key, NOVA_VK_DECODE_CAP_V2)?;
+    let expected_len = 8_usize
+        .checked_add(count.checked_mul(32).ok_or(CheckpointError::Overflow)?)
+        .and_then(|bytes| bytes.checked_add(32))
+        .ok_or(CheckpointError::Overflow)?;
+    if wire.len() != expected_len
+        || u64::from_le_bytes(
+            wire.get(..8)
+                .ok_or(CheckpointError::Canonical)?
+                .try_into()
+                .map_err(|_| CheckpointError::Canonical)?,
+        ) != u64::try_from(count).map_err(|_| CheckpointError::Limit)?
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    Ok(wire)
+}
+
 fn validate_commitment_key_wire_range(
     bytes: &[u8],
     first_generator: &[u8; 32],
@@ -22039,7 +22113,7 @@ fn validate_commitment_key_wire_range(
 /// structure that serde cannot express: both cycle commitment keys occur in
 /// primary/secondary order, every generator and blinding point is nonidentity,
 /// and the two derandomization keys retain the exact setup-derived blinders.
-fn validate_pinned_verifier_key_wire(bytes: &[u8]) -> Result<(), CheckpointError> {
+fn pinned_verifier_key_layout(bytes: &[u8]) -> Result<VerifierKeyWireLayoutV2, CheckpointError> {
     let (primary_generator, primary_blinding) = pinned_commitment_key_probe::<PallasEngine>(b"ck")?;
     let (primary_ipa_generator, primary_ipa_blinding) =
         pinned_commitment_key_probe::<PallasEngine>(b"ipa")?;
@@ -22067,7 +22141,175 @@ fn validate_pinned_verifier_key_wire(bytes: &[u8]) -> Result<(), CheckpointError
     {
         return Err(CheckpointError::Canonical);
     }
-    Ok(())
+    let ranges = [primary, primary_ipa, secondary, secondary_ipa];
+    let counts = [
+        key_wire_count(&ranges[0])?,
+        key_wire_count(&ranges[1])?,
+        key_wire_count(&ranges[2])?,
+        key_wire_count(&ranges[3])?,
+    ];
+    Ok(VerifierKeyWireLayoutV2 { ranges, counts })
+}
+
+fn validate_pinned_verifier_key_wire(bytes: &[u8]) -> Result<(), CheckpointError> {
+    pinned_verifier_key_layout(bytes).map(|_| ())
+}
+
+fn compact_verifier_key_wire(
+    bytes: &[u8],
+    binding: VerifierBundleBindingV2,
+) -> Result<Vec<u8>, CheckpointError> {
+    if bytes.len() > NOVA_VK_DECODE_CAP_V2 {
+        return Err(CheckpointError::Limit);
+    }
+    let layout = pinned_verifier_key_layout(bytes)?;
+    if layout.counts != expected_key_counts(binding)? {
+        return Err(CheckpointError::Authority);
+    }
+    let omitted = layout.ranges.iter().try_fold(0_usize, |total, range| {
+        total
+            .checked_add(range.len())
+            .ok_or(CheckpointError::Overflow)
+    })?;
+    let body_len = bytes
+        .len()
+        .checked_sub(omitted)
+        .ok_or(CheckpointError::Canonical)?;
+    let mut compact = Vec::with_capacity(
+        VK_COMPACT_HEADER_BYTES_V2
+            .checked_add(body_len)
+            .ok_or(CheckpointError::Overflow)?,
+    );
+    compact.extend_from_slice(&VERIFIER_KEY_COMPACT_MAGIC_V2);
+    compact.push(VERIFIER_KEY_COMPACT_FORMAT_V2);
+    compact.extend_from_slice(
+        &u64::try_from(bytes.len())
+            .map_err(|_| CheckpointError::Limit)?
+            .to_le_bytes(),
+    );
+    for (range, count) in layout.ranges.iter().zip(layout.counts) {
+        compact.extend_from_slice(
+            &u64::try_from(range.start)
+                .map_err(|_| CheckpointError::Limit)?
+                .to_le_bytes(),
+        );
+        compact.extend_from_slice(
+            &u64::try_from(count)
+                .map_err(|_| CheckpointError::Limit)?
+                .to_le_bytes(),
+        );
+    }
+    let mut cursor = 0_usize;
+    for range in &layout.ranges {
+        compact.extend_from_slice(
+            bytes
+                .get(cursor..range.start)
+                .ok_or(CheckpointError::Canonical)?,
+        );
+        cursor = range.end;
+    }
+    compact.extend_from_slice(bytes.get(cursor..).ok_or(CheckpointError::Canonical)?);
+    Ok(compact)
+}
+
+fn expand_verifier_key_wire(
+    compact: &[u8],
+    binding: VerifierBundleBindingV2,
+) -> Result<Vec<u8>, CheckpointError> {
+    if compact.len() < VK_COMPACT_HEADER_BYTES_V2 || compact.len() > NOVA_VK_DECODE_CAP_V2 {
+        return Err(CheckpointError::Limit);
+    }
+    let mut cursor = 0_usize;
+    if take_fixed::<8>(compact, &mut cursor)? != VERIFIER_KEY_COMPACT_MAGIC_V2
+        || take_u8_bundle(compact, &mut cursor)? != VERIFIER_KEY_COMPACT_FORMAT_V2
+    {
+        return Err(CheckpointError::Version);
+    }
+    let expanded_len = usize::try_from(take_u64_bundle(compact, &mut cursor)?)
+        .map_err(|_| CheckpointError::Limit)?;
+    if expanded_len == 0 || expanded_len > NOVA_VK_DECODE_CAP_V2 {
+        return Err(CheckpointError::Limit);
+    }
+    let mut offsets = [0_usize; VK_COMPACT_KEY_COUNT_V2];
+    let mut counts = [0_usize; VK_COMPACT_KEY_COUNT_V2];
+    for index in 0..VK_COMPACT_KEY_COUNT_V2 {
+        offsets[index] = usize::try_from(take_u64_bundle(compact, &mut cursor)?)
+            .map_err(|_| CheckpointError::Limit)?;
+        counts[index] = usize::try_from(take_u64_bundle(compact, &mut cursor)?)
+            .map_err(|_| CheckpointError::Limit)?;
+    }
+    if cursor != VK_COMPACT_HEADER_BYTES_V2 || counts != expected_key_counts(binding)? {
+        return Err(CheckpointError::Authority);
+    }
+    let mut ranges = Vec::with_capacity(VK_COMPACT_KEY_COUNT_V2);
+    let mut previous_end = 0_usize;
+    for (offset, count) in offsets.into_iter().zip(counts) {
+        let wire_len = 8_usize
+            .checked_add(count.checked_mul(32).ok_or(CheckpointError::Overflow)?)
+            .and_then(|bytes| bytes.checked_add(32))
+            .ok_or(CheckpointError::Overflow)?;
+        let end = offset
+            .checked_add(wire_len)
+            .ok_or(CheckpointError::Overflow)?;
+        if offset < previous_end || end > expanded_len {
+            return Err(CheckpointError::Canonical);
+        }
+        ranges.push(offset..end);
+        previous_end = end;
+    }
+    let omitted = ranges.iter().try_fold(0_usize, |total, range| {
+        total
+            .checked_add(range.len())
+            .ok_or(CheckpointError::Overflow)
+    })?;
+    let body_len = expanded_len
+        .checked_sub(omitted)
+        .ok_or(CheckpointError::Canonical)?;
+    if compact.len()
+        != VK_COMPACT_HEADER_BYTES_V2
+            .checked_add(body_len)
+            .ok_or(CheckpointError::Overflow)?
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let key_wires = [
+        deterministic_key_wire::<PallasEngine>(b"ck", counts[0])?,
+        deterministic_key_wire::<PallasEngine>(b"ipa", counts[1])?,
+        deterministic_key_wire::<VestaEngine>(b"ck", counts[2])?,
+        deterministic_key_wire::<VestaEngine>(b"ipa", counts[3])?,
+    ];
+    let mut expanded = Vec::with_capacity(expanded_len);
+    let mut body_cursor = VK_COMPACT_HEADER_BYTES_V2;
+    let mut expanded_cursor = 0_usize;
+    for (range, key_wire) in ranges.iter().zip(key_wires) {
+        if key_wire.len() != range.len() {
+            return Err(CheckpointError::Canonical);
+        }
+        let gap = range
+            .start
+            .checked_sub(expanded_cursor)
+            .ok_or(CheckpointError::Canonical)?;
+        let gap_end = body_cursor
+            .checked_add(gap)
+            .ok_or(CheckpointError::Overflow)?;
+        expanded.extend_from_slice(
+            compact
+                .get(body_cursor..gap_end)
+                .ok_or(CheckpointError::Canonical)?,
+        );
+        expanded.extend_from_slice(&key_wire);
+        body_cursor = gap_end;
+        expanded_cursor = range.end;
+    }
+    expanded.extend_from_slice(
+        compact
+            .get(body_cursor..)
+            .ok_or(CheckpointError::Canonical)?,
+    );
+    if expanded.len() != expanded_len {
+        return Err(CheckpointError::Canonical);
+    }
+    Ok(expanded)
 }
 
 #[allow(dead_code)] // See `NovaVerifierBundleV2`.
@@ -22078,7 +22320,8 @@ impl NovaVerifierBundleV2 {
         binding: VerifierBundleBindingV2,
     ) -> Result<Vec<u8>, CheckpointError> {
         let vk_decoded = encode_bincode(vk, NOVA_VK_DECODE_CAP_V2)?;
-        let vk_payload = z00z_utils::compression::zstd_compress(&vk_decoded)
+        let vk_compact = compact_verifier_key_wire(&vk_decoded, binding)?;
+        let vk_payload = z00z_utils::compression::zstd_compress(&vk_compact)
             .map_err(|_| CheckpointError::Canonical)?;
         if vk_payload.len() > NOVA_VK_SAFETY_CAP_V2 {
             return Err(CheckpointError::Limit);
@@ -22126,9 +22369,10 @@ impl NovaVerifierBundleV2 {
         if bundle_payload_digest(b"vk-zstd", vk_payload) != header.vk_payload_digest {
             return Err(CheckpointError::Canonical);
         }
-        let vk_decoded =
+        let vk_compact =
             z00z_utils::compression::zstd_decompress_bounded(vk_payload, NOVA_VK_DECODE_CAP_V2)
                 .map_err(|_| CheckpointError::Canonical)?;
+        let vk_decoded = expand_verifier_key_wire(&vk_compact, selection.binding)?;
         if vk_decoded.len()
             != usize::try_from(header.vk_decoded_bytes).map_err(|_| CheckpointError::Limit)?
             || bundle_payload_digest(b"vk-canonical", &vk_decoded) != header.vk_digest
@@ -22136,12 +22380,13 @@ impl NovaVerifierBundleV2 {
             return Err(CheckpointError::Canonical);
         }
         validate_pinned_verifier_key_wire(&vk_decoded)?;
-        let vk = decode_bincode::<NovaVerifierKey, NOVA_VK_DECODE_CAP_V2>(&vk_decoded)?;
-        let canonical_payload = z00z_utils::compression::zstd_compress(&vk_decoded)
+        let canonical_payload = z00z_utils::compression::zstd_compress(&vk_compact)
             .map_err(|_| CheckpointError::Canonical)?;
         if canonical_payload != vk_payload {
             return Err(CheckpointError::Canonical);
         }
+        drop(vk_compact);
+        let vk = decode_bincode::<NovaVerifierKey, NOVA_VK_DECODE_CAP_V2>(&vk_decoded)?;
         Ok(Self {
             header,
             vk,
@@ -25729,6 +25974,11 @@ mod tests {
         if std::env::var_os(NOVA_VERIFIER_ONLY_MARKER_V2).is_none() {
             return;
         }
+        // A fresh OS process does not inherit the parent's process-local
+        // validated genesis identity. Install the same canonical test identity
+        // before rebuilding X_h; this is chain bootstrap, never Nova PP/PK
+        // setup, and the setup helper remains fail-closed under the marker.
+        ensure_test_identity();
         assert!(
             std::env::var_os(NOVA_WORKER_MARKER_V2).is_some(),
             "verifier-only evidence must descend from the bounded proof worker",
@@ -25821,9 +26071,22 @@ mod tests {
         canonical_bundle: &[u8],
         binding: VerifierBundleBindingV2,
         invalid_vk: &[u8],
-        _label: &str,
+        label: &str,
     ) {
-        let invalid_payload = z00z_utils::compression::zstd_compress(invalid_vk)
+        let invalid_compact = match super::compact_verifier_key_wire(invalid_vk, binding) {
+            Ok(compact) => compact,
+            Err(_) => {
+                assert!(
+                    super::pinned_verifier_key_layout(invalid_vk).is_err(),
+                    "{label} must fail the pinned key-structure gate before compact encoding"
+                );
+                eprintln!(
+                    "selected invalid VK rejected before compact encoding at pinned key-structure gate: {label}"
+                );
+                return;
+            }
+        };
+        let invalid_payload = z00z_utils::compression::zstd_compress(&invalid_compact)
             .expect("compress selected invalid-key corpus");
         let mut header = VerifierBundleHeaderV2::decode(canonical_bundle)
             .expect("canonical selected verifier header");
@@ -25833,6 +26096,25 @@ mod tests {
             u32::try_from(invalid_vk.len()).expect("bounded decoded VK length");
         header.vk_payload_bytes =
             u32::try_from(invalid_payload.len()).expect("bounded compressed VK length");
+        header.project_digest = super::bundle_project_digest(&header.canonical_prefix());
+        let mut selected_bundle = header.encode();
+        selected_bundle.extend_from_slice(&invalid_payload);
+        let selected_digest = super::bundle_payload_digest(b"verifier-bundle", &selected_bundle);
+        assert_bundle_rejected_early(&selected_bundle, binding, selected_digest);
+    }
+
+    fn assert_selected_compact_rejected(
+        canonical_bundle: &[u8],
+        binding: VerifierBundleBindingV2,
+        invalid_compact: &[u8],
+    ) {
+        let invalid_payload = z00z_utils::compression::zstd_compress(invalid_compact)
+            .expect("compress invalid compact-key corpus");
+        let mut header = VerifierBundleHeaderV2::decode(canonical_bundle)
+            .expect("canonical selected verifier header");
+        header.vk_payload_digest = super::bundle_payload_digest(b"vk-zstd", &invalid_payload);
+        header.vk_payload_bytes =
+            u32::try_from(invalid_payload.len()).expect("bounded compact-key payload");
         header.project_digest = super::bundle_project_digest(&header.canonical_prefix());
         let mut selected_bundle = header.encode();
         selected_bundle.extend_from_slice(&invalid_payload);
@@ -31195,11 +31477,14 @@ mod tests {
         // cap breach is evidence, not a reason to widen a private wire bound.
         let vk_payload = measured_bincode(&vk);
         let proof_payload = measured_bincode(&proof);
-        let compressed_vk_payload = z00z_utils::compression::zstd_compress(&vk_payload)
+        let compact_vk_payload = super::compact_verifier_key_wire(&vk_payload, binding)
+            .expect("diagnostic VK compact wire");
+        let compressed_vk_payload = z00z_utils::compression::zstd_compress(&compact_vk_payload)
             .expect("diagnostic lossless VK compression");
         eprintln!(
-            "real Nova bundle payload bytes: vk={}, zstd_vk={}, proof={}, header={}",
+            "real Nova bundle payload bytes: vk={}, compact_vk={}, zstd_compact_vk={}, proof={}, header={}",
             vk_payload.len(),
+            compact_vk_payload.len(),
             compressed_vk_payload.len(),
             proof_payload.len(),
             VERIFIER_BUNDLE_HEADER_BYTES_V2,
@@ -31262,6 +31547,48 @@ mod tests {
             .expect("authority-selected bundle digest");
         let loaded =
             NovaVerifierBundleV2::load(&bundle, selection).expect("strict canonical bundle load");
+
+        // Exercise the project-owned compact-key grammar under a recomputed
+        // outer payload digest and authority-selected bundle digest. Every
+        // malformed metadata/body case must still fail before proof decode.
+        let mut compact_magic = compact_vk_payload.clone();
+        compact_magic[0] ^= 1;
+        assert_selected_compact_rejected(&bundle, binding, &compact_magic);
+        drop(compact_magic);
+        let mut compact_version = compact_vk_payload.clone();
+        compact_version[8] = compact_version[8].saturating_add(1);
+        assert_selected_compact_rejected(&bundle, binding, &compact_version);
+        drop(compact_version);
+        let mut compact_length = compact_vk_payload.clone();
+        compact_length[9..17].fill(0);
+        assert_selected_compact_rejected(&bundle, binding, &compact_length);
+        drop(compact_length);
+        let mut compact_offset = compact_vk_payload.clone();
+        let first_offset = u64::from_le_bytes(
+            compact_offset[17..25]
+                .try_into()
+                .expect("compact first-key offset"),
+        );
+        compact_offset[17..25].copy_from_slice(&first_offset.saturating_add(1).to_le_bytes());
+        assert_selected_compact_rejected(&bundle, binding, &compact_offset);
+        drop(compact_offset);
+        let mut compact_count = compact_vk_payload.clone();
+        compact_count[25..33].fill(0);
+        assert_selected_compact_rejected(&bundle, binding, &compact_count);
+        drop(compact_count);
+        let mut compact_body = compact_vk_payload.clone();
+        compact_body[super::VK_COMPACT_HEADER_BYTES_V2] ^= 1;
+        assert_selected_compact_rejected(&bundle, binding, &compact_body);
+        drop(compact_body);
+        assert_selected_compact_rejected(
+            &bundle,
+            binding,
+            &compact_vk_payload[..compact_vk_payload.len() - 1],
+        );
+        let mut compact_trailing = compact_vk_payload.clone();
+        compact_trailing.push(0);
+        assert_selected_compact_rejected(&bundle, binding, &compact_trailing);
+        drop(compact_trailing);
 
         // Reach the dependency key decoder under an otherwise fully selected,
         // identity-correct bundle. The first deterministic `ck` generator is

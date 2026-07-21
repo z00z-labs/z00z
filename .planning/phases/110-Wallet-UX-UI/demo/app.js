@@ -10,6 +10,7 @@ const walletTabs = document.querySelector("#wallet-tabs");
 const walletIdentity = document.querySelector("#wallet-identity");
 const walletStatusbar = document.querySelector("#wallet-statusbar");
 const lockWalletLabel = document.querySelector("#lock-wallet-label");
+
 const dialog = document.querySelector("#flow-dialog");
 const dialogContent = document.querySelector("#dialog-content");
 const appShell = document.querySelector("#app-shell");
@@ -21,8 +22,13 @@ const demoParams = new URLSearchParams(window.location.search);
 const requestedView = ["home", "wallet", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings", "settings", "telemetry"].includes(demoParams.get("view")) ? demoParams.get("view") : "wallet";
 const requestedWalletSection = ["assets", "vouchers", "permissions"].includes(demoParams.get("wallet")) ? demoParams.get("wallet") : "assets";
 const requestedWalletSettingsSection = ["general", "security", "backup", "policies", "advanced"].includes(demoParams.get("walletSettings")) ? demoParams.get("walletSettings") : "general";
-const requestedSettingsSection = ["general", "network", "appearance"].includes(demoParams.get("settings")) ? demoParams.get("settings") : "general";
 const requestedNetworkSection = ["overview", "reticulum", "onionnet"].includes(demoParams.get("network")) ? demoParams.get("network") : "overview";
+const requestedSettingsValue = demoParams.get("settings");
+const requestedSettingsSection = requestedSettingsValue === "network"
+  ? (requestedNetworkSection === "onionnet" ? "onionnet" : "reticulum")
+  : ["general", "appearance", "reticulum", "onionnet"].includes(requestedSettingsValue)
+    ? requestedSettingsValue
+    : "general";
 const requestedTelemetrySource = ["onionnet", "reticulum", "aggregators"].includes(demoParams.get("telemetry")) ? demoParams.get("telemetry") : "onionnet";
 const requestedReticulumTelemetryTab = ["overview", "node", "interfaces", "radio", "entrypoints", "paths", "probes", "links"].includes(demoParams.get("reticulumTab")) ? demoParams.get("reticulumTab") : "overview";
 const requestedOnionnetTelemetryTab = ["overview", "epoch", "privacy", "transport", "queues", "probation", "ingress"].includes(demoParams.get("onionTab")) ? demoParams.get("onionTab") : "overview";
@@ -31,9 +37,8 @@ const requestedAggregatorsTelemetryTab = ["overview"].includes(demoParams.get("a
 const paletteOptions = [
   { id: "z00z-default", label: "Z00Z Default", description: "Current private-wallet palette" },
   { id: "black-gold-elegance", label: "Black & Gold", description: "Black, navy, and restrained gold" },
-  { id: "deep-blue-sea", label: "Deep Blue Sea", description: "Layered blue with cool neutrals" },
-  { id: "golden-twilight", label: "Golden Twilight", description: "Near-black, deep blue, and gold" },
-  { id: "midnight-sky", label: "Midnight Sky", description: "Midnight blue with luminous gold" }
+  { id: "moonlit-stroll", label: "Moonlit Stroll", description: "Moonlit teal and navy with restrained gold" },
+  { id: "walking-at-night", label: "Walking at Night", description: "Blue-charcoal streets and warm stone" }
 ];
 
 const codeThemeOptions = [
@@ -57,12 +62,12 @@ const state = {
   walletSection: requestedWalletSection,
   walletSettingsSection: requestedWalletSettingsSection,
   settingsSection: requestedSettingsSection,
-  networkSection: requestedNetworkSection,
+  networkSection: ["reticulum", "onionnet"].includes(requestedSettingsSection) ? requestedSettingsSection : requestedNetworkSection,
   telemetrySource: requestedTelemetrySource,
   reticulumTelemetryTab: requestedReticulumTelemetryTab,
   onionnetTelemetryTab: requestedOnionnetTelemetryTab,
   aggregatorsTelemetryTab: requestedAggregatorsTelemetryTab,
-  isNetworkOpen: requestedSettingsSection === "network",
+  isNetworkOpen: ["reticulum", "onionnet"].includes(requestedSettingsSection),
   theme: "dark",
   palette: "z00z-default",
   language: "en",
@@ -73,7 +78,6 @@ const state = {
   autoLockMinutes: "15",
   textScale: "100",
   reducedMotion: false,
-  compactLists: false,
   codeTheme: "atom-one-dark",
   configView: "yaml",
   configDraft: "",
@@ -250,7 +254,6 @@ function effectiveDemoConfigYaml() {
     `    custom_rail: "${state.customAppearance.rail}"`,
     `    text_scale: ${state.textScale}`,
     `    reduced_motion: ${state.reducedMotion}`,
-    `    compact_desktop_lists: ${state.compactLists}`,
     `    code_theme: ${state.codeTheme}`,
     "",
     "wallet:",
@@ -291,15 +294,11 @@ function syncConfigDraftFromState() {
 
 function applyAppearancePreferences() {
   const root = document.documentElement;
-  const effectiveTheme = state.theme === "system"
-    ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
-    : state.theme;
-  root.dataset.theme = effectiveTheme;
+  root.dataset.theme = state.theme;
   root.dataset.palette = state.palette;
   root.dataset.codeTheme = state.codeTheme;
   root.dataset.textScale = state.textScale;
   root.dataset.reducedMotion = String(state.reducedMotion);
-  root.dataset.compactLists = String(state.compactLists);
   applyDocumentTranslations();
   if (state.hasCustomAppearance) {
     root.style.setProperty("--brand", state.customAppearance.brand);
@@ -353,7 +352,6 @@ function validateAndApplyDemoConfig(source, apply = false) {
   const textScale = readYamlScalar(source, "text_scale");
   const notifications = readYamlScalar(source, "notifications");
   const reducedMotion = readYamlScalar(source, "reduced_motion");
-  const compactLists = readYamlScalar(source, "compact_desktop_lists");
   const codeTheme = readYamlScalar(source, "code_theme");
   const appLockAfter = readYamlScalar(source, "lock_after_minutes");
   const defaultFee = readYamlScalar(source, "default_fee");
@@ -363,7 +361,7 @@ function validateAndApplyDemoConfig(source, apply = false) {
   const hideSensitive = readYamlScalar(source, "hide_sensitive_amounts");
   const expertDetails = readYamlScalar(source, "expert_details");
 
-  if (theme && !["system", "dark", "light"].includes(theme)) return { valid: false, message: "Theme must be system, dark, or light." };
+  if (theme && !["dark", "light"].includes(theme)) return { valid: false, message: "Theme must be dark or light." };
   if (palette && !paletteOptions.some((entry) => entry.id === palette)) return { valid: false, message: "Palette must use one of the listed preset IDs." };
   if (language && !uiLanguages.some((entry) => entry.id === language)) return { valid: false, message: "language must be a supported UI language code." };
   if (regionalLocale && !uiLanguages.some((entry) => entry.locale === regionalLocale)) return { valid: false, message: "regional_locale must use a supported locale." };
@@ -372,7 +370,6 @@ function validateAndApplyDemoConfig(source, apply = false) {
   if (textScale && !["100", "110", "125"].includes(textScale)) return { valid: false, message: "text_scale must be 100, 110, or 125." };
   if (notifications && !["true", "false"].includes(notifications)) return { valid: false, message: "notifications must be true or false." };
   if (reducedMotion && !["true", "false"].includes(reducedMotion)) return { valid: false, message: "reduced_motion must be true or false." };
-  if (compactLists && !["true", "false"].includes(compactLists)) return { valid: false, message: "compact_desktop_lists must be true or false." };
   if (codeTheme && !codeThemeOptions.some((entry) => entry.id === codeTheme)) return { valid: false, message: "code_theme must use one of the listed preset IDs." };
   if (defaultFee && !/^\d+(?:\.\d+)?$/.test(defaultFee)) return { valid: false, message: "default_fee must be a non-negative decimal." };
   if (customEnabled && !["true", "false"].includes(customEnabled)) return { valid: false, message: "custom_enabled must be true or false." };
@@ -392,7 +389,6 @@ function validateAndApplyDemoConfig(source, apply = false) {
     if (textScale) state.textScale = textScale;
     if (notifications) state.notifications = notifications === "true";
     if (reducedMotion) state.reducedMotion = reducedMotion === "true";
-    if (compactLists) state.compactLists = compactLists === "true";
     if (codeTheme) state.codeTheme = codeTheme;
     if (appLockAfter) state.autoLockMinutes = appLockAfter.toLowerCase();
     if (defaultFee) activeWalletPreferences().defaultFee = defaultFee;
@@ -540,8 +536,8 @@ function sidebarActiveTarget() {
   if (state.view === "telemetry") return { group: "network", id: state.telemetrySource };
 
   if (state.view === "settings") {
-    if (state.settingsSection === "network") {
-      return { group: "network", id: state.networkSection };
+    if (["reticulum", "onionnet"].includes(state.settingsSection)) {
+      return { group: "network", id: state.settingsSection };
     }
     return { group: "settings", id: "settings" };
   }
@@ -592,7 +588,8 @@ function renderWalletShell() {
   const settingsTabs = [
     { id: "general", labelKey: "settings.general", iconName: "settings" },
     { id: "appearance", labelKey: "settings.appearance", iconName: "sun" },
-    { id: "network", labelKey: "settings.networkPrivacy", iconName: "network" }
+    { id: "reticulum", label: "Reticulum", iconName: "network" },
+    { id: "onionnet", label: "OnionNet", iconName: "shield" }
   ];
   walletTabs.classList.toggle("is-settings-tabs", state.view === "settings");
   if (telemetryTabSource) {
@@ -605,7 +602,8 @@ function renderWalletShell() {
     walletTabs.setAttribute("role", "tablist");
     walletTabs.innerHTML = settingsTabs.map((tab) => {
       const isActive = state.settingsSection === tab.id;
-      return `<button id="settings-tab-${tab.id}" class="wallet-tab${isActive ? " is-active" : ""}" type="button" role="tab" aria-selected="${isActive}"${isActive ? ' aria-current="page"' : ""} data-settings-section="${tab.id}">${icon(tab.iconName)}<span>${t(tab.labelKey)}</span></button>`;
+      const label = tab.labelKey ? t(tab.labelKey) : tab.label;
+      return `<button id="settings-tab-${tab.id}" class="wallet-tab${isActive ? " is-active" : ""}" type="button" role="tab" aria-selected="${isActive}"${isActive ? ' aria-current="page"' : ""} data-settings-section="${tab.id}">${icon(tab.iconName)}<span>${label}</span></button>`;
     }).join("");
   } else {
     walletTabs.setAttribute("aria-label", "Selected wallet");
@@ -810,7 +808,7 @@ function moneyView() {
           <article class="card asset-row" role="row">
             <button class="asset-identity-button" type="button" data-open-flow="asset-detail" data-asset-key="${escapeHtml(asset.key)}" aria-label="${t("assets.viewDetails", { asset: asset.label })}">
               ${objectTypeIcon("asset", asset.type, "asset-logo")}
-              <span class="asset-info"><strong>${escapeHtml(asset.label)} <span class="object-kind">${t(asset.kindKey)}</span></strong></span>
+              <span class="asset-info"><strong><span class="object-label">${escapeHtml(asset.label)}</span><span class="object-kind">${t(asset.kindKey)}</span></strong></span>
             </button>
             <div class="asset-number" role="cell"><strong>${sensitive(asset.balanceLabel)}</strong></div>
             <div class="asset-number" role="cell"><strong>${asset.value === "—" ? asset.value : sensitive(asset.value)}</strong></div>
@@ -818,10 +816,6 @@ function moneyView() {
           </article>`).join("")}
       </div>
       <div class="notice">${icon("shield")} ${t("assets.excludedNotice")}</div>
-      <div class="asset-transfer-links">
-        <button class="text-button" type="button" data-view="wallet-send">${icon("send")} ${t("assets.send")}</button>
-        <button class="text-button" type="button" data-view="wallet-receive">${icon("receive")} ${t("assets.receive")}</button>
-      </div>
     </div>`;
 }
 
@@ -835,7 +829,7 @@ function walletTransferView(direction) {
     ${walletAssetEntries().map((asset) => `
       <button class="card transfer-asset-row" type="button" data-open-flow="${flow}" data-asset-key="${escapeHtml(asset.key)}" aria-label="${t(ariaKey, { asset: asset.label })}">
         ${objectTypeIcon("asset", asset.type, "transfer-asset-icon")}
-        <span class="transfer-asset-name"><strong>${escapeHtml(asset.label)} <span class="object-kind">${t(asset.kindKey)}</span></strong></span>
+        <span class="transfer-asset-name"><strong><span class="object-label">${escapeHtml(asset.label)}</span><span class="object-kind">${t(asset.kindKey)}</span></strong></span>
         <strong class="transfer-asset-balance">${sensitive(asset.balanceLabel)}</strong>
         ${icon(iconName)}
       </button>`).join("")}
@@ -843,7 +837,7 @@ function walletTransferView(direction) {
 }
 
 const walletSections = [
-  ["assets", "assets.sectionAssets", "wallet"],
+  ["assets", "assets.sectionAssets", "assets"],
   ["vouchers", "assets.sectionVouchers", "claim"],
   ["permissions", "assets.sectionPermissions", "permission"]
 ];
@@ -858,13 +852,10 @@ function walletContextNav() {
 function vouchersPanel() {
   return `
     <div class="choice-strip" aria-label="Voucher filters"><button class="choice-chip is-active" type="button">Needs action</button><button class="choice-chip" type="button">Redeemable</button><button class="choice-chip" type="button">History</button><button class="choice-chip" type="button">Quarantined</button></div>
-    <section class="card action-panel">
-      <div class="action-panel-top"><div class="action-title">${objectTypeIcon("voucher", "refund", "list-icon")}<div><h2>Ready for your decision</h2><p>Backing and restrictions are checked before any action</p></div></div><span class="status-badge is-ready">1 ready</span></div>
-      <div class="claim-list">
-        <button class="claim-row" type="button" data-open-flow="voucher-review">${objectTypeIcon("voucher", "refund", "list-icon")}<span class="list-copy"><strong>Travel refund voucher</strong><small>Northwind Travel · consumed-asset backing · acceptance required · refund allowed</small></span><span class="list-meta"><strong>86.00 Z00Z</strong><small class="status-badge is-ready">Offered</small></span></button>
-        <button class="claim-row" type="button" data-open-flow="voucher-settled">${objectTypeIcon("voucher", "redeemed", "list-icon")}<span class="list-copy"><strong>Event deposit return</strong><small>Riverside Events · redeemed and settled 12 Jul</small></span><span class="list-meta"><strong>150.00 Z00Z</strong><small class="status-badge is-settled">Redeemed</small></span></button>
-      </div>
-    </section>
+    <div class="claim-list">
+      <button class="claim-row" type="button" data-open-flow="voucher-review">${objectTypeIcon("voucher", "refund", "list-icon")}<span class="list-copy"><strong>Travel refund voucher</strong><small>Northwind Travel · consumed-asset backing · acceptance required · refund allowed</small></span><span class="list-meta"><strong>86.00 Z00Z</strong><small class="status-badge is-ready">Offered</small></span></button>
+      <button class="claim-row" type="button" data-open-flow="voucher-settled">${objectTypeIcon("voucher", "redeemed", "list-icon")}<span class="list-copy"><strong>Event deposit return</strong><small>Riverside Events · redeemed and settled 12 Jul</small></span><span class="list-meta"><strong>150.00 Z00Z</strong><small class="status-badge is-settled">Redeemed</small></span></button>
+    </div>
     <div class="notice">${icon("shield")} Imported vouchers with unknown policy, invalid signatures, or unsupported schema go to Quarantine and never enter Available.</div>`;
 }
 
@@ -898,13 +889,10 @@ const permissionDetails = Object.freeze({
 function permissionsPanel() {
   return `
     <div class="choice-strip" aria-label="Permission filters"><button class="choice-chip is-active" type="button">Held</button><button class="choice-chip" type="button">Delegated</button><button class="choice-chip" type="button">Used</button></div>
-    <section class="card action-panel">
-      <div class="action-panel-top"><div class="action-title">${objectTypeIcon("right", "receipt", "list-icon")}<div><h2>Held permissions</h2><p>Class, action, scope, uses, expiry, and delegation are visible</p></div></div><span class="status-badge is-active">2 held</span></div>
-      <div class="permission-list">
-        <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="receipt">${objectTypeIcon("right", "receipt", "list-icon")}<span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
-        <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="deploy">${objectTypeIcon("right", "deploy", "list-icon")}<span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></button>
-      </div>
-    </section>
+    <div class="permission-list">
+      <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="receipt">${objectTypeIcon("right", "receipt", "list-icon")}<span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
+      <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="deploy">${objectTypeIcon("right", "deploy", "list-icon")}<span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></button>
+    </div>
     <div class="notice">${icon("spark")} A permission is zero-value. “Give permission” delegates a narrower held right; monetary budgets require a separate future composition and are not projected here.</div>`;
 }
 
@@ -970,7 +958,7 @@ function activityView() {
         ${filters}
         <label class="search-wrap"><span class="sr-only">${t("history.search")}</span>${icon("search")}<input id="activity-search" type="search" placeholder="${t("history.search")}" autocomplete="off"></label>
       </div>
-      <section class="card activity-panel" id="activity-results" aria-label="${t("history.results")}">
+      <section class="activity-card-list" id="activity-results" aria-label="${t("history.results")}">
         ${activityRows(visible)}
       </section>
     </div>`;
@@ -1201,33 +1189,15 @@ function walletSettingsView() {
   return `<div class="view-enter settings-view wallet-settings-view"><div class="workspace-layout settings-layout"><aside class="context-rail">${walletSettingsContextNav()}</aside><article class="card settings-detail">${walletSettingsDetail()}</article></div></div>`;
 }
 
-function settingsNetworkTabs() {
-  if (state.settingsSection !== "network") return "";
-
-  const tabs = [
-    { id: "overview", labelKey: "settings.overview", iconName: "activity" },
-    { id: "reticulum", label: "Reticulum", iconName: "network" },
-    { id: "onionnet", label: "OnionNet", iconName: "shield" }
-  ];
-
-  return `<nav class="settings-network-tabs" aria-label="${t("settings.networkSections")}" role="tablist">
-    ${tabs.map((tab) => {
-      const isActive = state.networkSection === tab.id;
-      const label = tab.labelKey ? t(tab.labelKey) : tab.label;
-      return `<button class="settings-network-tab${isActive ? " is-active" : ""}" type="button" role="tab" aria-selected="${isActive}"${isActive ? ' aria-current="page"' : ""} data-network-section="${tab.id}">${icon(tab.iconName)}<span>${label}</span></button>`;
-    }).join("")}
-  </nav>`;
-}
-
 function networkDetail() {
-  if (state.networkSection === "reticulum") return `
+  if (state.settingsSection === "reticulum") return `
     <div class="connection-options">
       <div class="connection-option"><span class="health-orb"></span><span><strong>Reticulum service</strong><small>Target service example · no live wallet API</small></span><span class="status-badge is-ready">Target</span></div>
       <div class="connection-option"><span class="list-icon">${icon("network")}</span><span><strong>Interfaces</strong><small>Auto · TCP client + local mesh discovery</small></span><button class="button" type="button" data-demo-action="config-stage">Configure</button></div>
       <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Network identity</strong><small class="mono">RNS 6A3E…91B2 · independent from wallet seed</small></span><span class="status-badge is-active">Separate</span></div>
     </div><div class="notice">${icon("settings")} Raw Reticulum interface definitions require a future runtime configuration route. Service/runtime changes may require restart.</div>`;
 
-  if (state.networkSection === "onionnet") return `
+  if (state.settingsSection === "onionnet") return `
     <div class="connection-options">
       <div class="connection-option"><span class="health-orb"></span><span><strong>Privacy route</strong><small>Target example · 3 hops · epoch 1842</small></span><span class="status-badge is-ready">Target floor</span></div>
       <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Membership & replay checks</strong><small>Target telemetry · unavailable in current RPC</small></span><span class="status-badge is-ready">Target</span></div>
@@ -1246,16 +1216,12 @@ function networkDetail() {
 
 function settingsDetail() {
   if (state.settingsSection === "general") {
-    const synchronizedCatalogues = i18n.auditCatalogues().filter((entry) => entry.ready).length;
     return `
-      <h2>${t("app.general")}</h2>
       <div class="setting-group settings-first-group">
         <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.language")}</strong><small>${t("app.languageHelp")}</small></span><select aria-label="${t("app.language")}" data-config-control="language">${languageOptionsMarkup()}</select></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.regionalFormat")}</strong><small>${t("app.regionalFormatHelp")}</small></span><select aria-label="${t("app.regionalFormat")}" data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.timeZone")}</strong><small>${t("app.timeZoneHelp")}</small></span><select aria-label="${t("app.timeZone")}" data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.networkUnits")}</strong><small>${t("app.networkUnitsHelp")}</small></span><select aria-label="${t("app.networkUnits")}" data-config-control="network-units"><option value="decimal-bps"${state.networkUnits === "decimal-bps" ? " selected" : ""}>${t("app.decimalBitrate")}</option></select></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.notifications")}</strong><small>${t("app.notificationsHelp")}</small></span><button class="toggle" type="button" data-demo-action="general-notifications" aria-pressed="${state.notifications}" aria-label="${t("app.notifications")} ${state.notifications ? t("common.on") : t("common.off")}"></button></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.translationCoverage")}</strong><small>${t("app.translationCoverageHelp", { count: synchronizedCatalogues })}</small></span><strong class="mono">${synchronizedCatalogues}/${uiLanguages.length}</strong></div>
       </div>`;
   }
 
@@ -1287,9 +1253,10 @@ function settingsDetail() {
       </div>`;
   }
 
-  if (state.settingsSection === "network") {
+  if (["reticulum", "onionnet"].includes(state.settingsSection)) {
+    const isOnionNet = state.settingsSection === "onionnet";
     return `
-      <div class="settings-heading"><div><p class="eyebrow">Overlay, carrier, chain</p><h2>Network</h2><p>OnionNet protects the route; Reticulum carries it. Chain remains separate.</p></div><select aria-label="Network mode"><option>Private · no direct fallback</option><option>Auto</option><option>Resilient</option><option>Direct · warning</option></select></div>
+      <div class="settings-heading"><div><p class="eyebrow">${isOnionNet ? "Private overlay" : "Local carrier"}</p><h2>${isOnionNet ? "OnionNet" : "Reticulum"}</h2><p>${isOnionNet ? "Route privacy and admission controls remain distinct from the carrier." : "Carrier configuration remains local and separate from wallet keys and route policy."}</p></div>${isOnionNet ? '<select aria-label="Network mode"><option>Private · no direct fallback</option><option>Auto</option><option>Resilient</option><option>Direct · warning</option></select>' : ""}</div>
       ${networkDetail()}`;
   }
 
@@ -1308,15 +1275,13 @@ function settingsDetail() {
 
   if (state.settingsSection === "appearance") {
     return `
-      <div class="settings-heading"><div><p class="eyebrow">Protected semantics</p><h2>Appearance</h2><p>Personalize brand surfaces while safety, privacy, and environment colors stay unambiguous.</p></div><span class="config-source">Source · YAML</span></div>
       <div class="setting-group">
-        <div class="setting-line"><span class="setting-line-copy"><strong>Theme</strong><small>System follows the operating system</small></span><div class="segmented" aria-label="Theme"><button type="button" data-theme="system" class="${state.theme === "system" ? "is-active" : ""}>System</button><button type="button" data-theme="dark" class="${state.theme === "dark" ? "is-active" : ""}">${icon("moon")} Dark</button><button type="button" data-theme="light" class="${state.theme === "light" ? "is-active" : ""}">${icon("sun")} Light</button></div></div>
+        <div class="setting-line"><span class="setting-line-copy"><strong>Theme</strong><small>Switch between dark and light modes</small></span><button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to ${state.theme === "dark" ? "light" : "dark"} mode" title="Switch to ${state.theme === "dark" ? "light" : "dark"} mode">${icon(state.theme === "dark" ? "moon" : "sun")} ${state.theme === "dark" ? "Dark" : "Light"}</button></div>
         <div class="setting-line palette-setting"><span class="setting-line-copy"><strong>Palette</strong><small>Changes decorative and primary-action colors; safety colors remain semantic.</small></span><div class="palette-grid" aria-label="Palette presets">${paletteOptions.map(paletteCard).join("")}</div></div>
         <div class="setting-line palette-setting code-theme-setting"><span class="setting-line-copy"><strong>Code highlighting</strong><small>Changes YAML syntax colours across the application. It does not change wallet data, amounts, or runtime behavior.</small></span><div class="code-theme-sections" aria-label="YAML code highlighting theme"><section><p class="code-theme-group-label">Light</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "light").map(codeThemeCard).join("")}</div></section><section><p class="code-theme-group-label">Dark</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "dark").map(codeThemeCard).join("")}</div></section></div></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>Custom accents</strong><small>Fine-tune brand and privacy rail only. Safety, warning, failure, and focus colours stay protected.</small></span><div class="custom-color-controls"><label>Brand<input type="color" data-config-control="custom-brand" value="${state.customAppearance.brand}" aria-label="Custom brand color"></label><label>Privacy rail<input type="color" data-config-control="custom-rail" value="${state.customAppearance.rail}" aria-label="Custom privacy rail color"></label></div></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>Text scale</strong><small>Interface reflows without hiding content</small></span><select aria-label="Text scale" data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select></div>
         <div class="setting-line"><span class="setting-line-copy"><strong>Reduced motion</strong><small>Reduce interface motion in addition to operating system preferences</small></span><button class="toggle" type="button" aria-pressed="${state.reducedMotion}" aria-label="Use reduced motion" data-demo-action="motion"></button></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>Compact desktop lists</strong><small>Keep touch targets at least 44 pixels</small></span><button class="toggle" type="button" aria-pressed="${state.compactLists}" aria-label="Use compact desktop lists" data-demo-action="compact"></button></div>
       </div>`;
   }
 
@@ -1327,7 +1292,6 @@ function settingsView() {
   return `
     <div class="view-enter settings-view">
       <div class="settings-layout settings-layout--full">
-        ${settingsNetworkTabs()}
         <article class="card settings-detail">${settingsDetail()}</article>
       </div>
     </div>`;
@@ -1342,13 +1306,13 @@ function telemetryLine(iconName, title, detail) {
 }
 
 const RETICULUM_TAB_ICON_LUT = Object.freeze({
-  overview: "activity",
+  overview: "overview",
   node: "reticulum-node",
   interfaces: "reticulum-interface",
   radio: "network",
-  entrypoints: "reticulum-entry",
+  entrypoints: "entry",
   paths: "reticulum-paths",
-  probes: "reticulum-probe",
+  probes: "probe",
   links: "reticulum-link"
 });
 
@@ -1494,7 +1458,7 @@ const aggregatorsTelemetryTabs = [
   {
     id: "overview",
     labelKey: "aggregators.tabs.overview",
-    iconName: "activity",
+    iconName: "overview",
     summary: "Read-only service and publication evidence for aggregation work. It never receives wallet keys, seeds, or policy secrets.",
     metrics: [
       ["Service bindings", "Unavailable", "No wallet-to-node status bridge"],
@@ -1514,7 +1478,7 @@ const onionnetTelemetryTabs = [
   {
     id: "overview",
     labelKey: "onionnet.tabs.overview",
-    iconName: "activity",
+    iconName: "overview",
     summary: "A boundary-aware view of public control-plane state, local evidence, and aggregate synthetic health. It never reconstructs a user route.",
     metrics: [
       ["Public epoch data", "Unavailable", "No verified registry or policy snapshot"],
@@ -1578,7 +1542,7 @@ const onionnetTelemetryTabs = [
   {
     id: "queues",
     labelKey: "onionnet.tabs.queues",
-    iconName: "backup",
+    iconName: "queue",
     summary: "Bounded queues, durable replay protection, and explicit backpressure are local safety evidence, never a cross-hop trace.",
     metrics: [
       ["Queue utilization", "Unavailable", "No local bounded-queue aggregate"],
@@ -1594,7 +1558,7 @@ const onionnetTelemetryTabs = [
   {
     id: "probation",
     labelKey: "onionnet.tabs.probation",
-    iconName: "user",
+    iconName: "probe",
     summary: "Probation and reserve readiness use aggregate shadow traffic and controlled challenges without automatic irreversible punishment.",
     metrics: [
       ["Probation population", "Unavailable", "No lifecycle aggregate"],
@@ -1610,7 +1574,7 @@ const onionnetTelemetryTabs = [
   {
     id: "ingress",
     labelKey: "onionnet.tabs.ingress",
-    iconName: "wallet",
+    iconName: "entry",
     summary: "The double-envelope exit and ingress-decryptor boundary is visible through aggregate correctness and admission evidence only.",
     metrics: [
       ["Exit boundary", "Unavailable", "No opaque-handoff aggregate"],
@@ -1739,14 +1703,29 @@ function render(options = {}) {
   }[state.view]();
 
   syncBalanceButtons();
+  const revealActiveWalletTab = () => {
+    const activeWalletTab = walletTabs.querySelector(".wallet-tab.is-active");
+    if (!activeWalletTab) return;
+
+    const activeBounds = activeWalletTab.getBoundingClientRect();
+    const tabsBounds = walletTabs.getBoundingClientRect();
+    const tabInset = window.matchMedia("(max-width: 760px)").matches ? 16 : 0;
+    if (activeBounds.right > tabsBounds.right - tabInset) {
+      walletTabs.scrollLeft += activeBounds.right - (tabsBounds.right - tabInset);
+    } else if (activeBounds.left < tabsBounds.left + tabInset) {
+      walletTabs.scrollLeft -= tabsBounds.left + tabInset - activeBounds.left;
+    }
+  };
+  revealActiveWalletTab();
+  document.fonts?.ready.then(revealActiveWalletTab);
   requestAnimationFrame(() => {
-    walletTabs.querySelector(".wallet-tab.is-active")?.scrollIntoView({ block: "nearest", inline: "center" });
-    const activeContext = main.querySelector(".settings-network-tab.is-active") || main.querySelector(".context-nav-child.is-active") || main.querySelector(".context-nav-item.is-active");
+    revealActiveWalletTab();
+    const activeContext = main.querySelector(".context-nav-child.is-active") || main.querySelector(".context-nav-item.is-active");
     activeContext?.scrollIntoView({ block: "nearest", inline: "center" });
   });
   if (options.focusMain) {
     main.focus({ preventScroll: true });
-    window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: state.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 }
 
@@ -2832,11 +2811,6 @@ function handleDemoAction(action, button) {
     syncConfigDraftFromState();
     render();
     showToast(`Reduced motion ${state.reducedMotion ? "enabled" : "disabled"}.`);
-  } else if (action === "compact") {
-    state.compactLists = !state.compactLists;
-    syncConfigDraftFromState();
-    render();
-    showToast(`Compact desktop lists ${state.compactLists ? "enabled" : "disabled"}.`);
   } else if (action === "expert") {
     state.expertDetails = !state.expertDetails;
     syncConfigDraftFromState();
@@ -2961,15 +2935,9 @@ document.addEventListener("click", (event) => {
   const settingButton = event.target.closest("[data-settings-section]");
   if (settingButton) {
     const section = settingButton.dataset.settingsSection;
-    if (section === "network") {
-      const wasNetwork = state.settingsSection === "network";
-      state.settingsSection = "network";
-      state.isNetworkOpen = true;
-      if (!wasNetwork) state.networkSection = "overview";
-    } else {
-      state.settingsSection = section;
-      state.isNetworkOpen = false;
-    }
+    state.settingsSection = section;
+    state.isNetworkOpen = ["reticulum", "onionnet"].includes(section);
+    if (state.isNetworkOpen) state.networkSection = section;
     render();
     return;
   }
@@ -2983,12 +2951,6 @@ document.addEventListener("click", (event) => {
       render({ focusMain: true });
       return;
     }
-    state.view = "settings";
-    state.settingsSection = "network";
-    state.networkSection = networkButton.dataset.networkSection;
-    state.isNetworkOpen = true;
-    render();
-    return;
   }
 
   const reticulumTelemetryButton = event.target.closest("[data-reticulum-telemetry-tab]");
@@ -3012,13 +2974,13 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const themeButton = event.target.closest("[data-theme]");
-  if (themeButton && themeButton.tagName === "BUTTON") {
-    state.theme = themeButton.dataset.theme;
+  const themeToggle = event.target.closest("[data-theme-toggle]");
+  if (themeToggle && themeToggle.tagName === "BUTTON") {
+    state.theme = state.theme === "dark" ? "light" : "dark";
     syncConfigDraftFromState();
     applyAppearancePreferences();
     render();
-    showToast(`${state.theme === "system" ? "System" : state.theme === "dark" ? "Dark" : "Light"} theme applied locally.`);
+    showToast(`${state.theme === "dark" ? "Dark" : "Light"} theme applied locally.`);
     return;
   }
 

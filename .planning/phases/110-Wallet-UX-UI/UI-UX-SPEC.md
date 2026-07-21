@@ -994,7 +994,7 @@ wallet:
     auto_lock_timeout_seconds: 300
     default_fee: 1000
   appearance:
-    theme: system
+    theme: dark
     accent: z00z-gold
     density: comfortable
   network:
@@ -1061,12 +1061,10 @@ The following are full review tables for the application palette. Values are aut
 | Z00Z Default / light | `#F4F7FA` | `#FFFFFF` | `#FFFFFF` | `#EDF2F6` | `rgb(20 30 40 / 48%)` |
 | Black & Gold / dark | `#000000` | `#14213D` | `#14213D` | `#1D2D4D` | `rgb(0 0 0 / 92%)` |
 | Black & Gold / light | `#F6F7F8` | `#FFFFFF` | `#FFFFFF` | `#E8EBEF` | `rgb(0 0 0 / 48%)` |
-| Deep Blue Sea / dark | `#0B2545` | `#13315C` | `#13315C` | `#134074` | `rgb(11 37 69 / 92%)` |
-| Deep Blue Sea / light | `#F3F7FA` | `#FFFFFF` | `#FFFFFF` | `#E8F0F6` | `rgb(11 37 69 / 44%)` |
-| Golden Twilight / dark | `#000814` | `#001D3D` | `#001D3D` | `#003566` | `rgb(0 8 20 / 92%)` |
-| Golden Twilight / light | `#F5F8FB` | `#FFFFFF` | `#FFFFFF` | `#EAF0F6` | `rgb(0 29 61 / 44%)` |
-| Midnight Sky / dark | `#00296B` | `#003F88` | `#003F88` | `#00509D` | `rgb(0 41 107 / 92%)` |
-| Midnight Sky / light | `#F4F8FC` | `#FFFFFF` | `#FFFFFF` | `#E9F0F7` | `rgb(0 41 107 / 44%)` |
+| Moonlit Stroll / dark | `#10284E` | `#14365C` | `#14365C` | `#105E60` | `rgb(16 40 78 / 92%)` |
+| Moonlit Stroll / light | `#F2F7F7` | `#FFFFFF` | `#FFFFFF` | `#E4EFEF` | `rgb(16 40 78 / 44%)` |
+| Walking at Night / dark | `#0E191F` | `#2B3C43` | `#2B3C43` | `#423A37` | `rgb(14 25 31 / 92%)` |
+| Walking at Night / light | `#F3F6F7` | `#FFFFFF` | `#FFFFFF` | `#E7EDEF` | `rgb(14 25 31 / 44%)` |
 
 | Semantic token | Meaning |
 | --- | --- |
@@ -1084,12 +1082,10 @@ The following are full review tables for the application palette. Values are aut
 | Z00Z Default / light | `#12202C` | `#526272` | `#728190` | `#D5DEE6` | `#B5C3CF` |
 | Black & Gold / dark | `#FFFFFF` | `#E5E5E5` | `#BFC5CA` | `#37445C` | `#5A6680` |
 | Black & Gold / light | `#14213D` | `#45546A` | `#6C7888` | `#C9D1DA` | `#AEB9C7` |
-| Deep Blue Sea / dark | `#EEF4ED` | `#C8D8D5` | `#A9C0CA` | `#315B83` | `#5B85AA` |
-| Deep Blue Sea / light | `#0B2545` | `#415F7D` | `#6A829A` | `#C4D4E1` | `#A7BDCE` |
-| Golden Twilight / dark | `#FFFFFF` | `#D6E1EF` | `#9FB6CE` | `#1D4F7E` | `#4274A3` |
-| Golden Twilight / light | `#001D3D` | `#405B78` | `#7089A1` | `#C6D4E2` | `#AABBCD` |
-| Midnight Sky / dark | `#FFFFFF` | `#D7E6F7` | `#AEC7E5` | `#2D6FAE` | `#5D99D0` |
-| Midnight Sky / light | `#00296B` | `#405F87` | `#6D87A8` | `#C4D4E6` | `#A6BBD1` |
+| Moonlit Stroll / dark | `#F3F8F8` | `#C9DADA` | `#9BB5B7` | `#356B70` | `#6B7D7F` |
+| Moonlit Stroll / light | `#10284E` | `#315B68` | `#5D7C82` | `#C5D9DA` | `#9ABDC0` |
+| Walking at Night / dark | `#F3F6F7` | `#C7D1D6` | `#A1B2BC` | `#597276` | `#7B6D62` |
+| Walking at Night / light | `#0E191F` | `#43535C` | `#687780` | `#C7D1D3` | `#A7B5B8` |
 
 | Semantic token | Meaning |
 | --- | --- |
@@ -1107,12 +1103,17 @@ The following are full review tables for the application palette. Values are aut
 | Z00Z Default / light | `#9C6B00` | `#704B00` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
 | Black & Gold / dark | `#FCA311` | `#FFD166` | `#1A1200` | `#66C5E8` | `#4CD29B` | `#FCA311` | `#FF6B72` | `#9BDCFF` |
 | Black & Gold / light | `#9C6500` | `#704B00` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
-| Deep Blue Sea / dark | `#8DA9C4` | `#C2D4E5` | `#0B2545` | `#78D2EA` | `#61D8A8` | `#F3C86B` | `#FF7B82` | `#9FDCFF` |
-| Deep Blue Sea / light | `#315B83` | `#173C62` | `#FFFFFF` | `#006F94` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
-| Golden Twilight / dark | `#FFC300` | `#FFD60A` | `#241B00` | `#55C5EF` | `#4CD29B` | `#FFC300` | `#FF6B72` | `#93DBFF` |
-| Golden Twilight / light | `#9A7000` | `#6F5000` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
-| Midnight Sky / dark | `#FDC500` | `#FFD500` | `#271E00` | `#75D4F5` | `#55D7A2` | `#FDC500` | `#FF747B` | `#B4E8FF` |
-| Midnight Sky / light | `#936F00` | `#675000` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+| Moonlit Stroll / dark | `#FCA311` | `#FFD166` | `#1A1200` | `#79C6E8` | `#4CD29B` | `#F3B65B` | `#FF6B72` | `#9BDCFF` |
+| Moonlit Stroll / light | `#9C6500` | `#704B00` | `#FFFFFF` | `#006F94` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+| Walking at Night / dark | `#FCA311` | `#F3B65B` | `#1E1704` | `#76C5E5` | `#4CD29B` | `#F3B65B` | `#FF6B72` | `#9BDCFF` |
+| Walking at Night / light | `#9C6500` | `#704B00` | `#FFFFFF` | `#006F94` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
+
+#### Moonlit Stroll and Walking at Night source-role order
+
+| Preset | Source order retained by the five card swatches | Application role order | Primary-action rationale |
+| --- | --- | --- | --- |
+| Moonlit Stroll | Midnight green `#004955` → Caribbean current `#105E60` → Slate gray `#6B7D7F` → Berkeley blue `#14365C` → Oxford blue `#10284E` | source swatch → raised → strong border → sidebar → canvas | Z00Z amber remains the action colour; the moonlit teal/navy source values stay structural so destructive red is never confused with selection. |
+| Walking at Night | Dim gray `#7B6D62` → Van Dyke `#423A37` → Rich black `#0E191F` → Gunmetal `#2B3C43` → Payne's gray `#597276` | strong border → raised → canvas → surface → border | Z00Z amber remains the action colour; cool blue-charcoal and stone brown distinguish route context without replacing safety semantics. |
 
 | Semantic token | Meaning | Never use for |
 | --- | --- | --- |
@@ -1506,7 +1507,7 @@ The HTML prototype must demonstrate:
 12. Layered OnionNet/Reticulum/carrier status, modes, capability disclaimer, and TEST/DEV treatment.
 13. Policy-profile preview with immutable protocol layer, signed managed layer, local restrictions, and “Why blocked?” explanation.
 14. UI/YAML configuration status, provenance, valid external update, invalid-file last-known-good behavior, conflict/diff, and restart-required state.
-15. System/dark/light themes, accent presets, protected semantic colors, keyboard focus, dialog focus return, reduced motion, and 44 px targets.
+15. Dark/light theme toggle (Dark by default), accent presets, protected semantic colors, keyboard focus, dialog focus return, reduced motion, and 44 px targets.
 16. Mobile-adapter simulation: safe-area-aware bottom navigation, keyboard-safe entry/review sheet, back closes only the top transient layer, and background/lock clears sensitive presentation state before foreground refresh.
 
 The demo uses fabricated values and must display **Interactive concept · no real funds**. It must not import production wallet code or give the impression that it signs transactions.

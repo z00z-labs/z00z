@@ -11,6 +11,22 @@ THREADS="${BOOTSTRAP_THREADS:-4}"
 NOVA_VERIFICATION="./.github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh"
 WALLET_FEATURES="z00z_wallets/claim-auth-sign,z00z_wallets/ownership_policy_keyring"
 
+check_root_test_output() {
+  if [[ -e test-results ]]; then
+    echo "forbidden repository-root test-results path exists; use crates/z00z_storage/outputs/checkpoint" >&2
+    return 1
+  fi
+}
+
+check_root_test_output
+on_exit() {
+  local status=$?
+  trap - EXIT
+  check_root_test_output || exit 1
+  exit "$status"
+}
+trap on_exit EXIT
+
 echo "=== foundational units ==="
 "$NOVA_VERIFICATION" guards
 cargo test --release --lib \

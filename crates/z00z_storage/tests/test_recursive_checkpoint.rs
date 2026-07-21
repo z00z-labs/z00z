@@ -68,7 +68,20 @@ fn test_crypto_ingress_v2_only() {
     assert!(!adapter.contains("accepted:"));
     assert!(adapter.contains("if blocks.is_empty()"));
     assert!(!adapter.contains("if blocks.len() < 3"));
-    assert!(adapter.contains("if blocks.len() > 5"));
+    assert!(
+        !adapter.contains("if blocks.len() > 5"),
+        "the 1/3/5 milestone matrix must not become a production chain-length cap"
+    );
+    assert!(
+        adapter.contains(
+            "retained_t3_artifact(\"verifier-bundle.bin\", 64 * 1024 * 1024)"
+        ),
+        "the T3 milestone ingress must share the format-4 64-MiB bundle ceiling"
+    );
+    assert!(
+        !adapter.contains("384 * 1024 * 1024"),
+        "the retired format-3 verifier-bundle ceiling must not return"
+    );
     assert!(nova.contains("Self::new_chain_scoped::<RequiredLocalChainEnvelopeV2>"));
     assert!(nova.contains("Self::load_chain_scoped::<RequiredLocalChainEnvelopeV2>"));
     assert!(nova.contains("self.verify_chain_scoped::<RequiredLocalChainEnvelopeV2>"));

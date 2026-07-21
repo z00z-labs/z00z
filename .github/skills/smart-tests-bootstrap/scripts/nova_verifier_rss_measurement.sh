@@ -13,9 +13,9 @@ readonly TEST_NAME="checkpoint::nova::tests::test_nova_checkpoint_proves_relatio
 readonly VERIFIER_TEST_NAME="checkpoint::nova::tests::test_nova_clean_verifier_process"
 readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"
 readonly VERIFIER_BUNDLE_ENV="Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2"
-readonly EXPECTED_SOURCE_REVISION="571d365434c746284325a7f665af88559f395768512ec27b21c9b4bb608e309e"
-readonly EXPECTED_WORKER_SOURCE="e10bc4a29b476fd811c3040908c46ca136730fb1f4315b1e40468f950240eb2a"
-readonly EXPECTED_NOVA_SHA256="7f9520913e190bc8b4e2399e7f1753fdc3207d11f72528c8ee2778abb34aba72"
+readonly EXPECTED_SOURCE_REVISION="302bf11cf4516acacaf31e1f8c591c2b21e5f6dbacfeb7f5ec4b3257a0aa79ef"
+readonly EXPECTED_WORKER_SOURCE="562af06a091ec4167552c42de576a9f003dc7a073fbcdf4d122e471db9208aa3"
+readonly EXPECTED_NOVA_SHA256="8cc403147ca345c8e3cec83336b362f51e9aea08bfc52ece1dfd83f27d90f6cc"
 readonly EXPECTED_CARGO_LOCK_SHA256="23a86f3341579b25ad5be96080a642405633df5f8c6e99dd4c3329d7d51f2a11"
 readonly NOVA_SOURCE="crates/z00z_storage/src/checkpoint/nova.rs"
 readonly WORKER_LOCK="target/workspace/z00z-nova-worker-v2.lock"
@@ -176,7 +176,7 @@ thread.join()' >"$output" &
     # of the long proof so a field-name/offset regression fails before launch.
     require_command xxd
     bundle="$(mktemp)"
-    # Format-3 source_digest starts at byte 322 (after six prior digests).
+    # Format-4 source_digest starts at byte 322 (after six prior digests).
     dd if=/dev/zero of="$bundle" bs=1 count=322 status=none
     printf '%s' "$EXPECTED_SOURCE_REVISION" | xxd -r -p >>"$bundle"
     parsed_source="$(extract_bundle_source_revision "$bundle")"

@@ -1610,7 +1610,10 @@ mod tests {
         crate::fixture_support::genesis_chain_identity::ensure_test_process_chain_identity()
             .expect("validated canonical devnet genesis identity");
         let material = retained_t3_artifact("prover-material.bin", 1024 * 1024 * 1024);
-        let bundle = retained_t3_artifact("verifier-bundle.bin", 384 * 1024 * 1024 + 1024);
+        // Match the sole format-4 bundle admission ceiling before this
+        // milestone helper reads the artifact into memory. The production
+        // Nova loader performs the same fail-closed check again.
+        let bundle = retained_t3_artifact("verifier-bundle.bin", 64 * 1024 * 1024);
         let profile = RecursiveCircuitProfileV2::authority_pinned();
         let chain = tempfile::tempdir().expect("continuous T3 chain root");
         let evidence_root = chain.path().join("evidence");

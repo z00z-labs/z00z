@@ -17,7 +17,7 @@
 
 The executable demo now applies the P0/P1 findings in this review. It uses the normalized Geist/Geist Mono lookup table, with a reserved variable-weight Geist wordmark matching the public Z00Z docs header. It has no raw visible component font sizes below the documented token floor, and keeps prose in Geist while literal addresses, quantities, IDs, and YAML stay in Geist Mono—except the selected desktop-wallet address, which uses normal-weight Geist at the same desktop size and tracking as the Z00Z wordmark. All textual Cancel actions use the same neutral bordered secondary button; wallet selection uses the same horizontal rail grammar as the internal tabs; the wallet rail scrolls independently; route telemetry is a non-interactive item in the selected-wallet status bar rather than a top-bar button; and the mobile status surface is document-flow content rather than a viewport overlay.
 
-Appearance now offers the preserved Z00Z Default palette plus Black & Gold, Deep Blue Sea, Golden Twilight, and Midnight Sky. Each preset maps the full token set in light and dark modes. A contrast-gated custom Brand/Privacy Rail adjustment may tune decorative colors only; semantic success, warning, failure, focus, and environment colours remain protected. YAML syntax is configured application-wide with the canonical One Light, Xcode, One Dark, and Night Owl token sets from the Z00Z website; it never changes safety colours, wallet data, or runtime data.
+Appearance now offers the preserved Z00Z Default palette plus Black & Gold, Moonlit Stroll, and Walking at Night. Each preset maps the full token set in light and dark modes. Moonlit Stroll uses moonlit teal and navy structure; Walking at Night uses cool blue-charcoal surfaces with a warm stone raised layer. Z00Z amber remains primary in both presets, while success, warning, failure, focus, and environment colours remain semantic. YAML syntax is configured application-wide with the canonical One Light, Xcode, One Dark, and Night Owl token sets from the Z00Z website; it never changes safety colours, wallet data, or runtime data.
 
 Selected-wallet Advanced now exposes a safe, editable local concept YAML draft. Security, Backup, Policies, and Advanced are selected-wallet settings; General, Appearance, and Network & privacy remain application settings. Wallet controls and YAML update the same demo state, while secrets and local paths are rejected. `Apply locally` is deliberately restricted to the browser concept; the boundary explaining that runtime configuration write, watch, revision, conflict, and rollback RPCs do not exist remains visible. This is not a claim that a real wallet file can be changed.
 
@@ -35,7 +35,7 @@ Interaction styling also has a confirmed systemic inconsistency. The shared `.bu
 
 The application/capability model must remain honest. The current dispatcher registers 75 methods, but several asset/network routes are compatibility, preview, or stub paths rather than canonical completed functionality. There is no exchange provider API, app configuration CRUD/watch/revision API, notification preferences API, wallet rename API, or safe local-profile detach API distinct from permanent wallet deletion. The UI must not present these as live operations until the matching contract exists.
 
-Appearance needs to evolve from theme plus accent into a real semantic-palette system. The current palette becomes the immutable `z00z-default` preset. The four supplied palettes become optional presets with protected success, warning, danger, focus, privacy, and environment meanings. Selecting a palette must update the complete token map, not merely replace gold with another accent.
+Appearance needs to evolve from theme plus accent into a real semantic-palette system. The current palette becomes the immutable `z00z-default` preset. The three selected palettes become optional presets with protected success, warning, danger, focus, privacy, and environment meanings. Selecting a palette must update the complete token map, not merely replace gold with another accent.
 
 Advanced settings must eventually expose the real effective App and selected-Wallet configuration as editable YAML with bidirectional UI synchronization. The current runtime only reads and merges YAML; it does not expose write, watch, revision, conflict, rollback, or provenance RPCs. The existing demo editor is correctly described as a target preview, but its Apply affordance must remain disabled in production until those services exist. Secrets and machine-specific absolute paths must never appear in the editor.
 
@@ -246,9 +246,8 @@ The current palette is approved and remains the default. No implementation task 
 | --- | --- | --- | --- |
 | `z00z-default` | Existing demo semantic tokens | Approved baseline | Default and Reset target |
 | `black-gold-elegance` | `#000000`, `#14213D`, `#FCA311`, `#E5E5E5`, `#FFFFFF` | Gold on navy is approximately 7.90:1 | Eligible |
-| `deep-blue-sea` | `#134074`, `#13315C`, `#0B2545`, `#8DA9C4`, `#EEF4ED` | `#8DA9C4` on `#134074` is approximately 4.27:1 and cannot be normal body text | Eligible with remapped text pairs |
-| `golden-twilight` | `#000814`, `#001D3D`, `#003566`, `#FFC300`, `#FFD60A` | Gold on near-black is approximately 12.50:1 | Eligible |
-| `midnight-sky` | `#00296B`, `#003F88`, `#00509D`, `#FDC500`, `#FFD500` | Gold on dark blue is approximately 8.61:1 | Eligible |
+| `moonlit-stroll` | `#004955`, `#105E60`, `#6B7D7F`, `#14365C`, `#10284E` | The source set is intentionally teal and navy; Z00Z amber remains the accessible action accent | Eligible |
+| `walking-at-night` | `#7B6D62`, `#423A37`, `#0E191F`, `#2B3C43`, `#597276` | Warm stone and blue-charcoal surfaces retain a separate amber action colour | Eligible |
 
 Each preset must map these semantic tokens: canvas, sidebar, surface, raised, primary text, secondary text, tertiary text, border, strong border, brand, brand-strong, brand-ink, privacy rail, success, warning, danger, and focus. Source colors are inspiration/input, not permission to weaken semantic contrast.
 
@@ -346,7 +345,7 @@ app:
     language: en
     notifications: true
   appearance:
-    theme: system
+    theme: dark
     palette: z00z-default
     text_scale: 1.0
     reduced_motion: system
@@ -434,7 +433,7 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 
 ### 🚨 P0: correctness and honesty
 
-- [x] Fix malformed `System` theme button markup and cover System/Dark/Light with DOM and screenshot checks.
+- [x] Replace the former three-position segmented control with one Dark/Light toggle and cover the default and transition with DOM and screenshot checks.
 - [x] Amend the normative typography LUT using the reviewed sizes, then remove raw component sizes below the amended floor.
 - [x] Audit every `font-family` and `.mono` use; keep ordinary language in Geist.
 - [x] Resolve mobile fixed-bar/status overlap at 390 × 844 with long content; 200% zoom remains a production acceptance check.
@@ -504,9 +503,7 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 - `old-sources/guarda pics/`
 - `old-sources/zano pics/`
 - `colors/Black & Gold Elegance.png`
-- `colors/Deep Blue Sea.png`
-- `colors/Golden Twilight.png`
-- `colors/Midnight Sky.png`
+- [`Color Meanings: Moonlit Stroll and Walking at Night`](https://www.color-meanings.com/dark-color-palettes/)
 - `crates/z00z_wallets/src/rpc/app_dispatcher_wiring.rs`
 - `crates/z00z_wallets/src/rpc/wallet_dispatcher_routes.rs`
 - `crates/z00z_wallets/src/services/wallet_runtime_config.rs`
