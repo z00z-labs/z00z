@@ -57,9 +57,18 @@ z00z-*.tar.gz
 /reports/
 
 # Misc
+/test-results/
 **/.temp/
 **/data/
 **/outputs
+!crates/z00z_storage/outputs/
+crates/z00z_storage/outputs/*
+!crates/z00z_storage/outputs/checkpoint/
+crates/z00z_storage/outputs/checkpoint/*
+!crates/z00z_storage/outputs/checkpoint/nova-verifier-rss/
+crates/z00z_storage/outputs/checkpoint/nova-verifier-rss/*
+!crates/z00z_storage/outputs/checkpoint/nova-verifier-rss/*/
+!crates/z00z_storage/outputs/checkpoint/nova-verifier-rss/*/measurement*.env
 **/.codacy/
 **/.cache/
 **/cache/

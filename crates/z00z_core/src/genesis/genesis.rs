@@ -77,6 +77,7 @@ pub use self::genesis_run::{
     GENESIS_GENERATION_RECEIPT_FILE,
 };
 pub use self::genesis_seed::GenesisSeed;
+pub(crate) use self::genesis_settlement_manifest::load_genesis_settlement_manifest;
 pub use self::genesis_settlement_manifest::{
     compute_genesis_manifest_hash, compute_genesis_policies_digest, compute_genesis_rights_digest,
     compute_genesis_seed_hash, compute_genesis_vouchers_digest, ensure_terminal_collision_free,

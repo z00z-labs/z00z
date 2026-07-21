@@ -1,65 +1,198 @@
 //! Immutable authority and snapshot-handle bindings for recursive checkpoint V2.
 
-use z00z_crypto::{hash::sha256_256_simple, sha256_256_role, CheckpointShaRole};
-use z00z_utils::io::read_file_bounded;
+use z00z_crypto::{sha256_256, sha256_256_role, CheckpointShaRole};
 
 use crate::{
     checkpoint::{
-        check_link_ids, derive_checkpoint_id, derive_exec_tx_root, repo_default_path,
-        CheckpointContractConfigV1, CheckpointId, CheckpointStatement, CheckpointStore,
-        CheckpointTransitionStatementFinalV1,
+        check_link_ids, derive_checkpoint_id, derive_exec_tx_root,
+        ActiveCheckpointConfigIdentityV3, ActiveCheckpointConfigV3, CheckpointConfigResolverV3,
+        CheckpointId, CheckpointStatement, CheckpointStore, CheckpointTransitionStatementFinalV1,
     },
     settlement::{RootGeneration, SettlementExecHandoff, SettlementStateRoot, SettlementStore},
     snapshot::{PrepSnapshotId, PrepSnapshotStore},
+    CheckpointError,
 };
 
-use super::recursive_reject::RecursiveV2Error;
+const RECURSIVE_CHECKPOINT_CONTEXT_DOMAIN_V2: &str = "z00z.storage.checkpoint.recursive_context.v2";
+const RECURSIVE_CHECKPOINT_CONTEXT_LABEL_V2: &str = "context_digest";
+const RECURSIVE_CHECKPOINT_CONTEXT_VERSION_V2: u16 = 2;
+const RECURSIVE_NOOP_EXECUTION_INPUT_VERSION_V2: u8 = 2;
 
-/// Fixed layout of the isolated T0 repository-local fixture authority.
-///
-/// This is not a deployment selector.  `ConfiguredLiveV1` has no discovered
-/// authority in the T0 resolution record and therefore has no constructor.
-pub const RECURSIVE_V2_REPOSITORY_FIXTURE_LAYOUT: u32 = 7;
-const RECURSIVE_V2_REPOSITORY_FIXTURE_GENERATION: u64 = 1;
-const RECURSIVE_V2_CONFIG_MAX_BYTES: u64 = 256 * 1024;
+/// Exact portable namespace bound into recursive-checkpoint public inputs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecursiveCheckpointContextV2 {
+    version: u16,
+    chain_id: u32,
+    network_id: [u8; 32],
+    genesis_digest: [u8; 32],
+    checkpoint_config_digest: [u8; 32],
+    predicate_digest: [u8; 32],
+}
 
+impl RecursiveCheckpointContextV2 {
+    fn from_installed_identity(
+        checkpoint_config_digest: [u8; 32],
+        predicate_digest: [u8; 32],
+    ) -> Result<Self, CheckpointError> {
+        let identity = z00z_core::genesis::require_process_chain_identity()
+            .map_err(|_| CheckpointError::Authority)?;
+        if checkpoint_config_digest == [0; 32] || predicate_digest == [0; 32] {
+            return Err(CheckpointError::Authority);
+        }
+        Ok(Self {
+            version: RECURSIVE_CHECKPOINT_CONTEXT_VERSION_V2,
+            chain_id: identity.chain_id(),
+            network_id: identity.network_id(),
+            genesis_digest: identity.genesis_digest(),
+            checkpoint_config_digest,
+            predicate_digest,
+        })
+    }
+
+    #[must_use]
+    pub const fn version(self) -> u16 {
+        self.version
+    }
+
+    #[must_use]
+    pub const fn chain_id(self) -> u32 {
+        self.chain_id
+    }
+
+    #[must_use]
+    pub const fn network_id(self) -> [u8; 32] {
+        self.network_id
+    }
+
+    #[must_use]
+    pub const fn genesis_digest(self) -> [u8; 32] {
+        self.genesis_digest
+    }
+
+    #[must_use]
+    pub const fn checkpoint_config_digest(self) -> [u8; 32] {
+        self.checkpoint_config_digest
+    }
+
+    #[must_use]
+    pub const fn predicate_digest(self) -> [u8; 32] {
+        self.predicate_digest
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(2 + 4 + 32 * 4);
+        bytes.extend_from_slice(&self.version.to_le_bytes());
+        bytes.extend_from_slice(&self.chain_id.to_le_bytes());
+        bytes.extend_from_slice(&self.network_id);
+        bytes.extend_from_slice(&self.genesis_digest);
+        bytes.extend_from_slice(&self.checkpoint_config_digest);
+        bytes.extend_from_slice(&self.predicate_digest);
+        bytes
+    }
+
+    #[must_use]
+    pub fn digest(self) -> [u8; 32] {
+        context_digest_fields(
+            self.version,
+            self.chain_id,
+            self.network_id,
+            self.genesis_digest,
+            self.checkpoint_config_digest,
+            self.predicate_digest,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_fixture(
+        checkpoint_config_digest: [u8; 32],
+        predicate_digest: [u8; 32],
+    ) -> Self {
+        Self {
+            version: RECURSIVE_CHECKPOINT_CONTEXT_VERSION_V2,
+            chain_id: 1,
+            network_id: [0x51; 32],
+            genesis_digest: [0x61; 32],
+            checkpoint_config_digest,
+            predicate_digest,
+        }
+    }
+}
+
+fn context_digest_fields(
+    version: u16,
+    chain_id: u32,
+    network_id: [u8; 32],
+    genesis_digest: [u8; 32],
+    checkpoint_config_digest: [u8; 32],
+    predicate_digest: [u8; 32],
+) -> [u8; 32] {
+    sha256_256(
+        RECURSIVE_CHECKPOINT_CONTEXT_DOMAIN_V2,
+        RECURSIVE_CHECKPOINT_CONTEXT_LABEL_V2,
+        &[
+            &version.to_le_bytes(),
+            &chain_id.to_le_bytes(),
+            &network_id,
+            &genesis_digest,
+            &checkpoint_config_digest,
+            &predicate_digest,
+        ],
+    )
+}
+
+/// Fixed layout selected by the active recursive-checkpoint authority.
+pub const RECURSIVE_V2_ACTIVE_AUTHORITY_LAYOUT: u32 = 7;
 /// Immutable authority context captured before recursive trace construction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecursiveAuthorityContextV2 {
+    checkpoint_context: RecursiveCheckpointContextV2,
     network_context: [u8; 32],
     config_digest: [u8; 32],
     policy_digest: [u8; 32],
     layout: u32,
     authority_generation: u64,
     noop_execution_input_version: u8,
+    epoch_cadence_blocks: u64,
 }
 
 impl RecursiveAuthorityContextV2 {
     /// Construct one nonzero-generation authority context.
     pub(crate) fn new(
-        network_context: [u8; 32],
+        checkpoint_context: RecursiveCheckpointContextV2,
         config_digest: [u8; 32],
         policy_digest: [u8; 32],
         layout: u32,
         authority_generation: u64,
-        noop_execution_input_version: u8,
-    ) -> Result<Self, RecursiveV2Error> {
-        if layout == 0 || authority_generation == 0 || noop_execution_input_version == 0 {
-            return Err(RecursiveV2Error::Invariant);
+        epoch_cadence_blocks: u64,
+    ) -> Result<Self, CheckpointError> {
+        if layout == 0 || authority_generation == 0 || epoch_cadence_blocks == 0 {
+            return Err(CheckpointError::Invariant);
+        }
+        let network_context = checkpoint_context.digest();
+        if checkpoint_context.checkpoint_config_digest() != config_digest {
+            return Err(CheckpointError::Authority);
         }
         Ok(Self {
+            checkpoint_context,
             network_context,
             config_digest,
             policy_digest,
             layout,
             authority_generation,
-            noop_execution_input_version,
+            noop_execution_input_version: RECURSIVE_NOOP_EXECUTION_INPUT_VERSION_V2,
+            epoch_cadence_blocks,
         })
     }
 
     #[must_use]
     pub const fn network_context(&self) -> [u8; 32] {
         self.network_context
+    }
+
+    #[must_use]
+    pub const fn checkpoint_context(&self) -> RecursiveCheckpointContextV2 {
+        self.checkpoint_context
     }
 
     #[must_use]
@@ -92,12 +225,18 @@ impl RecursiveAuthorityContextV2 {
         self.noop_execution_input_version
     }
 
+    #[must_use]
+    pub const fn epoch_cadence_blocks(&self) -> u64 {
+        self.epoch_cadence_blocks
+    }
+
     /// Derive the authority identity consumed by every trace pass.
     #[must_use]
     pub fn digest(&self) -> [u8; 32] {
         let layout = self.layout.to_le_bytes();
         let generation = self.authority_generation.to_le_bytes();
         let noop_version = [self.noop_execution_input_version];
+        let epoch_cadence = self.epoch_cadence_blocks.to_le_bytes();
         sha256_256_role(
             CheckpointShaRole::UniquenessContext,
             &[
@@ -107,6 +246,7 @@ impl RecursiveAuthorityContextV2 {
                 &layout,
                 &generation,
                 &noop_version,
+                &epoch_cadence,
             ],
         )
     }
@@ -139,9 +279,9 @@ impl RecursiveSnapshotHandleV2 {
         record_count: u64,
         byte_count: u64,
         content_digest: [u8; 32],
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if root.generation() != RootGeneration::SettlementV2 {
-            return Err(RecursiveV2Error::SnapshotChanged);
+            return Err(CheckpointError::SnapshotChanged);
         }
         Ok(Self {
             snapshot_id,
@@ -159,7 +299,7 @@ impl RecursiveSnapshotHandleV2 {
         snapshot_id: PrepSnapshotId,
         store: &SettlementStore,
         layout: u32,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let (
             root,
             pre_definition_root,
@@ -169,7 +309,7 @@ impl RecursiveSnapshotHandleV2 {
             content_digest,
         ) = store
             .recursive_v2_snapshot_binding(layout)
-            .map_err(|_| RecursiveV2Error::SnapshotChanged)?;
+            .map_err(|_| CheckpointError::SnapshotChanged)?;
         Self::new(
             snapshot_id,
             storage_generation,
@@ -269,41 +409,40 @@ impl RecursiveCheckpointBindingV2 {
     /// store remains the sole source of its statement, link, replay input, and
     /// predecessor; no raw component is accepted by the recursive surface.
     pub(crate) fn resolve(
-        checkpoint_store: &impl CheckpointStore,
-        prep_snapshot_store: &impl PrepSnapshotStore,
+        checkpoint_store: &(impl CheckpointStore + ?Sized),
+        prep_snapshot_store: &(impl PrepSnapshotStore + ?Sized),
         checkpoint_id: CheckpointId,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let artifact = checkpoint_store
             .load_artifact(&checkpoint_id)
-            .map_err(|_| RecursiveV2Error::Authority)?;
-        if derive_checkpoint_id(&artifact).map_err(|_| RecursiveV2Error::Authority)?
-            != checkpoint_id
+            .map_err(|_| CheckpointError::Authority)?;
+        if derive_checkpoint_id(&artifact).map_err(|_| CheckpointError::Authority)? != checkpoint_id
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         let link = checkpoint_store
             .load_link(&checkpoint_id)
-            .map_err(|_| RecursiveV2Error::Authority)?;
+            .map_err(|_| CheckpointError::Authority)?;
         if link.checkpoint_id() != checkpoint_id {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         let exec = checkpoint_store
             .load_exec_input(&link.exec_input_id())
-            .map_err(|_| RecursiveV2Error::Authority)?;
+            .map_err(|_| CheckpointError::Authority)?;
         check_link_ids(link.prep_snapshot_id(), &link, &exec)
-            .map_err(|_| RecursiveV2Error::Authority)?;
+            .map_err(|_| CheckpointError::Authority)?;
         let prep_snapshot = prep_snapshot_store
             .load_snapshot(&link.prep_snapshot_id())
-            .map_err(|_| RecursiveV2Error::Authority)?;
+            .map_err(|_| CheckpointError::Authority)?;
 
         let statement = match artifact.statement() {
             CheckpointStatement::V1(statement) => statement,
-            CheckpointStatement::Detached => return Err(RecursiveV2Error::Authority),
+            CheckpointStatement::Detached => return Err(CheckpointError::Authority),
         };
-        let exec_tx_count = u32::try_from(exec.txs().len()).map_err(|_| RecursiveV2Error::Limit)?;
+        let exec_tx_count = u32::try_from(exec.txs().len()).map_err(|_| CheckpointError::Limit)?;
         let exec_tx_root = exec
             .expected_tx_data_root()
-            .map_err(|_| RecursiveV2Error::Authority)?;
+            .map_err(|_| CheckpointError::Authority)?;
         let exec_is_recursive_v2_noop = exec.is_recursive_v2_noop();
         if statement.prep_snapshot_id() != link.prep_snapshot_id()
             || statement.exec_input_id() != link.exec_input_id()
@@ -318,13 +457,13 @@ impl RecursiveCheckpointBindingV2 {
                     || statement.prev_settlement_root() != statement.new_settlement_root()))
             || (!exec_is_recursive_v2_noop && exec_tx_count == 0)
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
 
         let core = artifact
             .statement_core()
-            .ok_or(RecursiveV2Error::Authority)?;
-        let da_ref = artifact.da_ref().ok_or(RecursiveV2Error::Authority)?;
+            .ok_or(CheckpointError::Authority)?;
+        let da_ref = artifact.da_ref().ok_or(CheckpointError::Authority)?;
         let final_bind = CheckpointTransitionStatementFinalV1::new(da_ref);
         let statement_core_digest = statement.statement_core_digest_v1(&core);
         let statement_digest = statement.final_statement_digest_v1(&core, &final_bind);
@@ -333,7 +472,7 @@ impl RecursiveCheckpointBindingV2 {
             || statement_core_digest == [0; 32]
             || link.link_bind() == [0; 32]
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
 
         match link.prev_checkpoint_id() {
@@ -341,28 +480,28 @@ impl RecursiveCheckpointBindingV2 {
             Some(predecessor_id) if statement.height() > 1 => {
                 let predecessor = checkpoint_store
                     .load_artifact(&predecessor_id)
-                    .map_err(|_| RecursiveV2Error::Authority)?;
-                if derive_checkpoint_id(&predecessor).map_err(|_| RecursiveV2Error::Authority)?
+                    .map_err(|_| CheckpointError::Authority)?;
+                if derive_checkpoint_id(&predecessor).map_err(|_| CheckpointError::Authority)?
                     != predecessor_id
                 {
-                    return Err(RecursiveV2Error::Authority);
+                    return Err(CheckpointError::Authority);
                 }
                 let predecessor_statement = match predecessor.statement() {
                     CheckpointStatement::V1(statement) => statement,
-                    CheckpointStatement::Detached => return Err(RecursiveV2Error::Authority),
+                    CheckpointStatement::Detached => return Err(CheckpointError::Authority),
                 };
                 if predecessor_statement
                     .height()
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?
+                    .ok_or(CheckpointError::Overflow)?
                     != statement.height()
                     || predecessor_statement.new_settlement_root()
                         != statement.prev_settlement_root()
                 {
-                    return Err(RecursiveV2Error::Authority);
+                    return Err(CheckpointError::Authority);
                 }
             }
-            _ => return Err(RecursiveV2Error::Authority),
+            _ => return Err(CheckpointError::Authority),
         }
 
         Ok(Self {
@@ -431,20 +570,20 @@ impl RecursiveCheckpointBindingV2 {
     pub(crate) fn verify_handoff(
         &self,
         handoff: &SettlementExecHandoff,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         if self.exec_is_recursive_v2_noop {
             return if handoff.is_recursive_v2_noop() {
                 Ok(())
             } else {
-                Err(RecursiveV2Error::Authority)
+                Err(CheckpointError::Authority)
             };
         }
-        if u32::try_from(handoff.txs().len()).map_err(|_| RecursiveV2Error::Limit)?
+        if u32::try_from(handoff.txs().len()).map_err(|_| CheckpointError::Limit)?
             != self.exec_tx_count
-            || derive_exec_tx_root(handoff.txs()).map_err(|_| RecursiveV2Error::Authority)?
+            || derive_exec_tx_root(handoff.txs()).map_err(|_| CheckpointError::Authority)?
                 != self.exec_tx_root
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         Ok(())
     }
@@ -505,54 +644,61 @@ impl RecursiveCheckpointBindingV2 {
 pub struct RecursiveAuthoritySnapshotV2 {
     authority: RecursiveAuthorityContextV2,
     snapshot: RecursiveSnapshotHandleV2,
+    config_identity: ActiveCheckpointConfigIdentityV3,
 }
 
 impl RecursiveAuthoritySnapshotV2 {
-    /// Resolve the only T0-selected repository-local fixture capability.
-    ///
-    /// It is implementation evidence only: the resulting capability cannot
-    /// represent a configured production authority or authorize deployment.
-    pub fn resolve_repository_local_fixture(
-        store: &SettlementStore,
-    ) -> Result<Self, RecursiveV2Error> {
-        let authority = repository_fixture_authority(store)?;
+    /// Resolve the active authority from repository-owned configuration and state.
+    pub fn resolve_active_authority(store: &SettlementStore) -> Result<Self, CheckpointError> {
+        let active =
+            CheckpointConfigResolverV3::resolve_active().map_err(|_| CheckpointError::Authority)?;
+        let authority = active_authority(store, &active)?;
         let root = store
             .settlement_root_v2(authority.layout())
-            .map_err(|_| RecursiveV2Error::Authority)?;
+            .map_err(|_| CheckpointError::Authority)?;
         let generation = store.recursive_v2_storage_generation().to_le_bytes();
         let snapshot_id = PrepSnapshotId::new(sha256_256_role(
             CheckpointShaRole::Content,
             &[
-                b"z00z.recursive.v2.repository-local-snapshot",
+                b"z00z.recursive.v2.active-authority-snapshot",
                 &authority.digest(),
                 root.as_bytes(),
                 &generation,
             ],
         ));
-        Self::resolve_repository_local_fixture_for_snapshot(store, snapshot_id)
+        Self::resolve_active_authority_for_snapshot_with_config(store, snapshot_id, &active)
     }
 
-    /// Resolve the repository-local fixture authority around the prep-snapshot
-    /// ID reloaded from the canonical checkpoint artifact/link owner.
-    pub(crate) fn resolve_repository_local_fixture_for_snapshot(
+    /// Resolve the active authority around the prep-snapshot ID reloaded from
+    /// the canonical checkpoint artifact/link owner.
+    pub(crate) fn resolve_active_authority_for_snapshot(
         store: &SettlementStore,
         snapshot_id: PrepSnapshotId,
-    ) -> Result<Self, RecursiveV2Error> {
-        let authority = repository_fixture_authority(store)?;
+    ) -> Result<Self, CheckpointError> {
+        let active =
+            CheckpointConfigResolverV3::resolve_active().map_err(|_| CheckpointError::Authority)?;
+        Self::resolve_active_authority_for_snapshot_with_config(store, snapshot_id, &active)
+    }
+
+    fn resolve_active_authority_for_snapshot_with_config(
+        store: &SettlementStore,
+        snapshot_id: PrepSnapshotId,
+        active: &ActiveCheckpointConfigV3,
+    ) -> Result<Self, CheckpointError> {
+        let authority = active_authority(store, active)?;
         let snapshot =
             RecursiveSnapshotHandleV2::from_store(snapshot_id, store, authority.layout())?;
         Ok(Self {
             authority,
             snapshot,
+            config_identity: active.identity(),
         })
     }
 
     /// Detect configuration rotation before each transition boundary.
-    pub(crate) fn revalidate_config(&self) -> Result<(), RecursiveV2Error> {
-        if repository_config_digest()? != self.authority.config_digest() {
-            return Err(RecursiveV2Error::Authority);
-        }
-        Ok(())
+    pub(crate) fn revalidate_config(&self) -> Result<(), CheckpointError> {
+        CheckpointConfigResolverV3::require_current(self.config_identity)
+            .map_err(|_| CheckpointError::Authority)
     }
 
     #[must_use]
@@ -566,45 +712,69 @@ impl RecursiveAuthoritySnapshotV2 {
     }
 }
 
-fn repository_fixture_authority(
+fn active_authority(
     store: &SettlementStore,
-) -> Result<RecursiveAuthorityContextV2, RecursiveV2Error> {
-    let config = repository_contract_config()?;
-    let config_digest = repository_config_digest()?;
+    active: &ActiveCheckpointConfigV3,
+) -> Result<RecursiveAuthorityContextV2, CheckpointError> {
+    let config = active.config();
+    let config_digest = active.head().config_digest;
     let policy_digest = store.bucket_policy().bucket_policy_id();
-    let network_context = sha256_256_role(
-        CheckpointShaRole::Content,
-        &[
-            b"z00z.recursive.v2.repository-local-fixture",
-            &config_digest,
-            &policy_digest,
-        ],
-    );
+    let predicate_digest = super::nova::executable_predicate_digest()?;
+    let checkpoint_context =
+        RecursiveCheckpointContextV2::from_installed_identity(config_digest, predicate_digest)?;
     RecursiveAuthorityContextV2::new(
-        network_context,
+        checkpoint_context,
         config_digest,
         policy_digest,
-        RECURSIVE_V2_REPOSITORY_FIXTURE_LAYOUT,
-        RECURSIVE_V2_REPOSITORY_FIXTURE_GENERATION,
-        config.branches.recursive.no_op.execution_input_version,
+        RECURSIVE_V2_ACTIVE_AUTHORITY_LAYOUT,
+        active.head().authority_generation,
+        config.branches.plonky3_epoch.cadence_blocks,
     )
-}
-
-fn repository_contract_config() -> Result<CheckpointContractConfigV1, RecursiveV2Error> {
-    CheckpointContractConfigV1::load(repo_default_path()).map_err(|_| RecursiveV2Error::Authority)
-}
-
-fn repository_config_digest() -> Result<[u8; 32], RecursiveV2Error> {
-    let path = repo_default_path();
-    let _ = repository_contract_config()?;
-    let bytes = read_file_bounded(path, RECURSIVE_V2_CONFIG_MAX_BYTES)
-        .map_err(|_| RecursiveV2Error::Authority)?;
-    Ok(sha256_256_simple(&bytes))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn portable_context_has_frozen_digest_and_field_mutation_separation() {
+        let context = RecursiveCheckpointContextV2::test_fixture([1; 32], [2; 32]);
+        let expected = [
+            0x02, 0x99, 0x58, 0x79, 0x7f, 0x83, 0xcf, 0x2d, 0x64, 0x0e, 0x68, 0x4c, 0x5f, 0x08,
+            0x97, 0x03, 0xfe, 0x12, 0x92, 0x32, 0x97, 0x03, 0x5a, 0xe6, 0x1a, 0x1f, 0x4c, 0x7c,
+            0xb2, 0xd5, 0x3a, 0x71,
+        ];
+        assert_eq!(context.canonical_bytes().len(), 2 + 4 + 32 * 4);
+        assert_eq!(context.digest(), expected);
+
+        let fields = [
+            context_digest_fields(3, 1, [0x51; 32], [0x61; 32], [1; 32], [2; 32]),
+            context_digest_fields(2, 0, [0x51; 32], [0x61; 32], [1; 32], [2; 32]),
+            context_digest_fields(2, 1, [0x50; 32], [0x61; 32], [1; 32], [2; 32]),
+            context_digest_fields(2, 1, [0x51; 32], [0x60; 32], [1; 32], [2; 32]),
+            context_digest_fields(2, 1, [0x51; 32], [0x61; 32], [0; 32], [2; 32]),
+            context_digest_fields(2, 1, [0x51; 32], [0x61; 32], [1; 32], [3; 32]),
+        ];
+        assert!(fields.into_iter().all(|digest| digest != expected));
+    }
+
+    #[test]
+    fn no_op_execution_input_version_is_private_and_canonical() {
+        let context = RecursiveCheckpointContextV2::test_fixture([1; 32], [2; 32]);
+        let authority = RecursiveAuthorityContextV2::new(
+            context,
+            [1; 32],
+            [3; 32],
+            RECURSIVE_V2_ACTIVE_AUTHORITY_LAYOUT,
+            1,
+            1_000,
+        )
+        .expect("canonical recursive authority");
+
+        assert_eq!(authority.noop_execution_input_version(), 2);
+        assert!(authority.allows_noop_execution_input_version(2));
+        assert!(!authority.allows_noop_execution_input_version(1));
+    }
 
     #[test]
     fn snapshot_captures_the_definition_root_used_by_the_v2_root() {

@@ -13,9 +13,9 @@ readonly TEST_NAME="checkpoint::nova::tests::real_nova_mixed_checkpoint_proves_t
 readonly VERIFIER_TEST_NAME="checkpoint::nova::tests::real_nova_verifier_only_clean_process"
 readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"
 readonly VERIFIER_BUNDLE_ENV="Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2"
-readonly EXPECTED_SOURCE_REVISION="e58e2f9a2f715a64b37dd464248b57601e7deda4254086c0b6598160cf30dbd6"
-readonly EXPECTED_WORKER_SOURCE="272379f7f47f735dc2536682c23e3e3d93e1434933f863f8e8841e89106d8ca0"
-readonly EXPECTED_NOVA_SHA256="1e39544c8c58f7d5a8117cdcdbf6ca0836e5e70e056d6c84f77e88fe1336c053"
+readonly EXPECTED_SOURCE_REVISION="5169ae837c7ee891f076ae51702698cf7be77cd78fdb2856b04225991006a876"
+readonly EXPECTED_WORKER_SOURCE="09213786e26916ff72237c4a4c61c56770fe370937086e29005f9731db9038af"
+readonly EXPECTED_NOVA_SHA256="ab2e30c2c10f3ba5cad754a25a5717469318550e9b63ffc0f1d1305f14579090"
 readonly EXPECTED_CARGO_LOCK_SHA256="23a86f3341579b25ad5be96080a642405633df5f8c6e99dd4c3329d7d51f2a11"
 readonly NOVA_SOURCE="crates/z00z_storage/src/checkpoint/nova.rs"
 readonly WORKER_LOCK="target/workspace/z00z-nova-worker-v2.lock"
@@ -449,7 +449,12 @@ fi
 
 umask 077
 run_stamp="$(date -u +'%Y%m%dT%H%M%SZ')"
-RUN_DIR="${NOVA_VERIFIER_RSS_OUTPUT_DIR:-$ROOT_DIR/test-results/phase-069/nova-verifier-rss/$run_stamp-$$}"
+PHASE069_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint"
+RUN_DIR="$(realpath -m -- "${NOVA_VERIFIER_RSS_OUTPUT_DIR:-$PHASE069_OUTPUT_ROOT/nova-verifier-rss/$run_stamp-$$}")"
+case "$RUN_DIR" in
+  "$PHASE069_OUTPUT_ROOT" | "$PHASE069_OUTPUT_ROOT"/*) ;;
+  *) die "output path must stay under $PHASE069_OUTPUT_ROOT: $RUN_DIR" ;;
+esac
 mkdir -p "$RUN_DIR"
 chmod 0700 "$RUN_DIR"
 TRANSCRIPT="$RUN_DIR/proof-transcript.log"

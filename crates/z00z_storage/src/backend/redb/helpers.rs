@@ -338,7 +338,9 @@ mod recursive_v2_cutover_crash_tests {
     const STAGE_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_STAGE";
 
     fn cutover(store: &SettlementStore) -> SettlementRootGenerationCutoverV2 {
-        let authority = RecursiveAuthoritySnapshotV2::resolve_repository_local_fixture(store)
+        crate::fixture_support::genesis_chain_identity::ensure_test_process_chain_identity()
+            .expect("validated canonical devnet genesis identity");
+        let authority = RecursiveAuthoritySnapshotV2::resolve_active_authority(store)
             .expect("repository-local crash-corpus authority");
         let expected = store.settlement_root_v2(7).expect("crash-corpus V2 root");
         let record = [0x81; 32];
@@ -346,7 +348,7 @@ mod recursive_v2_cutover_crash_tests {
             CheckpointShaRole::Link,
             &[b"z00z.recursive.v2.opaque-last-root-record", &record],
         );
-        SettlementRootGenerationCutoverV2::repository_local_fixture(
+        SettlementRootGenerationCutoverV2::active_authority(
             authority,
             store,
             10,
@@ -364,7 +366,7 @@ mod recursive_v2_cutover_crash_tests {
             let path = std::env::var_os(PATH_ENV).expect("crash-corpus database path");
             let mut store = SettlementStore::load(path).expect("crash-corpus child reload");
             cutover(&store)
-                .install_repository_fixture(&mut store, 11)
+                .install_active_authority(&mut store, 11)
                 .expect("the configured crash point must terminate before this returns");
             panic!("configured recursive V2 cutover crash point did not terminate the child");
         }
@@ -422,7 +424,7 @@ mod recursive_v2_cutover_crash_tests {
                 manifest_must_be_committed,
                 "stage {stage} recovered the wrong complete-old/complete-new state"
             );
-            let result = cutover(&reloaded).install_repository_fixture(&mut reloaded, 11);
+            let result = cutover(&reloaded).install_active_authority(&mut reloaded, 11);
             if manifest_must_be_committed {
                 assert!(
                     result.is_err(),

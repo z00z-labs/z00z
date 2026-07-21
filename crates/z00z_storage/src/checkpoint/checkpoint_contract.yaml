@@ -1,28 +1,39 @@
-version: 2
-profile: checkpoint-contract-streaming-v2
+version: 3
+profile: checkpoint-contract-client-notary-v2
 architecture_mode: checkpoint_contract_first
-
+runtime_profile:
+  identifier: checkpoint-contract-client-notary-v2
+  generation: 2
+  manifest_digest: c58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b
+version_authority:
+  registry_digest: 4007f54c2b3d714aba7e5d8a86dbedf84e5946c9f1c314d1fb11c831af5000fb
+  authority_generation: 2
+  parameter_generation: 2
+  config_generation: 1
+  activation_height: 0
+  rollback_floor: 1
 statement:
   version: 1
   domain: z00z.checkpoint.transition.v1
   required_fields:
-    - height
-    - prev_root
-    - new_root
-    - prev_settlement_root
-    - new_settlement_root
-    - checkpoint_exec_input_id
-    - prep_snapshot_id
-    - tx_data_root
-    - delta_root
-    - witness_root
-    - journal_digest
-    - da_ref
+  - height
+  - prev_root
+  - new_root
+  - prev_settlement_root
+  - new_settlement_root
+  - checkpoint_exec_input_id
+  - prep_snapshot_id
+  - tx_data_root
+  - delta_root
+  - witness_root
+  - journal_digest
+  - da_ref
   optional_fields:
-    - claim_root
-    - prior_recursive_output_root
-    - pq_anchor_root
-
+  - claim_root
+  - prior_recursive_output_root
+  - pq_anchor_root
+  canonical_admission_forbidden_when_present:
+  - pq_anchor_root
 branches:
   canonical:
     is_enabled: true
@@ -34,86 +45,58 @@ branches:
   recursive:
     is_enabled: true
     is_authoritative: false
-    mode: streaming_transition_v2
-    proof_system: nova_streaming_compressed_v2
+    mode: hybrid_nova_plonky3
+    proof_system: recursive_hybrid_v2
     has_prior_output_binding: true
     min_chain_steps: 3
     target_chain_steps: 5
-    no_op:
-      is_enabled: true
-      execution_input_version: 2
-      mode: explicit_empty_handoff_v2
-      requires_empty_handoff: true
-      preserves_settlement_root: true
   nova:
     is_enabled: true
-    is_authoritative: false
-    selected: true
-    is_available: true
     fold_cadence_blocks: 1
-    compressed_proof_snapshot_cadence_blocks: 1
+    recovery_snapshot_cadence_blocks: 100
+    compression_cadence_blocks: 1000
+    publication_cadence_blocks: 1000
+    hot_recovery_snapshot_count: 2
+    max_retained_bodies_per_epoch: 2
+    max_pending_pq_epochs: 8
+    post_pq_grace_certified_epochs: 2
+    pending_pq_cap_action: stop_compression_publication_keep_fold_finality
+    is_authoritative: false
+    security_role: classical_only
     mode: fast_classical_streaming_v2
     proof_system: nova_streaming_compressed_v2
     has_prior_output_binding: true
-    must_bind_statement_digest: true
-    must_bind_checkpoint_link: true
-    retain_until_pq_epoch: true
+    has_statement_digest_bind: true
+    has_checkpoint_link_bind: true
+    proof_body_retention: nova_retention_state_v2
   plonky3_epoch:
-    is_enabled: false
+    is_enabled: true
     cadence_blocks: 1000
     is_authoritative: false
-    selected: false
-    is_available: false
-    provides_pq_epoch_evidence: true
-    mode: pq_epoch_evidence
+    has_pq_epoch_evidence: true
+    mode: pq_epoch_evidence_async
     proof_system: plonky3_stark_epoch_v2
-    must_prove_canonical_transition_range: true
-    may_bind_nova_chain_root: true
-    must_not_depend_only_on_nova: true
+    has_transition_range_proof: true
+    has_nova_chain_bind: true
+    has_independent_transition_proof: true
     field: koala_bear
     hash: poseidon2
     security_bits: 124
     recursion_library: p3_recursion
-
+    has_security_budget_manifest: true
+    soundness_composition: conservative_sum
+    has_epoch_count_bind: true
+    minimum_composed_security_bits: 100
+    has_exact_epoch_statement: true
+    has_history_successor: true
+    has_rotation_bridge: true
+    proof_body_retention: current_two_plus_window
 authority_promotion:
   stage: spec_only
-  recursive_authority_allowed: false
-  verified_backend_allowed: false
+  is_recursive_authority_allowed: false
+  is_verified_backend_allowed: false
   allowed_next_stages:
-    - config_gate
-
-verified_backend:
-  proof_object: VerifiedCheckpointProofV2
-  verifier_api: VerifiedCheckpointVerifierV2
-  codec_support: VerifiedCheckpointArtifactV2
-  adapter_trait: VerifiedCheckpointBackendAdapterV2
-  chain_evidence:
-    object: RecursiveCheckpointChainEvidenceV2
-    min_steps: 3
-    max_steps: 5
-    requires_prior_output_binding: true
-  negative_tests:
-    - wrong_root
-    - wrong_delta
-    - wrong_witness
-    - wrong_proof
-    - wrong_link
-    - unsupported_backend
-    - mixed_era
-  benchmarks:
-    - proof_size
-    - prover_time
-    - verifier_time
-    - memory
-    - witness_size
-  rollback:
-    procedure: disable_verified_backend_without_statement_change
-    preserves_statement: true
-  security_review:
-    status: pending
-    requires_third_party_equivalent: true
-  statement_stability: CheckpointTransitionStatementV1
-
+  - config_gate
 gates:
   inputs:
     has_statement_fields: true
@@ -125,109 +108,170 @@ gates:
     has_checkpoint_artifact: true
     has_checkpoint_link: true
     has_da_export: true
-    has_archive_manifest: true
+    has_challenge_content_commitment: true
   artifacts:
-    has_pq_anchor_on_cadence: true
+    has_recursive_sidecar_non_authoritative: true
+    has_async_pq_anchor: true
+    has_archive_availability_manifest_async: true
     has_mixed_era_fail_closed: true
-
 da:
   provider_sdk_boundary: adapter_only
   publication_readiness_gate: required
   challenge_window_start: da_publication_ready
   allowed_sync_modes:
-    - da_only
-    - hybrid_p2p_da_verified
+  - da_only
+  - hybrid_p2p_da_verified
   provider_families:
-    - local_archive
-    - sovereign_sdk_adapter
-    - celestia_adapter
-
+  - local_archive
+  - sovereign_sdk_adapter
+  - celestia_adapter
+current_state_sharding:
+  is_required: true
+  shard_count: 16
+  replication_factor: 3
+  write_quorum: 2
+  read_quorum: 1
+  min_failure_domains: 4
+  is_full_state_replica_allowed: false
+  route_key_profile: hjmt_terminal_hash_range_v1
+  rollout_profile: cow_copy_delta_catchup_cas_v1
+  has_seed_recovery: true
+offline_receipt_mailbox:
+  is_required: true
+  is_runtime_enabled: false
+  semantic_owner_phase: 71
+  phase_069_role: reserved_unreachable_handoff
+  admission_stage: declared_only
+  max_admission_bytes_per_block: 0
+  max_partition_block_admission_bytes: 0
+  object_type: encrypted_receipt_mailbox_entry_v1
+  retention_blocks: 1555200
+  retention_start: canonical_output_finalized
+  staging_expiry: transaction_expiry
+  max_notice_plaintext_bytes: 2048
+  max_entry_bytes: 8192
+  max_entries_per_recipient_output: 1
+  is_recipient_capability_required: true
+  is_sender_local_policy_required: true
+  has_payment_request_v1_capability: false
+  logical_partition_count: 16
+  partitions_per_entry: 1
+  is_cross_partition_fanout_allowed: false
+  has_adversarial_uniformity_claim: false
+  replication_factor: 3
+  write_quorum: 2
+  read_quorum: 1
+  min_failure_domains: 3
+  is_public_listing_allowed: false
+  is_public_dht_publication_allowed: false
+  has_ack_early_gc: true
+  has_seed_recovery_fallback: true
+  is_sender_ack_retention_required: false
 archive_retention:
-  celestia_is_da_only: true
-  long_term_retrieval_required: true
-  content_addressing_required: true
-  ipfs_pinning_required: true
-  provider_receipts_required: true
-  retrieval_audit_required: true
-  retrievability_is_not_validity: true
-  min_archive_replicas: 3
+  is_celestia_da_only: true
+  challenge_window_blocks: 1555200
+  challenge_window_start: da_publication_ready
+  has_permanent_raw_history: false
+  has_compact_notary_history: true
+  has_content_addressing: true
+  has_ipfs_pinning: true
+  has_provider_receipts: true
+  has_retrieval_audit: true
+  is_retrieval_non_authority: true
+  reconstruction_threshold: 10
+  total_shards: 16
+  max_shards_per_failure_domain: 2
+  erasure_coding_profile: rs_10_16_v1
+  is_full_replica_fallback_allowed: false
   retrieval_audit_interval_blocks: 1000
   allowed_backends:
-    - z00z_archive_node
-    - ipfs_pinned
-    - paid_archival_provider
-    - filecoin_or_equivalent
-    - cold_object_store
+  - z00z_archive_node
+  - ipfs_pinned
+  - paid_archival_provider
+  - filecoin_or_equivalent
+  - cold_object_store
   required_artifacts:
-    - archive_manifest_root
-    - raw_tx_package_root
-    - exact_tx_proof_bytes_root
-    - witness_archive_root
-    - delta_journal_root
-    - da_payload_commitment
-    - retrieval_audit_root
-    - archive_provider_receipt_root
-
+  - archive_availability_manifest_root
+  - raw_tx_package_root
+  - exact_tx_proof_bytes_root
+  - witness_archive_root
+  - delta_journal_root
+  - da_payload_commitment
+  - retrieval_audit_root
+  - archive_provider_receipt_root
+  - retention_ticket_root
 post_quantum:
   is_enabled: true
   cadence_blocks: 1000
-  mode: plonky3_epoch_proof
+  mode: plonky3_epoch_evidence_async
   enforcement_stage: pq_anchor_writer
-  enforce_live_cadence: false
-  epoch_evidence_commitment: non_authenticating_digest_v2
+  is_live_cadence_enforced: false
   required_artifacts:
-    - pq_statement_digest
-    - pq_delta_root
-    - pq_witness_root
-    - pq_archive_manifest_root
-    - plonky3_epoch_statement_digest
-    - plonky3_epoch_proof_digest
-    - plonky3_public_inputs_digest
-    - nova_chain_root
-    - epoch_evidence_commitment
-
+  - pq_statement_digest
+  - pq_delta_root
+  - pq_witness_root
+  - challenge_content_root
+  - da_payload_commitment
+  - archive_availability_manifest_root
+  - plonky3_epoch_statement_digest
+  - plonky3_epoch_proof_digest
+  - plonky3_public_inputs_digest
+  - nova_chain_root
+  - epoch_evidence_commitment
 snapshots:
   is_enabled: true
   cadence_epochs: 10
   cadence_blocks: 10000
   object_type: state_snapshot_v1
-  bootstrap_allowed_from_snapshot: true
-  requires_retrieval_audit: true
-  must_bind_state_root: true
-  must_bind_settlement_root: true
-  must_bind_last_plonky3_epoch_proof: true
-  must_bind_last_epoch_manifest_root: true
-  must_bind_archive_manifest_root: true
-  must_bind_snapshot_chunk_root: true
-  must_bind_pq_anchor_root: true
-
+  is_snapshot_bootstrap_allowed: true
+  has_retrieval_audit: true
+  has_state_root_bind: true
+  has_settlement_root_bind: true
+  has_epoch_proof_bind: true
+  has_epoch_manifest_bind: true
+  has_archive_manifest_bind: true
+  has_snapshot_chunk_bind: true
+  has_pq_anchor_bind: true
 pruning:
-  full_node_pruning_allowed: true
-  archive_node_pruning_allowed: false
-  prune_scope: local_full_node_only
-  min_retain_recent_epochs: 2
-  requires_dispute_window_elapsed: true
-  requires_plonky3_epoch_finalized: true
-  requires_epoch_manifest_finalized: true
-  requires_archive_replication_threshold_met: true
-  requires_retrieval_audit_passed: true
-  must_keep_compact_metadata: true
-  must_keep_epoch_manifest: true
-  must_keep_state_snapshot: true
-  must_not_prune_archive_replicas: true
-
+  stage: declared_only
+  activation_scope: local_test_only
+  is_full_node_pruning_allowed: true
+  is_watcher_pruning_allowed: true
+  is_legacy_pruning_allowed: false
+  watcher_mode: window_archive_watcher_v2
+  prune_scope: expired_challenge_objects
+  min_retain_recent_epochs: 3
+  is_window_expired: true
+  has_no_hold_or_dispute: true
+  is_epoch_proof_verified: true
+  has_verified_history_link: true
+  has_retained_anchor_mmr: true
+  has_later_evidence_anchor: true
+  has_verified_bootstrap_snapshot: true
+  has_archive_replication_quorum: true
+  has_passing_retrieval_audit: true
+  has_live_vk_manifest: true
+  has_retention_ledger_cas: true
+  has_compact_metadata_retention: true
+  must_keep_latest_snapshot_generations: 3
 retention:
   dispute_window_blocks: 1555200
   challenge_window_start: da_publication_ready
-  raw_tx_packages: archive_required
-  witness_data: archive_required
-  tx_proof_bytes: canonical_until_verified_backend
-  nova_block_proofs: archive_until_pq_epoch
-  plonky3_epoch_proofs: permanent_metadata
-  epoch_manifests: permanent_metadata
-  compact_metadata: permanent_metadata
-  da_blobs: da_required_until_archive_replicated
-
+  raw_tx_packages: challenge_window
+  checkpoint_artifact_bodies: challenge_window
+  finalized_checkpoint_record_bodies: challenge_window_plus_current_head
+  checkpoint_artifact_and_record_digests: permanent_via_certified_epoch_root
+  other_header_qc_bodies: challenge_window
+  witness_data: challenge_window_deduplicated_or_derivable
+  tx_proof_bytes: challenge_window_exact
+  nova_block_proofs: bounded_nova_retention_state_v2
+  plonky3_epoch_proofs: current_two_plus_window
+  epoch_manifest_bodies: challenge_window_until_history_successor
+  checkpoint_archive_manifest_bodies: challenge_window
+  pq_anchor_bodies: challenge_window_until_evidence_anchor
+  compact_epoch_history_rotation_anchors: permanent
+  epoch_close_finality_certificates: permanent
+  state_and_recovery_snapshots: retained
 paths:
   checkpoint_artifacts: artifacts/checkpoints/final
   checkpoint_links: artifacts/checkpoints/links
@@ -235,40 +279,59 @@ paths:
   prep_snapshots: artifacts/checkpoints/prep_snapshot
   delta_journals: artifacts/checkpoints/delta_journal
   witness_archives: artifacts/checkpoints/witness_archive
+  recursive_sidecars: artifacts/checkpoints/recursive_shadow
   nova_block_proofs: artifacts/checkpoints/nova_block
   pq_checkpoints: artifacts/checkpoints/pq_anchor
   plonky3_epoch_proofs: artifacts/checkpoints/plonky3_epoch
   epoch_manifests: artifacts/checkpoints/epoch_manifest
+  epoch_close_anchors: artifacts/checkpoints/epoch_close_anchor
+  epoch_evidence_anchors: artifacts/checkpoints/epoch_evidence_anchor
   archive_manifests: artifacts/checkpoints/archive_manifest
-  da_references: artifacts/checkpoints/da_reference
-  publication_evidence: artifacts/checkpoints/publication_evidence
-  checkpoint_lifecycles: artifacts/checkpoints/lifecycle
   state_snapshots: artifacts/checkpoints/state_snapshot
   retrieval_audits: artifacts/checkpoints/retrieval_audit
   archive_receipts: artifacts/checkpoints/archive_receipt
+  challenge_packs: artifacts/checkpoints/challenge_pack
+  retention_tickets: artifacts/checkpoints/retention_ticket
+  retention_ledger: artifacts/checkpoints/retention_ledger
+  history_proofs: artifacts/checkpoints/plonky3_history
+  history_rotation_bridges: artifacts/checkpoints/history_rotation_bridge
   da_exports: artifacts/da/checkpoints
   documentation_packets: artifacts/checkpoints/recursive_docs
-
 limits:
   max_batch_ops: 1000
   max_batch_bytes: 8388608
   max_witness_bytes: 67108864
+  max_recursive_proof_envelope_bytes: 17825792
+  max_recursive_sidecar_bytes: 25165824
   max_nova_block_proof_bytes: 131072
+  max_nova_retained_proof_bodies: 16
+  max_nova_retained_body_bytes: 2097152
+  max_nova_hot_recovery_bytes: 0
   max_epoch_nova_archive_bytes: 134217728
   max_plonky3_epoch_proof_bytes: 16777216
   max_plonky3_epoch_sidecar_bytes: 25165824
-  max_pq_anchor_bytes: 16777216
+  max_pq_anchor_bytes: 4096
   max_archive_manifest_bytes: 8388608
   max_state_snapshot_manifest_bytes: 16777216
   max_retrieval_audit_bytes: 4194304
+  max_epoch_anchor_bytes: 4096
+  max_epoch_close_certificate_bytes: 4096
+  max_close_evidence_appends: 64
+  max_daily_history_bytes: 102400
   max_documentation_packet_bytes: 8388608
-
 documentation:
-  include_source_disposition: true
-  include_object_schemas: true
-  include_golden_vectors: true
-  include_chain_evidence_ids: true
-  include_measurements: true
-  include_pq_cadence_evidence: true
-  include_backend_manifest: true
-  include_rejected_claim_register: true
+  has_recursive_packet: true
+  has_source_disposition: true
+  has_object_schemas: true
+  has_golden_vectors: true
+  has_chain_evidence_ids: true
+  has_measurements: true
+  has_pq_cadence_evidence: true
+  has_backend_manifest: true
+  has_rejected_claim_register: true
+  has_retention_evidence: true
+  has_nova_retention_evidence: true
+  has_history_rotation_evidence: true
+  has_wallet_backup_evidence: true
+  has_atomicity_evidence: true
+  has_capacity_traffic_evidence: true

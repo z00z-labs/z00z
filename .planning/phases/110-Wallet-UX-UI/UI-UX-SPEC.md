@@ -5,8 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Status | Product, interaction, configuration, and target-network baseline for prototype validation |
-| Version | 0.5.0 |
+| Version | 0.5.1 |
 | Date | 2026-07-19 |
+| Last updated | 2026-07-20 |
 | Targets | Windows, Linux, iOS |
 | Prototype | [`demo/index.html`](demo/index.html) |
 | Production UI decision | Tauri 2 + Leptos is a packaged standalone shell; no browser, container, or hosted-wallet profile |
@@ -431,16 +432,23 @@ crates/z00z_walletd/      # Windows/Linux only; ships the z00z-walletd binary
 
 Persistent left rail:
 
-1. Home
-2. Wallet
-3. Activity
-4. Settings
+1. Z00Z identity lockup
+2. Scrollable wallet profiles
+3. Network route shortcuts: OnionNet, Reticulum, and a clearly labelled TBD route
+4. Add/Remove wallet actions
+5. Settings and Log out
 
-The rail footer contains privacy route, network, lock, and build channel. The header contains wallet switcher, sync state, balance-visibility toggle, notifications, and account menu.
+The Wallets placeholder reserves space for three full wallet cards. Wallet cards and Add/Remove share its vertical scroll area: the actions follow the final card, settle at the lower edge when the list is short or empty, and become reachable by the same scrollbar when the list is long. Remove remains visible but disabled when no local wallet profiles exist.
+
+Network shortcuts open the corresponding Settings → Network route; they are navigation, not live telemetry. Runtime route/scan status remains in the selected-wallet status bar. The header contains the selected-wallet address and copy action, balance-visibility toggle, notifications, and account menu.
+
+The desktop rail has one active destination only: a selected wallet profile, a selected Network shortcut, or Settings. Selecting any one clears the other rail active states and leaves exactly one rail `aria-current="page"`; wallet tabs and the Settings context rail keep their own scoped current route.
 
 The global rail selects a workspace. Inside Wallet and Settings, a compact **context rail/tree** selects the main-panel route. It follows the section rhythm of `z00z.io` while behaving as an application: the selected entry replaces the main panel rather than opening another window.
 
 - Wallet peer entries: **Assets**, **Vouchers**, **Permissions**, and capability-gated **Quarantine**.
+- Wallet tabs start at **Assets** and continue through **History**, **Swap**, **Exchange**, **Stacking**, **Backup**, and **Settings**. `Overview` is not a wallet tab; Home is an app-level snapshot only.
+- Wallet Settings is local to the selected wallet and has its own context rail: **General**, **Security**, **Backup**, **Policies**, and **Advanced**. It must not mutate global language, appearance, notifications, or another wallet profile.
 - Settings groups: **Wallet** (General, Security, Backups), **Connectivity** (Network), and **Rules & interface** (Policies, Appearance, Advanced).
 - Network is the only expandable branch. Selecting it opens the **Overview** and expands **Reticulum**, **OnionNet**, **Carriers**, and capability-gated **Diagnostics** in place; selecting it again collapses that branch and restores Overview. A child route reopens its parent branch. Exactly one route has `aria-current="page"`: the parent for Overview, otherwise the selected child.
 
@@ -465,13 +473,18 @@ Quick actions are stable two-by-two cards, not a carousel. The context rail beco
 | `/create` | Create wallet | — | No |
 | `/recover` | Recover wallet | — | No |
 | `/unlock/:wallet_id` | Unlock | — | No |
-| `/home` | Overview | Home | Yes |
+| `/home` | Home snapshot | Home | Yes |
 | `/wallet/assets` | Spendable asset projection | Wallet → Assets | Yes |
 | `/wallet/vouchers` | Conditional-value offers and lifecycle | Wallet → Vouchers | Yes |
 | `/wallet/vouchers/:id` | Voucher details | — | Yes |
 | `/wallet/permissions` | Rights and safe permission recipes | Wallet → Permissions | Yes |
 | `/wallet/permissions/:id` | Permission details | — | Yes |
 | `/wallet/quarantine` | Unsupported/invalid objects | Wallet → Quarantine | Yes + capability |
+| `/wallet/settings` | Selected-wallet settings | Wallet → Settings | Yes |
+| `/wallet/settings/security` | Lock, public material, seed reveal, master-key rotation | Wallet → Settings → Security | Yes + re-auth for sensitive actions |
+| `/wallet/settings/backup` | Selected-wallet backup schedule and recovery scope | Wallet → Settings → Backup | Yes + re-auth for restore |
+| `/wallet/settings/policies` | Local `PolicyRules` and compliance-profile preview | Wallet → Settings → Policies | Yes + re-auth to apply local rules |
+| `/wallet/settings/advanced` | Safe selected-wallet YAML | Wallet → Settings → Advanced | Yes + explicit local/runtime boundary |
 | `/activity` | Unified activity | Activity | Yes |
 | `/activity/:tx_id` | Activity details and receipt | — | Yes |
 | `/settings` | Settings index | Settings | Yes |
@@ -810,9 +823,19 @@ Settings uses the grouped context rail defined in the IA; it is neither a horizo
 
 ### 🧭 General
 
-- Wallet name, language/number format, default display asset, notification preferences, and safe startup behavior.
+- Application language/number format, notification preferences, and safe startup behavior. Selected-wallet name, display currency, and transaction defaults belong only in Selected-wallet Settings.
 - A compact **Configuration status** card shows the active file, schema version, effective revision, last valid load, external-change status, and restart requirement.
 - Normal users see only validated common controls. Advanced fields remain available in YAML and Advanced → Configuration.
+
+### 👛 Selected-wallet Settings
+
+Selected-wallet Settings is deliberately separate from the application Settings tree. Its local context rail contains General, Security, Backup, Policies, and Advanced.
+
+1. **General** exposes the local display label, currency presentation, and default fee. The address and wallet ID stay read-only. A rename is a re-authenticated local-concept flow until a durable rename route exists.
+2. **Security** exposes Lock now, a per-wallet auto-lock preference, encrypted public-material export, recovery-phrase reveal, and master-key rotation. The UI never renders private keys. Seed reveal requires a password plus `SHOW SEED`; rotation requires a password plus `ROTATE`, displays a backup reminder, and must surface rate-limit/failure states.
+3. **Backup** exposes encrypted-backup enablement, interval, create/restore entry points, integrity, and recovery scope. A filesystem destination is selected through the platform bridge and never represented as YAML or raw renderer text.
+4. **Policies** exposes current local `PolicyRules` (maximum transaction/daily amount, confirmation, asset/recipient allowlists, and time restrictions as supported). Applying a local rule requires review plus re-auth. A jurisdiction/compliance profile remains a labelled preview until signed load, verify, apply, disable, persistence, and effective-profile explanation capabilities exist. It never displays a compliance verdict.
+5. **Advanced** shows the same non-secret selected-wallet controls as safe YAML. YAML validation and browser-concept apply must not imply a durable runtime write without a revisioned wallet-settings bridge.
 
 ### 🔐 Security
 
@@ -1013,7 +1036,7 @@ Use the gold Z00Z coin/wordmark sparingly for identity and authorization. Blue/c
 The relationship to `z00z.io` is structural and tonal:
 
 - Compact sticky header/rail rhythm, clear section hierarchy, thin borders, restrained cards, readable prose, and gold primary accent.
-- Geist/Open Sans/Inter-compatible typography with strong labels and generous line height; monospace only for identifiers/YAML.
+- The exact typography contract below: Geist for interface language and the Z00Z wordmark, Geist Mono for data.
 - Site-like section selection becomes the grouped context rail/tree inside the wallet's main window; rounded chips remain filter controls.
 - The wallet remains dark-first because private desktop/mobile sessions benefit from reduced glare, while the light theme uses the site's neutral corporate surfaces.
 - Do not import the site's marketing/documentation density, web links, or browse hierarchy into transactional review screens.
@@ -1043,13 +1066,105 @@ Never encode state by color alone. Pair color with icon and text.
 
 ### 🔤 Typography
 
-- UI: `Inter`, `Geist`, system sans fallback. Package locally for production or use system fonts; no remote font request.
-- Technical identifiers: `JetBrains Mono`, `IBM Plex Mono`, system monospace fallback.
-- Use tabular numerals for balances and timestamps.
-- Minimum body: 16 px mobile, 15–16 px desktop.
-- Page title: 28/34 desktop, 22/28 mobile.
-- Balance: clamp from 34 px mobile to 48 px desktop.
-- Avoid all caps except short environment tags such as TEST and DEV.
+The typography system is a strict three-family contract. The prototype may load the families from Google Fonts for visual review. Production packages the same font files locally; remote font loading is not allowed in the packaged wallet.
+
+| Family token | Family and available weights | Sole purpose | Not allowed for |
+| --- | --- | --- | --- |
+| `--font-sans` | `Geist`; 400, 500, 600, 700 | All interface language: headings, labels, controls, short readable descriptions | Long identifiers, financial values, addresses, timestamps, YAML |
+| `--font-mono` | `Geist Mono`; 400, 500, 600, 700 | Verbatim/technical text and tabular data: balances, asset quantities, addresses, IDs, timestamps, prices, code/YAML, compact metadata | Long prose, page headings, ordinary action names |
+| `--font-logo` | `Geist`; variable 400/780 | Z00Z wordmark at 780 and selected desktop-wallet address at 400 | Navigation, buttons, values, labels, body copy, section headings |
+
+`Inter`, `Open Sans`, `JetBrains Mono`, `IBM Plex Mono`, Rajdhani, browser defaults, and arbitrary display faces are not part of this wallet contract. They are fallback or replacement candidates only after an explicit design-spec revision.
+
+#### 📏 Typography Lookup Table (LUT)
+
+Every visible text node must map to exactly one LUT row. `px` values assume the prototype root size of 16 px. The named token is the production source of truth; the selector column identifies the executable demo reference.
+
+| ID / token | Family | Weight | Desktop size | Mobile size | Line height | Tracking | Case | Demo selectors / semantic purpose |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `TYPE-01` `--type-balance` | Geist Mono | 700 | 50.4 px max; fluid | 35.2 px min; fluid | 1.00 | -0.045em | Sentence | `.balance-amount`; the primary available balance only |
+| `TYPE-02` `--type-address` | Geist | 400 | 25 px | 20 px compact top bar | 1.04 | 0.045em desktop; -0.025em mobile | Mixed case | `.page-heading h1.is-wallet-address`; a 13 px / 16 px wallet-name line pairs with it to match Copy-control height while remaining outside that button |
+| `TYPE-03` `--type-page-title` | Geist | 700 | 28 px | 20 px | 1.20 | -0.025em | Sentence | standalone page/lock titles; one title per view |
+| `TYPE-04` `--type-page-section` | Geist | 700 | 23.2 px | 20 px | 1.20 | -0.025em | Sentence | `.page-intro h2`, major workspace sections |
+| `TYPE-05` `--type-section` | Geist | 700 | 20 px | 18 px | 1.20 | -0.025em | Sentence | `h2`, panel and dialog section headings |
+| `TYPE-06` `--type-card-title` | Geist | 700 | 16 px | 16 px | 1.25 | -0.018em | Sentence | `.quick-action strong`, tool-card headings, primary action-card titles |
+| `TYPE-07` `--type-row-title` | Geist | 700 | 16 px | 16 px | 1.30 | -0.018em | Sentence | `.list-copy strong`, `.activity-copy strong`, asset names, wallet card names |
+| `TYPE-08` `--type-control` | Geist | 600 | 15 px | 15 px | 1.20 | -0.010em | Sentence | `.button`, inputs, compact controls, selectable chips |
+| `TYPE-18` `--type-nav` | Geist | 600/700 | 16 px | 16 px | 1.20 | 0 | Sentence / short uppercase | `.wallet-tab`, `.nav-item`, `.sidebar-label`; high-visibility navigation |
+| `TYPE-09` `--type-body` | Geist | 400 | 16 px | 16 px | 1.50 | 0 | Sentence | explanatory paragraphs, review copy, empty/error content |
+| `TYPE-10` `--type-support` | Geist | 500 | 15 px | 15 px | 1.45 | 0 | Sentence | page introductions, card descriptions, helper text that is not technical data |
+| `TYPE-11` `--type-metric` | Geist Mono | 700 | 21.6 px | 21.6 px | 1.15 | -0.025em | Verbatim | `.metric-card strong`; compact total in a metric card |
+| `TYPE-12` `--type-data-key` | Geist Mono | 700 | 15 px | 15 px | 1.25 | -0.025em | Verbatim | `.list-meta strong`, `.activity-value strong`, asset amount/price |
+| `TYPE-13` `--type-data-meta` | Geist by default; Geist Mono for literal data | 500 | 14 px | 14 px | 1.35 | -0.025em | Sentence / verbatim | Supporting metadata; use Mono only for literal address, amount, timestamp, or identifier |
+| `TYPE-14` `--type-label` | Geist | 700 | 13 px | 13 px | 1.25 | 0.08em | Uppercase only when short | `.eyebrow`, `.asset-table-head`, field and column labels |
+| `TYPE-15` `--type-status` | Geist | 600 | 13 px | 13 px | 1.25 | 0.02em | Short status / uppercase when needed | badges, state chips, status-bar labels, environment tags |
+| `TYPE-16` `--type-id` | Geist Mono | 500 | 14 px | 14 px | 1.35 | 0 | Verbatim | address-copy tooltip, receipt/object IDs, technical details, YAML/code text |
+| `TYPE-17` `--type-brand` | Geist | 780 | 34 px max; fluid | 26 px | 1.00 | 0.045em | Uppercase | `.brand > span`; Z00Z wordmark only |
+
+#### 🧭 Component mapping and exceptions
+
+| Surface | Required LUT rows | Rule |
+| --- | --- | --- |
+| Sidebar, top bar, wallet tabs, bottom navigation | `TYPE-02`, `TYPE-08`, `TYPE-13`, `TYPE-14`, `TYPE-16`, `TYPE-18` | Active state changes colour/border only; it does not change font family or size. The selected desktop-wallet address shares the Z00Z family, size, and tracking at normal weight; high-visibility navigation uses `TYPE-18`. |
+| Wallet cards in the left rail | `TYPE-07` name, `TYPE-13` supporting copy, `TYPE-12` literal amount | Wallet names and readable copy use Geist; literal amounts use tabular Geist Mono. |
+| Home balance and privacy cards | `TYPE-01`, `TYPE-10`, `TYPE-11`, `TYPE-12`, `TYPE-13` | Only the main available balance may use `TYPE-01`; metric cards use `TYPE-11`. Privacy labels and route states are never display type. |
+| Quick-action cards | `TYPE-06` action, `TYPE-10` explanation | A quick action never uses a generic 12 px title. |
+| Attention, Activity, Voucher, Permission rows | `TYPE-07` title, `TYPE-12` description/time, `TYPE-11` amount/use count | All four rows share one text hierarchy and right-edge numeric alignment. |
+| Assets table and asset detail | `TYPE-13` header, `TYPE-07` asset name, `TYPE-12` asset note, `TYPE-11` Balance/Value/Price, `TYPE-15` identifiers | `Name`, `Balance`, `Value`, and `Price` align to their data columns; columns do not use icon geometry as a text anchor. |
+| Forms, settings, dialogs, notices | `TYPE-03`/`TYPE-05` title, `TYPE-08` controls, `TYPE-09` prose, `TYPE-10` helper text, `TYPE-13` labels, `TYPE-15` copied technical value | Password/seed content follows the sensitive-data policy; a monospace family never makes secret text safe to expose. |
+| Status bar, badges, chips, table headers | `TYPE-13` or `TYPE-14` only | Visible supporting text is never smaller than 12 px; badges do not use all caps for ordinary words. |
+| Logo / product lock screen | `TYPE-17` wordmark plus `TYPE-03`/`TYPE-09` content | Geist variable 780 matches the public Z00Z docs header; it is not a general UI weight. |
+
+#### ⚙️ Token implementation contract
+
+The production token names below mirror the executable demo. Components must consume these tokens rather than introduce an isolated `font-family`, arbitrary numeric weight, or one-off size.
+
+```css
+:root {
+  --font-sans: "Geist", "Geist Fallback", sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-logo: var(--font-sans);
+
+  --type-balance: clamp(2.2rem, 4.2vw, 3.15rem);
+  --type-address: 1.5625rem;
+  --type-page-title: 1.75rem;
+  --type-page-section: 1.45rem;
+  --type-section: 1.25rem;
+  --type-card-title: 1rem;
+  --type-row-title: 1rem;
+  --type-control: 0.9375rem;
+  --type-nav: 1rem;
+  --type-body: 1rem;
+  --type-support: 0.9375rem;
+  --type-metric: 1.35rem;
+  --type-data-key: 0.9375rem;
+  --type-data-meta: 0.875rem;
+  --type-label: 0.8125rem;
+  --type-status: 0.8125rem;
+  --type-id: 0.875rem;
+  --type-brand: clamp(1.625rem, 2.2vw, 2.125rem);
+}
+```
+
+Rules:
+
+1. Geist uses 400, 500, 600, and 700 for interface language; the Z00Z wordmark alone uses variable weight 780. The selected desktop-wallet address uses the same Geist family at normal weight 400. A component must not introduce another ad-hoc weight.
+2. Every financial quantity, address, ID, timestamp, tabular field, code/YAML value, or copied technical string uses Geist Mono with `font-variant-numeric: tabular-nums` where column alignment matters, except the selected desktop-wallet address in `TYPE-02`, which deliberately uses normal-weight Geist to align with the Z00Z header treatment.
+3. The minimum visible supporting size is 12 px. A text node may be visually hidden for accessibility support, but an on-screen label, tooltip, badge, table heading, or status value must not be smaller.
+4. Uppercase is limited to compact labels, table headers, environment tags, and the Z00Z wordmark. Ordinary button, tab, and card text stays sentence case.
+5. Headings use tight tracking; compact labels use positive tracking; data uses modest negative tracking only when it improves tabular scanability. No component may apply a transform, scale, or hover state that changes type metrics.
+6. Mobile uses the same semantic rows. Only `TYPE-01` through `TYPE-05` may reduce according to the mobile column; controls, rows, labels, metadata, and statuses retain their readable LUT size.
+7. The desktop sidebar brand row uses the same 80 px vertical frame as the sticky top bar. The logo, `Z00Z` wordmark, selected wallet address, and copy control share one centered horizontal axis.
+8. Route/network telemetry is shown as a non-interactive status-bar item for the selected wallet. It does not occupy the global top bar or masquerade as an actionable control when unavailable.
+
+#### ✅ Typography acceptance
+
+1. At 1440 px and 390 px viewport widths, the computed family for normal UI text and the Z00Z wordmark is Geist, while key values/technical strings use Geist Mono; the wordmark uses reserved weight 780, while the selected desktop-wallet address uses normal weight 400 with the same desktop size and `0.045em` tracking.
+2. Quick actions, Activity, Attention, Voucher, Permission, Asset, and sidebar wallet cards match their mapped LUT row without a smaller local override.
+3. The smallest visible supporting text is 12 px or larger at default zoom; 200% zoom does not create clipping or page-level horizontal scroll.
+4. Numeric columns use tabular numerals and their headers align to their own values, including Name/Balance/Value/Price in Assets.
+5. A screenshot review covers dark and light themes, 390 × 844 and 1440 × 1000 viewports, normal/hidden sensitive balance state, an asset table, an activity row, and a destructive wallet-selection dialog.
+6. At desktop width, the `WALLETS` label and wallet tabs are at least 16 px and the sidebar brand/top-bar content centers within the same top navigation frame.
 
 ### 📐 Spacing, shape, elevation
 

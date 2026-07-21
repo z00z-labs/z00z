@@ -1,6 +1,6 @@
 use z00z_storage::{
     checkpoint::{
-        repo_default_path, CheckpointContractConfigV1, AUTHORITY_PROMOTION_STAGE_CONFIG_GATE,
+        repo_default_path, CheckpointContractConfigV3, AUTHORITY_PROMOTION_STAGE_CONFIG_GATE,
         AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT, AUTHORITY_PROMOTION_STAGE_SPEC_ONLY,
         POST_QUANTUM_ENFORCEMENT_STAGE, VERIFIED_BACKEND_CANDIDATE_STAGE,
         VERIFIED_BACKEND_ENABLED_STAGE,
@@ -8,11 +8,11 @@ use z00z_storage::{
     CheckpointError,
 };
 
-fn cfg() -> CheckpointContractConfigV1 {
-    CheckpointContractConfigV1::load(repo_default_path()).expect("repo checkpoint contract")
+fn cfg() -> CheckpointContractConfigV3 {
+    CheckpointContractConfigV3::load(repo_default_path()).expect("repo checkpoint contract")
 }
 
-fn stage_cfg(stage: &str, next: &[&str]) -> CheckpointContractConfigV1 {
+fn stage_cfg(stage: &str, next: &[&str]) -> CheckpointContractConfigV3 {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = stage.to_string();
     cfg.authority_promotion.allowed_next_stages = next.iter().map(|s| (*s).to_string()).collect();
@@ -71,7 +71,7 @@ fn test_authority_flags_reject_without_completed_promotion_evidence() {
     let mut recursive_cfg = cfg();
     recursive_cfg
         .authority_promotion
-        .recursive_authority_allowed = true;
+        .is_recursive_authority_allowed = true;
 
     let err = recursive_cfg
         .validate()
@@ -79,7 +79,7 @@ fn test_authority_flags_reject_without_completed_promotion_evidence() {
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 
     let mut cfg = cfg();
-    cfg.authority_promotion.verified_backend_allowed = true;
+    cfg.authority_promotion.is_verified_backend_allowed = true;
 
     let err = cfg
         .validate()

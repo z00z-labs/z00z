@@ -4,6 +4,9 @@
 
 use z00z_crypto::expert::hash_domain;
 
+/// Frozen portable SHA-256 domain for the core-owned genesis chain identity.
+pub(crate) const GENESIS_ID_SHA256_DOMAIN_V2: &str = "z00z.core.genesis.chain_identity.v2";
+
 // Assets
 hash_domain!(MetadataHashDomain, "z00z.core.assets.metadata", 1);
 hash_domain!(OwnerSignatureDomain, "z00z.core.assets.owner_signature", 1);

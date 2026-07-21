@@ -14,7 +14,8 @@ use super::{
         encode_archive_manifest_bin, encode_art_bin, encode_audit_bin, encode_da_reference_bin,
         encode_draft_bin, encode_exec_bin, encode_link_bin, encode_publication_evidence_bin,
     },
-    contract_config::{CheckpointContractConfigV1, CheckpointResolvedPaths},
+    contract_config::CheckpointResolvedPaths,
+    contract_config_v3::CheckpointConfigResolverV3,
     exec_input::CheckpointExecInput,
     ids::{
         derive_checkpoint_id, derive_draft_id, derive_exec_id, CheckpointDraftId,
@@ -320,8 +321,8 @@ impl CheckpointFsStore {
 
     pub fn try_new(root: impl Into<PathBuf>) -> Result<Self, CheckpointError> {
         let root = root.into();
-        let cfg = CheckpointContractConfigV1::load_repo_default()?;
-        let resolved_paths = cfg.resolve_paths(&root);
+        let active = CheckpointConfigResolverV3::resolve_active()?;
+        let resolved_paths = active.config().resolve_paths(&root);
         let checkpoint_namespace_dir = resolved_paths
             .checkpoint_artifacts
             .parent()
@@ -637,17 +638,36 @@ impl CheckpointFsStore {
         &self,
         artifact: &CheckpointArtifact,
     ) -> Result<Option<CheckpointId>, CheckpointError> {
-        match self.predecessor_candidates(artifact, None)?.as_slice() {
-            [] => Ok(None),
+        let candidates = self.predecessor_candidates(artifact, None)?;
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+        match self.adjacent_candidates(artifact, &candidates)?.as_slice() {
             [checkpoint_id] => Ok(Some(*checkpoint_id)),
             _ => Err(CheckpointError::LinkMix),
         }
     }
 
+    fn adjacent_candidates(
+        &self,
+        artifact: &CheckpointArtifact,
+        candidates: &[CheckpointId],
+    ) -> Result<Vec<CheckpointId>, CheckpointError> {
+        let mut out = Vec::new();
+        for checkpoint_id in candidates {
+            let predecessor = self.load_persisted_artifact(checkpoint_id)?;
+            if predecessor.height().checked_add(1) == Some(artifact.height()) {
+                out.push(*checkpoint_id);
+            }
+        }
+        Ok(out)
+    }
+
     fn check_link_chain(&self, link: &CheckpointLink) -> Result<(), CheckpointError> {
         let artifact = self.load_persisted_artifact(&link.checkpoint_id())?;
         let candidates = self.predecessor_candidates(&artifact, Some(link.checkpoint_id()))?;
-        match (link.prev_checkpoint_id(), candidates.as_slice()) {
+        let adjacent = self.adjacent_candidates(&artifact, &candidates)?;
+        match (link.prev_checkpoint_id(), adjacent.as_slice()) {
             (None, []) => Ok(()),
             (Some(prev_checkpoint_id), [candidate]) if *candidate == prev_checkpoint_id => Ok(()),
             _ => Err(CheckpointError::LinkMix),

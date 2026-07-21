@@ -5,17 +5,15 @@
 //! Replay and audit-only data stays under the narrower [`audit`] submodule so wrapper-local
 //! fields do not leak into the main checkpoint contract by default.
 //!
-//! Authority boundaries for Phase 068:
-//! - `z00z_storage::checkpoint` owns canonical statement bytes, final artifact bytes, replay
-//!   link bytes, path resolution, and reject taxonomy.
-//! - Recursive sidecars, PQ anchors, DA references, and publication evidence may bind the
-//!   canonical statement, but they do not replace canonical checkpoint admission in Phase 068.
-//! - Validators and watchers consume storage-owned checkpoint artifacts; validators decide
-//!   acceptance from storage-owned inputs and watchers remain advisory only.
-//! - Phase 068 preserves the Nova/Plonky3 implementation track required by Phase 069 without
-//!   pinning backend or provider versions inside checkpoint authority.
-//! - Future adapter crates and IPFS/Kubo RPC wiring stay behind adapter boundaries and must not
-//!   redefine storage-owned checkpoint theorem bytes.
+//! Authority boundaries for the current Phase 069 candidate source:
+//! - `z00z_storage::checkpoint` owns the inherited canonical statement/final-artifact bytes,
+//!   replay links, path resolution, reject taxonomy, and the sole recursive V2 facade.
+//! - Recursive sidecars and write-only receipts remain shadow evidence; PQ anchors, DA
+//!   references, and publication evidence may bind the statement but cannot replace canonical
+//!   checkpoint admission.
+//! - Validators consume storage-owned checkpoint artifacts, while watchers remain advisory.
+//! - Provider and transport integrations stay behind adapter boundaries and cannot redefine the
+//!   storage-owned theorem or select a proof decoder.
 //!
 //! # Examples
 //!
@@ -27,6 +25,7 @@
 //! assert_eq!(CheckpointLinkVersion::CURRENT.as_u8(), 1);
 //! ```
 
+mod adapter;
 mod archive_manifest;
 mod archive_receipt;
 mod artifact_final;
@@ -34,12 +33,14 @@ mod artifact_proof_draft;
 mod artifact_stmt;
 mod artifact_types;
 pub mod audit;
+mod authority_artifacts;
 mod build;
 mod build_prepare;
 mod build_state;
 mod canonical_transition;
 mod codec;
 mod contract_config;
+mod contract_config_v3;
 mod da_reference;
 mod exec_input;
 mod ids;
@@ -49,15 +50,18 @@ pub(crate) mod nova;
 mod pq_anchor;
 mod pruning;
 mod publication_evidence;
+mod receipt;
 mod recursive_circuit;
 mod recursive_context;
+mod recursive_encoding;
 mod recursive_predicate;
-mod recursive_reject;
+pub(crate) mod recursive_reject;
 mod recursive_semantics;
 mod recursive_statement;
 mod recursive_trace;
 pub mod recursive_v2;
 mod retrieval_audit;
+mod sidecar;
 mod state_snapshot;
 mod store;
 mod store_fs;
@@ -65,6 +69,7 @@ mod store_fs;
 mod test_checkpoint;
 #[cfg(test)]
 mod test_store;
+mod version_registry;
 
 pub(crate) use recursive_circuit::RECURSIVE_HJMT_SEGMENT_BYTES_V2;
 
@@ -109,7 +114,7 @@ pub use self::{
         encode_state_snapshot_json, guard_verified_backend_codec_support,
     },
     contract_config::{
-        repo_default_path, ArchiveRetentionCfg, AuthorityPromotionCfg, CheckpointContractConfigV1,
+        repo_default_path, ArchiveRetentionCfg, AuthorityPromotionCfg, CheckpointContractConfigV2,
         CheckpointContractLimits, CheckpointContractPaths, CheckpointResolvedPaths, PruningCfg,
         SnapshotsCfg, VerifiedBackendCfg, VerifiedBackendChainEvidenceCfg,
         VerifiedBackendRollbackCfg, VerifiedBackendSecurityReviewCfg,
@@ -123,6 +128,15 @@ pub use self::{
         VERIFIED_BACKEND_REVIEW_APPROVED, VERIFIED_BACKEND_REVIEW_PENDING,
         VERIFIED_BACKEND_ROLLBACK_PROCEDURE, VERIFIED_BACKEND_STATEMENT_STABILITY,
         VERIFIED_BACKEND_VERIFIER_API,
+    },
+    contract_config_v3::{
+        ActiveCheckpointConfigIdentityV3, ActiveCheckpointConfigV3, BranchesCfgV3,
+        CheckpointConfigHeadV3, CheckpointConfigResolverV3, CheckpointContractConfigV3,
+        ConfigFieldTransformV3, ConfigMigrationRecordV3, ConfigV3ActivationStore,
+        ConfigV3RenameEntry, ConfigV3RenameLedger, NovaBranchCfgV3, OfflineReceiptMailboxCfgV3,
+        Plonky3EpochBranchCfgV3, PostQuantumCfgV3, RuntimeProfileCfgV3, VersionAuthorityCfgV3,
+        CONFIG_V3_NEWLINE_POLICY, CONFIG_V3_PQ_MODE, CONFIG_V3_PROFILE,
+        CONFIG_V3_TRANSFORM_VERSION,
     },
     da_reference::{
         CheckpointDaLocatorKind, CheckpointDaProviderFamily, CheckpointDaReferenceV1,

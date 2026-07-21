@@ -76,6 +76,23 @@ pub fn atomic_write_file_private(path: impl AsRef<Path>, data: &[u8]) -> Result<
     }
 }
 
+/// Create and sync a private file without replacing an existing path entry.
+pub fn write_file_private_new(path: impl AsRef<Path>, data: &[u8]) -> Result<(), IoError> {
+    let path = path.as_ref();
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    #[cfg(unix)]
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    file.write_all(data)?;
+    file.sync_all()?;
+    if let Some(parent) = path.parent().filter(|value| !value.as_os_str().is_empty()) {
+        std::fs::File::open(parent)?.sync_all()?;
+    }
+    Ok(())
+}
+
 /// Stream bytes into an atomic temp-file replacement path.
 pub fn atomic_write_file_streaming(
     path: impl AsRef<Path>,

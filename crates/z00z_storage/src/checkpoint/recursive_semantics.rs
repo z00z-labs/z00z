@@ -10,8 +10,7 @@ use crate::settlement::{
     DefinitionId, ScopeFlow, ScopeFlowItem, ScopeLeafKind, ScopeOpKind, SerialId, SettlementPath,
     SettlementStateRoot, TerminalId,
 };
-
-use super::recursive_reject::RecursiveV2Error;
+use crate::CheckpointError;
 
 const CANONICAL_HEX32_BYTES: usize = 64;
 const MAX_TX_ID_BYTES: usize = 256;
@@ -109,21 +108,21 @@ pub(crate) enum UniquenessPassV2 {
 }
 
 impl UniquenessPassV2 {
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         match value {
             0 => Ok(Self::Commit),
             1 => Ok(Self::Product),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 }
 
 impl UniquenessListKindV2 {
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         match value {
             0 => Ok(Self::Original),
             1 => Ok(Self::Sorted),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 }
@@ -135,11 +134,11 @@ impl UniquenessSetKindV2 {
 }
 
 impl UniquenessSetKindV2 {
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         match value {
             0 => Ok(Self::Spent),
             1 => Ok(Self::Output),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 }
@@ -180,7 +179,7 @@ pub(crate) struct UniquenessSemanticRowV2 {
 }
 
 impl UniquenessSemanticRowV2 {
-    pub(crate) fn from_flow_item(item: &ScopeFlowItem) -> Result<Self, RecursiveV2Error> {
+    pub(crate) fn from_flow_item(item: &ScopeFlowItem) -> Result<Self, CheckpointError> {
         Ok(Self {
             definition_id: decode_canonical_hex32(&item.definition_id)?,
             serial_id: item.serial_id,
@@ -209,25 +208,25 @@ impl UniquenessSemanticRowV2 {
         bytes
     }
 
-    pub(crate) fn from_canonical_bytes(bytes: &[u8]) -> Result<Self, RecursiveV2Error> {
+    pub(crate) fn from_canonical_bytes(bytes: &[u8]) -> Result<Self, CheckpointError> {
         if bytes.len() != UNIQUENESS_SEMANTIC_ROW_BYTES_V2 {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         Ok(Self {
             definition_id: bytes[..32]
                 .try_into()
-                .map_err(|_| RecursiveV2Error::Canonical)?,
+                .map_err(|_| CheckpointError::Canonical)?,
             serial_id: u32::from_le_bytes(
                 bytes[32..36]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             ),
             terminal_id: bytes[36..68]
                 .try_into()
-                .map_err(|_| RecursiveV2Error::Canonical)?,
+                .map_err(|_| CheckpointError::Canonical)?,
             leaf_value_hash: bytes[68..]
                 .try_into()
-                .map_err(|_| RecursiveV2Error::Canonical)?,
+                .map_err(|_| CheckpointError::Canonical)?,
         })
     }
 
@@ -250,14 +249,14 @@ pub(crate) enum NetEffectKindV2 {
 }
 
 impl NetEffectKindV2 {
-    fn decode(byte: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(byte: u8) -> Result<Self, CheckpointError> {
         match byte {
             0 => Ok(Self::Close),
             1 => Ok(Self::Delete),
             2 => Ok(Self::Insert),
             3 => Ok(Self::Replace),
             4 => Ok(Self::Unchanged),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 }
@@ -277,11 +276,11 @@ impl NetEffectV2 {
     pub(crate) fn from_rows(
         spent: Option<UniquenessSemanticRowV2>,
         output: Option<UniquenessSemanticRowV2>,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         match (spent, output) {
             (Some(old), Some(new)) => {
                 if !old.same_storage_path(new) {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
                 Ok(Self {
                     kind: if old.leaf_value_hash == new.leaf_value_hash {
@@ -307,7 +306,7 @@ impl NetEffectV2 {
                     new_leaf_value_hash: new.leaf_value_hash,
                 })
             }
-            (None, None) => Err(RecursiveV2Error::Invariant),
+            (None, None) => Err(CheckpointError::Invariant),
         }
     }
 
@@ -368,7 +367,7 @@ pub(crate) struct UniquenessChallengesV2 {
     pub(crate) output: [[u8; 32]; UNIQUENESS_CHALLENGES_PER_SET_V2],
 }
 
-pub(crate) fn encode_uniqueness_precommit(flow: &ScopeFlow) -> Result<Vec<u8>, RecursiveV2Error> {
+pub(crate) fn encode_uniqueness_precommit(flow: &ScopeFlow) -> Result<Vec<u8>, CheckpointError> {
     let mut spent = Vec::new();
     let mut output = Vec::new();
     for kind in [ScopeOpKind::Delete, ScopeOpKind::Put] {
@@ -385,13 +384,13 @@ pub(crate) fn encode_uniqueness_precommit(flow: &ScopeFlow) -> Result<Vec<u8>, R
 
 pub(crate) fn decode_uniqueness_precommit(
     bytes: &[u8],
-) -> Result<UniquenessPrecommitV2, RecursiveV2Error> {
+) -> Result<UniquenessPrecommitV2, CheckpointError> {
     if bytes.len() != UNIQUENESS_PRECOMMIT_BYTES_V2 {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let mut cursor = 0;
     if take_u8(bytes, &mut cursor)? != UNIQUENESS_PRECOMMIT_VERSION_V2 {
-        return Err(RecursiveV2Error::Version);
+        return Err(CheckpointError::Version);
     }
     let value = UniquenessPrecommitV2 {
         spent_count: take_u32(bytes, &mut cursor)?,
@@ -413,7 +412,7 @@ pub(crate) fn decode_uniqueness_precommit(
                 value.output_sorted_digest,
             )
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok(value)
 }
@@ -421,9 +420,9 @@ pub(crate) fn decode_uniqueness_precommit(
 pub(crate) fn uniqueness_precommit_from_rows(
     spent: &[UniquenessSemanticRowV2],
     output: &[UniquenessSemanticRowV2],
-) -> Result<UniquenessPrecommitV2, RecursiveV2Error> {
-    let spent_count = u32::try_from(spent.len()).map_err(|_| RecursiveV2Error::Limit)?;
-    let output_count = u32::try_from(output.len()).map_err(|_| RecursiveV2Error::Limit)?;
+) -> Result<UniquenessPrecommitV2, CheckpointError> {
+    let spent_count = u32::try_from(spent.len()).map_err(|_| CheckpointError::Limit)?;
+    let output_count = u32::try_from(output.len()).map_err(|_| CheckpointError::Limit)?;
     let spent_original_digest = digest_semantic_rows(CheckpointShaRole::SpentOriginalIds, spent)?;
     let output_original_digest =
         digest_semantic_rows(CheckpointShaRole::OutputOriginalIds, output)?;
@@ -439,7 +438,7 @@ pub(crate) fn uniqueness_precommit_from_rows(
             .any(|pair| pair[0].terminal_id == pair[1].terminal_id)
         || !cross_set_replacements_are_same_path(&spent_sorted, &output_sorted)
     {
-        return Err(RecursiveV2Error::DuplicateIdentifier);
+        return Err(CheckpointError::DuplicateIdentifier);
     }
     let spent_sorted_digest =
         digest_semantic_rows(CheckpointShaRole::SpentSortedIds, &spent_sorted)?;
@@ -466,11 +465,11 @@ pub(crate) fn uniqueness_precommit_from_rows(
 
 fn encode_uniqueness_precommit_value(
     value: UniquenessPrecommitV2,
-) -> Result<Vec<u8>, RecursiveV2Error> {
+) -> Result<Vec<u8>, CheckpointError> {
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(UNIQUENESS_PRECOMMIT_BYTES_V2)
-        .map_err(|_| RecursiveV2Error::Limit)?;
+        .map_err(|_| CheckpointError::Limit)?;
     bytes.push(UNIQUENESS_PRECOMMIT_VERSION_V2);
     bytes.extend_from_slice(&value.spent_count.to_le_bytes());
     bytes.extend_from_slice(&value.output_count.to_le_bytes());
@@ -505,16 +504,16 @@ pub(crate) fn decode_uniqueness_challenge(
     pre_context: [u8; 32],
     grammar_digest: [u8; 32],
     precommit: UniquenessPrecommitV2,
-) -> Result<UniquenessChallengesV2, RecursiveV2Error> {
+) -> Result<UniquenessChallengesV2, CheckpointError> {
     if bytes.len() != UNIQUENESS_CHALLENGE_BYTES_V2 || bytes[0] != UNIQUENESS_PRECOMMIT_VERSION_V2 {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let committed_precommit: [u8; 32] = bytes[1..33]
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     let expected = encode_uniqueness_challenge(pre_context, grammar_digest, precommit);
     if committed_precommit != precommit.precommit_digest || expected.as_slice() != bytes {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok(derive_uniqueness_challenges(
         pre_context,
@@ -657,12 +656,12 @@ pub(crate) fn decode_uniqueness_sorted_row(
         UniquenessListKindV2,
         UniquenessSemanticRowV2,
     ),
-    RecursiveV2Error,
+    CheckpointError,
 > {
     if bytes.len() != UNIQUENESS_SORTED_ROW_BYTES_V2
         || bytes.first().copied() != Some(UNIQUENESS_PRECOMMIT_VERSION_V2)
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let pass = UniquenessPassV2::decode(bytes[1])?;
     let set = UniquenessSetKindV2::decode(bytes[2])?;
@@ -697,11 +696,11 @@ pub(crate) fn encode_net_effect(effect: NetEffectV2) -> Vec<u8> {
     bytes
 }
 
-pub(crate) fn decode_net_effect(bytes: &[u8]) -> Result<NetEffectV2, RecursiveV2Error> {
+pub(crate) fn decode_net_effect(bytes: &[u8]) -> Result<NetEffectV2, CheckpointError> {
     if bytes.len() != NET_MERGE_BYTES_V2
         || bytes.first().copied() != Some(UNIQUENESS_PRECOMMIT_VERSION_V2)
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let effect = NetEffectV2 {
         kind: NetEffectKindV2::decode(bytes[1])?,
@@ -710,32 +709,32 @@ pub(crate) fn decode_net_effect(bytes: &[u8]) -> Result<NetEffectV2, RecursiveV2
         )?,
         new_leaf_value_hash: bytes[2 + UNIQUENESS_SEMANTIC_ROW_BYTES_V2..]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     };
     match effect.kind {
         NetEffectKindV2::Close => {
             if effect.path_and_old.serial_id != 0 {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
         }
         NetEffectKindV2::Delete => {
             if effect.new_leaf_value_hash != [0_u8; 32] {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
         }
         NetEffectKindV2::Insert => {
             if effect.path_and_old.leaf_value_hash != [0_u8; 32] {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
         }
         NetEffectKindV2::Replace => {
             if effect.path_and_old.leaf_value_hash == effect.new_leaf_value_hash {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
         }
         NetEffectKindV2::Unchanged => {
             if effect.path_and_old.leaf_value_hash != effect.new_leaf_value_hash {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
         }
     }
@@ -746,10 +745,10 @@ pub(crate) fn decode_net_merge(
     bytes: &[u8],
     precommit: UniquenessPrecommitV2,
     challenge: UniquenessChallengesV2,
-) -> Result<(), RecursiveV2Error> {
+) -> Result<(), CheckpointError> {
     let effect = decode_net_effect(bytes)?;
     if effect.kind != NetEffectKindV2::Close || bytes != encode_net_merge(precommit, challenge) {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok(())
 }
@@ -769,38 +768,38 @@ pub(crate) fn decode_hierarchy_promotion(
     bytes: &[u8],
     expected_definition_root: [u8; 32],
     expected_update_trace_digest: [u8; 32],
-) -> Result<(), RecursiveV2Error> {
+) -> Result<(), CheckpointError> {
     if decode_hierarchy_promotion_fields(bytes)?
         != (expected_definition_root, expected_update_trace_digest)
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok(())
 }
 
 pub(crate) fn decode_hierarchy_promotion_fields(
     bytes: &[u8],
-) -> Result<([u8; 32], [u8; 32]), RecursiveV2Error> {
+) -> Result<([u8; 32], [u8; 32]), CheckpointError> {
     if bytes.len() != HIERARCHY_PROMOTION_BYTES_V2
         || bytes.first().copied() != Some(UNIQUENESS_PRECOMMIT_VERSION_V2)
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let definition_root = bytes[1..33]
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     let update_trace_digest = bytes[33..65]
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     Ok((definition_root, update_trace_digest))
 }
 
 fn digest_semantic_rows(
     role: CheckpointShaRole,
     rows: &[UniquenessSemanticRowV2],
-) -> Result<[u8; 32], RecursiveV2Error> {
+) -> Result<[u8; 32], CheckpointError> {
     let mut digest = CheckpointSha256V2::new(role);
-    let count = u32::try_from(rows.len()).map_err(|_| RecursiveV2Error::Limit)?;
+    let count = u32::try_from(rows.len()).map_err(|_| CheckpointError::Limit)?;
     digest.update_part(&count.to_le_bytes())?;
     for row in rows {
         digest.update_part(&row.canonical_bytes())?;
@@ -852,7 +851,7 @@ fn cross_set_replacements_are_same_path(
 }
 
 #[cfg(test)]
-pub(crate) fn encode_flow_header(flow: &ScopeFlow) -> Result<Vec<u8>, RecursiveV2Error> {
+pub(crate) fn encode_flow_header(flow: &ScopeFlow) -> Result<Vec<u8>, CheckpointError> {
     let prev_root = decode_canonical_hex32(&flow.root_flow.prev_root)?;
     let post_root = decode_canonical_hex32(&flow.root_flow.post_root)?;
     encode_flow_header_fields(flow, prev_root, post_root)
@@ -868,7 +867,7 @@ pub(crate) fn encode_flow_header_with_v2_roots(
     flow: &ScopeFlow,
     prev_root: SettlementStateRoot,
     post_root: SettlementStateRoot,
-) -> Result<Vec<u8>, RecursiveV2Error> {
+) -> Result<Vec<u8>, CheckpointError> {
     encode_flow_header_fields(flow, *prev_root.as_bytes(), *post_root.as_bytes())
 }
 
@@ -876,21 +875,21 @@ fn encode_flow_header_fields(
     flow: &ScopeFlow,
     prev_root: [u8; 32],
     post_root: [u8; 32],
-) -> Result<Vec<u8>, RecursiveV2Error> {
+) -> Result<Vec<u8>, CheckpointError> {
     let spent_count = u32::try_from(
         flow.items
             .iter()
             .filter(|item| item.op_kind == ScopeOpKind::Delete)
             .count(),
     )
-    .map_err(|_| RecursiveV2Error::Limit)?;
+    .map_err(|_| CheckpointError::Limit)?;
     let output_count = u32::try_from(
         flow.items
             .iter()
             .filter(|item| item.op_kind == ScopeOpKind::Put)
             .count(),
     )
-    .map_err(|_| RecursiveV2Error::Limit)?;
+    .map_err(|_| CheckpointError::Limit)?;
     let mut bytes = Vec::with_capacity(6 * (2 + CANONICAL_HEX32_BYTES) + 12);
     append_string(&mut bytes, &flow.batch_id)?;
     bytes.extend_from_slice(&flow.shard_id.to_le_bytes());
@@ -904,7 +903,7 @@ fn encode_flow_header_fields(
     Ok(bytes)
 }
 
-pub(crate) fn decode_flow_header(bytes: &[u8]) -> Result<CanonicalFlowHeaderV2, RecursiveV2Error> {
+pub(crate) fn decode_flow_header(bytes: &[u8]) -> Result<CanonicalFlowHeaderV2, CheckpointError> {
     let mut cursor = 0;
     let batch_id = take_hex32(bytes, &mut cursor)?;
     let shard_id = take_u32(bytes, &mut cursor)?;
@@ -915,7 +914,7 @@ pub(crate) fn decode_flow_header(bytes: &[u8]) -> Result<CanonicalFlowHeaderV2, 
     let spent_count = take_u32(bytes, &mut cursor)?;
     let output_count = take_u32(bytes, &mut cursor)?;
     if cursor != bytes.len() {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok(CanonicalFlowHeaderV2 {
         batch_id,
@@ -929,7 +928,7 @@ pub(crate) fn decode_flow_header(bytes: &[u8]) -> Result<CanonicalFlowHeaderV2, 
     })
 }
 
-pub(crate) fn encode_flow_item(item: &ScopeFlowItem) -> Result<Vec<u8>, RecursiveV2Error> {
+pub(crate) fn encode_flow_item(item: &ScopeFlowItem) -> Result<Vec<u8>, CheckpointError> {
     let mut bytes = Vec::with_capacity(2 + item.tx_id.len() + 2 * (2 + CANONICAL_HEX32_BYTES) + 10);
     bytes.push(match item.op_kind {
         ScopeOpKind::Put => 1,
@@ -977,13 +976,13 @@ impl TypedCheckpointCommitmentKindV2 {
         Self::CheckpointLinkDigest,
     ];
 
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         match value {
             1 => Ok(Self::DeltaRoot),
             2 => Ok(Self::WitnessRoot),
             3 => Ok(Self::JournalDigest),
             4 => Ok(Self::CheckpointLinkDigest),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 }
@@ -1001,29 +1000,29 @@ pub(crate) fn encode_typed_checkpoint_commitment(
 
 pub(crate) fn decode_typed_checkpoint_commitment(
     bytes: &[u8],
-) -> Result<(TypedCheckpointCommitmentKindV2, [u8; 32]), RecursiveV2Error> {
+) -> Result<(TypedCheckpointCommitmentKindV2, [u8; 32]), CheckpointError> {
     if bytes.len() != TYPED_CHECKPOINT_COMMITMENT_BYTES_V2
         || bytes[0] != TYPED_CHECKPOINT_COMMITMENT_VERSION_V2
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let kind = TypedCheckpointCommitmentKindV2::decode(bytes[1])?;
     let digest = bytes[2..]
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     Ok((kind, digest))
 }
 
-pub(crate) fn decode_flow_item(bytes: &[u8]) -> Result<CanonicalFlowItemV2, RecursiveV2Error> {
+pub(crate) fn decode_flow_item(bytes: &[u8]) -> Result<CanonicalFlowItemV2, CheckpointError> {
     let mut cursor = 0;
     let op_kind = match take_u8(bytes, &mut cursor)? {
         1 => ScopeOpKind::Put,
         2 => ScopeOpKind::Delete,
-        _ => return Err(RecursiveV2Error::Canonical),
+        _ => return Err(CheckpointError::Canonical),
     };
     let tx_id = take_string(bytes, &mut cursor, MAX_TX_ID_BYTES)?;
     if tx_id.is_empty() || !tx_id.iter().all(u8::is_ascii_graphic) {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let definition_id = take_hex32(bytes, &mut cursor)?;
     let serial_id = take_u32(bytes, &mut cursor)?;
@@ -1032,13 +1031,13 @@ pub(crate) fn decode_flow_item(bytes: &[u8]) -> Result<CanonicalFlowItemV2, Recu
     let leaf_kind = match take_u8(bytes, &mut cursor)? {
         1 => ScopeLeafKind::Terminal,
         2 => ScopeLeafKind::Right,
-        _ => return Err(RecursiveV2Error::Canonical),
+        _ => return Err(CheckpointError::Canonical),
     };
     let first_definition = take_bool(bytes, &mut cursor)?;
     let first_serial = take_bool(bytes, &mut cursor)?;
     let first_object = take_bool(bytes, &mut cursor)?;
     if cursor != bytes.len() {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok(CanonicalFlowItemV2 {
         tx_id,
@@ -1054,22 +1053,22 @@ pub(crate) fn decode_flow_item(bytes: &[u8]) -> Result<CanonicalFlowItemV2, Recu
     })
 }
 
-fn append_string(out: &mut Vec<u8>, value: &str) -> Result<(), RecursiveV2Error> {
-    let len = u16::try_from(value.len()).map_err(|_| RecursiveV2Error::Limit)?;
+fn append_string(out: &mut Vec<u8>, value: &str) -> Result<(), CheckpointError> {
+    let len = u16::try_from(value.len()).map_err(|_| CheckpointError::Limit)?;
     out.extend_from_slice(&len.to_le_bytes());
     out.extend_from_slice(value.as_bytes());
     Ok(())
 }
 
-fn append_hex32(out: &mut Vec<u8>, value: [u8; 32]) -> Result<(), RecursiveV2Error> {
+fn append_hex32(out: &mut Vec<u8>, value: [u8; 32]) -> Result<(), CheckpointError> {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut encoded = [0_u8; CANONICAL_HEX32_BYTES];
     for (index, byte) in value.into_iter().enumerate() {
-        let offset = index.checked_mul(2).ok_or(RecursiveV2Error::Overflow)?;
+        let offset = index.checked_mul(2).ok_or(CheckpointError::Overflow)?;
         encoded[offset] = HEX[usize::from(byte >> 4)];
         encoded[offset + 1] = HEX[usize::from(byte & 0x0f)];
     }
-    let value = std::str::from_utf8(&encoded).map_err(|_| RecursiveV2Error::Canonical)?;
+    let value = std::str::from_utf8(&encoded).map_err(|_| CheckpointError::Canonical)?;
     append_string(out, value)
 }
 
@@ -1077,106 +1076,106 @@ fn take_string(
     bytes: &[u8],
     cursor: &mut usize,
     max_len: usize,
-) -> Result<Vec<u8>, RecursiveV2Error> {
+) -> Result<Vec<u8>, CheckpointError> {
     let len = usize::from(take_u16(bytes, cursor)?);
     if len > max_len {
-        return Err(RecursiveV2Error::Limit);
+        return Err(CheckpointError::Limit);
     }
-    let end = cursor.checked_add(len).ok_or(RecursiveV2Error::Overflow)?;
+    let end = cursor.checked_add(len).ok_or(CheckpointError::Overflow)?;
     let value = bytes
         .get(*cursor..end)
-        .ok_or(RecursiveV2Error::Canonical)?
+        .ok_or(CheckpointError::Canonical)?
         .to_vec();
     *cursor = end;
     Ok(value)
 }
 
-fn take_hex32(bytes: &[u8], cursor: &mut usize) -> Result<[u8; 32], RecursiveV2Error> {
+fn take_hex32(bytes: &[u8], cursor: &mut usize) -> Result<[u8; 32], CheckpointError> {
     let value = take_string(bytes, cursor, CANONICAL_HEX32_BYTES)?;
-    let value = std::str::from_utf8(&value).map_err(|_| RecursiveV2Error::Canonical)?;
+    let value = std::str::from_utf8(&value).map_err(|_| CheckpointError::Canonical)?;
     decode_canonical_hex32(value)
 }
 
-pub(crate) fn decode_canonical_hex32(value: &str) -> Result<[u8; 32], RecursiveV2Error> {
+pub(crate) fn decode_canonical_hex32(value: &str) -> Result<[u8; 32], CheckpointError> {
     let bytes = value.as_bytes();
     if bytes.len() != CANONICAL_HEX32_BYTES
         || !bytes
             .iter()
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let mut output = [0_u8; 32];
     for (index, byte) in output.iter_mut().enumerate() {
-        let offset = index.checked_mul(2).ok_or(RecursiveV2Error::Overflow)?;
+        let offset = index.checked_mul(2).ok_or(CheckpointError::Overflow)?;
         *byte = (hex_nibble(bytes[offset])? << 4) | hex_nibble(bytes[offset + 1])?;
     }
     Ok(output)
 }
 
-fn hex_nibble(value: u8) -> Result<u8, RecursiveV2Error> {
+fn hex_nibble(value: u8) -> Result<u8, CheckpointError> {
     match value {
         b'0'..=b'9' => Ok(value - b'0'),
         b'a'..=b'f' => Ok(value - b'a' + 10),
-        _ => Err(RecursiveV2Error::Canonical),
+        _ => Err(CheckpointError::Canonical),
     }
 }
 
-fn take_u8(bytes: &[u8], cursor: &mut usize) -> Result<u8, RecursiveV2Error> {
-    let value = *bytes.get(*cursor).ok_or(RecursiveV2Error::Canonical)?;
-    *cursor = cursor.checked_add(1).ok_or(RecursiveV2Error::Overflow)?;
+fn take_u8(bytes: &[u8], cursor: &mut usize) -> Result<u8, CheckpointError> {
+    let value = *bytes.get(*cursor).ok_or(CheckpointError::Canonical)?;
+    *cursor = cursor.checked_add(1).ok_or(CheckpointError::Overflow)?;
     Ok(value)
 }
 
-fn take_u16(bytes: &[u8], cursor: &mut usize) -> Result<u16, RecursiveV2Error> {
-    let end = cursor.checked_add(2).ok_or(RecursiveV2Error::Overflow)?;
+fn take_u16(bytes: &[u8], cursor: &mut usize) -> Result<u16, CheckpointError> {
+    let end = cursor.checked_add(2).ok_or(CheckpointError::Overflow)?;
     let value = bytes
         .get(*cursor..end)
-        .ok_or(RecursiveV2Error::Canonical)?
+        .ok_or(CheckpointError::Canonical)?
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     *cursor = end;
     Ok(u16::from_le_bytes(value))
 }
 
-fn take_u32(bytes: &[u8], cursor: &mut usize) -> Result<u32, RecursiveV2Error> {
-    let end = cursor.checked_add(4).ok_or(RecursiveV2Error::Overflow)?;
+fn take_u32(bytes: &[u8], cursor: &mut usize) -> Result<u32, CheckpointError> {
+    let end = cursor.checked_add(4).ok_or(CheckpointError::Overflow)?;
     let value = bytes
         .get(*cursor..end)
-        .ok_or(RecursiveV2Error::Canonical)?
+        .ok_or(CheckpointError::Canonical)?
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     *cursor = end;
     Ok(u32::from_le_bytes(value))
 }
 
-fn take_u64(bytes: &[u8], cursor: &mut usize) -> Result<u64, RecursiveV2Error> {
-    let end = cursor.checked_add(8).ok_or(RecursiveV2Error::Overflow)?;
+fn take_u64(bytes: &[u8], cursor: &mut usize) -> Result<u64, CheckpointError> {
+    let end = cursor.checked_add(8).ok_or(CheckpointError::Overflow)?;
     let value = bytes
         .get(*cursor..end)
-        .ok_or(RecursiveV2Error::Canonical)?
+        .ok_or(CheckpointError::Canonical)?
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     *cursor = end;
     Ok(u64::from_le_bytes(value))
 }
 
-fn take_array32(bytes: &[u8], cursor: &mut usize) -> Result<[u8; 32], RecursiveV2Error> {
-    let end = cursor.checked_add(32).ok_or(RecursiveV2Error::Overflow)?;
+fn take_array32(bytes: &[u8], cursor: &mut usize) -> Result<[u8; 32], CheckpointError> {
+    let end = cursor.checked_add(32).ok_or(CheckpointError::Overflow)?;
     let value = bytes
         .get(*cursor..end)
-        .ok_or(RecursiveV2Error::Canonical)?
+        .ok_or(CheckpointError::Canonical)?
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     *cursor = end;
     Ok(value)
 }
 
-fn take_bool(bytes: &[u8], cursor: &mut usize) -> Result<bool, RecursiveV2Error> {
+fn take_bool(bytes: &[u8], cursor: &mut usize) -> Result<bool, CheckpointError> {
     match take_u8(bytes, cursor)? {
         0 => Ok(false),
         1 => Ok(true),
-        _ => Err(RecursiveV2Error::Canonical),
+        _ => Err(CheckpointError::Canonical),
     }
 }
 

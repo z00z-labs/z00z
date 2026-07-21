@@ -9,7 +9,7 @@ use z00z_storage::{
         encode_art_bin, encode_art_json, encode_da_reference_bin, encode_da_reference_json,
         encode_draft_bin, encode_draft_json, encode_exec_bin, encode_exec_json, encode_link_bin,
         encode_link_json, encode_publication_evidence_bin, encode_publication_evidence_json,
-        guard_verified_backend_codec_support, repo_default_path, CheckpointContractConfigV1,
+        guard_verified_backend_codec_support, repo_default_path, CheckpointContractConfigV3,
         CheckpointDaLocatorKind, CheckpointDaProviderFamily, CheckpointDaReferenceV1,
         CheckpointDaReferenceVersion, CheckpointExecInputId, CheckpointId, CheckpointProofSystem,
         CheckpointPublicationEvidenceV1, CheckpointPublicationEvidenceVersion,
@@ -156,7 +156,7 @@ fn test_malformed_transport_rejects() {
 
 #[test]
 fn test_verified_backend_codec_guard_rejects_before_enabled_stage() {
-    let cfg = CheckpointContractConfigV1::load(repo_default_path()).expect("repo config");
+    let cfg = CheckpointContractConfigV3::load(repo_default_path()).expect("repo config");
 
     let err = guard_verified_backend_codec_support(&cfg, CheckpointProofSystem::VERIFIED)
         .expect_err("default config must reject verified backend codec claims");
@@ -166,7 +166,7 @@ fn test_verified_backend_codec_guard_rejects_before_enabled_stage() {
     let mut cfg = cfg;
     cfg.authority_promotion.stage = VERIFIED_BACKEND_CANDIDATE_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages = vec![VERIFIED_BACKEND_ENABLED_STAGE.to_string()];
-    cfg.post_quantum.enforce_live_cadence = true;
+    cfg.post_quantum.is_live_cadence_enforced = true;
 
     let err = guard_verified_backend_codec_support(&cfg, CheckpointProofSystem::VERIFIED)
         .expect_err("candidate stage must reject verified backend codec claims");

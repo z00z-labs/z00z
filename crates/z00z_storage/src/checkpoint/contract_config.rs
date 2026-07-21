@@ -4,7 +4,10 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use z00z_utils::io::load_yaml_bounded;
+use z00z_utils::{
+    codec::{Codec, YamlCodec},
+    io::read_file_bounded,
+};
 
 use crate::CheckpointError;
 
@@ -12,9 +15,15 @@ use super::pq_anchor::{
     PostQuantumCheckpointAnchorModeV1, PostQuantumCheckpointAnchorV1,
     PostQuantumCheckpointAnchorVersion, PostQuantumCheckpointEnforcementStageV1,
 };
+use super::recursive_reject::RecursiveCheckpointRejectReasonV2;
+use super::version_registry::{
+    CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, RegistryOperationV2,
+};
 
 pub const CHECKPOINT_CONTRACT_CONFIG_PATH: &str =
     "crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml";
+pub const CHECKPOINT_CONTRACT_CONFIG_V2_MIGRATION_PATH: &str =
+    "crates/z00z_storage/src/checkpoint/checkpoint_contract_v2_migration.yaml";
 pub const AUTHORITY_PROMOTION_STAGE_SPEC_ONLY: &str = "spec_only";
 pub const AUTHORITY_PROMOTION_STAGE_CONFIG_GATE: &str = "config_gate";
 pub const AUTHORITY_PROMOTION_STAGE_EXTENDED_STATEMENT: &str = "canonical_extended_statement";
@@ -60,7 +69,7 @@ pub const VERIFIED_BACKEND_REQUIRED_BENCHMARKS: [&str; 5] = [
     "memory",
     "witness_size",
 ];
-const CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES: u64 = 256 * 1024;
+pub(super) const CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES: u64 = 256 * 1024;
 const CHECKPOINT_CONTRACT_MAX_OBJECT_BYTES: usize = 256 * 1024 * 1024;
 
 const fn is_false(value: &bool) -> bool {
@@ -69,7 +78,7 @@ const fn is_false(value: &bool) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct CheckpointContractConfigV1 {
+pub struct CheckpointContractConfigV2 {
     pub version: u32,
     pub profile: String,
     pub architecture_mode: String,
@@ -397,10 +406,13 @@ pub struct CheckpointResolvedPaths {
     pub prep_snapshots: PathBuf,
     pub delta_journals: PathBuf,
     pub witness_archives: PathBuf,
+    pub recursive_sidecars: PathBuf,
     pub nova_block_proofs: PathBuf,
     pub pq_checkpoints: PathBuf,
     pub plonky3_epoch_proofs: PathBuf,
     pub epoch_manifests: PathBuf,
+    pub epoch_close_anchors: PathBuf,
+    pub epoch_evidence_anchors: PathBuf,
     pub archive_manifests: PathBuf,
     pub da_references: PathBuf,
     pub publication_evidence: PathBuf,
@@ -408,6 +420,11 @@ pub struct CheckpointResolvedPaths {
     pub state_snapshots: PathBuf,
     pub retrieval_audits: PathBuf,
     pub archive_receipts: PathBuf,
+    pub challenge_packs: PathBuf,
+    pub retention_tickets: PathBuf,
+    pub retention_ledger: PathBuf,
+    pub history_proofs: PathBuf,
+    pub history_rotation_bridges: PathBuf,
     pub da_exports: PathBuf,
     pub documentation_packets: PathBuf,
 }
@@ -451,42 +468,31 @@ pub fn repo_default_path() -> PathBuf {
         .join(CHECKPOINT_CONTRACT_CONFIG_PATH)
 }
 
-impl CheckpointContractConfigV1 {
+impl CheckpointContractConfigV2 {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, CheckpointError> {
-        let cfg: Self = load_yaml_bounded(path.as_ref(), CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES)
-            .map_err(|err| CheckpointError::ContractConfig(err.to_string()))?;
+        let bytes = read_file_bounded(path.as_ref(), CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES)
+            .map_err(|error| CheckpointError::ContractConfig(error.to_string()))?;
+        CheckpointVersionRegistryV2::authority_pinned()?.decode_config_schema(
+            RecursiveBoundedObjectV2::CheckpointContractConfigV2,
+            &bytes,
+            RegistryOperationV2::Read,
+            Self::decode_schema_bytes,
+        )
+    }
+
+    fn decode_schema_bytes(bytes: &[u8]) -> Result<Self, CheckpointError> {
+        let cfg: Self = YamlCodec
+            .deserialize(bytes)
+            .map_err(|error| CheckpointError::ContractConfig(error.to_string()))?;
         cfg.validate()?;
         Ok(cfg)
     }
 
     pub fn load_repo_default() -> Result<Self, CheckpointError> {
-        Self::load(repo_default_path())
-    }
-
-    #[must_use]
-    pub fn resolve_paths(&self, root: impl Into<PathBuf>) -> CheckpointResolvedPaths {
-        let root = root.into();
-        CheckpointResolvedPaths {
-            checkpoint_artifacts: root.join(&self.paths.checkpoint_artifacts),
-            checkpoint_links: root.join(&self.paths.checkpoint_links),
-            exec_inputs: root.join(&self.paths.exec_inputs),
-            prep_snapshots: root.join(&self.paths.prep_snapshots),
-            delta_journals: root.join(&self.paths.delta_journals),
-            witness_archives: root.join(&self.paths.witness_archives),
-            nova_block_proofs: root.join(&self.paths.nova_block_proofs),
-            pq_checkpoints: root.join(&self.paths.pq_checkpoints),
-            plonky3_epoch_proofs: root.join(&self.paths.plonky3_epoch_proofs),
-            epoch_manifests: root.join(&self.paths.epoch_manifests),
-            archive_manifests: root.join(&self.paths.archive_manifests),
-            da_references: root.join(&self.paths.da_references),
-            publication_evidence: root.join(&self.paths.publication_evidence),
-            checkpoint_lifecycles: root.join(&self.paths.checkpoint_lifecycles),
-            state_snapshots: root.join(&self.paths.state_snapshots),
-            retrieval_audits: root.join(&self.paths.retrieval_audits),
-            archive_receipts: root.join(&self.paths.archive_receipts),
-            da_exports: root.join(&self.paths.da_exports),
-            documentation_packets: root.join(&self.paths.documentation_packets),
-        }
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(CHECKPOINT_CONTRACT_CONFIG_V2_MIGRATION_PATH);
+        Self::load(path)
     }
 
     pub fn validate(&self) -> Result<(), CheckpointError> {
@@ -763,7 +769,9 @@ impl CheckpointContractConfigV1 {
         }
         require_false("branches.nova.is_authoritative", nova.is_authoritative)?;
         if nova.is_pq_authoritative {
-            return Err(CheckpointError::NovaPqAuthorityUnsupported);
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::NovaPqAuthorityUnsupported,
+            ));
         }
         require_eq(
             "branches.nova.mode",
@@ -1604,77 +1612,60 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{
-        repo_default_path, CheckpointContractConfigV1, POST_QUANTUM_ENFORCEMENT_STAGE,
-        POST_QUANTUM_MODE, VERIFIED_BACKEND_CANDIDATE_STAGE, VERIFIED_BACKEND_PROOF_OBJECT,
-        VERIFIED_BACKEND_STATEMENT_STABILITY,
+        repo_default_path, POST_QUANTUM_ENFORCEMENT_STAGE, VERIFIED_BACKEND_CANDIDATE_STAGE,
     };
-    use crate::CheckpointError;
+    use crate::{checkpoint::CheckpointContractConfigV3, CheckpointError};
 
-    fn cfg() -> CheckpointContractConfigV1 {
-        CheckpointContractConfigV1::load(repo_default_path()).expect("repo checkpoint contract")
+    fn cfg() -> CheckpointContractConfigV3 {
+        CheckpointContractConfigV3::load(repo_default_path()).expect("repo checkpoint contract")
     }
 
     #[test]
     fn test_repo_contract_loads() {
         let cfg = cfg();
 
-        assert_eq!(cfg.version, 2);
+        assert_eq!(cfg.version, 3);
         assert!(cfg.branches.recursive.is_enabled);
         assert!(!cfg.branches.recursive.is_authoritative);
-        assert_eq!(
-            cfg.branches.recursive.proof_system,
-            "nova_streaming_compressed_v2"
-        );
-        assert!(cfg.branches.recursive.no_op.is_enabled);
-        assert_eq!(cfg.branches.recursive.no_op.execution_input_version, 2);
-        assert_eq!(
-            cfg.branches.recursive.no_op.mode,
-            "explicit_empty_handoff_v2"
-        );
+        assert_eq!(cfg.branches.recursive.proof_system, "recursive_hybrid_v2");
+        assert_eq!(cfg.branches.recursive.mode, "hybrid_nova_plonky3");
         assert!(cfg.branches.nova.is_enabled);
         assert_eq!(
             cfg.branches.nova.proof_system,
             "nova_streaming_compressed_v2"
         );
-        assert!(!cfg.branches.nova.is_pq_authoritative);
+        assert_eq!(cfg.branches.nova.security_role, "classical_only");
         assert_eq!(cfg.branches.nova.fold_cadence_blocks, 1);
-        assert_eq!(
-            cfg.branches.nova.compressed_proof_snapshot_cadence_blocks,
-            1
-        );
-        assert!(cfg.branches.nova.is_available);
-        assert!(cfg.branches.nova.selected);
+        assert_eq!(cfg.branches.nova.recovery_snapshot_cadence_blocks, 100);
+        assert_eq!(cfg.branches.nova.compression_cadence_blocks, 1_000);
+        assert_eq!(cfg.branches.nova.publication_cadence_blocks, 1_000);
+        assert_eq!(cfg.branches.nova.hot_recovery_snapshot_count, 2);
+        assert_eq!(cfg.branches.nova.max_pending_pq_epochs, 8);
         assert_eq!(
             cfg.branches.plonky3_epoch.proof_system,
             "plonky3_stark_epoch_v2"
         );
-        assert!(!cfg.branches.plonky3_epoch.is_enabled);
-        assert!(!cfg.branches.plonky3_epoch.is_pq_authoritative);
-        assert!(cfg.branches.plonky3_epoch.provides_pq_epoch_evidence);
-        assert_eq!(cfg.branches.plonky3_epoch.mode, "pq_epoch_evidence");
+        assert!(cfg.branches.plonky3_epoch.is_enabled);
+        assert!(cfg.branches.plonky3_epoch.has_pq_epoch_evidence);
+        assert_eq!(cfg.branches.plonky3_epoch.mode, "pq_epoch_evidence_async");
         assert_eq!(cfg.post_quantum.cadence_blocks, 1000);
-        assert_eq!(cfg.post_quantum.mode, POST_QUANTUM_MODE);
-        assert!(cfg.archive_retention.celestia_is_da_only);
-        assert_eq!(cfg.archive_retention.min_archive_replicas, 3);
-        assert!(cfg.archive_retention.ipfs_pinning_required);
+        assert_eq!(
+            cfg.post_quantum.mode,
+            super::super::contract_config_v3::CONFIG_V3_PQ_MODE
+        );
+        assert!(cfg.archive_retention.is_celestia_da_only);
+        assert_eq!(cfg.archive_retention.reconstruction_threshold, 10);
+        assert!(cfg.archive_retention.has_ipfs_pinning);
         assert_eq!(cfg.snapshots.object_type, "state_snapshot_v1");
         assert_eq!(cfg.snapshots.cadence_blocks, 10_000);
-        assert!(!cfg.pruning.archive_node_pruning_allowed);
-        assert_eq!(
-            cfg.verified_backend.proof_object,
-            VERIFIED_BACKEND_PROOF_OBJECT
-        );
-        assert_eq!(
-            cfg.verified_backend.statement_stability,
-            VERIFIED_BACKEND_STATEMENT_STABILITY
-        );
+        assert!(!cfg.pruning.is_legacy_pruning_allowed);
     }
 
     #[test]
     fn test_default_uses_repo_anchor() {
-        let anchored = CheckpointContractConfigV1::load(repo_default_path())
+        let anchored = CheckpointContractConfigV3::load(repo_default_path())
             .expect("repo checkpoint contract via anchored path");
-        let default = CheckpointContractConfigV1::load_repo_default()
+        let default = CheckpointContractConfigV3::load_repo_default()
             .expect("repo checkpoint contract via default helper");
 
         assert_eq!(default, anchored);
@@ -1701,49 +1692,36 @@ mod tests {
     }
 
     #[test]
-    fn test_recursive_noop_contract_rejects_drift() {
-        let mut disabled = cfg();
-        disabled.branches.recursive.no_op.is_enabled = false;
+    fn test_recursive_contract_rejects_profile_drift() {
+        let mut mode_drift = cfg();
+        mode_drift.branches.recursive.mode = "streaming_transition_v2".to_string();
         assert!(matches!(
-            disabled.validate(),
+            mode_drift.validate(),
             Err(CheckpointError::ContractConfig(_))
         ));
 
-        let mut version_drift = cfg();
-        version_drift
-            .branches
-            .recursive
-            .no_op
-            .execution_input_version = 3;
+        let mut proof_drift = cfg();
+        proof_drift.branches.recursive.proof_system = "nova_streaming_compressed_v2".to_string();
         assert!(matches!(
-            version_drift.validate(),
-            Err(CheckpointError::ContractConfig(_))
-        ));
-
-        let mut root_drift = cfg();
-        root_drift
-            .branches
-            .recursive
-            .no_op
-            .preserves_settlement_root = false;
-        assert!(matches!(
-            root_drift.validate(),
+            proof_drift.validate(),
             Err(CheckpointError::ContractConfig(_))
         ));
     }
 
     #[test]
-    fn test_nova_pq_authority_rejects() {
+    fn test_nova_nonclassical_security_role_rejects() {
         let mut cfg = cfg();
-        cfg.branches.nova.is_pq_authoritative = true;
+        cfg.branches.nova.security_role = "pq_authoritative".to_string();
 
-        let err = cfg.validate().expect_err("nova pq authority must reject");
+        let err = cfg
+            .validate()
+            .expect_err("Nova non-classical security role must reject");
 
-        assert!(matches!(err, CheckpointError::NovaPqAuthorityUnsupported));
+        assert!(matches!(err, CheckpointError::ContractConfig(_)));
     }
 
     #[test]
-    fn test_live_recursive_config_rejects_disabled_or_unselected_nova() {
+    fn test_live_recursive_config_rejects_disabled_nova() {
         let mut invalid_cfg = cfg();
         invalid_cfg.branches.recursive.is_enabled = false;
         assert!(matches!(
@@ -1753,13 +1731,6 @@ mod tests {
 
         let mut invalid_cfg = cfg();
         invalid_cfg.branches.nova.is_enabled = false;
-        assert!(matches!(
-            invalid_cfg.validate(),
-            Err(CheckpointError::ContractConfig(_))
-        ));
-
-        let mut invalid_cfg = cfg();
-        invalid_cfg.branches.nova.selected = false;
         assert!(matches!(
             invalid_cfg.validate(),
             Err(CheckpointError::ContractConfig(_))
@@ -1776,15 +1747,22 @@ mod tests {
                 Err(CheckpointError::ContractConfig(_))
             ));
         }
-        let mut invalid_cfg = cfg();
-        invalid_cfg
-            .branches
-            .nova
-            .compressed_proof_snapshot_cadence_blocks = 0;
-        assert!(matches!(
-            invalid_cfg.validate(),
-            Err(CheckpointError::ContractConfig(_))
-        ));
+        for field in ["recovery", "compression", "publication"] {
+            let mut invalid_cfg = cfg();
+            match field {
+                "recovery" => invalid_cfg.branches.nova.recovery_snapshot_cadence_blocks = 0,
+                "compression" => invalid_cfg.branches.nova.compression_cadence_blocks = 0,
+                "publication" => invalid_cfg.branches.nova.publication_cadence_blocks = 0,
+                _ => unreachable!("fixed cadence field corpus"),
+            }
+            assert!(
+                matches!(
+                    invalid_cfg.validate(),
+                    Err(CheckpointError::ContractConfig(_))
+                ),
+                "zero {field} cadence must reject"
+            );
+        }
         let mut invalid_cfg = cfg();
         invalid_cfg.snapshots.cadence_blocks = 0;
         assert!(matches!(
@@ -1808,7 +1786,7 @@ mod tests {
     #[test]
     fn test_plonky3_nova_rejects() {
         let mut cfg = cfg();
-        cfg.branches.plonky3_epoch.must_not_depend_only_on_nova = false;
+        cfg.branches.plonky3_epoch.has_independent_transition_proof = false;
 
         let err = cfg
             .validate()
@@ -1832,7 +1810,7 @@ mod tests {
     #[test]
     fn test_celestia_archive_claim() {
         let mut cfg = cfg();
-        cfg.archive_retention.celestia_is_da_only = false;
+        cfg.archive_retention.is_celestia_da_only = false;
 
         let err = cfg.validate().expect_err("celestia must remain DA-only");
 
@@ -1842,7 +1820,7 @@ mod tests {
     #[test]
     fn test_archive_replicas_reject() {
         let mut cfg = cfg();
-        cfg.archive_retention.min_archive_replicas = 2;
+        cfg.archive_retention.reconstruction_threshold = 9;
 
         let err = cfg
             .validate()
@@ -1854,7 +1832,7 @@ mod tests {
     #[test]
     fn test_ipfs_without_pinning_rejects() {
         let mut cfg = cfg();
-        cfg.archive_retention.ipfs_pinning_required = false;
+        cfg.archive_retention.has_ipfs_pinning = false;
 
         let err = cfg.validate().expect_err("ipfs pinning must reject");
 
@@ -1864,7 +1842,7 @@ mod tests {
     #[test]
     fn test_snapshot_plonky3_missing() {
         let mut cfg = cfg();
-        cfg.snapshots.must_bind_last_plonky3_epoch_proof = false;
+        cfg.snapshots.has_epoch_proof_bind = false;
 
         let err = cfg
             .validate()
@@ -1876,7 +1854,7 @@ mod tests {
     #[test]
     fn test_archive_node_pruning_rejects() {
         let mut cfg = cfg();
-        cfg.pruning.archive_node_pruning_allowed = true;
+        cfg.pruning.is_legacy_pruning_allowed = true;
 
         let err = cfg
             .validate()
@@ -1900,7 +1878,7 @@ mod tests {
     #[test]
     fn test_early_pq_cadence() {
         let mut cfg = cfg();
-        cfg.post_quantum.enforce_live_cadence = true;
+        cfg.post_quantum.is_live_cadence_enforced = true;
 
         let err = cfg.validate().expect_err("early live cadence must reject");
 
@@ -1933,7 +1911,7 @@ mod tests {
     #[test]
     fn test_path_collision_rejects() {
         let mut cfg = cfg();
-        cfg.paths.pq_checkpoints = cfg.paths.nova_block_proofs.clone();
+        cfg.paths.history_proofs = cfg.paths.recursive_sidecars.clone();
 
         let err = cfg.validate().expect_err("colliding path must reject");
 
@@ -1941,9 +1919,19 @@ mod tests {
     }
 
     #[test]
+    fn test_extended_path_traversal_rejects() {
+        let mut cfg = cfg();
+        cfg.paths.retention_ledger = PathBuf::from("../retention_ledger");
+
+        let err = cfg.validate().expect_err("traversing path must reject");
+
+        assert!(matches!(err, CheckpointError::ContractConfig(_)));
+    }
+
+    #[test]
     fn test_documentation_gate_rejects() {
         let mut cfg = cfg();
-        cfg.documentation.include_rejected_claim_register = false;
+        cfg.documentation.has_rejected_claim_register = false;
 
         let err = cfg.validate().expect_err("missing docs gate must reject");
 

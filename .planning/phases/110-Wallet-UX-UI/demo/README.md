@@ -25,25 +25,27 @@ Optional visual smoke test (with the development server above still running):
 ## 🧪 Suggested walkthrough
 
 1. Resize between desktop and a 390 px mobile viewport.
-2. Use Pay, Receive, asset Claim, and Give permission from Home.
-3. Confirm that submitted payments, claim outputs, voucher redemption, and permission delegation show honest non-final states.
-4. Use **Lock wallet**, confirm the application shell is hidden, then unlock; the password field and visible sensitive presentation state must be cleared on lock.
-5. Open Wallet and compare Assets, Vouchers, and Permissions in the context rail; conditional and zero-value objects never appear in Available.
-6. Verify that Claim and Voucher are separate flows: Claim reviews source proof/recipient/output/nullifier, while Voucher uses accept/redeem lifecycle actions.
-7. In Settings → Network, compare Overview, Reticulum, OnionNet, and Carriers. Click Network again to collapse the branch, then reopen it; leaf entries have no disclosure mark. The detailed status is explicitly a Phase 080 target simulation because the current RPC is stubbed.
-8. Inspect Settings → Policies and the restriction-layer / “Why blocked?” model.
-9. Inspect Settings → Advanced for the target UI ↔ YAML synchronization, revision, validation, and last-known-good contract.
-10. Inspect Settings on desktop and narrow widths: the page heading, context tree, and detail card now use one aligned layout; the Network branch opens only when selected.
-11. Switch System/Dark/Light appearance and inspect accent safeguards.
-12. Filter Activity and open technical details.
-13. Lock the wallet, then unlock with any four or more characters.
-14. Open the wallet switcher to walk through Create and Recover. The recovery helper inserts 24 demonstration words that are never a real seed.
+2. Use Send, Receive, asset Claim, and Give permission from Home.
+3. Confirm that submitted sends, claim outputs, voucher redemption, and permission delegation show honest non-final states.
+4. Select Everyday, Savings, and Travel in the desktop wallet navigation. Confirm that Assets, History, Swap, Exchange, Staking, Backup, Settings, and the bottom status bar reflect only the selected wallet. Hover the copy control beside the address to reveal the full selected-wallet ID.
+5. Use **Log out**, confirm the application shell is hidden, then unlock; the password field and visible sensitive presentation state must be cleared on lock.
+6. Open Assets and compare Assets, Vouchers, and Permissions in the context rail; conditional and zero-value objects never appear in Available.
+7. Verify that Claim and Voucher are separate flows: Claim reviews source proof/recipient/output/nullifier, while Voucher uses accept/redeem lifecycle actions.
+8. In Settings → Network, compare Overview, Reticulum, OnionNet, and Carriers. Click Network again to collapse the branch, then reopen it; leaf entries have no disclosure mark. The detailed status is explicitly a Phase 080 target simulation because the current RPC is stubbed.
+9. Inspect Settings → Policies and the restriction-layer / “Why blocked?” model.
+10. Inspect Settings → Advanced for the local concept YAML/Form/Mapping draft. It validates and updates only demo state; production configuration write/watch/revision remains unavailable and is explicitly labelled.
+11. Inspect Settings on desktop and narrow widths: the page heading, context tree, and detail card now use one aligned layout; the Network branch opens only when selected.
+12. Switch System/Dark/Light and choose Z00Z Default, Black & Gold, Deep Blue Sea, Golden Twilight, or Midnight Sky. Palette changes update semantic tokens while safety colours remain protected.
+13. Filter the selected wallet's History and open technical details.
+14. Use **Add wallet** to create, open, or restore a profile, or choose **Cancel** to return to the selected wallet. **Remove wallet** confirms before removing one or more selected concept profiles; removing all profiles returns to **Add wallet**. Created and restored wallets become cards in a three-card scrollable left placeholder; Add/Remove follow the cards in that same scroll area and sit at its lower edge for a short or empty list. Remove becomes disabled when the list is empty. The recovery helper inserts 24 demonstration words that are never a real seed.
+15. Open Assets and select an asset name to inspect its asset-details fields; the table shows Name, Balance, Value, and Price for each asset.
+16. Open a selected wallet's Settings. Confirm that General, Security, Backup, Policies, and Advanced are scoped to that wallet. Sensitive actions require a fresh password and their typed confirmation; secret/private material is never rendered or placed in YAML.
 
 ## 🧱 Constraints
 
 - No production cryptography or RPC calls.
-- No external scripts, fonts, styles, images, or CDN dependencies.
+- The prototype loads Geist and Geist Mono from Google Fonts solely for visual review; the Z00Z wordmark uses Geist variable weight 780, matching the public docs header. Production packages the same font files locally and makes no remote font request.
 - Inline SVG symbols provide icons.
 - CSS tokens are intended to seed the Leptos production design system.
-- Claim intake RPC, network detail, compliance-profile loading, and YAML write/watch controls are simulated target capabilities, not claims about the live backend.
+- Claim intake RPC, network detail, compliance-profile loading, and runtime YAML write/watch controls are simulated target capabilities, not claims about the live backend. Selected-wallet settings stay concept-local until a revisioned settings bridge exists; advanced settings can apply a safe YAML draft only to the in-browser concept state.
 - The demo is a development-only visual reference. Production is the packaged standalone Tauri application with local-only IPC; it has no browser, container, or wallet HTTP/WebSocket profile and does not connect the demo to a wallet backend.

@@ -62,6 +62,37 @@ pub fn path_exists(path: impl AsRef<Path>) -> Result<bool, IoError> {
     }
 }
 
+/// Check whether a path entry exists without following symbolic links.
+pub fn path_exists_no_follow(path: impl AsRef<Path>) -> Result<bool, IoError> {
+    let path = path.as_ref();
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Read metadata for a path entry without following symbolic links.
+pub fn symlink_metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, IoError> {
+    Ok(std::fs::symlink_metadata(path)?)
+}
+
+/// Flush a directory entry set to stable storage.
+pub fn sync_directory(path: impl AsRef<Path>) -> Result<(), IoError> {
+    std::fs::File::open(path)?.sync_all()?;
+    Ok(())
+}
+
+/// Open a filesystem lock file without truncating existing bytes.
+pub fn open_lock_file(path: impl AsRef<Path>) -> Result<std::fs::File, IoError> {
+    Ok(std::fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(path)?)
+}
+
 /// Create a directory path recursively.
 pub fn create_dir_all(path: impl AsRef<Path>) -> Result<(), IoError> {
     let path = path.as_ref();
@@ -84,6 +115,21 @@ pub fn set_permissions_mode(path: impl AsRef<Path>, mode: u32) -> Result<(), IoE
         let _ = mode;
         Ok(())
     }
+}
+
+/// Apply a numeric Unix mode to an open file, or no-op outside Unix.
+pub fn set_file_mode(file: &std::fs::File, mode: u32) -> Result<(), IoError> {
+    #[cfg(unix)]
+    {
+        file.set_permissions(std::fs::Permissions::from_mode(mode))?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = file;
+        let _ = mode;
+    }
+    Ok(())
 }
 
 /// Read directory entries into a deterministically sorted path list.

@@ -456,42 +456,27 @@ fn is_hex_digest(raw: &str) -> bool {
 }
 
 fn load_claim_registry() -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
-    let raw = fs::read_to_string(claim_registry_path())?;
-    let mut in_table = false;
+    let raw = include_str!("fixtures/scenario11_claim_registry.tsv");
     let mut rows = BTreeMap::new();
-    for line in raw.lines() {
-        if line.starts_with("| term | code owner | artifact/API |") {
-            in_table = true;
+    for (line_index, line) in raw.lines().enumerate() {
+        if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if !in_table {
-            continue;
+        let (term, claim_level) = line.split_once('\t').ok_or_else(|| {
+            format!(
+                "claim registry row {} must contain one tab: {line}",
+                line_index + 1
+            )
+        })?;
+        if term.is_empty() || claim_level.is_empty() || claim_level.contains('\t') {
+            return Err(format!("invalid claim registry row {}: {line}", line_index + 1).into());
         }
-        if line.starts_with("| ---") {
-            continue;
-        }
-        if !line.starts_with('|') {
-            break;
-        }
-        let parts = line
-            .trim_matches('|')
-            .split('|')
-            .map(|part| part.trim().to_string())
-            .collect::<Vec<_>>();
-        if parts.len() != 8 {
-            return Err(format!("claim registry row must have 8 columns: {line}").into());
-        }
-        let prior = rows.insert(parts[0].clone(), parts[5].clone());
+        let prior = rows.insert(term.to_string(), claim_level.to_string());
         if prior.is_some() {
-            return Err(format!("duplicate claim registry term: {}", parts[0]).into());
+            return Err(format!("duplicate claim registry term: {term}").into());
         }
     }
     Ok(rows)
-}
-
-fn claim_registry_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../.planning/phases/000/067-Sharded-Concensus/067-GLOSSARY-CLAIMS.md")
 }
 
 struct Scenario11OutputRoot {

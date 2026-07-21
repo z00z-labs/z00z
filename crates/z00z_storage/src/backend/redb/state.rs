@@ -42,6 +42,7 @@ pub(crate) struct RecursiveV2CutoverManifestV2 {
     pub(crate) layout: u32,
     pub(crate) authority_generation: u64,
     pub(crate) noop_execution_input_version: u8,
+    pub(crate) epoch_cadence_blocks: u64,
     pub(crate) snapshot_id: [u8; 32],
     pub(crate) snapshot_digest: [u8; 32],
     pub(crate) snapshot_storage_generation: u64,
@@ -67,6 +68,7 @@ impl RecursiveV2CutoverManifestV2 {
             || self.layout == 0
             || self.authority_generation == 0
             || self.noop_execution_input_version == 0
+            || self.epoch_cadence_blocks == 0
             || self.height == 0
             || self.atomic_install_generation == 0
             || self.snapshot_storage_generation != self.storage_generation
@@ -82,6 +84,7 @@ impl RecursiveV2CutoverManifestV2 {
         let authority_generation = self.authority_generation.to_le_bytes();
         let layout = self.layout.to_le_bytes();
         let noop_execution_input_version = [self.noop_execution_input_version];
+        let epoch_cadence_blocks = self.epoch_cadence_blocks.to_le_bytes();
         let expected_authority = sha256_256_role(
             CheckpointShaRole::UniquenessContext,
             &[
@@ -91,6 +94,7 @@ impl RecursiveV2CutoverManifestV2 {
                 &layout,
                 &authority_generation,
                 &noop_execution_input_version,
+                &epoch_cadence_blocks,
             ],
         );
         let storage_generation = self.storage_generation.to_le_bytes();
@@ -169,6 +173,7 @@ mod recursive_v2_cutover_tests {
         let layout = 7_u32;
         let authority_generation = 1_u64;
         let noop_execution_input_version = 2_u8;
+        let epoch_cadence_blocks = 1_000_u64;
         let authority_digest = sha256_256_role(
             CheckpointShaRole::UniquenessContext,
             &[
@@ -178,6 +183,7 @@ mod recursive_v2_cutover_tests {
                 &layout.to_le_bytes(),
                 &authority_generation.to_le_bytes(),
                 &[noop_execution_input_version],
+                &epoch_cadence_blocks.to_le_bytes(),
             ],
         );
         let snapshot_id = [4; 32];
@@ -240,6 +246,7 @@ mod recursive_v2_cutover_tests {
             layout,
             authority_generation,
             noop_execution_input_version,
+            epoch_cadence_blocks,
             snapshot_id,
             snapshot_digest,
             snapshot_storage_generation: storage_generation,
@@ -263,8 +270,9 @@ mod recursive_v2_cutover_tests {
         let valid = manifest();
         assert!(valid.validate().is_ok());
 
-        let mutations: [fn(&mut RecursiveV2CutoverManifestV2); 5] = [
+        let mutations: [fn(&mut RecursiveV2CutoverManifestV2); 6] = [
             |manifest: &mut RecursiveV2CutoverManifestV2| manifest.authority_digest[0] ^= 1,
+            |manifest: &mut RecursiveV2CutoverManifestV2| manifest.epoch_cadence_blocks += 1,
             |manifest: &mut RecursiveV2CutoverManifestV2| manifest.snapshot_digest[0] ^= 1,
             |manifest: &mut RecursiveV2CutoverManifestV2| {
                 manifest.pinned_opaque_record_digest[0] ^= 1

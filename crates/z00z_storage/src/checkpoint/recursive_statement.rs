@@ -6,7 +6,7 @@
 //! for the individual authority, snapshot, root, grammar, trace, and JMT
 //! bindings.
 
-use z00z_crypto::{sha256_256_role, CheckpointShaRole};
+use z00z_crypto::{sha256_256, sha256_256_role, CheckpointShaRole};
 
 use crate::{
     checkpoint::CheckpointId,
@@ -14,14 +14,16 @@ use crate::{
         derive_settlement_root_v2, RootGeneration, SettlementStateRoot,
         SettlementUpdateTraceEnvelopeV2,
     },
+    CheckpointError,
 };
 
 use super::{
     recursive_circuit::{RecursiveCircuitProfileV2, RecursiveCircuitSpecV2},
     recursive_context::{
-        RecursiveAuthorityContextV2, RecursiveCheckpointBindingV2, RecursiveSnapshotHandleV2,
+        RecursiveAuthorityContextV2, RecursiveCheckpointBindingV2, RecursiveCheckpointContextV2,
+        RecursiveSnapshotHandleV2,
     },
-    recursive_reject::RecursiveV2Error,
+    recursive_reject::RecursiveCheckpointRejectReasonV2,
     recursive_trace::{RecursiveTraceOpcodeV2, RecursiveTracePrecommitV2},
 };
 
@@ -60,18 +62,18 @@ impl RecursiveDeclaredWorkV2 {
         jmt_update_count: u64,
         hash_block_count: u64,
         event_count: u64,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if row_count
             != input_count
                 .checked_add(output_count)
-                .ok_or(RecursiveV2Error::Overflow)?
+                .ok_or(CheckpointError::Overflow)?
             || net_effect_count > row_count
             || net_mutation_count > net_effect_count
             || (row_count != 0 && net_effect_count == 0)
             || hash_block_count != event_counts.count(RecursiveTraceOpcodeV2::ShaBlock)
             || event_count != event_counts.total_count()?
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let digest = declared_work_digest(
             event_counts,
@@ -151,9 +153,9 @@ impl RecursiveVerifierAuthorityV2 {
     pub(crate) fn new(
         predicate_digest: [u8; 32],
         verifier_bundle_digest: [u8; 32],
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if predicate_digest == [0; 32] || verifier_bundle_digest == [0; 32] {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         Ok(Self {
             predicate_digest,
@@ -161,19 +163,19 @@ impl RecursiveVerifierAuthorityV2 {
         })
     }
 
-    /// Repository-local fixture binding. It is not a production verifier
-    /// bundle and cannot authorize deployment; the configured-live owner must
-    /// instead construct this type from a loaded, validated bundle.
-    pub(crate) fn repository_fixture(
+    /// Transition-only binding used before a validated verifier bundle is
+    /// available. Public evidence production replaces it with bundle authority
+    /// before any proof envelope or receipt can be emitted.
+    pub(crate) fn transition_only_binding(
         authority: RecursiveAuthorityContextV2,
         profile: &RecursiveCircuitProfileV2,
         spec: &RecursiveCircuitSpecV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let predicate_digest = super::nova::executable_predicate_digest()?;
         let verifier_bundle_digest = sha256_256_role(
             CheckpointShaRole::Statement,
             &[
-                b"z00z.recursive.v2.repository-fixture-verifier-authority",
+                b"z00z.recursive.v2.transition-only-verifier-binding",
                 &authority.digest(),
                 &profile.digest(),
                 &spec.digest(),
@@ -206,6 +208,7 @@ pub(crate) struct RecursivePreUniquenessContextV2 {
     layout: u32,
     authority_generation: u64,
     noop_execution_input_version: u8,
+    epoch_cadence_blocks: u64,
     old_settlement_root: [u8; 32],
     old_definition_root: [u8; 32],
     tx_data_root: [u8; 32],
@@ -224,7 +227,7 @@ impl RecursivePreUniquenessContextV2 {
     pub(crate) fn repository_trace_fixture(
         snapshot: RecursiveSnapshotHandleV2,
         profile: &RecursiveCircuitProfileV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let work = RecursiveDeclaredWorkV2::new(
             super::recursive_trace::RecursiveTraceEventCountsV2::default(),
             0,
@@ -246,6 +249,7 @@ impl RecursivePreUniquenessContextV2 {
             7,
             1,
             1,
+            1_000,
             *snapshot.root().as_bytes(),
             snapshot.pre_definition_root(),
             [2; 32],
@@ -267,15 +271,15 @@ impl RecursivePreUniquenessContextV2 {
         verifier: RecursiveVerifierAuthorityV2,
         declared_work: RecursiveDeclaredWorkV2,
         update_trace_digest: [u8; 32],
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let predecessor_height = checkpoint
             .height()
             .checked_sub(1)
-            .ok_or(RecursiveV2Error::Invariant)?;
+            .ok_or(CheckpointError::Invariant)?;
         if checkpoint.predecessor().is_some() != (predecessor_height != 0)
             || checkpoint.pre_settlement_root() != snapshot.root()
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         let spec = RecursiveCircuitSpecV2::new(authority.layout(), profile)?;
         Self::from_parts(
@@ -288,6 +292,7 @@ impl RecursivePreUniquenessContextV2 {
             authority.layout(),
             authority.authority_generation(),
             authority.noop_execution_input_version(),
+            authority.epoch_cadence_blocks(),
             *snapshot.root().as_bytes(),
             snapshot.pre_definition_root(),
             checkpoint.exec_tx_root(),
@@ -312,6 +317,7 @@ impl RecursivePreUniquenessContextV2 {
         layout: u32,
         authority_generation: u64,
         noop_execution_input_version: u8,
+        epoch_cadence_blocks: u64,
         old_settlement_root: [u8; 32],
         old_definition_root: [u8; 32],
         tx_data_root: [u8; 32],
@@ -322,12 +328,13 @@ impl RecursivePreUniquenessContextV2 {
         trace_grammar_digest: [u8; 32],
         verifier_bundle_digest: [u8; 32],
         declared_work: RecursiveDeclaredWorkV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if height == 0
             || predecessor_height.checked_add(1) != Some(height)
             || layout == 0
             || authority_generation == 0
             || noop_execution_input_version == 0
+            || epoch_cadence_blocks == 0
             || [
                 chain_context,
                 config_digest,
@@ -346,7 +353,7 @@ impl RecursivePreUniquenessContextV2 {
             ]
             .contains(&[0; 32])
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let version = [PRE_UNIQUENESS_CONTEXT_VERSION_V2];
         let digest = sha256_256_role(
@@ -362,6 +369,7 @@ impl RecursivePreUniquenessContextV2 {
                 &layout.to_le_bytes(),
                 &authority_generation.to_le_bytes(),
                 &[noop_execution_input_version],
+                &epoch_cadence_blocks.to_le_bytes(),
                 &old_settlement_root,
                 &old_definition_root,
                 &tx_data_root,
@@ -384,6 +392,7 @@ impl RecursivePreUniquenessContextV2 {
             layout,
             authority_generation,
             noop_execution_input_version,
+            epoch_cadence_blocks,
             old_settlement_root,
             old_definition_root,
             tx_data_root,
@@ -409,7 +418,7 @@ impl RecursivePreUniquenessContextV2 {
         snapshot: RecursiveSnapshotHandleV2,
         checkpoint: RecursiveCheckpointBindingV2,
         profile: &RecursiveCircuitProfileV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         let spec = RecursiveCircuitSpecV2::new(authority.layout(), profile)?;
         if self.chain_context != authority.network_context()
             || self.config_digest != authority.config_digest()
@@ -420,6 +429,7 @@ impl RecursivePreUniquenessContextV2 {
             || self.layout != authority.layout()
             || self.authority_generation != authority.authority_generation()
             || self.noop_execution_input_version != authority.noop_execution_input_version()
+            || self.epoch_cadence_blocks != authority.epoch_cadence_blocks()
             || self.old_settlement_root != *snapshot.root().as_bytes()
             || self.old_definition_root != snapshot.pre_definition_root()
             || self.tx_data_root != checkpoint.exec_tx_root()
@@ -427,7 +437,7 @@ impl RecursivePreUniquenessContextV2 {
             || self.spec_digest != spec.digest()
             || self.trace_grammar_digest != RecursiveTraceOpcodeV2::grammar_digest()
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         Ok(())
     }
@@ -612,7 +622,7 @@ impl RecursiveTransitionStatementV2 {
         pre_uniqueness_context: RecursivePreUniquenessContextV2,
         declared_event_counts: super::recursive_trace::RecursiveTraceEventCountsV2,
         consumed_event_counts: super::recursive_trace::RecursiveTraceEventCountsV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let authority_noop = checkpoint.is_recursive_v2_noop();
         pre_uniqueness_context.validate_binding(authority, snapshot, checkpoint, profile)?;
         let derived_pre_settlement_root = derive_settlement_root_v2(
@@ -621,14 +631,14 @@ impl RecursiveTransitionStatementV2 {
             authority.policy_digest(),
             pre_definition_root,
         )
-        .map_err(|_| RecursiveV2Error::Root)?;
+        .map_err(|_| CheckpointError::Root)?;
         let derived_post_settlement_root = derive_settlement_root_v2(
             RootGeneration::SettlementV2,
             authority.layout(),
             authority.policy_digest(),
             post_definition_root,
         )
-        .map_err(|_| RecursiveV2Error::Root)?;
+        .map_err(|_| CheckpointError::Root)?;
         if snapshot.root() != checkpoint.pre_settlement_root()
             || snapshot.pre_definition_root() != pre_definition_root
             || post_settlement_root != checkpoint.post_settlement_root()
@@ -637,41 +647,40 @@ impl RecursiveTransitionStatementV2 {
             || snapshot.root().generation() != post_settlement_root.generation()
             || snapshot.root().generation().version() != 2
         {
-            return Err(RecursiveV2Error::Root);
+            return Err(CheckpointError::Root);
         }
         if snapshot.snapshot_id() != checkpoint.prep_snapshot_id() || checkpoint.height() == 0 {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         if update_trace_digest == [0; 32]
             || pre_uniqueness_context.update_trace_digest() != update_trace_digest
         {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         if !authority_noop && update_trace_count == 0 {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         if authority_noop
             && (update_trace_count != 0
                 || post_settlement_root != checkpoint.pre_settlement_root()
                 || !SettlementUpdateTraceEnvelopeV2::is_noop_digest(update_trace_digest))
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         if trace.event_count() == 0 || trace.byte_count() == 0 {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         if declared_event_counts != consumed_event_counts
             || pre_uniqueness_context.declared_work().event_counts() != declared_event_counts
             || declared_event_counts.source_record_count()? != trace.event_count()
         {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         let spec = RecursiveCircuitSpecV2::new(authority.layout(), profile)?;
         let grammar_digest = RecursiveTraceOpcodeV2::grammar_digest();
         let semantic_counts = pre_uniqueness_context.declared_work().semantic_counts();
-        let spent_count = u32::try_from(semantic_counts[1]).map_err(|_| RecursiveV2Error::Limit)?;
-        let output_count =
-            u32::try_from(semantic_counts[2]).map_err(|_| RecursiveV2Error::Limit)?;
+        let spent_count = u32::try_from(semantic_counts[1]).map_err(|_| CheckpointError::Limit)?;
+        let output_count = u32::try_from(semantic_counts[2]).map_err(|_| CheckpointError::Limit)?;
         let (spent_uniqueness_precommit, output_uniqueness_precommit) =
             super::recursive_semantics::uniqueness_set_precommits_from_parts(
                 pre_uniqueness_context.digest(),
@@ -875,12 +884,18 @@ impl RecursiveTransitionStatementV2 {
     }
 }
 
-const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2: u8 = 2;
-const RECURSIVE_FINALIZED_IVC_STATE_VERSION_V2: u8 = 1;
-const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_MAGIC_V2: [u8; 8] = *b"Z00ZRCI2";
-const RECURSIVE_FINALIZED_IVC_STATE_MAGIC_V2: [u8; 8] = *b"Z00ZRFS2";
-const NOVA_BACKEND_LABEL_V2: &[u8] = b"nova_streaming_compressed_v2";
-const NOVA_PROOF_MODE_V2: &[u8] = b"fast_classical_streaming_v2";
+const RECURSIVE_NOVA_STEP_INPUT_VERSION_V2: u8 = 2;
+pub(crate) const RECURSIVE_FINALIZED_IVC_STATE_VERSION_V2: u8 = 1;
+const RECURSIVE_NOVA_STEP_INPUT_MAGIC_V2: [u8; 8] = *b"Z00ZRCI2";
+pub(crate) const RECURSIVE_FINALIZED_IVC_STATE_MAGIC_V2: [u8; 8] = *b"Z00ZRFS2";
+pub const NOVA_BACKEND_LABEL_V2: [u8; 28] = *b"nova_streaming_compressed_v2";
+pub const NOVA_PROOF_MODE_V2: [u8; 27] = *b"fast_classical_streaming_v2";
+const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2: u16 = 2;
+const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_DOMAIN_V2: &str =
+    "z00z.storage.checkpoint.recursive_public_input.v2";
+const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_LABEL_V2: &str = "public_input_digest";
+pub(crate) const RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2: usize =
+    2 + 32 * 10 + 8 * 4 + 4 * 2 + NOVA_BACKEND_LABEL_V2.len() + NOVA_PROOF_MODE_V2.len();
 
 /// Authority-selected Nova identities that enter `X_h` only after the
 /// verifier bundle has authenticated its PP/VK generation.
@@ -902,7 +917,7 @@ impl RecursiveVerifierInputBindingV2 {
         pp_digest: [u8; 32],
         compressed_vk_digest: [u8; 32],
         verifier_bundle_digest: [u8; 32],
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if [
             predicate_digest,
             profile_digest,
@@ -913,7 +928,7 @@ impl RecursiveVerifierInputBindingV2 {
         ]
         .contains(&[0_u8; 32])
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         Ok(Self {
             predicate_digest,
@@ -946,12 +961,12 @@ pub struct RecursiveFinalizedIvcStateV2 {
 
 impl RecursiveFinalizedIvcStateV2 {
     /// Build the unique finalized successor after `X_h` exists.
-    pub fn expected_successor(
-        input: &RecursiveCheckpointPublicInputV2,
+    pub(super) fn expected_successor(
+        input: &RecursiveNovaStepInputV2,
         cumulative_steps: u64,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if cumulative_steps <= input.prior.cumulative_steps {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let mut state = Self {
             height: input.height,
@@ -975,9 +990,9 @@ impl RecursiveFinalizedIvcStateV2 {
         settlement_root: [u8; 32],
         definition_root: [u8; 32],
         cutover_manifest_digest: [u8; 32],
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if [settlement_root, definition_root, cutover_manifest_digest].contains(&[0_u8; 32]) {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         let mut state = Self {
             height: 0,
@@ -1037,7 +1052,8 @@ impl RecursiveFinalizedIvcStateV2 {
 /// prior finalized IVC endpoint.  Proof bytes, `z_h`, receipts, and worker
 /// measurements have no field or constructor path into this object.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RecursiveCheckpointPublicInputV2 {
+pub(super) struct RecursiveNovaStepInputV2 {
+    checkpoint_context: RecursiveCheckpointContextV2,
     chain_context: [u8; 32],
     config_digest: [u8; 32],
     policy_digest: [u8; 32],
@@ -1045,6 +1061,7 @@ pub struct RecursiveCheckpointPublicInputV2 {
     authority_generation: u64,
     layout: u32,
     noop_execution_input_version: u8,
+    epoch_cadence_blocks: u64,
     height: u64,
     predecessor_height: u64,
     checkpoint_id: CheckpointId,
@@ -1085,8 +1102,8 @@ pub struct RecursiveCheckpointPublicInputV2 {
 
 #[derive(Clone, Copy)]
 pub(crate) struct RecursiveNovaStateBindingsV2 {
-    pub(crate) anchor_digests: [[u8; 32]; 15],
-    pub(crate) anchor_scalars: [u64; 6],
+    pub(crate) anchor_digests: [[u8; 32]; 17],
+    pub(crate) anchor_scalars: [u64; 7],
     pub(crate) semantic_counts: [u64; 8],
     pub(crate) opcode_counts: [u64; 17],
     pub(crate) expected_trace_digest: [u8; 32],
@@ -1098,7 +1115,7 @@ pub(crate) struct RecursiveNovaStateBindingsV2 {
     pub(crate) statement_identity_digests: [[u8; 32]; 3],
 }
 
-impl RecursiveCheckpointPublicInputV2 {
+impl RecursiveNovaStepInputV2 {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build(
         authority: RecursiveAuthorityContextV2,
@@ -1109,12 +1126,12 @@ impl RecursiveCheckpointPublicInputV2 {
         pre_uniqueness_context: RecursivePreUniquenessContextV2,
         verifier: RecursiveVerifierInputBindingV2,
         prior: RecursiveFinalizedIvcStateV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let spec = RecursiveCircuitSpecV2::new(authority.layout(), profile)?;
         let predecessor_height = checkpoint
             .height()
             .checked_sub(1)
-            .ok_or(RecursiveV2Error::Invariant)?;
+            .ok_or(CheckpointError::Invariant)?;
         if prior.height != predecessor_height
             || prior.settlement_root != *statement.pre_settlement_root().as_bytes()
             || prior.definition_root != statement.pre_definition_root()
@@ -1137,21 +1154,22 @@ impl RecursiveCheckpointPublicInputV2 {
             || verifier.spec_digest != spec.digest()
             || verifier.verifier_bundle_digest != pre_uniqueness_context.verifier_bundle_digest
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         match (checkpoint.predecessor(), predecessor_height) {
             (None, 0) => {}
             (Some(predecessor), _) if predecessor == prior.checkpoint_id => {}
-            _ => return Err(RecursiveV2Error::Authority),
+            _ => return Err(CheckpointError::Authority),
         }
         let declared_work = pre_uniqueness_context.declared_work();
         if declared_work.digest() != statement.declared_work_digest()
             || declared_work.event_counts() != statement.declared_event_counts()
             || statement.declared_event_counts() != statement.consumed_event_counts()
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let mut input = Self {
+            checkpoint_context: authority.checkpoint_context(),
             chain_context: authority.network_context(),
             config_digest: authority.config_digest(),
             policy_digest: authority.policy_digest(),
@@ -1159,6 +1177,7 @@ impl RecursiveCheckpointPublicInputV2 {
             authority_generation: authority.authority_generation(),
             layout: authority.layout(),
             noop_execution_input_version: authority.noop_execution_input_version(),
+            epoch_cadence_blocks: authority.epoch_cadence_blocks(),
             height: checkpoint.height(),
             predecessor_height,
             checkpoint_id: checkpoint.checkpoint_id(),
@@ -1202,8 +1221,8 @@ impl RecursiveCheckpointPublicInputV2 {
 
     fn canonical_prefix(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&RECURSIVE_CHECKPOINT_PUBLIC_INPUT_MAGIC_V2);
-        bytes.push(RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2);
+        bytes.extend_from_slice(&RECURSIVE_NOVA_STEP_INPUT_MAGIC_V2);
+        bytes.push(RECURSIVE_NOVA_STEP_INPUT_VERSION_V2);
         for digest in [
             self.chain_context,
             self.config_digest,
@@ -1215,6 +1234,7 @@ impl RecursiveCheckpointPublicInputV2 {
         bytes.extend_from_slice(&self.authority_generation.to_le_bytes());
         bytes.extend_from_slice(&self.layout.to_le_bytes());
         bytes.push(self.noop_execution_input_version);
+        bytes.extend_from_slice(&self.epoch_cadence_blocks.to_le_bytes());
         bytes.extend_from_slice(&self.height.to_le_bytes());
         bytes.extend_from_slice(&self.predecessor_height.to_le_bytes());
         bytes.extend_from_slice(self.checkpoint_id.as_bytes());
@@ -1266,17 +1286,9 @@ impl RecursiveCheckpointPublicInputV2 {
         bytes.extend_from_slice(&self.prior.height.to_le_bytes());
         bytes.extend_from_slice(&self.prior.cumulative_steps.to_le_bytes());
         bytes.extend_from_slice(&(NOVA_BACKEND_LABEL_V2.len() as u16).to_le_bytes());
-        bytes.extend_from_slice(NOVA_BACKEND_LABEL_V2);
+        bytes.extend_from_slice(&NOVA_BACKEND_LABEL_V2);
         bytes.extend_from_slice(&(NOVA_PROOF_MODE_V2.len() as u16).to_le_bytes());
-        bytes.extend_from_slice(NOVA_PROOF_MODE_V2);
-        bytes
-    }
-
-    /// Return the sole canonical binary representation of `X_h`.
-    #[must_use]
-    pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = self.canonical_prefix();
-        bytes.extend_from_slice(&self.digest);
+        bytes.extend_from_slice(&NOVA_PROOF_MODE_V2);
         bytes
     }
 
@@ -1295,7 +1307,36 @@ impl RecursiveCheckpointPublicInputV2 {
         self.prior.digest
     }
 
+    #[must_use]
+    pub(crate) const fn checkpoint_id(&self) -> CheckpointId {
+        self.checkpoint_id
+    }
+
+    #[must_use]
+    pub(crate) const fn predecessor(&self) -> Option<CheckpointId> {
+        self.predecessor
+    }
+
+    #[must_use]
+    pub(crate) const fn trace_digest(&self) -> [u8; 32] {
+        self.trace_digest
+    }
+
+    #[must_use]
+    pub(crate) const fn config_digest(&self) -> [u8; 32] {
+        self.config_digest
+    }
+
+    #[must_use]
+    pub(crate) const fn authority_generation(&self) -> u64 {
+        self.authority_generation
+    }
+
     pub(crate) const fn nova_state_bindings(&self) -> RecursiveNovaStateBindingsV2 {
+        let (predecessor_id, predecessor_present) = match self.predecessor {
+            Some(predecessor) => (*predecessor.as_bytes(), 1),
+            None => ([0_u8; 32], 0),
+        };
         RecursiveNovaStateBindingsV2 {
             anchor_digests: [
                 self.chain_context,
@@ -1313,6 +1354,8 @@ impl RecursiveCheckpointPublicInputV2 {
                 self.verifier_bundle_digest,
                 self.declared_work_digest,
                 self.pre_uniqueness_context_digest,
+                *self.checkpoint_id.as_bytes(),
+                predecessor_id,
             ],
             anchor_scalars: [
                 PRE_UNIQUENESS_CONTEXT_VERSION_V2 as u64,
@@ -1321,6 +1364,7 @@ impl RecursiveCheckpointPublicInputV2 {
                 self.layout as u64,
                 self.authority_generation,
                 self.noop_execution_input_version as u64,
+                predecessor_present,
             ],
             semantic_counts: self.semantic_counts,
             opcode_counts: self.opcode_counts,
@@ -1369,14 +1413,20 @@ impl RecursiveCheckpointPublicInputV2 {
                 trace.output_original_ids_digest(),
                 trace.output_sorted_ids_digest(),
             );
+        let checkpoint_context = RecursiveCheckpointContextV2::test_fixture(
+            context.config_digest,
+            verifier.predicate_digest,
+        );
         let mut input = Self {
-            chain_context: context.chain_context,
+            checkpoint_context,
+            chain_context: checkpoint_context.digest(),
             config_digest: context.config_digest,
             policy_digest: context.policy_digest,
             authority_digest: context.authority_digest,
             authority_generation: context.authority_generation,
             layout: context.layout,
             noop_execution_input_version: context.noop_execution_input_version,
+            epoch_cadence_blocks: 1_000,
             height: context.height,
             predecessor_height: context.predecessor_height,
             checkpoint_id: CheckpointId::new([9; 32]),
@@ -1416,6 +1466,463 @@ impl RecursiveCheckpointPublicInputV2 {
         };
         input.digest = sha256_256_role(CheckpointShaRole::Statement, &[&input.canonical_prefix()]);
         input
+    }
+}
+
+/// Exact portable recursive-checkpoint V2 public input.
+///
+/// This is distinct from the private Nova running-state binding. It carries
+/// only the nineteen fields in the public contract and is derived from one
+/// storage-owned statement plus the installed process context.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecursiveCheckpointPublicInputV2 {
+    version: u16,
+    context_digest: [u8; 32],
+    statement_digest: [u8; 32],
+    statement_core_digest: [u8; 32],
+    height: u64,
+    chain_index: u32,
+    chain_length: u32,
+    epoch_index: u64,
+    epoch_start_height: u64,
+    epoch_end_height: u64,
+    prev_root: [u8; 32],
+    output_root: [u8; 32],
+    prior_output_root: [u8; 32],
+    delta_root: [u8; 32],
+    witness_root: [u8; 32],
+    checkpoint_link_digest: [u8; 32],
+    backend_label: [u8; 28],
+    verifier_params_digest: [u8; 32],
+    proof_mode: [u8; 27],
+}
+
+impl RecursiveCheckpointPublicInputV2 {
+    pub(super) fn from_nova_step(
+        step: &RecursiveNovaStepInputV2,
+        chain_index: u32,
+        chain_length: u32,
+    ) -> Result<Self, CheckpointError> {
+        if chain_length == 0
+            || chain_index >= chain_length
+            || step.height == 0
+            || step.epoch_cadence_blocks == 0
+        {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::StepSkipped,
+            ));
+        }
+        if step.checkpoint_context.digest() != step.chain_context
+            || step.checkpoint_context.checkpoint_config_digest() != step.config_digest
+            || step.checkpoint_context.predicate_digest() != step.predicate_digest
+        {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::PublicInputDigestMismatch,
+            ));
+        }
+        let zero_based_height = step
+            .height
+            .checked_sub(1)
+            .ok_or(CheckpointError::Overflow)?;
+        let epoch_index = zero_based_height / step.epoch_cadence_blocks;
+        let epoch_start_height = epoch_index
+            .checked_mul(step.epoch_cadence_blocks)
+            .and_then(|value| value.checked_add(1))
+            .ok_or(CheckpointError::Overflow)?;
+        let epoch_end_height = epoch_index
+            .checked_add(1)
+            .and_then(|value| value.checked_mul(step.epoch_cadence_blocks))
+            .ok_or(CheckpointError::Overflow)?;
+        Ok(Self {
+            version: RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2,
+            context_digest: step.checkpoint_context.digest(),
+            statement_digest: step.checkpoint_statement_digest,
+            statement_core_digest: step.checkpoint_statement_core_digest,
+            height: step.height,
+            chain_index,
+            chain_length,
+            epoch_index,
+            epoch_start_height,
+            epoch_end_height,
+            prev_root: step.pre_settlement_root,
+            output_root: step.post_settlement_root,
+            prior_output_root: step.pre_settlement_root,
+            delta_root: step.delta_root,
+            witness_root: step.witness_root,
+            checkpoint_link_digest: step.checkpoint_link_digest,
+            backend_label: NOVA_BACKEND_LABEL_V2,
+            verifier_params_digest: step.verifier_bundle_digest,
+            proof_mode: NOVA_PROOF_MODE_V2,
+        })
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2);
+        bytes.extend_from_slice(&self.version.to_le_bytes());
+        bytes.extend_from_slice(&self.context_digest);
+        bytes.extend_from_slice(&self.statement_digest);
+        bytes.extend_from_slice(&self.statement_core_digest);
+        bytes.extend_from_slice(&self.height.to_le_bytes());
+        bytes.extend_from_slice(&self.chain_index.to_le_bytes());
+        bytes.extend_from_slice(&self.chain_length.to_le_bytes());
+        bytes.extend_from_slice(&self.epoch_index.to_le_bytes());
+        bytes.extend_from_slice(&self.epoch_start_height.to_le_bytes());
+        bytes.extend_from_slice(&self.epoch_end_height.to_le_bytes());
+        bytes.extend_from_slice(&self.prev_root);
+        bytes.extend_from_slice(&self.output_root);
+        bytes.extend_from_slice(&self.prior_output_root);
+        bytes.extend_from_slice(&self.delta_root);
+        bytes.extend_from_slice(&self.witness_root);
+        bytes.extend_from_slice(&self.checkpoint_link_digest);
+        bytes.extend_from_slice(&self.backend_label);
+        bytes.extend_from_slice(&self.verifier_params_digest);
+        bytes.extend_from_slice(&self.proof_mode);
+        bytes
+    }
+
+    pub(super) fn decode_canonical(bytes: &[u8]) -> Result<Self, CheckpointError> {
+        if bytes.len() != RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2 {
+            return Err(CheckpointError::Canonical);
+        }
+        let mut cursor = 0;
+        let version = u16::from_le_bytes(take_public_input::<2>(bytes, &mut cursor)?);
+        if version != RECURSIVE_CHECKPOINT_PUBLIC_INPUT_VERSION_V2 {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::UnsupportedVersion,
+            ));
+        }
+        let context_digest = take_public_input::<32>(bytes, &mut cursor)?;
+        let statement_digest = take_public_input::<32>(bytes, &mut cursor)?;
+        let statement_core_digest = take_public_input::<32>(bytes, &mut cursor)?;
+        let height = u64::from_le_bytes(take_public_input::<8>(bytes, &mut cursor)?);
+        let chain_index = u32::from_le_bytes(take_public_input::<4>(bytes, &mut cursor)?);
+        let chain_length = u32::from_le_bytes(take_public_input::<4>(bytes, &mut cursor)?);
+        let epoch_index = u64::from_le_bytes(take_public_input::<8>(bytes, &mut cursor)?);
+        let epoch_start_height = u64::from_le_bytes(take_public_input::<8>(bytes, &mut cursor)?);
+        let epoch_end_height = u64::from_le_bytes(take_public_input::<8>(bytes, &mut cursor)?);
+        let prev_root = take_public_input::<32>(bytes, &mut cursor)?;
+        let output_root = take_public_input::<32>(bytes, &mut cursor)?;
+        let prior_output_root = take_public_input::<32>(bytes, &mut cursor)?;
+        let delta_root = take_public_input::<32>(bytes, &mut cursor)?;
+        let witness_root = take_public_input::<32>(bytes, &mut cursor)?;
+        let checkpoint_link_digest = take_public_input::<32>(bytes, &mut cursor)?;
+        let backend_label = take_public_input::<28>(bytes, &mut cursor)?;
+        let verifier_params_digest = take_public_input::<32>(bytes, &mut cursor)?;
+        let proof_mode = take_public_input::<27>(bytes, &mut cursor)?;
+        if cursor != bytes.len() {
+            return Err(CheckpointError::Canonical);
+        }
+        if backend_label != NOVA_BACKEND_LABEL_V2 || proof_mode != NOVA_PROOF_MODE_V2 {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::BackendUnsupported,
+            ));
+        }
+        if height == 0 || chain_length == 0 || chain_index >= chain_length {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::StepSkipped,
+            ));
+        }
+        if prev_root != prior_output_root {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::PriorOutputMismatch,
+            ));
+        }
+        let cadence = epoch_end_height
+            .checked_sub(epoch_start_height)
+            .and_then(|value| value.checked_add(1))
+            .ok_or(CheckpointError::Overflow)?;
+        let expected_start = epoch_index
+            .checked_mul(cadence)
+            .and_then(|value| value.checked_add(1))
+            .ok_or(CheckpointError::Overflow)?;
+        let expected_end = epoch_index
+            .checked_add(1)
+            .and_then(|value| value.checked_mul(cadence))
+            .ok_or(CheckpointError::Overflow)?;
+        if cadence == 0
+            || epoch_start_height != expected_start
+            || epoch_end_height != expected_end
+            || !(epoch_start_height..=epoch_end_height).contains(&height)
+        {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::HybridCadenceMismatch,
+            ));
+        }
+        let input = Self {
+            version,
+            context_digest,
+            statement_digest,
+            statement_core_digest,
+            height,
+            chain_index,
+            chain_length,
+            epoch_index,
+            epoch_start_height,
+            epoch_end_height,
+            prev_root,
+            output_root,
+            prior_output_root,
+            delta_root,
+            witness_root,
+            checkpoint_link_digest,
+            backend_label,
+            verifier_params_digest,
+            proof_mode,
+        };
+        if input.canonical_bytes() != bytes {
+            return Err(CheckpointError::Canonical);
+        }
+        Ok(input)
+    }
+
+    #[must_use]
+    pub fn digest(&self) -> [u8; 32] {
+        sha256_256(
+            RECURSIVE_CHECKPOINT_PUBLIC_INPUT_DOMAIN_V2,
+            RECURSIVE_CHECKPOINT_PUBLIC_INPUT_LABEL_V2,
+            &[&self.canonical_bytes()],
+        )
+    }
+
+    #[must_use]
+    pub const fn statement_digest(&self) -> [u8; 32] {
+        self.statement_digest
+    }
+
+    #[must_use]
+    pub const fn statement_core_digest(&self) -> [u8; 32] {
+        self.statement_core_digest
+    }
+
+    #[must_use]
+    pub const fn prior_output_root(&self) -> [u8; 32] {
+        self.prior_output_root
+    }
+
+    #[must_use]
+    pub const fn output_root(&self) -> [u8; 32] {
+        self.output_root
+    }
+
+    #[must_use]
+    pub const fn verifier_params_digest(&self) -> [u8; 32] {
+        self.verifier_params_digest
+    }
+
+    #[must_use]
+    pub const fn height(&self) -> u64 {
+        self.height
+    }
+
+    #[must_use]
+    pub const fn checkpoint_link_digest(&self) -> [u8; 32] {
+        self.checkpoint_link_digest
+    }
+
+    pub(crate) fn validate_required_local_chain(&self) -> Result<(), CheckpointError> {
+        if self.chain_length < 3 {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::ChainTooShort,
+            ));
+        }
+        if self.chain_length > 5 {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::ChainTooLong,
+            ));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn validate_diagnostic_single_step(&self) -> Result<(), CheckpointError> {
+        if self.chain_length != 1 || self.chain_index != 0 {
+            return Err(CheckpointError::Invariant);
+        }
+        Ok(())
+    }
+}
+
+fn take_public_input<const N: usize>(
+    bytes: &[u8],
+    cursor: &mut usize,
+) -> Result<[u8; N], CheckpointError> {
+    let end = cursor.checked_add(N).ok_or(CheckpointError::Overflow)?;
+    let value = bytes
+        .get(*cursor..end)
+        .ok_or(CheckpointError::Canonical)?
+        .try_into()
+        .map_err(|_| CheckpointError::Canonical)?;
+    *cursor = end;
+    Ok(value)
+}
+
+#[cfg(test)]
+mod public_input_tests {
+    use super::*;
+
+    fn sample() -> RecursiveCheckpointPublicInputV2 {
+        RecursiveCheckpointPublicInputV2 {
+            version: 2,
+            context_digest: [1; 32],
+            statement_digest: [2; 32],
+            statement_core_digest: [3; 32],
+            height: 5,
+            chain_index: 2,
+            chain_length: 3,
+            epoch_index: 0,
+            epoch_start_height: 1,
+            epoch_end_height: 1_000,
+            prev_root: [4; 32],
+            output_root: [5; 32],
+            prior_output_root: [4; 32],
+            delta_root: [6; 32],
+            witness_root: [7; 32],
+            checkpoint_link_digest: [8; 32],
+            backend_label: NOVA_BACKEND_LABEL_V2,
+            verifier_params_digest: [9; 32],
+            proof_mode: NOVA_PROOF_MODE_V2,
+        }
+    }
+
+    #[test]
+    fn exact_public_input_has_frozen_order_and_each_field_is_bound() {
+        let input = sample();
+        let expected = [
+            0xd1, 0xbe, 0x92, 0xaa, 0x35, 0x60, 0xce, 0xd5, 0x43, 0x45, 0x8e, 0x3c, 0xbe, 0x62,
+            0x6b, 0x6c, 0x0d, 0x12, 0x83, 0xee, 0x5e, 0xae, 0x18, 0xd5, 0xe4, 0x31, 0x9c, 0xbd,
+            0x78, 0xf7, 0xb8, 0xf2,
+        ];
+        let bytes = input.canonical_bytes();
+        assert_eq!(bytes.len(), RECURSIVE_CHECKPOINT_PUBLIC_INPUT_BYTES_V2);
+        assert_eq!(input.digest(), expected);
+        assert_eq!(
+            RecursiveCheckpointPublicInputV2::decode_canonical(&bytes).ok(),
+            Some(input)
+        );
+
+        let mut backend_label = NOVA_BACKEND_LABEL_V2;
+        backend_label[0] ^= 1;
+        let mut proof_mode = NOVA_PROOF_MODE_V2;
+        proof_mode[0] ^= 1;
+        let mutations = [
+            RecursiveCheckpointPublicInputV2 {
+                version: 3,
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                context_digest: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                statement_digest: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                statement_core_digest: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 { height: 6, ..input },
+            RecursiveCheckpointPublicInputV2 {
+                chain_index: 1,
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                chain_length: 4,
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                epoch_index: 1,
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                epoch_start_height: 2,
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                epoch_end_height: 999,
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                prev_root: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                output_root: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                prior_output_root: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                delta_root: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                witness_root: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                checkpoint_link_digest: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                backend_label,
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                verifier_params_digest: [10; 32],
+                ..input
+            },
+            RecursiveCheckpointPublicInputV2 {
+                proof_mode,
+                ..input
+            },
+        ];
+        assert!(mutations
+            .into_iter()
+            .all(|mutation| mutation.digest() != expected));
+    }
+
+    #[test]
+    fn required_local_chain_bounds_are_explicit() {
+        assert!(sample().validate_required_local_chain().is_ok());
+        assert!(matches!(
+            RecursiveCheckpointPublicInputV2 {
+                chain_length: 2,
+                ..sample()
+            }
+            .validate_required_local_chain(),
+            Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::ChainTooShort
+            ))
+        ));
+        assert!(matches!(
+            RecursiveCheckpointPublicInputV2 {
+                chain_length: 6,
+                ..sample()
+            }
+            .validate_required_local_chain(),
+            Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::ChainTooLong
+            ))
+        ));
+    }
+
+    #[test]
+    fn malformed_public_input_width_is_an_operational_codec_error() {
+        let bytes = sample().canonical_bytes();
+        assert!(matches!(
+            RecursiveCheckpointPublicInputV2::decode_canonical(&bytes[..bytes.len() - 1]),
+            Err(CheckpointError::Canonical)
+        ));
+        let mut trailing = bytes;
+        trailing.push(0);
+        assert!(matches!(
+            RecursiveCheckpointPublicInputV2::decode_canonical(&trailing),
+            Err(CheckpointError::Canonical)
+        ));
     }
 }
 

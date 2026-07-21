@@ -2,18 +2,10 @@ use std::path::PathBuf;
 
 use tempfile::NamedTempFile;
 use z00z_storage::{
-    checkpoint::{
-        repo_default_path, CheckpointContractConfigV1, POST_QUANTUM_ENFORCEMENT_STAGE,
-        VERIFIED_BACKEND_ENABLED_STAGE, VERIFIED_BACKEND_PROOF_OBJECT,
-        VERIFIED_BACKEND_REQUIRED_BENCHMARKS, VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS,
-        VERIFIED_BACKEND_STATEMENT_STABILITY,
-    },
+    checkpoint::{repo_default_path, CheckpointContractConfigV3},
     CheckpointError,
 };
-use z00z_utils::{
-    codec::{Codec, YamlCodec},
-    io::{read_to_string, write_file},
-};
+use z00z_utils::io::{read_to_string, write_file};
 
 const REQUIRED_FIELDS: &[&str] = &[
     "height",
@@ -36,22 +28,22 @@ const OPTIONAL_FIELDS: &[&str] = &[
     "pq_anchor_root",
 ];
 
-fn cfg() -> CheckpointContractConfigV1 {
-    CheckpointContractConfigV1::load(repo_default_path()).expect("repo checkpoint contract")
+fn cfg() -> CheckpointContractConfigV3 {
+    CheckpointContractConfigV3::load(repo_default_path()).expect("repo checkpoint contract")
 }
 
 fn repo_config_yaml() -> String {
     read_to_string(repo_default_path()).expect("repo checkpoint contract yaml")
 }
 
-fn load_temp_contract(yaml: &str) -> Result<CheckpointContractConfigV1, CheckpointError> {
+fn load_temp_contract(yaml: &str) -> Result<CheckpointContractConfigV3, CheckpointError> {
     let file = NamedTempFile::new().expect("temp checkpoint contract yaml");
     write_file(file.path(), yaml.as_bytes()).expect("write temp checkpoint contract yaml");
-    CheckpointContractConfigV1::load(file.path())
+    CheckpointContractConfigV3::load(file.path())
 }
 
 #[test]
-fn test_statement_field_order_matches_phase068_contract() {
+fn test_statement_schema_and_forbidden_admission_are_exact() {
     let cfg = cfg();
 
     assert_eq!(
@@ -68,363 +60,335 @@ fn test_statement_field_order_matches_phase068_contract() {
             .map(|field| (*field).to_string())
             .collect::<Vec<_>>()
     );
+    assert_eq!(
+        cfg.statement.canonical_admission_forbidden_when_present,
+        ["pq_anchor_root".to_string()]
+    );
 }
 
 #[test]
-fn test_streaming_branch_is_live_and_non_authoritative() {
+fn test_recursive_authority_profile_is_the_live_schema3_target() {
     let cfg = cfg();
 
     assert!(cfg.branches.recursive.is_enabled);
     assert!(!cfg.branches.recursive.is_authoritative);
-    assert_eq!(cfg.branches.recursive.mode, "streaming_transition_v2");
-    assert_eq!(
-        cfg.branches.recursive.proof_system,
-        "nova_streaming_compressed_v2"
-    );
+    assert_eq!(cfg.branches.recursive.mode, "hybrid_nova_plonky3");
+    assert_eq!(cfg.branches.recursive.proof_system, "recursive_hybrid_v2");
     assert!(cfg.branches.recursive.has_prior_output_binding);
     assert_eq!(cfg.branches.recursive.min_chain_steps, 3);
     assert_eq!(cfg.branches.recursive.target_chain_steps, 5);
+
+    assert!(cfg.branches.nova.is_enabled);
+    assert_eq!(cfg.branches.nova.hot_recovery_snapshot_count, 2);
+    assert_eq!(cfg.branches.nova.max_retained_bodies_per_epoch, 2);
+    assert_eq!(cfg.branches.nova.max_pending_pq_epochs, 8);
+    assert_eq!(cfg.branches.nova.post_pq_grace_certified_epochs, 2);
+    assert_eq!(
+        cfg.branches.nova.pending_pq_cap_action,
+        "stop_compression_publication_keep_fold_finality"
+    );
+    assert_eq!(
+        cfg.branches.nova.proof_body_retention,
+        "nova_retention_state_v2"
+    );
+
+    assert!(cfg.branches.plonky3_epoch.is_enabled);
+    assert!(cfg.branches.plonky3_epoch.has_security_budget_manifest);
+    assert_eq!(
+        cfg.branches.plonky3_epoch.soundness_composition,
+        "conservative_sum"
+    );
+    assert_eq!(
+        cfg.branches.plonky3_epoch.minimum_composed_security_bits,
+        100
+    );
+    assert!(cfg.branches.plonky3_epoch.has_history_successor);
+    assert!(cfg.branches.plonky3_epoch.has_rotation_bridge);
+}
+
+#[test]
+fn test_archive_retention_and_caps_match_the_authority() {
+    let cfg = cfg();
+
+    assert_eq!(cfg.archive_retention.reconstruction_threshold, 10);
+    assert_eq!(cfg.archive_retention.total_shards, 16);
+    assert_eq!(cfg.archive_retention.max_shards_per_failure_domain, 2);
+    assert_eq!(cfg.archive_retention.erasure_coding_profile, "rs_10_16_v1");
+    assert!(!cfg.archive_retention.is_full_replica_fallback_allowed);
+
+    assert_eq!(cfg.limits.max_recursive_proof_envelope_bytes, 17_825_792);
+    assert_eq!(cfg.limits.max_recursive_sidecar_bytes, 25_165_824);
+    assert_eq!(cfg.limits.max_nova_block_proof_bytes, 131_072);
+    assert_eq!(cfg.limits.max_nova_retained_proof_bodies, 16);
+    assert_eq!(cfg.limits.max_nova_retained_body_bytes, 2_097_152);
+    assert_eq!(cfg.limits.max_nova_hot_recovery_bytes, 0);
+    assert_eq!(cfg.limits.max_pq_anchor_bytes, 4_096);
+    assert_eq!(cfg.limits.max_epoch_anchor_bytes, 4_096);
+    assert_eq!(cfg.limits.max_epoch_close_certificate_bytes, 4_096);
+}
+
+#[test]
+fn test_retention_and_pruning_authority_is_explicit() {
+    let cfg = cfg();
+
+    assert_eq!(cfg.pruning.stage, "declared_only");
+    assert_eq!(cfg.pruning.activation_scope, "local_test_only");
+    assert_eq!(cfg.pruning.watcher_mode, "window_archive_watcher_v2");
+    assert_eq!(cfg.pruning.prune_scope, "expired_challenge_objects");
+    assert!(cfg.pruning.has_retention_ledger_cas);
+    assert_eq!(cfg.pruning.must_keep_latest_snapshot_generations, 3);
+
+    assert_eq!(
+        cfg.retention.finalized_checkpoint_record_bodies,
+        "challenge_window_plus_current_head"
+    );
+    assert_eq!(
+        cfg.retention.nova_block_proofs,
+        "bounded_nova_retention_state_v2"
+    );
+    assert_eq!(
+        cfg.retention.compact_epoch_history_rotation_anchors,
+        "permanent"
+    );
+    assert_eq!(cfg.retention.epoch_close_finality_certificates, "permanent");
 }
 
 #[test]
 fn test_path_strings_match_contract() {
     let cfg = cfg();
 
-    assert_eq!(
-        cfg.paths.checkpoint_artifacts,
-        PathBuf::from("artifacts/checkpoints/final")
-    );
-    assert_eq!(
-        cfg.paths.checkpoint_links,
-        PathBuf::from("artifacts/checkpoints/links")
-    );
-    assert_eq!(
-        cfg.paths.exec_inputs,
-        PathBuf::from("artifacts/checkpoints/exec_input")
-    );
-    assert_eq!(
-        cfg.paths.prep_snapshots,
-        PathBuf::from("artifacts/checkpoints/prep_snapshot")
-    );
-    assert_eq!(
-        cfg.paths.delta_journals,
-        PathBuf::from("artifacts/checkpoints/delta_journal")
-    );
-    assert_eq!(
-        cfg.paths.witness_archives,
-        PathBuf::from("artifacts/checkpoints/witness_archive")
-    );
-    assert_eq!(
-        cfg.paths.nova_block_proofs,
-        PathBuf::from("artifacts/checkpoints/nova_block")
-    );
-    assert_eq!(
-        cfg.paths.pq_checkpoints,
-        PathBuf::from("artifacts/checkpoints/pq_anchor")
-    );
-    assert_eq!(
-        cfg.paths.plonky3_epoch_proofs,
-        PathBuf::from("artifacts/checkpoints/plonky3_epoch")
-    );
-    assert_eq!(
-        cfg.paths.epoch_manifests,
-        PathBuf::from("artifacts/checkpoints/epoch_manifest")
-    );
-    assert_eq!(
-        cfg.paths.archive_manifests,
-        PathBuf::from("artifacts/checkpoints/archive_manifest")
-    );
-    assert_eq!(
-        cfg.paths.da_references,
-        PathBuf::from("artifacts/checkpoints/da_reference")
-    );
-    assert_eq!(
-        cfg.paths.publication_evidence,
-        PathBuf::from("artifacts/checkpoints/publication_evidence")
-    );
-    assert_eq!(
-        cfg.paths.checkpoint_lifecycles,
-        PathBuf::from("artifacts/checkpoints/lifecycle")
-    );
-    assert_eq!(
-        cfg.paths.state_snapshots,
-        PathBuf::from("artifacts/checkpoints/state_snapshot")
-    );
-    assert_eq!(
-        cfg.paths.retrieval_audits,
-        PathBuf::from("artifacts/checkpoints/retrieval_audit")
-    );
-    assert_eq!(
-        cfg.paths.archive_receipts,
-        PathBuf::from("artifacts/checkpoints/archive_receipt")
-    );
-    assert_eq!(
-        cfg.paths.da_exports,
-        PathBuf::from("artifacts/da/checkpoints")
-    );
-    assert_eq!(
-        cfg.paths.documentation_packets,
-        PathBuf::from("artifacts/checkpoints/recursive_docs")
-    );
+    for (actual, expected) in [
+        (
+            &cfg.paths.checkpoint_artifacts,
+            "artifacts/checkpoints/final",
+        ),
+        (
+            &cfg.paths.recursive_sidecars,
+            "artifacts/checkpoints/recursive_shadow",
+        ),
+        (
+            &cfg.paths.nova_block_proofs,
+            "artifacts/checkpoints/nova_block",
+        ),
+        (
+            &cfg.paths.epoch_close_anchors,
+            "artifacts/checkpoints/epoch_close_anchor",
+        ),
+        (
+            &cfg.paths.epoch_evidence_anchors,
+            "artifacts/checkpoints/epoch_evidence_anchor",
+        ),
+        (
+            &cfg.paths.retention_tickets,
+            "artifacts/checkpoints/retention_ticket",
+        ),
+        (
+            &cfg.paths.retention_ledger,
+            "artifacts/checkpoints/retention_ledger",
+        ),
+        (
+            &cfg.paths.history_proofs,
+            "artifacts/checkpoints/plonky3_history",
+        ),
+        (
+            &cfg.paths.history_rotation_bridges,
+            "artifacts/checkpoints/history_rotation_bridge",
+        ),
+    ] {
+        assert_eq!(actual, &PathBuf::from(expected));
+    }
 }
 
 #[test]
-fn test_resolve_paths_keeps_contract() {
+fn test_resolve_paths_keeps_every_live_target_beneath_the_root() {
     let cfg = cfg();
     let root = PathBuf::from("/tmp/checkpoint-root");
     let resolved = cfg.resolve_paths(&root);
 
-    for (actual, rel) in [
-        (
-            &resolved.checkpoint_artifacts,
-            &cfg.paths.checkpoint_artifacts,
-        ),
-        (&resolved.checkpoint_links, &cfg.paths.checkpoint_links),
-        (&resolved.exec_inputs, &cfg.paths.exec_inputs),
-        (&resolved.prep_snapshots, &cfg.paths.prep_snapshots),
-        (&resolved.delta_journals, &cfg.paths.delta_journals),
-        (&resolved.witness_archives, &cfg.paths.witness_archives),
-        (&resolved.nova_block_proofs, &cfg.paths.nova_block_proofs),
-        (&resolved.pq_checkpoints, &cfg.paths.pq_checkpoints),
-        (
-            &resolved.plonky3_epoch_proofs,
-            &cfg.paths.plonky3_epoch_proofs,
-        ),
-        (&resolved.epoch_manifests, &cfg.paths.epoch_manifests),
-        (&resolved.archive_manifests, &cfg.paths.archive_manifests),
-        (&resolved.da_references, &cfg.paths.da_references),
-        (
-            &resolved.publication_evidence,
-            &cfg.paths.publication_evidence,
-        ),
-        (
-            &resolved.checkpoint_lifecycles,
-            &cfg.paths.checkpoint_lifecycles,
-        ),
-        (&resolved.state_snapshots, &cfg.paths.state_snapshots),
-        (&resolved.retrieval_audits, &cfg.paths.retrieval_audits),
-        (&resolved.archive_receipts, &cfg.paths.archive_receipts),
-        (&resolved.da_exports, &cfg.paths.da_exports),
-        (
-            &resolved.documentation_packets,
-            &cfg.paths.documentation_packets,
-        ),
+    for actual in [
+        &resolved.checkpoint_artifacts,
+        &resolved.recursive_sidecars,
+        &resolved.nova_block_proofs,
+        &resolved.epoch_close_anchors,
+        &resolved.epoch_evidence_anchors,
+        &resolved.retention_tickets,
+        &resolved.retention_ledger,
+        &resolved.history_proofs,
+        &resolved.history_rotation_bridges,
+        &resolved.documentation_packets,
     ] {
-        assert_eq!(actual, &root.join(rel));
+        assert!(actual.starts_with(&root));
     }
-
-    assert_ne!(resolved.checkpoint_artifacts, resolved.prep_snapshots);
-    assert_ne!(resolved.checkpoint_artifacts, resolved.pq_checkpoints);
-    assert_ne!(resolved.checkpoint_artifacts, resolved.da_exports);
 }
 
 #[test]
-fn test_verified_backend_surface_matches_phase068_contract() {
-    let cfg = cfg();
+fn test_schema3_yaml_has_one_canonical_vocabulary() {
+    let yaml = repo_config_yaml();
 
-    assert_eq!(
-        cfg.verified_backend.proof_object,
-        VERIFIED_BACKEND_PROOF_OBJECT
-    );
-    assert_eq!(
-        cfg.verified_backend.statement_stability,
-        VERIFIED_BACKEND_STATEMENT_STABILITY
-    );
-    assert_eq!(
-        cfg.verified_backend
-            .negative_tests
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
-        VERIFIED_BACKEND_REQUIRED_NEGATIVE_TESTS.to_vec()
-    );
-    assert_eq!(
-        cfg.verified_backend
-            .benchmarks
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
-        VERIFIED_BACKEND_REQUIRED_BENCHMARKS.to_vec()
-    );
+    for required in [
+        "canonical_admission_forbidden_when_present:",
+        "is_recursive_authority_allowed:",
+        "is_verified_backend_allowed:",
+        "is_live_cadence_enforced:",
+        "has_statement_digest_bind:",
+        "has_checkpoint_link_bind:",
+        "has_transition_range_proof:",
+        "has_independent_transition_proof:",
+        "has_retention_ledger_cas:",
+    ] {
+        assert!(
+            yaml.contains(required),
+            "missing canonical field {required}"
+        );
+    }
+    for forbidden in [
+        "recursive_authority_allowed:",
+        "verified_backend_allowed:",
+        "enforce_live_cadence:",
+        "must_bind_statement_digest:",
+        "must_bind_checkpoint_link:",
+        "must_prove_canonical_transition_range:",
+        "must_not_depend_only_on_nova:",
+        "\nverified_backend:",
+        "\n    no_op:",
+    ] {
+        assert!(
+            !yaml
+                .lines()
+                .any(|line| line.trim_start().starts_with(forbidden.trim_start())),
+            "legacy vocabulary is forbidden: {forbidden}"
+        );
+    }
 }
 
 #[test]
-fn test_unknown_yaml_key_rejects() {
-    let mut yaml = repo_config_yaml();
-    yaml.push_str("\nunknown_key: true\n");
-
-    let err = load_temp_contract(&yaml).expect_err("unknown YAML key must reject");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_missing_nova_profile_field_rejects() {
-    let yaml = repo_config_yaml().replace("    proof_system: nova_streaming_compressed_v2\n", "");
-
-    let err = load_temp_contract(&yaml).expect_err("missing nova profile field must reject");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_missing_plonky3_profile_field_rejects() {
-    let yaml = repo_config_yaml().replace("    field: koala_bear\n", "");
-
-    let err = load_temp_contract(&yaml).expect_err("missing plonky3 profile field must reject");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_nova_branch_is_live_and_disabled_state_rejects() {
-    let mut cfg = cfg();
-    cfg.validate()
-        .expect("live nova branch configuration must validate");
-
-    cfg.branches.nova.is_enabled = false;
-
-    let err = cfg
-        .validate()
-        .expect_err("disabled live nova branch must reject");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_plonky3_branch_enable_rejects_without_a_bound_backend() {
-    let mut cfg = cfg();
-    cfg.branches.plonky3_epoch.is_enabled = true;
-
-    let err = cfg
-        .validate()
-        .expect_err("unimplemented plonky3 branch must reject");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_parent_dir_path_rejects() {
-    let mut cfg = cfg();
-    cfg.paths.da_exports = PathBuf::from("artifacts/../escape");
-
-    let err = cfg
-        .validate()
-        .expect_err("normalized relative path gate must reject parent dir");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_pq_anchor_limit_cannot_drop_below_plonky3_limit() {
-    let mut cfg = cfg();
-    cfg.limits.max_pq_anchor_bytes = cfg.limits.max_plonky3_epoch_proof_bytes - 1;
-
-    let err = cfg
-        .validate()
-        .expect_err("pq anchor limit must dominate plonky3 proof limit");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_spec_stage_rejects_live_pq_cadence() {
-    let mut cfg = cfg();
-    cfg.authority_promotion.stage = "spec_only".to_string();
-    cfg.authority_promotion.allowed_next_stages = vec![POST_QUANTUM_ENFORCEMENT_STAGE.to_string()];
-    cfg.post_quantum.enforce_live_cadence = true;
-
-    let err = cfg
-        .validate()
-        .expect_err("pre-pq stage must not claim live pq cadence");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_stage_skip_rejects() {
-    let mut cfg = cfg();
-    cfg.authority_promotion.allowed_next_stages = vec![POST_QUANTUM_ENFORCEMENT_STAGE.to_string()];
-
-    let err = cfg.validate().expect_err("stage skip must reject");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_verified_backend_stage_remains_unavailable_without_promotion_evidence() {
-    let mut cfg = cfg();
-    cfg.authority_promotion.stage = VERIFIED_BACKEND_ENABLED_STAGE.to_string();
-    cfg.authority_promotion.allowed_next_stages.clear();
-    cfg.authority_promotion.recursive_authority_allowed = true;
-    cfg.authority_promotion.verified_backend_allowed = true;
-    cfg.post_quantum.enforce_live_cadence = true;
-
-    let err = cfg
-        .validate()
-        .expect_err("verified backend enablement must require approved review");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-
-    cfg.branches.nova.is_available = true;
-    cfg.branches.plonky3_epoch.is_available = true;
-    let err = cfg
-        .validate()
-        .expect_err("verified backend stays unavailable without promotion evidence");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_pq_writer_stage_rejects_without_a_bound_writer() {
-    let mut cfg = cfg();
-    cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
-    cfg.authority_promotion.allowed_next_stages.clear();
-    cfg.post_quantum.enforce_live_cadence = false;
-
-    let err = cfg
-        .validate()
-        .expect_err("unbound PQ writer stage must reject");
-
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-
-    cfg.post_quantum.enforce_live_cadence = true;
-    let err = cfg
-        .validate()
-        .expect_err("unbound PQ writer stage must reject even with cadence enabled");
-    assert!(matches!(err, CheckpointError::ContractConfig(_)));
-}
-
-#[test]
-fn test_v2_config_encoder_never_emits_legacy_pq_fields() {
-    let cfg = cfg();
-    let yaml = String::from_utf8(YamlCodec.serialize(&cfg).expect("encode V2 config"))
-        .expect("V2 YAML utf8");
-
-    assert!(yaml.contains("epoch_evidence_commitment: non_authenticating_digest_v2"));
-    assert!(!yaml.contains("pq_signature_or_commitment"));
-    assert!(!yaml.contains("is_pq_authoritative"));
-    assert!(!yaml.contains("cadence_blocks: 0"));
-    load_temp_contract(&yaml).expect("reencoded V2 config remains valid");
-}
-
-#[test]
-fn test_v2_config_rejects_overflowed_object_caps_and_unavailable_promotion() {
-    let mut overflow_cfg = cfg();
-    overflow_cfg.limits.max_nova_block_proof_bytes = usize::MAX;
+fn test_unknown_and_missing_yaml_fields_reject() {
+    let yaml = repo_config_yaml();
+    let unknown = format!("{yaml}unknown_key: true\n");
     assert!(matches!(
-        overflow_cfg.validate(),
+        load_temp_contract(&unknown),
         Err(CheckpointError::ContractConfig(_))
     ));
 
-    let mut cfg = cfg();
-    cfg.authority_promotion.stage = VERIFIED_BACKEND_ENABLED_STAGE.to_string();
-    cfg.authority_promotion.allowed_next_stages.clear();
-    cfg.authority_promotion.recursive_authority_allowed = true;
-    cfg.authority_promotion.verified_backend_allowed = true;
-    cfg.post_quantum.enforce_live_cadence = true;
-    assert!(matches!(
-        cfg.validate(),
-        Err(CheckpointError::ContractConfig(_))
-    ));
+    for field in [
+        "    hot_recovery_snapshot_count: 2\n",
+        "    has_security_budget_manifest: true\n",
+        "  canonical_admission_forbidden_when_present:\n",
+        "  reconstruction_threshold: 10\n",
+        "  max_recursive_proof_envelope_bytes: 17825792\n",
+        "  has_retention_ledger_cas: true\n",
+    ] {
+        let changed = yaml.replacen(field, "", 1);
+        assert_ne!(changed, yaml, "fixture must contain {field:?}");
+        assert!(
+            load_temp_contract(&changed).is_err(),
+            "missing mandatory field must reject: {field:?}"
+        );
+    }
+}
+
+#[test]
+fn test_every_pinned_identity_axis_rejects_drift() {
+    let yaml = repo_config_yaml();
+
+    for (from, to) in [
+        (
+            "  identifier: checkpoint-contract-client-notary-v2\n",
+            "  identifier: alternate\n",
+        ),
+        ("  generation: 2\n", "  generation: 3\n"),
+        (
+            "  manifest_digest: c58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b\n",
+            "  manifest_digest: a58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b\n",
+        ),
+        (
+            "  registry_digest: 4007f54c2b3d714aba7e5d8a86dbedf84e5946c9f1c314d1fb11c831af5000fb\n",
+            "  registry_digest: a007f54c2b3d714aba7e5d8a86dbedf84e5946c9f1c314d1fb11c831af5000fb\n",
+        ),
+        ("  parameter_generation: 2\n", "  parameter_generation: 3\n"),
+    ] {
+        let changed = yaml.replacen(from, to, 1);
+        assert_ne!(changed, yaml, "fixture must contain {from:?}");
+        assert!(
+            load_temp_contract(&changed).is_err(),
+            "identity drift must reject: {from:?}"
+        );
+    }
+}
+
+#[test]
+fn test_target_authority_leaf_drift_rejects() {
+    let yaml = repo_config_yaml();
+
+    for (from, to) in [
+        (
+            "    mode: hybrid_nova_plonky3\n",
+            "    mode: streaming_transition_v2\n",
+        ),
+        (
+            "    proof_system: recursive_hybrid_v2\n",
+            "    proof_system: nova_streaming_compressed_v2\n",
+        ),
+        (
+            "  reconstruction_threshold: 10\n",
+            "  reconstruction_threshold: 9\n",
+        ),
+        ("  total_shards: 16\n", "  total_shards: 15\n"),
+        (
+            "  erasure_coding_profile: rs_10_16_v1\n",
+            "  erasure_coding_profile: replica_v1\n",
+        ),
+        (
+            "  max_pq_anchor_bytes: 4096\n",
+            "  max_pq_anchor_bytes: 4097\n",
+        ),
+        ("  stage: declared_only\n", "  stage: live\n"),
+    ] {
+        let changed = yaml.replacen(from, to, 1);
+        assert_ne!(changed, yaml, "fixture must contain {from:?}");
+        assert!(
+            load_temp_contract(&changed).is_err(),
+            "authority drift must reject: {from:?}"
+        );
+    }
+}
+
+#[test]
+fn test_normalized_sharding_and_mailbox_authority_are_live_schema() {
+    let cfg = cfg();
+    let sharding = &cfg.current_state_sharding;
+    assert!(sharding.is_required);
+    assert_eq!(sharding.shard_count, 16);
+    assert_eq!(sharding.replication_factor, 3);
+    assert_eq!(sharding.write_quorum, 2);
+    assert_eq!(sharding.read_quorum, 1);
+    assert_eq!(sharding.min_failure_domains, 4);
+    assert!(!sharding.is_full_state_replica_allowed);
+    assert_eq!(sharding.route_key_profile, "hjmt_terminal_hash_range_v1");
+    assert_eq!(sharding.rollout_profile, "cow_copy_delta_catchup_cas_v1");
+    assert!(sharding.has_seed_recovery);
+
+    let mailbox = &cfg.offline_receipt_mailbox;
+    assert!(mailbox.is_required);
+    assert!(!mailbox.is_runtime_enabled);
+    assert_eq!(mailbox.semantic_owner_phase, 71);
+    assert_eq!(mailbox.phase_069_role, "reserved_unreachable_handoff");
+    assert_eq!(mailbox.admission_stage, "declared_only");
+    assert_eq!(mailbox.max_admission_bytes_per_block, 0);
+    assert_eq!(mailbox.max_partition_block_admission_bytes, 0);
+    assert_eq!(mailbox.max_entry_bytes, 8_192);
+    assert_eq!(mailbox.logical_partition_count, 16);
+    assert!(!mailbox.is_cross_partition_fanout_allowed);
+    assert!(!mailbox.has_adversarial_uniformity_claim);
+    assert!(!mailbox.is_sender_ack_retention_required);
+}
+
+#[test]
+fn test_canonical_digest_is_nonzero_and_stable() {
+    let cfg = cfg();
+    let first = cfg.canonical_digest().expect("canonical ConfigV3 digest");
+    let second = cfg.canonical_digest().expect("canonical ConfigV3 digest");
+
+    assert_ne!(first, [0; 32]);
+    assert_eq!(first, second);
 }

@@ -10,6 +10,16 @@ SOURCE="crates/z00z_storage/src/checkpoint/nova.rs"
 OWNER="checkpoint::nova::tests::"
 VERIFIER_RSS_HARNESS=".github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh"
 COVERAGE_AUDIT=".planning/phases/069-Recursive-Proof/069-COVERAGE-AUDIT.py"
+PHASE069_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint"
+T3_ARTIFACT_DIR="$(realpath -m -- "${Z00Z_NOVA_T3_ARTIFACT_DIR_V2:-$PHASE069_OUTPUT_ROOT/recursive-v2-current}")"
+case "$T3_ARTIFACT_DIR" in
+  "$PHASE069_OUTPUT_ROOT" | "$PHASE069_OUTPUT_ROOT"/*) ;;
+  *)
+    printf 'Phase 069 output path must stay under %s: %s\n' \
+      "$PHASE069_OUTPUT_ROOT" "$T3_ARTIFACT_DIR" >&2
+    exit 1
+    ;;
+esac
 
 SEMANTIC_TESTS=(
   settlement_root_sha_jobs_bind_policy_layout_definition_and_finalize_post_root
@@ -63,13 +73,20 @@ run_unit_exact() {
     --exact --nocapture --test-threads 1 "$@"
 }
 
+run_storage_exact() {
+  local test_name="$1"
+  shift
+  cargo test --release -p z00z_storage --lib "$test_name" -- \
+    --exact --nocapture --test-threads 1 "$@"
+}
+
 run_guards() {
   local contract dollar='$'
   local -a verifier_rss_contract=(
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
-    'readonly EXPECTED_SOURCE_REVISION="e58e2f9a2f715a64b37dd464248b57601e7deda4254086c0b6598160cf30dbd6"'
-    'readonly EXPECTED_WORKER_SOURCE="272379f7f47f735dc2536682c23e3e3d93e1434933f863f8e8841e89106d8ca0"'
-    'readonly EXPECTED_NOVA_SHA256="1e39544c8c58f7d5a8117cdcdbf6ca0836e5e70e056d6c84f77e88fe1336c053"'
+    'readonly EXPECTED_SOURCE_REVISION="5169ae837c7ee891f076ae51702698cf7be77cd78fdb2856b04225991006a876"'
+    'readonly EXPECTED_WORKER_SOURCE="09213786e26916ff72237c4a4c61c56770fe370937086e29005f9731db9038af"'
+    'readonly EXPECTED_NOVA_SHA256="ab2e30c2c10f3ba5cad754a25a5717469318550e9b63ffc0f1d1305f14579090"'
     'readonly EXPECTED_CARGO_LOCK_SHA256="23a86f3341579b25ad5be96080a642405633df5f8c6e99dd4c3329d7d51f2a11"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
     "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}ROOT_DIR/target/workspace\""
@@ -181,7 +198,7 @@ run_curated() {
   run_guards
   echo "=== curated Nova release packet: 7 source/dependency/R1CS units + 2 integration targets; features=production ==="
   for test_name in \
-    verifier_source_identity_binds_nova_and_canonical_trace_owner \
+    verifier_identity_binds_live_path \
     nova_backend_manifest_lock_and_private_owner_are_exact \
     nova_dependency_transcript_entropy_and_source_files_are_exact \
     nova_poseidon_constant_wires_are_pinned_for_both_cycle_fields \
@@ -230,9 +247,26 @@ case "$MODE" in
   artifacts)
     run_guards
     echo "=== milestone real-Nova artifact corpus: ${#ARTIFACT_TESTS[@]} exact ignored tests ==="
+    mkdir -p "$T3_ARTIFACT_DIR"
+    rm -f "$T3_ARTIFACT_DIR/prover-material.bin" "$T3_ARTIFACT_DIR/verifier-bundle.bin"
+    export Z00Z_NOVA_T3_ARTIFACT_DIR_V2="$T3_ARTIFACT_DIR"
     for test_name in "${ARTIFACT_TESTS[@]}"; do
       run_ignored_exact "$test_name"
     done
+    ;;
+  t3-chain)
+    run_guards
+    for artifact in prover-material.bin verifier-bundle.bin; do
+      if [[ ! -f "$T3_ARTIFACT_DIR/$artifact" ]]; then
+        echo "missing retained T3 artifact: $T3_ARTIFACT_DIR/$artifact; run '$0 artifacts' first" >&2
+        exit 1
+      fi
+    done
+    export Z00Z_NOVA_T3_ARTIFACT_DIR_V2="$T3_ARTIFACT_DIR"
+    echo "=== milestone real continuous same-z0 1/3/5 proof + public receipt ==="
+    run_storage_exact \
+      checkpoint::adapter::tests::test_real_chain_public_receipt \
+      --ignored
     ;;
   verifier-rss)
     run_guards
@@ -243,9 +277,10 @@ case "$MODE" in
     "$0" testcs
     "$0" proof
     "$0" artifacts
+    "$0" t3-chain
     ;;
   *)
-    echo "usage: $0 {guards|curated|semantic|testcs|proof|artifacts|verifier-rss|all}" >&2
+    echo "usage: $0 {guards|curated|semantic|testcs|proof|artifacts|t3-chain|verifier-rss|all}" >&2
     exit 64
     ;;
 esac

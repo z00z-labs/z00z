@@ -46,9 +46,30 @@ use super::{
         decode_state_snapshot_bin_checked, decode_state_snapshot_json_checked,
         encode_state_snapshot_bin_checked, encode_state_snapshot_json_checked, StateSnapshotV1,
     },
-    CheckpointArtifact, CheckpointContractConfigV1, CheckpointDraft, CheckpointProofSystem,
+    version_registry::{
+        CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, RegistryOperationV2,
+    },
+    CheckpointArtifact, CheckpointContractConfigV3, CheckpointDraft, CheckpointProofSystem,
     CheckpointStatement,
 };
+
+fn decode_registered_legacy<T, F>(
+    object: RecursiveBoundedObjectV2,
+    bytes: &[u8],
+    decoder: F,
+) -> Result<T, CheckpointError>
+where
+    F: FnOnce(&[u8]) -> Result<T, CheckpointError>,
+{
+    CheckpointVersionRegistryV2::authority_pinned()?.decode_typed_legacy(
+        object,
+        object as u32,
+        1,
+        bytes,
+        RegistryOperationV2::Read,
+        decoder,
+    )
+}
 
 pub(crate) fn check_artifact_contract(
     artifact: &CheckpointArtifact,
@@ -117,7 +138,7 @@ fn check_exec_contract(exec: &CheckpointExecInput) -> Result<(), CheckpointError
 }
 
 pub fn guard_verified_backend_codec_support(
-    cfg: &CheckpointContractConfigV1,
+    cfg: &CheckpointContractConfigV3,
     proof_system: CheckpointProofSystem,
 ) -> Result<(), CheckpointError> {
     if proof_system.claims_verified() && !cfg.verified_backend_codec_ready()? {
@@ -260,7 +281,11 @@ pub fn encode_archive_manifest_bin(
 pub fn decode_archive_manifest_bin(
     bytes: &[u8],
 ) -> Result<CheckpointArchiveManifestV1, CheckpointError> {
-    decode_archive_manifest_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::CheckpointArchiveManifest,
+        bytes,
+        decode_archive_manifest_bin_checked,
+    )
 }
 
 pub fn encode_archive_manifest_json(
@@ -272,7 +297,11 @@ pub fn encode_archive_manifest_json(
 pub fn decode_archive_manifest_json(
     bytes: &[u8],
 ) -> Result<CheckpointArchiveManifestV1, CheckpointError> {
-    decode_archive_manifest_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::CheckpointArchiveManifest,
+        bytes,
+        decode_archive_manifest_json_checked,
+    )
 }
 
 pub fn encode_archive_receipt_bin(
@@ -284,7 +313,11 @@ pub fn encode_archive_receipt_bin(
 pub fn decode_archive_receipt_bin(
     bytes: &[u8],
 ) -> Result<ArchiveProviderReceiptV1, CheckpointError> {
-    decode_archive_receipt_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::ArchiveProviderReceipt,
+        bytes,
+        decode_archive_receipt_bin_checked,
+    )
 }
 
 pub fn encode_archive_receipt_json(
@@ -296,7 +329,11 @@ pub fn encode_archive_receipt_json(
 pub fn decode_archive_receipt_json(
     bytes: &[u8],
 ) -> Result<ArchiveProviderReceiptV1, CheckpointError> {
-    decode_archive_receipt_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::ArchiveProviderReceipt,
+        bytes,
+        decode_archive_receipt_json_checked,
+    )
 }
 
 pub fn encode_da_reference_bin(
@@ -306,7 +343,11 @@ pub fn encode_da_reference_bin(
 }
 
 pub fn decode_da_reference_bin(bytes: &[u8]) -> Result<CheckpointDaReferenceV1, CheckpointError> {
-    decode_da_reference_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::CheckpointDaReference,
+        bytes,
+        decode_da_reference_bin_checked,
+    )
 }
 
 pub fn encode_da_reference_json(
@@ -316,7 +357,11 @@ pub fn encode_da_reference_json(
 }
 
 pub fn decode_da_reference_json(bytes: &[u8]) -> Result<CheckpointDaReferenceV1, CheckpointError> {
-    decode_da_reference_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::CheckpointDaReference,
+        bytes,
+        decode_da_reference_json_checked,
+    )
 }
 
 pub fn encode_publication_evidence_bin(
@@ -328,7 +373,11 @@ pub fn encode_publication_evidence_bin(
 pub fn decode_publication_evidence_bin(
     bytes: &[u8],
 ) -> Result<CheckpointPublicationEvidenceV1, CheckpointError> {
-    decode_publication_evidence_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::CheckpointPublicationEvidence,
+        bytes,
+        decode_publication_evidence_bin_checked,
+    )
 }
 
 pub fn encode_publication_evidence_json(
@@ -340,7 +389,11 @@ pub fn encode_publication_evidence_json(
 pub fn decode_publication_evidence_json(
     bytes: &[u8],
 ) -> Result<CheckpointPublicationEvidenceV1, CheckpointError> {
-    decode_publication_evidence_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::CheckpointPublicationEvidence,
+        bytes,
+        decode_publication_evidence_json_checked,
+    )
 }
 
 pub fn encode_pq_anchor_bin(
@@ -352,7 +405,11 @@ pub fn encode_pq_anchor_bin(
 pub fn decode_pq_anchor_bin(
     bytes: &[u8],
 ) -> Result<PostQuantumCheckpointAnchorV1, CheckpointError> {
-    decode_pq_anchor_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::PostQuantumCheckpointAnchor,
+        bytes,
+        decode_pq_anchor_bin_checked,
+    )
 }
 
 pub fn encode_pq_anchor_json(
@@ -364,7 +421,11 @@ pub fn encode_pq_anchor_json(
 pub fn decode_pq_anchor_json(
     bytes: &[u8],
 ) -> Result<PostQuantumCheckpointAnchorV1, CheckpointError> {
-    decode_pq_anchor_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::PostQuantumCheckpointAnchor,
+        bytes,
+        decode_pq_anchor_json_checked,
+    )
 }
 
 pub fn encode_retrieval_audit_bin(audit: &RetrievalAuditV1) -> Result<Vec<u8>, CheckpointError> {
@@ -372,7 +433,11 @@ pub fn encode_retrieval_audit_bin(audit: &RetrievalAuditV1) -> Result<Vec<u8>, C
 }
 
 pub fn decode_retrieval_audit_bin(bytes: &[u8]) -> Result<RetrievalAuditV1, CheckpointError> {
-    decode_retrieval_audit_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::RetrievalAudit,
+        bytes,
+        decode_retrieval_audit_bin_checked,
+    )
 }
 
 pub fn encode_retrieval_audit_json(audit: &RetrievalAuditV1) -> Result<Vec<u8>, CheckpointError> {
@@ -380,7 +445,11 @@ pub fn encode_retrieval_audit_json(audit: &RetrievalAuditV1) -> Result<Vec<u8>, 
 }
 
 pub fn decode_retrieval_audit_json(bytes: &[u8]) -> Result<RetrievalAuditV1, CheckpointError> {
-    decode_retrieval_audit_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::RetrievalAudit,
+        bytes,
+        decode_retrieval_audit_json_checked,
+    )
 }
 
 pub fn encode_state_snapshot_bin(snapshot: &StateSnapshotV1) -> Result<Vec<u8>, CheckpointError> {
@@ -388,7 +457,11 @@ pub fn encode_state_snapshot_bin(snapshot: &StateSnapshotV1) -> Result<Vec<u8>, 
 }
 
 pub fn decode_state_snapshot_bin(bytes: &[u8]) -> Result<StateSnapshotV1, CheckpointError> {
-    decode_state_snapshot_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::StateSnapshot,
+        bytes,
+        decode_state_snapshot_bin_checked,
+    )
 }
 
 pub fn encode_state_snapshot_json(snapshot: &StateSnapshotV1) -> Result<Vec<u8>, CheckpointError> {
@@ -396,7 +469,11 @@ pub fn encode_state_snapshot_json(snapshot: &StateSnapshotV1) -> Result<Vec<u8>,
 }
 
 pub fn decode_state_snapshot_json(bytes: &[u8]) -> Result<StateSnapshotV1, CheckpointError> {
-    decode_state_snapshot_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::StateSnapshot,
+        bytes,
+        decode_state_snapshot_json_checked,
+    )
 }
 
 pub fn encode_pruning_decision_bin(
@@ -406,7 +483,11 @@ pub fn encode_pruning_decision_bin(
 }
 
 pub fn decode_pruning_decision_bin(bytes: &[u8]) -> Result<PruningDecisionV1, CheckpointError> {
-    decode_pruning_decision_bin_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::PruningDecision,
+        bytes,
+        decode_pruning_decision_bin_checked,
+    )
 }
 
 pub fn encode_pruning_decision_json(
@@ -416,7 +497,11 @@ pub fn encode_pruning_decision_json(
 }
 
 pub fn decode_pruning_decision_json(bytes: &[u8]) -> Result<PruningDecisionV1, CheckpointError> {
-    decode_pruning_decision_json_checked(bytes)
+    decode_registered_legacy(
+        RecursiveBoundedObjectV2::PruningDecision,
+        bytes,
+        decode_pruning_decision_json_checked,
+    )
 }
 
 #[cfg(test)]

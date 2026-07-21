@@ -32,6 +32,23 @@ fn test_atomic_write_symlink() {
 }
 
 #[test]
+#[cfg(unix)]
+fn test_path_exists_no_follow() {
+    let dir = TempDir::new().unwrap();
+    let missing = dir.path().join("missing");
+    let link = dir.path().join("dangling");
+    std::os::unix::fs::symlink(&missing, &link).expect("create dangling symlink");
+
+    assert!(!path_exists(&link).expect("followed existence"));
+    assert!(path_exists_no_follow(&link).expect("entry existence"));
+    assert!(symlink_metadata(&link)
+        .expect("entry metadata")
+        .file_type()
+        .is_symlink());
+    sync_directory(dir.path()).expect("directory sync");
+}
+
+#[test]
 fn test_json_file_format() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("format.json");

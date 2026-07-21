@@ -3038,7 +3038,7 @@ recursive-sidecar, PQ-anchor, and authority-promotion contracts.
 
 **069-051 T2 closure (2026-07-20):** T0, T1 and T2 are complete on final T2
 source revision
-`50f8f9084d3cf888e0aedf10ebc165a088d977a256d2f031b5773bb00adbc45a`.
+`e58e2f9a2f715a64b37dd464248b57601e7deda4254086c0b6598160cf30dbd6`.
 The sole Nova path now consumes one bounded versioned 1 MiB HJMT segment
 stream, verifies and drops operations incrementally, releases hierarchy maps at
 exact barriers, and fixes one HJMT worker, 2 MiB result admission, separate
@@ -3049,11 +3049,16 @@ numeric tuple under `phase-069-t2-interactive-authority-2026-07-20`. Final
 proof/Model C/artifacts, bootstrap-first release gates, three reviews ending in
 two significant-clean passes, two doublechecks, scoped versioning and clean-
 clone reproducibility are retained by the canonical Plan 051 ledgers.
-The unchanged-tree gate records bootstrap `2:43.51`, semantic 36/36
-`58:58.46`, TestCS 1,727/1,727 `4:21.58`, artifacts 3/3 `7:40.84`, all-target
-build `2:15.01`, and workspace tests `45:00.11`; final review passes 3–4 are
-consecutive clean after the F23 test-env lock repair.
-`069-051-T3` is now the next executable task but is not started; T4 and Plans
+The final-source gate records bootstrap `3:09.07`, semantic 36/36 `1:09:45`,
+TestCS 1,727/1,727 `4:23.55`, artifacts 3/3 `7:48.43`, all-target build
+`2:16.60`, and workspace tests `30:44.10`. Patch release
+`v1.14.1`/`37ece6c…faad2` passed detached clean-clone bootstrap first
+`2:55.62`, curated `1:41.07`, all-target build `2:21.51`, and workspace tests
+`44:37.30` with 350 result blocks and zero failures. The normal remote push is
+blocked by DNS after both attempts and is not reported as synchronized. The
+writable versioning clone's local `main`/`v1.14.1` remain `37ece6c…faad2`;
+`origin/main` remains `0256a85…6483` pending external transport recovery.
+`069-051-T3` is OPEN as the next executable task but is not started; T4 and Plans
 06–13 remain locked, and `CheckpointProofSystem::VERIFIED` remains disabled.
 
 **T1 acceptance (2026-07-14):** T1 is complete. The repository-local cutover validates every manifest/root binding, commits its CAS at immediate durability, reloads it, and rejects a second install. The evaluator consumes strict bounded opcode/JMT bytes, independently recomputes raw-SHA JMT transitions, and requires exact terminal→bucket→serial→definition child-root consumption. The authority-defined empty/no-op transition is explicit: config, authority digest, durable manifest, canonical transition, and independent evaluator bind the same execution-input version; only the sentinel handoff and a typed zero-update envelope are accepted. Five YOLO execution reviews ran (the final two clean) and two `doublecheck` passes completed. Bootstrap, targeted release suites, the full 187-unit/package `z00z_storage` release suite, `cargo build --release`, full workspace `cargo test --release`, and the release feature guard completed. T2 is now active; T3–T4 and Plan 06 remain locked on T2 acceptance.

@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::CheckpointError;
 use z00z_crypto::{
     sha256_256_role, CheckpointSha256BlockStreamV2, CheckpointSha256BlockV2,
     CheckpointSha256BlockVisitError, CheckpointSha256V2, CheckpointShaRole,
@@ -12,7 +13,6 @@ use zeroize::{Zeroize, Zeroizing};
 use super::{
     recursive_circuit::RecursiveCircuitProfileV2,
     recursive_context::RecursiveSnapshotHandleV2,
-    recursive_reject::RecursiveV2Error,
     recursive_semantics::{
         decode_flow_header, decode_flow_item, decode_hierarchy_promotion_fields,
         decode_uniqueness_challenge, decode_uniqueness_precommit, decode_uniqueness_sorted_row,
@@ -86,22 +86,22 @@ impl RecursiveTraceEventCountsV2 {
         &mut self,
         opcode: RecursiveTraceOpcodeV2,
         count: u64,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         let index = opcode_index(opcode);
         self.counts[index] = self.counts[index]
             .checked_add(count)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         Ok(())
     }
 
     pub(crate) fn increment(
         &mut self,
         opcode: RecursiveTraceOpcodeV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         let index = opcode_index(opcode);
         self.counts[index] = self.counts[index]
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         Ok(())
     }
 
@@ -113,7 +113,7 @@ impl RecursiveTraceEventCountsV2 {
 
     /// Return the number of canonical source records, excluding derived hash
     /// and fixed-width chunk controls.
-    pub fn source_record_count(&self) -> Result<u64, RecursiveV2Error> {
+    pub fn source_record_count(&self) -> Result<u64, CheckpointError> {
         [
             RecursiveTraceOpcodeV2::BeginBlock,
             RecursiveTraceOpcodeV2::ReplayInput,
@@ -132,15 +132,15 @@ impl RecursiveTraceEventCountsV2 {
         .try_fold(0_u64, |total, opcode| {
             total
                 .checked_add(self.count(opcode))
-                .ok_or(RecursiveV2Error::Overflow)
+                .ok_or(CheckpointError::Overflow)
         })
     }
 
     /// Return the complete expanded schedule count, including derived control
     /// records. This is kept distinct from `source_record_count` on purpose.
-    pub(crate) fn total_count(&self) -> Result<u64, RecursiveV2Error> {
+    pub(crate) fn total_count(&self) -> Result<u64, CheckpointError> {
         self.counts.iter().try_fold(0_u64, |total, count| {
-            total.checked_add(*count).ok_or(RecursiveV2Error::Overflow)
+            total.checked_add(*count).ok_or(CheckpointError::Overflow)
         })
     }
 
@@ -175,7 +175,7 @@ impl RecursiveTraceOpcodeV2 {
         )
     }
 
-    fn decode(byte: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(byte: u8) -> Result<Self, CheckpointError> {
         match byte {
             1 => Ok(Self::BeginBlock),
             2 => Ok(Self::ReplayInput),
@@ -194,7 +194,7 @@ impl RecursiveTraceOpcodeV2 {
             15 => Ok(Self::TraceChunk),
             16 => Ok(Self::UniquenessSorted),
             17 => Ok(Self::JmtMicroOp),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 
@@ -314,29 +314,29 @@ impl RecursiveTraceCanonicalChunkV2 {
 fn trace_chunk_control_ordinal(
     source_ordinal: u64,
     chunk_ordinal: u32,
-) -> Result<u64, RecursiveV2Error> {
+) -> Result<u64, CheckpointError> {
     TRACE_CHUNK_ORDINAL_FLAG_V2
         .checked_add(
             source_ordinal
                 .checked_mul(HASH_CONTROL_ORDINAL_STRIDE)
                 .and_then(|value| value.checked_add(u64::from(chunk_ordinal)))
-                .ok_or(RecursiveV2Error::Overflow)?,
+                .ok_or(CheckpointError::Overflow)?,
         )
-        .ok_or(RecursiveV2Error::Overflow)
+        .ok_or(CheckpointError::Overflow)
 }
 
 fn source_memory_write_control_ordinal(
     source_ordinal: u64,
     chunk_ordinal: u32,
-) -> Result<u64, RecursiveV2Error> {
+) -> Result<u64, CheckpointError> {
     SOURCE_MEMORY_WRITE_ORDINAL_FLAG_V2
         .checked_add(
             source_ordinal
                 .checked_mul(HASH_CONTROL_ORDINAL_STRIDE)
                 .and_then(|value| value.checked_add(u64::from(chunk_ordinal)))
-                .ok_or(RecursiveV2Error::Overflow)?,
+                .ok_or(CheckpointError::Overflow)?,
         )
-        .ok_or(RecursiveV2Error::Overflow)
+        .ok_or(CheckpointError::Overflow)
 }
 
 /// Test helper that materializes fixed-width controls from the canonical source
@@ -346,8 +346,8 @@ fn source_memory_write_control_ordinal(
 pub(crate) fn emit_derived_trace_chunks(
     source: &RecursiveTraceEventV2,
     profile: &RecursiveCircuitProfileV2,
-    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-) -> Result<(), RecursiveV2Error> {
+    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+) -> Result<(), CheckpointError> {
     for chunk in source.canonical_chunks_for_test()? {
         emit(trace_chunk_control_event(chunk, profile)?)?;
     }
@@ -357,7 +357,7 @@ pub(crate) fn emit_derived_trace_chunks(
 fn trace_chunk_control_event(
     chunk: RecursiveTraceCanonicalChunkV2,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceEventV2, CheckpointError> {
     canonical_chunk_control_event(
         RecursiveTraceOpcodeV2::TraceChunk,
         trace_chunk_control_ordinal(chunk.source_ordinal(), chunk.chunk_ordinal())?,
@@ -369,7 +369,7 @@ fn trace_chunk_control_event(
 fn source_memory_write_control_event(
     chunk: RecursiveTraceCanonicalChunkV2,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceEventV2, CheckpointError> {
     canonical_chunk_control_event(
         RecursiveTraceOpcodeV2::SourceMemoryWrite,
         source_memory_write_control_ordinal(chunk.source_ordinal(), chunk.chunk_ordinal())?,
@@ -383,7 +383,7 @@ fn canonical_chunk_control_event(
     ordinal: u64,
     chunk: RecursiveTraceCanonicalChunkV2,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceEventV2, CheckpointError> {
     let mut payload = Vec::with_capacity(TRACE_CHUNK_CONTROL_PAYLOAD_BYTES_V2);
     payload.push(TRACE_CHUNK_CONTROL_VERSION_V2);
     payload.extend_from_slice(&chunk.source_ordinal().to_le_bytes());
@@ -401,36 +401,36 @@ fn canonical_chunk_control_event(
 fn decode_canonical_chunk_control(
     event: &RecursiveTraceEventV2,
     expected_opcode: RecursiveTraceOpcodeV2,
-    expected_ordinal: impl FnOnce(u64, u32) -> Result<u64, RecursiveV2Error>,
-) -> Result<RecursiveTraceChunkControlV2, RecursiveV2Error> {
+    expected_ordinal: impl FnOnce(u64, u32) -> Result<u64, CheckpointError>,
+) -> Result<RecursiveTraceChunkControlV2, CheckpointError> {
     if event.opcode() != expected_opcode
         || event.payload().len() != TRACE_CHUNK_CONTROL_PAYLOAD_BYTES_V2
         || event.object_id()
             != structural_event_id(event.opcode(), event.ordinal(), event.payload())
         || event.payload()[0] != TRACE_CHUNK_CONTROL_VERSION_V2
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let payload = event.payload();
     let source_ordinal = u64::from_le_bytes(
         payload[1..9]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     );
     let chunk_ordinal = u32::from_le_bytes(
         payload[9..13]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     );
     let chunk_count = u32::from_le_bytes(
         payload[13..17]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     );
     let byte_count = payload[17];
     let bytes: [u8; TRACE_CANONICAL_CHUNK_BYTES_V2] = payload[18..]
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     if chunk_count == 0
         || chunk_ordinal >= chunk_count
         || byte_count == 0
@@ -440,7 +440,7 @@ fn decode_canonical_chunk_control(
             .any(|byte| *byte != 0)
         || event.ordinal() != expected_ordinal(source_ordinal, chunk_ordinal)?
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok(RecursiveTraceChunkControlV2 {
         source_ordinal,
@@ -454,7 +454,7 @@ fn decode_canonical_chunk_control(
 /// Decode and validate one fixed-width canonical-byte feeder control.
 pub(crate) fn decode_trace_chunk_control(
     event: &RecursiveTraceEventV2,
-) -> Result<RecursiveTraceChunkControlV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceChunkControlV2, CheckpointError> {
     decode_canonical_chunk_control(
         event,
         RecursiveTraceOpcodeV2::TraceChunk,
@@ -466,7 +466,7 @@ pub(crate) fn decode_trace_chunk_control(
 /// canonical chunk grammar as [`decode_trace_chunk_control`].
 pub(crate) fn decode_source_memory_write_control(
     event: &RecursiveTraceEventV2,
-) -> Result<RecursiveTraceChunkControlV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceChunkControlV2, CheckpointError> {
     decode_canonical_chunk_control(
         event,
         RecursiveTraceOpcodeV2::SourceMemoryWrite,
@@ -482,12 +482,12 @@ impl RecursiveTraceEventV2 {
         object_id: [u8; 32],
         payload: Vec<u8>,
         profile: &RecursiveCircuitProfileV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if object_id == [0; 32]
             || payload.len()
-                > usize::try_from(profile.max_leaf_bytes()).map_err(|_| RecursiveV2Error::Limit)?
+                > usize::try_from(profile.max_leaf_bytes()).map_err(|_| CheckpointError::Limit)?
         {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         Ok(Self {
             ordinal,
@@ -517,29 +517,29 @@ impl RecursiveTraceEventV2 {
         &self.payload
     }
 
-    pub(crate) fn canonical_len(&self) -> Result<u64, RecursiveV2Error> {
+    pub(crate) fn canonical_len(&self) -> Result<u64, CheckpointError> {
         u64::try_from(
             TRACE_EVENT_HEADER_BYTES_V2
                 .checked_add(self.payload.len())
-                .ok_or(RecursiveV2Error::Overflow)?,
+                .ok_or(CheckpointError::Overflow)?,
         )
-        .map_err(|_| RecursiveV2Error::Limit)
+        .map_err(|_| CheckpointError::Limit)
     }
 
-    pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, RecursiveV2Error> {
+    pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, CheckpointError> {
         encode_canonical_source_record(self.opcode, self.ordinal, self.object_id, &self.payload)
     }
 
     /// Return the fixed number of canonical chunks without materializing them.
-    pub(crate) fn canonical_chunk_count(&self) -> Result<u32, RecursiveV2Error> {
-        let bytes = usize::try_from(self.canonical_len()?).map_err(|_| RecursiveV2Error::Limit)?;
+    pub(crate) fn canonical_chunk_count(&self) -> Result<u32, CheckpointError> {
+        let bytes = usize::try_from(self.canonical_len()?).map_err(|_| CheckpointError::Limit)?;
         let chunk_count = bytes
             .checked_add(TRACE_CANONICAL_CHUNK_BYTES_V2 - 1)
             .map(|value| value / TRACE_CANONICAL_CHUNK_BYTES_V2)
-            .ok_or(RecursiveV2Error::Overflow)?;
-        let chunk_count = u32::try_from(chunk_count).map_err(|_| RecursiveV2Error::Limit)?;
+            .ok_or(CheckpointError::Overflow)?;
+        let chunk_count = u32::try_from(chunk_count).map_err(|_| CheckpointError::Limit)?;
         if chunk_count == 0 {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         Ok(chunk_count)
     }
@@ -550,12 +550,12 @@ impl RecursiveTraceEventV2 {
     pub(crate) fn canonical_chunk(
         &self,
         chunk_ordinal: u32,
-    ) -> Result<RecursiveTraceCanonicalChunkV2, RecursiveV2Error> {
+    ) -> Result<RecursiveTraceCanonicalChunkV2, CheckpointError> {
         let chunk_count = self.canonical_chunk_count()?;
         if chunk_ordinal >= chunk_count {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
-        let payload_len = u32::try_from(self.payload.len()).map_err(|_| RecursiveV2Error::Limit)?;
+        let payload_len = u32::try_from(self.payload.len()).map_err(|_| CheckpointError::Limit)?;
         let mut header = [0_u8; TRACE_EVENT_HEADER_BYTES_V2];
         header[0] = self.opcode as u8;
         header[1..9].copy_from_slice(&self.ordinal.to_le_bytes());
@@ -563,23 +563,21 @@ impl RecursiveTraceEventV2 {
         header[41..45].copy_from_slice(&payload_len.to_le_bytes());
 
         let start = usize::try_from(chunk_ordinal)
-            .map_err(|_| RecursiveV2Error::Limit)?
+            .map_err(|_| CheckpointError::Limit)?
             .checked_mul(TRACE_CANONICAL_CHUNK_BYTES_V2)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let total = TRACE_EVENT_HEADER_BYTES_V2
             .checked_add(self.payload.len())
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let end = start
             .checked_add(TRACE_CANONICAL_CHUNK_BYTES_V2)
             .map(|value| value.min(total))
-            .ok_or(RecursiveV2Error::Overflow)?;
-        let byte_count = u8::try_from(end.checked_sub(start).ok_or(RecursiveV2Error::Overflow)?)
-            .map_err(|_| RecursiveV2Error::Limit)?;
+            .ok_or(CheckpointError::Overflow)?;
+        let byte_count = u8::try_from(end.checked_sub(start).ok_or(CheckpointError::Overflow)?)
+            .map_err(|_| CheckpointError::Limit)?;
         let mut bytes = [0_u8; TRACE_CANONICAL_CHUNK_BYTES_V2];
         for (offset, output) in bytes[..usize::from(byte_count)].iter_mut().enumerate() {
-            let source_offset = start
-                .checked_add(offset)
-                .ok_or(RecursiveV2Error::Overflow)?;
+            let source_offset = start.checked_add(offset).ok_or(CheckpointError::Overflow)?;
             *output = if source_offset < TRACE_EVENT_HEADER_BYTES_V2 {
                 header[source_offset]
             } else {
@@ -600,14 +598,14 @@ impl RecursiveTraceEventV2 {
     #[cfg(test)]
     pub(crate) fn canonical_chunks_for_test(
         &self,
-    ) -> Result<Vec<RecursiveTraceCanonicalChunkV2>, RecursiveV2Error> {
+    ) -> Result<Vec<RecursiveTraceCanonicalChunkV2>, CheckpointError> {
         let count = self.canonical_chunk_count()?;
         (0..count)
             .map(|ordinal| self.canonical_chunk(ordinal))
             .collect()
     }
 
-    pub(crate) fn hash_binding(&self) -> Result<[u8; 32], RecursiveV2Error> {
+    pub(crate) fn hash_binding(&self) -> Result<[u8; 32], CheckpointError> {
         let bytes = self.canonical_bytes()?;
         Ok(sha256_256_role(
             CheckpointShaRole::Trace,
@@ -616,12 +614,12 @@ impl RecursiveTraceEventV2 {
     }
 
     /// Exact FIPS message length and compression count for this source record.
-    pub(crate) fn hash_geometry(&self) -> Result<(u64, u64), RecursiveV2Error> {
+    pub(crate) fn hash_geometry(&self) -> Result<(u64, u64), CheckpointError> {
         let bytes = self.canonical_bytes()?;
         let part_bytes = u64::try_from(SOURCE_RECORD_HASH_LABEL_V2.len())
-            .map_err(|_| RecursiveV2Error::Limit)?
-            .checked_add(u64::try_from(bytes.len()).map_err(|_| RecursiveV2Error::Limit)?)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .map_err(|_| CheckpointError::Limit)?
+            .checked_add(u64::try_from(bytes.len()).map_err(|_| CheckpointError::Limit)?)
+            .ok_or(CheckpointError::Overflow)?;
         let message_bytes = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
             CheckpointShaRole::Trace,
             part_bytes,
@@ -636,7 +634,7 @@ impl RecursiveTraceEventV2 {
     fn decode_canonical(
         bytes: &[u8],
         profile: &RecursiveCircuitProfileV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let (opcode, ordinal, object_id, payload) = decode_canonical_source_record(bytes, profile)?;
         Self::new(ordinal, opcode, object_id, payload, profile)
     }
@@ -649,12 +647,12 @@ fn encode_canonical_source_record(
     ordinal: u64,
     object_id: [u8; 32],
     payload: &[u8],
-) -> Result<Vec<u8>, RecursiveV2Error> {
-    let payload_len = u32::try_from(payload.len()).map_err(|_| RecursiveV2Error::Limit)?;
+) -> Result<Vec<u8>, CheckpointError> {
+    let payload_len = u32::try_from(payload.len()).map_err(|_| CheckpointError::Limit)?;
     let mut bytes = Vec::with_capacity(
         TRACE_EVENT_HEADER_BYTES_V2
             .checked_add(payload.len())
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
     );
     bytes.push(opcode as u8);
     bytes.extend_from_slice(&ordinal.to_le_bytes());
@@ -669,33 +667,33 @@ fn encode_canonical_source_record(
 fn decode_canonical_source_record(
     bytes: &[u8],
     profile: &RecursiveCircuitProfileV2,
-) -> Result<(RecursiveTraceOpcodeV2, u64, [u8; 32], Vec<u8>), RecursiveV2Error> {
+) -> Result<(RecursiveTraceOpcodeV2, u64, [u8; 32], Vec<u8>), CheckpointError> {
     if bytes.len() < TRACE_EVENT_HEADER_BYTES_V2 {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let opcode = RecursiveTraceOpcodeV2::decode(bytes[0])?;
     let ordinal = u64::from_le_bytes(
         bytes[1..9]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     );
     let object_id = bytes[9..41]
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     let payload_len = usize::try_from(u32::from_le_bytes(
         bytes[41..45]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     ))
-    .map_err(|_| RecursiveV2Error::Limit)?;
+    .map_err(|_| CheckpointError::Limit)?;
     if payload_len
-        > usize::try_from(profile.max_leaf_bytes()).map_err(|_| RecursiveV2Error::Limit)?
+        > usize::try_from(profile.max_leaf_bytes()).map_err(|_| CheckpointError::Limit)?
         || bytes.len()
             != TRACE_EVENT_HEADER_BYTES_V2
                 .checked_add(payload_len)
-                .ok_or(RecursiveV2Error::Overflow)?
+                .ok_or(CheckpointError::Overflow)?
     {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     Ok((
         opcode,
@@ -748,13 +746,13 @@ pub(crate) enum HashControlSchemaV2 {
 }
 
 impl HashControlSchemaV2 {
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         match value {
             1 => Ok(Self::SourceRecord),
             2 => Ok(Self::TracePrecommit),
             3 => Ok(Self::UniquenessList),
             4 => Ok(Self::UniquenessTranscript),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 }
@@ -799,11 +797,11 @@ impl UniquenessTranscriptHashJobV2 {
         Self::SettlementPostRoot,
     ];
 
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         Self::ALL
             .get(usize::from(value))
             .copied()
-            .ok_or(RecursiveV2Error::Canonical)
+            .ok_or(CheckpointError::Canonical)
     }
 
     pub(crate) const fn role(self) -> CheckpointShaRole {
@@ -868,11 +866,11 @@ impl UniquenessListHashJobV2 {
         Self::OutputSorted,
     ];
 
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         Self::ALL
             .get(usize::from(value))
             .copied()
-            .ok_or(RecursiveV2Error::Canonical)
+            .ok_or(CheckpointError::Canonical)
     }
 
     pub(crate) const fn role(self) -> CheckpointShaRole {
@@ -917,11 +915,11 @@ impl UniquenessListHashJobV2 {
 pub(crate) fn emit_derived_hash_controls(
     source: &RecursiveTraceEventV2,
     profile: &RecursiveCircuitProfileV2,
-    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-) -> Result<(), RecursiveV2Error> {
+    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+) -> Result<(), CheckpointError> {
     let mut forward = |event: &RecursiveTraceEventV2| emit(event.clone());
     let mut ignore_chunk =
-        |_: RecursiveTraceCanonicalChunkV2, _: &mut _| Ok::<(), RecursiveV2Error>(());
+        |_: RecursiveTraceCanonicalChunkV2, _: &mut _| Ok::<(), CheckpointError>(());
     emit_derived_hash_controls_with_chunk(source, profile, &mut forward, &mut ignore_chunk)
 }
 
@@ -934,10 +932,10 @@ fn emit_derived_hash_controls_with_chunk<F, G>(
     profile: &RecursiveCircuitProfileV2,
     emit: &mut F,
     feed_chunk: &mut G,
-) -> Result<(), RecursiveV2Error>
+) -> Result<(), CheckpointError>
 where
-    F: FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    G: FnMut(RecursiveTraceCanonicalChunkV2, &mut F) -> Result<(), RecursiveV2Error>,
+    F: FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    G: FnMut(RecursiveTraceCanonicalChunkV2, &mut F) -> Result<(), CheckpointError>,
 {
     let binding = source.hash_binding()?;
     let (message_bytes, block_count) = source.hash_geometry()?;
@@ -1008,7 +1006,7 @@ where
             })
             .map_err(map_block_visit_error)?;
     }
-    stream.finish_part().map_err(RecursiveV2Error::from)?;
+    stream.finish_part().map_err(CheckpointError::from)?;
     let digest = stream
         .finalize_with(&mut |block| {
             emit_source_hash_block(
@@ -1024,7 +1022,7 @@ where
         })
         .map_err(map_block_visit_error)?;
     if digest != binding || emitted_blocks != block_count {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     let end = source_hash_control_event(
         HashControlStageV2::End,
@@ -1046,12 +1044,12 @@ fn emit_source_hash_block(
     message_bytes: u64,
     block_count: u64,
     profile: &RecursiveCircuitProfileV2,
-    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
+    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
     emitted_blocks: &mut u64,
     block: CheckpointSha256BlockV2,
-) -> Result<(), RecursiveV2Error> {
+) -> Result<(), CheckpointError> {
     if block.index() != *emitted_blocks {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     let control = source_hash_control_event(
         HashControlStageV2::Block,
@@ -1066,13 +1064,13 @@ fn emit_source_hash_block(
     emit(&control)?;
     *emitted_blocks = emitted_blocks
         .checked_add(1)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
     Ok(())
 }
 
 fn map_block_visit_error(
-    error: CheckpointSha256BlockVisitError<RecursiveV2Error>,
-) -> RecursiveV2Error {
+    error: CheckpointSha256BlockVisitError<CheckpointError>,
+) -> CheckpointError {
     match error {
         CheckpointSha256BlockVisitError::Hash(error) => error.into(),
         CheckpointSha256BlockVisitError::Visitor(error) => error,
@@ -1088,12 +1086,12 @@ pub(crate) enum HashControlStageV2 {
 }
 
 impl HashControlStageV2 {
-    fn decode(value: u8) -> Result<Self, RecursiveV2Error> {
+    fn decode(value: u8) -> Result<Self, CheckpointError> {
         match value {
             1 => Ok(Self::Begin),
             2 => Ok(Self::Block),
             3 => Ok(Self::End),
-            _ => Err(RecursiveV2Error::Canonical),
+            _ => Err(CheckpointError::Canonical),
         }
     }
 }
@@ -1107,9 +1105,9 @@ fn source_hash_control_event(
     block_count: u64,
     block: Option<CheckpointSha256BlockV2>,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceEventV2, CheckpointError> {
     if matches!(stage, HashControlStageV2::Block) != block.is_some() {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     let source_ordinal = source.ordinal().to_le_bytes();
     let source_opcode = [source.opcode() as u8];
@@ -1121,7 +1119,7 @@ fn source_hash_control_event(
     let mut payload = Vec::new();
     payload
         .try_reserve_exact(payload_bytes)
-        .map_err(|_| RecursiveV2Error::Limit)?;
+        .map_err(|_| CheckpointError::Limit)?;
     payload.push(HashControlSchemaV2::SourceRecord as u8);
     payload.push(TRACE_HASH_ROLE_TAG_V2);
     payload.push(stage as u8);
@@ -1135,11 +1133,11 @@ fn source_hash_control_event(
         Some(block) => block
             .index()
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
         None if matches!(stage, HashControlStageV2::Begin) => 0,
         None => block_count
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
     };
     if let Some(block) = block {
         payload.extend_from_slice(&block.index().to_le_bytes());
@@ -1159,21 +1157,21 @@ fn source_hash_control_event(
 /// caller-supplied padding or length claim.
 fn trace_hash_geometry(
     precommit: RecursiveTracePrecommitV2,
-) -> Result<(u64, u64, u64, u64), RecursiveV2Error> {
+) -> Result<(u64, u64, u64, u64), CheckpointError> {
     let message_bytes = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
         CheckpointShaRole::Trace,
         precommit.byte_count,
         precommit.event_count,
     )
-    .map_err(|_| RecursiveV2Error::Limit)?;
+    .map_err(|_| CheckpointError::Limit)?;
     let block_count = CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(message_bytes)
-        .map_err(|_| RecursiveV2Error::Limit)?;
+        .map_err(|_| CheckpointError::Limit)?;
     let padding_bytes = sha256_padding_bytes(message_bytes, block_count)?;
     let bit_length = message_bytes
         .checked_mul(8)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
     if precommit.event_count == 0 || block_count == 0 {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     Ok((message_bytes, block_count, padding_bytes, bit_length))
 }
@@ -1186,11 +1184,11 @@ fn emit_trace_hash_block(
     padding_bytes: u64,
     bit_length: u64,
     profile: &RecursiveCircuitProfileV2,
-    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
+    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
     emitted_blocks: &mut u64,
-) -> Result<(), RecursiveV2Error> {
+) -> Result<(), CheckpointError> {
     if block.index() != *emitted_blocks {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     let control = trace_hash_control_event(
         HashControlStageV2::Block,
@@ -1206,7 +1204,7 @@ fn emit_trace_hash_block(
     emit(&control)?;
     *emitted_blocks = emitted_blocks
         .checked_add(1)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
     Ok(())
 }
 
@@ -1220,9 +1218,9 @@ fn trace_hash_control_event(
     bit_length: u64,
     block: Option<CheckpointSha256BlockV2>,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceEventV2, CheckpointError> {
     if matches!(stage, HashControlStageV2::Block) != block.is_some() {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     let payload_bytes = if block.is_some() {
         HASH_CONTROL_TRACE_BLOCK_PAYLOAD_BYTES
@@ -1232,7 +1230,7 @@ fn trace_hash_control_event(
     let mut payload = Vec::new();
     payload
         .try_reserve_exact(payload_bytes)
-        .map_err(|_| RecursiveV2Error::Limit)?;
+        .map_err(|_| CheckpointError::Limit)?;
     payload.push(HashControlSchemaV2::TracePrecommit as u8);
     payload.push(TRACE_HASH_ROLE_TAG_V2);
     payload.push(stage as u8);
@@ -1248,11 +1246,11 @@ fn trace_hash_control_event(
         Some(block) => block
             .index()
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
         None if matches!(stage, HashControlStageV2::Begin) => 0,
         None => block_count
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
     };
     if let Some(block) = block {
         payload.extend_from_slice(&block.index().to_le_bytes());
@@ -1267,30 +1265,30 @@ fn trace_hash_control_event(
     RecursiveTraceEventV2::new(ordinal, opcode, object_id, payload, profile)
 }
 
-fn sha256_padding_bytes(message_bytes: u64, block_count: u64) -> Result<u64, RecursiveV2Error> {
+fn sha256_padding_bytes(message_bytes: u64, block_count: u64) -> Result<u64, CheckpointError> {
     block_count
         .checked_mul(64)
         .and_then(|bytes| bytes.checked_sub(message_bytes))
         .and_then(|bytes| bytes.checked_sub(9))
         .filter(|bytes| *bytes < 64)
-        .ok_or(RecursiveV2Error::Invariant)
+        .ok_or(CheckpointError::Invariant)
 }
 
 pub(crate) fn hash_control_ordinal(
     source_ordinal: u64,
     sequence: u64,
-) -> Result<u64, RecursiveV2Error> {
+) -> Result<u64, CheckpointError> {
     if sequence >= HASH_CONTROL_ORDINAL_STRIDE {
-        return Err(RecursiveV2Error::Limit);
+        return Err(CheckpointError::Limit);
     }
     HASH_CONTROL_ORDINAL_FLAG
         .checked_add(
             source_ordinal
                 .checked_mul(HASH_CONTROL_ORDINAL_STRIDE)
                 .and_then(|value| value.checked_add(sequence))
-                .ok_or(RecursiveV2Error::Overflow)?,
+                .ok_or(CheckpointError::Overflow)?,
         )
-        .ok_or(RecursiveV2Error::Overflow)
+        .ok_or(CheckpointError::Overflow)
 }
 
 fn append_sha_state(payload: &mut Vec<u8>, state: &[u32; 8]) {
@@ -1309,9 +1307,9 @@ fn uniqueness_list_hash_control_event(
     block_count: u64,
     block: Option<CheckpointSha256BlockV2>,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceEventV2, CheckpointError> {
     if matches!(stage, HashControlStageV2::Block) != block.is_some() {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     let payload_bytes = if block.is_some() {
         HASH_CONTROL_UNIQUENESS_LIST_BLOCK_PAYLOAD_BYTES
@@ -1321,7 +1319,7 @@ fn uniqueness_list_hash_control_event(
     let mut payload = Vec::new();
     payload
         .try_reserve_exact(payload_bytes)
-        .map_err(|_| RecursiveV2Error::Limit)?;
+        .map_err(|_| CheckpointError::Limit)?;
     payload.push(HashControlSchemaV2::UniquenessList as u8);
     payload.push(job.role_tag());
     payload.push(stage as u8);
@@ -1335,11 +1333,11 @@ fn uniqueness_list_hash_control_event(
         Some(block) => block
             .index()
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
         None if stage == HashControlStageV2::Begin => 0,
         None => block_count
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
     };
     if let Some(block) = block {
         payload.extend_from_slice(&block.index().to_le_bytes());
@@ -1352,7 +1350,7 @@ fn uniqueness_list_hash_control_event(
     let synthetic_source_ordinal = trace_event_count
         .checked_add(1)
         .and_then(|value| value.checked_add(u64::from(job as u8)))
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
     let ordinal = hash_control_ordinal(synthetic_source_ordinal, sequence)?;
     let opcode = match stage {
         HashControlStageV2::Begin => RecursiveTraceOpcodeV2::BeginHash,
@@ -1387,8 +1385,8 @@ impl UniquenessListHashScheduleV2 {
         event: &RecursiveTraceEventV2,
         trace_event_count: u64,
         profile: &RecursiveCircuitProfileV2,
-        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<(), RecursiveV2Error> {
+        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<(), CheckpointError> {
         match event.opcode() {
             RecursiveTraceOpcodeV2::UniquenessSorted => {
                 let (pass, set, list, _) = decode_uniqueness_sorted_row(event.payload())?;
@@ -1398,13 +1396,13 @@ impl UniquenessListHashScheduleV2 {
                 let target = UniquenessListHashJobV2::ALL
                     .iter()
                     .position(|job| job.row() == (set, list))
-                    .ok_or(RecursiveV2Error::Canonical)?;
+                    .ok_or(CheckpointError::Canonical)?;
                 self.finish_empty_jobs_before(target, trace_event_count, profile, emit)?;
                 if self.active.is_none() {
                     self.start_job(trace_event_count, profile, emit)?;
                 }
                 if self.active.as_ref().map(|active| active.job as usize) != Some(target) {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
             }
             RecursiveTraceOpcodeV2::UniquenessChallenge => {
@@ -1415,7 +1413,7 @@ impl UniquenessListHashScheduleV2 {
                     emit,
                 )?;
                 if self.active.is_some() || self.next_job != UniquenessListHashJobV2::ALL.len() {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
             }
             _ => {}
@@ -1428,12 +1426,12 @@ impl UniquenessListHashScheduleV2 {
         event: &RecursiveTraceEventV2,
         trace_event_count: u64,
         profile: &RecursiveCircuitProfileV2,
-        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<(), RecursiveV2Error> {
+        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<(), CheckpointError> {
         match event.opcode() {
             RecursiveTraceOpcodeV2::UniquenessPrecommit => {
                 if self.precommit.is_some() || self.active.is_some() || self.next_job != 0 {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 self.precommit = Some(decode_uniqueness_precommit(event.payload())?);
             }
@@ -1442,11 +1440,11 @@ impl UniquenessListHashScheduleV2 {
                 if pass != UniquenessPassV2::Commit {
                     return Ok(());
                 }
-                let active = self.active.as_mut().ok_or(RecursiveV2Error::EventOrder)?;
+                let active = self.active.as_mut().ok_or(CheckpointError::EventOrder)?;
                 if active.job.row() != (set, list) || active.seen >= active.expected_count {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
-                let stream = active.stream.as_mut().ok_or(RecursiveV2Error::Invariant)?;
+                let stream = active.stream.as_mut().ok_or(CheckpointError::Invariant)?;
                 stream
                     .update_part_with(&row.canonical_bytes(), &mut |block| {
                         let control = uniqueness_list_hash_control_event(
@@ -1464,14 +1462,14 @@ impl UniquenessListHashScheduleV2 {
                         active.emitted_blocks = active
                             .emitted_blocks
                             .checked_add(1)
-                            .ok_or(RecursiveV2Error::Overflow)?;
+                            .ok_or(CheckpointError::Overflow)?;
                         Ok(())
                     })
                     .map_err(map_block_visit_error)?;
                 active.seen = active
                     .seen
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
                 if active.seen == active.expected_count {
                     self.finish_active(trace_event_count, profile, emit)?;
                 }
@@ -1486,12 +1484,12 @@ impl UniquenessListHashScheduleV2 {
         target: usize,
         trace_event_count: u64,
         profile: &RecursiveCircuitProfileV2,
-        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<(), RecursiveV2Error> {
+        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<(), CheckpointError> {
         while self.next_job < target && self.active.is_none() {
             let (_, count) = self.job_binding(self.next_job)?;
             if count != 0 {
-                return Err(RecursiveV2Error::EventOrder);
+                return Err(CheckpointError::EventOrder);
             }
             self.start_job(trace_event_count, profile, emit)?;
             self.finish_active(trace_event_count, profile, emit)?;
@@ -1503,22 +1501,22 @@ impl UniquenessListHashScheduleV2 {
         &mut self,
         trace_event_count: u64,
         profile: &RecursiveCircuitProfileV2,
-        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<(), RecursiveV2Error> {
+        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<(), CheckpointError> {
         if self.active.is_some() {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         let job = *UniquenessListHashJobV2::ALL
             .get(self.next_job)
-            .ok_or(RecursiveV2Error::EventOrder)?;
+            .ok_or(CheckpointError::EventOrder)?;
         let (expected_digest, expected_count) = self.job_binding(self.next_job)?;
         let part_bytes = u64::from(expected_count)
             .checked_mul(UNIQUENESS_SEMANTIC_ROW_BYTES_V2 as u64)
             .and_then(|value| value.checked_add(4))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let part_count = u64::from(expected_count)
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let message_bytes = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
             job.role(),
             part_bytes,
@@ -1551,7 +1549,7 @@ impl UniquenessListHashScheduleV2 {
         active
             .stream
             .as_mut()
-            .ok_or(RecursiveV2Error::Invariant)?
+            .ok_or(CheckpointError::Invariant)?
             .update_part_with(&expected_count.to_le_bytes(), &mut |block| {
                 let control = uniqueness_list_hash_control_event(
                     HashControlStageV2::Block,
@@ -1568,7 +1566,7 @@ impl UniquenessListHashScheduleV2 {
                 active.emitted_blocks = active
                     .emitted_blocks
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
                 Ok(())
             })
             .map_err(map_block_visit_error)?;
@@ -1580,16 +1578,16 @@ impl UniquenessListHashScheduleV2 {
         &mut self,
         trace_event_count: u64,
         profile: &RecursiveCircuitProfileV2,
-        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<(), RecursiveV2Error> {
-        let mut active = self.active.take().ok_or(RecursiveV2Error::EventOrder)?;
+        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<(), CheckpointError> {
+        let mut active = self.active.take().ok_or(CheckpointError::EventOrder)?;
         if active.seen != active.expected_count {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         let digest = active
             .stream
             .take()
-            .ok_or(RecursiveV2Error::Invariant)?
+            .ok_or(CheckpointError::Invariant)?
             .finalize_with(&mut |block| {
                 let control = uniqueness_list_hash_control_event(
                     HashControlStageV2::Block,
@@ -1606,12 +1604,12 @@ impl UniquenessListHashScheduleV2 {
                 active.emitted_blocks = active
                     .emitted_blocks
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
                 Ok(())
             })
             .map_err(map_block_visit_error)?;
         if digest != active.expected_digest || active.emitted_blocks != active.block_count {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let end = uniqueness_list_hash_control_event(
             HashControlStageV2::End,
@@ -1628,16 +1626,16 @@ impl UniquenessListHashScheduleV2 {
         self.next_job = self
             .next_job
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         Ok(())
     }
 
-    fn job_binding(&self, index: usize) -> Result<([u8; 32], u32), RecursiveV2Error> {
-        let precommit = self.precommit.ok_or(RecursiveV2Error::EventOrder)?;
+    fn job_binding(&self, index: usize) -> Result<([u8; 32], u32), CheckpointError> {
+        let precommit = self.precommit.ok_or(CheckpointError::EventOrder)?;
         match UniquenessListHashJobV2::ALL
             .get(index)
             .copied()
-            .ok_or(RecursiveV2Error::EventOrder)?
+            .ok_or(CheckpointError::EventOrder)?
         {
             UniquenessListHashJobV2::SpentOriginal => {
                 Ok((precommit.spent_original_digest, precommit.spent_count))
@@ -1664,9 +1662,9 @@ fn uniqueness_transcript_hash_control_event(
     block_count: u64,
     block: Option<CheckpointSha256BlockV2>,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<RecursiveTraceEventV2, RecursiveV2Error> {
+) -> Result<RecursiveTraceEventV2, CheckpointError> {
     if matches!(stage, HashControlStageV2::Block) != block.is_some() {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     let payload_bytes = if block.is_some() {
         HASH_CONTROL_UNIQUENESS_TRANSCRIPT_BLOCK_PAYLOAD_BYTES
@@ -1676,7 +1674,7 @@ fn uniqueness_transcript_hash_control_event(
     let mut payload = Vec::new();
     payload
         .try_reserve_exact(payload_bytes)
-        .map_err(|_| RecursiveV2Error::Limit)?;
+        .map_err(|_| CheckpointError::Limit)?;
     payload.push(HashControlSchemaV2::UniquenessTranscript as u8);
     payload.push(job.role_tag());
     payload.push(stage as u8);
@@ -1689,11 +1687,11 @@ fn uniqueness_transcript_hash_control_event(
         Some(block) => block
             .index()
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
         None if stage == HashControlStageV2::Begin => 0,
         None => block_count
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?,
+            .ok_or(CheckpointError::Overflow)?,
     };
     if let Some(block) = block {
         payload.extend_from_slice(&block.index().to_le_bytes());
@@ -1706,7 +1704,7 @@ fn uniqueness_transcript_hash_control_event(
     let synthetic_source_ordinal = trace_event_count
         .checked_add(1 + UniquenessListHashJobV2::ALL.len() as u64)
         .and_then(|value| value.checked_add(u64::from(job as u8)))
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
     let ordinal = hash_control_ordinal(synthetic_source_ordinal, sequence)?;
     let opcode = match stage {
         HashControlStageV2::Begin => RecursiveTraceOpcodeV2::BeginHash,
@@ -1744,15 +1742,15 @@ impl UniquenessTranscriptHashScheduleV2 {
         event: &RecursiveTraceEventV2,
         trace_event_count: u64,
         profile: &RecursiveCircuitProfileV2,
-        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<(), RecursiveV2Error> {
+        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<(), CheckpointError> {
         match event.opcode() {
             RecursiveTraceOpcodeV2::UniquenessPrecommit => {
                 if self.precommit.is_some() || self.next_job != 0 {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 self.precommit = Some(decode_uniqueness_precommit(event.payload())?);
-                let context = self.context.ok_or(RecursiveV2Error::Authority)?;
+                let context = self.context.ok_or(CheckpointError::Authority)?;
                 for job in [
                     UniquenessTranscriptHashJobV2::DeclaredCounts,
                     UniquenessTranscriptHashJobV2::PreUniquenessContext,
@@ -1760,7 +1758,7 @@ impl UniquenessTranscriptHashScheduleV2 {
                     self.emit_job(
                         job,
                         context,
-                        self.precommit.ok_or(RecursiveV2Error::EventOrder)?,
+                        self.precommit.ok_or(CheckpointError::EventOrder)?,
                         None,
                         None,
                         None,
@@ -1772,18 +1770,18 @@ impl UniquenessTranscriptHashScheduleV2 {
                     self.next_job = self
                         .next_job
                         .checked_add(1)
-                        .ok_or(RecursiveV2Error::Overflow)?;
+                        .ok_or(CheckpointError::Overflow)?;
                 }
             }
             RecursiveTraceOpcodeV2::UniquenessChallenge => {
                 if self.next_job != 2 {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
-                let precommit = self.precommit.ok_or(RecursiveV2Error::EventOrder)?;
+                let precommit = self.precommit.ok_or(CheckpointError::EventOrder)?;
                 let grammar = RecursiveTraceOpcodeV2::grammar_digest();
                 let challenges = decode_uniqueness_challenge(
                     event.payload(),
-                    self.context.ok_or(RecursiveV2Error::Authority)?.digest(),
+                    self.context.ok_or(CheckpointError::Authority)?.digest(),
                     grammar,
                     precommit,
                 )?;
@@ -1794,7 +1792,7 @@ impl UniquenessTranscriptHashScheduleV2 {
                 {
                     self.emit_job(
                         job,
-                        self.context.ok_or(RecursiveV2Error::Authority)?,
+                        self.context.ok_or(CheckpointError::Authority)?,
                         precommit,
                         Some(challenges),
                         None,
@@ -1807,41 +1805,41 @@ impl UniquenessTranscriptHashScheduleV2 {
                     self.next_job = self
                         .next_job
                         .checked_add(1)
-                        .ok_or(RecursiveV2Error::Overflow)?;
+                        .ok_or(CheckpointError::Overflow)?;
                 }
             }
             RecursiveTraceOpcodeV2::NetMerge
                 if self.next_job != UniquenessTranscriptHashJobV2::UNIQUENESS_JOB_COUNT =>
             {
-                return Err(RecursiveV2Error::EventOrder);
+                return Err(CheckpointError::EventOrder);
             }
             RecursiveTraceOpcodeV2::PromoteChildRoot => {
                 if self.post_definition_root.is_some()
                     || self.next_job != UniquenessTranscriptHashJobV2::UNIQUENESS_JOB_COUNT
                 {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 let (definition_root, update_trace_digest) =
                     decode_hierarchy_promotion_fields(event.payload())?;
                 if update_trace_digest
                     != self
                         .context
-                        .ok_or(RecursiveV2Error::Authority)?
+                        .ok_or(CheckpointError::Authority)?
                         .update_trace_digest()
                 {
-                    return Err(RecursiveV2Error::Canonical);
+                    return Err(CheckpointError::Canonical);
                 }
                 self.post_definition_root = Some(definition_root);
             }
             RecursiveTraceOpcodeV2::FinalizeBlock => {
                 if self.next_job != UniquenessTranscriptHashJobV2::UNIQUENESS_JOB_COUNT {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
-                let context = self.context.ok_or(RecursiveV2Error::Authority)?;
-                let precommit = self.precommit.ok_or(RecursiveV2Error::EventOrder)?;
+                let context = self.context.ok_or(CheckpointError::Authority)?;
+                let precommit = self.precommit.ok_or(CheckpointError::EventOrder)?;
                 let post_definition_root = self
                     .post_definition_root
-                    .ok_or(RecursiveV2Error::EventOrder)?;
+                    .ok_or(CheckpointError::EventOrder)?;
                 let header = decode_flow_header(event.payload())?;
                 for job in [
                     UniquenessTranscriptHashJobV2::SettlementPreRoot,
@@ -1862,7 +1860,7 @@ impl UniquenessTranscriptHashScheduleV2 {
                     self.next_job = self
                         .next_job
                         .checked_add(1)
-                        .ok_or(RecursiveV2Error::Overflow)?;
+                        .ok_or(CheckpointError::Overflow)?;
                 }
             }
             _ => {}
@@ -1882,8 +1880,8 @@ impl UniquenessTranscriptHashScheduleV2 {
         grammar: [u8; 32],
         trace_event_count: u64,
         profile: &RecursiveCircuitProfileV2,
-        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<(), RecursiveV2Error> {
+        emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<(), CheckpointError> {
         let (expected, parts) = transcript_job_parts(
             job,
             context,
@@ -1895,13 +1893,13 @@ impl UniquenessTranscriptHashScheduleV2 {
         )?;
         let part_bytes = parts.iter().try_fold(0_u64, |total, part| {
             total
-                .checked_add(u64::try_from(part.len()).map_err(|_| RecursiveV2Error::Limit)?)
-                .ok_or(RecursiveV2Error::Overflow)
+                .checked_add(u64::try_from(part.len()).map_err(|_| CheckpointError::Limit)?)
+                .ok_or(CheckpointError::Overflow)
         })?;
         let message_bytes = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
             job.role(),
             part_bytes,
-            u64::try_from(parts.len()).map_err(|_| RecursiveV2Error::Limit)?,
+            u64::try_from(parts.len()).map_err(|_| CheckpointError::Limit)?,
         )?;
         let block_count =
             CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(message_bytes)?;
@@ -1932,7 +1930,7 @@ impl UniquenessTranscriptHashScheduleV2 {
                     )?)?;
                     emitted_blocks = emitted_blocks
                         .checked_add(1)
-                        .ok_or(RecursiveV2Error::Overflow)?;
+                        .ok_or(CheckpointError::Overflow)?;
                     Ok(())
                 })
                 .map_err(map_block_visit_error)?;
@@ -1951,12 +1949,12 @@ impl UniquenessTranscriptHashScheduleV2 {
                 )?)?;
                 emitted_blocks = emitted_blocks
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
                 Ok(())
             })
             .map_err(map_block_visit_error)?;
         if digest != expected || emitted_blocks != block_count {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         emit(&uniqueness_transcript_hash_control_event(
             HashControlStageV2::End,
@@ -1985,14 +1983,14 @@ pub(crate) fn emit_settlement_transcript_hash_controls_for_test(
     post_settlement_root: [u8; 32],
     trace_event_count: u64,
     profile: &RecursiveCircuitProfileV2,
-    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-) -> Result<(), RecursiveV2Error> {
+    emit: &mut impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+) -> Result<(), CheckpointError> {
     if !matches!(
         job,
         UniquenessTranscriptHashJobV2::SettlementPreRoot
             | UniquenessTranscriptHashJobV2::SettlementPostRoot
     ) {
-        return Err(RecursiveV2Error::Invariant);
+        return Err(CheckpointError::Invariant);
     }
     UniquenessTranscriptHashScheduleV2::new(Some(context)).emit_job(
         job,
@@ -2016,7 +2014,7 @@ fn transcript_job_parts(
     post_definition_root: Option<[u8; 32]>,
     post_settlement_root: Option<[u8; 32]>,
     grammar: [u8; 32],
-) -> Result<([u8; 32], Vec<Vec<u8>>), RecursiveV2Error> {
+) -> Result<([u8; 32], Vec<Vec<u8>>), CheckpointError> {
     if job == UniquenessTranscriptHashJobV2::DeclaredCounts {
         return Ok((
             context.declared_work().digest(),
@@ -2033,14 +2031,14 @@ fn transcript_job_parts(
         ));
     }
     if job == UniquenessTranscriptHashJobV2::SettlementPostRoot {
-        let definition_root = post_definition_root.ok_or(RecursiveV2Error::EventOrder)?;
+        let definition_root = post_definition_root.ok_or(CheckpointError::EventOrder)?;
         return Ok((
-            post_settlement_root.ok_or(RecursiveV2Error::EventOrder)?,
+            post_settlement_root.ok_or(CheckpointError::EventOrder)?,
             context.settlement_root_transcript_parts(definition_root),
         ));
     }
-    let challenges = challenges.ok_or(RecursiveV2Error::EventOrder)?;
-    let set_kind = job.set().ok_or(RecursiveV2Error::EventOrder)?;
+    let challenges = challenges.ok_or(CheckpointError::EventOrder)?;
+    let set_kind = job.set().ok_or(CheckpointError::EventOrder)?;
     let set = [set_kind as u8];
     if job.challenge_coordinate().is_none() {
         let (expected, count, original, sorted) = match set_kind {
@@ -2166,47 +2164,47 @@ impl HashControlBlockV2 {
 
 pub(crate) fn decode_hash_control(
     event: &RecursiveTraceEventV2,
-) -> Result<HashControlBindingV2, RecursiveV2Error> {
+) -> Result<HashControlBindingV2, CheckpointError> {
     let payload = event.payload();
     if payload.len() < HASH_CONTROL_SCHEMA_BYTES {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let schema = HashControlSchemaV2::decode(payload[0])?;
     let role = payload[1];
     let stage = HashControlStageV2::decode(payload[2])?;
     let binding = payload[3..35]
         .try_into()
-        .map_err(|_| RecursiveV2Error::Canonical)?;
+        .map_err(|_| CheckpointError::Canonical)?;
     let message_bytes = u64::from_le_bytes(
         payload[35..43]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     );
     let block_count = u64::from_le_bytes(
         payload[43..51]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     );
     let (common_bytes, source, trace, uniqueness_list, uniqueness_transcript) = match schema {
         HashControlSchemaV2::SourceRecord => {
             if role != TRACE_HASH_ROLE_TAG_V2 {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             if payload.len() < HASH_CONTROL_SOURCE_COMMON_BYTES {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let ordinal = u64::from_le_bytes(
                 payload[51..59]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let opcode = RecursiveTraceOpcodeV2::decode(payload[59])?;
             if !opcode.is_source_record() {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let object_id = payload[60..92]
                 .try_into()
-                .map_err(|_| RecursiveV2Error::Canonical)?;
+                .map_err(|_| CheckpointError::Canonical)?;
             (
                 HASH_CONTROL_SOURCE_COMMON_BYTES,
                 Some(HashControlSourceBindingV2 {
@@ -2221,35 +2219,35 @@ pub(crate) fn decode_hash_control(
         }
         HashControlSchemaV2::TracePrecommit => {
             if role != TRACE_HASH_ROLE_TAG_V2 {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             if payload.len() < HASH_CONTROL_TRACE_COMMON_BYTES {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let event_count = u64::from_le_bytes(
                 payload[51..59]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let byte_count = u64::from_le_bytes(
                 payload[59..67]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let padding_bytes = u64::from_le_bytes(
                 payload[67..75]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let bit_length = u64::from_le_bytes(
                 payload[75..83]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let eof = match payload[83] {
                 0 => false,
                 1 => true,
-                _ => return Err(RecursiveV2Error::Canonical),
+                _ => return Err(CheckpointError::Canonical),
             };
             (
                 HASH_CONTROL_TRACE_COMMON_BYTES,
@@ -2267,21 +2265,21 @@ pub(crate) fn decode_hash_control(
         }
         HashControlSchemaV2::UniquenessList => {
             if payload.len() < HASH_CONTROL_UNIQUENESS_LIST_COMMON_BYTES {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let job = UniquenessListHashJobV2::decode(payload[51])?;
             if role != job.role_tag() {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let count = u32::from_le_bytes(
                 payload[52..56]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let trace_event_count = u64::from_le_bytes(
                 payload[56..64]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             (
                 HASH_CONTROL_UNIQUENESS_LIST_COMMON_BYTES,
@@ -2297,16 +2295,16 @@ pub(crate) fn decode_hash_control(
         }
         HashControlSchemaV2::UniquenessTranscript => {
             if payload.len() < HASH_CONTROL_UNIQUENESS_TRANSCRIPT_COMMON_BYTES {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let job = UniquenessTranscriptHashJobV2::decode(payload[51])?;
             if role != job.role_tag() {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let trace_event_count = u64::from_le_bytes(
                 payload[52..60]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             (
                 HASH_CONTROL_UNIQUENESS_TRANSCRIPT_COMMON_BYTES,
@@ -2325,23 +2323,23 @@ pub(crate) fn decode_hash_control(
             if payload.len()
                 != common_bytes
                     .checked_add(HASH_CONTROL_BLOCK_BYTES)
-                    .ok_or(RecursiveV2Error::Overflow)?
+                    .ok_or(CheckpointError::Overflow)?
             {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             let index = u64::from_le_bytes(
                 payload[common_bytes..common_bytes + 8]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let byte_offset = u64::from_le_bytes(
                 payload[common_bytes + 8..common_bytes + 16]
                     .try_into()
-                    .map_err(|_| RecursiveV2Error::Canonical)?,
+                    .map_err(|_| CheckpointError::Canonical)?,
             );
             let block = payload[common_bytes + 16..common_bytes + 80]
                 .try_into()
-                .map_err(|_| RecursiveV2Error::Canonical)?;
+                .map_err(|_| CheckpointError::Canonical)?;
             let chaining_before =
                 decode_sha_state(&payload[common_bytes + 80..common_bytes + 112])?;
             let chaining_after =
@@ -2349,7 +2347,7 @@ pub(crate) fn decode_hash_control(
             let final_block = match payload[common_bytes + 144] {
                 0 => false,
                 1 => true,
-                _ => return Err(RecursiveV2Error::Canonical),
+                _ => return Err(CheckpointError::Canonical),
             };
             Some(HashControlBlockV2 {
                 index,
@@ -2362,7 +2360,7 @@ pub(crate) fn decode_hash_control(
         }
         HashControlStageV2::Begin | HashControlStageV2::End => {
             if payload.len() != common_bytes {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             None
         }
@@ -2404,13 +2402,13 @@ pub(crate) fn decode_hash_control(
     })
 }
 
-fn decode_sha_state(bytes: &[u8]) -> Result<[u32; 8], RecursiveV2Error> {
+fn decode_sha_state(bytes: &[u8]) -> Result<[u32; 8], CheckpointError> {
     if bytes.len() != 32 {
-        return Err(RecursiveV2Error::Canonical);
+        return Err(CheckpointError::Canonical);
     }
     let mut state = [0_u32; 8];
     for (slot, word) in state.iter_mut().zip(bytes.chunks_exact(4)) {
-        *slot = u32::from_be_bytes(word.try_into().map_err(|_| RecursiveV2Error::Canonical)?);
+        *slot = u32::from_be_bytes(word.try_into().map_err(|_| CheckpointError::Canonical)?);
     }
     Ok(state)
 }
@@ -2504,7 +2502,7 @@ impl RecursiveTransitionTraceSourceV2 {
         dir: impl AsRef<Path>,
         profile: RecursiveCircuitProfileV2,
         snapshot: RecursiveSnapshotHandleV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let spool_dir = dir.as_ref().to_path_buf();
         Ok(Self {
             spool: PrivateSpoolFile::create_in(&spool_dir, profile.max_content_bytes())?,
@@ -2531,9 +2529,9 @@ impl RecursiveTransitionTraceSourceV2 {
     pub(crate) fn bind_pre_uniqueness_context(
         &mut self,
         context: RecursivePreUniquenessContextV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         if self.state != TraceSourceStateV2::Open || self.precommit_builder.is_some() {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         self.pre_uniqueness_context = Some(context);
         Ok(())
@@ -2545,9 +2543,9 @@ impl RecursiveTransitionTraceSourceV2 {
     }
 
     /// Start streaming canonical events into the first pass.
-    pub(crate) fn begin_canonical_precommit(&mut self) -> Result<(), RecursiveV2Error> {
+    pub(crate) fn begin_canonical_precommit(&mut self) -> Result<(), CheckpointError> {
         if self.state != TraceSourceStateV2::Open || self.precommit_builder.is_some() {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         self.spool.verify_integrity()?;
         self.precommit_builder = Some(TracePrecommitBuilderV2::new(
@@ -2562,28 +2560,28 @@ impl RecursiveTransitionTraceSourceV2 {
     pub(crate) fn append_canonical_event(
         &mut self,
         event: RecursiveTraceEventV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         if self.state != TraceSourceStateV2::Open {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         let builder = self
             .precommit_builder
             .as_mut()
-            .ok_or(RecursiveV2Error::TraceState)?;
+            .ok_or(CheckpointError::TraceState)?;
         builder.append(event, &self.profile, &mut self.spool)
     }
 
     /// Seal the streamed first pass before challenge-dependent replay begins.
     pub(crate) fn seal_canonical_precommit(
         &mut self,
-    ) -> Result<RecursiveTracePrecommitV2, RecursiveV2Error> {
+    ) -> Result<RecursiveTracePrecommitV2, CheckpointError> {
         if self.state != TraceSourceStateV2::Open {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         let builder = self
             .precommit_builder
             .take()
-            .ok_or(RecursiveV2Error::TraceState)?;
+            .ok_or(CheckpointError::TraceState)?;
         let precommit = builder.finish()?;
         self.spool.rewind()?;
         self.precommit = Some(precommit);
@@ -2595,18 +2593,18 @@ impl RecursiveTransitionTraceSourceV2 {
     ///
     /// The native evaluator uses these external-sort commitments instead of
     /// retaining a second in-memory replay-ID representation.
-    pub(crate) fn sealed_precommit(&self) -> Result<RecursiveTracePrecommitV2, RecursiveV2Error> {
+    pub(crate) fn sealed_precommit(&self) -> Result<RecursiveTracePrecommitV2, CheckpointError> {
         if self.state != TraceSourceStateV2::Precommitted {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
-        self.precommit.ok_or(RecursiveV2Error::TraceState)
+        self.precommit.ok_or(CheckpointError::TraceState)
     }
 
     #[cfg(test)]
     fn precommit_from_canonical_events(
         &mut self,
         events: &[RecursiveTraceEventV2],
-    ) -> Result<RecursiveTracePrecommitV2, RecursiveV2Error> {
+    ) -> Result<RecursiveTracePrecommitV2, CheckpointError> {
         self.begin_canonical_precommit()?;
         for event in events {
             self.append_canonical_event(event.clone())?;
@@ -2618,8 +2616,8 @@ impl RecursiveTransitionTraceSourceV2 {
     #[cfg(test)]
     pub(crate) fn event_pass(
         &mut self,
-        mut visit: impl FnMut(&RecursiveTraceEventV2) -> Result<(), RecursiveV2Error>,
-    ) -> Result<RecursiveTracePassV2, RecursiveV2Error> {
+        mut visit: impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+    ) -> Result<RecursiveTracePassV2, CheckpointError> {
         self.event_pass_with_source_context(|event, _source| visit(event))
     }
 
@@ -2633,12 +2631,18 @@ impl RecursiveTransitionTraceSourceV2 {
         mut visit: impl FnMut(
             &RecursiveTraceEventV2,
             Option<&RecursiveTraceEventV2>,
-        ) -> Result<(), RecursiveV2Error>,
-    ) -> Result<RecursiveTracePassV2, RecursiveV2Error> {
-        if self.state != TraceSourceStateV2::Precommitted {
-            return Err(RecursiveV2Error::TraceState);
+        ) -> Result<(), CheckpointError>,
+    ) -> Result<RecursiveTracePassV2, CheckpointError> {
+        if !matches!(
+            self.state,
+            TraceSourceStateV2::Precommitted | TraceSourceStateV2::Replayed
+        ) {
+            return Err(CheckpointError::TraceState);
         }
-        let precommit = self.precommit.ok_or(RecursiveV2Error::TraceState)?;
+        if self.state == TraceSourceStateV2::Replayed {
+            self.spool.rewind()?;
+        }
+        let precommit = self.precommit.ok_or(CheckpointError::TraceState)?;
         let mut event_counts = RecursiveTraceEventCountsV2::default();
         let mut visit_counted =
             |event: &RecursiveTraceEventV2, source_record: Option<&RecursiveTraceEventV2>| {
@@ -2682,27 +2686,36 @@ impl RecursiveTransitionTraceSourceV2 {
             let total = bytes.len();
             let event = RecursiveTraceEventV2::decode_canonical(&bytes, &self.profile)?;
             if !event.opcode().is_source_record() {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             if event.ordinal() != event_count {
-                return Err(RecursiveV2Error::EventOrder);
+                return Err(CheckpointError::EventOrder);
             }
             event_count = event_count
                 .checked_add(1)
-                .ok_or(RecursiveV2Error::Overflow)?;
+                .ok_or(CheckpointError::Overflow)?;
             byte_count = byte_count
-                .checked_add(u64::try_from(total).map_err(|_| RecursiveV2Error::Limit)?)
-                .ok_or(RecursiveV2Error::Overflow)?;
+                .checked_add(u64::try_from(total).map_err(|_| CheckpointError::Limit)?)
+                .ok_or(CheckpointError::Overflow)?;
             if event.opcode().is_source_record() {
                 trace.update_part(&bytes)?;
             }
             identifiers.absorb(&event)?;
-            uniqueness_hashes.before_source(
+            let uniqueness_before = uniqueness_hashes.before_source(
                 &event,
                 precommit.event_count,
                 &self.profile,
                 &mut |control| visit_counted(control, None),
-            )?;
+            );
+            #[cfg(test)]
+            if let Err(error) = &uniqueness_before {
+                eprintln!(
+                    "recursive source replay rejected uniqueness-before ordinal={} opcode={:?}: {error:?}",
+                    event.ordinal(),
+                    event.opcode(),
+                );
+            }
+            uniqueness_before?;
             visit_counted(&event, None)?;
             let record_bytes = event.canonical_len()?;
             trace_stream
@@ -2746,19 +2759,37 @@ impl RecursiveTransitionTraceSourceV2 {
                 &mut emit_derived,
                 &mut feed_trace_chunk,
             )?;
-            uniqueness_hashes.after_source(
+            let uniqueness_after = uniqueness_hashes.after_source(
                 &event,
                 precommit.event_count,
                 &self.profile,
                 &mut |control| visit_counted(control, None),
-            )?;
-            uniqueness_transcript.after_source(
+            );
+            #[cfg(test)]
+            if let Err(error) = &uniqueness_after {
+                eprintln!(
+                    "recursive source replay rejected uniqueness-after ordinal={} opcode={:?}: {error:?}",
+                    event.ordinal(),
+                    event.opcode(),
+                );
+            }
+            uniqueness_after?;
+            let transcript_after = uniqueness_transcript.after_source(
                 &event,
                 precommit.event_count,
                 &self.profile,
                 &mut |control| visit_counted(control, None),
-            )?;
-            trace_stream.finish_part().map_err(RecursiveV2Error::from)?;
+            );
+            #[cfg(test)]
+            if let Err(error) = &transcript_after {
+                eprintln!(
+                    "recursive source replay rejected transcript-after ordinal={} opcode={:?}: {error:?}",
+                    event.ordinal(),
+                    event.opcode(),
+                );
+            }
+            transcript_after?;
+            trace_stream.finish_part().map_err(CheckpointError::from)?;
         }
         let replayed = RecursiveTracePrecommitV2 {
             event_count,
@@ -2768,7 +2799,7 @@ impl RecursiveTransitionTraceSourceV2 {
         };
         self.spool.verify_integrity()?;
         if replayed != precommit || byte_count != self.spool.len() {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         let trace_digest = trace_stream
             .finalize_with(&mut |block| {
@@ -2786,7 +2817,12 @@ impl RecursiveTransitionTraceSourceV2 {
             })
             .map_err(map_block_visit_error)?;
         if trace_digest != precommit.trace_digest || trace_blocks != trace_block_count {
-            return Err(RecursiveV2Error::Invariant);
+            #[cfg(test)]
+            eprintln!(
+                "recursive source replay rejected trace-finalize: digest_match={} blocks={trace_blocks}/{trace_block_count}",
+                trace_digest == precommit.trace_digest,
+            );
+            return Err(CheckpointError::Invariant);
         }
         visit_counted(
             &trace_hash_control_event(
@@ -2813,13 +2849,13 @@ impl RecursiveTransitionTraceSourceV2 {
     pub(crate) fn finish(
         &mut self,
         observed_snapshot: RecursiveSnapshotHandleV2,
-    ) -> Result<RecursiveTracePrecommitV2, RecursiveV2Error> {
+    ) -> Result<RecursiveTracePrecommitV2, CheckpointError> {
         if self.state != TraceSourceStateV2::Replayed || observed_snapshot != self.snapshot {
-            return Err(RecursiveV2Error::SnapshotChanged);
+            return Err(CheckpointError::SnapshotChanged);
         }
         self.spool.verify_integrity()?;
         self.state = TraceSourceStateV2::Finished;
-        self.precommit.ok_or(RecursiveV2Error::TraceState)
+        self.precommit.ok_or(CheckpointError::TraceState)
     }
 }
 
@@ -2833,7 +2869,7 @@ struct TracePrecommitBuilderV2 {
 }
 
 impl TracePrecommitBuilderV2 {
-    fn new(dir: &Path, profile: &RecursiveCircuitProfileV2) -> Result<Self, RecursiveV2Error> {
+    fn new(dir: &Path, profile: &RecursiveCircuitProfileV2) -> Result<Self, CheckpointError> {
         Ok(Self {
             expected_ordinal: 0,
             event_count: 0,
@@ -2848,21 +2884,21 @@ impl TracePrecommitBuilderV2 {
         event: RecursiveTraceEventV2,
         profile: &RecursiveCircuitProfileV2,
         spool: &mut PrivateSpoolFile,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         if !event.opcode().is_source_record()
             || event.ordinal() != self.expected_ordinal
             || self.event_count >= u64::from(profile.max_typed_events())
         {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         let encoded = event.canonical_bytes()?;
-        let encoded_len = u64::try_from(encoded.len()).map_err(|_| RecursiveV2Error::Limit)?;
+        let encoded_len = u64::try_from(encoded.len()).map_err(|_| CheckpointError::Limit)?;
         let next_bytes = self
             .byte_count
             .checked_add(encoded_len)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         if next_bytes > profile.max_content_bytes() {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         if event.opcode().is_source_record() {
             self.trace.update_part(&encoded)?;
@@ -2872,18 +2908,18 @@ impl TracePrecommitBuilderV2 {
         self.expected_ordinal = self
             .expected_ordinal
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         self.event_count = self
             .event_count
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         self.byte_count = next_bytes;
         Ok(())
     }
 
-    fn finish(self) -> Result<RecursiveTracePrecommitV2, RecursiveV2Error> {
+    fn finish(self) -> Result<RecursiveTracePrecommitV2, CheckpointError> {
         if self.event_count == 0 {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         Ok(RecursiveTracePrecommitV2 {
             event_count: self.event_count,
@@ -2908,18 +2944,18 @@ struct IdentifierPrecommitV2 {
 }
 
 impl IdentifierPrecommitV2 {
-    fn new(dir: &Path, profile: &RecursiveCircuitProfileV2) -> Result<Self, RecursiveV2Error> {
+    fn new(dir: &Path, profile: &RecursiveCircuitProfileV2) -> Result<Self, CheckpointError> {
         let spent_sort_bytes =
             RecursiveCircuitProfileV2::identifier_sort_bytes(profile.max_spent())?;
         let output_sort_bytes =
             RecursiveCircuitProfileV2::identifier_sort_bytes(profile.max_outputs())?;
         let resident_ids = usize::try_from(profile.resident_buffer_bytes())
-            .map_err(|_| RecursiveV2Error::Limit)?
+            .map_err(|_| CheckpointError::Limit)?
             / (2 * UNIQUENESS_SEMANTIC_ROW_BYTES_V2);
         let max_runs =
-            usize::try_from(profile.max_spool_runs()).map_err(|_| RecursiveV2Error::Limit)?;
+            usize::try_from(profile.max_spool_runs()).map_err(|_| CheckpointError::Limit)?;
         let merge_fan_in =
-            usize::try_from(profile.spool_merge_fan_in()).map_err(|_| RecursiveV2Error::Limit)?;
+            usize::try_from(profile.spool_merge_fan_in()).map_err(|_| CheckpointError::Limit)?;
         Ok(Self {
             spent_original: None,
             output_original: None,
@@ -2944,11 +2980,11 @@ impl IdentifierPrecommitV2 {
         })
     }
 
-    fn absorb(&mut self, event: &RecursiveTraceEventV2) -> Result<(), RecursiveV2Error> {
+    fn absorb(&mut self, event: &RecursiveTraceEventV2) -> Result<(), CheckpointError> {
         match event.opcode() {
             RecursiveTraceOpcodeV2::BeginBlock => {
                 if self.spent_original.is_some() || self.output_original.is_some() {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 let header = decode_flow_header(event.payload())?;
                 let mut spent = CheckpointSha256V2::new(CheckpointShaRole::SpentOriginalIds);
@@ -2970,7 +3006,7 @@ impl IdentifierPrecommitV2 {
                 };
                 self.spent_original
                     .as_mut()
-                    .ok_or(RecursiveV2Error::EventOrder)?
+                    .ok_or(CheckpointError::EventOrder)?
                     .update_part(&row.canonical_bytes())?;
                 self.spent_sorted.push(row)?;
             }
@@ -2984,7 +3020,7 @@ impl IdentifierPrecommitV2 {
                 };
                 self.output_original
                     .as_mut()
-                    .ok_or(RecursiveV2Error::EventOrder)?
+                    .ok_or(CheckpointError::EventOrder)?
                     .update_part(&row.canonical_bytes())?;
                 self.output_sorted.push(row)?;
             }
@@ -2993,16 +3029,16 @@ impl IdentifierPrecommitV2 {
         Ok(())
     }
 
-    fn finish(mut self) -> Result<RecursiveTracePrecommitV2, RecursiveV2Error> {
-        let spent_count = self.spent_count.ok_or(RecursiveV2Error::EventOrder)?;
-        let output_count = self.output_count.ok_or(RecursiveV2Error::EventOrder)?;
+    fn finish(mut self) -> Result<RecursiveTracePrecommitV2, CheckpointError> {
+        let spent_count = self.spent_count.ok_or(CheckpointError::EventOrder)?;
+        let output_count = self.output_count.ok_or(CheckpointError::EventOrder)?;
         let spent_sorted_ids_digest = self.spent_sorted.digest_sorted_unique(spent_count)?;
         let output_sorted_ids_digest = self.output_sorted.digest_sorted_unique(output_count)?;
         if !self
             .spent_sorted
             .cross_set_replacements_are_same_path(&mut self.output_sorted)?
         {
-            return Err(RecursiveV2Error::DuplicateIdentifier);
+            return Err(CheckpointError::DuplicateIdentifier);
         }
 
         Ok(RecursiveTracePrecommitV2 {
@@ -3012,13 +3048,13 @@ impl IdentifierPrecommitV2 {
             spent_original_ids_digest: self
                 .spent_original
                 .take()
-                .ok_or(RecursiveV2Error::EventOrder)?
+                .ok_or(CheckpointError::EventOrder)?
                 .finalize(),
             spent_sorted_ids_digest,
             output_original_ids_digest: self
                 .output_original
                 .take()
-                .ok_or(RecursiveV2Error::EventOrder)?
+                .ok_or(CheckpointError::EventOrder)?
                 .finalize(),
             output_sorted_ids_digest,
         })
@@ -3049,13 +3085,13 @@ impl ExternalIdSortV2 {
         max_runs: usize,
         merge_fan_in: usize,
         digest_role: CheckpointShaRole,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         if byte_budget < UNIQUENESS_SEMANTIC_ROW_BYTES_V2 as u64
             || resident_rows == 0
             || max_runs == 0
             || merge_fan_in == 0
         {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         Ok(Self {
             dir: dir.to_path_buf(),
@@ -3070,7 +3106,7 @@ impl ExternalIdSortV2 {
         })
     }
 
-    fn push(&mut self, row: UniquenessSemanticRowV2) -> Result<(), RecursiveV2Error> {
+    fn push(&mut self, row: UniquenessSemanticRowV2) -> Result<(), CheckpointError> {
         self.pending.push(row);
         if self.pending.len() == self.resident_rows {
             self.flush_run()?;
@@ -3078,24 +3114,24 @@ impl ExternalIdSortV2 {
         Ok(())
     }
 
-    fn flush_run(&mut self) -> Result<(), RecursiveV2Error> {
+    fn flush_run(&mut self) -> Result<(), CheckpointError> {
         if self.pending.is_empty() {
             return Ok(());
         }
         if self.runs.len() >= self.max_runs {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         self.pending.sort_unstable_by_key(|row| row.terminal_id);
         let run_bytes = u64::try_from(self.pending.len())
-            .map_err(|_| RecursiveV2Error::Limit)?
+            .map_err(|_| CheckpointError::Limit)?
             .checked_mul(UNIQUENESS_SEMANTIC_ROW_BYTES_V2 as u64)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let next = self
             .written
             .checked_add(run_bytes)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         if next > self.byte_budget {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         let mut run = PrivateSpoolFile::create_in(&self.dir, run_bytes)?;
         for row in self.pending.drain(..) {
@@ -3107,15 +3143,15 @@ impl ExternalIdSortV2 {
         Ok(())
     }
 
-    fn open_sorted(&mut self) -> Result<SortedIdStreamV2<'_>, RecursiveV2Error> {
+    fn open_sorted(&mut self) -> Result<SortedIdStreamV2<'_>, CheckpointError> {
         self.flush_run()?;
         if self.runs.len() > self.merge_fan_in {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         SortedIdStreamV2::new(&mut self.runs)
     }
 
-    fn digest_sorted_unique(&mut self, expected_count: u32) -> Result<[u8; 32], RecursiveV2Error> {
+    fn digest_sorted_unique(&mut self, expected_count: u32) -> Result<[u8; 32], CheckpointError> {
         let digest_role = self.digest_role;
         let mut stream = self.open_sorted()?;
         let mut previous = None;
@@ -3124,16 +3160,16 @@ impl ExternalIdSortV2 {
         let mut observed_count = 0_u32;
         while let Some(row) = stream.next_row()? {
             if previous == Some(row.terminal_id) {
-                return Err(RecursiveV2Error::DuplicateIdentifier);
+                return Err(CheckpointError::DuplicateIdentifier);
             }
             digest.update_part(&row.canonical_bytes())?;
             previous = Some(row.terminal_id);
             observed_count = observed_count
                 .checked_add(1)
-                .ok_or(RecursiveV2Error::Overflow)?;
+                .ok_or(CheckpointError::Overflow)?;
         }
         if observed_count != expected_count {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         Ok(digest.finalize())
     }
@@ -3141,7 +3177,7 @@ impl ExternalIdSortV2 {
     fn cross_set_replacements_are_same_path(
         &mut self,
         other: &mut Self,
-    ) -> Result<bool, RecursiveV2Error> {
+    ) -> Result<bool, CheckpointError> {
         let mut left = self.open_sorted()?;
         let mut right = other.open_sorted()?;
         let mut left_row = left.next_row()?;
@@ -3170,7 +3206,7 @@ struct SortedIdStreamV2<'a> {
 }
 
 impl<'a> SortedIdStreamV2<'a> {
-    fn new(runs: &'a mut [PrivateSpoolFile]) -> Result<Self, RecursiveV2Error> {
+    fn new(runs: &'a mut [PrivateSpoolFile]) -> Result<Self, CheckpointError> {
         let mut heads = Vec::with_capacity(runs.len());
         for run in runs.iter_mut() {
             run.rewind()?;
@@ -3179,7 +3215,7 @@ impl<'a> SortedIdStreamV2<'a> {
         Ok(Self { runs, heads })
     }
 
-    fn next_row(&mut self) -> Result<Option<UniquenessSemanticRowV2>, RecursiveV2Error> {
+    fn next_row(&mut self) -> Result<Option<UniquenessSemanticRowV2>, CheckpointError> {
         let index = self
             .heads
             .iter()
@@ -3190,9 +3226,7 @@ impl<'a> SortedIdStreamV2<'a> {
         let Some(index) = index else {
             return Ok(None);
         };
-        let row = self.heads[index]
-            .take()
-            .ok_or(RecursiveV2Error::Canonical)?;
+        let row = self.heads[index].take().ok_or(CheckpointError::Canonical)?;
         self.heads[index] = read_spooled_semantic_row(&mut self.runs[index])?;
         Ok(Some(row))
     }
@@ -3200,7 +3234,7 @@ impl<'a> SortedIdStreamV2<'a> {
 
 fn read_spooled_semantic_row(
     spool: &mut PrivateSpoolFile,
-) -> Result<Option<UniquenessSemanticRowV2>, RecursiveV2Error> {
+) -> Result<Option<UniquenessSemanticRowV2>, CheckpointError> {
     let mut bytes = [0_u8; UNIQUENESS_SEMANTIC_ROW_BYTES_V2];
     let read = spool.read_chunk(&mut bytes)?;
     if read == 0 {
@@ -3213,11 +3247,11 @@ fn read_spooled_semantic_row(
 fn spool_read_exact(
     spool: &mut PrivateSpoolFile,
     mut bytes: &mut [u8],
-) -> Result<(), RecursiveV2Error> {
+) -> Result<(), CheckpointError> {
     while !bytes.is_empty() {
         let read = spool.read_chunk(bytes)?;
         if read == 0 {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         bytes = &mut bytes[read..];
     }
@@ -3229,7 +3263,7 @@ fn spool_read_exact(
 fn read_spooled_trace_record(
     spool: &mut PrivateSpoolFile,
     profile: &RecursiveCircuitProfileV2,
-) -> Result<Option<Zeroizing<Vec<u8>>>, RecursiveV2Error> {
+) -> Result<Option<Zeroizing<Vec<u8>>>, CheckpointError> {
     let mut tag = [0_u8; 1];
     if spool.read_chunk(&mut tag)? == 0 {
         return Ok(None);
@@ -3239,17 +3273,17 @@ fn read_spooled_trace_record(
     let payload_len = u32::from_le_bytes(
         rest[40..44]
             .try_into()
-            .map_err(|_| RecursiveV2Error::Canonical)?,
+            .map_err(|_| CheckpointError::Canonical)?,
     );
-    let payload_len = usize::try_from(payload_len).map_err(|_| RecursiveV2Error::Limit)?;
+    let payload_len = usize::try_from(payload_len).map_err(|_| CheckpointError::Limit)?;
     if payload_len
-        > usize::try_from(profile.max_leaf_bytes()).map_err(|_| RecursiveV2Error::Limit)?
+        > usize::try_from(profile.max_leaf_bytes()).map_err(|_| CheckpointError::Limit)?
     {
-        return Err(RecursiveV2Error::Limit);
+        return Err(CheckpointError::Limit);
     }
     let total = TRACE_EVENT_HEADER_BYTES_V2
         .checked_add(payload_len)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
     let mut bytes = Zeroizing::new(vec![0_u8; total]);
     bytes[0] = tag[0];
     bytes[1..TRACE_EVENT_HEADER_BYTES_V2].copy_from_slice(&rest);
@@ -3281,7 +3315,7 @@ mod tests {
     use z00z_crypto::{CheckpointSha256BlockStreamV2, CheckpointShaRole};
 
     fn profile() -> RecursiveCircuitProfileV2 {
-        RecursiveCircuitProfileV2::repository_fixture()
+        RecursiveCircuitProfileV2::authority_pinned()
     }
 
     fn multi_run_profile() -> RecursiveCircuitProfileV2 {

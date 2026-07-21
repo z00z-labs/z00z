@@ -1,13 +1,16 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-palette="z00z-default">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="dark light">
     <meta name="theme-color" content="#081019">
     <meta name="description" content="Interactive UI/UX concept for the Z00Z private wallet.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23D9A441'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='32' font-family='sans-serif' font-weight='700' fill='%23081019'%3EZ%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/png" href="logo-31-bg.png">
     <title>Z00Z Wallet — Interactive Concept</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;780&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -18,6 +21,9 @@
       <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 5h14a2 2 0 0 1 2 2v12H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M16 10h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M5 5V3h12"/></symbol>
       <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></symbol>
       <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+      <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 7h12m0 0-3-3m3 3-3 3M17 17H5m0 0 3 3m-3-3 3-3"/></symbol>
+      <symbol id="i-exchange" viewBox="0 0 24 24"><path d="M7 7h9a4 4 0 0 1 4 4v1"/><path d="m17 9 3 3-3 3M17 17H8a4 4 0 0 1-4-4v-1"/><path d="m7 15-3-3 3-3"/></symbol>
+      <symbol id="i-staking" viewBox="0 0 24 24"><path d="M12 3v10m-4-4 4 4 4-4"/><path d="M5 14v5h14v-5"/><path d="M4 21h16"/></symbol>
       <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
       <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
       <symbol id="i-receive" viewBox="0 0 24 24"><path d="M19 12H5m6 6-6-6 6-6"/></symbol>
@@ -40,6 +46,9 @@
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
       <symbol id="i-backup" viewBox="0 0 24 24"><path d="M12 3v11m-4-4 4 4 4-4"/><path d="M5 15v5h14v-5"/></symbol>
       <symbol id="i-network" viewBox="0 0 24 24"><path d="M4 9a12 12 0 0 1 16 0M7 12.5a7 7 0 0 1 10 0M10 16a3 3 0 0 1 4 0"/><circle cx="12" cy="19" r="1"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5"/><path d="m14 16 4-4-4-4M18 12H9"/></symbol>
+      <symbol id="i-remove" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-3h4l1 3M6 7l1 13h10l1-13"/></symbol>
     </svg>
 
     <div class="concept-banner" role="note">
@@ -50,13 +59,13 @@
     <section class="lock-screen" id="lock-screen" aria-labelledby="lock-title" hidden>
       <div class="lock-card">
         <div class="brand brand-centered">
-          <span class="brand-mark" aria-hidden="true">Z</span>
+          <img class="brand-mark" src="logo-31-bg.png" alt="">
           <span>Z00Z</span>
         </div>
         <div class="lock-icon"><svg class="icon"><use href="#i-lock"/></svg></div>
         <p class="eyebrow">Private wallet</p>
         <h1 id="lock-title">Welcome back</h1>
-        <p class="muted">Everyday wallet <span aria-hidden="true">·</span> <span class="mono">8F2A…71C0</span></p>
+        <p class="muted" id="lock-wallet-label">Everyday wallet <span aria-hidden="true">·</span> <span class="mono">8F2A…71C0</span></p>
         <form id="unlock-form" novalidate>
           <label class="field-label" for="unlock-password">Wallet password</label>
           <div class="password-wrap">
@@ -78,42 +87,36 @@
     <div class="app-shell" id="app-shell">
       <aside class="sidebar" aria-label="Primary navigation">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">Z</span>
+          <img class="brand-mark" src="logo-31-bg.png" alt="">
           <span>Z00Z</span>
-          <span class="brand-product">Wallet</span>
         </div>
-        <nav class="side-nav" aria-label="Desktop navigation">
-          <button class="nav-item is-active" type="button" data-view="home"><svg class="icon"><use href="#i-home"/></svg><span>Home</span></button>
-          <button class="nav-item" type="button" data-view="wallet"><svg class="icon"><use href="#i-wallet"/></svg><span>Wallet</span><span class="nav-count">2</span></button>
-          <button class="nav-item" type="button" data-view="activity"><svg class="icon"><use href="#i-activity"/></svg><span>Activity</span></button>
-          <button class="nav-item" type="button" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></button>
-        </nav>
+        <p class="sidebar-label">Wallets</p>
+        <div class="wallet-nav-viewport">
+          <nav class="wallet-nav" id="wallet-nav" aria-label="Wallets"></nav>
+        </div>
+        <p class="sidebar-label sidebar-network-label">Network</p>
+        <nav class="network-nav" id="network-nav" aria-label="Network routes"></nav>
         <div class="sidebar-spacer"></div>
-        <button class="connection-card" type="button" data-open-flow="connection" aria-label="Open target network model; live route telemetry unavailable">
-          <span class="health-orb" aria-hidden="true"></span>
-          <span><strong>Target route model</strong><small>OnionNet over Reticulum</small></span>
-          <svg class="icon"><use href="#i-chevron"/></svg>
-        </button>
-        <button class="nav-item lock-action" type="button" data-demo-action="lock"><svg class="icon"><use href="#i-lock"/></svg><span>Lock wallet</span></button>
+        <nav class="system-nav" aria-label="Application actions">
+          <button class="nav-item" type="button" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></button>
+          <button class="nav-item" type="button" data-demo-action="logout"><svg class="icon"><use href="#i-logout"/></svg><span>Log out</span></button>
+        </nav>
         <p class="build-label">Concept 0.4 · no real funds</p>
       </aside>
 
       <div class="app-column">
         <header class="topbar">
-          <div class="mobile-brand" role="img" aria-label="Z00Z Wallet"><span class="brand-mark" aria-hidden="true">Z</span></div>
-          <div class="page-heading">
-            <h1 id="page-title">Home</h1>
-            <p id="page-context">Your private money at a glance</p>
+          <div class="mobile-brand" role="img" aria-label="Z00Z"><img class="brand-mark" src="logo-31-bg.png" alt=""></div>
+          <div class="topbar-address-group">
+            <div class="page-heading">
+              <h1 id="page-title">Home</h1>
+              <p id="page-context">Your private money at a glance</p>
+            </div>
+            <button class="icon-button address-copy" id="copy-wallet-address" type="button" data-demo-action="copy-wallet-address" aria-label="Copy selected wallet address" title="Copy selected wallet address">
+              <svg class="icon"><use href="#i-copy"/></svg>
+            </button>
           </div>
-          <button class="health-pill" type="button" data-open-flow="connection" aria-label="Open target network model; live route telemetry unavailable">
-            <span class="health-orb" aria-hidden="true"></span>
-            <span class="health-text">Route telemetry unavailable</span>
-          </button>
-          <button class="wallet-switcher" type="button" data-demo-action="switch-wallet">
-            <span class="wallet-avatar" aria-hidden="true">E</span>
-            <span><strong>Everyday</strong><small class="mono">8F2A…71C0</small></span>
-            <svg class="icon"><use href="#i-chevron"/></svg>
-          </button>
+          <button class="wallet-identity" id="wallet-identity" type="button" data-demo-action="switch-wallet" aria-live="polite"></button>
           <button class="icon-button" type="button" data-demo-action="toggle-balance" aria-label="Hide sensitive amounts" title="Hide sensitive amounts">
             <svg class="icon"><use href="#i-eye"/></svg>
           </button>
@@ -125,13 +128,15 @@
           </button>
         </header>
 
+        <nav class="wallet-tabs" id="wallet-tabs" aria-label="Selected wallet"></nav>
         <main class="main-content" id="main-content" tabindex="-1"></main>
+        <footer class="wallet-statusbar" id="wallet-statusbar" aria-label="Selected wallet status"></footer>
       </div>
 
       <nav class="bottom-nav" aria-label="Mobile navigation">
         <button class="bottom-nav-item is-active" type="button" data-view="home"><svg class="icon"><use href="#i-home"/></svg><span>Home</span></button>
-        <button class="bottom-nav-item" type="button" data-view="wallet"><svg class="icon"><use href="#i-wallet"/></svg><span>Wallet</span><span class="notification-dot"></span></button>
-        <button class="bottom-nav-item" type="button" data-view="activity"><svg class="icon"><use href="#i-activity"/></svg><span>Activity</span></button>
+        <button class="bottom-nav-item" type="button" data-view="wallet"><svg class="icon"><use href="#i-wallet"/></svg><span>Assets</span><span class="notification-dot"></span></button>
+        <button class="bottom-nav-item" type="button" data-view="activity"><svg class="icon"><use href="#i-activity"/></svg><span>History</span></button>
         <button class="bottom-nav-item" type="button" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></button>
       </nav>
     </div>

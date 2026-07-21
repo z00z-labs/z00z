@@ -3,7 +3,6 @@
 use z00z_crypto::{sha256_256_role, CheckpointSha256BlockStreamV2, CheckpointShaRole};
 
 use super::{
-    recursive_reject::RecursiveV2Error,
     recursive_semantics::{
         RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2, UNIQUENESS_CHALLENGE_BITS_V2,
         UNIQUENESS_ROW_FACTOR_DEGREE_V2, UNIQUENESS_RO_QUERY_LOG2_V2,
@@ -11,6 +10,7 @@ use super::{
     },
     recursive_trace::{SOURCE_RECORD_HASH_LABEL_V2, TRACE_EVENT_HEADER_BYTES_V2},
 };
+use crate::CheckpointError;
 
 /// Sole version of the recursive checkpoint circuit profile.
 pub const RECURSIVE_CIRCUIT_PROFILE_VERSION_V2: u8 = 4;
@@ -125,7 +125,7 @@ impl RecursiveCircuitProfileV2 {
         total_spool_bytes: u64,
         max_spool_runs: u32,
         spool_merge_fan_in: u32,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let nonzero_u32 = [
             max_rows,
             max_inputs_per_row,
@@ -153,7 +153,7 @@ impl RecursiveCircuitProfileV2 {
             || u64::from(resident_buffer_bytes) > total_spool_bytes
             || max_spool_runs > spool_merge_fan_in
         {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         Self::validate_spool_resources(
             max_spent,
@@ -194,19 +194,19 @@ impl RecursiveCircuitProfileV2 {
             || u64::from(max_typed_events) < e_max
             || max_cumulative_steps < e_max
         {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         let max_rows_from_inputs = u64::from(max_rows)
             .checked_mul(u64::from(max_inputs_per_row))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let max_rows_from_outputs = u64::from(max_rows)
             .checked_mul(u64::from(max_outputs_per_row))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         if u64::from(max_spent) > max_rows_from_inputs
             || u64::from(max_outputs) > max_rows_from_outputs
             || max_cumulative_steps < u64::from(max_typed_events)
         {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         Ok(Self {
             max_rows,
@@ -230,8 +230,8 @@ impl RecursiveCircuitProfileV2 {
         })
     }
 
-    /// A conservative profile suitable for the repository-local authority fixture.
-    pub fn repository_fixture() -> Self {
+    /// The bounded profile pinned by the active recursive-checkpoint authority.
+    pub fn authority_pinned() -> Self {
         let max_spent = 16_000;
         let max_outputs = 16_000;
         let max_leaf_bytes = 64 * 1024;
@@ -258,9 +258,8 @@ impl RecursiveCircuitProfileV2 {
             max_sha_blocks,
             RECURSIVE_V2_MAX_CONTENT_BYTES,
         )
-        .expect("repository fixture has a finite event bound");
-        let max_typed_events =
-            u32::try_from(e_max).expect("repository fixture event bound fits u32");
+        .expect("authority-pinned profile has a finite event bound");
+        let max_typed_events = u32::try_from(e_max).expect("authority-pinned event bound fits u32");
         Self::new(
             1_000,
             16,
@@ -281,11 +280,11 @@ impl RecursiveCircuitProfileV2 {
             16,
             16,
         )
-        .expect("repository fixture profile is internally bounded")
+        .expect("authority-pinned profile is internally bounded")
     }
 
     /// Return `Q(L) = ceil((L + 9) / 64)` for a FIPS-authorized input size.
-    pub fn sha_blocks_for_bytes(length: u64) -> Result<u64, RecursiveV2Error> {
+    pub fn sha_blocks_for_bytes(length: u64) -> Result<u64, CheckpointError> {
         CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(length).map_err(Into::into)
     }
 
@@ -298,7 +297,7 @@ impl RecursiveCircuitProfileV2 {
         role: CheckpointShaRole,
         payload_bytes: u64,
         part_count: u64,
-    ) -> Result<u64, RecursiveV2Error> {
+    ) -> Result<u64, CheckpointError> {
         let framed_bytes =
             CheckpointSha256BlockStreamV2::framed_bytes_for_parts(role, payload_bytes, part_count)?;
         Self::sha_blocks_for_bytes(framed_bytes)
@@ -311,19 +310,19 @@ impl RecursiveCircuitProfileV2 {
     pub fn sha_blocks_for_source_record_hashes(
         payload_bytes: u64,
         source_records: u64,
-    ) -> Result<u64, RecursiveV2Error> {
+    ) -> Result<u64, CheckpointError> {
         if source_records == 0 {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
-        let label_bytes = u64::try_from(SOURCE_RECORD_HASH_LABEL_V2.len())
-            .map_err(|_| RecursiveV2Error::Limit)?;
+        let label_bytes =
+            u64::try_from(SOURCE_RECORD_HASH_LABEL_V2.len()).map_err(|_| CheckpointError::Limit)?;
         let per_record_framing = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
             CheckpointShaRole::Trace,
             label_bytes,
             1,
         )?
         .checked_add(8)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
         // For each transcript Q(L)=ceil((L+9)/64).  Summing the integral
         // upper bound `(L+9+63)/64` gives a checked cap for any legal
         // distribution of the aggregate source bytes among the records.
@@ -333,12 +332,12 @@ impl RecursiveCircuitProfileV2 {
                     .checked_mul(
                         per_record_framing
                             .checked_add(72)
-                            .ok_or(RecursiveV2Error::Overflow)?,
+                            .ok_or(CheckpointError::Overflow)?,
                     )
-                    .ok_or(RecursiveV2Error::Overflow)?,
+                    .ok_or(CheckpointError::Overflow)?,
             )
             .map(|bytes| bytes / 64)
-            .ok_or(RecursiveV2Error::Overflow)
+            .ok_or(CheckpointError::Overflow)
     }
 
     /// Bound every SHA compression event in the canonical expanded trace.
@@ -353,7 +352,7 @@ impl RecursiveCircuitProfileV2 {
         max_source_records: u64,
         max_spent: u32,
         max_outputs: u32,
-    ) -> Result<u64, RecursiveV2Error> {
+    ) -> Result<u64, CheckpointError> {
         let source_local =
             Self::sha_blocks_for_source_record_hashes(max_content_bytes, max_source_records)?;
         let global = Self::sha_blocks_for_role_parts(
@@ -366,10 +365,10 @@ impl RecursiveCircuitProfileV2 {
             let part_bytes = u64::from(count)
                 .checked_mul(RECURSIVE_IDENTIFIER_BYTES_V2)
                 .and_then(|value| value.checked_add(4))
-                .ok_or(RecursiveV2Error::Overflow)?;
+                .ok_or(CheckpointError::Overflow)?;
             let part_count = u64::from(count)
                 .checked_add(1)
-                .ok_or(RecursiveV2Error::Overflow)?;
+                .ok_or(CheckpointError::Overflow)?;
             Self::sha_blocks_for_role_parts(role, part_bytes, part_count)
         };
         let ordered_lists = [
@@ -382,7 +381,7 @@ impl RecursiveCircuitProfileV2 {
         .try_fold(0_u64, |total, (role, count)| {
             total
                 .checked_add(list_blocks(role, count)?)
-                .ok_or(RecursiveV2Error::Overflow)
+                .ok_or(CheckpointError::Overflow)
         })?;
         let uniqueness_precommits = Self::sha_blocks_for_role_parts(
             CheckpointShaRole::IdPrecommit,
@@ -390,14 +389,14 @@ impl RecursiveCircuitProfileV2 {
             UNIQUENESS_PRECOMMIT_PART_COUNT_V2,
         )?
         .checked_mul(2)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
         let uniqueness_challenges = Self::sha_blocks_for_role_parts(
             CheckpointShaRole::IdChallenge,
             UNIQUENESS_CHALLENGE_PART_BYTES_V2,
             UNIQUENESS_CHALLENGE_PART_COUNT_V2,
         )?
         .checked_mul(8)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
         let uniqueness_counts = Self::sha_blocks_for_role_parts(
             CheckpointShaRole::UniquenessCounts,
             UNIQUENESS_COUNTS_PART_BYTES_V2,
@@ -414,7 +413,7 @@ impl RecursiveCircuitProfileV2 {
             SETTLEMENT_ROOT_PART_COUNT_V2,
         )?
         .checked_mul(2)
-        .ok_or(RecursiveV2Error::Overflow)?;
+        .ok_or(CheckpointError::Overflow)?;
 
         source_local
             .checked_add(global)
@@ -424,7 +423,7 @@ impl RecursiveCircuitProfileV2 {
             .and_then(|value| value.checked_add(uniqueness_counts))
             .and_then(|value| value.checked_add(uniqueness_context))
             .and_then(|value| value.checked_add(settlement_roots))
-            .ok_or(RecursiveV2Error::Overflow)
+            .ok_or(CheckpointError::Overflow)
     }
 
     /// Bound source records independently of the caller-selected event cap.
@@ -433,45 +432,43 @@ impl RecursiveCircuitProfileV2 {
         max_outputs: u32,
         max_leaf_bytes: u32,
         max_content_bytes: u64,
-    ) -> Result<u64, RecursiveV2Error> {
+    ) -> Result<u64, CheckpointError> {
         if max_leaf_bytes < RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2
             || u64::from(max_leaf_bytes) > max_content_bytes
         {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         let replay_ids = u64::from(max_spent)
             .checked_add(u64::from(max_outputs))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         // Each identifier appears once in replay, twice in the commit
         // original/sorted rows, and twice in the product original/sorted rows.
         // The four checkpoint-core CommitTypedEvent rows are fixed and counted
         // separately below; flow identifiers never enter that codec.
-        let identifier_records = replay_ids
-            .checked_mul(5)
-            .ok_or(RecursiveV2Error::Overflow)?;
+        let identifier_records = replay_ids.checked_mul(5).ok_or(CheckpointError::Overflow)?;
         let semantic_minimum = SOURCE_FIXED_RECORDS_V2
             .checked_add(identifier_records)
             .and_then(|value| value.checked_add(4))
             .and_then(|value| value.checked_add(1))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         // JMT is now represented by many bounded micro-op records rather than
         // max-leaf-sized envelope fragments. Every canonical source record
         // consumes at least its fixed header in the same max-content spool, so
         // this byte-derived cap covers every possible micro-op segmentation
         // without assuming a minimum JMT payload size.
         let content_record_bound = max_content_bytes
-            / u64::try_from(TRACE_EVENT_HEADER_BYTES_V2).map_err(|_| RecursiveV2Error::Limit)?;
+            / u64::try_from(TRACE_EVENT_HEADER_BYTES_V2).map_err(|_| CheckpointError::Limit)?;
         if content_record_bound < semantic_minimum {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         Ok(content_record_bound)
     }
 
     /// Return the exact private disk bytes required for one sorted ID set.
-    pub(crate) fn identifier_sort_bytes(ids: u32) -> Result<u64, RecursiveV2Error> {
+    pub(crate) fn identifier_sort_bytes(ids: u32) -> Result<u64, CheckpointError> {
         u64::from(ids)
             .checked_mul(RECURSIVE_IDENTIFIER_BYTES_V2)
-            .ok_or(RecursiveV2Error::Overflow)
+            .ok_or(CheckpointError::Overflow)
     }
 
     fn validate_spool_resources(
@@ -482,21 +479,21 @@ impl RecursiveCircuitProfileV2 {
         total_spool_bytes: u64,
         max_spool_runs: u32,
         spool_merge_fan_in: u32,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         let spent_bytes = Self::identifier_sort_bytes(max_spent)?;
         let output_bytes = Self::identifier_sort_bytes(max_outputs)?;
         let required_spool_bytes = max_content_bytes
             .checked_add(spent_bytes)
             .and_then(|value| value.checked_add(output_bytes))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         if total_spool_bytes < required_spool_bytes {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
 
         let resident_ids = u64::from(resident_buffer_bytes)
             / (RECURSIVE_IDENTIFIER_SORTERS_V2 * RECURSIVE_IDENTIFIER_BYTES_V2);
         if resident_ids == 0 {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         let spent_runs = required_sort_runs(max_spent, resident_ids)?;
         let output_runs = required_sort_runs(max_outputs, resident_ids)?;
@@ -507,7 +504,7 @@ impl RecursiveCircuitProfileV2 {
             || spent_runs > merge_fan_in
             || output_runs > merge_fan_in
         {
-            return Err(RecursiveV2Error::Limit);
+            return Err(CheckpointError::Limit);
         }
         Ok(())
     }
@@ -522,28 +519,28 @@ impl RecursiveCircuitProfileV2 {
         max_source_records: u64,
         max_sha_blocks: u64,
         max_content_bytes: u64,
-    ) -> Result<u64, RecursiveV2Error> {
+    ) -> Result<u64, CheckpointError> {
         let hash_delimiters = max_source_records
             .checked_mul(2)
             .and_then(|value| value.checked_add(FIXED_DERIVED_HASH_DELIMITERS_V2))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let canonical_chunks = max_content_bytes
             .checked_add(
                 max_source_records
                     .checked_mul(63)
-                    .ok_or(RecursiveV2Error::Overflow)?,
+                    .ok_or(CheckpointError::Overflow)?,
             )
             .map(|bytes| bytes / 64)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let byte_controls = canonical_chunks
             .checked_mul(DERIVED_BYTE_CONTROLS_PER_CHUNK_V2)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let jmt_per_update = u64::from(max_siblings)
             .checked_add(JMT_FIXED_STEPS_PER_UPDATE_V2)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let jmt = u64::from(max_jmt_updates)
             .checked_mul(jmt_per_update)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         max_source_records
             .checked_add(hash_delimiters)
             .and_then(|value| value.checked_add(max_sha_blocks))
@@ -552,11 +549,11 @@ impl RecursiveCircuitProfileV2 {
             .and_then(|value| value.checked_add(jmt))
             .and_then(|value| value.checked_add(u64::from(max_touched_tree_groups)))
             .and_then(|value| value.checked_add(FINALIZATION_STEPS_V2))
-            .ok_or(RecursiveV2Error::Overflow)
+            .ok_or(CheckpointError::Overflow)
     }
 
     /// Return the exact finite worst-case control schedule for this profile.
-    pub fn e_max(&self) -> Result<u64, RecursiveV2Error> {
+    pub fn e_max(&self) -> Result<u64, CheckpointError> {
         Self::event_bound_from_parts(
             self.max_net_ops,
             self.max_touched_tree_groups,
@@ -676,7 +673,7 @@ impl RecursiveCircuitProfileV2 {
     /// of the current source record, both external-sorter resident buffers,
     /// and the separately reserved ordered-result bytes.  The complete JMT
     /// envelope is never resident on the production path.
-    pub fn native_evaluator_resident_bytes(&self) -> Result<u64, RecursiveV2Error> {
+    pub fn native_evaluator_resident_bytes(&self) -> Result<u64, CheckpointError> {
         Self::native_evaluator_resident_bytes_from_parts(
             self.max_leaf_bytes,
             self.max_content_bytes,
@@ -703,11 +700,11 @@ impl RecursiveCircuitProfileV2 {
         max_leaf_bytes: u32,
         max_content_bytes: u64,
         resident_buffer_bytes: u32,
-    ) -> Result<u64, RecursiveV2Error> {
+    ) -> Result<u64, CheckpointError> {
         let source_record_bytes = u64::try_from(TRACE_EVENT_HEADER_BYTES_V2)
-            .map_err(|_| RecursiveV2Error::Limit)?
+            .map_err(|_| CheckpointError::Limit)?
             .checked_add(u64::from(max_leaf_bytes))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let _ = max_content_bytes;
         u64::from(RECURSIVE_HJMT_SEGMENT_BYTES_V2)
             .checked_add(RECURSIVE_HJMT_RESULT_BYTES_V2)
@@ -717,15 +714,15 @@ impl RecursiveCircuitProfileV2 {
                 )
             })
             .and_then(|value| value.checked_add(u64::from(resident_buffer_bytes)))
-            .ok_or(RecursiveV2Error::Overflow)
+            .ok_or(CheckpointError::Overflow)
     }
 }
 
-fn required_sort_runs(ids: u32, resident_ids: u64) -> Result<u64, RecursiveV2Error> {
+fn required_sort_runs(ids: u32, resident_ids: u64) -> Result<u64, CheckpointError> {
     u64::from(ids)
-        .checked_add(resident_ids.checked_sub(1).ok_or(RecursiveV2Error::Limit)?)
+        .checked_add(resident_ids.checked_sub(1).ok_or(CheckpointError::Limit)?)
         .map(|value| value / resident_ids)
-        .ok_or(RecursiveV2Error::Overflow)
+        .ok_or(CheckpointError::Overflow)
 }
 
 /// Hash-bound schema selection for the only recursive circuit V2.
@@ -741,13 +738,13 @@ impl RecursiveCircuitSpecV2 {
     pub(crate) fn new(
         layout: u32,
         profile: &RecursiveCircuitProfileV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let profile_digest = profile.digest();
         let layout_bytes = layout.to_le_bytes();
         let version = [RECURSIVE_CIRCUIT_SPEC_VERSION_V2];
         let uniqueness_security = [
-            u32::try_from(UNIQUENESS_SEMANTIC_ROW_LIMBS_V2).map_err(|_| RecursiveV2Error::Limit)?,
-            u32::try_from(UNIQUENESS_ROW_FACTOR_DEGREE_V2).map_err(|_| RecursiveV2Error::Limit)?,
+            u32::try_from(UNIQUENESS_SEMANTIC_ROW_LIMBS_V2).map_err(|_| CheckpointError::Limit)?,
+            u32::try_from(UNIQUENESS_ROW_FACTOR_DEGREE_V2).map_err(|_| CheckpointError::Limit)?,
             UNIQUENESS_CHALLENGE_BITS_V2,
             UNIQUENESS_RO_QUERY_LOG2_V2,
         ];
@@ -902,11 +899,11 @@ mod tests {
             "global/list/transcript SHA work must be included"
         );
         assert_eq!(
-            RecursiveCircuitProfileV2::repository_fixture().max_sha_blocks(),
+            RecursiveCircuitProfileV2::authority_pinned().max_sha_blocks(),
             complete_sha
         );
         assert!(
-            RecursiveCircuitProfileV2::repository_fixture().max_content_bytes()
+            RecursiveCircuitProfileV2::authority_pinned().max_content_bytes()
                 == RECURSIVE_V2_MAX_CONTENT_BYTES
         );
     }
@@ -935,9 +932,9 @@ mod tests {
         );
         assert!(rejected.is_err());
 
-        let fixture = RecursiveCircuitProfileV2::repository_fixture();
-        assert!(u64::from(fixture.max_typed_events()) >= fixture.e_max().expect("E_max"));
-        assert!(fixture.max_cumulative_steps() >= fixture.e_max().expect("E_max"));
+        let profile = RecursiveCircuitProfileV2::authority_pinned();
+        assert!(u64::from(profile.max_typed_events()) >= profile.e_max().expect("E_max"));
+        assert!(profile.max_cumulative_steps() >= profile.e_max().expect("E_max"));
 
         assert!(RecursiveCircuitProfileV2::new(
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1_024, 100, 200, 200, 128, 2_048, 2, 1,
@@ -1026,7 +1023,7 @@ mod tests {
 
     #[test]
     fn profile_commits_native_evaluator_resident_buffer_accounting() {
-        let profile = RecursiveCircuitProfileV2::repository_fixture();
+        let profile = RecursiveCircuitProfileV2::authority_pinned();
         let source_record_bytes = u64::try_from(TRACE_EVENT_HEADER_BYTES_V2)
             .expect("header length fits u64")
             + u64::from(profile.max_leaf_bytes());
@@ -1037,7 +1034,7 @@ mod tests {
         assert_eq!(
             profile
                 .native_evaluator_resident_bytes()
-                .expect("fixture bound is representable"),
+                .expect("authority bound is representable"),
             expected,
             "one HJMT segment, ordered-result reservation, concurrent source records, and sort buffers must be explicit"
         );

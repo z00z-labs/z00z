@@ -7,10 +7,10 @@ use crate::settlement::{
     derive_settlement_root_v2, RootGeneration, ScopeLeafKind, ScopeOpKind, SettlementStateRoot,
     SettlementStore, SettlementUpdateTraceCircuitDecoderV2,
 };
+use crate::CheckpointError;
 
 use super::{
     recursive_context::{RecursiveAuthorityContextV2, RecursiveCheckpointBindingV2},
-    recursive_reject::RecursiveV2Error,
     recursive_semantics::{
         decode_flow_header, decode_flow_item, decode_hierarchy_promotion, decode_net_effect,
         decode_net_merge, decode_typed_checkpoint_commitment, decode_uniqueness_challenge,
@@ -72,7 +72,7 @@ impl CheckpointTransitionConsistencyV2 {
         context: RecursiveAuthorityContextV2,
         checkpoint: RecursiveCheckpointBindingV2,
         store: &SettlementStore,
-    ) -> Result<EvaluatedCheckpointTransitionV2, RecursiveV2Error> {
+    ) -> Result<EvaluatedCheckpointTransitionV2, CheckpointError> {
         Self::evaluate_stream_inner(source, context, checkpoint, store, |_| {})
     }
 
@@ -82,7 +82,7 @@ impl CheckpointTransitionConsistencyV2 {
         context: RecursiveAuthorityContextV2,
         checkpoint: RecursiveCheckpointBindingV2,
         store: &SettlementStore,
-    ) -> Result<(EvaluatedCheckpointTransitionV2, Vec<RecursiveTraceEventV2>), RecursiveV2Error>
+    ) -> Result<(EvaluatedCheckpointTransitionV2, Vec<RecursiveTraceEventV2>), CheckpointError>
     {
         let mut events = Vec::new();
         let evaluated = Self::evaluate_stream_inner(source, context, checkpoint, store, |event| {
@@ -97,11 +97,11 @@ impl CheckpointTransitionConsistencyV2 {
         checkpoint: RecursiveCheckpointBindingV2,
         store: &SettlementStore,
         mut on_accepted: impl FnMut(&RecursiveTraceEventV2),
-    ) -> Result<EvaluatedCheckpointTransitionV2, RecursiveV2Error> {
+    ) -> Result<EvaluatedCheckpointTransitionV2, CheckpointError> {
         let expected_precommit = source.sealed_precommit()?;
         let pre_uniqueness_context = source
             .pre_uniqueness_context()
-            .ok_or(RecursiveV2Error::Authority)?;
+            .ok_or(CheckpointError::Authority)?;
         let mut machine = TraceSemanticMachineV2::new(
             context,
             checkpoint,
@@ -130,7 +130,7 @@ impl CheckpointTransitionConsistencyV2 {
             context.policy_digest(),
             definition_root,
         )
-        .map_err(|_| RecursiveV2Error::Root)?;
+        .map_err(|_| CheckpointError::Root)?;
         let trace = pass.precommit();
         let statement = RecursiveTransitionStatementV2::build(
             context,
@@ -281,10 +281,10 @@ impl PendingCanonicalSourceChunksV2 {
     fn from_source(
         source: &RecursiveTraceEventV2,
         max_source_chunk_count: u32,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let chunk_count = source.canonical_chunk_count()?;
         if chunk_count > max_source_chunk_count {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         Ok(Self {
             source_ordinal: source.ordinal(),
@@ -297,12 +297,12 @@ impl PendingCanonicalSourceChunksV2 {
         &mut self,
         chunk: super::recursive_trace::RecursiveTraceChunkControlV2,
         source: &RecursiveTraceEventV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         self.matches_next(chunk, source)?;
         self.next_chunk = self
             .next_chunk
             .checked_add(1)
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         Ok(())
     }
 
@@ -313,7 +313,7 @@ impl PendingCanonicalSourceChunksV2 {
         &self,
         chunk: super::recursive_trace::RecursiveTraceChunkControlV2,
         source: &RecursiveTraceEventV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         let expected = source.canonical_chunk(self.next_chunk)?;
         if chunk.source_ordinal != self.source_ordinal
             || source.ordinal() != self.source_ordinal
@@ -323,7 +323,7 @@ impl PendingCanonicalSourceChunksV2 {
             || chunk.byte_count != expected.byte_count()
             || chunk.bytes != expected.bytes()
         {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         Ok(())
     }
@@ -342,7 +342,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
         expected_precommit: RecursiveTracePrecommitV2,
         pre_uniqueness_digest: [u8; 32],
         profile: &super::recursive_circuit::RecursiveCircuitProfileV2,
-    ) -> Result<Self, RecursiveV2Error> {
+    ) -> Result<Self, CheckpointError> {
         let max_leaf_bytes = profile.max_leaf_bytes();
         let max_spent = profile.max_spent();
         let max_outputs = profile.max_outputs();
@@ -351,20 +351,20 @@ impl<'a> TraceSemanticMachineV2<'a> {
         // be represented before any spool byte is replayed.
         profile.native_evaluator_resident_bytes()?;
         let max_source_record_bytes = u64::try_from(TRACE_EVENT_HEADER_BYTES_V2)
-            .map_err(|_| RecursiveV2Error::Limit)?
+            .map_err(|_| CheckpointError::Limit)?
             .checked_add(u64::from(max_leaf_bytes))
-            .ok_or(RecursiveV2Error::Overflow)?;
+            .ok_or(CheckpointError::Overflow)?;
         let max_source_chunk_count = max_source_record_bytes
             .checked_add(
                 u64::try_from(TRACE_CANONICAL_CHUNK_BYTES_V2 - 1)
-                    .map_err(|_| RecursiveV2Error::Limit)?,
+                    .map_err(|_| CheckpointError::Limit)?,
             )
-            .ok_or(RecursiveV2Error::Overflow)?
-            / u64::try_from(TRACE_CANONICAL_CHUNK_BYTES_V2).map_err(|_| RecursiveV2Error::Limit)?;
+            .ok_or(CheckpointError::Overflow)?
+            / u64::try_from(TRACE_CANONICAL_CHUNK_BYTES_V2).map_err(|_| CheckpointError::Limit)?;
         let max_source_chunk_count =
-            u32::try_from(max_source_chunk_count).map_err(|_| RecursiveV2Error::Limit)?;
+            u32::try_from(max_source_chunk_count).map_err(|_| CheckpointError::Limit)?;
         if context.policy_digest() != store.bucket_policy().bucket_policy_id() {
-            return Err(RecursiveV2Error::CutoverAuthority);
+            return Err(CheckpointError::CutoverAuthority);
         }
         // The evaluator is an independent acceptance machine, not merely a
         // verifier reached through `CanonicalCheckpointTransitionV2`.  Keep
@@ -374,7 +374,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
         if checkpoint.is_recursive_v2_noop()
             && !context.allows_noop_execution_input_version(checkpoint.exec_version())
         {
-            return Err(RecursiveV2Error::Authority);
+            return Err(CheckpointError::Authority);
         }
         Ok(Self {
             context,
@@ -439,7 +439,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
         &mut self,
         event: &RecursiveTraceEventV2,
         source_record: Option<&RecursiveTraceEventV2>,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         let accepted = match event.opcode() {
             RecursiveTraceOpcodeV2::BeginHash
             | RecursiveTraceOpcodeV2::ShaBlock
@@ -449,15 +449,15 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 let pending = self
                     .pending_hash
                     .as_mut()
-                    .ok_or(RecursiveV2Error::EventOrder)?;
+                    .ok_or(CheckpointError::EventOrder)?;
                 if pending.next_stage != HashControlStageV2::Block
                     || pending.source_memory_window_open
                 {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 pending
                     .chunks
-                    .matches_next(chunk, source_record.ok_or(RecursiveV2Error::EventOrder)?)?;
+                    .matches_next(chunk, source_record.ok_or(CheckpointError::EventOrder)?)?;
                 pending.source_memory_window_open = true;
                 Ok(())
             }
@@ -466,37 +466,46 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 let pending = self
                     .pending_hash
                     .as_mut()
-                    .ok_or(RecursiveV2Error::EventOrder)?;
+                    .ok_or(CheckpointError::EventOrder)?;
                 if pending.next_stage != HashControlStageV2::Block
                     || !pending.source_memory_window_open
                 {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 pending
                     .chunks
-                    .accept(chunk, source_record.ok_or(RecursiveV2Error::EventOrder)?)?;
+                    .accept(chunk, source_record.ok_or(CheckpointError::EventOrder)?)?;
                 pending.source_memory_window_open = false;
                 Ok(())
             }
             _ => {
                 if self.pending_hash.is_some() {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 self.accept_source(event)?;
                 self.expect_hash(event)
             }
         };
+        #[cfg(test)]
+        if let Err(error) = &accepted {
+            eprintln!(
+                "recursive evaluator rejected source ordinal={} opcode={:?} phase={:?}: {error:?}",
+                event.ordinal(),
+                event.opcode(),
+                self.phase,
+            );
+        }
         accepted?;
         self.consumed_event_counts.increment(event.opcode())?;
         Ok(())
     }
 
-    fn accept_source(&mut self, event: &RecursiveTraceEventV2) -> Result<(), RecursiveV2Error> {
+    fn accept_source(&mut self, event: &RecursiveTraceEventV2) -> Result<(), CheckpointError> {
         match event.opcode() {
             RecursiveTraceOpcodeV2::BeginBlock if self.phase == TracePhaseV2::BeforeBegin => {
                 self.require_structural_id(event)?;
                 if event.ordinal() != 0 {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 let header = decode_flow_header(event.payload())?;
                 if header.prev_root != *self.snapshot.root().as_bytes()
@@ -504,43 +513,43 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         != *self
                             .store
                             .settlement_root_v2(self.context.layout())
-                            .map_err(|_| RecursiveV2Error::Root)?
+                            .map_err(|_| CheckpointError::Root)?
                             .as_bytes()
                     || (self.authority_noop && header.prev_root != header.post_root)
                     || header.spent_count > self.max_spent
                     || header.output_count > self.max_outputs
                 {
-                    return Err(RecursiveV2Error::Root);
+                    return Err(CheckpointError::Root);
                 }
                 self.spent_original_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&header.spent_count.to_le_bytes())?;
                 self.output_original_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&header.output_count.to_le_bytes())?;
                 self.header = Some(header);
                 self.phase = TracePhaseV2::ReplayInputs;
             }
             RecursiveTraceOpcodeV2::ReplayInput if self.phase == TracePhaseV2::ReplayInputs => {
                 if self.uniqueness_precommit.is_none() {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 let item = self.decode_replay_item(event, ScopeOpKind::Delete)?;
                 self.check_input(&item)?;
                 if self.inputs >= u64::from(self.max_spent) {
-                    return Err(RecursiveV2Error::Limit);
+                    return Err(CheckpointError::Limit);
                 }
                 self.spent_original_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&semantic_row(&item).canonical_bytes())?;
                 self.pending_replay_row = Some((UniquenessSetKindV2::Spent, semantic_row(&item)));
                 self.inputs = self
                     .inputs
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
                 self.phase = TracePhaseV2::AwaitSpentOriginal;
             }
             RecursiveTraceOpcodeV2::ReplayOutput
@@ -550,22 +559,22 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 ) =>
             {
                 if self.uniqueness_precommit.is_none() {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 let item = self.decode_replay_item(event, ScopeOpKind::Put)?;
                 self.check_output(&item)?;
                 if self.outputs >= u64::from(self.max_outputs) {
-                    return Err(RecursiveV2Error::Limit);
+                    return Err(CheckpointError::Limit);
                 }
                 self.output_original_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&semantic_row(&item).canonical_bytes())?;
                 self.pending_replay_row = Some((UniquenessSetKindV2::Output, semantic_row(&item)));
                 self.outputs = self
                     .outputs
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
                 self.phase = TracePhaseV2::AwaitOutputOriginal;
             }
             RecursiveTraceOpcodeV2::UniquenessPrecommit
@@ -585,13 +594,13 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     || precommit.output_sorted_digest
                         != self.expected_precommit.output_sorted_ids_digest()
                 {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
-                let header = self.header.ok_or(RecursiveV2Error::Invariant)?;
+                let header = self.header.ok_or(CheckpointError::Invariant)?;
                 if header.spent_count != precommit.spent_count
                     || header.output_count != precommit.output_count
                 {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
                 self.uniqueness_precommit = Some(precommit);
                 // The replay-derived original commitments above are an
@@ -605,19 +614,19 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 ));
                 self.spent_product_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.spent_count.to_le_bytes())?;
                 self.output_product_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.output_count.to_le_bytes())?;
                 self.spent_sorted_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.spent_count.to_le_bytes())?;
                 self.output_sorted_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.output_count.to_le_bytes())?;
                 self.phase = TracePhaseV2::ReplayInputs;
             }
@@ -631,45 +640,45 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 self.require_structural_id(event)?;
                 let precommit = self
                     .uniqueness_precommit
-                    .ok_or(RecursiveV2Error::Invariant)?;
+                    .ok_or(CheckpointError::Invariant)?;
                 let replay_spent_original_digest = self
                     .spent_original_ids
                     .take()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .finalize();
                 let replay_output_original_digest = self
                     .output_original_ids
                     .take()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .finalize();
                 let spent_original_digest = self
                     .spent_product_ids
                     .take()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .finalize();
                 let output_original_digest = self
                     .output_product_ids
                     .take()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .finalize();
                 let spent_sorted_digest = self
                     .spent_sorted_ids
                     .take()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .finalize();
                 let output_sorted_digest = self
                     .output_sorted_ids
                     .take()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .finalize();
                 if self.spent_product_count != self.inputs
                     || self.output_product_count != self.outputs
                     || self.spent_sorted_count != self.inputs
                     || self.output_sorted_count != self.outputs
                     || precommit.spent_count
-                        != u32::try_from(self.inputs).map_err(|_| RecursiveV2Error::Limit)?
+                        != u32::try_from(self.inputs).map_err(|_| CheckpointError::Limit)?
                     || precommit.output_count
-                        != u32::try_from(self.outputs).map_err(|_| RecursiveV2Error::Limit)?
+                        != u32::try_from(self.outputs).map_err(|_| CheckpointError::Limit)?
                     || precommit.spent_original_digest != replay_spent_original_digest
                     || precommit.output_original_digest != replay_output_original_digest
                     || precommit.spent_original_digest != spent_original_digest
@@ -677,7 +686,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     || precommit.spent_sorted_digest != spent_sorted_digest
                     || precommit.output_sorted_digest != output_sorted_digest
                 {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
                 self.uniqueness_challenge = Some(decode_uniqueness_challenge(
                     event.payload(),
@@ -685,6 +694,17 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     RecursiveTraceOpcodeV2::grammar_digest(),
                     precommit,
                 )?);
+                // The commit pass counters have reached the declared row
+                // counts. Product pass owns an independent reconstruction, so
+                // both its hashers and counters must restart from the domain
+                // prefix before any challenge-dependent row is accepted.
+                self.spent_product_count = 0;
+                self.output_product_count = 0;
+                self.spent_sorted_count = 0;
+                self.output_sorted_count = 0;
+                self.prior_spent_sorted_id = None;
+                self.prior_output_sorted_id = None;
+                self.prior_sorted_row = None;
                 self.spent_product_ids =
                     Some(CheckpointSha256V2::new(CheckpointShaRole::SpentOriginalIds));
                 self.output_product_ids = Some(CheckpointSha256V2::new(
@@ -696,19 +716,19 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     Some(CheckpointSha256V2::new(CheckpointShaRole::OutputSortedIds));
                 self.spent_product_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.spent_count.to_le_bytes())?;
                 self.output_product_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.output_count.to_le_bytes())?;
                 self.spent_sorted_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.spent_count.to_le_bytes())?;
                 self.output_sorted_ids
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(&precommit.output_count.to_le_bytes())?;
                 self.spent_product_count = 0;
                 self.output_product_count = 0;
@@ -755,13 +775,13 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     _ => false,
                 };
                 if !legal_row {
-                    return Err(RecursiveV2Error::EventOrder);
+                    return Err(CheckpointError::EventOrder);
                 }
                 if commit_pass
                     && list == UniquenessListKindV2::Original
                     && self.pending_replay_row.take() != Some((set, row))
                 {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
                 match (list, set) {
                     (UniquenessListKindV2::Original, UniquenessSetKindV2::Spent) => {
@@ -769,32 +789,32 @@ impl<'a> TraceSemanticMachineV2<'a> {
                             || self.spent_sorted_count != 0
                             || self.spent_product_count >= self.inputs
                         {
-                            return Err(RecursiveV2Error::Invariant);
+                            return Err(CheckpointError::Invariant);
                         }
                         self.spent_product_ids
                             .as_mut()
-                            .ok_or(RecursiveV2Error::Invariant)?
+                            .ok_or(CheckpointError::Invariant)?
                             .update_part(&row.canonical_bytes())?;
                         self.spent_product_count = self
                             .spent_product_count
                             .checked_add(1)
-                            .ok_or(RecursiveV2Error::Overflow)?;
+                            .ok_or(CheckpointError::Overflow)?;
                     }
                     (UniquenessListKindV2::Original, UniquenessSetKindV2::Output) => {
                         if self.spent_product_count != self.inputs
                             || self.spent_sorted_count != 0
                             || self.output_product_count >= self.outputs
                         {
-                            return Err(RecursiveV2Error::Invariant);
+                            return Err(CheckpointError::Invariant);
                         }
                         self.output_product_ids
                             .as_mut()
-                            .ok_or(RecursiveV2Error::Invariant)?
+                            .ok_or(CheckpointError::Invariant)?
                             .update_part(&row.canonical_bytes())?;
                         self.output_product_count = self
                             .output_product_count
                             .checked_add(1)
-                            .ok_or(RecursiveV2Error::Overflow)?;
+                            .ok_or(CheckpointError::Overflow)?;
                     }
                     (UniquenessListKindV2::Sorted, UniquenessSetKindV2::Spent) => {
                         if self.spent_product_count != self.inputs
@@ -804,11 +824,11 @@ impl<'a> TraceSemanticMachineV2<'a> {
                             || (!commit_pass
                                 && !global_semantic_order_is_valid(self.prior_sorted_row, set, row))
                         {
-                            return Err(RecursiveV2Error::DuplicateIdentifier);
+                            return Err(CheckpointError::DuplicateIdentifier);
                         }
                         self.spent_sorted_ids
                             .as_mut()
-                            .ok_or(RecursiveV2Error::Invariant)?
+                            .ok_or(CheckpointError::Invariant)?
                             .update_part(&row.canonical_bytes())?;
                         self.prior_spent_sorted_id = Some(id);
                         if !commit_pass {
@@ -817,7 +837,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         self.spent_sorted_count = self
                             .spent_sorted_count
                             .checked_add(1)
-                            .ok_or(RecursiveV2Error::Overflow)?;
+                            .ok_or(CheckpointError::Overflow)?;
                     }
                     (UniquenessListKindV2::Sorted, UniquenessSetKindV2::Output) => {
                         if self.spent_product_count != self.inputs
@@ -827,11 +847,11 @@ impl<'a> TraceSemanticMachineV2<'a> {
                             || (!commit_pass
                                 && !global_semantic_order_is_valid(self.prior_sorted_row, set, row))
                         {
-                            return Err(RecursiveV2Error::DuplicateIdentifier);
+                            return Err(CheckpointError::DuplicateIdentifier);
                         }
                         self.output_sorted_ids
                             .as_mut()
-                            .ok_or(RecursiveV2Error::Invariant)?
+                            .ok_or(CheckpointError::Invariant)?
                             .update_part(&row.canonical_bytes())?;
                         self.prior_output_sorted_id = Some(id);
                         if !commit_pass {
@@ -840,18 +860,18 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         self.output_sorted_count = self
                             .output_sorted_count
                             .checked_add(1)
-                            .ok_or(RecursiveV2Error::Overflow)?;
+                            .ok_or(CheckpointError::Overflow)?;
                     }
                 }
                 if !commit_pass && list == UniquenessListKindV2::Sorted {
                     if self.net_closed {
-                        return Err(RecursiveV2Error::EventOrder);
+                        return Err(CheckpointError::EventOrder);
                     }
                     match set {
                         UniquenessSetKindV2::Spent => {
                             if self.net_pending_spent.is_some() || self.net_pending_output.is_some()
                             {
-                                return Err(RecursiveV2Error::Invariant);
+                                return Err(CheckpointError::Invariant);
                             }
                             self.net_pending_spent = Some(row);
                         }
@@ -861,7 +881,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                                     .net_pending_spent
                                     .is_some_and(|spent| spent.terminal_id != row.terminal_id)
                             {
-                                return Err(RecursiveV2Error::Invariant);
+                                return Err(CheckpointError::Invariant);
                             }
                             self.net_pending_output = Some(row);
                         }
@@ -877,7 +897,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         TracePhaseV2::UniquenessRows
                     }
                     TracePhaseV2::NetMerge => TracePhaseV2::NetMerge,
-                    _ => return Err(RecursiveV2Error::EventOrder),
+                    _ => return Err(CheckpointError::EventOrder),
                 };
             }
             RecursiveTraceOpcodeV2::NetMerge
@@ -894,30 +914,30 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         || self.net_pending_spent.is_some()
                         || self.net_pending_output.is_some()
                     {
-                        return Err(RecursiveV2Error::Invariant);
+                        return Err(CheckpointError::Invariant);
                     }
                     let precommit = self
                         .uniqueness_precommit
-                        .ok_or(RecursiveV2Error::Invariant)?;
+                        .ok_or(CheckpointError::Invariant)?;
                     let spent_product_digest = self
                         .spent_product_ids
                         .take()
-                        .ok_or(RecursiveV2Error::Invariant)?
+                        .ok_or(CheckpointError::Invariant)?
                         .finalize();
                     let output_product_digest = self
                         .output_product_ids
                         .take()
-                        .ok_or(RecursiveV2Error::Invariant)?
+                        .ok_or(CheckpointError::Invariant)?
                         .finalize();
                     let spent_sorted_digest = self
                         .spent_sorted_ids
                         .take()
-                        .ok_or(RecursiveV2Error::Invariant)?
+                        .ok_or(CheckpointError::Invariant)?
                         .finalize();
                     let output_sorted_digest = self
                         .output_sorted_ids
                         .take()
-                        .ok_or(RecursiveV2Error::Invariant)?
+                        .ok_or(CheckpointError::Invariant)?
                         .finalize();
                     if self.spent_product_count != self.inputs
                         || self.output_product_count != self.outputs
@@ -928,35 +948,35 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         || precommit.spent_sorted_digest != spent_sorted_digest
                         || precommit.output_sorted_digest != output_sorted_digest
                     {
-                        return Err(RecursiveV2Error::Invariant);
+                        return Err(CheckpointError::Invariant);
                     }
                     decode_net_merge(
                         event.payload(),
                         precommit,
                         self.uniqueness_challenge
-                            .ok_or(RecursiveV2Error::Invariant)?,
+                            .ok_or(CheckpointError::Invariant)?,
                     )?;
                     self.net_closed = true;
                 } else {
                     if self.net_closed {
-                        return Err(RecursiveV2Error::EventOrder);
+                        return Err(CheckpointError::EventOrder);
                     }
                     let expected = NetEffectV2::from_rows(
                         self.net_pending_spent.take(),
                         self.net_pending_output.take(),
                     )?;
                     if effect != expected {
-                        return Err(RecursiveV2Error::Invariant);
+                        return Err(CheckpointError::Invariant);
                     }
                     self.net_effect_count = self
                         .net_effect_count
                         .checked_add(1)
-                        .ok_or(RecursiveV2Error::Overflow)?;
+                        .ok_or(CheckpointError::Overflow)?;
                     if effect.kind != NetEffectKindV2::Unchanged {
                         self.net_mutation_count = self
                             .net_mutation_count
                             .checked_add(1)
-                            .ok_or(RecursiveV2Error::Overflow)?;
+                            .ok_or(CheckpointError::Overflow)?;
                     }
                 }
                 self.phase = TracePhaseV2::NetMerge;
@@ -967,11 +987,11 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     || (self.authority_noop && (self.inputs != 0 || self.outputs != 0))
                     || self.jmt_header_seen
                 {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
                 self.jmt_decoder = Some(
                     SettlementUpdateTraceCircuitDecoderV2::new(event.payload())
-                        .map_err(|_| RecursiveV2Error::Canonical)?,
+                        .map_err(|_| CheckpointError::Canonical)?,
                 );
                 self.jmt_header_seen = true;
                 self.phase = TracePhaseV2::JmtUpdate;
@@ -979,21 +999,21 @@ impl<'a> TraceSemanticMachineV2<'a> {
             RecursiveTraceOpcodeV2::JmtMicroOp if self.phase == TracePhaseV2::JmtUpdate => {
                 self.require_structural_id(event)?;
                 if !self.jmt_header_seen || self.authority_noop {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
                 self.jmt_decoder
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .accept(event.payload())
-                    .map_err(|_| RecursiveV2Error::Canonical)?;
+                    .map_err(|_| CheckpointError::Canonical)?;
                 self.jmt_micro_digest
                     .as_mut()
-                    .ok_or(RecursiveV2Error::Invariant)?
+                    .ok_or(CheckpointError::Invariant)?
                     .update_part(event.payload())?;
                 self.jmt_micro_count = self
                     .jmt_micro_count
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
             }
             RecursiveTraceOpcodeV2::PromoteChildRoot if self.phase == TracePhaseV2::JmtUpdate => {
                 self.require_structural_id(event)?;
@@ -1016,19 +1036,19 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 let expected_kind = TypedCheckpointCommitmentKindV2::ALL
                     .get(self.typed_commitment_progress)
                     .copied()
-                    .ok_or(RecursiveV2Error::EventOrder)?;
+                    .ok_or(CheckpointError::EventOrder)?;
                 let expected_digest = self
                     .expected_typed_commitments
                     .get(self.typed_commitment_progress)
                     .copied()
-                    .ok_or(RecursiveV2Error::EventOrder)?;
+                    .ok_or(CheckpointError::EventOrder)?;
                 if kind != expected_kind || digest != expected_digest {
-                    return Err(RecursiveV2Error::Authority);
+                    return Err(CheckpointError::Authority);
                 }
                 self.typed_commitment_progress = self
                     .typed_commitment_progress
                     .checked_add(1)
-                    .ok_or(RecursiveV2Error::Overflow)?;
+                    .ok_or(CheckpointError::Overflow)?;
                 self.phase = TracePhaseV2::Commit;
             }
             RecursiveTraceOpcodeV2::FinalizeBlock if self.phase == TracePhaseV2::Commit => {
@@ -1040,7 +1060,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
                         != *self
                             .store
                             .settlement_root_v2(self.context.layout())
-                            .map_err(|_| RecursiveV2Error::Root)?
+                            .map_err(|_| CheckpointError::Root)?
                             .as_bytes()
                     || self.uniqueness_precommit.is_none()
                     || self.uniqueness_challenge.is_none()
@@ -1049,11 +1069,11 @@ impl<'a> TraceSemanticMachineV2<'a> {
                     || (self.authority_noop && (self.inputs != 0 || self.outputs != 0))
                     || !self.jmt_header_seen
                 {
-                    return Err(RecursiveV2Error::Invariant);
+                    return Err(CheckpointError::Invariant);
                 }
                 self.phase = TracePhaseV2::Finalized;
             }
-            _ => return Err(RecursiveV2Error::EventOrder),
+            _ => return Err(CheckpointError::EventOrder),
         }
         Ok(())
     }
@@ -1065,7 +1085,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
     fn finish(
         self,
         declared_event_counts: RecursiveTraceEventCountsV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         if self.phase != TracePhaseV2::Finalized
             || !self.envelope_verified
             || self.pending_hash.is_some()
@@ -1073,15 +1093,15 @@ impl<'a> TraceSemanticMachineV2<'a> {
             || self.net_pending_spent.is_some()
             || self.net_pending_output.is_some()
         {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         if self.net_effect_count > self.inputs + self.outputs
             || ((self.inputs + self.outputs != 0) != (self.net_effect_count != 0))
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         if self.consumed_event_counts != declared_event_counts {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         Ok(())
     }
@@ -1090,98 +1110,98 @@ impl<'a> TraceSemanticMachineV2<'a> {
         &self,
         event: &RecursiveTraceEventV2,
         expected_kind: ScopeOpKind,
-    ) -> Result<CanonicalFlowItemV2, RecursiveV2Error> {
+    ) -> Result<CanonicalFlowItemV2, CheckpointError> {
         let item = decode_flow_item(event.payload())?;
         if item.op_kind != expected_kind || item.terminal_id != event.object_id() {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         Ok(item)
     }
 
-    fn check_input(&self, item: &CanonicalFlowItemV2) -> Result<(), RecursiveV2Error> {
+    fn check_input(&self, item: &CanonicalFlowItemV2) -> Result<(), CheckpointError> {
         if item.leaf_kind != ScopeLeafKind::Terminal
             || item.first_definition
             || item.first_serial
             || item.first_object
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         Ok(())
     }
 
-    fn check_output(&self, item: &CanonicalFlowItemV2) -> Result<(), RecursiveV2Error> {
+    fn check_output(&self, item: &CanonicalFlowItemV2) -> Result<(), CheckpointError> {
         if item.leaf_kind != ScopeLeafKind::Terminal {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let post_item = self
             .store
             .get_settlement_item(&item.path())
-            .map_err(|_| RecursiveV2Error::Storage)?
-            .ok_or(RecursiveV2Error::Invariant)?;
+            .map_err(|_| CheckpointError::Storage)?
+            .ok_or(CheckpointError::Invariant)?;
         if post_item.terminal_leaf().is_err()
             || terminal_value_hash(post_item.leaf())
-                .map_err(|_| RecursiveV2Error::Storage)?
+                .map_err(|_| CheckpointError::Storage)?
                 .0
                 != item.leaf_value_hash
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         Ok(())
     }
 
-    fn verify_jmt_envelope(&mut self) -> Result<(), RecursiveV2Error> {
+    fn verify_jmt_envelope(&mut self) -> Result<(), CheckpointError> {
         if self.envelope_verified || !self.jmt_header_seen {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let envelope = self
             .jmt_decoder
             .take()
-            .ok_or(RecursiveV2Error::Invariant)?
+            .ok_or(CheckpointError::Invariant)?
             .finish()
-            .map_err(|_| RecursiveV2Error::Canonical)?;
+            .map_err(|_| CheckpointError::Canonical)?;
         if envelope.is_noop() != self.authority_noop
             || (!self.authority_noop && envelope.updates_empty())
             || (self.authority_noop && !envelope.updates_empty())
         {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         if (!self.authority_noop && self.jmt_micro_count == 0)
             || (self.authority_noop && self.jmt_micro_count != 0)
         {
-            return Err(RecursiveV2Error::TraceState);
+            return Err(CheckpointError::TraceState);
         }
         if !self.authority_noop
             && self
                 .jmt_micro_digest
                 .take()
-                .ok_or(RecursiveV2Error::Invariant)?
+                .ok_or(CheckpointError::Invariant)?
                 .finalize()
                 != envelope.trace_digest()
         {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         let terminal_operation_count = envelope
             .terminal_operation_count()
-            .map_err(|_| RecursiveV2Error::Canonical)?;
+            .map_err(|_| CheckpointError::Canonical)?;
         let update_trace_digest = envelope.trace_digest();
         let update_trace_count = envelope.update_count();
         let definition_root_transition = envelope
             .verify_hierarchy_semantics(self.store.recursive_v2_definition_root())
-            .map_err(|_| RecursiveV2Error::Canonical)?;
+            .map_err(|_| CheckpointError::Canonical)?;
         let envelope_pre_settlement_root = derive_settlement_root_v2(
             RootGeneration::SettlementV2,
             self.context.layout(),
             self.context.policy_digest(),
             definition_root_transition.0,
         )
-        .map_err(|_| RecursiveV2Error::Root)?;
+        .map_err(|_| CheckpointError::Root)?;
         if definition_root_transition.0 != self.snapshot.pre_definition_root()
             || envelope_pre_settlement_root != self.snapshot.root()
         {
-            return Err(RecursiveV2Error::Root);
+            return Err(CheckpointError::Root);
         }
         if terminal_operation_count != self.net_mutation_count {
-            return Err(RecursiveV2Error::EventOrder);
+            return Err(CheckpointError::EventOrder);
         }
         self.definition_root_transition = Some(definition_root_transition);
         self.update_trace_digest = Some(update_trace_digest);
@@ -1190,39 +1210,39 @@ impl<'a> TraceSemanticMachineV2<'a> {
         Ok(())
     }
 
-    fn pre_definition_root(&self) -> Result<[u8; 32], RecursiveV2Error> {
+    fn pre_definition_root(&self) -> Result<[u8; 32], CheckpointError> {
         self.definition_root_transition
             .map(|(pre_definition_root, _)| pre_definition_root)
-            .ok_or(RecursiveV2Error::Invariant)
+            .ok_or(CheckpointError::Invariant)
     }
 
-    fn update_trace_digest(&self) -> Result<[u8; 32], RecursiveV2Error> {
+    fn update_trace_digest(&self) -> Result<[u8; 32], CheckpointError> {
         if !self.envelope_verified {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
-        self.update_trace_digest.ok_or(RecursiveV2Error::Invariant)
+        self.update_trace_digest.ok_or(CheckpointError::Invariant)
     }
 
-    fn update_trace_count(&self) -> Result<u32, RecursiveV2Error> {
+    fn update_trace_count(&self) -> Result<u32, CheckpointError> {
         if !self.envelope_verified {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
-        self.update_trace_count.ok_or(RecursiveV2Error::Invariant)
+        self.update_trace_count.ok_or(CheckpointError::Invariant)
     }
 
-    fn require_structural_id(&self, event: &RecursiveTraceEventV2) -> Result<(), RecursiveV2Error> {
+    fn require_structural_id(&self, event: &RecursiveTraceEventV2) -> Result<(), CheckpointError> {
         if event.object_id()
             != structural_event_id(event.opcode(), event.ordinal(), event.payload())
         {
-            return Err(RecursiveV2Error::Canonical);
+            return Err(CheckpointError::Canonical);
         }
         Ok(())
     }
 
-    fn expect_hash(&mut self, event: &RecursiveTraceEventV2) -> Result<(), RecursiveV2Error> {
+    fn expect_hash(&mut self, event: &RecursiveTraceEventV2) -> Result<(), CheckpointError> {
         let (message_bytes, block_count) = event.hash_geometry()?;
         if block_count == 0 {
-            return Err(RecursiveV2Error::Invariant);
+            return Err(CheckpointError::Invariant);
         }
         self.pending_hash = Some(PendingHashV2 {
             source_ordinal: event.ordinal(),
@@ -1246,7 +1266,7 @@ impl<'a> TraceSemanticMachineV2<'a> {
     fn accept_hash_control(
         &mut self,
         event: &RecursiveTraceEventV2,
-    ) -> Result<(), RecursiveV2Error> {
+    ) -> Result<(), CheckpointError> {
         self.require_structural_id(event)?;
         let control = decode_hash_control(event)?;
         // The source owner regenerates the tagged whole-trace transcript from
@@ -1261,9 +1281,9 @@ impl<'a> TraceSemanticMachineV2<'a> {
             let pending = self
                 .pending_hash
                 .as_mut()
-                .ok_or(RecursiveV2Error::EventOrder)?;
+                .ok_or(CheckpointError::EventOrder)?;
             if pending.source_memory_window_open {
-                return Err(RecursiveV2Error::EventOrder);
+                return Err(CheckpointError::EventOrder);
             }
             let expected_opcode = match pending.next_stage {
                 HashControlStageV2::Begin => RecursiveTraceOpcodeV2::BeginHash,
@@ -1271,28 +1291,28 @@ impl<'a> TraceSemanticMachineV2<'a> {
                 HashControlStageV2::End => RecursiveTraceOpcodeV2::EndHash,
             };
             if event.opcode() != expected_opcode || !same_hash_binding(&control, pending) {
-                return Err(RecursiveV2Error::Canonical);
+                return Err(CheckpointError::Canonical);
             }
             match control.stage {
                 HashControlStageV2::Begin => {
                     if event.ordinal() != hash_control_ordinal(pending.source_ordinal, 0)?
                         || control.block.is_some()
                     {
-                        return Err(RecursiveV2Error::Canonical);
+                        return Err(CheckpointError::Canonical);
                     }
                     pending.next_stage = HashControlStageV2::Block;
                     false
                 }
                 HashControlStageV2::Block => {
-                    let block = control.block.ok_or(RecursiveV2Error::Canonical)?;
+                    let block = control.block.ok_or(CheckpointError::Canonical)?;
                     let expected_offset = pending
                         .blocks_seen
                         .checked_mul(64)
-                        .ok_or(RecursiveV2Error::Overflow)?;
+                        .ok_or(CheckpointError::Overflow)?;
                     let expected_final = pending
                         .blocks_seen
                         .checked_add(1)
-                        .ok_or(RecursiveV2Error::Overflow)?
+                        .ok_or(CheckpointError::Overflow)?
                         == pending.block_count;
                     if pending.blocks_seen >= pending.block_count
                         || block.index != pending.blocks_seen
@@ -1304,18 +1324,18 @@ impl<'a> TraceSemanticMachineV2<'a> {
                                 block
                                     .index
                                     .checked_add(1)
-                                    .ok_or(RecursiveV2Error::Overflow)?,
+                                    .ok_or(CheckpointError::Overflow)?,
                             )?
                         || block.chaining_before != pending.chaining_state.unwrap_or(SHA256_IV_V2)
                         || !block.verifies_transition()
                     {
-                        return Err(RecursiveV2Error::Canonical);
+                        return Err(CheckpointError::Canonical);
                     }
                     pending.chaining_state = Some(block.chaining_after);
                     pending.blocks_seen = pending
                         .blocks_seen
                         .checked_add(1)
-                        .ok_or(RecursiveV2Error::Overflow)?;
+                        .ok_or(CheckpointError::Overflow)?;
                     if pending.blocks_seen == pending.block_count {
                         pending.next_stage = HashControlStageV2::End;
                     }
@@ -1328,17 +1348,17 @@ impl<'a> TraceSemanticMachineV2<'a> {
                             pending
                                 .block_count
                                 .checked_add(1)
-                                .ok_or(RecursiveV2Error::Overflow)?,
+                                .ok_or(CheckpointError::Overflow)?,
                         )?
                         || control.block.is_some()
                         || pending.blocks_seen != pending.block_count
                         || pending.source_memory_window_open
                         || !pending.chunks.complete()
                         || CheckpointSha256BlockV2::digest_from_chaining(
-                            &pending.chaining_state.ok_or(RecursiveV2Error::Invariant)?,
+                            &pending.chaining_state.ok_or(CheckpointError::Invariant)?,
                         ) != pending.source_hash
                     {
-                        return Err(RecursiveV2Error::Canonical);
+                        return Err(CheckpointError::Canonical);
                     }
                     true
                 }

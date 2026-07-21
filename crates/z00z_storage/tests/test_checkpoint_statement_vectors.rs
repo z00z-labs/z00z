@@ -14,11 +14,12 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn test_v2_config_writes_only_v2_pq_semantics() {
+fn test_v3_config_keeps_pq_evidence_non_authoritative() {
     let yaml = std::fs::read_to_string(repo_default_path()).expect("contract YAML");
-    assert!(yaml.starts_with("version: 2\n"));
+    assert!(yaml.starts_with("version: 3\n"));
     assert!(yaml.contains("epoch_evidence_commitment: non_authenticating_digest_v2"));
     assert!(yaml.contains("- epoch_evidence_commitment"));
+    assert!(yaml.contains("security_role: pq_oriented_evidence_only"));
     assert!(!yaml.contains("pq_signature_or_commitment"));
     assert!(!yaml.contains("is_pq_authoritative"));
     assert!(!yaml.contains("pq_epoch_finality"));

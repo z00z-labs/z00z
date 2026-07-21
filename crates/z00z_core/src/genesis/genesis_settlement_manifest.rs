@@ -16,8 +16,10 @@ pub const GENESIS_VOUCHERS_ROUNDTRIP_DIGEST_LABEL: &str = "genesis_vouchers_roun
 const MAX_POLICIES_FILE_SIZE: u64 = 16 * 1024 * 1024;
 const MAX_RIGHTS_FILE_SIZE: u64 = 16 * 1024 * 1024;
 const MAX_VOUCHERS_FILE_SIZE: u64 = 16 * 1024 * 1024;
+const MAX_MANIFEST_FILE_SIZE: u64 = 4 * 1024;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TerminalCollisionReport {
     pub duplicate_right_terminals: usize,
     pub duplicate_voucher_terminals: usize,
@@ -27,6 +29,7 @@ pub struct TerminalCollisionReport {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GenesisSettlementManifest {
     pub version: u32,
     pub network: String,
@@ -52,6 +55,17 @@ pub struct GenesisSettlementManifest {
     pub rights_artifact: String,
     pub vouchers_artifact: String,
     pub manifest_hash: String,
+}
+
+pub(crate) fn load_genesis_settlement_manifest(
+    path: &Path,
+) -> Result<GenesisSettlementManifest, GenesisError> {
+    load_json_bounded(path, MAX_MANIFEST_FILE_SIZE).map_err(|error| {
+        GenesisError::ConfigLoadFailed(format!(
+            "failed to load strict genesis settlement manifest {}: {error}",
+            path.display()
+        ))
+    })
 }
 
 fn update_policy_digest(

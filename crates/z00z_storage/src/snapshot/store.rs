@@ -5,7 +5,7 @@ use std::{
 
 use z00z_utils::io::{create_dir_all, read_file, write_file};
 
-use crate::checkpoint::CheckpointContractConfigV1;
+use crate::checkpoint::CheckpointConfigResolverV3;
 use crate::settlement::{
     chk_blob_settlement_inclusion, CheckRoot, HjmtProofFamily, ModelErr, ProofBlob, ProofChkErr,
     ProofItem, RootGeneration, SettlementStateRoot, SettlementStore, SettlementStoreError,
@@ -174,9 +174,9 @@ impl PrepFsStore {
     /// Build one file-backed snapshot store rooted at the repository contract
     /// paths for the given lane root.
     pub fn try_new(root: impl Into<PathBuf>) -> Result<Self, PrepSnapshotError> {
-        let cfg = CheckpointContractConfigV1::load_repo_default()
+        let active = CheckpointConfigResolverV3::resolve_active()
             .map_err(|err| PrepSnapshotError::Backend(err.to_string()))?;
-        let resolved = cfg.resolve_paths(root.into());
+        let resolved = active.config().resolve_paths(root.into());
         Ok(Self::with_snapshot_dir(resolved.prep_snapshots))
     }
 

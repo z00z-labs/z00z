@@ -667,7 +667,7 @@ impl SettlementStore {
     /// Enumerate canonical records once and return the V2 snapshot binding.
     ///
     /// The result is crate-visible only. The sole public V2 path obtains it
-    /// through `RecursiveAuthoritySnapshotV2::resolve_repository_local_fixture`,
+    /// through `RecursiveAuthoritySnapshotV2::resolve_active_authority`,
     /// which prevents caller-selected snapshot, count, byte-count, or
     /// content-digest claims.
     pub(crate) fn recursive_v2_snapshot_binding(

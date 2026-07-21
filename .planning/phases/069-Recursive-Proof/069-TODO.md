@@ -11,15 +11,25 @@ authority: phase-local
 
 ## Live execution overlay — 2026-07-20
 
-`069-051-T2` is complete on source revision
-`50f8f9084d3cf888e0aedf10ebc165a088d977a256d2f031b5773bb00adbc45a`.
-The final bounded segment, incremental hierarchy, selected resource profile,
-private setup-cache, deterministic replay, proof/Model C, authority, release,
-review, doublecheck, scoped versioning and clean-clone gates are closed in the
-canonical Plan 051 ledgers. `069-051-T3` is the only next executable task and
-is not started by this overlay. T4 and Plans 06–13 remain locked until their
-declared dependencies complete; `CheckpointProofSystem::VERIFIED` remains
-disabled.
+The canonical Plan 051 ledgers retain historical T2 closure against an older
+source revision and do not authorize the current tree. The current T3/T4
+candidate source is pinned by
+`crates/z00z_storage/src/checkpoint/recursive_source_manifest_v2.txt` and the
+independent golden
+`5169ae837c7ee891f076ae51702698cf7be77cd78fdb2856b04225991006a876`.
+It remains NOT ACCEPTED until source-current release verification and
+independent review are clean. Plan 06 and Plans 07–13 remain locked;
+`CheckpointProofSystem::VERIFIED` remains disabled.
+
+All target/future design statements in this specification and its referenced
+design/whitepaper authorities are mandatory live Phase 069 scope. They do not
+describe an optional later status. Phase 069 runtime artifacts, raw logs,
+PID/time/exit files, fuzz outputs, measurements, proof material, and scenario
+packets MUST be contained fail-closed under the single physical root
+`crates/z00z_storage/outputs/checkpoint`; the entire repository-root
+`test-results` tree is forbidden and must remain absent.
+Relative `artifacts/checkpoints/*` values remain canonical protocol locators and
+MUST be resolved beneath that physical root rather than rewritten or duplicated.
 
 ## 🎯 Purpose
 
@@ -30,7 +40,7 @@ promoting speculative proof claims into live checkpoint authority.
 
 📌 Phase 069 MUST implement the recursive-ready proof architecture over the
 checkpoint transition statement from
-`docs/tech-papers/Recursive-Ready-Checkpoint-Contract.md`. The selected
+`.planning/phases/000/068-Checkpoint-Contract/068-TODO.md`. The selected
 implementation architecture is hybrid:
 
 - Nova IVC fold on every checkpoint block, with compressed proof snapshots at
@@ -152,7 +162,7 @@ does not mean their technical outcomes are predetermined.
 📌 Live normative sources for this spec:
 
 - This document as the Phase 069 single source of truth.
-- `docs/tech-papers/Recursive-Ready-Checkpoint-Contract.md`
+- `.planning/phases/000/068-Checkpoint-Contract/068-TODO.md`
 - `.planning/phases/068-Checkpoint-Contract/068-TODO.md`
 - Current code under `crates/z00z_storage/src/checkpoint/`
 - Current code under `crates/z00z_storage/src/settlement/`
@@ -342,7 +352,7 @@ plan; storage schema support alone does not require installing Kubo.
 | `Archive-node pruning` | Authorized deletion of expired challenge-window objects by `window_archive_watcher_v2` after a valid `RetentionTicketV2`; legacy, unversioned, early, held, or ticketless deletion is forbidden. |
 | `FinalizedWalletReceiptV2` | Wallet-owned receipt binding network/version, certificate, committed root, transaction/output inclusion, HJMT membership, epoch anchor, committee generation, and content-addressed keyset/threshold/signature-domain manifest. Minimal committee keyset/rotation manifests remain permanently retrievable so offline restore can verify from the network trust anchor; the wallet uses no PP/PK/VK or recursive sidecar. |
 | `WalletBackupV5` | Wallet-owned immutable logical generation using approved bounded Argon2id plus XChaCha20-Poly1305 with fresh salt/DEK, a fresh payload nonce, distinct fresh nonce per DEK wrap, and authenticated canonical header core/key-wrap set. The complete canonical plaintext is encrypted first; only ciphertext is versioned-erasure-coded; the initial required profile is `rs_3_5_v1` (`k=3,n=5`). The head binds sequence, parent, `k/n`, ordered shard digests/lengths/placements, latest trusted finalized anchor, device/checkpoint/wallet roots, and successful reconstruct/decrypt/readback evidence. CAS, rollback/fork/downgrade/nonce-reuse rejection, and the latest three verified logical generations are mandatory. Providers see only ciphertext shards and are untrusted; a single provider is allowed but MUST be reported as one failure domain, and restore without a prior trusted anchor is an explicit weak-subjectivity/bootstrap operation. |
-| `RecursiveCheckpointEvidenceV2` | Non-authoritative attachment that stores the proof object, verdict, reject reason, and measurements for one checkpoint transition or epoch proof reference. |
+| `RecursiveCheckpointEvidenceV2` | Non-serializable in-memory completion result that returns the reloaded sidecar, write-only cryptographic receipt, and their persisted paths. It is not a wire object and stores no verdict boolean, reject reason, capability, or measurement payload. |
 | `RecursiveCheckpointChainEvidenceV2` | A 3 to 5 step ordered chain of sidecars proving prior-output binding and tamper rejection. |
 | `RecursiveCheckpointMeasurementV2` | Local measurement payload for proof bytes, witness bytes, prover time, verifier time, memory, chain length, and backend label. |
 | `RecursiveCheckpointRejectReasonV2` | Stable machine-readable rejection taxonomy for sidecars, proof objects, codecs, and chains. |
@@ -413,7 +423,7 @@ MUST update this ledger and add a test that proves the new boundary.
 - Define `RecursiveCheckpointWitnessV2` local witness fixture requirements.
 - Define `NovaCompressedSnapshotV2`, `Plonky3EpochProofV2`,
   `EpochRangeStatementV2`, and strict codec rules.
-- Define `RecursiveCheckpointEvidenceV2` and storage attachment rules.
+- Define the in-memory-only `RecursiveCheckpointEvidenceV2` completion result and the independently encoded `RecursiveCheckpointSidecarV2` storage attachment rules.
 - Define `RecursiveCheckpointVerifierV2` and Nova/Plonky3 proof-adapter
   semantics.
 - Define `RecursiveCheckpointRejectReasonV2` with deterministic failure outputs.
@@ -932,7 +942,37 @@ recursive_checkpoint_context_v2:
   `*V1` contracts stay only on the live/migration surfaces in the registry; the
   canonical `CheckpointTransitionStatementV1` theorem is not renumbered.
 - The context digest MUST reject cross-network, cross-genesis, cross-config,
-  and cross-predicate replay.
+  and cross-predicate replay. The exact core-owned V2 identity derivation,
+  strict manifest validator/startup pin, and exact
+  `RecursiveCheckpointContextV2` are present in the current candidate source
+  but remain NOT ACCEPTED until source-current release evidence and independent
+  review are clean; an unreferenced source draft is not compiled authority.
+  `chain_id` is exactly
+  the validated `GenesisConfig.chain.id` `u32`. `network_id` is
+  `z00z_crypto::sha256_256` under frozen domain
+  `z00z.core.genesis.chain_identity.v2`, label `network_id`, and exact framed
+  part order `(chain.id u32-LE, canonical ChainType::as_str(), chain.name UTF-8,
+  chain.magic_bytes[4])`; the raw case-insensitive config spelling is parsed
+  and canonicalized before hashing. `genesis_digest` is the raw core-owned
+  `compute_genesis_identity_digest_v2`, not the native-width/unframed legacy
+  `compute_genesis_manifest_hash`: it uses the same domain, label
+  `genesis_identity`, and exact framed order of manifest version `u32-LE`,
+  canonical network, seven counts checked as `u64-LE`, root generation
+  `u64-LE`, nine exact lowercase-hex digest strings decoded to raw `[u8; 32]`,
+  five collision counts checked as `u64-LE`, and exact policies/rights/vouchers
+  artifact filenames. The legacy `manifest_hash` is excluded from this V2
+  digest but MUST still equal lowercase
+  `hex(compute_genesis_manifest_hash(manifest))` as a compatibility check. One
+  core validation-and-install operation MUST first reject unknown JSON fields,
+  wrong version/root generation/network, count disagreement/conversion/sum
+  overflow, nonzero collisions, wrong artifact names, and malformed digest
+  text. It returns an opaque `Copy` identity with getters; derivation and the
+  trust constructor stay private/crate-private, installation is idempotent only
+  for the identical value, and rotation/ABA rejects. Before export or wiring,
+  independent golden recomputation and minimally changed mutations MUST cover
+  both labels, domain, every chain/manifest field, fixed width, order, framing,
+  version, legacy-self-hash validation, and the global strict-load → validate →
+  install → storage-consumption path.
 - For cadence `C`, epoch index is `(height - 1) / C`, start height is
   `epoch_index * C + 1`, and end height is `(epoch_index + 1) * C`.
 - Height `0` is genesis and is never an epoch member.
@@ -1274,7 +1314,7 @@ nova_compressed_snapshot_v2:
 | Quantity | Target | Hard cap |
 | --- | --- | --- |
 | One compressed Nova proof snapshot | 8 KiB to 30 KiB imported planning target pending Z00Z measurement | 128 KiB via `max_nova_block_proof_bytes` |
-| Default retained compressed Nova bodies | One scheduled body per epoch plus at most one explicitly authorized on-demand body; eight pending-PQ epochs | 16 bodies and 2 MiB total via `max_nova_retained_proof_bodies` and `max_nova_retained_proof_body_bytes` |
+| Default retained compressed Nova bodies | One scheduled body per epoch plus at most one explicitly authorized on-demand body; eight pending-PQ epochs | 16 bodies and 2 MiB total via `max_nova_retained_proof_bodies` and `max_nova_retained_body_bytes` |
 | 1000 per-block compression experiment | Non-default benchmark/fuzz input only; persistence/publication is disabled in the default profile | 128 MiB aggregate experiment-input cap via legacy-named `max_epoch_nova_archive_bytes`; it is not a retention or capacity budget |
 
 ## 🛡️ Plonky3 Epoch Proof Contract
@@ -1536,13 +1576,12 @@ bounded lifecycle metadata may leave wallet trust.
 ```yaml
 offline_receipt_mailbox:
   is_required: true
-  runtime_enabled: false
+  is_runtime_enabled: false
   semantic_owner_phase: 71
   phase_069_role: reserved_unreachable_handoff
   admission_stage: declared_only
   max_admission_bytes_per_block: 0
-  max_admission_bytes_per_partition_per_block: 0
-  max_admission_bytes_per_partition_per_block: 0
+  max_partition_block_admission_bytes: 0
   object_type: encrypted_receipt_mailbox_entry_v1
   retention_blocks: 1555200
   retention_start: canonical_output_finalized
@@ -1550,13 +1589,12 @@ offline_receipt_mailbox:
   max_notice_plaintext_bytes: 2048
   max_entry_bytes: 8192
   max_entries_per_recipient_output: 1
-  recipient_capability_required: true
-  sender_local_policy_required: true
-  current_payment_request_v1_implies_capability: false
+  is_recipient_capability_required: true
+  is_sender_local_policy_required: true
+  has_payment_request_v1_capability: false
   logical_partition_count: 16
   partitions_per_entry: 1
   is_cross_partition_fanout_allowed: false
-  has_adversarial_uniformity_claim: false
   has_adversarial_uniformity_claim: false
   replication_factor: 3
   write_quorum: 2
@@ -2188,7 +2226,7 @@ recursive_checkpoint_proof_v2:
   verifier_bundle_digest: "0x..."
   envelope_digest: "0x..."
   envelope_byte_length: 0
-  nova_retention_state_digest: "0x..."
+  nova_retention_state_digest: "0x0000000000000000000000000000000000000000000000000000000000000000"
 ```
 
 📌 Typed-reference rules:
@@ -2205,6 +2243,12 @@ recursive_checkpoint_proof_v2:
 - `output_root` MUST match public input `output_root`.
 - `envelope_digest` MUST identify exactly one canonical `NovaProofEnvelopeV2`;
   `envelope_byte_length` MUST equal the stored canonical bytes.
+- While the Plan 09 storage-owned retention/pruning lifecycle is
+  `declared_only`, `nova_retention_state_digest` MUST equal the all-zero
+  `NOVA_RETENTION_STATE_UNASSIGNED_V2` sentinel. The sentinel means no
+  retention-state reference is assigned; it MUST NOT be interpreted as a
+  config or object digest, and every nonzero value MUST reject. Plan 09 MUST
+  add the real typed reference and migration before emitting a nonzero value.
 - The referenced envelope MUST contain non-empty proof bytes and MUST pass the
   authority-selected Nova proof/envelope caps before decode or write.
 - `RecursiveCheckpointProofV2` MUST contain no `proof_bytes`, generic payload,
@@ -2219,31 +2263,39 @@ recursive_checkpoint_proof_v2:
 
 ## 📎 Sidecar Contract
 
-📌 `RecursiveCheckpointEvidenceV2` attaches recursive evidence to a checkpoint
-statement without changing checkpoint admission.
-
 ```yaml
-recursive_checkpoint_evidence_v2:
-  version: 2
-  mode: fast_classical_streaming_v2
+recursive_checkpoint_sidecar_v2:
+  wire_version: 2
+  authority_generation: 1
+  storage_generation: 1
+  height: 1
+  steps: 1
+  checkpoint_id: "0x..."
+  predecessor: null
   statement_digest: "0x..."
+  checkpoint_link_digest: "0x..."
   public_input_digest: "0x..."
-  checkpoint_id_hint: "0x..."
-  proof_ref:
+  verifier_bundle_digest: "0x..."
+  proof:
     version: 2
+    mode: fast_classical_streaming_v2
     backend_label: nova_streaming_compressed_v2
+    statement_digest: "0x..."
+    public_input_digest: "0x..."
+    prior_output_root: "0x..."
+    output_root: "0x..."
+    verifier_bundle_digest: "0x..."
     envelope_digest: "0x..."
-  verifier_verdict: accepted
-  reject_reason: null
-  chain_index: 0
-  chain_length: 5
-  measurements:
-    version: 2
+    envelope_byte_length: 1
+    nova_retention_state_digest: "0x0000000000000000000000000000000000000000000000000000000000000000"
 ```
 
 📌 Sidecar rules:
 
 - A sidecar MUST bind the same statement digest as the canonical artifact.
+- A sidecar MUST NOT contain a verifier verdict, success token, reject reason,
+  or receipt; verification success exists only in the consuming write-only
+  receipt path.
 - A sidecar may carry only the typed `RecursiveCheckpointProofV2` reference;
   it MUST NOT inline `NovaProofEnvelopeV2` or duplicate its proof/public-state
   bytes.
@@ -2398,7 +2450,13 @@ lifecycle contract:
 ## 🚫 Reject Reason Contract
 
 📌 `RecursiveCheckpointRejectReasonV2` MUST be stable enough for deterministic
-tests and operator diagnostics.
+tests and operator diagnostics; the exact 47 variants below are the sole
+public/wire semantic taxonomy and MUST NOT serve as catch-all labels for I/O,
+CAS, malformed internal codec, arithmetic, resource, hash,
+configuration-authority, backend-execution, or invariant failures, which remain
+`CheckpointError` outcomes, while a public evidence/admission boundary wraps a
+variant as `CheckpointError::RecursiveRejected` only for its exact semantic
+trigger and never serializes or re-exports a private operational error.
 
 | Reason | Required trigger |
 | --- | --- |
@@ -2577,7 +2635,7 @@ branches:
     compression_cadence_blocks: 1000
     publication_cadence_blocks: 1000
     hot_recovery_snapshot_count: 2
-    max_retained_proof_bodies_per_epoch: 2
+    max_retained_bodies_per_epoch: 2
     max_pending_pq_epochs: 8
     post_pq_grace_certified_epochs: 2
     pending_pq_cap_action: stop_compression_publication_keep_fold_finality
@@ -2663,12 +2721,12 @@ current_state_sharding:
 
 offline_receipt_mailbox:
   is_required: true
-  runtime_enabled: false
+  is_runtime_enabled: false
   semantic_owner_phase: 71
   phase_069_role: reserved_unreachable_handoff
   admission_stage: declared_only
   max_admission_bytes_per_block: 0
-  max_admission_bytes_per_partition_per_block: 0
+  max_partition_block_admission_bytes: 0
   object_type: encrypted_receipt_mailbox_entry_v1
   retention_blocks: 1555200
   retention_start: canonical_output_finalized
@@ -2676,9 +2734,9 @@ offline_receipt_mailbox:
   max_notice_plaintext_bytes: 2048
   max_entry_bytes: 8192
   max_entries_per_recipient_output: 1
-  recipient_capability_required: true
-  sender_local_policy_required: true
-  current_payment_request_v1_implies_capability: false
+  is_recipient_capability_required: true
+  is_sender_local_policy_required: true
+  has_payment_request_v1_capability: false
   logical_partition_count: 16
   partitions_per_entry: 1
   is_cross_partition_fanout_allowed: false
@@ -2837,7 +2895,7 @@ limits:
   max_recursive_sidecar_bytes: 25165824
   max_nova_block_proof_bytes: 131072
   max_nova_retained_proof_bodies: 16
-  max_nova_retained_proof_body_bytes: 2097152
+  max_nova_retained_body_bytes: 2097152
   max_nova_hot_recovery_bytes: 0
   max_epoch_nova_archive_bytes: 134217728
   max_plonky3_epoch_proof_bytes: 16777216
@@ -2889,7 +2947,7 @@ branches:
     compression_cadence_blocks: 1000
     publication_cadence_blocks: 1000
     hot_recovery_snapshot_count: 2
-    max_retained_proof_bodies_per_epoch: 2
+    max_retained_bodies_per_epoch: 2
     max_pending_pq_epochs: 8
     post_pq_grace_certified_epochs: 2
     pending_pq_cap_action: stop_compression_publication_keep_fold_finality
@@ -2948,11 +3006,12 @@ current_state_sharding:
 
 offline_receipt_mailbox:
   is_required: true
-  runtime_enabled: false
+  is_runtime_enabled: false
   semantic_owner_phase: 71
   phase_069_role: reserved_unreachable_handoff
   admission_stage: declared_only
   max_admission_bytes_per_block: 0
+  max_partition_block_admission_bytes: 0
   object_type: encrypted_receipt_mailbox_entry_v1
   retention_blocks: 1555200
   retention_start: canonical_output_finalized
@@ -2960,12 +3019,13 @@ offline_receipt_mailbox:
   max_notice_plaintext_bytes: 2048
   max_entry_bytes: 8192
   max_entries_per_recipient_output: 1
-  recipient_capability_required: true
-  sender_local_policy_required: true
-  current_payment_request_v1_implies_capability: false
+  is_recipient_capability_required: true
+  is_sender_local_policy_required: true
+  has_payment_request_v1_capability: false
   logical_partition_count: 16
   partitions_per_entry: 1
   is_cross_partition_fanout_allowed: false
+  has_adversarial_uniformity_claim: false
   replication_factor: 3
   write_quorum: 2
   read_quorum: 1
@@ -3109,7 +3169,7 @@ limits:
   max_recursive_sidecar_bytes: 25165824
   max_nova_block_proof_bytes: 131072
   max_nova_retained_proof_bodies: 16
-  max_nova_retained_proof_body_bytes: 2097152
+  max_nova_retained_body_bytes: 2097152
   max_nova_hot_recovery_bytes: 0
   max_epoch_nova_archive_bytes: 134217728
   max_plonky3_epoch_proof_bytes: 16777216
@@ -3231,9 +3291,9 @@ limits:
   recipient capability/sender policy, current `PaymentRequest V1` implying
   capability, missing ACK early GC or seed fallback, or sender-until-ACK
   retention rejects the profile.
-- `declared_only` MUST require `runtime_enabled == false`, both
+- `declared_only` MUST require `is_runtime_enabled == false`, both
   `max_admission_bytes_per_block == 0` and
-  `max_admission_bytes_per_partition_per_block == 0`, and no online stage/
+  `max_partition_block_admission_bytes == 0`, and no online stage/
   decode/read/activate/ACK/GC path. Phase 069 MUST reject every enabled stage. A
   later Phase-071 enabled stage MUST require positive, finite, measured
   authority-pinned global and per-partition byte/entry/reject-work budgets in a
@@ -3313,16 +3373,16 @@ limits:
 - Zero or overflowed `max_recursive_sidecar_bytes` rejects.
 - Zero or overflowed `max_nova_block_proof_bytes` rejects.
 - `branches.nova.hot_recovery_snapshot_count != 2`, zero
-  `max_retained_proof_bodies_per_epoch`/`max_pending_pq_epochs`/
+  `max_retained_bodies_per_epoch`/`max_pending_pq_epochs`/
   `post_pq_grace_certified_epochs`, or any pending-cap action other than
   `stop_compression_publication_keep_fold_finality` rejects the default profile.
   This count covers verified recovery-snapshot objects only; the separate active
   accumulator is not a third counted snapshot and MUST NOT be serialized or
   retained by silently reinterpreting this field.
 - Checked multiplication MUST prove
-  `max_nova_retained_proof_bodies == max_retained_proof_bodies_per_epoch *
+  `max_nova_retained_proof_bodies == max_retained_bodies_per_epoch *
   max_pending_pq_epochs` and
-  `max_nova_retained_proof_body_bytes == max_nova_retained_proof_bodies *
+  `max_nova_retained_body_bytes == max_nova_retained_proof_bodies *
   max_nova_block_proof_bytes`; zero, overflow, or a larger implicit retained set
   rejects. The default values are `2 * 8 = 16` bodies and
   `16 * 131072 = 2097152` bytes.
@@ -3851,7 +3911,7 @@ flowchart LR
     ExecInput[CheckpointExecInput\nExact replay and tx proof bytes]
     ArtifactCodec[CheckpointArtifact Codec\nOpaque canonical admission]
     LinkStore[CheckpointLink Store\nSnapshot and exec binding]
-    SidecarCodec[RecursiveCheckpointEvidenceV2\nShadow proof evidence]
+    SidecarCodec[RecursiveCheckpointSidecarV2\nShadow proof evidence]
     NovaProof[NovaCompressedSnapshotV2\nPer-block classical IVC]
     EpochStmt[EpochRangeStatementV2\nCanonical 1000-block range]
     PlonkyProof[Plonky3EpochProofV2\nRecursive STARK epoch proof]
@@ -4579,7 +4639,7 @@ tests - verifies -> req_archive
    independently configured recovery/compression/publication cadences, persist
    recovery state, compress/verify, and announce only content-addressed proof
    envelopes selected for publication.
-8. Write `RecursiveCheckpointEvidenceV2`, Nova snapshot/chain evidence, and
+8. Write `RecursiveCheckpointSidecarV2`, Nova snapshot/chain evidence, and
    `RecursiveCheckpointMeasurementV2` only through the verified evidence state
    machine; build and verify the required 3-step and 5-step chains.
 9. For an already closed epoch, seal the lossless/deduplicated
@@ -5103,7 +5163,7 @@ Phase 069 MUST add source or documentation guards proving:
 | Recursive context | Storage schema plus `z00z_storage::checkpoint::recursive_v2` | Versioned chain/network/genesis/config/predicate bind with cross-context replay tests. |
 | Cryptographic verification receipt | `z00z_storage::checkpoint::recursive_v2`, consumed through the storage facade | Backend revision, predicate/parameter/context/public-input/proof digests and actual verification verdict. |
 | Golden vectors | Storage or recursive proof tests | Statement, public input, Nova proof, Plonky3 epoch statement/proof, epoch manifest, proof object, and sidecar digests. |
-| Sidecar objects and atomicity matrices | `artifacts/checkpoints/recursive_shadow` plus canonical/evidence/wallet crash tests | `RecursiveCheckpointEvidenceV2` bytes/report and one row per durable boundary proving idempotent replay without cross-provider transaction claims. |
+| Sidecar objects and atomicity matrices | `artifacts/checkpoints/recursive_shadow` plus canonical/evidence/wallet crash tests | `RecursiveCheckpointSidecarV2` bytes/report, the in-memory-only `RecursiveCheckpointEvidenceV2` completion result, and one row per durable boundary proving idempotent replay without cross-provider transaction claims. |
 | Nova IVC artifacts | `artifacts/checkpoints/nova_block` in local runs | Per-block fold state plus measured-cadence compressed proof snapshots, digests, statement/link/context/parameter binding, and real verifier receipts. |
 | Chain evidence | Simulator output | 3-step and 5-step `RecursiveCheckpointChainEvidenceV2`. |
 | Epoch close/history | `artifacts/checkpoints/epoch_manifest` and `artifacts/checkpoints/plonky3_history` | Compact immutable `EpochCloseAnchorV2`, its <=4 KiB authenticating close certificate, `EpochEvidenceAnchorV2`, `EpochManifestV2`, exact-epoch proof, rolling-history base/successor, and `HistoryRotationBridgeV2`; predecessor proof verification and later attachment are evidenced. |
@@ -5361,7 +5421,7 @@ All other forward-looking Phase-069 requirements remain live-code obligations.
 
 ## 📎 Related Documents
 
-- `docs/tech-papers/Recursive-Ready-Checkpoint-Contract.md`
+- `.planning/phases/000/068-Checkpoint-Contract/068-TODO.md`
 - `.planning/phases/068-Checkpoint-Contract/068-TODO.md`
 - `.planning/phases/071-Request-Bound-Inbox/071-Request-Bound-Inbox-Spec.md`
 - `.planning/phases/071-Request-Bound-Inbox/Request-Bound-Inbox-Config.yaml`

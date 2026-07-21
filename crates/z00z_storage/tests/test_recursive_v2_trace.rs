@@ -18,7 +18,7 @@ use z00z_storage::{
 };
 
 fn profile() -> RecursiveCircuitProfileV2 {
-    RecursiveCircuitProfileV2::repository_fixture()
+    RecursiveCircuitProfileV2::authority_pinned()
 }
 
 fn path(definition: u8, serial: u32, terminal: u8) -> SettlementPath {

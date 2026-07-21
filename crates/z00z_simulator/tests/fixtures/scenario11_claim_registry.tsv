@@ -1,0 +1,63 @@
+# Canonical Scenario 11 claim-level registry used by clean-source tests.
+# Format: term<TAB>claim_level
+Active member	live
+Aggregator	live
+Anti-equivocation evidence	live
+Availability certificate	simulated-full
+Batch	live
+`BatchPayload`	simulated-full
+BFT	simulated-full
+CFT	live
+Celestia	simulated-full
+Celestia finality	live-claim-removed
+Commit certificate	simulated-full
+`CommitSubject`	live
+Consensus adapter	live
+DA	simulated-full
+DA adapter	live
+DA-before-ordering	simulated-full
+Deterministic simulator signature	live
+Epoch	live-claim-removed
+Evidence	live
+Failover	simulated-full
+HotStuff	simulated-full
+Ingress	live
+`JournalCandidate`	simulated-full
+`LocalDaAdapter`	live
+Local quorum certificate	live
+Membership digest	live
+Mixed-generation commit	live
+Placement generation	live
+Primary aggregator	live
+Production signature	live-claim-removed
+Publication binding	live
+Quorum	live
+Quorum group	live
+Recovery boundary	simulated-full
+Route table digest	live
+Routing generation	live
+Runtime validator	live
+Secondary replay	live
+Secondary aggregator	live
+Shard	live
+`ShardBatchHeader`	live-claim-removed
+`ShardQuorumCertificate`	live
+`ShardVote`	live
+`sim_5a7s`	simulated-full
+Split brain	live
+Stale secondary aggregator	simulated-full
+Term	live
+Theorem bundle	live
+Validator boundary	live
+Vote	live
+Watcher boundary	live
+deterministic replicated planner	live
+planner HA	live-claim-removed
+devnet	simulated-full
+Transport	simulated-full
+Validator certificate gate	live
+Production signature seam	simulated-full
+Slashing/economics	live-claim-removed
+Glossary terms	live
+BFT committee	simulated-full
+Failover/takeover	simulated-full

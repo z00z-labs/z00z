@@ -6,7 +6,7 @@ use crate::error::CheckpointError;
 
 use super::{
     decode_link_bin, CheckpointArtifact, CheckpointDraftId, CheckpointExecInputId,
-    CheckpointFsStore, CheckpointId, CheckpointLink,
+    CheckpointFsStore, CheckpointId, CheckpointLink, CheckpointStore,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -266,7 +266,13 @@ impl CheckpointFsStore {
             }
 
             if seen.exec_input_id() == link.exec_input_id() {
-                return Err(CheckpointError::LinkMix);
+                let reusable_noop = self
+                    .load_exec_input(&link.exec_input_id())
+                    .map_err(|_| CheckpointError::ReplayMix)?
+                    .is_recursive_v2_noop();
+                if !reusable_noop {
+                    return Err(CheckpointError::LinkMix);
+                }
             }
         }
 

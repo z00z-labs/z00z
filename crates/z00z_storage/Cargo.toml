@@ -62,3 +62,7 @@ harness = false
 [[bench]]
 name = "settlement_proofs"
 harness = false
+
+[[bench]]
+name = "recursive_v2_checkpoint"
+harness = false

@@ -1,7 +1,7 @@
 use z00z_storage::{
     checkpoint::{
         decode_pq_anchor_bin, decode_pq_anchor_json, encode_pq_anchor_bin, encode_pq_anchor_json,
-        repo_default_path, CheckpointContractConfigV1, PostQuantumCheckpointAnchorModeV1,
+        repo_default_path, CheckpointContractConfigV3, PostQuantumCheckpointAnchorModeV1,
         PostQuantumCheckpointAnchorV1, PostQuantumCheckpointAnchorVersion,
         PostQuantumCheckpointEnforcementStageV1, StateSnapshotV1, StateSnapshotVersion,
         POST_QUANTUM_ENFORCEMENT_STAGE, POST_QUANTUM_REQUIRED_ARTIFACTS,
@@ -10,8 +10,8 @@ use z00z_storage::{
     CheckpointError,
 };
 
-fn cfg() -> CheckpointContractConfigV1 {
-    CheckpointContractConfigV1::load(repo_default_path()).expect("repo checkpoint contract")
+fn cfg() -> CheckpointContractConfigV3 {
+    CheckpointContractConfigV3::load(repo_default_path()).expect("repo checkpoint contract")
 }
 
 fn root(byte: u8) -> [u8; 32] {
@@ -91,7 +91,7 @@ fn test_live_pq_stage_rejects_without_a_bound_writer() {
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages =
         vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
-    cfg.post_quantum.enforce_live_cadence = true;
+    cfg.post_quantum.is_live_cadence_enforced = true;
 
     let missing = cfg
         .validate_pq_anchor(1000, root(1), root(2), root(3), root(4), None)
@@ -181,7 +181,7 @@ fn test_pq_anchor_live_validation_rejects_without_a_bound_backend() {
     cfg.authority_promotion.stage = POST_QUANTUM_ENFORCEMENT_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages =
         vec![VERIFIED_BACKEND_CANDIDATE_STAGE.to_string()];
-    cfg.post_quantum.enforce_live_cadence = true;
+    cfg.post_quantum.is_live_cadence_enforced = true;
     let anchor = retained_phase068_anchor();
 
     let err = cfg
@@ -196,7 +196,7 @@ fn test_verified_backend_candidate_stage_rejects_without_promotion_evidence() {
     let mut cfg = cfg();
     cfg.authority_promotion.stage = VERIFIED_BACKEND_CANDIDATE_STAGE.to_string();
     cfg.authority_promotion.allowed_next_stages = vec!["verified_backend_enabled".to_string()];
-    cfg.post_quantum.enforce_live_cadence = false;
+    cfg.post_quantum.is_live_cadence_enforced = false;
 
     let err = cfg
         .validate()
@@ -204,7 +204,7 @@ fn test_verified_backend_candidate_stage_rejects_without_promotion_evidence() {
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));
 
-    cfg.post_quantum.enforce_live_cadence = true;
+    cfg.post_quantum.is_live_cadence_enforced = true;
     let err = cfg
         .validate()
         .expect_err("an unbound verified-backend stage must reject with cadence enabled");

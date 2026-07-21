@@ -13,6 +13,8 @@
 //! - [`run_genesis`] executes the full bootstrap flow
 //! - [`run_genesis_with_plan`] executes explicit lane selections under the same
 //!   `GenesisConfig` authority
+//! - [`load_validate_install_chain_identity`] strictly loads, reproduces, and
+//!   pins the process genesis identity
 //! - [`validator`] enforces fail-closed config and proof validation
 //! - manifest and digest helpers stay under the same owner path
 //!
@@ -71,15 +73,21 @@
 //! `src/genesis/README.md`.
 
 pub mod asset_std;
+mod chain_identity;
 pub mod genesis_config;
 mod manifest_ref_loader;
 pub mod serde;
 pub mod validator;
 
+pub use chain_identity::{
+    load_validate_install_chain_identity, require_process_chain_identity,
+    GenesisChainIdentityError, GenesisChainIdentityV2,
+};
 pub use validator::validate_genesis_config_for;
 
 #[path = "genesis.rs"]
 mod generation;
+pub(crate) use generation::load_genesis_settlement_manifest;
 
 // Curated facade for the generation submodule. Higher-level config/file entry
 // points stay under their owning modules instead of flowing through wildcard

@@ -3,7 +3,7 @@
 //! This implementation provides compact binary serialization using bincode v2.0.
 
 use super::traits::{Codec, CodecError};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, de::DeserializeSeed, Serialize};
 
 const LIMIT_1MB_BYTES: usize = 1024 * 1024;
 const LIMIT_10MB_BYTES: usize = 10 * 1024 * 1024;
@@ -31,6 +31,66 @@ const DEFAULT_MAX_DESERIALIZE_SIZE: u64 = LIMIT_10MB_BYTES as u64;
 pub struct BincodeCodec;
 
 impl BincodeCodec {
+    /// Decode one exact bincode value under a compile-time allocation ceiling.
+    ///
+    /// The const ceiling is part of the call site instead of an attacker-controlled
+    /// runtime value. This is the preferred entry point for new persisted objects.
+    pub fn deserialize_bounded_const<T: DeserializeOwned, const LIMIT: usize>(
+        &self,
+        bytes: &[u8],
+    ) -> Result<T, CodecError> {
+        if bytes.len() > LIMIT {
+            return Err(CodecError::DeserializeSizeLimitExceeded {
+                size: bytes.len(),
+                limit: LIMIT as u64,
+            });
+        }
+        let (value, consumed): (T, usize) = bincode::serde::decode_from_slice(
+            bytes,
+            bincode::config::standard().with_limit::<LIMIT>(),
+        )
+        .map_err(|error| CodecError::Bincode(error.to_string()))?;
+        if consumed != bytes.len() {
+            return Err(CodecError::TrailingBytes {
+                consumed,
+                total: bytes.len(),
+            });
+        }
+        Ok(value)
+    }
+
+    /// Decode one exact value through a caller-owned seed under a compile-time
+    /// ceiling. The seed is the only supported path for recursive evidence that
+    /// needs construction-time bounds stronger than a derived `Deserialize` impl.
+    pub fn deserialize_seeded_bounded<'de, S, const LIMIT: usize>(
+        &self,
+        bytes: &'de [u8],
+        seed: S,
+    ) -> Result<S::Value, CodecError>
+    where
+        S: DeserializeSeed<'de>,
+    {
+        if bytes.len() > LIMIT {
+            return Err(CodecError::DeserializeSizeLimitExceeded {
+                size: bytes.len(),
+                limit: LIMIT as u64,
+            });
+        }
+        let (value, consumed) = bincode::serde::seed_decode_from_slice(
+            seed,
+            bytes,
+            bincode::config::standard().with_limit::<LIMIT>(),
+        )
+        .map_err(|error| CodecError::Bincode(error.to_string()))?;
+        if consumed != bytes.len() {
+            return Err(CodecError::TrailingBytes {
+                consumed,
+                total: bytes.len(),
+            });
+        }
+        Ok(value)
+    }
+
     /// Deserialize bytes into a value, enforcing a maximum input size.
     ///
     /// # Security
@@ -53,43 +113,17 @@ impl BincodeCodec {
             });
         }
 
-        let (value, len): (T, usize) = match limit {
-            LIMIT_1MB_BYTES => bincode::serde::decode_from_slice(
-                bytes,
-                bincode::config::standard().with_limit::<LIMIT_1MB_BYTES>(),
-            ),
-            LIMIT_10MB_BYTES => bincode::serde::decode_from_slice(
-                bytes,
-                bincode::config::standard().with_limit::<LIMIT_10MB_BYTES>(),
-            ),
-            LIMIT_24MB_BYTES => bincode::serde::decode_from_slice(
-                bytes,
-                bincode::config::standard().with_limit::<LIMIT_24MB_BYTES>(),
-            ),
-            LIMIT_48MB_BYTES => bincode::serde::decode_from_slice(
-                bytes,
-                bincode::config::standard().with_limit::<LIMIT_48MB_BYTES>(),
-            ),
-            LIMIT_100MB_BYTES => bincode::serde::decode_from_slice(
-                bytes,
-                bincode::config::standard().with_limit::<LIMIT_100MB_BYTES>(),
-            ),
-            _ => {
-                return Err(CodecError::Bincode(
-                    "unsupported max_bytes for bincode; use 1MB, 10MB, or 100MB".to_string(),
-                ));
-            }
+        match limit {
+            LIMIT_1MB_BYTES => self.deserialize_bounded_const::<T, LIMIT_1MB_BYTES>(bytes),
+            LIMIT_10MB_BYTES => self.deserialize_bounded_const::<T, LIMIT_10MB_BYTES>(bytes),
+            LIMIT_24MB_BYTES => self.deserialize_bounded_const::<T, LIMIT_24MB_BYTES>(bytes),
+            LIMIT_48MB_BYTES => self.deserialize_bounded_const::<T, LIMIT_48MB_BYTES>(bytes),
+            LIMIT_100MB_BYTES => self.deserialize_bounded_const::<T, LIMIT_100MB_BYTES>(bytes),
+            _ => Err(CodecError::Bincode(
+                "unsupported max_bytes for bincode; use 1MB, 10MB, 24MB, 48MB, or 100MB"
+                    .to_string(),
+            )),
         }
-        .map_err(|e| CodecError::Bincode(e.to_string()))?;
-
-        if len != bytes.len() {
-            return Err(CodecError::TrailingBytes {
-                consumed: len,
-                total: bytes.len(),
-            });
-        }
-
-        Ok(value)
     }
 }
 
@@ -113,7 +147,33 @@ impl Codec for BincodeCodec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde::{Deserialize, Serialize};
+    use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
+
+    struct U64Seed;
+
+    impl<'de> DeserializeSeed<'de> for U64Seed {
+        type Value = u64;
+
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            u64::deserialize(deserializer)
+        }
+    }
+
+    struct RejectSeed;
+
+    impl<'de> DeserializeSeed<'de> for RejectSeed {
+        type Value = u64;
+
+        fn deserialize<D>(self, _deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Err(D::Error::custom("seed rejected"))
+        }
+    }
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
     struct TestStruct {
@@ -263,5 +323,30 @@ mod tests {
 
         let result: Result<u64, _> = codec.deserialize(&bytes);
         assert!(matches!(result, Err(CodecError::TrailingBytes { .. })));
+    }
+
+    #[test]
+    fn seeded_const_bound_consumes_exact_input_and_propagates_seed_errors() {
+        let codec = BincodeCodec;
+        let bytes = codec.serialize(&42_u64).unwrap();
+        assert_eq!(
+            codec
+                .deserialize_seeded_bounded::<U64Seed, 1024>(&bytes, U64Seed)
+                .unwrap(),
+            42
+        );
+
+        let mut trailing = bytes.clone();
+        trailing.push(0);
+        assert!(matches!(
+            codec.deserialize_seeded_bounded::<U64Seed, 1024>(&trailing, U64Seed),
+            Err(CodecError::TrailingBytes { .. })
+        ));
+        assert!(codec
+            .deserialize_seeded_bounded::<RejectSeed, 1024>(&bytes, RejectSeed)
+            .is_err());
+        assert!(codec
+            .deserialize_seeded_bounded::<U64Seed, 1>(&[0; 2], U64Seed)
+            .is_err());
     }
 }
