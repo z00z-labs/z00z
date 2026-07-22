@@ -73,9 +73,7 @@ fn test_crypto_ingress_v2_only() {
         "the 1/3/5 milestone matrix must not become a production chain-length cap"
     );
     assert!(
-        adapter.contains(
-            "retained_t3_artifact(\"verifier-bundle.bin\", 64 * 1024 * 1024)"
-        ),
+        adapter.contains("retained_t3_artifact(\"verifier-bundle.bin\", 64 * 1024 * 1024)"),
         "the T3 milestone ingress must share the format-4 64-MiB bundle ceiling"
     );
     assert!(

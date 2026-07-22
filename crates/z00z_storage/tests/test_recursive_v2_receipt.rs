@@ -28,8 +28,8 @@ fn test_receipt_requires_postwrite_check() {
     assert!(!production.contains("ensure_dir(\"receipts\")"));
     let return_tail = &production[issue..];
     let issuance_tail = &return_tail[..return_tail
-        .find("Ok(RecursiveEvidenceOutcomeV2::Snapshot")
-        .unwrap()];
+        .find("Ok((sidecar, sidecar_digest, receipt, receipt_digest))")
+        .expect("infallible receipt issuance return")];
     assert!(!issuance_tail["let receipt = ready.issue()?".len()..].contains('?'));
     assert!(receipt.contains("issued: ReceiptIssuedPartsV2"));
     assert!(receipt.contains("pub(super) struct PreparedReceiptV2"));

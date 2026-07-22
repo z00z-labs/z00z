@@ -11,9 +11,9 @@ fn test_circuit_owner_shape_exact() {
     assert_eq!(NOVA.matches("struct CheckpointNovaCircuitV2").count(), 1);
     assert_eq!(NOVA.matches("struct CheckpointNovaRunnerV2").count(), 1);
     assert!(NOVA.contains("const RUNNING_STATE_ARITY_V2: usize ="));
-    assert!(NOVA.contains("assert_eq!(metrics.constraints, 809_153)"));
-    assert!(NOVA.contains("assert_eq!(metrics.auxiliaries, 674_988)"));
-    assert!(NOVA.contains("assert_eq!(metrics.nonzeros, 3_330_095)"));
+    assert!(NOVA.contains("assert_eq!(metrics.constraints, 809_802)"));
+    assert!(NOVA.contains("assert_eq!(metrics.auxiliaries, 675_408)"));
+    assert!(NOVA.contains("assert_eq!(metrics.nonzeros, 3_332_400)"));
     assert!(NOVA.contains("fn finalized_successor_digest_words"));
     assert!(NOVA.contains("next_block_prior_finalized_state_link_"));
 }

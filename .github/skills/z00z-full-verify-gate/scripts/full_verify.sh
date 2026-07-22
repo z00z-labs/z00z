@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
+# shellcheck disable=SC2086,SC2178 # Optional flags split intentionally; Bash namerefs target arrays.
+
 # ./.github/skills/z00z-full-verify-gate/scripts/full_verify.sh --max-safe-run
 # The optional max-safe stage uses prebuilt-artifact reuse when enabled.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
-LONG_FILE="$ROOT_DIR/reports/full_verify-report-long-running-tests.txt"
+LONG_FILE="${Z00Z_FULL_VERIFY_REPORT:-$ROOT_DIR/reports/full_verify-report-long-running-tests.txt}"
 LONG_TEST_SEC="${LONG_TEST_SEC:-20}"
 ISOLATED_TEST_TIMEOUT_SEC="${ISOLATED_TEST_TIMEOUT_SEC:-120}"
 RUST_TEST_WARN_MS="${RUST_TEST_WARN_MS:-$((LONG_TEST_SEC * 1000))}"
@@ -77,7 +79,8 @@ What it does:
   4. cargo test --workspace --release --all-features --doc
   5. cargo bench --workspace --all-features --no-run
   6. run whitelisted bins/examples from the skill-local runnable_targets.toml
-  7. collect tests slower than LONG_TEST_SEC into reports/full_verify-report-long-running-tests.txt
+  7. collect tests slower than LONG_TEST_SEC into Z00Z_FULL_VERIFY_REPORT
+     (default: reports/full_verify-report-long-running-tests.txt)
   8. optionally run the heavy simulator replay-contract suite
   9. optionally run a max-safe target sweep across workspace crates
      using prebuilt-artifact reuse for that stage
@@ -94,6 +97,7 @@ Environment:
   Z00Z_DENY_WARNINGS=1       Add -D warnings to the workspace clippy stage
   Z00Z_RUN_TARGETS=1         Run enabled whitelist entries from the skill-local manifest
   Z00Z_TARGET_MANIFEST=...   Override the runnable target manifest path
+  Z00Z_FULL_VERIFY_REPORT=... Override the long-running test report path
   Z00Z_MAX_SAFE_RUN=1        Also run the optional max-safe target sweep
                               using prebuilt-artifact reuse for that stage
 

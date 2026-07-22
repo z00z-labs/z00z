@@ -161,6 +161,7 @@ grep -v '^#\|^Generated\|^Threshold\|^Workspace\|^Note\|^$' \
 | `LONG_TEST_SEC` | `20` | Lower to catch more slow tests; raise to reduce noise |
 | `Z00Z_DENY_WARNINGS` | `1` | Set to `0` to allow warnings in CI investigation mode |
 | `Z00Z_RUN_TARGETS` | `1` | Set to `0` to skip whitelisted target execution |
+| `Z00Z_FULL_VERIFY_REPORT` | `reports/full_verify-report-long-running-tests.txt` | Override the slow-test report path, for example to keep phase evidence under its approved output root |
 | `Z00Z_MAX_SAFE_RUN` | `0` | Set to `1` to enable max-safe sweep without `--max-safe-run` flag |
 | `Z00Z_ALL_FEATURES_FLAG` | `--all-features` | Set to empty to build without all features |
 | `Z00Z_VERIFY_FEATURES` | `` | Comma-separated features when not using `--all-features` |

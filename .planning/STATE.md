@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v0.15
 milestone_name: Storage Serialization Bootstrap
-status: "Phase 069 active — 069-051 T0–T2 complete; T3/T4 implementation and current-source verification in progress; Plans 06–13 locked"
-last_updated: "2026-07-21T05:09:12.000Z"
-last_activity: 2026-07-21
+status: "Phase 069 active — 069-051 complete; 069-06 active"
+last_updated: "2026-07-22T14:54:05.000Z"
+last_activity: 2026-07-22
 progress:
   total_phases: 47
   completed_phases: 0
   total_plans: 14
-  completed_plans: 5
-  percent: 0
-stopped_at: Validating `069-051-T3/T4` on current source; Plan 051 is not yet accepted.
+  completed_plans: 6
+  percent: 43
+stopped_at: Completed `069-051`; executing `069-06` in YOLO mode.
 current_phase: 069
 current_phase_name: Recursive Proof
-current_plan: 069-051
+current_plan: 069-06
 ---
 
 # Project State
@@ -30,16 +30,21 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 
 ## Status
 
-**Active lane:** `069-051`; T0–T2 complete, T3/T4 implementation and verification in progress.
-**Current gate:** Bootstrap must pass on source revision `5a381948…3cbad2d`, followed by release gates, three reviews ending in two clean passes, and two doublechecks.
-**Blocking defect:** The pre-uniqueness epoch cadence was digest-bound but absent from the transcript/Nova anchor layout; the canonical binding fix is pending bootstrap validation.
-**Progress:** [████░░░░░░] 36% (5/14 plans); `069-051` is not complete and Plans 06–13 remain locked.
-**Output policy:** Evidence belongs only under `crates/z00z_storage/outputs/checkpoint`; repository-root `test-results` must remain absent.
-**Authority:** Future/target design text is live scope; keep one V2-only path and `CheckpointProofSystem::VERIFIED` disabled until promotion gates pass.
+**Active lane:** `069-06`; `069-051` is summary-backed complete.
+**Progress:** [████░░░░░░] 43% (6/14); Plans 07–13 follow in YOLO order.
+**Output:** Only `crates/z00z_storage/outputs/checkpoint`; root `test-results` is forbidden.
+**Authority:** Target/future text is live scope; one V2 path; `CheckpointProofSystem::VERIFIED` remains disabled.
 
 ## Historical Status
 
-**Final T2 closure (2026-07-20):** `069-051-T2` is com0ision
+**069-051 closure (2026-07-22):** T0–T4 are complete on proof-source
+`1da05771ae22d8da4b8e8693954540f468708be47f25f7dc654a0f7f9df4c4e3`.
+The release/crypto/profile gates and five inline reviews passed; reviews 4 and
+5 are consecutive significant-clean passes. The full resource/cadence report
+is `069-051-PROFILING-REPORT.md`, closure is `069-051-SUMMARY.md`, and Plan 06
+owns the now-live accumulator snapshot/cadence work.
+
+**Final T2 closure (2026-07-20):** `069-051-T2` is complete on source
 `e58e2f9a2f715a64b37dd464248b57601e7deda4254086c0b6598160cf30dbd6`.
 Authority decision `phase-069-t2-interactive-authority-2026-07-20` accepts
 F12/F23/F24, conditional A-17, `q_V=1,048,576`, `N=4,294,967,296` and the

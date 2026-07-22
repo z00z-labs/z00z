@@ -3,7 +3,7 @@ version = 1
 [defaults]
 release = true
 all_features = false
-features = ["test-params-fast"]
+features = []
 timeout_sec = 60
 allowed_exit_codes = [0]
 
@@ -40,9 +40,10 @@ package = "z00z_wallets"
 kind = "bin"
 name = "z00z-wallet-validate"
 enabled = true
-all_features = true
+all_features = false
+features = ["ownership_policy_keyring"]
 args = ["--help"]
-note = "Smoke-check the wallet validation CLI help path only."
+note = "Smoke-check the wallet validation CLI help path with production-default features only."
 
 [[target]]
 id = "z00z_wallet_egui"
@@ -50,8 +51,9 @@ package = "z00z_wallets"
 kind = "bin"
 name = "z00z_wallet_egui"
 enabled = true
-features = ["test-params-fast", "egui"]
+all_features = false
+features = ["egui"]
 timeout_sec = 300
 stop_after_sec = 5
 headless_fallback = true
-note = "Enabled for smoke verification; it launches the desktop GUI when a display is available and falls back to a headless smoke path otherwise."
+note = "Production-feature smoke verification; it launches the desktop GUI when a display is available and falls back to a headless smoke path otherwise."

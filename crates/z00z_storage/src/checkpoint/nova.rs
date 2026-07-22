@@ -30873,10 +30873,10 @@ mod tests {
         // source-memory, uniqueness-transcript, and terminal-JMT constraints
         // were admitted. Any change requires a new shape/source authority
         // generation and a complete artifact/release evidence rebuild.
-        assert_eq!(metrics.constraints, 809_153);
+        assert_eq!(metrics.constraints, 809_802);
         assert_eq!(metrics.inputs, 1);
-        assert_eq!(metrics.auxiliaries, 674_988);
-        assert_eq!(metrics.nonzeros, 3_330_095);
+        assert_eq!(metrics.auxiliaries, 675_408);
+        assert_eq!(metrics.nonzeros, 3_332_400);
     }
 
     #[test]
@@ -31110,8 +31110,8 @@ mod tests {
             "Nova shape profile total: constraints={}, nonzeros={}",
             total.constraints, total.nonzeros
         );
-        assert_eq!(total.constraints, 668_702);
-        assert_eq!(total.nonzeros, 2_570_057);
+        assert_eq!(total.constraints, 809_802);
+        assert_eq!(total.nonzeros, 3_332_400);
 
         let mut ranked = cs
             .namespace_costs()
@@ -31171,13 +31171,13 @@ mod tests {
         );
         assert_eq!(std::mem::size_of::<super::pallas::Affine>(), 64);
         assert_eq!(std::mem::size_of::<super::pallas::Point>(), 96);
-        assert_eq!(plan.shape.constraints, 668_702);
-        assert_eq!(plan.shape.auxiliaries, 535_346);
-        assert_eq!(plan.shape.nonzeros, 2_570_057);
+        assert_eq!(plan.shape.constraints, 809_802);
+        assert_eq!(plan.shape.auxiliaries, 675_408);
+        assert_eq!(plan.shape.nonzeros, 3_332_400);
         assert_eq!(plan.ck_floor, 0);
         assert_eq!(plan.generator_count, 1_048_577);
-        assert_eq!(plan.pp_payload_lower_bound, 127_834_984);
-        assert_eq!(plan.vk_payload_lower_bound, 127_834_984);
+        assert_eq!(plan.pp_payload_lower_bound, 186_285_856);
+        assert_eq!(plan.vk_payload_lower_bound, 186_285_856);
         assert_eq!(plan.bundle_lower_bound, 523);
         assert_eq!(plan.pedersen_rss_lower_bound, 201_326_784);
         assert!(plan.pp_payload_lower_bound <= NOVA_RESOURCE_LIMITS_V2.pp_payload_bytes);
@@ -32558,7 +32558,8 @@ mod tests {
         // transition-table dispatch.
         forged.opcode = crate::checkpoint::recursive_trace::RecursiveTraceOpcodeV2::BeginHash;
         let initial =
-            CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false);
+            CheckpointRunningStateV2::with_control(&anchors, ControlPhaseV2::Idle, 0, false)
+                .with_source_event(&forged);
         let circuit = source_circuit(anchors, forged);
         let (cs, _) = synthesize_test(&circuit, &initial);
         assert!(
