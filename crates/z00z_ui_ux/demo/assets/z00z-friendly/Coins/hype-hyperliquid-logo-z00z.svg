@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <title>Hyperliquid HYPE logo, Z00Z locked cross-chain variant</title>
+  <metadata>Z00Z gold-ring marker for a locked or cross-chain coin.</metadata>
+  <defs>
+    <linearGradient id="z00z-gold-top" x1="30" y1="244" x2="970" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B86B00"/>
+      <stop offset="0.48" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE08A"/>
+    </linearGradient>
+    <linearGradient id="z00z-gold-middle" x1="970" y1="622" x2="30" y2="372" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C77600"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFD166"/>
+    </linearGradient>
+    <linearGradient id="z00z-gold-bottom" x1="30" y1="1000" x2="970" y2="751" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9D5900"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE6A3"/>
+    </linearGradient>
+    <filter id="z00z-ring-shadow" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#9D5900" flood-opacity="0.62"/>
+    </filter>
+  </defs>
+  <g id="base-coin">
+    <svg x="90" y="90" width="820" height="820" viewBox="0 0 250 250" fill="none">
+      <circle cx="125" cy="125" r="123.5" fill="#072722" stroke="#0c3b35" stroke-width="3"/>
+      <svg x="36" y="36" width="176" height="176" viewBox="0 0 144 144" fill="none">
+        <path d="M144 71.6991C144 119.306 114.866 134.582 99.5156 120.98C86.8804 109.889 83.1211 86.4521 64.116 84.0456C39.9942 81.0113 37.9057 113.133 22.0334 113.133C3.5504 113.133 0 86.2428 0 72.4315C0 58.3063 3.96809 39.0542 19.736 39.0542C38.1146 39.0542 39.1588 66.5722 62.132 65.1073C85.0007 63.5379 85.4184 34.8689 100.247 22.6271C113.195 12.0593 144 23.4641 144 71.6991Z" fill="#97FCE4"/>
+      </svg>
+    </svg>
+  </g>
+  <g id="z00z-cross-chain-ring" fill="none" filter="url(#z00z-ring-shadow)">
+    <circle cx="500" cy="500" r="476" stroke="url(#z00z-gold-bottom)" stroke-width="24"/>
+    <circle cx="500" cy="500" r="456" stroke="url(#z00z-gold-top)" stroke-width="32"/>
+    <circle cx="500" cy="500" r="486" stroke="url(#z00z-gold-middle)" stroke-width="4"/>
+    <circle cx="500" cy="500" r="441" stroke="url(#z00z-gold-middle)" stroke-width="4"/>
+  </g>
+</svg>

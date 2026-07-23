@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <title>Ethereum ETH logo, Z00Z locked cross-chain variant</title>
+  <metadata>Z00Z gold-ring marker for a locked or cross-chain coin.</metadata>
+  <defs>
+    <linearGradient id="z00z-gold-top" x1="30" y1="244" x2="970" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B86B00"/>
+      <stop offset="0.48" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE08A"/>
+    </linearGradient>
+    <linearGradient id="z00z-gold-middle" x1="970" y1="622" x2="30" y2="372" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C77600"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFD166"/>
+    </linearGradient>
+    <linearGradient id="z00z-gold-bottom" x1="30" y1="1000" x2="970" y2="751" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9D5900"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE6A3"/>
+    </linearGradient>
+    <filter id="z00z-ring-shadow" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#9D5900" flood-opacity="0.62"/>
+    </filter>
+  </defs>
+
+  <g id="base-coin">
+    <svg x="90" y="90" width="820" height="820" viewBox="0 0 784.37 1277.39" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision">
+      <g id="ethereum-mark">
+        <polygon fill="#343434" fill-rule="nonzero" points="392.07,0 383.5,29.11 383.5,873.74 392.07,882.29 784.13,650.54"/>
+        <polygon fill="#8C8C8C" fill-rule="nonzero" points="392.07,0 0,650.54 392.07,882.29 392.07,472.33"/>
+        <polygon fill="#3C3C3B" fill-rule="nonzero" points="392.07,956.52 387.24,962.41 387.24,1263.28 392.07,1277.38 784.37,724.89"/>
+        <polygon fill="#8C8C8C" fill-rule="nonzero" points="392.07,1277.38 392.07,956.52 0,724.89"/>
+        <polygon fill="#141414" fill-rule="nonzero" points="392.07,882.29 784.13,650.54 392.07,472.33"/>
+        <polygon fill="#393939" fill-rule="nonzero" points="0,650.54 392.07,882.29 392.07,472.33"/>
+      </g>
+    </svg>
+  </g>
+
+  <g id="z00z-cross-chain-ring" fill="none" filter="url(#z00z-ring-shadow)">
+    <circle cx="500" cy="500" r="476" stroke="url(#z00z-gold-bottom)" stroke-width="24"/>
+    <circle cx="500" cy="500" r="456" stroke="url(#z00z-gold-top)" stroke-width="32"/>
+    <circle cx="500" cy="500" r="486" stroke="url(#z00z-gold-middle)" stroke-width="4"/>
+    <circle cx="500" cy="500" r="441" stroke="url(#z00z-gold-middle)" stroke-width="4"/>
+  </g>
+</svg>

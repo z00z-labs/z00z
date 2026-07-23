@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <title>BOLD logo, Z00Z locked cross-chain variant</title>
+  <metadata>Z00Z gold-ring marker for a locked or cross-chain coin.</metadata>
+  <defs>
+    <linearGradient id="z00z-gold-top" x1="30" y1="244" x2="970" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B86B00"/>
+      <stop offset="0.48" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE08A"/>
+    </linearGradient>
+    <linearGradient id="z00z-gold-middle" x1="970" y1="622" x2="30" y2="372" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C77600"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFD166"/>
+    </linearGradient>
+    <linearGradient id="z00z-gold-bottom" x1="30" y1="1000" x2="970" y2="751" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9D5900"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE6A3"/>
+    </linearGradient>
+    <filter id="z00z-ring-shadow" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#9D5900" flood-opacity="0.62"/>
+    </filter>
+  </defs>
+  <g id="base-coin">
+    <svg xmlns="http://www.w3.org/2000/svg" width="820" height="820" viewBox="69.975 69.975 400.05 400.05" fill="none" x="90" y="90">
+      <circle cx="270" cy="270" r="200" fill="#63d77d"/>
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M222.145 127.06H177.273V396.291H267.016V385.522C280.489 392.417 295.754 396.306 311.928 396.306C366.449 396.306 410.646 352.109 410.646 297.588C410.646 243.068 366.449 198.87 311.928 198.87C295.754 198.87 280.489 202.76 267.016 209.655V138.753V127.06H222.145ZM267.016 209.655C235.074 226.002 213.21 259.242 213.21 297.588C213.21 335.935 235.074 369.175 267.016 385.522V209.655Z" fill="#1c1d4f"/>
+    </svg>
+  </g>
+  <g id="z00z-cross-chain-ring" fill="none" filter="url(#z00z-ring-shadow)">
+    <circle cx="500" cy="500" r="476" stroke="url(#z00z-gold-bottom)" stroke-width="24"/>
+    <circle cx="500" cy="500" r="456" stroke="url(#z00z-gold-top)" stroke-width="32"/>
+    <circle cx="500" cy="500" r="486" stroke="url(#z00z-gold-middle)" stroke-width="4"/>
+    <circle cx="500" cy="500" r="441" stroke="url(#z00z-gold-middle)" stroke-width="4"/>
+  </g>
+</svg>

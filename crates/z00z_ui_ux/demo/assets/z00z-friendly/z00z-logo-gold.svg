@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 -43.049697 397.7 397.7" fill="none">
+  <title>Z00Z mirrored Solana-inspired Z mark, gold</title>
+  <desc>Horizontally mirrored three-stripe mark with metallic shades centered on #FCA311.</desc>
+
+  <defs>
+    <linearGradient id="gold-top" x1="12" y1="76" x2="386" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B86B00"/>
+      <stop offset="0.48" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE08A"/>
+    </linearGradient>
+
+    <linearGradient id="gold-middle" x1="386" y1="194" x2="12" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C77600"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFD166"/>
+    </linearGradient>
+
+    <linearGradient id="gold-bottom" x1="12" y1="312" x2="386" y2="234" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9D5900"/>
+      <stop offset="0.5" stop-color="#FCA311"/>
+      <stop offset="1" stop-color="#FFE6A3"/>
+    </linearGradient>
+  </defs>
+
+  <g id="mirrored-z" transform="translate(397.7 0) scale(-1 1)">
+    <path fill="url(#gold-top)" d="M64.6 3.8C67.1 1.4 70.4 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1L64.6 3.8z"/>
+    <path fill="url(#gold-middle)" d="M333.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8 0-8.7 7-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-7 4.6-11.1l-62.7-62.7z"/>
+    <path fill="url(#gold-bottom)" d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1l62.7-62.7z"/>
+  </g>
+</svg>

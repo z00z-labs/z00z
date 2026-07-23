@@ -2,14 +2,14 @@
 
 # Z00Z Wallet Interactive Concept
 
-This self-contained prototype is the executable companion to [`../UI-UX-SPEC.md`](../UI-UX-SPEC.md). It uses fabricated data and never connects to a wallet or signs a transaction.
+This self-contained prototype is the executable companion to [`UI-UX-SPEC.md`](../../../.planning/phases/110-Wallet-UX-UI/UI-UX-SPEC.md). It uses fabricated data and never connects to a wallet or signs a transaction.
 
 ## ▶️ Run
 
 From the repository root:
 
 ```bash
-python3 -m http.server 4173 --directory .planning/phases/110-Wallet-UX-UI/demo
+python3 -m http.server 4173 --directory crates/z00z_ui_ux/demo
 ```
 
 Open `http://127.0.0.1:4173`.
@@ -29,12 +29,14 @@ https://z00z-labs.github.io/z00z/wallet-demo/
 One-time repository setup: **Settings → Pages → Build and deployment → Source →
 GitHub Actions**. After it is enabled, push a change to this demo or run
 **Actions → publish-wallet-demo → Run workflow**. Open the URL on a phone, or use
-the browser's responsive-device mode.
+the browser's responsive-device mode. Before publishing, the workflow verifies
+the complete local bundle: styles, fonts, icons, locale catalogues, and asset
+imagery. A partial unstyled upload fails in CI instead of reaching Pages.
 
-Optional visual smoke test (with the development server above still running):
+Optional full visual smoke test (it starts and stops its own local HTTP server):
 
 ```bash
-.planning/phases/110-Wallet-UX-UI/demo/run-smoke.sh
+crates/z00z_ui_ux/demo/run-smoke.sh
 ```
 
 ## 🌐 Languages
@@ -43,7 +45,7 @@ The concept includes English, Russian, French, German, Spanish, Portuguese,
 Korean, Turkish, Japanese, and Simplified Chinese UI catalogues. One canonical
 locale registry owns their metadata and load order. Language, regional format,
 and display time zone are independent preferences. See
-[I18N-ARCHITECTURE.md](../I18N-ARCHITECTURE.md) for the catalogue contract, local
+[I18N-ARCHITECTURE.md](../../../.planning/phases/110-Wallet-UX-UI/I18N-ARCHITECTURE.md) for the catalogue contract, local
 machine-translation bridge, and required checks.
 
 ## 🧪 Suggested walkthrough
@@ -82,7 +84,7 @@ fixtures, presentation state, the mock gateway, locales, and semantic icons from
 DOM rendering. They map mechanically to Rust contracts, a Leptos store, and the
 native `WalletGateway`; the JavaScript remains demo-only and is not a production
 dependency. See [PORTING.md](PORTING.md) and
-[Refactoring-PLAN.md](../Refactoring-PLAN.md).
+[Refactoring-PLAN.md](../../../.planning/phases/110-Wallet-UX-UI/Refactoring-PLAN.md).
 
 The CSS entry imports `styles/colors.css`, `styles/foundation.css`, and
 `styles/components.css` in that order. Literal application colours remain

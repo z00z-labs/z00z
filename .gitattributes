@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Preserve the upstream formatting of vendored wallet-demo artwork and font licenses.
+crates/z00z_ui_ux/demo/assets/** -whitespace

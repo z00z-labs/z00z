@@ -44,7 +44,7 @@ Advanced settings must eventually expose the real effective App and selected-Wal
 | Evidence set | Method | Result |
 | --- | --- | --- |
 | Current demo | Source inspection plus 1440 px, 390 px, wallet removal, Assets, Add Wallet, Appearance, and Advanced Settings screenshots | Layout and visual defects recorded below |
-| Typography | Computed token/source audit of `demo/styles.css`, `demo/index.html`, and wallet render templates | Three-family contract confirmed; token drift quantified |
+| Typography | Computed token/source audit of `crates/z00z_ui_ux/demo/styles.css`, `crates/z00z_ui_ux/demo/index.html`, and wallet render templates | Three-family contract confirmed; token drift quantified |
 | Interaction consistency | Shared component classes and every current `Cancel` call site | Border inconsistency confirmed and scoped |
 | Legacy ASCII mockups | All 58 files and `001-functions-table.txt` | Useful task flows separated from unsupported legacy assumptions |
 | Guarda references | Images `1.png` through `8.png` | Reusable interaction patterns identified; custodial/market patterns rejected |
@@ -404,7 +404,7 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 
 ## 📡 Offline-first renderer audit — 2026-07-23
 
-The present prototype is self-contained at the renderer boundary: `index.html` loads local runtime scripts and one local CSS entry point; CSS, Geist fonts, locale catalogues, icons, and object imagery are vendored under `demo/`. Its production-readiness check rejects remote resource URLs and direct browser network APIs in renderer runtime files. SVG XML namespaces such as `http://www.w3.org/2000/svg` are document metadata, not browser network requests.
+The present prototype is self-contained at the renderer boundary: `index.html` loads local runtime scripts and one local CSS entry point; CSS, Geist fonts, locale catalogues, icons, and object imagery are vendored under `crates/z00z_ui_ux/demo/`. Its production-readiness check rejects remote resource URLs and direct browser network APIs in renderer runtime files. SVG XML namespaces such as `http://www.w3.org/2000/svg` are document metadata, not browser network requests.
 
 This confirms that the interface can be packaged without an Internet dependency. It does **not** claim a live Reticulum radio stack: radio connectivity remains a target native-Rust transport and requires its own adapter, carrier-state contract, and air-gapped device verification.
 
@@ -524,7 +524,7 @@ This confirms that the interface can be packaged without an Internet dependency.
 ### 📁 Local sources
 
 - `UI-UX-SPEC.md`
-- `demo/index.html`, `demo/app.js`, and `demo/styles.css`
+- `crates/z00z_ui_ux/demo/index.html`, `crates/z00z_ui_ux/demo/app.js`, and `crates/z00z_ui_ux/demo/styles.css`
 - `old-sources/ascii-mockups/`
 - `old-sources/guarda pics/`
 - `old-sources/zano pics/`

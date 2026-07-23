@@ -1,0 +1,334 @@
+/*
+ * Z00Z Wallet Color LUT — the only source for literal application colours.
+ *
+ * Components consume semantic tokens (--brand, --success, --bg-surface, etc.).
+ * To tune a palette, change the matching theme/palette mapping below; never
+ * introduce a hexadecimal, rgb(), hsl(), or named colour in component CSS/JS.
+ * Derived tints use color-mix() with these semantic tokens at their call site.
+ */
+
+:root {
+  /* Default Z00Z palette — dark mode */
+  --lut-z00z-dark-canvas: #081019;
+  --lut-z00z-dark-sidebar: #0b1520;
+  --lut-z00z-dark-surface: #101d29;
+  --lut-z00z-dark-raised: #162635;
+  --lut-z00z-dark-overlay: rgb(1 8 14 / 78%);
+  --lut-z00z-dark-text-primary: #f5f7f8;
+  --lut-z00z-dark-text-secondary: #a9b6c2;
+  --lut-z00z-dark-text-tertiary: #788997;
+  --lut-z00z-dark-border: #263847;
+  --lut-z00z-dark-border-strong: #395063;
+  --lut-z00z-dark-brand: #fca311;
+  --lut-z00z-dark-brand-strong: #f3b65b;
+  --lut-z00z-dark-brand-ink: #1e1704;
+  --lut-z00z-dark-rail: #32a9e8;
+  --lut-z00z-dark-success: #4cd29b;
+  --lut-z00z-dark-warning: #f3b65b;
+  --lut-z00z-dark-danger: #ff6b72;
+  --lut-z00z-dark-focus: #7ccbff;
+
+  /* Default Z00Z palette — light mode */
+  --lut-z00z-light-canvas: #f4f7fa;
+  --lut-z00z-light-sidebar: #ffffff;
+  --lut-z00z-light-surface: #ffffff;
+  --lut-z00z-light-raised: #edf2f6;
+  --lut-z00z-light-overlay: rgb(20 30 40 / 48%);
+  --lut-z00z-light-text-primary: #12202c;
+  --lut-z00z-light-text-secondary: #526272;
+  --lut-z00z-light-text-tertiary: #728190;
+  --lut-z00z-light-border: #d5dee6;
+  --lut-z00z-light-border-strong: #b5c3cf;
+  --lut-z00z-light-brand: #9c6b00;
+  --lut-z00z-light-brand-strong: #704b00;
+  --lut-z00z-light-brand-ink: #ffffff;
+  --lut-z00z-light-rail: #006fa8;
+  --lut-z00z-light-success: #087a52;
+  --lut-z00z-light-warning: #8a5200;
+  --lut-z00z-light-danger: #b4232c;
+  --lut-z00z-light-focus: #005fcc;
+
+  /* Black & Gold — dark mode */
+  --lut-black-gold-dark-canvas: #000000;
+  --lut-black-gold-dark-sidebar: #14213d;
+  --lut-black-gold-dark-surface: #14213d;
+  --lut-black-gold-dark-raised: #1d2d4d;
+  --lut-black-gold-dark-overlay: rgb(0 0 0 / 92%);
+  --lut-black-gold-dark-text-primary: #ffffff;
+  --lut-black-gold-dark-text-secondary: #e5e5e5;
+  --lut-black-gold-dark-text-tertiary: #bfc5ca;
+  --lut-black-gold-dark-border: #37445c;
+  --lut-black-gold-dark-border-strong: #5a6680;
+  --lut-black-gold-dark-brand: #fca311;
+  --lut-black-gold-dark-brand-strong: #ffd166;
+  --lut-black-gold-dark-brand-ink: #1a1200;
+  --lut-black-gold-dark-rail: #66c5e8;
+  --lut-black-gold-dark-success: #4cd29b;
+  --lut-black-gold-dark-warning: #fca311;
+  --lut-black-gold-dark-danger: #ff6b72;
+  --lut-black-gold-dark-focus: #9bdcff;
+
+  /* Black & Gold — light mode */
+  --lut-black-gold-light-canvas: #f6f7f8;
+  --lut-black-gold-light-sidebar: #ffffff;
+  --lut-black-gold-light-surface: #ffffff;
+  --lut-black-gold-light-raised: #e8ebef;
+  --lut-black-gold-light-overlay: rgb(0 0 0 / 48%);
+  --lut-black-gold-light-text-primary: #14213d;
+  --lut-black-gold-light-text-secondary: #45546a;
+  --lut-black-gold-light-text-tertiary: #6c7888;
+  --lut-black-gold-light-border: #c9d1da;
+  --lut-black-gold-light-border-strong: #aeb9c7;
+  --lut-black-gold-light-brand: #9c6500;
+  --lut-black-gold-light-brand-strong: #704b00;
+  --lut-black-gold-light-brand-ink: #ffffff;
+  --lut-black-gold-light-rail: #006fa8;
+  --lut-black-gold-light-success: #087a52;
+  --lut-black-gold-light-warning: #8a5200;
+  --lut-black-gold-light-danger: #b4232c;
+  --lut-black-gold-light-focus: #005fcc;
+
+  /* Moonlit Stroll — dark mode. Source: Midnight green, Caribbean current, Slate gray, Berkeley blue, Oxford blue. */
+  --lut-moonlit-stroll-dark-canvas: #10284e;
+  --lut-moonlit-stroll-dark-sidebar: #14365c;
+  --lut-moonlit-stroll-dark-surface: #14365c;
+  --lut-moonlit-stroll-dark-raised: #105e60;
+  --lut-moonlit-stroll-dark-source-midnight-green: #004955;
+  --lut-moonlit-stroll-dark-source-slate-gray: #6b7d7f;
+  --lut-moonlit-stroll-dark-overlay: rgb(16 40 78 / 92%);
+  --lut-moonlit-stroll-dark-text-primary: #f3f8f8;
+  --lut-moonlit-stroll-dark-text-secondary: #c9dada;
+  --lut-moonlit-stroll-dark-text-tertiary: #9bb5b7;
+  --lut-moonlit-stroll-dark-border: #356b70;
+  --lut-moonlit-stroll-dark-border-strong: #6b7d7f;
+  --lut-moonlit-stroll-dark-brand: #fca311;
+  --lut-moonlit-stroll-dark-brand-strong: #ffd166;
+  --lut-moonlit-stroll-dark-brand-ink: #1a1200;
+  --lut-moonlit-stroll-dark-rail: #79c6e8;
+  --lut-moonlit-stroll-dark-success: #4cd29b;
+  --lut-moonlit-stroll-dark-warning: #f3b65b;
+  --lut-moonlit-stroll-dark-danger: #ff6b72;
+  --lut-moonlit-stroll-dark-focus: #9bdcff;
+
+  /* Moonlit Stroll — light mode */
+  --lut-moonlit-stroll-light-canvas: #f2f7f7;
+  --lut-moonlit-stroll-light-sidebar: #ffffff;
+  --lut-moonlit-stroll-light-surface: #ffffff;
+  --lut-moonlit-stroll-light-raised: #e4efef;
+  --lut-moonlit-stroll-light-overlay: rgb(16 40 78 / 44%);
+  --lut-moonlit-stroll-light-text-primary: #10284e;
+  --lut-moonlit-stroll-light-text-secondary: #315b68;
+  --lut-moonlit-stroll-light-text-tertiary: #5d7c82;
+  --lut-moonlit-stroll-light-border: #c5d9da;
+  --lut-moonlit-stroll-light-border-strong: #9abdc0;
+  --lut-moonlit-stroll-light-brand: #9c6500;
+  --lut-moonlit-stroll-light-brand-strong: #704b00;
+  --lut-moonlit-stroll-light-brand-ink: #ffffff;
+  --lut-moonlit-stroll-light-rail: #006f94;
+  --lut-moonlit-stroll-light-success: #087a52;
+  --lut-moonlit-stroll-light-warning: #8a5200;
+  --lut-moonlit-stroll-light-danger: #b4232c;
+  --lut-moonlit-stroll-light-focus: #005fcc;
+
+  /* Walking at Night — dark mode. Source: Dim gray, Van Dyke, Rich black, Gunmetal, Payne's gray. */
+  --lut-walking-at-night-dark-canvas: #0e191f;
+  --lut-walking-at-night-dark-sidebar: #2b3c43;
+  --lut-walking-at-night-dark-surface: #2b3c43;
+  --lut-walking-at-night-dark-raised: #423a37;
+  --lut-walking-at-night-dark-source-dim-gray: #7b6d62;
+  --lut-walking-at-night-dark-overlay: rgb(14 25 31 / 92%);
+  --lut-walking-at-night-dark-text-primary: #f3f6f7;
+  --lut-walking-at-night-dark-text-secondary: #c7d1d6;
+  --lut-walking-at-night-dark-text-tertiary: #a1b2bc;
+  --lut-walking-at-night-dark-border: #597276;
+  --lut-walking-at-night-dark-border-strong: #7b6d62;
+  --lut-walking-at-night-dark-brand: #fca311;
+  --lut-walking-at-night-dark-brand-strong: #f3b65b;
+  --lut-walking-at-night-dark-brand-ink: #1e1704;
+  --lut-walking-at-night-dark-rail: #76c5e5;
+  --lut-walking-at-night-dark-success: #4cd29b;
+  --lut-walking-at-night-dark-warning: #f3b65b;
+  --lut-walking-at-night-dark-danger: #ff6b72;
+  --lut-walking-at-night-dark-focus: #9bdcff;
+
+  /* Walking at Night — light mode */
+  --lut-walking-at-night-light-canvas: #f3f6f7;
+  --lut-walking-at-night-light-sidebar: #ffffff;
+  --lut-walking-at-night-light-surface: #ffffff;
+  --lut-walking-at-night-light-raised: #e7edef;
+  --lut-walking-at-night-light-overlay: rgb(14 25 31 / 44%);
+  --lut-walking-at-night-light-text-primary: #0e191f;
+  --lut-walking-at-night-light-text-secondary: #43535c;
+  --lut-walking-at-night-light-text-tertiary: #687780;
+  --lut-walking-at-night-light-border: #c7d1d3;
+  --lut-walking-at-night-light-border-strong: #a7b5b8;
+  --lut-walking-at-night-light-brand: #9c6500;
+  --lut-walking-at-night-light-brand-strong: #704b00;
+  --lut-walking-at-night-light-brand-ink: #ffffff;
+  --lut-walking-at-night-light-rail: #006f94;
+  --lut-walking-at-night-light-success: #087a52;
+  --lut-walking-at-night-light-warning: #8a5200;
+  --lut-walking-at-night-light-danger: #b4232c;
+  --lut-walking-at-night-light-focus: #005fcc;
+
+  /* YAML code highlighting sources */
+  --lut-code-one-light-bg: #fafafa;
+  --lut-code-one-light-border: #d6d6d6;
+  --lut-code-one-light-fg: #0d161b;
+  --lut-code-one-light-comment: #64560d;
+  --lut-code-one-light-keyword: #f23173;
+  --lut-code-one-light-string: #bd5200;
+  --lut-code-one-light-number: #cf4dff;
+  --lut-code-one-light-title: #007400;
+  --lut-code-xcode-bg: #fafafa;
+  --lut-code-xcode-border: #d6d6d6;
+  --lut-code-xcode-fg: #000000;
+  --lut-code-xcode-comment: #007400;
+  --lut-code-xcode-keyword: #aa0d91;
+  --lut-code-xcode-string: #c41a16;
+  --lut-code-xcode-number: #1c00cf;
+  --lut-code-xcode-title: #1c00cf;
+  --lut-code-one-dark-bg: #0d161b;
+  --lut-code-one-dark-border: #181a1f;
+  --lut-code-one-dark-fg: #caced6;
+  --lut-code-one-dark-comment: #75715e;
+  --lut-code-one-dark-keyword: #f92672;
+  --lut-code-one-dark-string: #e5c07b;
+  --lut-code-one-dark-number: #c678dd;
+  --lut-code-one-dark-title: #98c379;
+  --lut-code-night-owl-bg: #011627;
+  --lut-code-night-owl-border: #13344a;
+  --lut-code-night-owl-fg: #d6deeb;
+  --lut-code-night-owl-comment: #637777;
+  --lut-code-night-owl-keyword: #c792ea;
+  --lut-code-night-owl-string: #ecc48d;
+  --lut-code-night-owl-number: #f78c6c;
+  --lut-code-night-owl-title: #dcdcaa;
+
+  /* Neutral and effect sources */
+  --lut-white: #fff;
+  --shadow: 0 20px 60px rgb(0 0 0 / 32%);
+  --shadow-float: 0 8px 26px rgb(0 0 0 / 18%);
+  --elevation-highlight-subtle: rgb(255 255 255 / 8%);
+  --elevation-highlight-medium: rgb(255 255 255 / 22%);
+  --elevation-highlight-strong: rgb(255 255 255 / 25%);
+
+  /* Active semantic tokens — default dark */
+  --bg-canvas: var(--lut-z00z-dark-canvas);
+  --bg-sidebar: var(--lut-z00z-dark-sidebar);
+  --bg-surface: var(--lut-z00z-dark-surface);
+  --bg-raised: var(--lut-z00z-dark-raised);
+  --bg-overlay: var(--lut-z00z-dark-overlay);
+  --text-primary: var(--lut-z00z-dark-text-primary);
+  --text-secondary: var(--lut-z00z-dark-text-secondary);
+  --text-tertiary: var(--lut-z00z-dark-text-tertiary);
+  --border: var(--lut-z00z-dark-border);
+  --border-strong: var(--lut-z00z-dark-border-strong);
+  --brand: var(--lut-z00z-dark-brand);
+  --brand-strong: var(--lut-z00z-dark-brand-strong);
+  --brand-ink: var(--lut-z00z-dark-brand-ink);
+  --rail: var(--lut-z00z-dark-rail);
+  --success: var(--lut-z00z-dark-success);
+  --warning: var(--lut-z00z-dark-warning);
+  --danger: var(--lut-z00z-dark-danger);
+  --focus: var(--lut-z00z-dark-focus);
+  /* Shared row and filter interaction states. */
+  --interaction-hover-bg: var(--bg-raised);
+  --interaction-hover-border: var(--border);
+  --interaction-hover-text: var(--text-primary);
+  --interaction-selected-bg: var(--bg-raised);
+  --interaction-selected-border: var(--border);
+  --interaction-selected-text: var(--text-primary);
+  --ambient-rail: color-mix(in srgb, var(--rail) 6%, transparent);
+  --ambient-rail-mobile: color-mix(in srgb, var(--rail) 10%, transparent);
+  --logo-glow: drop-shadow(0 5px 12px color-mix(in srgb, var(--brand) 18%, transparent));
+  --qr-light: var(--lut-white);
+  --qr-dark: var(--lut-z00z-dark-canvas);
+  --code-bg: var(--lut-code-one-dark-bg);
+  --code-border: var(--lut-code-one-dark-border);
+  --code-fg: var(--lut-code-one-dark-fg);
+  --code-comment: var(--lut-code-one-dark-comment);
+  --code-keyword: var(--lut-code-one-dark-keyword);
+  --code-string: var(--lut-code-one-dark-string);
+  --code-number: var(--lut-code-one-dark-number);
+  --code-title: var(--lut-code-one-dark-title);
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --bg-canvas: var(--lut-z00z-light-canvas);
+  --bg-sidebar: var(--lut-z00z-light-sidebar);
+  --bg-surface: var(--lut-z00z-light-surface);
+  --bg-raised: var(--lut-z00z-light-raised);
+  --bg-overlay: var(--lut-z00z-light-overlay);
+  --text-primary: var(--lut-z00z-light-text-primary);
+  --text-secondary: var(--lut-z00z-light-text-secondary);
+  --text-tertiary: var(--lut-z00z-light-text-tertiary);
+  --border: var(--lut-z00z-light-border);
+  --border-strong: var(--lut-z00z-light-border-strong);
+  --brand: var(--lut-z00z-light-brand);
+  --brand-strong: var(--lut-z00z-light-brand-strong);
+  --brand-ink: var(--lut-z00z-light-brand-ink);
+  --rail: var(--lut-z00z-light-rail);
+  --success: var(--lut-z00z-light-success);
+  --warning: var(--lut-z00z-light-warning);
+  --danger: var(--lut-z00z-light-danger);
+  --focus: var(--lut-z00z-light-focus);
+  --shadow: 0 20px 60px rgb(36 50 64 / 18%);
+  --elevation-highlight-subtle: rgb(18 32 44 / 8%);
+  --elevation-highlight-medium: rgb(18 32 44 / 14%);
+  --elevation-highlight-strong: rgb(18 32 44 / 18%);
+  color-scheme: light;
+}
+
+html[data-code-theme="atom-one-light"] {
+  --code-bg: var(--lut-code-one-light-bg); --code-border: var(--lut-code-one-light-border); --code-fg: var(--lut-code-one-light-fg); --code-comment: var(--lut-code-one-light-comment); --code-keyword: var(--lut-code-one-light-keyword); --code-string: var(--lut-code-one-light-string); --code-number: var(--lut-code-one-light-number); --code-title: var(--lut-code-one-light-title);
+}
+
+html[data-code-theme="xcode"] {
+  --code-bg: var(--lut-code-xcode-bg); --code-border: var(--lut-code-xcode-border); --code-fg: var(--lut-code-xcode-fg); --code-comment: var(--lut-code-xcode-comment); --code-keyword: var(--lut-code-xcode-keyword); --code-string: var(--lut-code-xcode-string); --code-number: var(--lut-code-xcode-number); --code-title: var(--lut-code-xcode-title);
+}
+
+html[data-code-theme="night-owl"] {
+  --code-bg: var(--lut-code-night-owl-bg); --code-border: var(--lut-code-night-owl-border); --code-fg: var(--lut-code-night-owl-fg); --code-comment: var(--lut-code-night-owl-comment); --code-keyword: var(--lut-code-night-owl-keyword); --code-string: var(--lut-code-night-owl-string); --code-number: var(--lut-code-night-owl-number); --code-title: var(--lut-code-night-owl-title);
+}
+
+html[data-palette="black-gold-elegance"] {
+  --bg-canvas: var(--lut-black-gold-dark-canvas); --bg-sidebar: var(--lut-black-gold-dark-sidebar); --bg-surface: var(--lut-black-gold-dark-surface); --bg-raised: var(--lut-black-gold-dark-raised); --bg-overlay: var(--lut-black-gold-dark-overlay); --text-primary: var(--lut-black-gold-dark-text-primary); --text-secondary: var(--lut-black-gold-dark-text-secondary); --text-tertiary: var(--lut-black-gold-dark-text-tertiary); --border: var(--lut-black-gold-dark-border); --border-strong: var(--lut-black-gold-dark-border-strong); --brand: var(--lut-black-gold-dark-brand); --brand-strong: var(--lut-black-gold-dark-brand-strong); --brand-ink: var(--lut-black-gold-dark-brand-ink); --rail: var(--lut-black-gold-dark-rail); --success: var(--lut-black-gold-dark-success); --warning: var(--lut-black-gold-dark-warning); --danger: var(--lut-black-gold-dark-danger); --focus: var(--lut-black-gold-dark-focus);
+}
+
+html[data-palette="moonlit-stroll"] {
+  --bg-canvas: var(--lut-moonlit-stroll-dark-canvas); --bg-sidebar: var(--lut-moonlit-stroll-dark-sidebar); --bg-surface: var(--lut-moonlit-stroll-dark-surface); --bg-raised: var(--lut-moonlit-stroll-dark-raised); --bg-overlay: var(--lut-moonlit-stroll-dark-overlay); --text-primary: var(--lut-moonlit-stroll-dark-text-primary); --text-secondary: var(--lut-moonlit-stroll-dark-text-secondary); --text-tertiary: var(--lut-moonlit-stroll-dark-text-tertiary); --border: var(--lut-moonlit-stroll-dark-border); --border-strong: var(--lut-moonlit-stroll-dark-border-strong); --brand: var(--lut-moonlit-stroll-dark-brand); --brand-strong: var(--lut-moonlit-stroll-dark-brand-strong); --brand-ink: var(--lut-moonlit-stroll-dark-brand-ink); --rail: var(--lut-moonlit-stroll-dark-rail); --success: var(--lut-moonlit-stroll-dark-success); --warning: var(--lut-moonlit-stroll-dark-warning); --danger: var(--lut-moonlit-stroll-dark-danger); --focus: var(--lut-moonlit-stroll-dark-focus);
+}
+
+html[data-palette="walking-at-night"] {
+  --bg-canvas: var(--lut-walking-at-night-dark-canvas); --bg-sidebar: var(--lut-walking-at-night-dark-sidebar); --bg-surface: var(--lut-walking-at-night-dark-surface); --bg-raised: var(--lut-walking-at-night-dark-raised); --bg-overlay: var(--lut-walking-at-night-dark-overlay); --text-primary: var(--lut-walking-at-night-dark-text-primary); --text-secondary: var(--lut-walking-at-night-dark-text-secondary); --text-tertiary: var(--lut-walking-at-night-dark-text-tertiary); --border: var(--lut-walking-at-night-dark-border); --border-strong: var(--lut-walking-at-night-dark-border-strong); --brand: var(--lut-walking-at-night-dark-brand); --brand-strong: var(--lut-walking-at-night-dark-brand-strong); --brand-ink: var(--lut-walking-at-night-dark-brand-ink); --rail: var(--lut-walking-at-night-dark-rail); --success: var(--lut-walking-at-night-dark-success); --warning: var(--lut-walking-at-night-dark-warning); --danger: var(--lut-walking-at-night-dark-danger); --focus: var(--lut-walking-at-night-dark-focus);
+}
+
+html[data-theme="light"][data-palette="black-gold-elegance"] {
+  --bg-canvas: var(--lut-black-gold-light-canvas); --bg-sidebar: var(--lut-black-gold-light-sidebar); --bg-surface: var(--lut-black-gold-light-surface); --bg-raised: var(--lut-black-gold-light-raised); --bg-overlay: var(--lut-black-gold-light-overlay); --text-primary: var(--lut-black-gold-light-text-primary); --text-secondary: var(--lut-black-gold-light-text-secondary); --text-tertiary: var(--lut-black-gold-light-text-tertiary); --border: var(--lut-black-gold-light-border); --border-strong: var(--lut-black-gold-light-border-strong); --brand: var(--lut-black-gold-light-brand); --brand-strong: var(--lut-black-gold-light-brand-strong); --brand-ink: var(--lut-black-gold-light-brand-ink); --rail: var(--lut-black-gold-light-rail); --success: var(--lut-black-gold-light-success); --warning: var(--lut-black-gold-light-warning); --danger: var(--lut-black-gold-light-danger); --focus: var(--lut-black-gold-light-focus);
+}
+
+html[data-theme="light"][data-palette="moonlit-stroll"] {
+  --bg-canvas: var(--lut-moonlit-stroll-light-canvas); --bg-sidebar: var(--lut-moonlit-stroll-light-sidebar); --bg-surface: var(--lut-moonlit-stroll-light-surface); --bg-raised: var(--lut-moonlit-stroll-light-raised); --bg-overlay: var(--lut-moonlit-stroll-light-overlay); --text-primary: var(--lut-moonlit-stroll-light-text-primary); --text-secondary: var(--lut-moonlit-stroll-light-text-secondary); --text-tertiary: var(--lut-moonlit-stroll-light-text-tertiary); --border: var(--lut-moonlit-stroll-light-border); --border-strong: var(--lut-moonlit-stroll-light-border-strong); --brand: var(--lut-moonlit-stroll-light-brand); --brand-strong: var(--lut-moonlit-stroll-light-brand-strong); --brand-ink: var(--lut-moonlit-stroll-light-brand-ink); --rail: var(--lut-moonlit-stroll-light-rail); --success: var(--lut-moonlit-stroll-light-success); --warning: var(--lut-moonlit-stroll-light-warning); --danger: var(--lut-moonlit-stroll-light-danger); --focus: var(--lut-moonlit-stroll-light-focus);
+}
+
+html[data-theme="light"][data-palette="walking-at-night"] {
+  --bg-canvas: var(--lut-walking-at-night-light-canvas); --bg-sidebar: var(--lut-walking-at-night-light-sidebar); --bg-surface: var(--lut-walking-at-night-light-surface); --bg-raised: var(--lut-walking-at-night-light-raised); --bg-overlay: var(--lut-walking-at-night-light-overlay); --text-primary: var(--lut-walking-at-night-light-text-primary); --text-secondary: var(--lut-walking-at-night-light-text-secondary); --text-tertiary: var(--lut-walking-at-night-light-text-tertiary); --border: var(--lut-walking-at-night-light-border); --border-strong: var(--lut-walking-at-night-light-border-strong); --brand: var(--lut-walking-at-night-light-brand); --brand-strong: var(--lut-walking-at-night-light-brand-strong); --brand-ink: var(--lut-walking-at-night-light-brand-ink); --rail: var(--lut-walking-at-night-light-rail); --success: var(--lut-walking-at-night-light-success); --warning: var(--lut-walking-at-night-light-warning); --danger: var(--lut-walking-at-night-light-danger); --focus: var(--lut-walking-at-night-light-focus);
+}
+
+/* Preview cards reuse LUT values rather than inline JavaScript colours. */
+.palette-card[data-palette="z00z-default"] { --swatch-1: var(--lut-z00z-dark-canvas); --swatch-2: var(--lut-z00z-dark-surface); --swatch-3: var(--lut-z00z-dark-brand); --swatch-4: var(--lut-z00z-dark-rail); --swatch-5: var(--lut-z00z-dark-text-primary); }
+.palette-card[data-palette="black-gold-elegance"] { --swatch-1: var(--lut-black-gold-dark-canvas); --swatch-2: var(--lut-black-gold-dark-surface); --swatch-3: var(--lut-black-gold-dark-brand); --swatch-4: var(--lut-black-gold-dark-text-secondary); --swatch-5: var(--lut-black-gold-dark-text-primary); }
+.palette-card[data-palette="moonlit-stroll"] { --swatch-1: var(--lut-moonlit-stroll-dark-source-midnight-green); --swatch-2: var(--lut-moonlit-stroll-dark-raised); --swatch-3: var(--lut-moonlit-stroll-dark-source-slate-gray); --swatch-4: var(--lut-moonlit-stroll-dark-sidebar); --swatch-5: var(--lut-moonlit-stroll-dark-canvas); }
+.palette-card[data-palette="walking-at-night"] { --swatch-1: var(--lut-walking-at-night-dark-source-dim-gray); --swatch-2: var(--lut-walking-at-night-dark-raised); --swatch-3: var(--lut-walking-at-night-dark-canvas); --swatch-4: var(--lut-walking-at-night-dark-surface); --swatch-5: var(--lut-walking-at-night-dark-border); }
+.palette-swatches i:nth-child(1) { background: var(--swatch-1); }
+.palette-swatches i:nth-child(2) { background: var(--swatch-2); }
+.palette-swatches i:nth-child(3) { background: var(--swatch-3); }
+.palette-swatches i:nth-child(4) { background: var(--swatch-4); }
+.palette-swatches i:nth-child(5) { background: var(--swatch-5); }
+
+.code-theme-card[data-code-theme="atom-one-light"] { --code-preview-bg: var(--lut-code-one-light-bg); --code-preview-border: var(--lut-code-one-light-border); --code-preview-fg: var(--lut-code-one-light-fg); --code-preview-comment: var(--lut-code-one-light-comment); --code-preview-keyword: var(--lut-code-one-light-keyword); --code-preview-string: var(--lut-code-one-light-string); --code-preview-number: var(--lut-code-one-light-number); --code-preview-title: var(--lut-code-one-light-title); }
+.code-theme-card[data-code-theme="xcode"] { --code-preview-bg: var(--lut-code-xcode-bg); --code-preview-border: var(--lut-code-xcode-border); --code-preview-fg: var(--lut-code-xcode-fg); --code-preview-comment: var(--lut-code-xcode-comment); --code-preview-keyword: var(--lut-code-xcode-keyword); --code-preview-string: var(--lut-code-xcode-string); --code-preview-number: var(--lut-code-xcode-number); --code-preview-title: var(--lut-code-xcode-title); }
+.code-theme-card[data-code-theme="atom-one-dark"] { --code-preview-bg: var(--lut-code-one-dark-bg); --code-preview-border: var(--lut-code-one-dark-border); --code-preview-fg: var(--lut-code-one-dark-fg); --code-preview-comment: var(--lut-code-one-dark-comment); --code-preview-keyword: var(--lut-code-one-dark-keyword); --code-preview-string: var(--lut-code-one-dark-string); --code-preview-number: var(--lut-code-one-dark-number); --code-preview-title: var(--lut-code-one-dark-title); }
+.code-theme-card[data-code-theme="night-owl"] { --code-preview-bg: var(--lut-code-night-owl-bg); --code-preview-border: var(--lut-code-night-owl-border); --code-preview-fg: var(--lut-code-night-owl-fg); --code-preview-comment: var(--lut-code-night-owl-comment); --code-preview-keyword: var(--lut-code-night-owl-keyword); --code-preview-string: var(--lut-code-night-owl-string); --code-preview-number: var(--lut-code-night-owl-number); --code-preview-title: var(--lut-code-night-owl-title); }

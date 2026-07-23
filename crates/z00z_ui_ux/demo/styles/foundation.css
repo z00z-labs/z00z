@@ -1,0 +1,52 @@
+@font-face {
+  font-family: "Geist";
+  src: url("../assets/fonts/geist/Geist-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../assets/fonts/geist/GeistMono-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-sheet: 20px;
+  --sidebar-width: 248px;
+  --topbar-height: 80px;
+  --wallet-statusbar-height: 54px;
+  --content-max: 1075px;
+  --ease: 180ms ease;
+  --font-sans: "Geist", "Geist Fallback", sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-logo: var(--font-sans);
+  --type-balance: clamp(2.2rem, 4.2vw, 3.15rem);
+  --type-address: 1.5625rem;
+  --type-page-title: 1.75rem;
+  --type-page-section: 1.45rem;
+  --type-section: 1.25rem;
+  --type-card-title: 1rem;
+  --type-row-title: 1rem;
+  --type-control: 0.9375rem;
+  --type-nav: 1rem;
+  --type-body: 1rem;
+  --type-support: 0.9375rem;
+  --type-metric: 1.35rem;
+  --type-data-key: 0.9375rem;
+  --type-data-meta: 0.875rem;
+  --type-label: 0.8125rem;
+  --type-form-label: 1rem;
+  --type-status: 0.8125rem;
+  --type-id: 0.875rem;
+  --type-brand: clamp(1.625rem, 2.2vw, 2.125rem);
+  --sidebar-label-size: var(--type-row-title);
+  --sidebar-label-weight: 700;
+  --sidebar-label-line-height: 1.25;
+  font-family: var(--font-sans);
+}

@@ -9,7 +9,7 @@
 | Date | 2026-07-19 |
 | Last updated | 2026-07-23 |
 | Targets | Windows, Linux, iOS |
-| Prototype | [`demo/index.html`](demo/index.html) |
+| Prototype | [`crates/z00z_ui_ux/demo/index.html`](../../../crates/z00z_ui_ux/demo/index.html) |
 | Production UI decision | Tauri 2 + Leptos is a packaged standalone shell; no browser, container, or hosted-wallet profile |
 | Backend boundary | Typed local-only gateway over in-process calls or authenticated OS IPC; no HTTP/WebSocket wallet listener |
 
@@ -259,11 +259,11 @@ Z00Z Wallet must start, unlock, and expose locally held wallet state while the d
 6. Production packaging applies an equivalent restrictive WebView/CSP policy: only packaged application resources and the native bridge are permitted. Remote `http:`, `https:`, `ws:`, and `wss:` sources are denied. The exact Tauri protocol allowlist is platform-specific, but it must not broaden to arbitrary web origins.
 7. GitHub Pages may host a read-only visual prototype for review, but it is not the product runtime and cannot be used as evidence that the production wallet needs a browser or an Internet connection.
 
-The prototype enforces the renderer part of this contract with `demo/scripts/check-port-readiness.mjs`: it rejects remote script/style/asset URLs, verifies vendored Geist files, and rejects direct browser-network APIs from runtime files. Production adds an equivalent packaged-resource check and an airplane-mode launch test for each Tauri target.
+The prototype enforces the renderer part of this contract with `crates/z00z_ui_ux/demo/scripts/check-port-readiness.mjs`: it rejects remote script/style/asset URLs, verifies vendored Geist files, and rejects direct browser-network APIs from runtime files. Production adds an equivalent packaged-resource check and an airplane-mode launch test for each Tauri target.
 
 ### 🧪 Design and prototype tooling
 
-The primary design proof is a **self-contained responsive HTML/CSS/JavaScript prototype** in `demo/`.
+The primary design proof is a **self-contained responsive HTML/CSS/JavaScript prototype** in `crates/z00z_ui_ux/demo/`.
 
 Reasons:
 
@@ -1062,7 +1062,7 @@ The relationship to `z00z.io` is structural and tonal:
 
 ### 🎨 Color Lookup Table (LUT)
 
-**Canonical editable source:** [`demo/styles/colors.css`](demo/styles/colors.css). It is the only file permitted to contain literal application colours (`#…`, `rgb()`, `hsl()`, or named colours). Component CSS and JavaScript consume semantic variables only. This prevents a new yellow, red, blue, or green variant from silently appearing in one screen while remaining absent from the rest of the application.
+**Canonical editable source:** [`crates/z00z_ui_ux/demo/styles/colors.css`](../../../crates/z00z_ui_ux/demo/styles/colors.css). It is the only file permitted to contain literal application colours (`#…`, `rgb()`, `hsl()`, or named colours). Component CSS and JavaScript consume semantic variables only. This prevents a new yellow, red, blue, or green variant from silently appearing in one screen while remaining absent from the rest of the application.
 
 The LUT has three layers:
 

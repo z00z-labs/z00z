@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 256 256" fill="none">
+  <title>Sky token</title>
+  <path d="M24.4141 52.7639C28.3497 47.3391 32.7047 42.2322 37.4391 37.4907L39.0276 38.3676L126.979 126.924L127.814 128L24.4141 52.7639Z" fill="url(#sky0)"/>
+  <path d="M37.4316 37.4916C56.517 18.3778 81.1544 5.80572 107.813 1.57715L108.696 4.01111L127.807 126.304V128.001L37.4316 37.4916Z" fill="url(#sky1)"/>
+  <path d="M185.849 13.9634C191.81 17.0064 197.524 20.5137 202.938 24.4527L202.709 26.4464L128.273 127.634L127.81 128.005L185.849 13.9634Z" fill="url(#sky2)"/>
+  <path d="M255.62 128.004C255.62 141.436 253.509 154.784 249.364 167.557L246.341 168.045L128.75 128.483L127.81 128.004H255.62Z" fill="url(#sky3)"/>
+  <path d="M249.365 167.556C245.221 180.329 239.096 192.371 231.212 203.238L228.299 202.744L128.414 128.633L127.81 128.004L249.365 167.556Z" fill="url(#sky4)"/>
+  <path d="M167.303 249.735C148.121 255.978 127.735 257.584 107.814 254.424L107.016 251.97L127.232 130.178L127.808 128L167.303 249.735Z" fill="url(#sky5)"/>
+  <path d="M107.814 254.424C101.201 253.376 94.6808 251.808 88.313 249.735L87.9604 246.775L127.079 129.336L127.809 128L107.814 254.424Z" fill="url(#sky6)"/>
+  <path d="M88.3118 249.739C75.5565 245.589 63.5329 239.453 52.6826 231.558V229.241L126.502 129.309L127.807 128.004L88.3118 249.739Z" fill="url(#sky7)"/>
+  <path d="M13.9304 186.112C4.77357 168.115 0 148.201 0 128.002L1.63491 127.397H123.675L127.81 128.002L13.9304 186.112Z" fill="url(#sky8)"/>
+  <path d="M107.807 1.57712C127.731 -1.58454 148.12 0.0220212 167.306 6.26541L127.809 128L107.807 1.57712Z" fill="url(#sky9)"/>
+  <path d="M202.935 24.4487C224.77 40.3362 241.022 62.7382 249.363 88.4442L127.81 128.003L202.935 24.4487Z" fill="url(#sky10)"/>
+  <path d="M52.6849 231.554C41.8346 223.658 32.2927 214.103 24.4094 203.236L127.81 128L52.6849 231.554Z" fill="url(#sky11)"/>
+  <path d="M0 127.998C0 114.566 2.11098 101.218 6.25545 88.4438L127.81 127.998H0Z" fill="url(#sky12)"/>
+  <path d="M231.214 203.231C223.331 214.098 213.79 223.655 202.94 231.55L127.81 128L231.214 203.231Z" fill="url(#sky13)"/>
+  <defs>
+    <radialGradient id="sky0" cx="0" cy="0" r="1" gradientTransform="matrix(-97.3247 -84.1598 84.0344 -97.4695 127.814 128)" gradientUnits="userSpaceOnUse"><stop stop-color="#A273FF"/><stop offset="1" stop-color="#4331E9"/></radialGradient>
+    <radialGradient id="sky1" cx="0" cy="0" r="1" gradientTransform="matrix(-20.4616 -129.461 129.268 -20.492 127.807 128.001)" gradientUnits="userSpaceOnUse"><stop stop-color="#F7A7F9"/><stop offset="1" stop-color="#00DDFB"/></radialGradient>
+    <radialGradient id="sky2" cx="0" cy="0" r="1" gradientTransform="translate(127.81 128.005) rotate(180) scale(130.967 131.162)" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF3D0"/><stop offset="1" stop-color="#FFC044"/></radialGradient>
+    <radialGradient id="sky3" cx="0" cy="0" r="1" gradientTransform="translate(127.81 128.004) rotate(-90) scale(130.939 130.746)" gradientUnits="userSpaceOnUse"><stop stop-color="#A273FF"/><stop offset=".5" stop-color="#9FAEFF"/><stop offset="1" stop-color="#AAF2E1"/></radialGradient>
+    <radialGradient id="sky4" cx="0" cy="0" r="1" gradientTransform="matrix(105.486 76.727 -76.6127 105.643 127.81 128.004)" gradientUnits="userSpaceOnUse"><stop stop-color="#0075FF"/><stop offset="1" stop-color="#00DDFB"/></radialGradient>
+    <radialGradient id="sky5" cx="0" cy="0" r="1" gradientTransform="translate(127.808 128) rotate(90) scale(131.046 130.851)" gradientUnits="userSpaceOnUse"><stop stop-color="#FFCD6B"/><stop offset="1" stop-color="#EB5EDF"/></radialGradient>
+    <radialGradient id="sky6" cx="0" cy="0" r="1" gradientTransform="translate(127.809 128) rotate(90) scale(131.318 131.123)" gradientUnits="userSpaceOnUse"><stop stop-color="#D5FAFF"/><stop offset="1" stop-color="#00DDFB"/></radialGradient>
+    <radialGradient id="sky7" cx="0" cy="0" r="1" gradientTransform="matrix(-57.3642 128 -127.809 -57.4498 127.807 128.004)" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD2B9"/><stop offset=".289583" stop-color="#C99BED"/><stop offset="1" stop-color="#0075FF"/></radialGradient>
+    <radialGradient id="sky8" cx="0" cy="0" r="1" gradientTransform="translate(127.81 128.002) rotate(180) scale(170.244 170.498)" gradientUnits="userSpaceOnUse"><stop stop-color="#6D28FF"/><stop offset="1" stop-color="#F7A7F9"/></radialGradient>
+    <radialGradient id="sky9" cx="0" cy="0" r="1" gradientTransform="translate(127.809 128) rotate(-90) scale(130.941 130.746)" gradientUnits="userSpaceOnUse"><stop stop-color="#A273FF"/><stop offset=".5" stop-color="#9FAEFF"/><stop offset="1" stop-color="#AAF2E1"/></radialGradient>
+    <radialGradient id="sky10" cx="0" cy="0" r="1" gradientTransform="translate(127.81 128.003) rotate(90) scale(131.046 130.851)" gradientUnits="userSpaceOnUse"><stop stop-color="#FFCD6B"/><stop offset="1" stop-color="#EB5EDF"/></radialGradient>
+    <radialGradient id="sky11" cx="0" cy="0" r="1" gradientTransform="matrix(-97.3247 -84.1597 84.0345 -97.4695 127.81 128)" gradientUnits="userSpaceOnUse"><stop stop-color="#A273FF"/><stop offset="1" stop-color="#4331E9"/></radialGradient>
+    <radialGradient id="sky12" cx="0" cy="0" r="1" gradientTransform="translate(127.81 127.998) rotate(180) scale(130.967 131.162)" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF3D0"/><stop offset="1" stop-color="#FFC044"/></radialGradient>
+    <radialGradient id="sky13" cx="0" cy="0" r="1" gradientTransform="matrix(-97.3247 -84.1598 84.0345 -97.4695 127.81 128)" gradientUnits="userSpaceOnUse"><stop stop-color="#A273FF"/><stop offset="1" stop-color="#4331E9"/></radialGradient>
+  </defs>
+</svg>
