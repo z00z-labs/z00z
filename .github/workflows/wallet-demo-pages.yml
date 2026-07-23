@@ -3,6 +3,9 @@ name: publish-wallet-demo
 on:
   push:
     branches: [main]
+  # Version commits contain [skip ci]. The separately emitted tag-create event
+  # remains the automatic deployment signal for every version-manager release.
+  create:
   workflow_dispatch:
 
 permissions:
@@ -16,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'create' || (github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

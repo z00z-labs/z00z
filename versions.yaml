@@ -1,6 +1,6 @@
 total_version:
-  version: 1.23.1
-  last_git_tag: v1.23.1
+  version: 1.23.2
+  last_git_tag: v1.23.2
 crates:
   aggregators:
     path: crates/z00z_runtime/aggregators
