@@ -13,6 +13,12 @@
 
 ## 🎯 Executive conclusion
 
+### ✅ Mobile annotation follow-up — 2026-07-23
+
+The annotated 390 px phone capture exposed three concrete implementation defects: the address competed with duplicate wallet/account controls, the desktop asset subgrid collapsed into overlapping cells, and the bottom bar exposed Home/Assets/History instead of mobile access to wallet profiles and network telemetry. The executable demo now reserves the mobile header for the Z00Z mark, address plus adjacent Copy, balance visibility, and notifications. Wallet switching moves to **Wallets**, application preferences remain under **Settings**, and the redundant mobile account control is removed from the header.
+
+The fixed bottom destinations are now **Wallets**, **Network**, **Settings**, and **Log out**. Network opens an explicit Reticulum/OnionNet/Aggregators picker, which restores the telemetry access that disappeared when the desktop rail was hidden. Exactly one non-destructive destination owns `aria-current`. Asset rows now use a dedicated identity column and a separate three-row numeric column at 390 px and 320 px; Balance, Value, and Price cannot overlap the icon/name region. Mobile WebView text autosizing is fixed at 100% so the documented Geist LUT—not browser heuristics—controls type geometry.
+
 ### ✅ Implementation update — 2026-07-20
 
 The executable demo now applies the P0/P1 findings in this review. It uses the normalized Geist/Geist Mono lookup table, with a reserved variable-weight Geist wordmark matching the public Z00Z docs header. It has no raw visible component font sizes below the documented token floor, and keeps prose in Geist while literal addresses, quantities, IDs, and YAML stay in Geist Mono—except the selected desktop-wallet address, which uses normal-weight Geist at the same desktop size and tracking as the Z00Z wordmark. All textual Cancel actions use the same neutral bordered secondary button; wallet selection uses the same horizontal rail grammar as the internal tabs; the wallet rail scrolls independently; route telemetry is a non-interactive item in the selected-wallet status bar rather than a top-bar button; and the mobile status surface is document-flow content rather than a viewport overlay.
@@ -428,7 +434,7 @@ This confirms that the interface can be packaged without an Internet dependency.
 ## ✅ Current strengths to preserve
 
 - The current dark/gold/blue visual direction is distinctive, calm, and appropriate for a privacy wallet.
-- `logo-31-bg.png` is already used consistently in favicon, desktop rail, lock surface, and mobile brand.
+- `assets/logo/z00z-logo-gold-circle.png` is the single app-brand source for the favicon, installable launcher assets, desktop rail, lock surface, and mobile header. Asset icons remain isolated in the typed asset LUT.
 - Wallet-scoped tabs, wallet-owned data, History naming, Add/Remove placement, full-address tooltip, and asset column alignment are represented in the current demo.
 - Internal wallet navigation is sticky and opaque.
 - Add Wallet primary choices use the existing Z00Z palette rather than saturated legacy blue.
@@ -451,6 +457,8 @@ This confirms that the interface can be packaged without an Internet dependency.
 10. Palette presets pass WCAG AA for normal text and controls; focus, warning, danger, success, and selected states are tested independently.
 11. Tables transform into labelled rows/cards on narrow screens without losing the relationship between header and value.
 12. Sensitive amounts remain masked in accessible names when hidden; screen readers must not receive the secret value.
+13. The 320/390 px header keeps address, Copy, balance visibility, and notifications in non-overlapping grid cells; wallet/profile and application-settings destinations are not duplicated there.
+14. The mobile bottom bar provides reachable Wallets and Network pickers, exposes exactly one current destination, and treats Log out as an action rather than a persistent selection.
 
 ## 🛠️ Implementation backlog
 
@@ -474,6 +482,9 @@ This confirms that the interface can be packaged without an Internet dependency.
 - [x] Verify the wallet-list scroll container with generated long content while utility actions remain reachable; 0/1/3 live demo states are smoke-tested.
 - [x] Verify `Name`, `Balance`, `Value`, and `Price` column/header alignment in the desktop demo.
 - [x] Keep wallet tabs sticky, opaque, and aligned to the main content edge.
+- [x] Replace the broken mobile asset subgrid with a non-overlapping identity/numeric card projection at 320 px and 390 px.
+- [x] Replace the mobile Home/Assets/History shortcuts with Wallets/Network/Settings/Log out and add an explicit telemetry picker.
+- [x] Remove duplicate mobile wallet/account header controls and normalize WebView text autosizing.
 - [x] Add the five semantic palette presets and contrast-gated protected custom accent validation.
 - [x] Separate app settings from selected-wallet settings in the local YAML/Form/Mapping concept state.
 - [x] Replace generic lifecycle copy with exact receiver, transaction, object, scan, and backup states where the demo has an authoritative concept state.

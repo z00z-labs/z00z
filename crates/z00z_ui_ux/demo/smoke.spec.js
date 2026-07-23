@@ -177,10 +177,10 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   expect(walletTabSize).toBeGreaterThanOrEqual(14);
   await expect(page.getByRole("button", { name: "Add wallet" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove wallet" })).toBeVisible();
-  await expect(page.locator(".sidebar .brand-mark")).toHaveAttribute("src", "assets/z00z-friendly/z00z-logo-gold-circle.svg");
+  await expect(page.locator(".sidebar .brand-mark")).toHaveAttribute("src", "assets/logo/z00z-logo-gold-circle.png");
   await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("border-radius", "0px");
   await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("object-fit", "contain");
-  expect(await page.locator(".brand-mark").evaluateAll((marks) => marks.every((mark) => mark.getAttribute("src") === "assets/z00z-friendly/z00z-logo-gold-circle.svg"))).toBe(true);
+  expect(await page.locator(".brand-mark").evaluateAll((marks) => marks.every((mark) => mark.getAttribute("src") === "assets/logo/z00z-logo-gold-circle.png"))).toBe(true);
   await expect(page.locator(".sidebar .brand-mark")).toHaveJSProperty("complete", true);
   await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("width", "52px");
   const wordmarkSize = await page.locator(".sidebar .brand > span").evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
@@ -971,8 +971,8 @@ test("add wallet dialog creates and restores wallet cards", async ({ page }) => 
     "assets/z00z-friendly/Coins/zcash-zec-logo-z00z.svg",
     "assets/z00z-friendly/Tokens/rain-rain.svg",
     "assets/z00z-friendly/Tokens/sky-sky.svg",
-    "assets/z00z-friendly/NFT/bcap-nft.svg",
-    "assets/z00z-friendly/NFT/stable-nft.svg"
+    "assets/z00z-friendly/NFTs/bcap-nft.svg",
+    "assets/z00z-friendly/NFTs/stable-nft.svg"
   ]);
 
   await page.locator('[data-wallet-section="vouchers"]').click();
@@ -1072,7 +1072,7 @@ test("assets show table values and expose per-asset details", async ({ page }) =
   await expect(assetFilters).toHaveText(["All", "Coins", "Tokens", "NFTs"]);
   await page.getByRole("button", { name: "Tokens", exact: true }).click();
   await expect(page.locator(".asset-row")).toHaveCount(5);
-  await expect(page.locator(".asset-row")).toContainText(["BOLD", "Dai", "Liquity", "Rain", "Sky"]);
+  await expect(page.locator(".asset-row")).toContainText(["wBOLD", "wDAI", "wLiquity", "Rain", "Sky"]);
   await page.getByRole("button", { name: "NFTs", exact: true }).click();
   await expect(page.locator(".asset-row")).toHaveCount(2);
   await expect(page.locator(".asset-row")).toContainText(["BCAP", "STABLE"]);
@@ -1112,7 +1112,7 @@ test("assets show table values and expose per-asset details", async ({ page }) =
   for (const column of columnPositions) {
     expect(Math.abs(column.headerX - column.valueX), `${column.label} must align with its values`).toBeLessThanOrEqual(1);
   }
-  await page.getByRole("button", { name: "View details for Zcash" }).click();
+  await page.getByRole("button", { name: "View details for wZcash" }).click();
   const assetDetailLogo = page.locator(".dialog-header .asset-detail-logo");
   await expect(assetDetailLogo.locator("img")).toHaveAttribute(
     "src",
@@ -1492,6 +1492,73 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   await page.goto(demoUrl);
+  const mobileDestinations = page.locator(".bottom-nav-item");
+  await expect(mobileDestinations).toHaveCount(4);
+  await expect(mobileDestinations).toHaveText(["Wallets", "Network", "Settings", "Log out"]);
+  expect(await mobileDestinations.evaluateAll((buttons) => buttons.map((button) => button.querySelector("use")?.getAttribute("href"))))
+    .toEqual(["#i-wallet", "#i-network", "#i-settings", "#i-logout"]);
+  await expect(page.locator(".bottom-nav-item.is-active")).toHaveCount(1);
+  await expect(page.locator('.bottom-nav-item[data-mobile-destination="wallets"]')).toHaveAttribute("aria-current", "page");
+
+  const mobileHeaderLayout = await page.evaluate(() => {
+    const box = (selector) => {
+      const bounds = document.querySelector(selector)?.getBoundingClientRect();
+      return bounds ? { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom } : null;
+    };
+    return {
+      logo: box(".mobile-brand"),
+      address: box(".topbar-address-group"),
+      balance: box('.topbar [data-demo-action="toggle-balance"]'),
+      notifications: box(".topbar-notification"),
+      walletIdentityDisplay: getComputedStyle(document.querySelector("#wallet-identity")).display,
+      accountDisplay: getComputedStyle(document.querySelector(".account-button")).display,
+      contextDisplay: getComputedStyle(document.querySelector("#page-context")).display
+    };
+  });
+  expect(mobileHeaderLayout.walletIdentityDisplay).toBe("none");
+  expect(mobileHeaderLayout.accountDisplay).toBe("none");
+  expect(mobileHeaderLayout.contextDisplay).not.toBe("none");
+  const headerBoxes = [
+    mobileHeaderLayout.logo,
+    mobileHeaderLayout.address,
+    mobileHeaderLayout.balance,
+    mobileHeaderLayout.notifications
+  ];
+  headerBoxes.forEach((box) => {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(390);
+  });
+  headerBoxes.slice(1).forEach((box, index) => {
+    expect(headerBoxes[index].right).toBeLessThanOrEqual(box.left);
+  });
+
+  const mobileAssetGeometry = await page.locator(".asset-row").evaluateAll((rows) => rows.slice(0, 6).map((row) => {
+    const rowBox = row.getBoundingClientRect();
+    const identityBox = row.querySelector(".asset-identity-button").getBoundingClientRect();
+    const numberBoxes = [...row.querySelectorAll(".asset-number")].map((number) => number.getBoundingClientRect());
+    return {
+      row: { left: rowBox.left, right: rowBox.right, height: rowBox.height },
+      identityRight: identityBox.right,
+      numberLeft: Math.min(...numberBoxes.map((box) => box.left)),
+      numbersInside: numberBoxes.every((box) => box.left >= rowBox.left && box.right <= rowBox.right)
+    };
+  }));
+  mobileAssetGeometry.forEach((geometry) => {
+    expect(Math.round(geometry.row.height)).toBe(64);
+    expect(geometry.identityRight).toBeLessThanOrEqual(geometry.numberLeft);
+    expect(geometry.numbersInside).toBe(true);
+  });
+
+  await page.locator('[data-mobile-destination="network"]').click();
+  await expect(page.getByRole("heading", { name: "Network" })).toBeVisible();
+  await page.locator('.network-picker-list [data-network-section="reticulum"]').click();
+  await expect(page.locator("#page-title")).toHaveText("Reticulum");
+  await expect(page.locator(".bottom-nav-item.is-active")).toHaveCount(1);
+  await expect(page.locator('[data-mobile-destination="network"]')).toHaveAttribute("aria-current", "page");
+  await page.locator('[data-mobile-destination="wallets"]').click();
+  await expect(page.getByRole("heading", { name: "Your wallets" })).toBeVisible();
+  await page.locator('[data-dialog-action="select-wallet"]').first().click();
+
   await expect(page.locator("#wallet-statusbar")).toHaveCSS("position", "static");
   await page.locator("#wallet-statusbar").scrollIntoViewIfNeeded();
   const [mobileStatus, mobileBottomNav] = await Promise.all([
@@ -1515,6 +1582,26 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
   await page.goto(`${demoUrl}?view=wallet`);
   const compactFilterHeight = await page.locator(".choice-chip").first().evaluate((node) => node.getBoundingClientRect().height);
   expect(Math.round(compactFilterHeight)).toBeGreaterThanOrEqual(44);
+  const compactHeaderBoxes = await page.locator(".topbar").evaluate((topbar) => [
+    topbar.querySelector(".mobile-brand"),
+    topbar.querySelector(".topbar-address-group"),
+    topbar.querySelector('[data-demo-action="toggle-balance"]'),
+    topbar.querySelector(".topbar-notification")
+  ].map((element) => {
+    const box = element.getBoundingClientRect();
+    return { left: box.left, right: box.right };
+  }));
+  compactHeaderBoxes.forEach((box, index) => {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(320);
+    if (index > 0) expect(compactHeaderBoxes[index - 1].right).toBeLessThanOrEqual(box.left);
+  });
+  const compactAssetOverlap = await page.locator(".asset-row").evaluateAll((rows) => rows.slice(0, 6).some((row) => {
+    const identity = row.querySelector(".asset-identity-button").getBoundingClientRect();
+    const numbers = [...row.querySelectorAll(".asset-number")].map((number) => number.getBoundingClientRect());
+    return numbers.some((number) => identity.right > number.left || number.right > row.getBoundingClientRect().right);
+  }));
+  expect(compactAssetOverlap).toBe(false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 
   await page.setViewportSize({ width: 1280, height: 800 });

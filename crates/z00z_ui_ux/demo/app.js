@@ -102,6 +102,12 @@ const telemetryTopbar = {
   aggregators: ["Aggregators", "network.publicationTelemetry"]
 };
 
+const networkEntries = [
+  { key: "reticulum", label: "Reticulum", initials: "R", helperKey: "network.carrierTelemetry" },
+  { key: "onionnet", label: "OnionNet", initials: "O", helperKey: "network.routeTelemetry" },
+  { key: "aggregators", label: "Aggregators", initials: "A", helperKey: "network.publicationTelemetry" }
+];
+
 function t(key, values) {
   return i18n.translate(state.language, key, values);
 }
@@ -484,11 +490,6 @@ function renderWalletShell() {
       <button class="nav-item nav-item-primary" type="button" data-demo-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
       <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
     </div>`;
-  const networkEntries = [
-    { key: "reticulum", label: "Reticulum", initials: "R", helperKey: "network.carrierTelemetry" },
-    { key: "onionnet", label: "OnionNet", initials: "O", helperKey: "network.routeTelemetry" },
-    { key: "aggregators", label: "Aggregators", initials: "A", helperKey: "network.publicationTelemetry" }
-  ];
   networkNav.innerHTML = networkEntries.map((entry) => {
     const isActive = sidebarTarget.group === "network" && sidebarTarget.id === entry.key;
     return `<button class="network-nav-item${isActive ? " is-active" : ""}" type="button" ${isActive ? 'aria-current="page"' : ""} data-network-section="${entry.key}" title="${t(entry.helperKey)}">
@@ -1788,6 +1789,7 @@ function render(options = {}) {
       active ? button.setAttribute("aria-current", "page") : button.removeAttribute("aria-current");
     }
   });
+  syncMobileNavigation();
 
   main.innerHTML = {
     home: homeView,
@@ -1830,6 +1832,19 @@ function render(options = {}) {
     main.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: state.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
+}
+
+function syncMobileNavigation() {
+  const activeDestination = state.view === "telemetry"
+    ? "network"
+    : state.view === "settings"
+      ? "settings"
+      : "wallets";
+  document.querySelectorAll("[data-mobile-destination]").forEach((button) => {
+    const active = button.dataset.mobileDestination === activeDestination;
+    button.classList.toggle("is-active", active);
+    active ? button.setAttribute("aria-current", "page") : button.removeAttribute("aria-current");
+  });
 }
 
 function syncBalanceButtons() {
@@ -2295,6 +2310,23 @@ function walletsDialog() {
   });
 }
 
+function networksDialog() {
+  const selectedNetwork = state.view === "telemetry" ? state.telemetrySource : "";
+  return dialogFrame({
+    title: t("app.network"),
+    subtitle: t("settings.networkPrivacyHelp"),
+    body: `
+      <div class="wallet-list network-picker-list">
+        ${networkEntries.map((entry) => `<button class="wallet-choice${entry.key === selectedNetwork ? " is-current" : ""}" type="button"${entry.key === selectedNetwork ? ' aria-current="page"' : ""} data-dialog-action="select-network" data-network-section="${entry.key}">
+          <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
+          <span><strong>${entry.label}</strong><small>${t(entry.helperKey)}</small></span>
+          ${entry.key === selectedNetwork ? `<span class="status-badge is-active">${t("walletShell.current")}</span>` : ""}
+        </button>`).join("")}
+      </div>`,
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>${t("common.close")}</button>`
+  });
+}
+
 function removeWalletDialog() {
   const selectedIds = new Set(state.flow.data.walletIds || []);
   const selectedCount = selectedIds.size;
@@ -2458,6 +2490,7 @@ function renderDialog() {
     : type === "asset-detail" ? assetDetailDialog()
     : type === "connection" ? connectionDialog()
     : type === "wallets" ? walletsDialog()
+    : type === "networks" ? networksDialog()
     : type === "remove-wallet" ? removeWalletDialog()
     : type === "add-wallet" ? addWalletDialog()
     : type === "create-wallet" ? createWalletDialog()
@@ -2831,6 +2864,12 @@ function handleDialogAction(action, button) {
     state.assetFilter = "all";
     render({ focusMain: true });
     showToast(`${activeWallet().name} wallet opened in concept mode.`);
+  } else if (action === "select-network") {
+    closeDialog();
+    state.view = "telemetry";
+    state.telemetrySource = button.dataset.networkSection;
+    state.isNetworkOpen = false;
+    render({ focusMain: true });
   } else if (action === "confirm-remove-wallet") {
     const selectedIds = new Set(state.flow?.data.walletIds || []);
     const result = walletGateway.removeProfiles({
@@ -2923,6 +2962,8 @@ function handleDemoAction(action, button) {
     openFlow("recover-wallet", button);
   } else if (action === "switch-wallet") {
     openFlow("wallets", button);
+  } else if (action === "network-picker") {
+    openFlow("networks", button);
   } else if (action === "notifications") {
     openFlow("notifications", button);
   } else if (["copy-receipt", "copy-wallet-address"].includes(action)) {

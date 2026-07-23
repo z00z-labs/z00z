@@ -38,6 +38,37 @@ for (const resourceUrl of staticResourceUrls) {
   assert.equal(/^(?:https?:)?\/\//i.test(resourceUrl), false, `static resource ${resourceUrl} must be bundled locally`);
 }
 
+assert.match(index, /<link rel="manifest" href="manifest\.webmanifest\?v=2">/, "index.html must expose the versioned local app manifest");
+assert.match(index, /<link rel="apple-touch-icon" sizes="180x180" href="assets\/logo\/z00z-apple-touch-icon-v2-180\.png">/, "index.html must expose the local Apple touch icon");
+assert.match(index, /<link rel="icon" type="image\/png" href="assets\/logo\/z00z-logo-gold-circle\.png\?v=2">/, "index.html must use the canonical PNG app brand as its favicon");
+assert.equal(
+  [...index.matchAll(/<img class="brand-mark" src="([^"]+)"/g)].every((match) => match[1] === "assets/logo/z00z-logo-gold-circle.png"),
+  true,
+  "every visible app brand must use the canonical PNG source"
+);
+const appManifest = JSON.parse(await read("manifest.webmanifest"));
+assert.equal(appManifest.start_url, "./");
+assert.equal(appManifest.scope, "./");
+assert.equal(appManifest.display, "standalone");
+assert.deepEqual(
+  appManifest.icons.map(({ src, sizes, type, purpose }) => ({ src, sizes, type, purpose })),
+  [
+    { src: "assets/logo/z00z-app-icon-v2-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "assets/logo/z00z-app-icon-v2-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "assets/logo/z00z-app-icon-v2-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+  ]
+);
+for (const appIcon of [
+  "assets/logo/z00z-logo-gold-circle.png",
+  "assets/logo/z00z-app-icon-v2-192.png",
+  "assets/logo/z00z-app-icon-v2-512.png",
+  "assets/logo/z00z-app-icon-v2-maskable-512.png",
+  "assets/logo/z00z-apple-touch-icon-v2-180.png"
+]) {
+  const iconInfo = await stat(resolve(demoRoot, appIcon));
+  assert.ok(iconInfo.size > 0, `${appIcon} must exist and be non-empty`);
+}
+
 const symbolBlocks = [...index.matchAll(/<symbol\s+id="i-([^"]+)"\s+viewBox="([^"]+)"[^>]*>([\s\S]*?)<\/symbol>/g)];
 const symbolNames = symbolBlocks.map((match) => match[1]);
 assert.deepEqual(symbolNames, Array.from(demo.ICON_NAMES), "inline SVG symbols must match the canonical icon registry order");
@@ -61,6 +92,24 @@ for (const definition of Object.values(demo.OBJECT_FAMILY_ICON_LUT)) {
   assert.ok(["image", "mask"].includes(definition.mode), `object family icon ${definition.iconSrc} must declare a supported mode`);
   const iconInfo = await stat(resolve(demoRoot, definition.iconSrc));
   assert.ok(iconInfo.size > 0, `${definition.iconSrc} must exist and be non-empty`);
+}
+for (const lightBackgroundCoinIcon of [
+  "assets/z00z-friendly/Coins/algorand-algo-logo-z00z.svg",
+  "assets/z00z-friendly/Coins/cardano-ada-logo-z00z.svg",
+  "assets/z00z-friendly/Coins/ethereum-eth-logo-z00z.svg",
+  "assets/z00z-friendly/Coins/hyperliquid-hype-logo-z00z.svg"
+]) {
+  const iconBody = await read(lightBackgroundCoinIcon);
+  assert.match(
+    iconBody,
+    /<circle id="coin-background" cx="500" cy="500" r="439" fill="#FFFFFF"\/>/,
+    `${lightBackgroundCoinIcon} must provide an opaque white background inside the gold ring`
+  );
+  assert.doesNotMatch(
+    iconBody,
+    /<rect width="1000" height="1000" fill="#FFFFFF"\/>/,
+    `${lightBackgroundCoinIcon} must remain transparent outside the gold ring`
+  );
 }
 
 const runtimeFiles = [

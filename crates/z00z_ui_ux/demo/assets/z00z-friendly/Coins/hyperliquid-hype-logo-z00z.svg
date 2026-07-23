@@ -2,6 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
   <title>hyperliquid hype logo, Z00Z locked cross-chain variant</title>
   <metadata>Z00Z gold-ring marker for a locked or cross-chain coin.</metadata>
+  <circle id="coin-background" cx="500" cy="500" r="439" fill="#FFFFFF"/>
   <defs>
     <linearGradient id="z00z-gold-top" x1="30" y1="244" x2="970" y2="0" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#B86B00"/>

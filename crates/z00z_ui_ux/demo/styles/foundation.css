@@ -50,3 +50,8 @@
   --sidebar-label-line-height: 1.25;
   font-family: var(--font-sans);
 }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}

@@ -33,6 +33,12 @@ the browser's responsive-device mode. Before publishing, the workflow verifies
 the complete local bundle: styles, fonts, icons, locale catalogues, and asset
 imagery. A partial unstyled upload fails in CI instead of reaching Pages.
 
+The page exposes a local Web App Manifest plus 192 px, 512 px, maskable, and
+Apple touch icons generated from `assets/logo/z00z-logo-gold-circle.png`.
+Android launchers cache existing shortcuts independently of the browser cache:
+after an icon update, remove the old home-screen shortcut, deploy the new
+bundle, reload the page, and add the shortcut again.
+
 Optional full visual smoke test (it starts and stops its own local HTTP server):
 
 ```bash
@@ -50,7 +56,7 @@ machine-translation bridge, and required checks.
 
 ## 🧪 Suggested walkthrough
 
-1. Resize between desktop and a 390 px mobile viewport.
+1. Resize between desktop, 390 px, and 320 px. On mobile, confirm the header keeps the abbreviated address, adjacent Copy, balance visibility, and notifications without overlap. The fixed bar exposes Wallets, Network, Settings, and Log out; Wallets opens the local profile picker and Network opens Reticulum, OnionNet, and Aggregators.
 2. Use Send, asset Claim, and Give permission from Home; confirm Receive opens the selected wallet's single Receiver Card.
 3. Confirm that submitted sends, claim outputs, voucher redemption, and permission delegation show honest non-final states.
 4. Select Everyday, Savings, and Travel in the desktop wallet navigation. Confirm that Assets, History, Swap, Exchange, Staking, Backup, Settings, and the bottom status bar reflect only the selected wallet. Hover the copy control beside the address to reveal the full selected-wallet ID.
@@ -64,7 +70,7 @@ machine-translation bridge, and required checks.
 12. In application Settings → Appearance, use the Dark/Light theme toggle (Dark is the default) and choose Z00Z Default, Black & Gold, Moonlit Stroll, or Walking at Night. Palette changes update semantic tokens while safety colours remain protected. Appearance also selects the application-wide YAML syntax theme: One Light, Xcode, One Dark, or Night Owl.
 13. Filter the selected wallet's History and open technical details.
 14. Use **Add wallet** to create, open, or restore a profile, or choose **Cancel** to return to the selected wallet. **Remove wallet** confirms before removing one or more selected concept profiles; removing all profiles returns to **Add wallet**. The Wallets placeholder shows exactly three rows and one scrollbar: wallet cards, Add, and Remove are one ordered scroll list. Remove becomes disabled when the list is empty. The recovery helper inserts 24 demonstration words that are never a real seed.
-15. Open Assets and select an asset name to inspect its asset-details fields; the table shows Name, Balance, Value, and Price for each asset.
+15. Open Assets and select an asset name to inspect its asset-details fields; desktop columns show Name, Balance, Value, and Price. At 390/320 px, each row keeps asset identity on the left and the three numeric fields in a non-overlapping right stack.
 16. Open a selected wallet's Settings. Confirm that General, Security, Backup, Policies, and Advanced are scoped to that wallet. Sensitive actions require a fresh password and their typed confirmation; secret/private material is never rendered or placed in YAML.
 
 ## 🧱 Constraints

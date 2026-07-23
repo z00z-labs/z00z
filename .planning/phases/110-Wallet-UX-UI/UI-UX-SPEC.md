@@ -473,10 +473,12 @@ The context rail is navigation, not a tab widget: use `nav`, links/buttons, and 
 
 Bottom navigation contains four destinations:
 
-1. Home
-2. Wallet
-3. Activity
-4. Settings
+1. **Wallets** — opens the local wallet-profile picker; selecting a profile returns to that wallet's Assets route.
+2. **Network** — opens a compact picker for Reticulum, OnionNet, and Aggregators, then shows the selected read-only telemetry workspace.
+3. **Settings** — opens application-wide General, Appearance, Reticulum, and OnionNet settings.
+4. **Log out** — ends the current local session and returns to the lock surface.
+
+Exactly one non-destructive bottom destination is current. Wallet-scoped routes, including Assets, Send, Receive, History, Swap, Stacking, Backup, and wallet Settings, keep **Wallets** current. A telemetry workspace keeps **Network** current. Application settings keep **Settings** current. **Log out** is an action and never remains selected.
 
 Quick actions are stable two-by-two cards, not a carousel. The context rail becomes one labelled horizontal route strip on narrow screens; it retains the active item in view and never becomes unlabeled icons. Native back closes the most recent sheet/dialog before navigating away, then returns to the preceding route/workspace.
 
@@ -524,9 +526,12 @@ Desktop order:
 Mobile order:
 
 1. Z00Z mark or contextual back button.
-2. Page title.
-3. Compact sync/privacy dot with accessible text.
-4. Account button.
+2. Selected-wallet address plus its second-line wallet name; the address truncates within its own grid cell.
+3. Copy-address button immediately beside the address group.
+4. Hide/show sensitive amounts.
+5. Notifications.
+
+Wallet switching belongs to the mobile **Wallets** destination, and account/application preferences belong to **Settings**. Their duplicate top-bar buttons are hidden on narrow screens. All retained header controls remain 44 × 44 px, never overlap, and stay within the safe-area-adjusted viewport at 320 CSS px.
 
 Never place the full receiver ID, seed, session state, chain height, or route diagnostics in the default header.
 
@@ -610,6 +615,8 @@ A newly created local wallet starts with exactly one inventory row: native `Z00Z
 | Raw asset ID | Hidden | Expert details only |
 
 Desktop uses a compact list with cards for the selected asset. Mobile uses stacked cards. Never force a horizontally scrollable table.
+
+At narrow widths each asset card becomes a two-column, three-row projection: asset icon/name/class occupy the full left column; Balance, Value, and Price occupy three aligned right-column rows. The identity and numeric regions never overlap, long names and unavailable values truncate inside their own regions, and the card retains the shared 64 px row height. Browser text autosizing is normalized to 100% so mobile WebViews do not silently inflate these semantic LUT sizes and destroy the grid.
 
 Filters are `All`, `Coin`, `Token`, `Collectible`, and `Needs review`. An NFT uses item count/serial-oriented copy, never a decimal money balance. `Void` is excluded from normal inventory and shown only in expert/quarantine handling when present.
 
@@ -1328,6 +1335,9 @@ Additional rules:
 - Software keyboard must not cover the active field or primary action.
 - Use numeric/decimal keyboards for amounts. Wallet-secret inputs remain application-local and suppress browser password-manager overlays; any production OS credential integration must be an explicit native-shell action rather than browser chrome.
 - Cards become stacked lists; tables do not create page-level horizontal scrolling.
+- The wallet header uses an explicit mobile grid: logo, truncating address-plus-Copy group, balance visibility, and notifications. Wallet switching and application settings are not duplicated in that header.
+- The fixed bottom navigation is `Wallets / Network / Settings / Log out`; Network supplies the mobile entry point for all three read-only telemetry workspaces.
+- Asset cards preserve Name/Balance/Value/Price relationships by stacking the three numeric values in a dedicated right column; identity and values never share grid cells.
 - The longest supported translated labels must fit or wrap without clipping.
 - At 0–380 CSS px, every edge-to-edge scroll strip uses the same 12 px gutter as its containing content. Wallet tabs, context routes, and filters may scroll internally, but `documentElement.scrollWidth` must equal `clientWidth`; no strip may create page-level horizontal scroll.
 - A selected wallet tab or context route is fully visible within its own horizontal strip. Its target is never compressed below 44 px merely to show more neighbours.

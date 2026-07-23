@@ -3502,6 +3502,10 @@ textarea[aria-invalid="true"] {
   font-size: var(--type-data-meta);
 }
 
+.network-picker-list .wallet-choice small {
+  font-family: var(--font-sans);
+}
+
 .wallet-remove-list {
   display: grid;
   min-width: 0;
@@ -4502,15 +4506,18 @@ button.connection-option:hover,
   }
 
   .topbar {
+    display: grid;
     min-height: var(--topbar-height);
-    padding: 0 16px;
+    gap: 8px;
+    padding: 0 clamp(12px, 4vw, 16px);
+    grid-template-columns: 38px minmax(0, 1fr) 44px 44px;
   }
 
   .mobile-brand {
     display: block;
   }
 
-.mobile-brand .brand-mark {
+  .mobile-brand .brand-mark {
     width: 38px;
     height: 38px;
   }
@@ -4521,8 +4528,12 @@ button.connection-option:hover,
   }
 
   .topbar-address-group {
+    display: grid;
+    width: 100%;
+    min-width: 0;
     gap: 6px;
-    margin-right: auto;
+    margin-right: 0;
+    grid-template-columns: minmax(0, 1fr) 44px;
   }
 
   .page-heading h1 {
@@ -4533,10 +4544,19 @@ button.connection-option:hover,
   }
 
   .page-heading h1.is-wallet-address {
+    max-width: none;
     font-size: var(--type-section);
     font-weight: 400;
     line-height: 1.04;
     letter-spacing: -0.025em;
+  }
+
+  .page-heading h1.is-wallet-address + p {
+    display: block;
+    overflow: hidden;
+    margin-top: 3px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .page-heading h1.is-telemetry-title,
@@ -4546,17 +4566,22 @@ button.connection-option:hover,
   }
 
   .wallet-switcher,
-  .topbar-notification,
-  .topbar [data-demo-action="toggle-balance"] {
+  .wallet-identity,
+  .account-button {
     display: none;
   }
 
-  .wallet-identity {
+  .topbar-notification,
+  .topbar [data-demo-action="toggle-balance"] {
     display: inline-grid;
   }
 
-  .account-button {
-    display: grid;
+  .topbar > [data-demo-action="toggle-balance"] {
+    grid-column: 3;
+  }
+
+  .topbar-notification {
+    grid-column: 4;
   }
 
   .main-content {
@@ -4807,15 +4832,15 @@ button.connection-option:hover,
 
   .asset-row {
     align-items: center;
-    gap: 12px;
+    gap: 0 10px;
     padding: 4px 14px;
     grid-column: auto;
-    grid-template-columns: minmax(0, 1fr) max-content max-content max-content;
-    grid-template-rows: 20px 20px;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 44%);
+    grid-template-rows: repeat(3, minmax(0, 1fr));
   }
 
   .asset-identity-button {
-    grid-column: 1 / 3;
+    grid-column: 1;
     grid-row: 1 / -1;
   }
 
@@ -4825,17 +4850,31 @@ button.connection-option:hover,
   }
 
   .asset-row > .asset-number:nth-of-type(2) {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 2;
   }
 
   .asset-row > .asset-number:nth-of-type(3) {
-    grid-column: 4;
-    grid-row: 1 / -1;
+    grid-column: 2;
+    grid-row: 3;
   }
 
   .asset-number {
-    text-align: left;
+    min-width: 0;
+    overflow: hidden;
+    text-align: right;
+  }
+
+  .asset-number strong {
+    overflow: hidden;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+  }
+
+  .asset-info strong {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .asset-detail-row {
