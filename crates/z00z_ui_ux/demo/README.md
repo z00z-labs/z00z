@@ -39,6 +39,14 @@ Android launchers cache existing shortcuts independently of the browser cache:
 after an icon update, remove the old home-screen shortcut, deploy the new
 bundle, reload the page, and add the shortcut again.
 
+Every Pages artifact versions its CSS, JavaScript, manifest, fonts, and images
+with the deployed commit SHA. The Pages-only release checker reads
+`deployment.json` on startup, when the page becomes visible or online, and once
+per minute. When `main` publishes a new SHA, the checker reloads the stable demo
+URL with that SHA, bypassing stale mobile-browser resources. A failed update
+check never blocks the locally loaded preview. This checker is deployment
+tooling; it is not part of the offline Tauri runtime.
+
 Optional full visual smoke test (it starts and stops its own local HTTP server):
 
 ```bash
@@ -102,6 +110,7 @@ Run the deterministic gates independently with:
 node scripts/check-locales.mjs
 node scripts/test-port-contracts.mjs
 node scripts/check-port-readiness.mjs
+node scripts/test-pages-release.mjs
 ```
 
 `run-smoke.sh` runs these gates before the full Playwright suite.

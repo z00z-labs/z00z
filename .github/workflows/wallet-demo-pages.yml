@@ -27,12 +27,13 @@ jobs:
           node scripts/check-locales.mjs
           node scripts/test-port-contracts.mjs
           node scripts/check-port-readiness.mjs
+          node scripts/test-pages-release.mjs
 
       - name: Prepare static demo
         run: |
           mkdir -p _site/wallet-demo
           cp -R crates/z00z_ui_ux/demo/. _site/wallet-demo/
-          printf '{"sha":"%s","ref":"%s","built_at":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/wallet-demo/deployment.json
+          node crates/z00z_ui_ux/demo/scripts/build-pages-release.mjs _site/wallet-demo "$GITHUB_SHA" "$GITHUB_REF_NAME"
           printf '%s\n' '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./wallet-demo/"><title>Z00Z Wallet Demo</title><a href="./wallet-demo/">Open Z00Z Wallet Demo</a>' > _site/index.html
           touch _site/.nojekyll
 

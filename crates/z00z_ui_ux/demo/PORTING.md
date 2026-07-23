@@ -16,6 +16,11 @@ operation journals, and settlement never enter renderer state. Windows/Linux use
 an authenticated local IPC adapter to the wallet backend. iOS implements the same
 typed `WalletGateway` contract through an in-process native adapter.
 
+The GitHub Pages release checker and SHA cache-busting transform are preview
+deployment tools only. They must not be ported into the packaged application.
+The Tauri bundle is versioned and updated by the native application release
+channel; the renderer must remain fully functional without internet access.
+
 ```text
 Leptos views/store (Rust/WASM)
           |

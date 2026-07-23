@@ -7,6 +7,10 @@ const demoSeedWords = [
   "comet", "paper", "garden", "silver", "cloud", "stone", "echo", "north"
 ];
 
+function resourcePath(value) {
+  return new URL(value, "https://demo.invalid/").pathname.slice(1);
+}
+
 async function resolved_color(page, property) {
   return page.evaluate((token) => {
     const probe = document.createElement("span");
@@ -88,7 +92,7 @@ test("object families and claim/voucher/permission flows remain distinct", async
   expect(assetContextType.slice(0, 3)).toEqual(assetContextType.slice(3));
   await page.getByRole("button", { name: /Vouchers/ }).click();
   await expect(page.locator(".claim-row")).toHaveCount(8);
-  await expect(page.locator(".claim-row .object-family-glyph").first()).toHaveAttribute("src", "assets/z00z-friendly/Vauchers/vaucher-orange.svg");
+  expect(resourcePath(await page.locator(".claim-row .object-family-glyph").first().getAttribute("src"))).toBe("assets/z00z-friendly/Vauchers/vaucher-orange.svg");
   const voucherIconSources = await page.locator(".claim-row .object-family-glyph").evaluateAll((icons) => icons.map((icon) => icon.getAttribute("src")));
   expect(new Set(voucherIconSources).size).toBe(8);
   await page.getByRole("button", { name: /Travel refund voucher/ }).click();
@@ -97,7 +101,7 @@ test("object families and claim/voucher/permission flows remain distinct", async
 
   await page.getByRole("button", { name: /Permissions/ }).click();
   await expect(page.locator(".permission-row")).toHaveCount(8);
-  await expect(page.locator(".permission-row .object-family-glyph").first()).toHaveAttribute("src", "assets/z00z-friendly/Permissions/permission-blue.svg");
+  expect(resourcePath(await page.locator(".permission-row .object-family-glyph").first().getAttribute("src"))).toBe("assets/z00z-friendly/Permissions/permission-blue.svg");
   const permissionIconSources = await page.locator(".permission-row .object-family-glyph").evaluateAll((icons) => icons.map((icon) => icon.getAttribute("src")));
   expect(new Set(permissionIconSources).size).toBe(8);
   await expect(page.locator(".permission-list")).not.toContainText("Z00Z");
@@ -177,10 +181,10 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   expect(walletTabSize).toBeGreaterThanOrEqual(14);
   await expect(page.getByRole("button", { name: "Add wallet" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove wallet" })).toBeVisible();
-  await expect(page.locator(".sidebar .brand-mark")).toHaveAttribute("src", "assets/logo/z00z-logo-gold-circle.png");
+  expect(resourcePath(await page.locator(".sidebar .brand-mark").getAttribute("src"))).toBe("assets/logo/z00z-logo-gold-circle.png");
   await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("border-radius", "0px");
   await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("object-fit", "contain");
-  expect(await page.locator(".brand-mark").evaluateAll((marks) => marks.every((mark) => mark.getAttribute("src") === "assets/logo/z00z-logo-gold-circle.png"))).toBe(true);
+  expect(await page.locator(".brand-mark").evaluateAll((marks) => marks.every((mark) => new URL(mark.getAttribute("src"), "https://demo.invalid/").pathname === "/assets/logo/z00z-logo-gold-circle.png"))).toBe(true);
   await expect(page.locator(".sidebar .brand-mark")).toHaveJSProperty("complete", true);
   await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("width", "52px");
   const wordmarkSize = await page.locator(".sidebar .brand > span").evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
@@ -965,7 +969,7 @@ test("add wallet dialog creates and restores wallet cards", async ({ page }) => 
     return { balance: values[0], value: values[1], icon: image?.getAttribute("src"), loaded: Boolean(image?.naturalWidth) };
   }));
   expect(freshWalletAssets.every(({ balance, value, loaded }) => balance.startsWith("0.00 ") && value === "0.00" && loaded)).toBe(true);
-  expect(freshWalletAssets.map(({ icon }) => icon)).toEqual([
+  expect(freshWalletAssets.map(({ icon }) => resourcePath(icon))).toEqual([
     "assets/z00z-friendly/Coins/z00z-logo-gold.svg",
     "assets/z00z-friendly/Coins/algorand-algo-logo-z00z.svg",
     "assets/z00z-friendly/Coins/avalanche-avax-logo-z00z.svg",
@@ -1125,10 +1129,7 @@ test("assets show table values and expose per-asset details", async ({ page }) =
   }
   await page.getByRole("button", { name: "View details for wZcash" }).click();
   const assetDetailLogo = page.locator(".dialog-header .asset-detail-logo");
-  await expect(assetDetailLogo.locator("img")).toHaveAttribute(
-    "src",
-    "assets/z00z-friendly/Coins/zcash-zec-logo-z00z.svg"
-  );
+  expect(resourcePath(await assetDetailLogo.locator("img").getAttribute("src"))).toBe("assets/z00z-friendly/Coins/zcash-zec-logo-z00z.svg");
   const detailLogoBox = await assetDetailLogo.boundingBox();
   const detailLogoImageBox = await assetDetailLogo.locator("img").boundingBox();
   expect([detailLogoBox.width, detailLogoBox.height]).toEqual([64, 64]);
@@ -1459,7 +1460,7 @@ test("colors.css is the single source for palette, semantic, and YAML preview co
     ]);
     return [entry, [foundation, components].join("\n"), lut];
   });
-  expect(styleEntry).toContain('@import url("styles/colors.css")');
+  expect(styleEntry).toMatch(/@import url\("styles\/colors\.css(?:\?v=[a-f0-9]{40})?"\)/i);
   expect(componentStyles).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
   expect(lutSource).toContain("--lut-z00z-dark-brand");
   expect(lutSource).toContain("--lut-code-night-owl-keyword");
