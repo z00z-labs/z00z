@@ -947,7 +947,7 @@ impl RecursiveVerifierInputBindingV2 {
 /// This is not a proof digest.  It is constructed after `X_h`, commits the
 /// exact transition endpoint and cumulative Nova step count, and is the only
 /// value that a successor may name as its prior recursive output.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct RecursiveFinalizedIvcStateV2 {
     height: u64,
     checkpoint_id: CheckpointId,
@@ -1282,7 +1282,7 @@ mod cutover_state_tests {
 /// the independently evaluated trace, a validated verifier bundle, and the
 /// prior finalized IVC endpoint.  Proof bytes, `z_h`, receipts, and worker
 /// measurements have no field or constructor path into this object.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub(super) struct RecursiveNovaStepInputV2 {
     checkpoint_context: RecursiveCheckpointContextV2,
     chain_context: [u8; 32],
@@ -1617,6 +1617,23 @@ impl RecursiveNovaStepInputV2 {
                 self.checkpoint_statement_core_digest,
             ],
         }
+    }
+
+    pub(crate) fn validate_recovery_identity(&self) -> Result<(), CheckpointError> {
+        if self.height == 0
+            || self.predecessor_height.checked_add(1) != Some(self.height)
+            || self.digest
+                != sha256_256_role(CheckpointShaRole::Statement, &[&self.canonical_prefix()])
+            || self.prior.digest
+                != sha256_256_role(
+                    CheckpointShaRole::Statement,
+                    &[&self.prior.canonical_prefix()],
+                )
+            || self.prior.height != self.predecessor_height
+        {
+            return Err(CheckpointError::Canonical);
+        }
+        Ok(())
     }
 
     #[must_use]

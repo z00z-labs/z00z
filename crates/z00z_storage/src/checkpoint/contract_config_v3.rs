@@ -32,6 +32,7 @@ use super::{
         PostQuantumCheckpointAnchorModeV1, PostQuantumCheckpointAnchorV1,
         PostQuantumCheckpointAnchorVersion, PostQuantumCheckpointEnforcementStageV1,
     },
+    recursive_measurement::NovaCadenceManifestV2,
     version_registry::{
         CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, RegistryOperationV2,
         CHECKPOINT_VERSION_REGISTRY_DIGEST_V2, RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
@@ -66,8 +67,8 @@ const EMBEDDED_RELEASE_IDENTITY_V3: &str = "phase-069-051";
 // review tool. Production recomputes that tuple and compares it to this literal;
 // it never accepts a candidate's recomputation as its own authorization.
 const EMBEDDED_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-    0x5a, 0x5c, 0xd5, 0x65, 0xc4, 0xa9, 0x90, 0xb2, 0x09, 0x00, 0x51, 0x21, 0x4f, 0x65, 0x1f, 0x27,
-    0x47, 0x62, 0x13, 0xe5, 0x5c, 0xa4, 0xec, 0xba, 0x1d, 0xcf, 0xcb, 0xc9, 0x9d, 0x0c, 0xe1, 0x71,
+    0x58, 0xce, 0x2d, 0xd9, 0x6e, 0xba, 0xbf, 0x3f, 0x87, 0x90, 0xbe, 0x19, 0x1b, 0xb8, 0xf9, 0xd9,
+    0x9a, 0xa7, 0x52, 0xea, 0xaf, 0x72, 0x6b, 0xc1, 0x27, 0x41, 0xea, 0xb3, 0xf4, 0x9e, 0xa4, 0xe7,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -575,6 +576,8 @@ impl CheckpointContractConfigV3 {
             return config_error("runtime profile identity or manifest digest mismatch");
         }
         let registry = CheckpointVersionRegistryV2::authority_pinned()?;
+        let nova_cadence = NovaCadenceManifestV2::authority_pinned();
+        nova_cadence.validate()?;
         if self.version_authority.registry_digest
             != hex_digest(CHECKPOINT_VERSION_REGISTRY_DIGEST_V2)
             || self.version_authority.registry_digest != hex_digest(registry.digest())
@@ -582,6 +585,16 @@ impl CheckpointContractConfigV3 {
             || self.version_authority.parameter_generation != RECURSIVE_PARAMETER_GENERATION_V2
             || self.version_authority.config_generation == 0
             || self.version_authority.rollback_floor > self.version_authority.config_generation
+            || self.branches.nova.fold_cadence_blocks != nova_cadence.fold_cadence_blocks()
+            || self.branches.nova.recovery_snapshot_cadence_blocks
+                != nova_cadence.recovery_snapshot_cadence_blocks()
+            || self.branches.nova.compression_cadence_blocks
+                != nova_cadence.compression_cadence_blocks()
+            || self.branches.nova.publication_cadence_blocks
+                != nova_cadence.publication_cadence_blocks()
+            || self.limits.max_nova_hot_recovery_bytes
+                != usize::try_from(nova_cadence.max_hot_recovery_bytes())
+                    .map_err(|_| CheckpointError::Limit)?
         {
             return config_error("version authority tuple mismatch");
         }
@@ -2315,9 +2328,9 @@ mod tests {
     use super::*;
 
     const TEST_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-        0x3c, 0x18, 0x60, 0x7e, 0xe0, 0x1d, 0x4d, 0x03, 0x5a, 0xce, 0x2c, 0x42, 0x2e, 0x32, 0x09,
-        0x5f, 0x9c, 0x9c, 0x67, 0x25, 0x3e, 0xc8, 0x9f, 0xa6, 0x85, 0x21, 0xbc, 0x0b, 0xc0, 0xc1,
-        0xc7, 0x8c,
+        0xfb, 0x30, 0x2f, 0xac, 0x6f, 0x12, 0xe8, 0xda, 0x2b, 0x88, 0x76, 0xe2, 0xc8, 0x02, 0x2a,
+        0x47, 0xc5, 0x54, 0xd7, 0x14, 0x37, 0x71, 0xc1, 0x7f, 0x11, 0xf2, 0x84, 0x30, 0x4a, 0xe7,
+        0xe8, 0xd6,
     ];
 
     fn migration_source_v2() -> (CheckpointContractConfigV2, Vec<u8>) {
@@ -2357,6 +2370,16 @@ mod tests {
         );
         assert_eq!(cfg.offline_receipt_mailbox.max_admission_bytes_per_block, 0);
         assert_ne!(cfg.canonical_digest().unwrap(), [0u8; 32]);
+    }
+
+    #[test]
+    fn test_v3_rejects_unmeasured_hot_recovery_cap() {
+        let mut cfg = CheckpointContractConfigV3::load_repo_default().unwrap();
+        cfg.limits.max_nova_hot_recovery_bytes = 0;
+        assert!(matches!(
+            cfg.validate(),
+            Err(CheckpointError::ContractConfig(_))
+        ));
     }
 
     #[test]

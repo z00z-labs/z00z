@@ -181,10 +181,10 @@ What story it tells:
 
 #### 🔑 `z00z_wallets`
 
-- **Responsibility:** Implements the wallet-side ownership model, service orchestration, RPC adaptation, persistence backends, WASM portability, and optional desktop UI.
+- **Responsibility:** Implements the wallet-side ownership model, service orchestration, RPC adaptation, persistence backends, and WASM portability.
 - **Visibility:** Public application-facing crate with native and WASM targets.
 - **Used by (upstream):** End-user applications, simulator scenarios, potentially rollup or service surfaces that need wallet behavior.
-- **Depends on (downstream):** `z00z_core`, `z00z_crypto`, `z00z_storage`, `z00z_utils`, `z00z_networks_rpc`, and many internal modules under `core/`, `adapters/`, `services/`, `db/`, `wasm/`, and optional `egui_views/`.
+- **Depends on (downstream):** `z00z_core`, `z00z_crypto`, `z00z_storage`, `z00z_utils`, `z00z_networks_rpc`, and many internal modules under `core/`, `adapters/`, `services/`, `db/`, and `wasm/`.
 - **Splitability:** High. This is one of the largest and richest crates in the workspace. Its current structure already acknowledges that by separating core, services, adapters, db, wasm, and ui.
 - **Provides:** Wallet facades, address and receiver surfaces, key derivation, sender stealth output helpers, wallet service boundaries, RPC-compatible shapes, and portable wallet storage routes.
 - **Notes:** This crate is where the project's “no accounts, asset-based HD wallet” philosophy becomes concrete. It is also where many future implementation waves will land because it mediates between user intent, proofs, storage, and transport.
@@ -196,7 +196,6 @@ Top-level module map inside `src/`:
 - `services/` - orchestration layer and service boundaries
 - `db/` - native RedB-backed wallet persistence
 - `wasm/` - browser-compatible surfaces
-- `egui_views/` - optional desktop GUI rendering lane
 - `wallet_config.yaml` - crate-local config artifact
 
 What story it tells:

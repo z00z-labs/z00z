@@ -34,10 +34,6 @@ name = "tx_perf_bench"
 harness = false
 
 [[bin]]
-name = "z00z_wallet_egui"
-path = "bin/z00z_wallet_egui.rs"
-
-[[bin]]
 name = "gen_password_bloom"
 path = "bin/gen_password_bloom.rs"
 
@@ -130,10 +126,7 @@ glob = "0.3"
 
 # Async trait support
 async-trait = "0.1"
-# Desktop GUI Dependencies (egui-facing layer)
-crossterm = { version = "0.27", optional = true }
 zeroize = { version = "1.7", features = ["derive"] }
-eframe = { version = "0.28", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -167,7 +160,6 @@ export_binary = ["bincode_support"]
 ownership_policy_keyring = []
 ownership_policy_challenge = []
 ownership_policy_dual_ok = []
-egui = ["dep:eframe", "crossterm"] # Enable desktop GUI rendering layer
 wasm = [] # Enable WASM-specific features (Web Worker, browser APIs)
 os_hardening = [] # Best-effort native OS hardening (core dumps + mlock)
 claim-auth-sign = []

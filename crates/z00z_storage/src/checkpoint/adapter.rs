@@ -19,12 +19,17 @@ use z00z_utils::time::Instant;
 use super::{
     canonical_transition::CanonicalCheckpointTransitionV2,
     nova::{
-        resolve_verifier_authority_v2, NovaChainTransitionV2, NovaContinuousSessionV2,
-        NovaRunGuardV2,
+        resolve_cached_verifier_v2, NovaChainTransitionV2, NovaContinuousSessionV2, NovaRunGuardV2,
+        NovaVerifierCacheV2,
     },
     receipt::{recursive_receipt_digest, CryptographicVerificationReceiptV2, PreparedReceiptV2},
     recursive_circuit::RecursiveCircuitProfileV2,
     recursive_context::RecursiveAuthoritySnapshotV2,
+    recursive_measurement::{
+        NovaCadenceActionV2, NovaCadenceRequestV2, NovaCompressionAuthorityV2,
+        NovaCompressionPolicyV2,
+    },
+    recursive_recovery::{NovaRecoveryStoreMetricsV2, NovaRecoveryStoreV2},
     recursive_statement::RecursiveFinalizedIvcStateV2,
     sidecar::{
         check_shadow_sidecar_binding, recursive_sidecar_digest, RecursiveCheckpointSidecarCodecV2,
@@ -556,12 +561,28 @@ pub struct RecursiveCheckpointEvidenceV2 {
     pub verifier_attempts: u64,
 }
 
+/// A real, verified local accumulator recovery image committed under the hot-set cap.
+#[derive(Debug)]
+pub struct RecursiveCheckpointRecoveryV2 {
+    pub snapshot_digest: [u8; 32],
+    pub snapshot_height: u64,
+    pub snapshot_bytes: u64,
+    pub successor: RecursiveFinalizedIvcStateV2,
+    pub metrics: NovaRecoveryStoreMetricsV2,
+}
+
 /// Explicit caller intent for the sole fold/evidence ingress. Folding never
 /// implies compression, persistence, publication, or receipt issuance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecursiveEvidenceRequestV2 {
     FoldOnly,
-    Snapshot,
+    Snapshot {
+        authority: NovaCompressionAuthorityV2,
+        cadence: NovaCadenceRequestV2,
+    },
+    RecoverySnapshot {
+        authority: NovaCompressionAuthorityV2,
+    },
 }
 
 /// One canonical production result: either the advanced accumulator endpoint
@@ -570,6 +591,7 @@ pub enum RecursiveEvidenceRequestV2 {
 pub enum RecursiveEvidenceOutcomeV2 {
     Folded(Box<RecursiveFinalizedIvcStateV2>),
     Snapshot(Box<RecursiveCheckpointEvidenceV2>),
+    Recovery(Box<RecursiveCheckpointRecoveryV2>),
 }
 
 /// Cooperative cancellation for one production evidence attempt. It cannot
@@ -661,7 +683,10 @@ pub struct RecursiveCheckpointEvidenceStoreV2 {
     claims: SecureDir,
     quarantine: SecureDir,
     process_lock: File,
+    recovery: NovaRecoveryStoreV2,
+    compression_policy: NovaCompressionPolicyV2,
     session: Mutex<Option<NovaContinuousSessionV2>>,
+    verifier: Mutex<Option<NovaVerifierCacheV2>>,
     verifier_attempts: AtomicU64,
 }
 
@@ -684,6 +709,8 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         let process_lock = root_dir
             .open_lock(".evidence-session.lock")
             .map_err(|_| CheckpointError::Storage)?;
+        let recovery = NovaRecoveryStoreV2::open(root.join("recovery"))?;
+        let compression_policy = NovaCompressionPolicyV2::authority_pinned()?;
         scavenge_temporary_files(&envelopes)?;
         scavenge_temporary_files(&sidecars)?;
         scavenge_temporary_files(&claims)?;
@@ -693,7 +720,10 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             claims,
             quarantine,
             process_lock,
+            recovery,
+            compression_policy,
             session: Mutex::new(None),
+            verifier: Mutex::new(None),
             verifier_attempts: AtomicU64::new(0),
         })
     }
@@ -727,13 +757,21 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             .retain(authority.snapshot.begin_evidence_attempt())
             .map_err(LiveGateFailureV2::into_error)?;
         let _config_attempt = config_attempt;
+        let verifier_result = self
+            .verifier
+            .lock()
+            .map_err(|_| CheckpointError::Storage)
+            .and_then(|mut cache| {
+                resolve_cached_verifier_v2(
+                    &mut cache,
+                    prover_material_bytes,
+                    verifier_bundle_bytes,
+                    authority.snapshot,
+                    &authority.profile,
+                )
+            });
         let (stage, verifier) = stage
-            .family_selected(resolve_verifier_authority_v2(
-                prover_material_bytes,
-                verifier_bundle_bytes,
-                authority.snapshot,
-                &authority.profile,
-            ))
+            .family_selected(verifier_result)
             .map_err(LiveGateFailureV2::into_error)?;
         let deadline = Instant::now()
             .checked_add(LIVE_RUN_MAX_DURATION_V2)
@@ -773,6 +811,38 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 settlement_store,
             ))
             .map_err(LiveGateFailureV2::into_error)?;
+        let target_height = transitions
+            .last()
+            .map(CanonicalCheckpointTransitionV2::checkpoint_height)
+            .ok_or(CheckpointError::Invariant)?;
+        let cadence_action = match request {
+            RecursiveEvidenceRequestV2::FoldOnly => NovaCadenceActionV2 {
+                fold: true,
+                recovery_snapshot: false,
+                compress: false,
+                publish: false,
+            },
+            RecursiveEvidenceRequestV2::Snapshot { authority, cadence } => {
+                let action = self
+                    .compression_policy
+                    .action(target_height, authority, cadence)?;
+                if !action.compress {
+                    return Err(CheckpointError::Authority);
+                }
+                action
+            }
+            RecursiveEvidenceRequestV2::RecoverySnapshot { authority } => {
+                let action = self.compression_policy.action(
+                    target_height,
+                    authority,
+                    NovaCadenceRequestV2::RecoverySnapshot,
+                )?;
+                if !action.recovery_snapshot {
+                    return Err(CheckpointError::Authority);
+                }
+                action
+            }
+        };
         let nova_blocks = transitions
             .iter_mut()
             .map(|transition| NovaChainTransitionV2 {
@@ -785,39 +855,124 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         // cannot observe an empty slot and fork a second accumulator lineage.
         let mut session_slot = self.session.lock().map_err(|_| CheckpointError::Storage)?;
         let mut iterator = nova_blocks.into_iter();
-        let session = contain_backend(|| {
-            if let Some(mut existing) = session_slot.take() {
+        let mut new_session = None;
+        if let Some(existing) = session_slot.as_mut() {
+            contain_backend(|| {
                 existing.renew_guard(guard)?;
                 if existing.bundle_digest()? != verifier.verifier_bundle_digest() {
                     return Err(CheckpointError::Authority);
                 }
                 let mut pending = iterator.collect::<Vec<_>>();
                 let _ = existing.fold_blocks(&mut pending)?;
-                Ok(existing)
-            } else {
-                let first = iterator.next().ok_or(CheckpointError::Invariant)?;
-                let mut created = NovaContinuousSessionV2::start(
-                    first,
-                    prover_material_bytes,
-                    verifier_bundle_bytes,
-                    authority.cutover,
-                    guard,
-                )?;
-                let mut remaining = iterator.collect::<Vec<_>>();
-                if !remaining.is_empty() {
-                    let _ = created.fold_blocks(&mut remaining)?;
+                Ok(())
+            })?;
+        } else {
+            new_session = Some(contain_backend(|| {
+                if let Some((snapshot, image)) = self.recovery.latest()? {
+                    let first = iterator.next().ok_or(CheckpointError::Invariant)?;
+                    let resumed = NovaContinuousSessionV2::resume_and_fold_block(
+                        snapshot,
+                        image,
+                        NovaChainTransitionV2 {
+                            transition: &mut *first.transition,
+                            store: first.store,
+                        },
+                        prover_material_bytes,
+                        verifier_bundle_bytes,
+                        guard,
+                    )?;
+                    let mut resumed = resumed;
+                    let mut remaining = iterator.collect::<Vec<_>>();
+                    if !remaining.is_empty() {
+                        let _ = resumed.fold_blocks(&mut remaining)?;
+                    }
+                    Ok(resumed)
+                } else {
+                    let first = iterator.next().ok_or(CheckpointError::Invariant)?;
+                    let mut created = NovaContinuousSessionV2::start(
+                        first,
+                        prover_material_bytes,
+                        verifier_bundle_bytes,
+                        authority.cutover,
+                        guard,
+                    )?;
+                    let mut remaining = iterator.collect::<Vec<_>>();
+                    if !remaining.is_empty() {
+                        let _ = created.fold_blocks(&mut remaining)?;
+                    }
+                    Ok(created)
                 }
-                Ok(created)
-            }
-        })?;
+            })?);
+        }
+        let session = new_session
+            .as_ref()
+            .or_else(|| session_slot.as_ref())
+            .ok_or(CheckpointError::Invariant)?;
         if session.bundle_digest()? != verifier.verifier_bundle_digest() {
             return Err(CheckpointError::Authority);
         }
         let successor = session.successor()?;
-        if request == RecursiveEvidenceRequestV2::FoldOnly {
-            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+        if successor.height() != target_height {
+            return Err(CheckpointError::Invariant);
+        }
+        // The fold is already authoritative local progress. Restore the valid
+        // lineage before recovery, compression, persistence, or publication
+        // can fail so a non-authoritative artifact error cannot drop it.
+        if let Some(session) = new_session {
             *session_slot = Some(session);
+        }
+        let recovery_snapshot = if cadence_action.recovery_snapshot {
+            let snapshot = contain_backend(|| {
+                session_slot
+                    .as_ref()
+                    .ok_or(CheckpointError::Invariant)?
+                    .recovery_snapshot()
+            })?;
+            Some(snapshot)
+        } else {
+            None
+        };
+        if matches!(request, RecursiveEvidenceRequestV2::RecoverySnapshot { .. }) {
+            revalidate_or_drop_session(
+                &mut session_slot,
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
+            )?;
+            let snapshot = recovery_snapshot.ok_or(CheckpointError::Invariant)?;
+            let metrics = self.recovery.commit(&snapshot)?;
+            let recovery = RecursiveCheckpointRecoveryV2 {
+                snapshot_digest: snapshot.digest(),
+                snapshot_height: snapshot.height(),
+                snapshot_bytes: snapshot.encoded_len() as u64,
+                successor,
+                metrics,
+            };
+            return Ok(RecursiveEvidenceOutcomeV2::Recovery(Box::new(recovery)));
+        }
+        if request == RecursiveEvidenceRequestV2::FoldOnly {
+            revalidate_or_drop_session(
+                &mut session_slot,
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
+            )?;
+            if let Some(snapshot) = recovery_snapshot {
+                let _ = self.recovery.commit(&snapshot)?;
+            }
             return Ok(RecursiveEvidenceOutcomeV2::Folded(Box::new(successor)));
+        }
+        if let Some(snapshot) = recovery_snapshot {
+            revalidate_or_drop_session(
+                &mut session_slot,
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
+            )?;
+            let _ = self.recovery.commit(&snapshot)?;
         }
         let (stage, verifier_attempts) = stage
             .retain(self.reserve_verifier_attempts(VERIFIER_ATTEMPTS_PER_RECEIPT_V2))
@@ -825,7 +980,9 @@ impl RecursiveCheckpointEvidenceStoreV2 {
 
         let (stage, outer) = stage
             .outer_bounded(contain_backend(|| {
-                session
+                session_slot
+                    .as_ref()
+                    .ok_or(CheckpointError::Invariant)?
                     .snapshot()
                     .and_then(|candidate| candidate.check_outer())
             }))
@@ -848,13 +1005,15 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         let (stage, bindings) = stage
             .retain(verified.bindings())
             .map_err(LiveGateFailureV2::into_error)?;
+        let binding_revalidation = revalidate_or_drop_session(
+            &mut session_slot,
+            &authority,
+            &transitions,
+            blocks,
+            settlement_store,
+        );
         let (stage, ()) = stage
-            .bindings_matched(revalidate_attempt(
-                &authority,
-                &transitions,
-                blocks,
-                settlement_store,
-            ))
+            .bindings_matched(binding_revalidation)
             .map_err(LiveGateFailureV2::into_error)?;
         let storage_generation_result = transitions
             .last()
@@ -868,13 +1027,15 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         let stage = stage
             .bind_context(trace_context)
             .map_err(LiveGateFailureV2::into_error)?;
+        let endpoint_revalidation = revalidate_or_drop_session(
+            &mut session_slot,
+            &authority,
+            &transitions,
+            blocks,
+            settlement_store,
+        );
         let (stage, ()) = stage
-            .endpoint_reloaded(revalidate_attempt(
-                &authority,
-                &transitions,
-                blocks,
-                settlement_store,
-            ))
+            .endpoint_reloaded(endpoint_revalidation)
             .map_err(LiveGateFailureV2::into_error)?;
         let (stage, ()) = stage
             .prewrite_complete(contain_backend(|| {
@@ -888,11 +1049,23 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             let envelope_created =
                 self.persist_attempt("envelopes", &envelope_name, verified.framed_envelope())?;
             written.push(("envelopes", envelope_name.clone(), envelope_created));
-            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+            revalidate_or_drop_session(
+                &mut session_slot,
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
+            )?;
             let reloaded_envelope =
                 read_exact_bounded(&self.envelopes, &envelope_name, ENVELOPE_READ_CAP_V2)?;
             contain_backend(|| verified.verify_exact_bytes(&reloaded_envelope))?;
-            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+            revalidate_or_drop_session(
+                &mut session_slot,
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
+            )?;
 
             let sidecar = RecursiveCheckpointSidecarV2::new(
                 storage_generation,
@@ -933,7 +1106,13 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             if reloaded_sidecar != sidecar {
                 return Err(CheckpointError::Canonical);
             }
-            revalidate_attempt(&authority, &transitions, blocks, settlement_store)?;
+            revalidate_or_drop_session(
+                &mut session_slot,
+                &authority,
+                &transitions,
+                blocks,
+                settlement_store,
+            )?;
             let (stage, ()) = stage
                 .post_backend_verified(contain_backend(|| {
                     verified.verify_exact_bytes(&reloaded_envelope)
@@ -947,7 +1126,13 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                     verified.framed_envelope().len(),
                     bindings,
                 )?;
-                revalidate_attempt(&authority, &transitions, blocks, settlement_store)
+                revalidate_or_drop_session(
+                    &mut session_slot,
+                    &authority,
+                    &transitions,
+                    blocks,
+                    settlement_store,
+                )
             })();
             let (stage, ()) = stage
                 .post_endpoint_matched(post_endpoint)
@@ -975,7 +1160,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             let ready = postwrite.prepare_receipt()?;
             let receipt = ready.issue()?;
             let receipt_digest = recursive_receipt_digest(receipt.canonical_bytes());
-            Ok((sidecar, sidecar_digest, receipt, receipt_digest))
+            Ok((reloaded_sidecar, sidecar_digest, receipt, receipt_digest))
         })();
 
         let (sidecar, sidecar_digest, receipt, receipt_digest) = match persisted {
@@ -985,8 +1170,6 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 return Err(error);
             }
         };
-        *session_slot = Some(session);
-
         Ok(RecursiveEvidenceOutcomeV2::Snapshot(Box::new(
             RecursiveCheckpointEvidenceV2 {
                 sidecar,
@@ -1148,6 +1331,20 @@ fn revalidate_attempt(
     revalidate_chain(transitions, blocks, settlement_store)
 }
 
+fn revalidate_or_drop_session(
+    session: &mut Option<NovaContinuousSessionV2>,
+    attempt: &LiveAuthorityAttemptV2,
+    transitions: &[CanonicalCheckpointTransitionV2],
+    blocks: &[RecursiveCheckpointChainBlockV2<'_>],
+    settlement_store: &SettlementStore,
+) -> Result<(), CheckpointError> {
+    let result = revalidate_attempt(attempt, transitions, blocks, settlement_store);
+    if result.is_err() {
+        *session = None;
+    }
+    result
+}
+
 fn revalidate_chain(
     transitions: &[CanonicalCheckpointTransitionV2],
     blocks: &[RecursiveCheckpointChainBlockV2<'_>],
@@ -1298,7 +1495,8 @@ mod tests {
         settlement::SettlementStateRoot,
         snapshot::{build_snapshot_v2, PrepFsStore, PrepSnapshotStore},
     };
-    use z00z_utils::io::{create_dir_all, path_exists_no_follow};
+    use z00z_utils::io::{create_dir_all, path_exists_no_follow, read_to_string};
+    use z00z_utils::logger::{Logger, StdoutLogger};
 
     fn seal_noop_checkpoint(
         root: &Path,
@@ -1359,6 +1557,22 @@ mod tests {
         );
         z00z_utils::io::read_file_bounded(root.join(name), cap)
             .expect("read bounded retained T3 artifact")
+    }
+
+    fn process_peak_rss_bytes() -> u64 {
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(status) = read_to_string("/proc/self/status") {
+                if let Some(kibibytes) = status.lines().find_map(|line| {
+                    line.strip_prefix("VmHWM:")
+                        .and_then(|value| value.split_whitespace().next())
+                        .and_then(|value| value.parse::<u64>().ok())
+                }) {
+                    return kibibytes.saturating_mul(1024).max(1);
+                }
+            }
+        }
+        1
     }
 
     #[test]
@@ -1659,9 +1873,50 @@ mod tests {
         let evidence_store = RecursiveCheckpointEvidenceStoreV2::open(&evidence_root)
             .expect("open public T3 evidence store");
         let cancellation = RecursiveEvidenceCancellationV2::new();
-        let mut snapshots = Vec::new();
+        let mut chain_steps = Vec::new();
 
-        for height in 1_u64..=5 {
+        // Compression is non-authoritative. A too-short snapshot request must
+        // report its typed error while retaining the successfully folded
+        // height-one accumulator for the next canonical block.
+        let (checkpoint_store, prep_store, checkpoint_id) =
+            seal_noop_checkpoint(&checkpoint_root, 1, settlement_root, prior);
+        let transition_dir = chain.path().join("transition-1");
+        create_dir_all(&transition_dir).expect("create first transition directory");
+        let mut blocks = [RecursiveCheckpointChainBlockV2::new(
+            transition_dir,
+            profile,
+            &checkpoint_store,
+            &prep_store,
+            checkpoint_id,
+            SettlementExecHandoff::recursive_v2_noop(),
+        )];
+        assert!(matches!(
+            evidence_store.produce(
+                &mut blocks,
+                &mut settlement_store,
+                &material,
+                &bundle,
+                &cancellation,
+                RecursiveEvidenceRequestV2::Snapshot {
+                    authority: NovaCompressionAuthorityV2::LocalOperator,
+                    cadence: NovaCadenceRequestV2::Compress,
+                },
+            ),
+            Err(CheckpointError::RecursiveRejected(
+                super::super::recursive_reject::RecursiveCheckpointRejectReasonV2::ChainTooShort
+            ))
+        ));
+        prior = evidence_store
+            .session
+            .lock()
+            .expect("retained session lock")
+            .as_ref()
+            .expect("retained post-fold session")
+            .successor()
+            .expect("retained post-fold successor");
+        assert_eq!(prior.height(), 1);
+
+        for height in 2_u64..=7 {
             let (checkpoint_store, prep_store, checkpoint_id) =
                 seal_noop_checkpoint(&checkpoint_root, height, settlement_root, prior);
             let transition_dir = chain.path().join(format!("transition-{height}"));
@@ -1674,11 +1929,15 @@ mod tests {
                 checkpoint_id,
                 SettlementExecHandoff::recursive_v2_noop(),
             )];
-            let request = if matches!(height, 3 | 5) {
-                RecursiveEvidenceRequestV2::Snapshot
+            let request = if height >= 3 {
+                RecursiveEvidenceRequestV2::Snapshot {
+                    authority: NovaCompressionAuthorityV2::LocalOperator,
+                    cadence: NovaCadenceRequestV2::Compress,
+                }
             } else {
                 RecursiveEvidenceRequestV2::FoldOnly
             };
+            let started = Instant::now();
             let outcome = evidence_store
                 .produce(
                     &mut blocks,
@@ -1695,10 +1954,16 @@ mod tests {
                     prior = *successor;
                 }
                 RecursiveEvidenceOutcomeV2::Snapshot(evidence) => {
-                    assert_eq!(request, RecursiveEvidenceRequestV2::Snapshot);
+                    assert!(matches!(
+                        request,
+                        RecursiveEvidenceRequestV2::Snapshot { .. }
+                    ));
                     assert_eq!(evidence.receipt.height(), height);
                     assert_eq!(evidence.successor.height(), height);
-                    assert_eq!(evidence.verifier_attempts, snapshots.len() as u64 * 4 + 4);
+                    assert_eq!(
+                        evidence.verifier_attempts,
+                        u64::try_from(chain_steps.len()).unwrap() * 4 + 8
+                    );
                     assert!(evidence_root
                         .join("envelopes")
                         .join(object_name(evidence.envelope_digest))
@@ -1708,14 +1973,157 @@ mod tests {
                         .join(object_name(evidence.sidecar_digest))
                         .is_file());
                     assert!(!evidence_root.join("receipts").exists());
+                    let statement =
+                        super::super::recursive_chain::NovaChainStatementV2::from_sidecar(
+                            &evidence.sidecar,
+                        );
+                    let verification_micros = u64::try_from(started.elapsed().as_micros())
+                        .unwrap_or(u64::MAX)
+                        .max(1);
+                    let measurement =
+                        super::super::recursive_chain::NovaChainMeasurementV2::for_verified_receipt(
+                            u8::try_from(chain_steps.len()).unwrap(),
+                            &evidence.receipt,
+                            verification_micros,
+                            process_peak_rss_bytes(),
+                        );
+                    chain_steps.push(super::super::recursive_chain::NovaChainEvidenceStepV2::new(
+                        &evidence.receipt,
+                        statement,
+                        Some(measurement),
+                    ));
+                    StdoutLogger.info(&format!(
+                        "nova_chain_step height={height} verify_us={verification_micros} peak_rss_bytes={}",
+                        process_peak_rss_bytes()
+                    ));
                     prior = evidence.successor;
-                    snapshots.push((height, evidence.envelope_digest, evidence.receipt_digest));
+                }
+                RecursiveEvidenceOutcomeV2::Recovery(_) => {
+                    panic!("compression-only fixture returned a recovery outcome")
                 }
             }
         }
-        assert_eq!(snapshots.len(), 2);
-        assert_eq!(snapshots[0].0, 3);
-        assert_eq!(snapshots[1].0, 5);
+        assert_eq!(chain_steps.len(), 5);
+        let three_root = super::super::recursive_chain::VerifiedNovaChainV2::derive_chain_root(
+            &chain_steps[..3],
+        );
+        let three = super::super::recursive_chain::VerifiedNovaChainV2::verify(
+            &chain_steps[..3],
+            three_root,
+        )
+        .expect("real three-receipt Nova chain");
+        let five_root =
+            super::super::recursive_chain::VerifiedNovaChainV2::derive_chain_root(&chain_steps);
+        let five =
+            super::super::recursive_chain::VerifiedNovaChainV2::verify(&chain_steps, five_root)
+                .expect("real five-receipt Nova chain");
+        assert_ne!(three.chain_root(), five.chain_root());
+        assert_ne!(
+            five.retention_input_facts(0, [0x91; 32])
+                .expect("immutable retention input facts")
+                .digest(),
+            [0; 32]
+        );
+
+        let (checkpoint_store, prep_store, checkpoint_id) =
+            seal_noop_checkpoint(&checkpoint_root, 8, settlement_root, prior);
+        let transition_dir = chain.path().join("transition-8");
+        create_dir_all(&transition_dir).expect("create recovery transition directory");
+        let mut blocks = [RecursiveCheckpointChainBlockV2::new(
+            transition_dir,
+            profile,
+            &checkpoint_store,
+            &prep_store,
+            checkpoint_id,
+            SettlementExecHandoff::recursive_v2_noop(),
+        )];
+        let recovery_started = Instant::now();
+        let recovery = match evidence_store
+            .produce(
+                &mut blocks,
+                &mut settlement_store,
+                &material,
+                &bundle,
+                &cancellation,
+                RecursiveEvidenceRequestV2::RecoverySnapshot {
+                    authority: NovaCompressionAuthorityV2::RecoveryWorkflow,
+                },
+            )
+            .expect("commit real recovery snapshot")
+        {
+            RecursiveEvidenceOutcomeV2::Recovery(recovery) => recovery,
+            _ => panic!("explicit recovery request returned another outcome"),
+        };
+        assert_eq!(recovery.snapshot_height, 8);
+        assert_eq!(recovery.metrics.live_snapshot_count, 1);
+        assert!(
+            recovery.metrics.total_hot_bytes
+                <= super::super::recursive_measurement::NovaCadenceManifestV2::authority_pinned()
+                    .max_hot_recovery_bytes()
+        );
+        StdoutLogger.info(&format!(
+            "nova_recovery height=8 snapshot_bytes={} elapsed_ms={} peak_rss_bytes={} hot_bytes={}",
+            recovery.snapshot_bytes,
+            recovery_started.elapsed().as_millis(),
+            process_peak_rss_bytes(),
+            recovery.metrics.total_hot_bytes
+        ));
+        prior = recovery.successor;
+        drop(evidence_store);
+
+        let resumed_store = RecursiveCheckpointEvidenceStoreV2::open(&evidence_root)
+            .expect("reopen evidence store from committed recovery");
+        let fork_root = chain.path().join("fork-checkpoints");
+        create_dir_all(&fork_root).expect("create fork checkpoint root");
+        let (fork_checkpoint_store, fork_prep_store, fork_checkpoint_id) =
+            seal_noop_checkpoint(&fork_root, 9, settlement_root, prior);
+        let fork_transition_dir = chain.path().join("fork-transition-9");
+        create_dir_all(&fork_transition_dir).expect("create fork transition directory");
+        let mut fork_blocks = [RecursiveCheckpointChainBlockV2::new(
+            fork_transition_dir,
+            profile,
+            &fork_checkpoint_store,
+            &fork_prep_store,
+            fork_checkpoint_id,
+            SettlementExecHandoff::recursive_v2_noop(),
+        )];
+        assert!(resumed_store
+            .produce(
+                &mut fork_blocks,
+                &mut settlement_store,
+                &material,
+                &bundle,
+                &cancellation,
+                RecursiveEvidenceRequestV2::FoldOnly,
+            )
+            .is_err());
+
+        let (checkpoint_store, prep_store, checkpoint_id) =
+            seal_noop_checkpoint(&checkpoint_root, 9, settlement_root, prior);
+        let transition_dir = chain.path().join("transition-9");
+        create_dir_all(&transition_dir).expect("create resumed transition directory");
+        let mut blocks = [RecursiveCheckpointChainBlockV2::new(
+            transition_dir,
+            profile,
+            &checkpoint_store,
+            &prep_store,
+            checkpoint_id,
+            SettlementExecHandoff::recursive_v2_noop(),
+        )];
+        let resumed = resumed_store
+            .produce(
+                &mut blocks,
+                &mut settlement_store,
+                &material,
+                &bundle,
+                &cancellation,
+                RecursiveEvidenceRequestV2::FoldOnly,
+            )
+            .expect("resume exact accumulator and fold canonical successor");
+        match resumed {
+            RecursiveEvidenceOutcomeV2::Folded(successor) => assert_eq!(successor.height(), 9),
+            _ => panic!("resumed fold returned another outcome"),
+        }
     }
 
     #[cfg(unix)]

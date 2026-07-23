@@ -104,11 +104,11 @@ fn test_crypto_ingress_v2_only() {
         "the public ingress must construct the bundle-bound transition itself"
     );
     assert!(
-        adapter.find("resolve_verifier_authority_v2(").unwrap()
+        adapter.find("resolve_cached_verifier_v2(").unwrap()
             < adapter
                 .find("CanonicalCheckpointTransitionV2::from_exec_with_verifier(")
                 .unwrap(),
-        "strict material/bundle authority resolution must precede trace construction"
+        "cached strict material/bundle authority resolution must precede trace construction"
     );
     let resolver = nova
         .find("pub(crate) fn resolve_verifier_authority_v2(")

@@ -5,6 +5,7 @@
 //! JMT, hierarchy, commitment, prior-IVC, and final-successor relation through
 //! one fixed-shape transition table.
 
+use core::fmt;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -37,7 +38,7 @@ use z00z_crypto::{
     POSEIDON2_GOLDILOCKS_WIDTH_V1, SHA256_IV_V2,
 };
 use z00z_utils::{codec::BincodeCodec, time::Instant};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::{
     checkpoint::{
@@ -52,6 +53,7 @@ use crate::{
             effective_nova_proof_body_cap, effective_object_cap, validate_object_ingress,
         },
         recursive_predicate::EvaluatedCheckpointTransitionV2,
+        recursive_recovery::{NovaAccumulatorSnapshotV2, NovaRecoveryBindingsV2},
         recursive_reject::RecursiveCheckpointRejectReasonV2,
         recursive_semantics::{
             decode_flow_item, UniquenessSemanticRowV2, UniquenessSetKindV2, NET_MERGE_BYTES_V2,
@@ -77,20 +79,19 @@ use crate::{
             TRACE_EVENT_HEADER_BYTES_V2,
         },
         version_registry::{
-            CheckpointVersionRegistryV2, RecursiveBoundedObjectV2,
-            NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2, NOVA_PROOF_ENVELOPE_DOMAIN_V2,
-            RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
+            CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, NOVA_ENVELOPE_DIGEST_LABEL_V2,
+            NOVA_PROOF_ENVELOPE_DOMAIN_V2, RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
+            RECURSIVE_PARAMETER_GENERATION_V2, RECURSIVE_RUNTIME_PROFILE_GENERATION_V2,
         },
     },
     settlement::{
-        derive_settlement_root_v2, keys::hierarchy_parent_key_poseidon2_words_v1,
+        derive_settlement_root_v2, keys::hierarchy_parent_poseidon2_words_v1,
         noop_update_trace_digest, RootGeneration, JMT_CIRCUIT_HEADER_BYTES_V2,
-        JMT_CIRCUIT_MICRO_OP_VERSION_V2, JMT_CIRCUIT_OPERATION_BEGIN_V2,
-        JMT_CIRCUIT_OPERATION_END_V2, JMT_CIRCUIT_OPERATION_PROOF_END_V2,
+        JMT_CIRCUIT_OPERATION_BEGIN_V2, JMT_CIRCUIT_OPERATION_END_V2,
         JMT_CIRCUIT_OPERATION_PROOF_V2, JMT_CIRCUIT_OPERATION_SIBLING_V2,
-        JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2, JMT_CIRCUIT_OPERATION_VALUE_V2,
-        JMT_CIRCUIT_UPDATE_BEGIN_V2, JMT_CIRCUIT_UPDATE_END_V2, JMT_SPARSE_PLACEHOLDER_HASH_V2,
-        JMT_UPDATE_TRACE_KIND_MUTATING_V2, JMT_UPDATE_TRACE_KIND_NOOP_V2,
+        JMT_CIRCUIT_OPERATION_VALUE_V2, JMT_CIRCUIT_UPDATE_BEGIN_V2, JMT_CIRCUIT_UPDATE_END_V2,
+        JMT_MICRO_OP_VERSION_V2, JMT_PROOF_END_OP_V2, JMT_SPARSE_PLACEHOLDER_HASH_V2,
+        JMT_SPLIT_SIBLING_OP_V2, JMT_TRACE_MUTATING_KIND_V2, JMT_TRACE_NOOP_KIND_V2,
         JMT_UPDATE_TRACE_VERSION_V2,
     },
     CheckpointError,
@@ -1234,6 +1235,21 @@ impl CheckpointNovaAnchorsV2 {
         cells[ANCHOR_OPCODE_COUNT_START..ANCHOR_CELLS]
             .copy_from_slice(&context.declared_work().event_counts().counts());
         Self { cells }
+    }
+
+    fn from_public_state(state: &[Scalar]) -> Result<Self, CheckpointError> {
+        let source = state
+            .get(..ANCHOR_CELLS)
+            .ok_or(CheckpointError::Canonical)?;
+        let mut cells = [0_u64; ANCHOR_CELLS];
+        for (cell, scalar) in cells.iter_mut().zip(source) {
+            let value = scalar_u64(*scalar);
+            if Scalar::from(value) != *scalar {
+                return Err(CheckpointError::Canonical);
+            }
+            *cell = value;
+        }
+        Ok(Self { cells })
     }
 
     #[cfg(test)]
@@ -8929,14 +8945,14 @@ fn hierarchy_key_frame_coefficients_v1(
     [[u64; 4]; HIERARCHY_KEY_POSEIDON_WORDS_V1],
 ) {
     let base: [u64; HIERARCHY_KEY_POSEIDON_WORDS_V1] =
-        hierarchy_parent_key_poseidon2_words_v1(definition, [0_u8; 32], 0)
+        hierarchy_parent_poseidon2_words_v1(definition, [0_u8; 32], 0)
             .try_into()
             .expect("hierarchy key framing has frozen thirteen-word geometry");
     let mut definition_coefficients = [[0_u64; 32]; HIERARCHY_KEY_POSEIDON_WORDS_V1];
     for byte in 0..32 {
         let mut definition_id = [0_u8; 32];
         definition_id[byte] = 1;
-        let basis = hierarchy_parent_key_poseidon2_words_v1(definition, definition_id, 0);
+        let basis = hierarchy_parent_poseidon2_words_v1(definition, definition_id, 0);
         for word in 0..HIERARCHY_KEY_POSEIDON_WORDS_V1 {
             definition_coefficients[word][byte] = basis[word]
                 .checked_sub(base[word])
@@ -8948,11 +8964,8 @@ fn hierarchy_key_frame_coefficients_v1(
         for byte in 0..4 {
             let mut serial = [0_u8; 4];
             serial[byte] = 1;
-            let basis = hierarchy_parent_key_poseidon2_words_v1(
-                false,
-                [0_u8; 32],
-                u32::from_le_bytes(serial),
-            );
+            let basis =
+                hierarchy_parent_poseidon2_words_v1(false, [0_u8; 32], u32::from_le_bytes(serial));
             for word in 0..HIERARCHY_KEY_POSEIDON_WORDS_V1 {
                 serial_coefficients[word][byte] = basis[word]
                     .checked_sub(base[word])
@@ -9015,7 +9028,7 @@ fn hierarchy_key_frame_witness_v1(
         .collect::<Result<Vec<_>, SynthesisError>>()?
         .try_into()
         .expect("hierarchy serial byte width checked");
-    Ok(Some(hierarchy_parent_key_poseidon2_words_v1(
+    Ok(Some(hierarchy_parent_poseidon2_words_v1(
         // Inactive steps use the definition frame. Only the two domain gates
         // can bind the resulting digest.
         !serial_active,
@@ -9285,7 +9298,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_micro_source_requires_mutating_kind"),
         jmt_micro_source,
         &z[JMT_KIND_CELL],
-        u64::from(JMT_UPDATE_TRACE_KIND_MUTATING_V2),
+        u64::from(JMT_TRACE_MUTATING_KIND_V2),
     );
     for (label, gate) in [("commit", commit_source), ("finalize", finalize_source)] {
         enforce_gated_constant(
@@ -9643,10 +9656,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_envelope_kind"),
         &jmt_chunk_zero,
         kind_byte,
-        &[
-            JMT_UPDATE_TRACE_KIND_MUTATING_V2,
-            JMT_UPDATE_TRACE_KIND_NOOP_V2,
-        ],
+        &[JMT_TRACE_MUTATING_KIND_V2, JMT_TRACE_NOOP_KIND_V2],
         "jmt_envelope_kind",
     )?;
 
@@ -9786,7 +9796,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
     )?;
     let noop_kind = allocate_constant(
         cs.namespace(|| "noop_kind"),
-        u64::from(JMT_UPDATE_TRACE_KIND_NOOP_V2),
+        u64::from(JMT_TRACE_NOOP_KIND_V2),
     )?;
     let kind_is_noop = nova_snark::gadgets::utils::alloc_num_equals(
         cs.namespace(|| "jmt_kind_is_noop"),
@@ -9837,7 +9847,7 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         cs.namespace(|| "jmt_micro_version"),
         &micro_chunk_zero,
         &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2],
-        u64::from(JMT_CIRCUIT_MICRO_OP_VERSION_V2),
+        u64::from(JMT_MICRO_OP_VERSION_V2),
     );
     let micro_kind = &trace_chunk.bytes[TRACE_EVENT_HEADER_BYTES_V2 + 1];
     let micro_kinds = [
@@ -9848,8 +9858,8 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         JMT_CIRCUIT_OPERATION_END_V2,
         JMT_CIRCUIT_UPDATE_END_V2,
         JMT_CIRCUIT_OPERATION_SIBLING_V2,
-        JMT_CIRCUIT_OPERATION_PROOF_END_V2,
-        JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2,
+        JMT_PROOF_END_OP_V2,
+        JMT_SPLIT_SIBLING_OP_V2,
     ];
     enforce_gated_byte_set(
         cs.namespace(|| "jmt_micro_kind"),
@@ -9977,8 +9987,8 @@ fn synthesize_jmt_hierarchy_payload<CS: ConstraintSystem<Scalar>>(
         JMT_CIRCUIT_OPERATION_END_V2,
         JMT_CIRCUIT_UPDATE_END_V2,
         JMT_CIRCUIT_OPERATION_SIBLING_V2,
-        JMT_CIRCUIT_OPERATION_PROOF_END_V2,
-        JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2,
+        JMT_PROOF_END_OP_V2,
+        JMT_SPLIT_SIBLING_OP_V2,
     ];
     let record_kind_selectors = record_kind_values
         .into_iter()
@@ -22538,6 +22548,84 @@ pub(crate) fn resolve_verifier_authority_v2(
     NovaVerifierBundleV2::load(verifier_bundle_bytes, selection)?.verifier_authority()
 }
 
+/// Store-local cache for the one generation-pinned verifier authority. The
+/// cache retains only public identity digests and the opaque authority token;
+/// PP/PK bytes remain caller-owned and the live Nova session owns its decoded
+/// prover state.
+#[derive(Clone, Copy)]
+pub(crate) struct NovaVerifierCacheV2 {
+    material_digest: [u8; 32],
+    bundle_digest: [u8; 32],
+    authority_digest: [u8; 32],
+    profile_digest: [u8; 32],
+    verifier: RecursiveVerifierAuthorityV2,
+}
+
+impl NovaVerifierCacheV2 {
+    fn matches(
+        self,
+        material_digest: [u8; 32],
+        bundle_digest: [u8; 32],
+        authority_digest: [u8; 32],
+        profile_digest: [u8; 32],
+    ) -> bool {
+        self.material_digest == material_digest
+            && self.bundle_digest == bundle_digest
+            && self.authority_digest == authority_digest
+            && self.profile_digest == profile_digest
+    }
+}
+
+/// Resolve a verifier authority once per exact artifact generation. Cache hits
+/// still hash the complete supplied artifacts, so substitution cannot bypass
+/// the active bundle pin or the initially validated prover-material identity.
+pub(crate) fn resolve_cached_verifier_v2(
+    cache: &mut Option<NovaVerifierCacheV2>,
+    prover_material_bytes: &[u8],
+    verifier_bundle_bytes: &[u8],
+    authority: RecursiveAuthoritySnapshotV2,
+    profile: &RecursiveCircuitProfileV2,
+) -> Result<RecursiveVerifierAuthorityV2, CheckpointError> {
+    if prover_material_bytes.len() > NOVA_PROVER_MATERIAL_CAP_V2
+        || verifier_bundle_bytes.len() > NOVA_BUNDLE_SAFETY_CAP_V2
+    {
+        return Err(CheckpointError::Limit);
+    }
+    let expected_bundle_digest = super::authority_artifacts::ACTIVE_VERIFIER_BUNDLE_DIGEST_V2;
+    let material_digest = bundle_payload_digest(b"prover-material", prover_material_bytes);
+    let bundle_digest = bundle_payload_digest(b"verifier-bundle", verifier_bundle_bytes);
+    if expected_bundle_digest == [0; 32] || bundle_digest != expected_bundle_digest {
+        return Err(CheckpointError::Authority);
+    }
+    let authority_digest = authority.authority().digest();
+    let profile_digest = profile.digest();
+    if let Some(cached) = cache.as_ref().copied().filter(|cached| {
+        cached.matches(
+            material_digest,
+            bundle_digest,
+            authority_digest,
+            profile_digest,
+        )
+    }) {
+        return Ok(cached.verifier);
+    }
+
+    let verifier = resolve_verifier_authority_v2(
+        prover_material_bytes,
+        verifier_bundle_bytes,
+        authority,
+        profile,
+    )?;
+    *cache = Some(NovaVerifierCacheV2 {
+        material_digest,
+        bundle_digest,
+        authority_digest,
+        profile_digest,
+        verifier,
+    });
+    Ok(verifier)
+}
+
 /// The only logical compressed Nova proof body. It is not a key container,
 /// recovery image, bundle, or second proof wrapper.
 #[allow(dead_code)] // Emitted by the private continuous runner in T3.
@@ -23947,6 +24035,53 @@ pub(crate) struct NovaChainTransitionV2<'a> {
     pub(crate) store: &'a crate::settlement::SettlementStore,
 }
 
+/// Opaque canonical backend image carried only by the local recovery codec.
+pub(crate) struct NovaRecoveryImageV2 {
+    pub(crate) bytes: Zeroizing<Vec<u8>>,
+}
+
+impl NovaRecoveryImageV2 {
+    pub(crate) fn new(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes: Zeroizing::new(bytes),
+        }
+    }
+}
+
+impl fmt::Debug for NovaRecoveryImageV2 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NovaRecoveryImageV2")
+            .field("bytes", &"<redacted>")
+            .field("encoded_len", &self.bytes.len())
+            .finish()
+    }
+}
+
+#[derive(serde::Deserialize, Serialize)]
+struct NovaRecoveryPayloadV2 {
+    initial_public_input: RecursiveNovaStepInputV2,
+    public_input: RecursiveNovaStepInputV2,
+    recursive: NovaRecursiveProof,
+    steps: u64,
+    block_index: u64,
+    block_count: u32,
+    terminalized: bool,
+    verifier_bundle_digest: [u8; 32],
+}
+
+#[derive(Serialize)]
+struct NovaRecoveryPayloadRefV2<'a> {
+    initial_public_input: RecursiveNovaStepInputV2,
+    public_input: RecursiveNovaStepInputV2,
+    recursive: &'a NovaRecursiveProof,
+    steps: u64,
+    block_index: u64,
+    block_count: u32,
+    terminalized: bool,
+    verifier_bundle_digest: [u8; 32],
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct NovaSessionStateV2 {
     block_count: u32,
@@ -24029,26 +24164,141 @@ impl NovaContinuousSessionV2 {
         })
     }
 
+    /// Verify one committed accumulator image, then consume the already
+    /// evaluated successor exactly once. The transition source is stateful:
+    /// separating resume from the first fold would repeat its evaluation pass.
+    pub(crate) fn resume_and_fold_block(
+        snapshot: NovaAccumulatorSnapshotV2,
+        image: NovaRecoveryImageV2,
+        next: NovaChainTransitionV2<'_>,
+        prover_material_bytes: &[u8],
+        verifier_bundle_bytes: &[u8],
+        guard: NovaRunGuardV2,
+    ) -> Result<Self, CheckpointError> {
+        snapshot.validate_image(&image.bytes)?;
+        let payload = decode_bincode::<
+            NovaRecoveryPayloadV2,
+            { super::recursive_measurement::NOVA_IMAGE_MAX_BYTES_V2 },
+        >(&image.bytes)?;
+        payload.initial_public_input.validate_recovery_identity()?;
+        payload.public_input.validate_recovery_identity()?;
+        if payload.steps == 0
+            || payload.block_count == 0
+            || payload.terminalized
+            || payload.block_index.checked_add(1) != Some(u64::from(payload.block_count))
+            || payload.initial_public_input.height() > payload.public_input.height()
+            || payload.verifier_bundle_digest != snapshot.bindings().verifier_bundle_digest
+        {
+            return Err(CheckpointError::Canonical);
+        }
+        let current_bindings = payload.public_input.nova_state_bindings();
+        let snapshot_bindings = snapshot.bindings();
+        if snapshot_bindings.height != payload.public_input.height()
+            || snapshot_bindings.steps != payload.steps
+            || snapshot_bindings.checkpoint_id != *payload.public_input.checkpoint_id().as_bytes()
+            || snapshot_bindings.predecessor
+                != payload
+                    .public_input
+                    .predecessor()
+                    .map(|value| *value.as_bytes())
+            || snapshot_bindings.authority_generation != payload.public_input.authority_generation()
+            || snapshot_bindings.chain_context_digest != current_bindings.anchor_digests[0]
+            || snapshot_bindings.config_digest != current_bindings.anchor_digests[1]
+            || snapshot_bindings.policy_digest != current_bindings.anchor_digests[2]
+            || snapshot_bindings.authority_digest != current_bindings.anchor_digests[3]
+            || snapshot_bindings.predicate_digest != current_bindings.anchor_digests[8]
+            || snapshot_bindings.profile_digest != current_bindings.anchor_digests[9]
+            || snapshot_bindings.verifier_bundle_digest != current_bindings.anchor_digests[12]
+        {
+            return Err(CheckpointError::Authority);
+        }
+
+        let evaluated = next.transition.evaluate(next.store)?;
+        let prior =
+            RecursiveFinalizedIvcStateV2::expected_successor(&payload.public_input, payload.steps)?;
+        let ready = CheckpointNovaRunnerV2::<NovaRunnerReadyV2>::load_for_transition(
+            prover_material_bytes,
+            verifier_bundle_bytes,
+            next.transition,
+            evaluated,
+            prior,
+            guard,
+        )?;
+        if ready.bundle.digest() != payload.verifier_bundle_digest {
+            return Err(CheckpointError::Authority);
+        }
+        let initial_state = expected_public_state(&payload.initial_public_input, 0, false)?;
+        let steps = usize::try_from(payload.steps).map_err(|_| CheckpointError::Limit)?;
+        let output = payload
+            .recursive
+            .verify(&ready.material.pp, steps, &initial_state)
+            .map_err(|_| CheckpointError::BackendVerificationFailed)?;
+        let current_state = expected_public_state(&payload.public_input, payload.steps, false)?;
+        if output != current_state {
+            return Err(CheckpointError::BackendVerificationFailed);
+        }
+        let anchors = CheckpointNovaAnchorsV2::from_public_state(&current_state)?;
+        let runner = CheckpointNovaRunnerV2 {
+            material: ready.material,
+            bundle: ready.bundle,
+            guard: ready.guard,
+            initial_public_input: payload.initial_public_input,
+            public_input: payload.public_input,
+            anchors,
+            initial_state,
+            phase: ControlPhaseV2::Idle,
+            pending: None,
+            recursive: Some(payload.recursive),
+            steps,
+            block_index: usize::try_from(payload.block_index)
+                .map_err(|_| CheckpointError::Limit)?,
+            terminalized: false,
+            _state: std::marker::PhantomData,
+        };
+        let mut resumed = Self {
+            runner,
+            state: NovaSessionStateV2 {
+                block_count: payload.block_count,
+                is_poisoned: false,
+            },
+        };
+        resumed.state.begin_fold()?;
+        let result = resumed.fold_evaluated_block(next, evaluated);
+        if result.is_ok() {
+            resumed.state.commit_fold()?;
+        }
+        result?;
+        Ok(resumed)
+    }
+
     pub(crate) fn fold_block(
         &mut self,
         block: NovaChainTransitionV2<'_>,
     ) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
         self.state.begin_fold()?;
-        let result = (|| {
-            let evaluated = block.transition.evaluate(block.store)?;
-            self.runner
-                .advance_transition(block.transition, evaluated)?;
-            block
-                .transition
-                .replay_nova_events(block.store, |event| self.runner.push_event(event))?;
-            let successor = self.runner.finish_block(false)?;
-            block.transition.finish(block.store)?;
-            Ok(successor)
-        })();
+        let result = block
+            .transition
+            .evaluate(block.store)
+            .and_then(|evaluated| self.fold_evaluated_block(block, evaluated));
         if result.is_ok() {
             self.state.commit_fold()?;
         }
         result
+    }
+
+    fn fold_evaluated_block(
+        &mut self,
+        block: NovaChainTransitionV2<'_>,
+        evaluated: EvaluatedCheckpointTransitionV2,
+    ) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
+        self.runner
+            .advance_transition(block.transition, evaluated)?;
+        block
+            .transition
+            .replay_nova_events(block.store, |event| self.runner.push_event(event))?;
+        let successor = self.runner.finish_block(false)?;
+        block.transition.finish(block.store)?;
+        Ok(successor)
     }
 
     pub(crate) fn renew_guard(&mut self, guard: NovaRunGuardV2) -> Result<(), CheckpointError> {
@@ -24081,6 +24331,71 @@ impl NovaContinuousSessionV2 {
             ));
         }
         self.runner.snapshot()
+    }
+
+    pub(crate) fn recovery_snapshot(&self) -> Result<NovaAccumulatorSnapshotV2, CheckpointError> {
+        self.state.ensure_live()?;
+        if self.runner.pending.is_some()
+            || self.runner.phase != ControlPhaseV2::Idle
+            || self.runner.terminalized
+        {
+            return Err(CheckpointError::TraceState);
+        }
+        let recursive = self
+            .runner
+            .recursive
+            .as_ref()
+            .ok_or(CheckpointError::TraceState)?;
+        let steps = u64::try_from(self.runner.steps).map_err(|_| CheckpointError::Limit)?;
+        let output = recursive
+            .verify(
+                &self.runner.material.pp,
+                self.runner.steps,
+                &self.runner.initial_state,
+            )
+            .map_err(|_| CheckpointError::BackendVerificationFailed)?;
+        if output != expected_public_state(&self.runner.public_input, steps, false)? {
+            return Err(CheckpointError::BackendVerificationFailed);
+        }
+        let payload = NovaRecoveryPayloadRefV2 {
+            initial_public_input: self.runner.initial_public_input,
+            public_input: self.runner.public_input,
+            recursive,
+            steps,
+            block_index: u64::try_from(self.runner.block_index)
+                .map_err(|_| CheckpointError::Limit)?,
+            block_count: self.state.block_count,
+            terminalized: self.runner.terminalized,
+            verifier_bundle_digest: self.runner.bundle.digest(),
+        };
+        let image = NovaRecoveryImageV2::new(encode_bincode(
+            &payload,
+            super::recursive_measurement::NOVA_IMAGE_MAX_BYTES_V2,
+        )?);
+        let bindings = self.runner.public_input.nova_state_bindings();
+        NovaAccumulatorSnapshotV2::capture(
+            NovaRecoveryBindingsV2 {
+                authority_generation: self.runner.public_input.authority_generation(),
+                parameter_generation: RECURSIVE_PARAMETER_GENERATION_V2,
+                runtime_profile_generation: RECURSIVE_RUNTIME_PROFILE_GENERATION_V2,
+                height: self.runner.public_input.height(),
+                steps,
+                checkpoint_id: *self.runner.public_input.checkpoint_id().as_bytes(),
+                predecessor: self
+                    .runner
+                    .public_input
+                    .predecessor()
+                    .map(|value| *value.as_bytes()),
+                chain_context_digest: bindings.anchor_digests[0],
+                config_digest: bindings.anchor_digests[1],
+                policy_digest: bindings.anchor_digests[2],
+                authority_digest: bindings.anchor_digests[3],
+                predicate_digest: bindings.anchor_digests[8],
+                profile_digest: bindings.anchor_digests[9],
+                verifier_bundle_digest: bindings.anchor_digests[12],
+            },
+            image,
+        )
     }
 
     pub(crate) fn successor(&self) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
@@ -24233,7 +24548,8 @@ fn decode_bincode<T: DeserializeOwned + Serialize, const CAP: usize>(
     let decoded = BincodeCodec
         .deserialize_legacy_bounded::<T, CAP>(bytes)
         .map_err(|_| CheckpointError::Canonical)?;
-    if encode_bincode(&decoded, CAP)? != bytes {
+    let canonical = Zeroizing::new(encode_bincode(&decoded, CAP)?);
+    if canonical.as_slice() != bytes {
         return Err(CheckpointError::Canonical);
     }
     Ok(decoded)
@@ -24288,6 +24604,18 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
     (
         "crates/z00z_storage/src/checkpoint/recursive_statement.rs",
         include_bytes!("recursive_statement.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/recursive_chain.rs",
+        include_bytes!("recursive_chain.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/recursive_measurement.rs",
+        include_bytes!("recursive_measurement.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/recursive_recovery.rs",
+        include_bytes!("recursive_recovery.rs"),
     ),
     (
         "crates/z00z_storage/src/checkpoint/adapter.rs",
@@ -24688,7 +25016,7 @@ fn proof_envelope_component_digest(kind: &[u8], payload: &[u8]) -> [u8; 32] {
 
     sha256_256(
         NOVA_PROOF_ENVELOPE_DOMAIN_V2,
-        NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2,
+        NOVA_ENVELOPE_DIGEST_LABEL_V2,
         &[kind, payload],
     )
 }
@@ -24698,7 +25026,7 @@ fn proof_envelope_project_digest(prefix: &[u8]) -> [u8; 32] {
 
     sha256_256(
         NOVA_PROOF_ENVELOPE_DOMAIN_V2,
-        NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2,
+        NOVA_ENVELOPE_DIGEST_LABEL_V2,
         &[b"project-header", prefix],
     )
 }
@@ -24783,13 +25111,14 @@ mod tests {
         CheckpointRunningStateV2, ControlPhaseV2, ControlTransitionRejectionV2,
         DiagnosticSingleStepEnvelopeV2, NovaProofEnvelopeV2, NovaProverMaterialV2,
         NovaResourceLimitsV2, NovaShapeMetricsV2, NovaStepWitnessV2, NovaTraceRootAuthorityV2,
-        NovaTypedSourceEventV2, NovaVerifierBundleV2, RecursiveAuthoritySnapshotV2,
-        RecursiveCheckpointRejectReasonV2, RecursiveCircuitProfileV2, RecursiveCircuitSpecV2,
-        RecursiveNovaStepInputV2, Scalar, VerifierBundleBindingV2, VerifierBundleHeaderV2,
-        VerifierBundleSelectionV2, CONTROL_TRANSITION_TABLE_V2, NOVA_BUNDLE_SAFETY_CAP_V2,
-        NOVA_ENVELOPE_HEADER_BYTES_V2, NOVA_PROOF_MAX_BYTES_V2, NOVA_RESOURCE_LIMITS_V2,
-        NOVA_VK_SAFETY_CAP_V2, NOVA_WORKER_SAFETY_CAP_V2, PALLAS_AFFINE_WIRE_BYTES_V2,
-        RUNNING_STATE_ARITY_V2, VERIFIER_BUNDLE_HEADER_BYTES_V2,
+        NovaTypedSourceEventV2, NovaVerifierBundleV2, NovaVerifierCacheV2,
+        RecursiveAuthoritySnapshotV2, RecursiveCheckpointRejectReasonV2, RecursiveCircuitProfileV2,
+        RecursiveCircuitSpecV2, RecursiveNovaStepInputV2, RecursiveVerifierAuthorityV2, Scalar,
+        VerifierBundleBindingV2, VerifierBundleHeaderV2, VerifierBundleSelectionV2,
+        CONTROL_TRANSITION_TABLE_V2, NOVA_BUNDLE_SAFETY_CAP_V2, NOVA_ENVELOPE_HEADER_BYTES_V2,
+        NOVA_PROOF_MAX_BYTES_V2, NOVA_RESOURCE_LIMITS_V2, NOVA_VK_SAFETY_CAP_V2,
+        NOVA_WORKER_SAFETY_CAP_V2, PALLAS_AFFINE_WIRE_BYTES_V2, RUNNING_STATE_ARITY_V2,
+        VERIFIER_BUNDLE_HEADER_BYTES_V2,
     };
     use ff::PrimeField;
     use fs2::FileExt;
@@ -24817,10 +25146,10 @@ mod tests {
             recursive_context::RecursiveSnapshotHandleV2,
             recursive_semantics::{
                 decode_uniqueness_challenge, decode_uniqueness_precommit, encode_flow_header,
-                encode_flow_header_with_v2_roots, encode_flow_item, encode_net_effect,
-                encode_net_merge, encode_uniqueness_challenge, encode_uniqueness_precommit,
-                encode_uniqueness_sorted_row, NetEffectV2, UniquenessListKindV2, UniquenessPassV2,
-                UniquenessSemanticRowV2, UniquenessSetKindV2,
+                encode_flow_item, encode_net_effect, encode_net_merge, encode_uniqueness_challenge,
+                encode_uniqueness_precommit, encode_uniqueness_sorted_row, encode_v2_flow_header,
+                NetEffectV2, UniquenessListKindV2, UniquenessPassV2, UniquenessSemanticRowV2,
+                UniquenessSetKindV2,
             },
             recursive_trace::{
                 decode_hash_control, emit_test_transcript_controls, structural_event_id,
@@ -24841,6 +25170,24 @@ mod tests {
         },
         snapshot::{build_snapshot_v2, PrepFsStore, PrepSnapshotId, PrepSnapshotStore},
     };
+
+    #[test]
+    fn test_verifier_cache_identity() {
+        let verifier = RecursiveVerifierAuthorityV2::new([5; 32], [6; 32]).unwrap();
+        let cache = NovaVerifierCacheV2 {
+            material_digest: [1; 32],
+            bundle_digest: [2; 32],
+            authority_digest: [3; 32],
+            profile_digest: [4; 32],
+            verifier,
+        };
+
+        assert!(cache.matches([1; 32], [2; 32], [3; 32], [4; 32]));
+        assert!(!cache.matches([9; 32], [2; 32], [3; 32], [4; 32]));
+        assert!(!cache.matches([1; 32], [9; 32], [3; 32], [4; 32]));
+        assert!(!cache.matches([1; 32], [2; 32], [9; 32], [4; 32]));
+        assert!(!cache.matches([1; 32], [2; 32], [3; 32], [9; 32]));
+    }
     use z00z_core::assets::{AssetLeaf, AssetPackPlain};
     use z00z_crypto::{sha256_256_role, CheckpointShaRole, ZkPackEncrypted};
 
@@ -24884,7 +25231,7 @@ mod tests {
             super::proof_envelope_component_digest(b"component", b"payload"),
             z00z_crypto::sha256_256(
                 super::NOVA_PROOF_ENVELOPE_DOMAIN_V2,
-                super::NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2,
+                super::NOVA_ENVELOPE_DIGEST_LABEL_V2,
                 &[b"component", b"payload"],
             )
         );
@@ -24892,7 +25239,7 @@ mod tests {
             super::proof_envelope_project_digest(b"prefix"),
             z00z_crypto::sha256_256(
                 super::NOVA_PROOF_ENVELOPE_DOMAIN_V2,
-                super::NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2,
+                super::NOVA_ENVELOPE_DIGEST_LABEL_V2,
                 &[b"project-header", b"prefix"],
             )
         );
@@ -26890,9 +27237,15 @@ mod tests {
         let pp = setup_public_parameters_after_preflight(&step, &state)
             .expect("prover-material resource preflight and PP");
         let (pk, vk) = Proof::setup(&pp).expect("prover-material compression keys");
-        let binding =
-            VerifierBundleBindingV2::from_authority(&authority, &profile, &spec, &pp, 1, 5)
-                .expect("prover-material authority binding");
+        let binding = VerifierBundleBindingV2::from_authority(
+            &authority,
+            &profile,
+            &spec,
+            &pp,
+            1,
+            profile.max_cumulative_steps(),
+        )
+        .expect("prover-material authority binding");
         let prover = NovaProverMaterialV2::new(pp, pk);
         let material = prover
             .encode(binding)
@@ -27055,9 +27408,15 @@ mod tests {
         let pp = setup_public_parameters_after_preflight(&step, &state)
             .expect("mixed TestCS resource preflight and PP");
         let (pk, vk) = Proof::setup(&pp).expect("mixed TestCS compression keys");
-        let binding =
-            VerifierBundleBindingV2::from_authority(&authority, &profile, &spec, &pp, 1, 5)
-                .expect("mixed TestCS authority binding");
+        let binding = VerifierBundleBindingV2::from_authority(
+            &authority,
+            &profile,
+            &spec,
+            &pp,
+            1,
+            profile.max_cumulative_steps(),
+        )
+        .expect("mixed TestCS authority binding");
         let bundle = NovaProverMaterialV2::new(pp, pk)
             .verifier_bundle(&vk, binding)
             .expect("mixed TestCS verifier bundle");
@@ -27508,7 +27867,7 @@ mod tests {
                 post_root: "44".repeat(32),
             },
         };
-        let payload = encode_flow_header_with_v2_roots(&flow, pre_root, post_root)
+        let payload = encode_v2_flow_header(&flow, pre_root, post_root)
             .expect("canonical SettlementV2 FinalizeBlock payload");
         assert_eq!(payload.len(), 284);
         let record =
@@ -27572,7 +27931,7 @@ mod tests {
         let mut jmt_payload = Vec::with_capacity(39);
         jmt_payload.push(super::JMT_UPDATE_TRACE_VERSION_V2);
         jmt_payload.push(RootGeneration::SettlementV2.version());
-        jmt_payload.push(super::JMT_UPDATE_TRACE_KIND_NOOP_V2);
+        jmt_payload.push(super::JMT_TRACE_NOOP_KIND_V2);
         jmt_payload.extend_from_slice(&trace_digest);
         jmt_payload.extend_from_slice(&0_u32.to_le_bytes());
         let jmt_record =
@@ -27611,7 +27970,7 @@ mod tests {
         );
         assert_eq!(
             after_jmt.cells[super::JMT_KIND_CELL],
-            Scalar::from(u64::from(super::JMT_UPDATE_TRACE_KIND_NOOP_V2))
+            Scalar::from(u64::from(super::JMT_TRACE_NOOP_KIND_V2))
         );
         for limb in super::JMT_UPDATE_COUNT_LIMB_START..super::JMT_UPDATE_COUNT_LIMB_END {
             assert_eq!(after_jmt.cells[limb], Scalar::from(0_u64));
@@ -27859,7 +28218,7 @@ mod tests {
 
     #[test]
     #[ignore = "exhaustive hierarchy R1CS corpus is milestone-only; run nova_milestone_tests.sh semantic"]
-    fn test_hierarchy_r1cs_binds_definition() {
+    fn test_hierarchy_r1cs_definition() {
         let (header, records, definition_root) = hierarchy_circuit_transcript_for_test();
         let mut event_counts = super::RecursiveTraceEventCountsV2::default();
         event_counts
@@ -28229,7 +28588,7 @@ mod tests {
             .expect("split proof begin");
         let split = records
             .iter()
-            .position(|record| record[1] == super::JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2)
+            .position(|record| record[1] == super::JMT_SPLIT_SIBLING_OP_V2)
             .expect("split prelude");
         for (mutation, offset) in [
             ("split_count", (proof, 14_usize)),
@@ -28302,7 +28661,7 @@ mod tests {
         let mut header = Vec::with_capacity(39);
         header.push(super::JMT_UPDATE_TRACE_VERSION_V2);
         header.push(RootGeneration::SettlementV2.version());
-        header.push(super::JMT_UPDATE_TRACE_KIND_MUTATING_V2);
+        header.push(super::JMT_TRACE_MUTATING_KIND_V2);
         header.extend_from_slice(&trace_digest);
         header.extend_from_slice(&1_u32.to_le_bytes());
         let header_record =
@@ -28323,7 +28682,7 @@ mod tests {
         let after_header = state.clone();
 
         let indexed = |kind: u8, update: u32, operation: Option<u32>| {
-            let mut payload = vec![super::JMT_CIRCUIT_MICRO_OP_VERSION_V2, kind];
+            let mut payload = vec![super::JMT_MICRO_OP_VERSION_V2, kind];
             payload.extend_from_slice(&update.to_le_bytes());
             if let Some(operation) = operation {
                 payload.extend_from_slice(&operation.to_le_bytes());
@@ -28379,7 +28738,7 @@ mod tests {
             operation_begin,
             operation_value,
             proof_begin,
-            indexed(super::JMT_CIRCUIT_OPERATION_PROOF_END_V2, 0, Some(0)),
+            indexed(super::JMT_PROOF_END_OP_V2, 0, Some(0)),
             indexed(super::JMT_CIRCUIT_OPERATION_END_V2, 0, Some(0)),
             indexed(super::JMT_CIRCUIT_UPDATE_END_V2, 0, None),
         ];
@@ -29071,7 +29430,7 @@ mod tests {
     /// direct state mutation. The exhaustive semantic corpus and all Nova
     /// setup/folding/proof work remain explicit milestone-only gates.
     #[test]
-    fn test_nova_r1cs_mutation_smoke() {
+    fn test_nova_mutation_smoke() {
         let (anchors, events, state) = canonical_hash_control_initial_fixture();
         let circuit = source_circuit(
             anchors.clone(),
@@ -32641,7 +33000,7 @@ mod tests {
                 post_root: "44".repeat(32),
             },
         };
-        let final_payload = encode_flow_header_with_v2_roots(
+        let final_payload = encode_v2_flow_header(
             &flow,
             SettlementStateRoot::settlement_v2(pre_root_bytes),
             SettlementStateRoot::settlement_v2([0x44; 32]),

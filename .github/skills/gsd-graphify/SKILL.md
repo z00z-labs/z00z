@@ -8,7 +8,7 @@ allowed-tools: Read, Bash
 
 **STOP -- DO NOT READ THIS FILE. You are already reading it. This prompt was injected into your context by Claude Code's command system. Using the Read tool on this file wastes tokens. Begin executing Step 0 immediately.**
 
-**CJS-only (graphify):** `graphify` subcommands are not registered on `gsd-tools query`. Use the `gsd_run` launcher shim (defined in each bash block below) or invoke the repo-local binary directly: `node .github/gsd-core/bin/gsd-tools.cjs graphify …`. For non-repo installs, use `node <runtime-home>/gsd-core/bin/gsd-tools.cjs graphify …` where `<runtime-home>` is your runtime's config directory (e.g. `.github`, `~/.hermes`, `~/.cursor`). See `docs/CLI-TOOLS.md` for details. Other tooling may still use `gsd-tools query` where a handler exists.
+**CJS-only (graphify):** `graphify` subcommands are not registered on `gsd-tools query`. For this repository, invoke the repo-local binary directly: `node .github/gsd-core/bin/gsd-tools.cjs graphify …`; the `gsd_run` launcher shim remains available for non-repo installs. See `docs/CLI-TOOLS.md` for details. Other tooling may still use `gsd-tools query` where a handler exists.
 
 ## Step 0 -- Banner
 

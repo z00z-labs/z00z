@@ -54,7 +54,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_recursive_caps_use_active_v3_authority() {
+    fn test_recursive_caps_match_v3() {
         assert_eq!(
             effective_object_cap(RecursiveBoundedObjectV2::NovaBlockProof).unwrap(),
             17_825_792

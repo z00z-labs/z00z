@@ -17,22 +17,36 @@ use super::{
 };
 
 pub const CHECKPOINT_VERSION_REGISTRY_API_V2: u16 = 2;
-pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 5;
+pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 6;
 pub const RECURSIVE_OBJECT_PREHEADER_BYTES_V2: usize = 48;
 pub const RECURSIVE_OBJECT_MAGIC_V2: [u8; 4] = *b"ZCP2";
 pub const RECURSIVE_RUNTIME_PROFILE_V2: &str = "checkpoint-contract-client-notary-v2";
 pub const RECURSIVE_RUNTIME_PROFILE_GENERATION_V2: u16 = 2;
 pub const RECURSIVE_PARAMETER_GENERATION_V2: u32 = 2;
-pub const RUNTIME_PROFILE_MANIFEST_MAX_BYTES_V2: usize = 4 * 1024;
+pub const RUNTIME_MANIFEST_MAX_BYTES_V2: usize = 4 * 1024;
+/// Compatibility name retained for generation-5 callers during the bounded
+/// generation-6 reader window.
+#[allow(dead_code)]
+pub const RUNTIME_PROFILE_MANIFEST_MAX_BYTES_V2: usize = RUNTIME_MANIFEST_MAX_BYTES_V2;
 pub(crate) const NOVA_PROOF_ENVELOPE_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.nova-proof-envelope.v2";
-pub(crate) const NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2: &str = "component_digest";
+pub(crate) const NOVA_ENVELOPE_DIGEST_LABEL_V2: &str = "component_digest";
+#[allow(dead_code)]
+pub(crate) const NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2: &str = NOVA_ENVELOPE_DIGEST_LABEL_V2;
+pub(crate) const NOVA_CADENCE_DOMAIN_V2: &str = "z00z.storage.checkpoint.nova-cadence-manifest.v2";
+pub(crate) const NOVA_SNAPSHOT_DOMAIN_V2: &str =
+    "z00z.storage.checkpoint.nova-accumulator-snapshot.v2";
 pub(crate) const RECURSIVE_CHECKPOINT_SIDECAR_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.recursive-sidecar.v2";
-pub(crate) const RECURSIVE_CHECKPOINT_SIDECAR_DIGEST_LABEL_V2: &str = "canonical_sidecar";
+pub(crate) const RECURSIVE_SIDECAR_DIGEST_LABEL_V2: &str = "canonical_sidecar";
+#[allow(dead_code)]
+pub(crate) const RECURSIVE_CHECKPOINT_SIDECAR_DIGEST_LABEL_V2: &str =
+    RECURSIVE_SIDECAR_DIGEST_LABEL_V2;
 pub(crate) const CRYPTOGRAPHIC_VERIFICATION_RECEIPT_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.crypto-verification-receipt.v2";
-pub(crate) const CRYPTOGRAPHIC_VERIFICATION_RECEIPT_DIGEST_LABEL_V2: &str = "canonical_receipt";
+pub(crate) const RECEIPT_DIGEST_LABEL_V2: &str = "canonical_receipt";
+#[allow(dead_code)]
+pub(crate) const CRYPTOGRAPHIC_VERIFICATION_RECEIPT_DIGEST_LABEL_V2: &str = RECEIPT_DIGEST_LABEL_V2;
 const RUNTIME_PROFILE_MANIFEST_MAGIC_V2: [u8; 4] = *b"ZRPM";
 const RUNTIME_PROFILE_MANIFEST_CODEC_V2: u16 = 1;
 const RUNTIME_PROFILE_BACKEND_V2: &str = "nova-snark";
@@ -52,14 +66,14 @@ pub const RECURSIVE_PROFILE_MANIFEST_DIGEST_V2: [u8; 32] = [
     0xc3, 0xb3, 0xef, 0x33, 0xf7, 0x1b, 0xff, 0x63, 0xff, 0x1e, 0x08, 0x0e, 0x9d, 0x78, 0xe7, 0x1b,
 ];
 
-/// Literal production pin for the canonical generation-5 registry bytes.
+/// Literal production pin for the canonical generation-6 registry bytes.
 ///
 /// `authority_pinned` recomputes and compares this value before exposing any
 /// row, so changing a row without an explicit generation/pin rotation fails
 /// closed in production rather than only in a unit assertion.
 pub const CHECKPOINT_VERSION_REGISTRY_DIGEST_V2: [u8; 32] = [
-    0x40, 0x07, 0xf5, 0x4c, 0x2b, 0x3d, 0x71, 0x4a, 0xba, 0x7e, 0x5d, 0x8a, 0x86, 0xdb, 0xed, 0xf8,
-    0x4e, 0x59, 0x46, 0xc9, 0xf1, 0xc3, 0x14, 0xd1, 0xfb, 0x11, 0xc8, 0x31, 0xaf, 0x50, 0x00, 0xfb,
+    0x09, 0xf4, 0xec, 0xf4, 0x32, 0x38, 0x48, 0xd0, 0x4a, 0xf9, 0x60, 0xe3, 0xb9, 0x9c, 0xa6, 0xd1,
+    0xcf, 0x72, 0xaa, 0x8f, 0x4f, 0xef, 0x65, 0x0a, 0x52, 0x2d, 0x8f, 0x51, 0xcb, 0x3d, 0x8d, 0x6a,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -105,6 +119,8 @@ pub enum RecursiveBoundedObjectV2 {
     CryptographicVerificationReceipt = 0x0690_0103,
     CheckpointConfigHead = 0x0690_0104,
     ConfigMigrationRecord = 0x0690_0105,
+    NovaCadenceManifest = 0x0690_0106,
+    NovaAccumulatorSnapshot = 0x0690_0107,
     CheckpointContractConfigV2 = 0x0690_0201,
     CheckpointContractConfigV3 = 0x0690_0202,
     WalletBackup = 0x0690_0301,
@@ -137,6 +153,8 @@ impl RecursiveBoundedObjectV2 {
             0x0690_0103 => Self::CryptographicVerificationReceipt,
             0x0690_0104 => Self::CheckpointConfigHead,
             0x0690_0105 => Self::ConfigMigrationRecord,
+            0x0690_0106 => Self::NovaCadenceManifest,
+            0x0690_0107 => Self::NovaAccumulatorSnapshot,
             0x0690_0201 => Self::CheckpointContractConfigV2,
             0x0690_0202 => Self::CheckpointContractConfigV3,
             0x0690_0301 => Self::WalletBackup,
@@ -276,14 +294,14 @@ impl RuntimeProfileManifestV2 {
         ] {
             bytes.extend_from_slice(&digest);
         }
-        if bytes.len() > RUNTIME_PROFILE_MANIFEST_MAX_BYTES_V2 {
+        if bytes.len() > RUNTIME_MANIFEST_MAX_BYTES_V2 {
             return Err(registry_error("runtime profile manifest exceeds cap"));
         }
         Ok(bytes)
     }
 
     pub fn decode_canonical(bytes: &[u8]) -> Result<Self, CheckpointError> {
-        if bytes.len() > RUNTIME_PROFILE_MANIFEST_MAX_BYTES_V2 {
+        if bytes.len() > RUNTIME_MANIFEST_MAX_BYTES_V2 {
             return Err(registry_error("runtime profile manifest exceeds cap"));
         }
         let mut reader = ManifestReader::new(bytes);
@@ -450,6 +468,8 @@ const fn cryptographic_domain(object: RecursiveBoundedObjectV2) -> &'static str 
         RecursiveBoundedObjectV2::ConfigMigrationRecord => {
             "z00z.storage.checkpoint.config-migration-record.v3"
         }
+        RecursiveBoundedObjectV2::NovaCadenceManifest => NOVA_CADENCE_DOMAIN_V2,
+        RecursiveBoundedObjectV2::NovaAccumulatorSnapshot => NOVA_SNAPSHOT_DOMAIN_V2,
         RecursiveBoundedObjectV2::CheckpointContractConfigV2 => {
             "z00z.storage.checkpoint.contract-config.v2"
         }
@@ -814,6 +834,60 @@ const REGISTRY_ROWS_V2: &[CheckpointVersionRowV2] = &[
         activation_boundary: 0,
         migration_owner: None,
         reject_mapping: "config_migration_reject",
+    },
+    CheckpointVersionRowV2 {
+        object: RecursiveBoundedObjectV2::NovaCadenceManifest,
+        api_owner: "NovaCadenceManifestV2",
+        framing: RegistryFramingV2::EmbeddedPreheader,
+        write_wire_version: Some(2),
+        read_wire_versions: WIRE_V2,
+        cryptographic_domain: cryptographic_domain(RecursiveBoundedObjectV2::NovaCadenceManifest),
+        cryptographic_domain_generation: 2,
+        transcript_generation: Some(2),
+        root_generation: None,
+        public_input_encoding_generation: None,
+        max_encoded_len: 4 * 1024,
+        config_schema_generation: Some(3),
+        runtime_profile: Some(RECURSIVE_RUNTIME_PROFILE_V2),
+        runtime_profile_generation: Some(RECURSIVE_RUNTIME_PROFILE_GENERATION_V2),
+        runtime_profile_manifest_digest: Some(RECURSIVE_PROFILE_MANIFEST_DIGEST_V2),
+        authority_generation: 2,
+        parameter_generation: Some(RECURSIVE_PARAMETER_GENERATION_V2),
+        semantic_owner_phase: 69,
+        reader_reachable: true,
+        writer_reachable: true,
+        lifecycle: RegistryLifecycleV2::LiveReadWrite,
+        activation_boundary: 1,
+        migration_owner: None,
+        reject_mapping: "nova_cadence_manifest_reject",
+    },
+    CheckpointVersionRowV2 {
+        object: RecursiveBoundedObjectV2::NovaAccumulatorSnapshot,
+        api_owner: "NovaAccumulatorSnapshotV2",
+        framing: RegistryFramingV2::LocalTyped,
+        write_wire_version: Some(2),
+        read_wire_versions: WIRE_V2,
+        cryptographic_domain: cryptographic_domain(
+            RecursiveBoundedObjectV2::NovaAccumulatorSnapshot,
+        ),
+        cryptographic_domain_generation: 2,
+        transcript_generation: Some(2),
+        root_generation: None,
+        public_input_encoding_generation: None,
+        max_encoded_len: 540 * 1024 * 1024,
+        config_schema_generation: Some(3),
+        runtime_profile: Some(RECURSIVE_RUNTIME_PROFILE_V2),
+        runtime_profile_generation: Some(RECURSIVE_RUNTIME_PROFILE_GENERATION_V2),
+        runtime_profile_manifest_digest: Some(RECURSIVE_PROFILE_MANIFEST_DIGEST_V2),
+        authority_generation: 2,
+        parameter_generation: Some(RECURSIVE_PARAMETER_GENERATION_V2),
+        semantic_owner_phase: 69,
+        reader_reachable: true,
+        writer_reachable: true,
+        lifecycle: RegistryLifecycleV2::LocalOnly,
+        activation_boundary: 1,
+        migration_owner: None,
+        reject_mapping: "nova_accumulator_snapshot_reject",
     },
     config_schema(
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
@@ -1540,6 +1614,8 @@ mod tests {
         RecursiveBoundedObjectV2::CryptographicVerificationReceipt,
         RecursiveBoundedObjectV2::CheckpointConfigHead,
         RecursiveBoundedObjectV2::ConfigMigrationRecord,
+        RecursiveBoundedObjectV2::NovaCadenceManifest,
+        RecursiveBoundedObjectV2::NovaAccumulatorSnapshot,
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
         RecursiveBoundedObjectV2::CheckpointContractConfigV3,
         RecursiveBoundedObjectV2::WalletBackup,
@@ -1573,6 +1649,8 @@ mod tests {
         RecursiveBoundedObjectV2::CryptographicVerificationReceipt,
         RecursiveBoundedObjectV2::CheckpointConfigHead,
         RecursiveBoundedObjectV2::ConfigMigrationRecord,
+        RecursiveBoundedObjectV2::NovaCadenceManifest,
+        RecursiveBoundedObjectV2::NovaAccumulatorSnapshot,
     ];
 
     const BACKUP_OBJECTS: &[RecursiveBoundedObjectV2] = &[
@@ -1622,7 +1700,7 @@ mod tests {
     fn test_profile_manifest_canonical() {
         let manifest = RuntimeProfileManifestV2::authority_pinned();
         let bytes = manifest.canonical_bytes().unwrap();
-        assert!(bytes.len() <= RUNTIME_PROFILE_MANIFEST_MAX_BYTES_V2);
+        assert!(bytes.len() <= RUNTIME_MANIFEST_MAX_BYTES_V2);
         assert_eq!(
             RuntimeProfileManifestV2::decode_canonical(&bytes).unwrap(),
             manifest
@@ -1640,8 +1718,7 @@ mod tests {
         assert!(RuntimeProfileManifestV2::decode_canonical(&trailing).is_err());
         assert!(RuntimeProfileManifestV2::decode_canonical(&vec![
             0;
-            RUNTIME_PROFILE_MANIFEST_MAX_BYTES_V2
-                + 1
+            RUNTIME_MANIFEST_MAX_BYTES_V2 + 1
         ])
         .is_err());
 
@@ -1682,7 +1759,7 @@ mod tests {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
         assert_eq!(
             super::super::contract_config_v3::hex_digest(registry.digest()),
-            "4007f54c2b3d714aba7e5d8a86dbedf84e5946c9f1c314d1fb11c831af5000fb"
+            "09f4ecf4323848d04af960e3b99ca6d1cf72aa8f4fef650a522d8f51cb3d8d6a"
         );
         let mut bytes = registry
             .encode_preheader(
@@ -1757,7 +1834,7 @@ mod tests {
     #[test]
     fn test_registry_rows_complete() {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
-        assert_eq!(registry.rows().len(), 27);
+        assert_eq!(registry.rows().len(), 29);
         assert_eq!(
             registry
                 .rows()
@@ -2224,7 +2301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_registry_axes_and_reachability_fail_closed() {
+    fn test_registry_axes_fail_closed() {
         assert_rows_reject(|row| {
             row.cryptographic_domain = "z00z.storage.checkpoint.da-reference.v1"
         });
@@ -2238,7 +2315,7 @@ mod tests {
     }
 
     #[test]
-    fn test_semantic_axis_boundary_rejects_each_independent_axis() {
+    fn test_semantic_axes_reject() {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
         let object = RecursiveBoundedObjectV2::NovaBlockProof;
         assert!(registry

@@ -11,7 +11,7 @@ use super::{
     recursive_statement::{NOVA_BACKEND_LABEL_V2, NOVA_PROOF_MODE_V2},
     version_registry::{
         CheckpointVersionRegistryV2, RecursiveBoundedObjectV2,
-        RECURSIVE_CHECKPOINT_SIDECAR_DIGEST_LABEL_V2, RECURSIVE_CHECKPOINT_SIDECAR_DOMAIN_V2,
+        RECURSIVE_CHECKPOINT_SIDECAR_DOMAIN_V2, RECURSIVE_SIDECAR_DIGEST_LABEL_V2,
     },
 };
 use crate::CheckpointError;
@@ -211,6 +211,36 @@ impl RecursiveCheckpointSidecarV2 {
     pub fn height(&self) -> u64 {
         self.height
     }
+
+    #[must_use]
+    pub fn checkpoint_id(&self) -> [u8; 32] {
+        self.checkpoint_id
+    }
+
+    #[must_use]
+    pub fn predecessor(&self) -> Option<[u8; 32]> {
+        self.predecessor
+    }
+
+    #[must_use]
+    pub fn statement_digest(&self) -> [u8; 32] {
+        self.statement_digest
+    }
+
+    #[must_use]
+    pub fn public_input_digest(&self) -> [u8; 32] {
+        self.public_input_digest
+    }
+
+    #[must_use]
+    pub fn prior_output_root(&self) -> [u8; 32] {
+        self.proof.prior_output_root
+    }
+
+    #[must_use]
+    pub fn output_root(&self) -> [u8; 32] {
+        self.proof.output_root
+    }
 }
 
 /// Sole seeded binary codec owner for the sidecar/reference schema.
@@ -306,7 +336,7 @@ impl<'de> DeserializeSeed<'de> for SidecarSeedV2 {
 pub(crate) fn recursive_sidecar_digest(bytes: &[u8]) -> [u8; 32] {
     sha256_256(
         RECURSIVE_CHECKPOINT_SIDECAR_DOMAIN_V2,
-        RECURSIVE_CHECKPOINT_SIDECAR_DIGEST_LABEL_V2,
+        RECURSIVE_SIDECAR_DIGEST_LABEL_V2,
         &[bytes],
     )
 }
@@ -373,19 +403,19 @@ mod tests {
     }
 
     #[test]
-    fn sidecar_digest_consumes_registry_owned_domain_identity() {
+    fn test_sidecar_domain_owner() {
         assert_eq!(
             recursive_sidecar_digest(b"sidecar"),
             z00z_crypto::sha256_256(
                 RECURSIVE_CHECKPOINT_SIDECAR_DOMAIN_V2,
-                RECURSIVE_CHECKPOINT_SIDECAR_DIGEST_LABEL_V2,
+                RECURSIVE_SIDECAR_DIGEST_LABEL_V2,
                 &[b"sidecar"],
             )
         );
     }
 
     #[test]
-    fn test_reference_and_sidecar_fields_reject_with_exact_classes() {
+    fn test_sidecar_field_rejections() {
         let bindings = bindings();
         let sidecar = RecursiveCheckpointSidecarV2::new(1, [11; 32], 4096, bindings).unwrap();
 
@@ -572,7 +602,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sidecar_binds_exact_genesis_storage_generation() {
+    fn test_sidecar_genesis_binding() {
         let bindings = bindings();
         let sidecar = RecursiveCheckpointSidecarV2::new(0, [11; 32], 4096, bindings).unwrap();
         let bytes = RecursiveCheckpointSidecarCodecV2::encode_bin(&sidecar).unwrap();

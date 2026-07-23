@@ -205,7 +205,7 @@ pub(crate) mod tests {
 
     use super::super::proof_batch::{
         JmtMutationCaseV2, SettlementUpdateTraceCircuitDecoderV2, SettlementUpdateTraceEnvelopeV2,
-        JMT_CIRCUIT_MICRO_OP_VERSION_V2, JMT_CIRCUIT_OPERATION_SIBLING_V2,
+        JMT_CIRCUIT_OPERATION_SIBLING_V2, JMT_MICRO_OP_VERSION_V2,
     };
     use super::{HjmtStore, HjmtTreeSnap, JmtTreeRoleV2};
     use crate::settlement::{
@@ -536,7 +536,7 @@ pub(crate) mod tests {
         assert_eq!(micro_records.len(), 7);
         assert!(micro_records.iter().all(|record| record.len() <= 64 * 1024));
         for (record, kind) in micro_records.iter().zip([1_u8, 2, 3, 4, 8, 5, 6]) {
-            assert_eq!(record[0], JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+            assert_eq!(record[0], JMT_MICRO_OP_VERSION_V2);
             assert_eq!(record[1], kind);
         }
         let mut circuit_digest =

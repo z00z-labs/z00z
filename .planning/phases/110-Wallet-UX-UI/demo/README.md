@@ -16,6 +16,21 @@ Open `http://127.0.0.1:4173`.
 
 The files can also be opened directly. The local HTTP server exists only for development screenshots and smoke tests; it is not part of the product runtime.
 
+## 📱 GitHub Pages
+
+GitHub renders repository files as source code; it does not execute `index.html`
+from the file view. The `publish-wallet-demo` workflow packages this static demo
+for GitHub Pages at:
+
+```text
+https://z00z-labs.github.io/z00z/wallet-demo/
+```
+
+One-time repository setup: **Settings → Pages → Build and deployment → Source →
+GitHub Actions**. After it is enabled, push a change to this demo or run
+**Actions → publish-wallet-demo → Run workflow**. Open the URL on a phone, or use
+the browser's responsive-device mode.
+
 Optional visual smoke test (with the development server above still running):
 
 ```bash
@@ -24,15 +39,17 @@ Optional visual smoke test (with the development server above still running):
 
 ## 🌐 Languages
 
-The concept includes English, Russian, French, German, Spanish, Japanese, and
-Simplified Chinese UI catalogues. Language, regional format, and display time zone
-are independent preferences. See [I18N-ARCHITECTURE.md](I18N-ARCHITECTURE.md) for
-the catalogue contract, local machine-translation bridge, and required checks.
+The concept includes English, Russian, French, German, Spanish, Portuguese,
+Korean, Turkish, Japanese, and Simplified Chinese UI catalogues. One canonical
+locale registry owns their metadata and load order. Language, regional format,
+and display time zone are independent preferences. See
+[I18N-ARCHITECTURE.md](../I18N-ARCHITECTURE.md) for the catalogue contract, local
+machine-translation bridge, and required checks.
 
 ## 🧪 Suggested walkthrough
 
 1. Resize between desktop and a 390 px mobile viewport.
-2. Use Send, Receive, asset Claim, and Give permission from Home.
+2. Use Send, asset Claim, and Give permission from Home; confirm Receive opens the selected wallet's single Receiver Card.
 3. Confirm that submitted sends, claim outputs, voucher redemption, and permission delegation show honest non-final states.
 4. Select Everyday, Savings, and Travel in the desktop wallet navigation. Confirm that Assets, History, Swap, Exchange, Staking, Backup, Settings, and the bottom status bar reflect only the selected wallet. Hover the copy control beside the address to reveal the full selected-wallet ID.
 5. Use **Log out**, confirm the application shell is hidden, then unlock; the password field and visible sensitive presentation state must be cleared on lock.
@@ -51,8 +68,32 @@ the catalogue contract, local machine-translation bridge, and required checks.
 ## 🧱 Constraints
 
 - No production cryptography or RPC calls.
-- The prototype loads Geist and Geist Mono from Google Fonts solely for visual review; the Z00Z wordmark uses Geist variable weight 780, matching the public docs header. Production packages the same font files locally and makes no remote font request.
+- Official Geist and Geist Mono variable fonts and their OFL license are bundled
+  under `assets/fonts/geist/`; the concept makes no remote font request.
 - Inline SVG symbols provide icons.
 - CSS tokens are intended to seed the Leptos production design system.
 - Claim intake RPC, network detail, compliance-profile loading, and runtime YAML write/watch controls are simulated target capabilities, not claims about the live backend. Selected-wallet settings stay concept-local until a revisioned settings bridge exists; advanced settings can apply a safe YAML draft only to the in-browser concept state.
 - The demo is a development-only visual reference. Production is the packaged standalone Tauri application with local-only IPC; it has no browser, container, or wallet HTTP/WebSocket profile and does not connect the demo to a wallet backend.
+
+## 🧩 Refactoring seams
+
+The port-facing modules under `scripts/port/` separate frozen identifiers,
+fixtures, presentation state, the mock gateway, locales, and semantic icons from
+DOM rendering. They map mechanically to Rust contracts, a Leptos store, and the
+native `WalletGateway`; the JavaScript remains demo-only and is not a production
+dependency. See [PORTING.md](PORTING.md) and
+[Refactoring-PLAN.md](../Refactoring-PLAN.md).
+
+The CSS entry imports `styles/colors.css`, `styles/foundation.css`, and
+`styles/components.css` in that order. Literal application colours remain
+centralized in `styles/colors.css`.
+
+Run the deterministic gates independently with:
+
+```bash
+node scripts/check-locales.mjs
+node scripts/test-port-contracts.mjs
+node scripts/check-port-readiness.mjs
+```
+
+`run-smoke.sh` runs these gates before the full Playwright suite.

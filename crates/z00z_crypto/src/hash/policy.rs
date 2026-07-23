@@ -358,7 +358,7 @@ mod poseidon2_parameter_parity_tests {
     }
 
     #[test]
-    fn exported_parameters_reproduce_each_pinned_poseidon2_layer() {
+    fn test_poseidon2_pinned_layers() {
         let params = poseidon2_goldilocks_params_v1();
         let input = [1_u64, 2, 3, 4, 5, 6, 7, 8];
         let external =

@@ -19,7 +19,7 @@ const RECURSIVE_CHECKPOINT_CONTEXT_VERSION_V2: u16 = 2;
 const NOOP_EXECUTION_INPUT_VERSION_V2: u8 = 2;
 
 /// Exact portable namespace bound into recursive-checkpoint public inputs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct RecursiveCheckpointContextV2 {
     version: u16,
     chain_id: u32,

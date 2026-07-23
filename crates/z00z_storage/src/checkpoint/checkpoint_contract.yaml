@@ -6,7 +6,7 @@ runtime_profile:
   generation: 2
   manifest_digest: c58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b
 version_authority:
-  registry_digest: 4007f54c2b3d714aba7e5d8a86dbedf84e5946c9f1c314d1fb11c831af5000fb
+  registry_digest: 09f4ecf4323848d04af960e3b99ca6d1cf72aa8f4fef650a522d8f51cb3d8d6a
   authority_generation: 2
   parameter_generation: 2
   config_generation: 1
@@ -306,7 +306,7 @@ limits:
   max_nova_block_proof_bytes: 131072
   max_nova_retained_proof_bodies: 16
   max_nova_retained_body_bytes: 2097152
-  max_nova_hot_recovery_bytes: 0
+  max_nova_hot_recovery_bytes: 1698758656
   max_epoch_nova_archive_bytes: 134217728
   max_plonky3_epoch_proof_bytes: 16777216
   max_plonky3_epoch_sidecar_bytes: 25165824

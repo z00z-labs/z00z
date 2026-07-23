@@ -196,7 +196,7 @@ worlds with different feature profiles.
 
 📌 `z00z_wallets` is the richest multi-target crate in the inspected scope. It
 ships as both `cdylib` and `rlib`, layers `core`, `adapters`, `services`, `db`,
-`wasm`, and optional `egui_views`, and contains native-only RedB persistence as
+`wasm`, and contains native-only RedB persistence as
 well as browser-specific IndexedDB support through `rexie`.
 
 ### Simulator And Test Workflow Layer
@@ -295,7 +295,7 @@ Representative patterns include:
 - `test-params-fast` propagated across multiple crates for lighter-weight tests
 - `wallet_debug_tools` and `wallet_debug_tools` for debug-only wallet export
   surfaces
-- `egui`, `qr-codes`, `wasm`, `os_hardening`, `verbose-logging`, and
+- `qr-codes`, `wasm`, `os_hardening`, `verbose-logging`, and
   `eviction-logs` in `z00z_wallets`
 - native versus `wasm32` dependency blocks in `z00z_wallets` and
   `z00z_networks_rpc`
@@ -392,7 +392,7 @@ flowchart TD
     Utils --> Crypto[z00z_crypto\nwrapper over Tari]
     Utils --> Storage[z00z_storage\ncheckpoint snapshot serialization]
     Core --> Storage
-    Crypto --> Wallets[z00z_wallets\ncore adapters db wasm egui]
+    Crypto --> Wallets[z00z_wallets\ncore adapters db wasm]
     Core --> Wallets
     Storage --> Wallets
     Rpc[z00z_networks_rpc\nnative + wasm transport] --> Wallets

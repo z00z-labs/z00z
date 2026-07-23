@@ -70,11 +70,6 @@ crates/z00z_wallets/
 │   │
 │   ├── wallet_worker.rs         # ✅ WASM Web Worker entry point
 │   │
-│   └── .temp/                   # 🗑️ Archived UI code
-│       ├── egui_views/          # Old desktop UI
-│       ├── flows/               # YAML FSM configs
-│       └── LEGACY_UI_README.md  # Documentation
-│
 ├── www/                         # 🌐 Web UI
 │   ├── index.html               # WASM integration
 │   └── pkg/                     # Built WASM output

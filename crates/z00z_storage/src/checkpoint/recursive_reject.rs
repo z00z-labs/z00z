@@ -247,7 +247,7 @@ mod tests {
     use super::RecursiveCheckpointRejectReasonV2 as Reason;
 
     #[test]
-    fn codes_are_contiguous_unique_and_round_trip() {
+    fn test_reason_code_roundtrip() {
         for (index, reason) in Reason::ALL.into_iter().enumerate() {
             let expected = u16::try_from(index + 1).expect("47 entries fit u16");
             assert_eq!(reason.code(), expected);
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_encoding_has_frozen_golden_vectors() {
+    fn test_reason_golden_vectors() {
         assert_eq!(Reason::UnsupportedVersion.canonical_bytes(), [0x01, 0x00]);
         assert_eq!(
             Reason::SnapshotBindingIncomplete.canonical_bytes(),
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_decoder_rejects_bad_width_and_unknown_codes() {
+    fn test_reason_decoder_rejects() {
         for bytes in [&[][..], &[1][..], &[1, 0, 0][..], &[0, 0][..], &[48, 0][..]] {
             assert!(Reason::decode_canonical(bytes).is_err());
         }

@@ -1,23 +1,25 @@
 {
-  "backed_up_at": "2026-07-05T14:31:44.205Z",
-  "from_version": "1.5.0",
-  "from_manifest_timestamp": "2026-06-19T12:10:22.891Z",
+  "backed_up_at": "2026-07-22T18:28:07.406Z",
+  "from_version": "1.6.1",
+  "from_manifest_timestamp": "2026-07-05T14:31:44.329Z",
   "files": [
-    "gsd-core/bin/lib/runtime-artifact-conversion.cjs",
-    "gsd-core/bin/lib/verify.cjs",
-    "gsd-core/references/project-skills-discovery.md",
+    "gsd-core/bin/lib/graphify.cjs",
+    "gsd-core/bin/lib/runtime-hooks-surface.cjs",
+    "gsd-core/references/planner-graphify-auto-update.md",
     "gsd-core/workflows/execute-phase.md",
     "gsd-core/workflows/execute-plan.md",
     "skills/gsd-add-tests/SKILL.md",
+    "skills/gsd-execute-phase/SKILL.md",
     "skills/gsd-graphify/SKILL.md"
   ],
   "pristine_hashes": {
-    "gsd-core/bin/lib/runtime-artifact-conversion.cjs": "1210a9217fc8d5f49bd7bf206fb3c91f92e9330beb279d0bb9545753f0578ff3",
-    "gsd-core/bin/lib/verify.cjs": "7389d8b5f5a1d2f4fd7a4d7c46d116087fa29a3b8dc82c467cf10e5d6e9a74f6",
-    "gsd-core/references/project-skills-discovery.md": "625f6e30257e10ee1c0926b35151a33fbd91e79a4e59589328b472f68bb3c6ce",
-    "gsd-core/workflows/execute-phase.md": "b6cdc0380971ffe29c5fac5b831129d4012f3469b9d3e253cf29ffe05b5f3bf7",
-    "gsd-core/workflows/execute-plan.md": "7a799c383344bdf9162ac5e37badc11c16dfbde6e7bc15e37d2f7a7c26ad0e0c",
+    "gsd-core/bin/lib/graphify.cjs": "9471802c2efc13c1e4e50cfc9d6d2b59a008d33a8eb3335a64b5574b7359ff91",
+    "gsd-core/bin/lib/runtime-hooks-surface.cjs": "afe526540ec0183cc235be350ff160fb75d6caa547319112d076369e171eb729",
+    "gsd-core/references/planner-graphify-auto-update.md": "1ed614dfba72f2a3a6d4c396af0c790401b7d9a0baf2ec51fe1f0f487d6f0449",
+    "gsd-core/workflows/execute-phase.md": "47cea6a108e7198a133c425954972e24981d5fbb1559bca763bbb9168359c932",
+    "gsd-core/workflows/execute-plan.md": "2f41f3f820c9bcd6978e88a4e97f4d04ddb5cc50517dfe609f33e16dc06ce535",
     "skills/gsd-add-tests/SKILL.md": "49027fcb25328dd91ada99df3f54f93b27c9ceab8193a3effe5df3dd10cbff31",
+    "skills/gsd-execute-phase/SKILL.md": "552ecbffc7c77e9799182a96011483e24c94b4641e4a4e50610ead39da1c6e1e",
     "skills/gsd-graphify/SKILL.md": "df3a9edb6dad47a34b6d6ee5b29675af13bcf137a7bd4533232bdc24e6074f1a"
   }
 }

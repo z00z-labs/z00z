@@ -44,6 +44,8 @@ Before auditing, discover project context:
 **Project instructions:** Read `./copilot-instructions.md` if it exists in the working directory. Follow all project-specific guidelines.
 
 **Project skills:** Check `.github/skills/` or `.agents/skills/` directory if either exists:
+
+**agent_skills:** self-load per @.github/gsd-core/references/agent-skills-bootstrap.md
 1. List available skills (subdirectories)
 2. Read `SKILL.md` for each skill
 3. 

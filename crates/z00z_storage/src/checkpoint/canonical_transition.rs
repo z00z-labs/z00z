@@ -20,11 +20,11 @@ use super::{
     },
     recursive_predicate::{CheckpointTransitionConsistencyV2, EvaluatedCheckpointTransitionV2},
     recursive_semantics::{
-        decode_uniqueness_challenge, decode_uniqueness_precommit, encode_flow_header_with_v2_roots,
-        encode_flow_item, encode_hierarchy_promotion, encode_net_effect, encode_net_merge,
+        decode_uniqueness_challenge, decode_uniqueness_precommit, encode_flow_item,
+        encode_hierarchy_promotion, encode_net_effect, encode_net_merge,
         encode_typed_checkpoint_commitment, encode_uniqueness_challenge,
-        encode_uniqueness_precommit, encode_uniqueness_sorted_row, NetEffectV2,
-        TypedCheckpointCommitmentKindV2, UniquenessListKindV2, UniquenessPassV2,
+        encode_uniqueness_precommit, encode_uniqueness_sorted_row, encode_v2_flow_header,
+        NetEffectV2, TypedCheckpointCommitmentKindV2, UniquenessListKindV2, UniquenessPassV2,
         UniquenessSetKindV2, UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
     },
     recursive_statement::{
@@ -236,6 +236,11 @@ pub struct CanonicalCheckpointTransitionV2 {
 }
 
 impl CanonicalCheckpointTransitionV2 {
+    #[must_use]
+    pub(crate) const fn checkpoint_height(&self) -> u64 {
+        self.checkpoint.height()
+    }
+
     /// Reload one canonical checkpoint binding, then commit its one storage
     /// execution and materialize the sole V2 proving source.
     ///
@@ -782,7 +787,7 @@ fn canonical_events(
     emit(structural_event(
         ordinal,
         RecursiveTraceOpcodeV2::BeginBlock,
-        encode_flow_header_with_v2_roots(flow, pre_settlement_root, post_settlement_root)?,
+        encode_v2_flow_header(flow, pre_settlement_root, post_settlement_root)?,
         profile,
     )?)?;
     ordinal = ordinal.checked_add(1).ok_or(CheckpointError::Overflow)?;
@@ -950,7 +955,7 @@ fn canonical_events(
     emit(structural_event(
         ordinal,
         RecursiveTraceOpcodeV2::FinalizeBlock,
-        encode_flow_header_with_v2_roots(flow, pre_settlement_root, post_settlement_root)?,
+        encode_v2_flow_header(flow, pre_settlement_root, post_settlement_root)?,
         profile,
     )?)?;
     ordinal = ordinal.checked_add(1).ok_or(CheckpointError::Overflow)?;

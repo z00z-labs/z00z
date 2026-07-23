@@ -402,6 +402,29 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 - OnionNet remains target architecture until its blockers and verification gates are complete. The wallet may show safe aggregate status, not invented path telemetry.
 - Wallet configuration does not confer protocol or genesis authority. Protocol rules remain locked and cannot be overridden by UI/YAML preferences.
 
+## 📡 Offline-first renderer audit — 2026-07-23
+
+The present prototype is self-contained at the renderer boundary: `index.html` loads local runtime scripts and one local CSS entry point; CSS, Geist fonts, locale catalogues, icons, and object imagery are vendored under `demo/`. Its production-readiness check rejects remote resource URLs and direct browser network APIs in renderer runtime files. SVG XML namespaces such as `http://www.w3.org/2000/svg` are document metadata, not browser network requests.
+
+This confirms that the interface can be packaged without an Internet dependency. It does **not** claim a live Reticulum radio stack: radio connectivity remains a target native-Rust transport and requires its own adapter, carrier-state contract, and air-gapped device verification.
+
+| Area | Evidence in prototype | Production rule |
+| --- | --- | --- |
+| Bootstrap and styles | Local `index.html`, `styles.css`, and CSS imports only | Bundle all renderer resources in Tauri; deny remote origins |
+| Typography and imagery | Vendored Geist `.woff2`, inline SVG sprite, and local asset files | No CDN fonts, icon fonts, remote images, or remote code themes |
+| Language | Local locale registry and catalogues | Locale changes remain local; no automatic web translation |
+| Renderer state | `WalletGateway` mock and static fixtures; no browser storage or generic RPC transport | Native typed gateway only; keys, sessions, and raw transport data stay outside the renderer |
+| Optional connectivity | No renderer network API; Reticulum/OnionNet is capability-labelled | Native Rust owns radio/transport; unavailable radio shows an explicit local state |
+| Prototype publishing | GitHub Pages can publish the visual demo | Pages is review-only, never a production wallet runtime |
+
+### Required production safeguards
+
+1. Package every renderer resource and verify the final Tauri bundle contains no remote URI dependency.
+2. Launch each target in airplane mode before first unlock and after restart; local wallet state must remain usable.
+3. Treat radio loss as a typed native capability state, not as a renderer exception or an Internet fallback trigger.
+4. Show freshness and queue status for transport-derived data; preserve the difference between local intent, submitted, and settled.
+5. Keep diagnostic telemetry opt-in, local, redacted, and bounded. It must not become an analytics/network dependency.
+
 ## ✅ Current strengths to preserve
 
 - The current dark/gold/blue visual direction is distinctive, calm, and appropriate for a privacy wallet.
@@ -440,6 +463,7 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 - [x] Relabel the demo operation as removing local concept profiles and state that wallet files are not deleted; a production detach API remains P2.
 - [x] Capability-gate YAML behavior: the demo applies only browser-local state and discloses the absent production configuration service.
 - [x] Mark market `Value` and `Price` unavailable until a provider/source/time contract exists.
+- [x] Lock the prototype renderer to local assets and no direct browser-network APIs; record the equivalent Tauri packaged-resource and airplane-mode gate.
 
 ### ⚙️ P1: component standardization
 
@@ -480,6 +504,7 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 | Appearance | Default palette is unchanged; four optional presets update full semantic tokens and four application-wide code themes change YAML syntax only |
 | YAML | UI and YAML reflect the same typed draft; syntax highlighting remains an accessible overlay above the editable source; validation, provenance, revision conflicts, atomic apply, rollback, and secret exclusion are enforced |
 | Capability honesty | Every nonlive function is disabled or labelled Preview/Unavailable/Experimental; telemetry is read-only, local, freshness-labelled, and never fabricated |
+| Offline-first | Airplane-mode launch and navigation use bundled resources and local wallet state only; radio loss reports a typed capability state without Internet fallback |
 | Responsive | 390 × 844 and 1440 × 1000 screenshots show no overlap, clipping, transparent wallet tabs, or unreachable actions |
 
 ## 🔍 Verification plan
@@ -492,6 +517,7 @@ No password, seed phrase, private key, session token, receiver secret, raw recov
 6. Test themes and all palettes with automated contrast checks, forced colors, 200% zoom, reduced motion, and hidden sensitive values.
 7. Test keyboard-only and screen-reader flows for wallet switching, copy address, tabs, Add Wallet, Remove Wallet, dialogs, and config validation.
 8. When backend integration begins, contract-test each visible function against the exact registered method and response type; registered-but-compatibility routes remain gated.
+9. Run the packaged Tauri app in airplane mode before unlock, after unlock, and after restart. Assert no remote resource request, all local renderer assets load, radio loss is explicit, and queued/submitted/settled states remain distinct.
 
 ## 🔗 Evidence sources
 

@@ -249,7 +249,7 @@ pub fn derive_exec_tx_root(txs: &[CheckpointExecTx]) -> Result<[u8; 32], Checkpo
 ///
 /// The version, preparation snapshot, and V2 predecessor root are framed into
 /// the commitment, so an empty vector cannot stand in for this typed marker.
-fn derive_recursive_v2_noop_exec_root(
+fn derive_noop_exec_root_v2(
     prep_snapshot_id: PrepSnapshotId,
     prev_settlement_root: SettlementStateRoot,
 ) -> [u8; 32] {
@@ -351,8 +351,7 @@ impl CheckpointExecInput {
             return Err(CheckpointError::ReplayMix);
         }
         let version = CheckpointExecVersion::RECURSIVE_V2_NOOP;
-        let tx_data_root =
-            derive_recursive_v2_noop_exec_root(prep_snapshot_id, prev_settlement_root);
+        let tx_data_root = derive_noop_exec_root_v2(prep_snapshot_id, prev_settlement_root);
         Ok(Self {
             version,
             prep_snapshot_id,
@@ -401,12 +400,9 @@ impl CheckpointExecInput {
     pub(crate) fn expected_tx_data_root(&self) -> Result<[u8; 32], CheckpointError> {
         match self.version {
             CheckpointExecVersion::CURRENT => derive_exec_tx_root(&self.txs),
-            CheckpointExecVersion::RECURSIVE_V2_NOOP if self.txs.is_empty() => {
-                Ok(derive_recursive_v2_noop_exec_root(
-                    self.prep_snapshot_id,
-                    self.prev_settlement_root,
-                ))
-            }
+            CheckpointExecVersion::RECURSIVE_V2_NOOP if self.txs.is_empty() => Ok(
+                derive_noop_exec_root_v2(self.prep_snapshot_id, self.prev_settlement_root),
+            ),
             _ => Err(CheckpointError::ReplayMix),
         }
     }

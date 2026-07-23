@@ -121,7 +121,7 @@ fn test_archive_retention_and_caps_match_the_authority() {
     assert_eq!(cfg.limits.max_nova_block_proof_bytes, 131_072);
     assert_eq!(cfg.limits.max_nova_retained_proof_bodies, 16);
     assert_eq!(cfg.limits.max_nova_retained_body_bytes, 2_097_152);
-    assert_eq!(cfg.limits.max_nova_hot_recovery_bytes, 0);
+    assert_eq!(cfg.limits.max_nova_hot_recovery_bytes, 1_698_758_656);
     assert_eq!(cfg.limits.max_pq_anchor_bytes, 4_096);
     assert_eq!(cfg.limits.max_epoch_anchor_bytes, 4_096);
     assert_eq!(cfg.limits.max_epoch_close_certificate_bytes, 4_096);
@@ -302,8 +302,8 @@ fn test_every_pinned_identity_axis_rejects_drift() {
             "  manifest_digest: a58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b\n",
         ),
         (
-            "  registry_digest: 4007f54c2b3d714aba7e5d8a86dbedf84e5946c9f1c314d1fb11c831af5000fb\n",
-            "  registry_digest: a007f54c2b3d714aba7e5d8a86dbedf84e5946c9f1c314d1fb11c831af5000fb\n",
+            "  registry_digest: 09f4ecf4323848d04af960e3b99ca6d1cf72aa8f4fef650a522d8f51cb3d8d6a\n",
+            "  registry_digest: a9f4ecf4323848d04af960e3b99ca6d1cf72aa8f4fef650a522d8f51cb3d8d6a\n",
         ),
         ("  parameter_generation: 2\n", "  parameter_generation: 3\n"),
     ] {

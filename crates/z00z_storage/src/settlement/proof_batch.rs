@@ -50,20 +50,20 @@ const WITNESS_CHUNK_VER: u8 = 1;
 const WITNESS_CHUNK_BATCH: u8 = 1;
 pub const JMT_UPDATE_TRACE_VERSION_V2: u8 = 3;
 #[cfg(test)]
-pub(crate) const JMT_UPDATE_TRACE_MAX_BYTES_V2: usize = 67_108_864;
-pub(crate) const JMT_UPDATE_TRACE_MAX_OPS_V2: usize = 1_000;
-const JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2: usize = 24 * 1024 * 1024;
-const JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2: usize = 64 * 1024;
-const JMT_UPDATE_TRACE_MAX_VALUES_BYTES_V2: usize = 24 * 1024 * 1024;
+pub(crate) const JMT_TRACE_MAX_BYTES_V2: usize = 67_108_864;
+pub(crate) const JMT_TRACE_MAX_OPS_V2: usize = 1_000;
+const JMT_PROOF_MAX_BYTES_V2: usize = 24 * 1024 * 1024;
+const JMT_VALUE_MAX_BYTES_V2: usize = 64 * 1024;
+const JMT_VALUES_MAX_BYTES_V2: usize = 24 * 1024 * 1024;
 #[cfg(test)]
-pub(crate) const JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2: usize = 48 * 1024 * 1024;
+pub(crate) const JMT_ENVELOPE_MAX_BYTES_V2: usize = 48 * 1024 * 1024;
 pub(crate) const JMT_SPARSE_PLACEHOLDER_HASH_V2: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
 const JMT_LEAF_DOMAIN_V2: &[u8] = b"JMT::LeafNode";
 const JMT_INTERNAL_DOMAIN_V2: &[u8] = b"JMT::IntrnalNode";
-pub(crate) const JMT_UPDATE_TRACE_KIND_MUTATING_V2: u8 = 1;
-pub(crate) const JMT_UPDATE_TRACE_KIND_NOOP_V2: u8 = 2;
-const JMT_UPDATE_TRACE_NOOP_LABEL_V2: &str = "settlement_update_trace_noop_v2";
-pub(crate) const JMT_CIRCUIT_MICRO_OP_VERSION_V2: u8 = 3;
+pub(crate) const JMT_TRACE_MUTATING_KIND_V2: u8 = 1;
+pub(crate) const JMT_TRACE_NOOP_KIND_V2: u8 = 2;
+const JMT_TRACE_NOOP_LABEL_V2: &str = "settlement_update_trace_noop_v2";
+pub(crate) const JMT_MICRO_OP_VERSION_V2: u8 = 3;
 pub(crate) const JMT_CIRCUIT_UPDATE_BEGIN_V2: u8 = 1;
 pub(crate) const JMT_CIRCUIT_OPERATION_BEGIN_V2: u8 = 2;
 pub(crate) const JMT_CIRCUIT_OPERATION_VALUE_V2: u8 = 3;
@@ -71,12 +71,12 @@ pub(crate) const JMT_CIRCUIT_OPERATION_PROOF_V2: u8 = 4;
 pub(crate) const JMT_CIRCUIT_OPERATION_END_V2: u8 = 5;
 pub(crate) const JMT_CIRCUIT_UPDATE_END_V2: u8 = 6;
 pub(crate) const JMT_CIRCUIT_OPERATION_SIBLING_V2: u8 = 7;
-pub(crate) const JMT_CIRCUIT_OPERATION_PROOF_END_V2: u8 = 8;
-pub(crate) const JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2: u8 = 9;
-const JMT_CIRCUIT_RAW_BLOCK_BYTES_V2: usize = 64;
+pub(crate) const JMT_PROOF_END_OP_V2: u8 = 8;
+pub(crate) const JMT_SPLIT_SIBLING_OP_V2: u8 = 9;
+const JMT_RAW_BLOCK_BYTES_V2: usize = 64;
 // Sibling records carry two raw SHA blocks for the sibling node and two for
 // the derived old-parent node: 19 framing bytes plus four 64-byte blocks.
-const JMT_CIRCUIT_MAX_RECORD_BYTES_V2: usize = 403;
+const JMT_RECORD_MAX_BYTES_V2: usize = 403;
 pub(crate) const JMT_CIRCUIT_HEADER_BYTES_V2: usize = 1 + 1 + 1 + 32 + 4;
 const JMT_SEGMENT_MAGIC_V2: [u8; 8] = *b"Z00ZJSG2";
 const JMT_SEGMENT_VERSION_V2: u8 = 1;
@@ -100,7 +100,7 @@ const JMT_SEGMENT_HEADER_BYTES_V2: usize = 8
     + 4
     + 32;
 const JMT_SEGMENT_FRAME_BYTES_V2: usize = 4;
-const JMT_SEGMENT_SPOOL_MAX_BYTES_V2: u64 = 64 * 1024 * 1024;
+const JMT_SPOOL_MAX_BYTES_V2: u64 = 64 * 1024 * 1024;
 static BATCH_PROOF_TRANSCRIPT_DOMAIN: OnceLock<[u8; 32]> = OnceLock::new();
 
 type TerminalRootKeyV2 = ([u8; 32], u32, [u8; 32]);
@@ -282,7 +282,7 @@ mod jmt_secret_boundary_tests {
     use zeroize::Zeroize;
 
     #[test]
-    fn project_owned_jmt_operation_buffers_zeroize_in_place() {
+    fn test_jmt_buffers_zeroize() {
         let mut operation = JmtUpdateOpV2 {
             key: [0x11; 32],
             prior_value: Some(vec![0x22; 73]),
@@ -295,7 +295,7 @@ mod jmt_secret_boundary_tests {
     }
 
     #[test]
-    fn streaming_decoder_operation_buffers_zeroize_in_place() {
+    fn test_decoder_buffers_zeroize() {
         let mut operation = CircuitOperationBuilderV2 {
             key: [0x11; 32],
             prior_value_present: true,
@@ -437,7 +437,7 @@ impl JmtUpdateOpV2 {
         if [prior_value.as_ref(), value.as_ref()]
             .into_iter()
             .flatten()
-            .any(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
+            .any(|value| value.len() > JMT_VALUE_MAX_BYTES_V2)
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
@@ -460,7 +460,7 @@ impl JmtUpdateOpV2 {
         match &self.prior_value {
             None => out.push(0),
             Some(value) => {
-                if value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2 {
+                if value.len() > JMT_VALUE_MAX_BYTES_V2 {
                     return Err(ProofChkErr::JmtUpdateTraceLimit);
                 }
                 out.push(1);
@@ -470,7 +470,7 @@ impl JmtUpdateOpV2 {
         match &self.value {
             None => out.push(0),
             Some(value) => {
-                if value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2 {
+                if value.len() > JMT_VALUE_MAX_BYTES_V2 {
                     return Err(ProofChkErr::JmtUpdateTraceLimit);
                 }
                 out.push(1);
@@ -485,12 +485,12 @@ impl JmtUpdateOpV2 {
         let key = reader.take_array()?;
         let prior_value = match reader.take_u8()? {
             0 => None,
-            1 => Some(reader.take_vec(JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)?),
+            1 => Some(reader.take_vec(JMT_VALUE_MAX_BYTES_V2)?),
             _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
         };
         let value = match reader.take_u8()? {
             0 => None,
-            1 => Some(reader.take_vec(JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)?),
+            1 => Some(reader.take_vec(JMT_VALUE_MAX_BYTES_V2)?),
             _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
         };
         Ok(Self {
@@ -552,7 +552,7 @@ impl JmtUpdateTraceV2 {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         let proof_wire = BincodeCodec.serialize(&proof)?;
-        if proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 {
+        if proof_wire.len() > JMT_PROOF_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
 
@@ -583,8 +583,8 @@ impl JmtUpdateTraceV2 {
     pub(crate) fn canonical_bytes(&self) -> Result<Vec<u8>, ProofChkErr> {
         if self.version != JMT_UPDATE_TRACE_VERSION_V2
             || !jmt_version_pair_is_canonical(self.old_version, self.new_version)
-            || self.operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
-            || self.proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2
+            || self.operations.len() > JMT_TRACE_MAX_OPS_V2
+            || self.proof_wire.len() > JMT_PROOF_MAX_BYTES_V2
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
@@ -611,7 +611,7 @@ impl JmtUpdateTraceV2 {
             operation.encode_canonical(&mut bytes)?;
         }
         append_len_prefixed(&mut bytes, &self.proof_wire)?;
-        if bytes.len() > JMT_UPDATE_TRACE_MAX_BYTES_V2 {
+        if bytes.len() > JMT_TRACE_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
         Ok(bytes)
@@ -619,7 +619,7 @@ impl JmtUpdateTraceV2 {
 
     #[cfg(test)]
     pub(crate) fn from_canon(bytes: &[u8]) -> Result<Self, ProofChkErr> {
-        if bytes.len() > JMT_UPDATE_TRACE_MAX_BYTES_V2 {
+        if bytes.len() > JMT_TRACE_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
         let mut reader = CanonicalReader::new(bytes);
@@ -631,7 +631,7 @@ impl JmtUpdateTraceV2 {
         let new_root = reader.take_array()?;
         let count =
             usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
-        if count == 0 || count > JMT_UPDATE_TRACE_MAX_OPS_V2 {
+        if count == 0 || count > JMT_TRACE_MAX_OPS_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
         let mut operations = Vec::new();
@@ -641,7 +641,7 @@ impl JmtUpdateTraceV2 {
         for _ in 0..count {
             operations.push(JmtUpdateOpV2::decode_canonical(&mut reader)?);
         }
-        let proof_wire = reader.take_vec(JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2)?;
+        let proof_wire = reader.take_vec(JMT_PROOF_MAX_BYTES_V2)?;
         reader.finish()?;
         let out = Self {
             version,
@@ -656,8 +656,8 @@ impl JmtUpdateTraceV2 {
         if out.version != JMT_UPDATE_TRACE_VERSION_V2 {
             return Err(ProofChkErr::UnsupportedJmtUpdateVersion);
         }
-        if out.operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
-            || out.proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2
+        if out.operations.len() > JMT_TRACE_MAX_OPS_V2
+            || out.proof_wire.len() > JMT_PROOF_MAX_BYTES_V2
             || out.canonical_bytes()? != bytes
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -670,14 +670,14 @@ impl JmtUpdateTraceV2 {
     pub(crate) fn verify_native(&self) -> Result<(), ProofChkErr> {
         if self.version != JMT_UPDATE_TRACE_VERSION_V2
             || !jmt_version_pair_is_canonical(self.old_version, self.new_version)
-            || self.operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
-            || self.proof_wire.len() > JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2
+            || self.operations.len() > JMT_TRACE_MAX_OPS_V2
+            || self.proof_wire.len() > JMT_PROOF_MAX_BYTES_V2
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
         check_jmt_operations(&self.operations)?;
-        let proof: UpdateMerkleProof<JmtSha256V2> = BincodeCodec
-            .deserialize_bounded(&self.proof_wire, JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 as u64)?;
+        let proof: UpdateMerkleProof<JmtSha256V2> =
+            BincodeCodec.deserialize_bounded(&self.proof_wire, JMT_PROOF_MAX_BYTES_V2 as u64)?;
         let operations = self
             .operations
             .clone()
@@ -704,8 +704,8 @@ impl JmtUpdateTraceV2 {
     }
 
     fn semantic_cases_and_root(&self) -> Result<(Vec<JmtMutationCaseV2>, [u8; 32]), ProofChkErr> {
-        let proof: JmtUpdateProofWireV2 = BincodeCodec
-            .deserialize_bounded(&self.proof_wire, JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 as u64)?;
+        let proof: JmtUpdateProofWireV2 =
+            BincodeCodec.deserialize_bounded(&self.proof_wire, JMT_PROOF_MAX_BYTES_V2 as u64)?;
         if BincodeCodec.serialize(&proof)? != self.proof_wire
             || proof.0.len() != self.operations.len()
         {
@@ -1005,7 +1005,7 @@ fn jmt_raw_sha_block(
     Ok(block)
 }
 
-fn validate_jmt_raw_sha_value_block(
+fn validate_jmt_sha_value_block(
     block: &[u8; 64],
     message_bytes: usize,
     block_index: usize,
@@ -1113,7 +1113,7 @@ pub(crate) fn validate_live_jmt_operations_v2(
     operations: &[(KeyHash, Option<Vec<u8>>)],
 ) -> Result<(), ProofChkErr> {
     if operations.is_empty()
-        || operations.len() > JMT_UPDATE_TRACE_MAX_OPS_V2
+        || operations.len() > JMT_TRACE_MAX_OPS_V2
         || operations
             .windows(2)
             .any(|pair| pair[0].0 .0 >= pair[1].0 .0)
@@ -1127,8 +1127,8 @@ pub(crate) fn validate_live_jmt_operations_v2(
             .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
         if value
             .as_ref()
-            .is_some_and(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
-            || next > JMT_UPDATE_TRACE_MAX_VALUES_BYTES_V2
+            .is_some_and(|value| value.len() > JMT_VALUE_MAX_BYTES_V2)
+            || next > JMT_VALUES_MAX_BYTES_V2
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
@@ -1148,8 +1148,8 @@ fn check_jmt_operations(operations: &[JmtUpdateOpV2]) -> Result<(), ProofChkErr>
         if operation
             .value
             .as_ref()
-            .is_some_and(|value| value.len() > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2)
-            || next > JMT_UPDATE_TRACE_MAX_VALUES_BYTES_V2
+            .is_some_and(|value| value.len() > JMT_VALUE_MAX_BYTES_V2)
+            || next > JMT_VALUES_MAX_BYTES_V2
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
@@ -1205,7 +1205,7 @@ impl SettlementUpdateTraceBuilderV2 {
     ) -> Result<Self, ProofChkErr> {
         Ok(Self {
             context,
-            spool: PrivateSpoolFile::create_in(dir, JMT_SEGMENT_SPOOL_MAX_BYTES_V2)
+            spool: PrivateSpoolFile::create_in(dir, JMT_SPOOL_MAX_BYTES_V2)
                 .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?,
             trace_digest: CheckpointSha256V2::new(CheckpointShaRole::Trace),
             stream_digest: <Sha256 as Digest>::new(),
@@ -1413,7 +1413,7 @@ impl SettlementUpdateTraceBuilderV2 {
         Ok(SettlementUpdateTraceEnvelopeV2 {
             version: JMT_UPDATE_TRACE_VERSION_V2,
             root_generation: RootGeneration::SettlementV2.version(),
-            kind: JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+            kind: JMT_TRACE_MUTATING_KIND_V2,
             trace_digest,
             update_count: self.update_count,
             terminal_operation_count: self.terminal_operation_count,
@@ -1525,7 +1525,7 @@ fn visit_segment_spool(
         let mut payload_reader = CanonicalReader::new(payload);
         for _ in 0..record_count {
             let record_len = usize::from(payload_reader.take_u16()?);
-            if record_len == 0 || record_len > JMT_CIRCUIT_MAX_RECORD_BYTES_V2 {
+            if record_len == 0 || record_len > JMT_RECORD_MAX_BYTES_V2 {
                 return Err(ProofChkErr::JmtUpdateTraceLimit);
             }
             let record = payload_reader.take_exact(record_len)?;
@@ -1641,9 +1641,9 @@ mod jmt_segment_grammar_tests {
     use tempfile::TempDir;
 
     fn record(update_index: u32, len: usize) -> Vec<u8> {
-        assert!((6..=JMT_CIRCUIT_MAX_RECORD_BYTES_V2).contains(&len));
+        assert!((6..=JMT_RECORD_MAX_BYTES_V2).contains(&len));
         let mut record = vec![0_u8; len];
-        record[0] = JMT_CIRCUIT_MICRO_OP_VERSION_V2;
+        record[0] = JMT_MICRO_OP_VERSION_V2;
         record[1] = JMT_CIRCUIT_UPDATE_BEGIN_V2;
         record[2..6].copy_from_slice(&update_index.to_le_bytes());
         record
@@ -1698,7 +1698,7 @@ mod jmt_segment_grammar_tests {
     ) -> (TempDir, JmtSegmentSpoolV2) {
         let dir = TempDir::new().expect("segment temp dir");
         let mut spool =
-            PrivateSpoolFile::create_in(dir.path(), JMT_SEGMENT_SPOOL_MAX_BYTES_V2).expect("spool");
+            PrivateSpoolFile::create_in(dir.path(), JMT_SPOOL_MAX_BYTES_V2).expect("spool");
         let mut digest = <Sha256 as Digest>::new();
         for frame in frames {
             let length = (frame.len() as u32).to_le_bytes();
@@ -1732,7 +1732,7 @@ mod jmt_segment_grammar_tests {
     }
 
     #[test]
-    fn segment_cap_and_sequence_mutations_fail_closed() {
+    fn test_segment_mutations_reject() {
         let context = JmtTraceSegmentContextV2::new([0xA5; 32], 73);
         let first = frame(context, 0, 2, 0, &[record(0, 6)]);
         let second = frame(context, 1, 2, 1, &[record(0, 6)]);
@@ -2059,7 +2059,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
         Ok(Self {
             version: JMT_UPDATE_TRACE_VERSION_V2,
             root_generation: RootGeneration::SettlementV2.version(),
-            kind: JMT_UPDATE_TRACE_KIND_MUTATING_V2,
+            kind: JMT_TRACE_MUTATING_KIND_V2,
             trace_digest: [0_u8; 32],
             update_count,
             terminal_operation_count,
@@ -2077,7 +2077,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
         let envelope = Self {
             version: JMT_UPDATE_TRACE_VERSION_V2,
             root_generation: root_generation.version(),
-            kind: JMT_UPDATE_TRACE_KIND_NOOP_V2,
+            kind: JMT_TRACE_NOOP_KIND_V2,
             trace_digest: noop_update_trace_digest(),
             update_count: 0,
             terminal_operation_count: 0,
@@ -2097,10 +2097,10 @@ impl SettlementUpdateTraceEnvelopeV2 {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         match self.kind {
-            JMT_UPDATE_TRACE_KIND_MUTATING_V2
+            JMT_TRACE_MUTATING_KIND_V2
                 if !self.updates.is_empty()
                     && self.trace_digest == self.circuit_trace_digest()? => {}
-            JMT_UPDATE_TRACE_KIND_NOOP_V2
+            JMT_TRACE_NOOP_KIND_V2
                 if self.updates.is_empty() && self.trace_digest == noop_update_trace_digest() => {}
             _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
         }
@@ -2117,7 +2117,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 .checked_add(4)
                 .and_then(|value| value.checked_add(encoded.len()))
                 .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
-            if total > JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2 {
+            if total > JMT_ENVELOPE_MAX_BYTES_V2 {
                 return Err(ProofChkErr::JmtUpdateTraceLimit);
             }
             encoded_updates.push(encoded);
@@ -2136,7 +2136,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
         for update in encoded_updates {
             append_len_prefixed(&mut bytes, &update)?;
         }
-        if bytes.len() > JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2 {
+        if bytes.len() > JMT_ENVELOPE_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
         Ok(bytes)
@@ -2144,7 +2144,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
 
     #[cfg(test)]
     pub(crate) fn from_canon(bytes: &[u8]) -> Result<Self, ProofChkErr> {
-        if bytes.len() > JMT_UPDATE_TRACE_ENVELOPE_MAX_BYTES_V2 {
+        if bytes.len() > JMT_ENVELOPE_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
         let mut reader = CanonicalReader::new(bytes);
@@ -2154,13 +2154,10 @@ impl SettlementUpdateTraceEnvelopeV2 {
         let trace_digest = reader.take_array()?;
         let count =
             usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
-        if count > JMT_UPDATE_TRACE_MAX_OPS_V2
-            || (kind == JMT_UPDATE_TRACE_KIND_MUTATING_V2 && count == 0)
-            || (kind == JMT_UPDATE_TRACE_KIND_NOOP_V2 && count != 0)
-            || !matches!(
-                kind,
-                JMT_UPDATE_TRACE_KIND_MUTATING_V2 | JMT_UPDATE_TRACE_KIND_NOOP_V2
-            )
+        if count > JMT_TRACE_MAX_OPS_V2
+            || (kind == JMT_TRACE_MUTATING_KIND_V2 && count == 0)
+            || (kind == JMT_TRACE_NOOP_KIND_V2 && count != 0)
+            || !matches!(kind, JMT_TRACE_MUTATING_KIND_V2 | JMT_TRACE_NOOP_KIND_V2)
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
         }
@@ -2169,7 +2166,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
             .try_reserve_exact(count)
             .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
         for _ in 0..count {
-            let encoded = reader.take_borrowed(JMT_UPDATE_TRACE_MAX_BYTES_V2)?;
+            let encoded = reader.take_borrowed(JMT_TRACE_MAX_BYTES_V2)?;
             updates.push(JmtUpdateTraceV2::from_canon(encoded)?);
         }
         reader.finish()?;
@@ -2213,7 +2210,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
 
     #[must_use]
     pub(crate) const fn is_noop(&self) -> bool {
-        self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2
+        self.kind == JMT_TRACE_NOOP_KIND_V2
     }
 
     /// Fixed canonical envelope header used by the recursive source. The
@@ -2222,16 +2219,16 @@ impl SettlementUpdateTraceEnvelopeV2 {
         &self,
     ) -> Result<[u8; JMT_CIRCUIT_HEADER_BYTES_V2], ProofChkErr> {
         match self.kind {
-            JMT_UPDATE_TRACE_KIND_MUTATING_V2
+            JMT_TRACE_MUTATING_KIND_V2
                 if self.update_count != 0
                     && self.trace_digest == self.circuit_trace_digest()? => {}
-            JMT_UPDATE_TRACE_KIND_NOOP_V2
+            JMT_TRACE_NOOP_KIND_V2
                 if self.update_count == 0 && self.trace_digest == noop_update_trace_digest() => {}
             _ => return Err(ProofChkErr::JmtUpdateTraceCanonical),
         }
         if self.version != JMT_UPDATE_TRACE_VERSION_V2
             || self.root_generation != RootGeneration::SettlementV2.version()
-            || self.update_count > JMT_UPDATE_TRACE_MAX_OPS_V2 as u32
+            || self.update_count > JMT_TRACE_MAX_OPS_V2 as u32
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
@@ -2290,17 +2287,15 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 Err(ProofChkErr::JmtUpdateTraceCanonical)
             };
         }
-        if self.kind != JMT_UPDATE_TRACE_KIND_MUTATING_V2 || self.updates.is_empty() {
+        if self.kind != JMT_TRACE_MUTATING_KIND_V2 || self.updates.is_empty() {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
 
         for (update_index, update) in self.updates.iter().enumerate() {
             let update_index =
                 u32::try_from(update_index).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
-            let proof: JmtUpdateProofWireV2 = BincodeCodec.deserialize_bounded(
-                &update.proof_wire,
-                JMT_UPDATE_TRACE_MAX_PROOF_BYTES_V2 as u64,
-            )?;
+            let proof: JmtUpdateProofWireV2 = BincodeCodec
+                .deserialize_bounded(&update.proof_wire, JMT_PROOF_MAX_BYTES_V2 as u64)?;
             if BincodeCodec.serialize(&proof)? != update.proof_wire
                 || proof.0.len() != update.operations.len()
             {
@@ -2308,7 +2303,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
             }
 
             let mut record = Vec::with_capacity(1 + 1 + 4 + 69 + 8 * 2 + 32 * 2 + 4);
-            record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+            record.push(JMT_MICRO_OP_VERSION_V2);
             record.push(JMT_CIRCUIT_UPDATE_BEGIN_V2);
             record.extend_from_slice(&update_index.to_le_bytes());
             update.tree.encode_circuit_canonical(&mut record);
@@ -2332,7 +2327,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 let operation_index =
                     u32::try_from(operation_index).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
                 let mut begin = Vec::with_capacity(1 + 1 + 4 + 4 + 32 + 1 + 4 + 1 + 4);
-                begin.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                begin.push(JMT_MICRO_OP_VERSION_V2);
                 begin.push(JMT_CIRCUIT_OPERATION_BEGIN_V2);
                 begin.extend_from_slice(&update_index.to_le_bytes());
                 begin.extend_from_slice(&operation_index.to_le_bytes());
@@ -2364,7 +2359,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
                     let block_count = jmt_raw_sha_block_count(value.len())?;
                     for block_index in 0..block_count {
                         let mut value_record = Vec::with_capacity(19 + 64);
-                        value_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                        value_record.push(JMT_MICRO_OP_VERSION_V2);
                         value_record.push(JMT_CIRCUIT_OPERATION_VALUE_V2);
                         value_record.extend_from_slice(&update_index.to_le_bytes());
                         value_record.extend_from_slice(&operation_index.to_le_bytes());
@@ -2393,7 +2388,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 // representation in the recursive source and lets the R1CS
                 // path machine consume O(1) state without an opaque arena.
                 let mut proof_record = Vec::with_capacity(19 + 128);
-                proof_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                proof_record.push(JMT_MICRO_OP_VERSION_V2);
                 proof_record.push(JMT_CIRCUIT_OPERATION_PROOF_V2);
                 proof_record.extend_from_slice(&update_index.to_le_bytes());
                 proof_record.extend_from_slice(&operation_index.to_le_bytes());
@@ -2474,8 +2469,8 @@ impl SettlementUpdateTraceEnvelopeV2 {
                         }
                     };
                     let mut split_record = Vec::with_capacity(19 + 256);
-                    split_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
-                    split_record.push(JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2);
+                    split_record.push(JMT_MICRO_OP_VERSION_V2);
+                    split_record.push(JMT_SPLIT_SIBLING_OP_V2);
                     split_record.extend_from_slice(&update_index.to_le_bytes());
                     split_record.extend_from_slice(&operation_index.to_le_bytes());
                     split_record.extend_from_slice(
@@ -2508,7 +2503,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
                     .map_or(JMT_SPARSE_PLACEHOLDER_HASH_V2, jmt_leaf_hash);
                 for (sibling_index, sibling) in sparse_proof.siblings.iter().enumerate() {
                     let mut sibling_record = Vec::with_capacity(19 + 256);
-                    sibling_record.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                    sibling_record.push(JMT_MICRO_OP_VERSION_V2);
                     sibling_record.push(JMT_CIRCUIT_OPERATION_SIBLING_V2);
                     sibling_record.extend_from_slice(&update_index.to_le_bytes());
                     sibling_record.extend_from_slice(&operation_index.to_le_bytes());
@@ -2615,8 +2610,8 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 }
 
                 let mut proof_end = Vec::with_capacity(1 + 1 + 4 + 4);
-                proof_end.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
-                proof_end.push(JMT_CIRCUIT_OPERATION_PROOF_END_V2);
+                proof_end.push(JMT_MICRO_OP_VERSION_V2);
+                proof_end.push(JMT_PROOF_END_OP_V2);
                 proof_end.extend_from_slice(&update_index.to_le_bytes());
                 proof_end.extend_from_slice(&operation_index.to_le_bytes());
                 visit(&proof_end)?;
@@ -2627,7 +2622,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
                 update_current_root = expected_next_root;
 
                 let mut end = Vec::with_capacity(1 + 1 + 4 + 4);
-                end.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+                end.push(JMT_MICRO_OP_VERSION_V2);
                 end.push(JMT_CIRCUIT_OPERATION_END_V2);
                 end.extend_from_slice(&update_index.to_le_bytes());
                 end.extend_from_slice(&operation_index.to_le_bytes());
@@ -2635,7 +2630,7 @@ impl SettlementUpdateTraceEnvelopeV2 {
             }
 
             let mut end = Vec::with_capacity(1 + 1 + 4);
-            end.push(JMT_CIRCUIT_MICRO_OP_VERSION_V2);
+            end.push(JMT_MICRO_OP_VERSION_V2);
             end.push(JMT_CIRCUIT_UPDATE_END_V2);
             end.extend_from_slice(&update_index.to_le_bytes());
             visit(&end)?;
@@ -2700,7 +2695,7 @@ pub(crate) struct SettlementUpdateTraceSummaryV2 {
 impl SettlementUpdateTraceSummaryV2 {
     #[must_use]
     pub(crate) const fn is_noop(&self) -> bool {
-        self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2
+        self.kind == JMT_TRACE_NOOP_KIND_V2
     }
 
     #[must_use]
@@ -2824,13 +2819,10 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         reader.finish()?;
         if version != JMT_UPDATE_TRACE_VERSION_V2
             || root_generation != RootGeneration::SettlementV2.version()
-            || expected_updates > JMT_UPDATE_TRACE_MAX_OPS_V2
-            || !matches!(
-                kind,
-                JMT_UPDATE_TRACE_KIND_MUTATING_V2 | JMT_UPDATE_TRACE_KIND_NOOP_V2
-            )
-            || (kind == JMT_UPDATE_TRACE_KIND_MUTATING_V2 && expected_updates == 0)
-            || (kind == JMT_UPDATE_TRACE_KIND_NOOP_V2
+            || expected_updates > JMT_TRACE_MAX_OPS_V2
+            || !matches!(kind, JMT_TRACE_MUTATING_KIND_V2 | JMT_TRACE_NOOP_KIND_V2)
+            || (kind == JMT_TRACE_MUTATING_KIND_V2 && expected_updates == 0)
+            || (kind == JMT_TRACE_NOOP_KIND_V2
                 && (expected_updates != 0 || expected_digest != noop_update_trace_digest()))
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
@@ -2848,16 +2840,14 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
     }
 
     pub(crate) fn accept(&mut self, record: &[u8]) -> Result<(), ProofChkErr> {
-        if self.kind != JMT_UPDATE_TRACE_KIND_MUTATING_V2
-            || record.len() > JMT_CIRCUIT_MAX_RECORD_BYTES_V2
-        {
+        if self.kind != JMT_TRACE_MUTATING_KIND_V2 || record.len() > JMT_RECORD_MAX_BYTES_V2 {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         self.trace_digest
             .update_part(record)
             .map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
         let mut reader = CanonicalReader::new(record);
-        if reader.take_u8()? != JMT_CIRCUIT_MICRO_OP_VERSION_V2 {
+        if reader.take_u8()? != JMT_MICRO_OP_VERSION_V2 {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
         match reader.take_u8()? {
@@ -2868,10 +2858,8 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
             JMT_CIRCUIT_OPERATION_END_V2 => self.accept_operation_end(&mut reader),
             JMT_CIRCUIT_UPDATE_END_V2 => self.accept_update_end(&mut reader),
             JMT_CIRCUIT_OPERATION_SIBLING_V2 => self.accept_operation_sibling(&mut reader),
-            JMT_CIRCUIT_OPERATION_PROOF_END_V2 => self.accept_operation_proof_end(&mut reader),
-            JMT_CIRCUIT_OPERATION_SPLIT_SIBLING_V2 => {
-                self.accept_operation_split_sibling(&mut reader)
-            }
+            JMT_PROOF_END_OP_V2 => self.accept_operation_proof_end(&mut reader),
+            JMT_SPLIT_SIBLING_OP_V2 => self.accept_operation_split_sibling(&mut reader),
             _ => Err(ProofChkErr::JmtUpdateTraceCanonical),
         }
     }
@@ -2895,7 +2883,7 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         reader.finish()?;
         if !jmt_version_pair_is_canonical(old_version, new_version)
             || expected_operations == 0
-            || expected_operations > JMT_UPDATE_TRACE_MAX_OPS_V2
+            || expected_operations > JMT_TRACE_MAX_OPS_V2
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
@@ -2943,9 +2931,9 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         let expected_prior_value_bytes =
             usize::try_from(reader.take_u32()?).map_err(|_| ProofChkErr::JmtUpdateTraceLimit)?;
         reader.finish()?;
-        if expected_value_bytes > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2
+        if expected_value_bytes > JMT_VALUE_MAX_BYTES_V2
             || (!value_present && expected_value_bytes != 0)
-            || expected_prior_value_bytes > JMT_UPDATE_TRACE_MAX_VALUE_BYTES_V2
+            || expected_prior_value_bytes > JMT_VALUE_MAX_BYTES_V2
             || (!prior_value_present && expected_prior_value_bytes != 0)
         {
             return Err(ProofChkErr::JmtUpdateTraceLimit);
@@ -3035,11 +3023,11 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         };
         let expected_block_count = jmt_raw_sha_block_count(expected_bytes)?;
         let offset = block_index
-            .checked_mul(JMT_CIRCUIT_RAW_BLOCK_BYTES_V2)
+            .checked_mul(JMT_RAW_BLOCK_BYTES_V2)
             .ok_or(ProofChkErr::JmtUpdateTraceLimit)?;
         let meaningful = expected_bytes
             .saturating_sub(offset)
-            .min(JMT_CIRCUIT_RAW_BLOCK_BYTES_V2);
+            .min(JMT_RAW_BLOCK_BYTES_V2);
         if !present
             || operation.proof_leaf.is_some()
             || block_index != *next_chunk
@@ -3047,7 +3035,7 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
-        validate_jmt_raw_sha_value_block(&block, expected_bytes, block_index, block_count)?;
+        validate_jmt_sha_value_block(&block, expected_bytes, block_index, block_count)?;
         reader.finish()?;
         target.extend_from_slice(&block[..meaningful]);
         *next_chunk = next_chunk
@@ -3620,7 +3608,7 @@ impl SettlementUpdateTraceCircuitDecoderV2 {
         if self.current_update.is_some() || self.completed_updates != self.expected_updates {
             return Err(ProofChkErr::JmtUpdateTraceCanonical);
         }
-        if self.kind == JMT_UPDATE_TRACE_KIND_NOOP_V2 {
+        if self.kind == JMT_TRACE_NOOP_KIND_V2 {
             return Ok(SettlementUpdateTraceSummaryV2 {
                 kind: self.kind,
                 trace_digest: self.expected_digest,
@@ -3945,8 +3933,8 @@ fn append_len_prefixed(out: &mut Vec<u8>, value: &[u8]) -> Result<(), ProofChkEr
 
 pub(crate) fn noop_update_trace_digest() -> [u8; 32] {
     hash_zk::<StorBatchProofDom>(
-        JMT_UPDATE_TRACE_NOOP_LABEL_V2,
-        &[&[JMT_UPDATE_TRACE_VERSION_V2, JMT_UPDATE_TRACE_KIND_NOOP_V2]],
+        JMT_TRACE_NOOP_LABEL_V2,
+        &[&[JMT_UPDATE_TRACE_VERSION_V2, JMT_TRACE_NOOP_KIND_V2]],
     )
 }
 

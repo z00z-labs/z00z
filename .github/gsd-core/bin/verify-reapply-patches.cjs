@@ -106,6 +106,31 @@ function readPristineHashes(patchesDir) {
 }
 
 /**
+ * Read the authoritative restore-candidate list from backup-meta.json.
+ *
+ * A long-lived gsd-local-patches directory may retain timestamped archival
+ * snapshots alongside the current installer backup. Those archives are
+ * reference material, not candidates for the current reapply gate. When the
+ * current metadata records a file list, verify that list only; retain the
+ * recursive walk fallback for legacy backups without metadata.
+ */
+function readBackupFiles(patchesDir) {
+  const metaPath = path.join(patchesDir, 'backup-meta.json');
+  try {
+    const parsed = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    if (!parsed || !Array.isArray(parsed.files)) return null;
+    return parsed.files.filter((file) =>
+      typeof file === 'string' &&
+      file.length > 0 &&
+      !path.isAbsolute(file) &&
+      !file.split(/[\\/]/).includes('..'),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Walk a directory, returning every file's path relative to the root.
  */
 function walk(rootDir, relPrefix = '') {
@@ -332,7 +357,8 @@ function main() {
     throw new ExitError(2, `config dir not found: ${opts.configDir}`);
   }
 
-  const files = walk(opts.patchesDir).filter((f) => !f.endsWith('backup-meta.json'));
+  const recordedFiles = readBackupFiles(opts.patchesDir);
+  const files = recordedFiles || walk(opts.patchesDir).filter((f) => !f.endsWith('backup-meta.json'));
   // Bug #3657: read pristine_hashes from backup-meta.json once and share
   // across all per-file verifications so each can detect drift independently.
   const pristineHashes = readPristineHashes(opts.patchesDir);
@@ -396,4 +422,4 @@ if (require.main === module) {
   runMain(main);
 }
 
-module.exports = { computeUserAddedLines, isSignificantLine, verifyFile, walk, REASON, readPristineHashes, sha256 };
+module.exports = { computeUserAddedLines, isSignificantLine, verifyFile, walk, REASON, readPristineHashes, readBackupFiles, sha256 };

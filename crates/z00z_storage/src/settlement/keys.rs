@@ -22,7 +22,7 @@ pub fn serial_key(def_id: DefinitionId, serial_id: SerialId) -> KeyHash {
 /// Return the exact project-owned Poseidon2 word framing used by the two
 /// hierarchy parent keys. Recursive backends consume this owner instead of
 /// reconstructing the byte/domain grammar beside the live storage keys.
-pub(crate) fn hierarchy_parent_key_poseidon2_words_v1(
+pub(crate) fn hierarchy_parent_poseidon2_words_v1(
     definition: bool,
     definition_id: [u8; 32],
     serial_id: u32,
@@ -49,12 +49,12 @@ pub fn terminal_key(terminal_id: TerminalId) -> KeyHash {
 
 #[cfg(test)]
 mod tests {
-    use super::hierarchy_parent_key_poseidon2_words_v1;
+    use super::hierarchy_parent_poseidon2_words_v1;
 
     #[test]
-    fn hierarchy_parent_key_frames_have_fixed_circuit_geometry() {
-        let definition = hierarchy_parent_key_poseidon2_words_v1(true, [0; 32], 0);
-        let serial = hierarchy_parent_key_poseidon2_words_v1(false, [0; 32], 0);
+    fn test_parent_key_frame_geometry() {
+        let definition = hierarchy_parent_poseidon2_words_v1(true, [0; 32], 0);
+        let serial = hierarchy_parent_poseidon2_words_v1(false, [0; 32], 0);
         eprintln!(
             "hierarchy Poseidon2 frame words: definition={}, serial={}",
             definition.len(),

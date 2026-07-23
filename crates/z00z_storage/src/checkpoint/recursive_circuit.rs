@@ -4,9 +4,9 @@ use z00z_crypto::{sha256_256_role, CheckpointSha256BlockStreamV2, CheckpointShaR
 
 use super::{
     recursive_semantics::{
-        RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2, UNIQUENESS_CHALLENGE_BITS_V2,
-        UNIQUENESS_ROW_FACTOR_DEGREE_V2, UNIQUENESS_RO_QUERY_LOG2_V2,
-        UNIQUENESS_SEMANTIC_ROW_BYTES_V2, UNIQUENESS_SEMANTIC_ROW_LIMBS_V2,
+        FLOW_PAYLOAD_MAX_BYTES_V2, UNIQUENESS_CHALLENGE_BITS_V2, UNIQUENESS_ROW_FACTOR_DEGREE_V2,
+        UNIQUENESS_RO_QUERY_LOG2_V2, UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
+        UNIQUENESS_SEMANTIC_ROW_LIMBS_V2,
     },
     recursive_trace::{SOURCE_RECORD_HASH_LABEL_V2, TRACE_EVENT_HEADER_BYTES_V2},
 };
@@ -149,7 +149,7 @@ impl RecursiveCircuitProfileV2 {
             || max_cumulative_steps == 0
             || total_spool_bytes == 0
             || max_content_bytes > RECURSIVE_V2_MAX_CONTENT_BYTES
-            || max_leaf_bytes < RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2
+            || max_leaf_bytes < FLOW_PAYLOAD_MAX_BYTES_V2
             || u64::from(max_leaf_bytes) > max_content_bytes
             || u64::from(resident_buffer_bytes) > total_spool_bytes
             || max_spool_runs > spool_merge_fan_in
@@ -433,7 +433,7 @@ impl RecursiveCircuitProfileV2 {
         max_leaf_bytes: u32,
         max_content_bytes: u64,
     ) -> Result<u64, CheckpointError> {
-        if max_leaf_bytes < RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2
+        if max_leaf_bytes < FLOW_PAYLOAD_MAX_BYTES_V2
             || u64::from(max_leaf_bytes) > max_content_bytes
         {
             return Err(CheckpointError::Limit);
@@ -788,12 +788,11 @@ impl RecursiveCircuitSpecV2 {
 #[cfg(test)]
 mod tests {
     use super::{
-        RecursiveCircuitProfileV2, RECURSIVE_CHALLENGE_BLOCKS_V2,
-        RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2, RECURSIVE_HJMT_RESULT_BYTES_V2,
-        RECURSIVE_HJMT_SEGMENT_BYTES_V2, RECURSIVE_HJMT_SNAPSHOT_BYTES_V2,
-        RECURSIVE_HJMT_THREADS_V2, RECURSIVE_NOVA_MATERIAL_BYTES_V2, RECURSIVE_NOVA_PROVERS_V2,
-        RECURSIVE_RECOVERY_REPLAY_V2, RECURSIVE_V2_MAX_CONTENT_BYTES, SOURCE_FIXED_RECORDS_V2,
-        TRACE_EVENT_HEADER_BYTES_V2,
+        RecursiveCircuitProfileV2, FLOW_PAYLOAD_MAX_BYTES_V2, RECURSIVE_CHALLENGE_BLOCKS_V2,
+        RECURSIVE_HJMT_RESULT_BYTES_V2, RECURSIVE_HJMT_SEGMENT_BYTES_V2,
+        RECURSIVE_HJMT_SNAPSHOT_BYTES_V2, RECURSIVE_HJMT_THREADS_V2,
+        RECURSIVE_NOVA_MATERIAL_BYTES_V2, RECURSIVE_NOVA_PROVERS_V2, RECURSIVE_RECOVERY_REPLAY_V2,
+        RECURSIVE_V2_MAX_CONTENT_BYTES, SOURCE_FIXED_RECORDS_V2, TRACE_EVENT_HEADER_BYTES_V2,
     };
 
     #[test]
@@ -954,7 +953,7 @@ mod tests {
             RecursiveCircuitProfileV2::max_source_records(
                 1,
                 1,
-                RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2,
+                FLOW_PAYLOAD_MAX_BYTES_V2,
                 exact_semantic_minimum,
             )
             .expect("sole flow codec plus four fixed typed commitments fits the exact minimum"),
@@ -963,7 +962,7 @@ mod tests {
         assert!(RecursiveCircuitProfileV2::max_source_records(
             1,
             1,
-            RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2,
+            FLOW_PAYLOAD_MAX_BYTES_V2,
             exact_semantic_minimum - 1,
         )
         .is_err());

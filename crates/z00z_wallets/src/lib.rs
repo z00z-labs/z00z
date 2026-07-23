@@ -17,7 +17,6 @@
 //! ├── wallet/                  # 🧩 Wallet entity + state + policy
 //! ├── services/                # 🧩 Orchestration boundary with local wallet authority
 //! ├── rpc/                     # 🧩 RPC boundary over local wallet and chain state
-//! └── egui_views/              # 🧩 Desktop UI (feature-gated)
 //! ```
 //!
 //! ## Implemented Boundaries
@@ -178,10 +177,6 @@ pub mod internal_debug_tools {
         )
     }
 }
-
-// Desktop EGUI views (feature-gated)
-#[cfg(feature = "egui")]
-pub mod egui_views;
 
 // Re-export shallow caller-visible root types.
 pub use wallet::{WalletError, WalletPublicError, WalletResult};

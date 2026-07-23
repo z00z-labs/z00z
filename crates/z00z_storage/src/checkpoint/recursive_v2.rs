@@ -3,8 +3,8 @@
 pub use super::{
     adapter::{
         RecursiveCheckpointChainBlockV2, RecursiveCheckpointEvidenceStoreV2,
-        RecursiveCheckpointEvidenceV2, RecursiveEvidenceCancellationV2, RecursiveEvidenceOutcomeV2,
-        RecursiveEvidenceRequestV2,
+        RecursiveCheckpointEvidenceV2, RecursiveCheckpointRecoveryV2,
+        RecursiveEvidenceCancellationV2, RecursiveEvidenceOutcomeV2, RecursiveEvidenceRequestV2,
     },
     canonical_transition::{
         CanonicalCheckpointTransitionV2, SettlementRootCutoverModeV2,
@@ -12,12 +12,24 @@ pub use super::{
     },
     nova::NovaProofEnvelopeV2,
     receipt::{CryptographicVerificationReceiptV2, RecursiveVerificationResultV2},
+    recursive_chain::{
+        NovaChainErrorV2, NovaChainEvidenceStepV2, NovaChainMeasurementV2, NovaChainStatementV2,
+        NovaRetentionInputFactsV2, VerifiedNovaChainV2,
+    },
     recursive_circuit::{
         RecursiveCircuitProfileV2, RecursiveCircuitSpecV2, RECURSIVE_CIRCUIT_PROFILE_VERSION_V2,
         RECURSIVE_CIRCUIT_SPEC_VERSION_V2, RECURSIVE_V2_MAX_CONTENT_BYTES,
     },
     recursive_context::{RecursiveAuthoritySnapshotV2, RecursiveCheckpointContextV2},
+    recursive_measurement::{
+        NovaCadenceActionV2, NovaCadenceManifestV2, NovaCadenceRequestV2,
+        NovaCompressionAuthorityV2, NovaCompressionPolicyV2, NovaEvidenceRoleV2,
+        NovaRoleDeliveryV2,
+    },
     recursive_predicate::EvaluatedCheckpointTransitionV2,
+    recursive_recovery::{
+        NovaAccumulatorSnapshotV2, NovaRecoveryJournalKindV2, NovaRecoveryStoreMetricsV2,
+    },
     recursive_reject::RecursiveCheckpointRejectReasonV2,
     recursive_statement::{
         RecursiveCheckpointPublicInputV2, RecursiveFinalizedIvcStateV2,

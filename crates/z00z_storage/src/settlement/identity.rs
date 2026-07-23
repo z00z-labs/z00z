@@ -777,7 +777,7 @@ mod tests {
     use super::{derive_settlement_root_v2, RootGeneration};
 
     #[test]
-    fn settlement_v2_root_has_frozen_vector() {
+    fn test_settlement_root_vector() {
         let root = derive_settlement_root_v2(
             RootGeneration::SettlementV2,
             0x0102_0304,
@@ -797,7 +797,7 @@ mod tests {
     }
 
     #[test]
-    fn settlement_v2_root_binds_every_input() {
+    fn test_settlement_root_inputs() {
         let baseline =
             derive_settlement_root_v2(RootGeneration::SettlementV2, 1, [0x11; 32], [0x22; 32])
                 .expect("V2 generation");
@@ -816,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn settlement_v2_root_rejects_a_generation_mix() {
+    fn test_settlement_root_generation() {
         assert!(
             derive_settlement_root_v2(RootGeneration::SettlementV1, 1, [0x11; 32], [0x22; 32])
                 .is_err()

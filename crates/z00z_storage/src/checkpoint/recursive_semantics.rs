@@ -18,7 +18,7 @@ const MAX_TX_ID_BYTES: usize = 256;
 ///
 /// Profile construction uses this exact upper bound so a profile cannot accept
 /// a maximum replay row that its source owner is unable to encode.
-pub(crate) const RECURSIVE_FLOW_PAYLOAD_MAX_BYTES_V2: u32 = 1
+pub(crate) const FLOW_PAYLOAD_MAX_BYTES_V2: u32 = 1
     + 2
     + MAX_TX_ID_BYTES as u32
     + 2
@@ -436,7 +436,7 @@ pub(crate) fn uniqueness_precommit_from_rows(
         || output_sorted
             .windows(2)
             .any(|pair| pair[0].terminal_id == pair[1].terminal_id)
-        || !cross_set_replacements_are_same_path(&spent_sorted, &output_sorted)
+        || !is_same_replacement_path(&spent_sorted, &output_sorted)
     {
         return Err(CheckpointError::DuplicateIdentifier);
     }
@@ -829,7 +829,7 @@ fn derive_precommit_digest(
     )
 }
 
-fn cross_set_replacements_are_same_path(
+fn is_same_replacement_path(
     left: &[UniquenessSemanticRowV2],
     right: &[UniquenessSemanticRowV2],
 ) -> bool {
@@ -863,7 +863,7 @@ pub(crate) fn encode_flow_header(flow: &ScopeFlow) -> Result<Vec<u8>, Checkpoint
 /// retains its native HJMT roots.  Recursive V2 never reuses those fields as a
 /// root assertion: it substitutes the independently derived V2 pre/post roots
 /// before the record is committed to the proving trace.
-pub(crate) fn encode_flow_header_with_v2_roots(
+pub(crate) fn encode_v2_flow_header(
     flow: &ScopeFlow,
     prev_root: SettlementStateRoot,
     post_root: SettlementStateRoot,
@@ -1261,7 +1261,7 @@ mod tests {
     }
 
     #[test]
-    fn full_row_polynomial_bound() {
+    fn test_full_row_bound() {
         assert_eq!(UNIQUENESS_SEMANTIC_ROW_LIMBS_V2, 50);
         assert_eq!(UNIQUENESS_ROW_FACTOR_DEGREE_V2, 49);
         assert_eq!(UNIQUENESS_CHALLENGE_BITS_V2, 248);
@@ -1302,7 +1302,7 @@ mod tests {
     }
 
     #[test]
-    fn toy_field_pair_independence() {
+    fn test_field_pair_independence() {
         const MODULUS: u64 = 257;
         let mut first = [0_u16; UNIQUENESS_SEMANTIC_ROW_LIMBS_V2];
         first[0] = 1;
@@ -1355,7 +1355,7 @@ mod tests {
     }
 
     #[test]
-    fn flow_payloads_are_canonical_and_round_trip_through_one_codec() {
+    fn test_flow_codec_roundtrip() {
         let hex = "11".repeat(32);
         let header = ScopeFlow {
             batch_id: hex.clone(),
@@ -1397,7 +1397,7 @@ mod tests {
     }
 
     #[test]
-    fn uniqueness_payloads_bind_both_replay_sets_before_challenge() {
+    fn test_uniqueness_challenge_binding() {
         let flow = ScopeFlow {
             batch_id: "11".repeat(32),
             shard_id: 7,
@@ -1470,7 +1470,7 @@ mod tests {
     }
 
     #[test]
-    fn sorted_identifier_rows_have_one_strict_canonical_codec() {
+    fn test_sorted_row_codec() {
         let row = super::UniquenessSemanticRowV2 {
             definition_id: [0xA4; 32],
             serial_id: 7,
@@ -1506,7 +1506,7 @@ mod tests {
     }
 
     #[test]
-    fn net_effect_codec_covers_delete_insert_replace_and_unchanged() {
+    fn test_net_effect_codec() {
         let old = UniquenessSemanticRowV2 {
             definition_id: [0x11; 32],
             serial_id: 7,

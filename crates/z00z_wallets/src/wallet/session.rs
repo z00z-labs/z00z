@@ -125,20 +125,9 @@ impl SecretSession {
 
 impl Drop for SecretSession {
     fn drop(&mut self) {
-        // Zero sensitive data on drop
-        #[cfg(feature = "egui")]
-        {
-            use zeroize::Zeroize;
-            self.master_key.zeroize();
-        }
+        use zeroize::Zeroize;
 
-        #[cfg(not(feature = "egui"))]
-        {
-            // Manual zeroing if zeroize feature not enabled
-            for byte in &mut self.master_key {
-                *byte = 0;
-            }
-        }
+        self.master_key.zeroize();
     }
 }
 

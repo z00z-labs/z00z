@@ -8,6 +8,9 @@ crates/z00z_storage/src/checkpoint/recursive_reject.rs
 crates/z00z_storage/src/checkpoint/recursive_semantics.rs
 crates/z00z_storage/src/checkpoint/recursive_trace.rs
 crates/z00z_storage/src/checkpoint/recursive_statement.rs
+crates/z00z_storage/src/checkpoint/recursive_chain.rs
+crates/z00z_storage/src/checkpoint/recursive_measurement.rs
+crates/z00z_storage/src/checkpoint/recursive_recovery.rs
 crates/z00z_storage/src/checkpoint/adapter.rs
 crates/z00z_storage/src/checkpoint/receipt.rs
 crates/z00z_storage/src/checkpoint/sidecar.rs

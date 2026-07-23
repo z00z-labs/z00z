@@ -258,7 +258,7 @@ mod output_tests {
     }
 
     #[test]
-    fn output_dir_clears_stale_base() {
+    fn test_output_clears_stale() {
         let _guard = env_lock();
         let dir = TempDir::new().expect("temp dir");
         let base = dir.path().join("genesis");
@@ -277,7 +277,7 @@ mod output_tests {
     }
 
     #[test]
-    fn output_dir_keeps_filtered_paths() {
+    fn test_output_keeps_filtered() {
         let _guard = env_lock();
         let dir = TempDir::new().expect("temp dir");
         let base = dir.path().join("genesis");
@@ -311,7 +311,7 @@ mod output_tests {
     }
 
     #[test]
-    fn output_dir_clears_prior_outputs() {
+    fn test_output_clears_prior() {
         let _guard = env_lock();
         let dir = TempDir::new().expect("temp dir");
         let base = dir.path().join("genesis");
@@ -342,7 +342,7 @@ mod output_tests {
     }
 
     #[test]
-    fn genesis_roots_hash_contract() {
+    fn test_genesis_root_hash() {
         for needle in [
             "const GENESIS_OUTPUT_HASH_SCHEMA: &str = \"genesis-output-root-v2\";",
             "const GENESIS_LOG_HASH_SCHEMA: &str = \"genesis-log-root-v2\";",
@@ -369,7 +369,7 @@ mod output_tests {
     }
 
     #[test]
-    fn snapshot_zip_uses_snapshot_root() {
+    fn test_snapshot_zip_root() {
         let _guard = env_lock();
         let dir = TempDir::new().expect("temp dir");
         let snapshot_root = dir.path().join("snapshots");

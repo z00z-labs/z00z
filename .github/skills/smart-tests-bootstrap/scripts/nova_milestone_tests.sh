@@ -26,7 +26,7 @@ SEMANTIC_TESTS=(
   test_finalize_roots_decode_window
   test_jmt_header_binds_root
   test_jmt_machine_accepts_mutations
-  test_hierarchy_r1cs_binds_definition
+  test_hierarchy_r1cs_definition
   test_checkpoint_commitments_bind_fields
   test_jmt_machine_rejects_mutations
   test_jmt_framing_ordered_counted
@@ -84,9 +84,9 @@ run_guards() {
   local contract dollar='$'
   local -a verifier_rss_contract=(
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
-    'readonly EXPECTED_SOURCE_REVISION="1da05771ae22d8da4b8e8693954540f468708be47f25f7dc654a0f7f9df4c4e3"'
-    'readonly EXPECTED_WORKER_SOURCE="5573f73e36922368b8179551b47b2b03a31bf88ff6b67b23552eccf099961cf5"'
-    'readonly EXPECTED_NOVA_SHA256="dc075b43760601b3330e4738aae59312fdcb4415740333d96e2559d7b9aa07ef"'
+    'readonly EXPECTED_SOURCE_REVISION="5f38e7d7d2e887cdbfee78c647d495de63824d38e42bcee7025e64e5a8af6c8a"'
+    'readonly EXPECTED_WORKER_SOURCE="eccca1ec293722e9b07d077fa8259f510b46e1365a931fc4de0abb7c2e4e77c7"'
+    'readonly EXPECTED_NOVA_SHA256="cde3a620ec5bb5bccd9aed126ca9e4f9f3d9475be9c9d01269577b945101d2e1"'
     'readonly EXPECTED_CARGO_LOCK_SHA256="23a86f3341579b25ad5be96080a642405633df5f8c6e99dd4c3329d7d51f2a11"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
     "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}ROOT_DIR/target/workspace\""
@@ -168,12 +168,12 @@ if ignored_tests != expected_ignored:
     )
 
 smoke = re.search(
-    r'(?P<attrs>(?:\s*#\[[^\n]+\]\n)+)\s*fn test_nova_r1cs_mutation_smoke\(',
+    r'(?P<attrs>(?:\s*#\[[^\n]+\]\n)+)\s*fn test_nova_mutation_smoke\(',
     source,
 )
 if smoke is None or "ignore" in smoke.group("attrs"):
     raise SystemExit("canonical+mutation R1CS smoke must exist and remain unignored")
-if source.count("fn test_nova_r1cs_mutation_smoke(") != 1:
+if source.count("fn test_nova_mutation_smoke(") != 1:
     raise SystemExit("canonical+mutation R1CS smoke must have exactly one owner")
 
 print(
@@ -204,7 +204,7 @@ run_curated() {
     test_nova_poseidon_wires_pinned \
     test_nova_pasta_identity_pinned \
     test_nova_keccak_transcript_pinned \
-    test_nova_r1cs_mutation_smoke
+    test_nova_mutation_smoke
   do
     run_unit_exact "$test_name"
   done
@@ -248,7 +248,15 @@ case "$MODE" in
     run_guards
     echo "=== milestone real-Nova artifact corpus: ${#ARTIFACT_TESTS[@]} exact ignored tests ==="
     mkdir -p "$T3_ARTIFACT_DIR"
-    rm -f "$T3_ARTIFACT_DIR/prover-material.bin" "$T3_ARTIFACT_DIR/verifier-bundle.bin"
+    for artifact in prover-material.bin verifier-bundle.bin; do
+      if [[ -e "$T3_ARTIFACT_DIR/$artifact" ]]; then
+        command -v gio >/dev/null 2>&1 || {
+          echo "gio is required to retire an existing artifact safely" >&2
+          exit 1
+        }
+        gio trash "$T3_ARTIFACT_DIR/$artifact"
+      fi
+    done
     export Z00Z_NOVA_T3_ARTIFACT_DIR_V2="$T3_ARTIFACT_DIR"
     for test_name in "${ARTIFACT_TESTS[@]}"; do
       run_ignored_exact "$test_name"

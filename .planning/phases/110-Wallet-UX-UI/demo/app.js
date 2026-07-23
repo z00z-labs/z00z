@@ -17,123 +17,69 @@ const appShell = document.querySelector("#app-shell");
 const lockScreen = document.querySelector("#lock-screen");
 const i18n = window.Z00ZI18n;
 if (!i18n) throw new Error("Z00Z i18n must load before the wallet demo.");
+const demoRuntime = window.Z00ZDemo;
+if (!demoRuntime?.PORT_CONTRACT || !demoRuntime.WALLET_CHAIN_OPTIONS || !demoRuntime.ASSET_CATALOG || !demoRuntime.createInitialState || !demoRuntime.createMockWalletGateway) {
+  throw new Error("Z00Z production-port modules must load before the wallet demo.");
+}
 const uiLanguages = i18n.languages();
-const demoParams = new URLSearchParams(window.location.search);
-const requestedView = ["home", "wallet", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings", "settings", "telemetry"].includes(demoParams.get("view")) ? demoParams.get("view") : "wallet";
-const requestedWalletSection = ["assets", "vouchers", "permissions"].includes(demoParams.get("wallet")) ? demoParams.get("wallet") : "assets";
-const requestedWalletSettingsSection = ["general", "security", "backup", "policies", "advanced"].includes(demoParams.get("walletSettings")) ? demoParams.get("walletSettings") : "general";
-const requestedNetworkSection = ["overview", "reticulum", "onionnet"].includes(demoParams.get("network")) ? demoParams.get("network") : "overview";
-const requestedSettingsValue = demoParams.get("settings");
-const requestedSettingsSection = requestedSettingsValue === "network"
-  ? (requestedNetworkSection === "onionnet" ? "onionnet" : "reticulum")
-  : ["general", "appearance", "reticulum", "onionnet"].includes(requestedSettingsValue)
-    ? requestedSettingsValue
-    : "general";
-const requestedTelemetrySource = ["onionnet", "reticulum", "aggregators"].includes(demoParams.get("telemetry")) ? demoParams.get("telemetry") : "onionnet";
-const requestedReticulumTelemetryTab = ["overview", "node", "interfaces", "radio", "entrypoints", "paths", "probes", "links"].includes(demoParams.get("reticulumTab")) ? demoParams.get("reticulumTab") : "overview";
-const requestedOnionnetTelemetryTab = ["overview", "epoch", "privacy", "transport", "queues", "probation", "ingress"].includes(demoParams.get("onionTab")) ? demoParams.get("onionTab") : "overview";
-const requestedAggregatorsTelemetryTab = ["overview"].includes(demoParams.get("aggregatorsTab")) ? demoParams.get("aggregatorsTab") : "overview";
-
-const paletteOptions = [
-  { id: "z00z-default", label: "Z00Z Default", description: "Current private-wallet palette" },
-  { id: "black-gold-elegance", label: "Black & Gold", description: "Black, navy, and restrained gold" },
-  { id: "moonlit-stroll", label: "Moonlit Stroll", description: "Moonlit teal and navy with restrained gold" },
-  { id: "walking-at-night", label: "Walking at Night", description: "Blue-charcoal streets and warm stone" }
-];
-
-const codeThemeOptions = [
-  { id: "atom-one-light", label: "One Light", description: "Bright technical surface with magenta, amber, violet, and green syntax.", mode: "light" },
-  { id: "xcode", label: "Xcode", description: "Light Apple-style syntax with green comments and crisp blue numerics.", mode: "light" },
-  { id: "atom-one-dark", label: "One Dark", description: "Deep blue-black surface with Monokai pink, amber, violet, and green syntax.", mode: "dark" },
-  { id: "night-owl", label: "Night Owl", description: "Deep dark technical surface with muted violet, sand, and orange tokens.", mode: "dark" }
-];
-
-const defaultCustomAppearance = Object.freeze({
+const paletteOptions = demoRuntime.PALETTE_OPTIONS;
+const codeThemeOptions = demoRuntime.CODE_THEME_OPTIONS;
+const walletChainOptions = demoRuntime.WALLET_CHAIN_OPTIONS;
+const initialAppearance = Object.freeze({
   brand: getComputedStyle(document.documentElement).getPropertyValue("--brand").trim(),
   rail: getComputedStyle(document.documentElement).getPropertyValue("--rail").trim()
 });
+const state = demoRuntime.createInitialState({
+  search: window.location.search,
+  brand: initialAppearance.brand,
+  rail: initialAppearance.rail
+});
+const walletGateway = demoRuntime.createMockWalletGateway(state);
+const passwordManagerIgnoreAttributeMap = Object.freeze({
+  "data-form-type": "other",
+  "data-1p-ignore": "true",
+  "data-lpignore": "true",
+  "data-bwignore": "true",
+  "data-protonpass-ignore": "true"
+});
+const passwordManagerIgnoreAttributes = Object.entries(passwordManagerIgnoreAttributeMap)
+  .map(([name, value]) => `${name}="${value}"`)
+  .join(" ");
 
-const state = {
-  view: requestedView,
-  balanceHidden: false,
-  expertDetails: false,
-  activityFilter: "all",
-  assetFilter: "all",
-  walletSection: requestedWalletSection,
-  walletSettingsSection: requestedWalletSettingsSection,
-  settingsSection: requestedSettingsSection,
-  networkSection: ["reticulum", "onionnet"].includes(requestedSettingsSection) ? requestedSettingsSection : requestedNetworkSection,
-  telemetrySource: requestedTelemetrySource,
-  reticulumTelemetryTab: requestedReticulumTelemetryTab,
-  onionnetTelemetryTab: requestedOnionnetTelemetryTab,
-  aggregatorsTelemetryTab: requestedAggregatorsTelemetryTab,
-  isNetworkOpen: ["reticulum", "onionnet"].includes(requestedSettingsSection),
-  theme: "dark",
-  palette: "z00z-default",
-  language: "en",
-  regionalLocale: "en-US",
-  timeZone: "UTC",
-  networkUnits: "decimal-bps",
-  notifications: true,
-  autoLockMinutes: "15",
-  textScale: "100",
-  reducedMotion: false,
-  codeTheme: "atom-one-dark",
-  configView: "yaml",
-  configDraft: "",
-  walletSettingsConfigDraft: "",
-  configStatus: "Local draft is in sync with the visible controls.",
-  hasCustomAppearance: false,
-  customAppearance: { ...defaultCustomAppearance },
-  walletPreferences: {},
-  locked: false,
-  flow: null,
-  lastDialogTrigger: null,
-  selectedWalletId: "everyday",
-  wallets: [
-    {
-      id: "everyday",
-      name: "Everyday",
-      initials: "E",
-      address: "ZxChpo…2Mj8Pt",
-      fullAddress: "ZxChpoioBEFR1PRJPamJxh5aWdEb94ek8J52PmT8PYAEa8RKVtSs9X3UPgaSaHvMMZKcQoiyVFhEE256vcyGPeFV23d2Mj8Pt",
-      summary: { available: "12,480.75", locked: "0.00", pendingIn: "960.00", pendingOut: "240.00", scan: "Current" },
-      activities: [
-        { id: "tx-7f31", type: "money", direction: "out", titleKey: "history.paymentTo", titleValues: { recipient: "Mira" }, detailKey: "history.sentWaiting", amount: "− 240.00 Z00Z", timeKey: "history.minutesAgo", timeValues: { count: 2 }, status: "settling" },
-        { id: "claim-014", type: "asset", direction: "in", titleKey: "history.allocationClaimed", detailKey: "history.verifiedClaimWaiting", amount: "+ 86.00 Z00Z", timeKey: "history.minutesAgo", timeValues: { count: 18 }, status: "settling" },
-        { id: "tx-7e88", type: "money", direction: "in", titleKey: "history.receivedFrom", titleValues: { sender: "Niko" }, detailKey: "history.settled", amount: "+ 1,200.00 Z00Z", timeKey: "history.yesterday", status: "settled" },
-        { id: "voucher-221", type: "voucher", direction: "neutral", titleKey: "history.travelRefundVoucher", detailKey: "history.offeredReviewBefore", detailValueKeys: { date: "history.jul21" }, amount: "86.00 Z00Z", timeKey: "history.yesterday", status: "attention" },
-        { id: "right-221", type: "permission", direction: "neutral", titleKey: "history.deliveryReceiptAccess", detailKey: "history.dataAccessUsesRemain", detailValues: { used: 2, total: 5 }, amountKey: "history.uses", amountValues: { count: 2 }, timeKey: "history.yesterday", status: "active" },
-        { id: "tx-7d12", type: "money", direction: "out", titleKey: "history.paymentTo", titleValues: { recipient: "Coffee Lab" }, detailKey: "history.settled", amount: "− 18.50 Z00Z", timeKey: "history.jul12", status: "settled" },
-        { id: "security-4", type: "security", direction: "neutral", titleKey: "history.localBackupCreated", detailKey: "history.integrityPassed", amount: "", timeKey: "history.jul10", status: "settled" }
-      ]
-    },
-    {
-      id: "savings",
-      name: "Savings",
-      initials: "S",
-      address: "ZxR5vK…8Ee1Qm",
-      fullAddress: "ZxR5vKpyP2W6eT8fVqH8M9sB7cX4aL2nQ5rD1uEe1Qm",
-      summary: { available: "7,215.00", locked: "1,400.00", pendingIn: "0.00", pendingOut: "0.00", scan: "Current" },
-      activities: [
-        { id: "saving-100", type: "money", direction: "in", titleKey: "history.transferFrom", titleValues: { wallet: "Everyday" }, detailKey: "history.settled", amount: "+ 2,000.00 Z00Z", timeKey: "history.jul3", status: "settled" },
-        { id: "saving-101", type: "security", direction: "neutral", titleKey: "history.recoveryCheckCompleted", detailKey: "history.localVerificationPassed", amount: "", timeKey: "history.jun30", status: "settled" }
-      ]
-    },
-    {
-      id: "travel",
-      name: "Travel",
-      initials: "T",
-      address: "ZxT8cQ…4Fh2Ns",
-      fullAddress: "ZxT8cQy6BvR3sL9wE1mD5hK7pA4Fh2Ns",
-      summary: { available: "860.00", locked: "0.00", pendingIn: "125.00", pendingOut: "0.00", scan: "Scanning" },
-      activities: [
-        { id: "travel-100", type: "money", direction: "in", titleKey: "history.receivedFrom", titleValues: { sender: "Niko" }, detailKey: "history.waitingToSettle", amount: "+ 125.00 Z00Z", timeKey: "history.minutesAgo", timeValues: { count: 8 }, status: "settling" },
-        { id: "travel-101", type: "money", direction: "out", titleKey: "history.paymentTo", titleValues: { recipient: "RailLink" }, detailKey: "history.settled", amount: "− 74.50 Z00Z", timeKey: "history.yesterday", status: "settled" }
-      ]
+function secureEntryAttributes(section = "wallet") {
+  return `type="text" class="secure-entry" data-secure-entry data-port-control="secure-entry" inputmode="text" autocomplete="section-z00z-${section} one-time-code" autocapitalize="none" autocorrect="off" spellcheck="false" ${passwordManagerIgnoreAttributes}`;
+}
+
+function suppressPasswordManagerUI(root = document) {
+  const forms = root.querySelectorAll("form");
+  const fields = root.querySelectorAll("input, textarea, select");
+  const applyIgnoreAttributes = (element) => {
+    Object.entries(passwordManagerIgnoreAttributeMap).forEach(([name, value]) => element.setAttribute(name, value));
+  };
+
+  forms.forEach((form) => {
+    form.setAttribute("autocomplete", "off");
+    applyIgnoreAttributes(form);
+  });
+  fields.forEach((field) => {
+    applyIgnoreAttributes(field);
+    if (field.matches('input[type="password"], input[data-secure-entry]')) {
+      field.type = "text";
+      field.classList.add("secure-entry");
+      field.setAttribute("data-secure-entry", "");
+      field.setAttribute("data-port-control", "secure-entry");
+      field.setAttribute("inputmode", "text");
+      if (!/one-time-code$/.test(field.autocomplete)) {
+        field.setAttribute("autocomplete", "section-z00z-private one-time-code");
+      }
+      field.setAttribute("autocapitalize", "none");
+      field.setAttribute("autocorrect", "off");
+      field.setAttribute("spellcheck", "false");
+    } else if (!field.hasAttribute("autocomplete")) {
+      field.setAttribute("autocomplete", "off");
     }
-  ]
-};
+  });
+}
 
 const headings = {
   home: ["app.home", "app.homeContext"],
@@ -158,6 +104,19 @@ const telemetryTopbar = {
 
 function t(key, values) {
   return i18n.translate(state.language, key, values);
+}
+
+function walletChain(chainId) {
+  return walletChainOptions.find(({ id }) => id === chainId) || walletChainOptions[0];
+}
+
+function walletChainOptionsMarkup(selectedChainId = "mainnet") {
+  return walletChainOptions.map(({ id, label }) => `<option value="${escapeHtml(id)}"${id === selectedChainId ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
+}
+
+function walletChainBadgeMarkup(chainId) {
+  const chain = walletChain(chainId);
+  return `<span class="environment-tag is-${chain.tone}" title="${escapeHtml(t("common.readOnly"))}">${escapeHtml(chain.label)}</span>`;
 }
 
 function languageOptionsMarkup() {
@@ -194,39 +153,11 @@ function walletScanLabel(scan) {
 }
 
 function activeWallet() {
-  return state.wallets.find((wallet) => wallet.id === state.selectedWalletId) || state.wallets[0] || {
-    id: "empty",
-    name: "",
-    initials: "",
-    address: "",
-    fullAddress: "",
-    summary: { available: "0.00", locked: "0.00", pendingIn: "0.00", pendingOut: "0.00", scan: "Unavailable" },
-    activities: []
-  };
+  return demoRuntime.activeWallet(state);
 }
 
 function activeWalletPreferences() {
-  const wallet = activeWallet();
-  if (!state.walletPreferences[wallet.id]) {
-    state.walletPreferences[wallet.id] = {
-      currency: "Z00Z",
-      defaultFee: "0.001",
-      autoBackup: false,
-      backupIntervalHours: "24",
-      lockAfterMinutes: state.autoLockMinutes,
-      policyProfile: "Personal Safe · v1.4",
-      policyRules: {
-        maxTransaction: "2500",
-        maxDaily: "5000",
-        requireConfirmation: true,
-        allowedAssets: "all",
-        allowedRecipients: "",
-        timeWindow: "any"
-      },
-      lastMasterKeyRotation: "Never"
-    };
-  }
-  return state.walletPreferences[wallet.id];
+  return demoRuntime.ensureWalletPreferences(state, activeWallet());
 }
 
 function yamlScalar(value) {
@@ -258,6 +189,7 @@ function effectiveDemoConfigYaml() {
     "",
     "wallet:",
     `  id: \"${yamlScalar(wallet.id)}\"`,
+    `  chain: \"${yamlScalar(wallet.chainId)}\"`,
     "  display:",
     `    name: \"${yamlScalar(wallet.name)}\"`,
     `    currency: ${walletPreferences.currency}`,
@@ -353,6 +285,7 @@ function validateAndApplyDemoConfig(source, apply = false) {
   const notifications = readYamlScalar(source, "notifications");
   const reducedMotion = readYamlScalar(source, "reduced_motion");
   const codeTheme = readYamlScalar(source, "code_theme");
+  const chainId = readYamlScalar(source, "chain");
   const appLockAfter = readYamlScalar(source, "lock_after_minutes");
   const defaultFee = readYamlScalar(source, "default_fee");
   const customEnabled = readYamlScalar(source, "custom_enabled");
@@ -371,6 +304,7 @@ function validateAndApplyDemoConfig(source, apply = false) {
   if (notifications && !["true", "false"].includes(notifications)) return { valid: false, message: "notifications must be true or false." };
   if (reducedMotion && !["true", "false"].includes(reducedMotion)) return { valid: false, message: "reduced_motion must be true or false." };
   if (codeTheme && !codeThemeOptions.some((entry) => entry.id === codeTheme)) return { valid: false, message: "code_theme must use one of the listed preset IDs." };
+  if (chainId !== activeWallet().chainId) return { valid: false, message: `chain is read-only and must remain ${activeWallet().chainId}.` };
   if (defaultFee && !/^\d+(?:\.\d+)?$/.test(defaultFee)) return { valid: false, message: "default_fee must be a non-negative decimal." };
   if (customEnabled && !["true", "false"].includes(customEnabled)) return { valid: false, message: "custom_enabled must be true or false." };
   if (customBrand && !hexToRgb(customBrand)) return { valid: false, message: "custom_brand must be a six-digit hex color." };
@@ -515,21 +449,10 @@ function hasSelectedWalletContext() {
   return Boolean(state.selectedWalletId) && !["settings", "telemetry"].includes(state.view);
 }
 
-function addWalletProfile(name, scan = "Scanning") {
-  const index = state.wallets.length + 1;
-  const id = `wallet-${index}`;
-  const addressTail = String(2300 + index).padStart(4, "0");
-  const wallet = {
-    id,
-    name,
-    initials: name.trim().slice(0, 1).toUpperCase(),
-    address: `ZxN${index}q7…${addressTail}Pt`,
-    fullAddress: `ZxN${index}q7xA1mP9vR4sT8cQ2wE6hK${addressTail}Pt`,
-    summary: { available: "0.00", locked: "0.00", pendingIn: "0.00", pendingOut: "0.00", scan },
-    activities: []
-  };
-  state.wallets.push(wallet);
-  return wallet;
+function addWalletProfile(name, chainId = "mainnet", scan = "Scanning") {
+  const result = walletGateway.createProfile({ name, chainId, scan });
+  if (!result.ok) throw new Error(result.error.message);
+  return result.data.wallet;
 }
 
 function sidebarActiveTarget() {
@@ -570,7 +493,7 @@ function renderWalletShell() {
     const isActive = sidebarTarget.group === "network" && sidebarTarget.id === entry.key;
     return `<button class="network-nav-item${isActive ? " is-active" : ""}" type="button" ${isActive ? 'aria-current="page"' : ""} data-network-section="${entry.key}" title="${t(entry.helperKey)}">
       <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
-      <span class="network-nav-copy"><strong>${entry.label}</strong><small>${t(entry.helperKey)}</small></span>
+      <span class="network-nav-copy"><strong>${entry.label}</strong></span>
       <span class="network-nav-state" aria-hidden="true"></span>
     </button>`;
   }).join("");
@@ -612,11 +535,11 @@ function renderWalletShell() {
       { view: "wallet", labelKey: "nav.assets", iconName: "wallet" },
       { view: "wallet-send", labelKey: "assets.send", iconName: "send" },
       { view: "wallet-receive", labelKey: "assets.receive", iconName: "receive" },
-      { view: "activity", labelKey: "nav.history", iconName: "activity" },
       { view: "swap", labelKey: "nav.swap", iconName: "swap", title: "Compatibility preview — no canonical execution route" },
       { view: "exchange", labelKey: "nav.exchange", iconName: "exchange", title: "Unavailable — no verified exchange provider or route", disabled: true },
       { view: "staking", labelKey: "nav.staking", iconName: "staking", title: "Compatibility preview — validator and lock terms required" },
       { view: "wallet-backup", labelKey: "nav.backup", iconName: "backup" },
+      { view: "activity", labelKey: "nav.history", iconName: "activity" },
       { view: "wallet-settings", labelKey: "nav.settings", iconName: "settings" }
     ].map(({ view, labelKey, iconName, title = "", disabled = false }) => `<button class="wallet-tab${state.view === view ? " is-active" : ""}${disabled ? " is-unavailable" : ""}" type="button" ${state.view === view ? 'aria-current="page"' : ""}${disabled ? " disabled" : ""}${title ? ` title="${escapeHtml(title)}"` : ""} data-view="${view}">${icon(iconName)}<span>${t(labelKey)}</span>${disabled ? '<span class="sr-only">Unavailable</span>' : ""}</button>`).join("");
   }
@@ -635,26 +558,30 @@ function icon(name, className = "") {
   return `<svg class="icon ${className}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 }
 
-const OBJECT_TYPE_ICON_LUT = Object.freeze({
-  asset: Object.freeze({
-    coin: Object.freeze({ iconName: "coin", className: "is-coin" }),
-    token: Object.freeze({ iconName: "token", className: "is-token" }),
-    nft: Object.freeze({ iconName: "nft", className: "is-nft" })
-  }),
-  voucher: Object.freeze({
-    refund: Object.freeze({ iconName: "voucher", className: "is-voucher" }),
-    redeemed: Object.freeze({ iconName: "voucher", className: "is-voucher" })
-  }),
-  right: Object.freeze({
-    receipt: Object.freeze({ iconName: "right", className: "is-right" }),
-    deploy: Object.freeze({ iconName: "right", className: "is-right" })
-  })
-});
+function objectIconDefinition(definition, className = "") {
+  if (!definition) return "";
+  const classes = `icon object-family-glyph is-${definition.mode}${className ? ` ${className}` : ""}`;
+  if (definition.mode === "mask") {
+    const resolvedSource = new URL(definition.iconSrc, document.baseURI).href;
+    return `<span class="${classes}" style="--object-family-source:url(${escapeHtml(resolvedSource)})" aria-hidden="true"></span>`;
+  }
+  return `<img class="${classes}" src="${escapeHtml(definition.iconSrc)}" alt="" decoding="async" draggable="false">`;
+}
+
+function objectFamilyIcon(family, className = "") {
+  return objectIconDefinition(demoRuntime.OBJECT_FAMILY_ICON_LUT[family], className);
+}
 
 function objectTypeIcon(family, type, className = "") {
-  const definition = OBJECT_TYPE_ICON_LUT[family]?.[type];
+  const definition = demoRuntime.OBJECT_TYPE_ICON_LUT[family]?.[type] || demoRuntime.OBJECT_FAMILY_ICON_LUT[family];
   if (!definition) return "";
-  return `<span class="object-type-icon ${definition.className}${className ? ` ${className}` : ""}" aria-hidden="true">${icon(definition.iconName)}</span>`;
+  const glyph = definition.iconSrc ? objectIconDefinition(definition) : icon(definition.iconName);
+  return `<span class="object-type-icon ${definition.className}${className ? ` ${className}` : ""}" aria-hidden="true">${glyph}</span>`;
+}
+
+function assetIcon(asset, className = "") {
+  if (!asset.iconSrc) return objectTypeIcon("asset", asset.type, className);
+  return `<span class="object-type-icon is-${escapeHtml(asset.type)} has-brand-icon${className ? ` ${className}` : ""}" aria-hidden="true"><img src="${escapeHtml(asset.iconSrc)}" alt="" decoding="async" draggable="false"></span>`;
 }
 
 function escapeHtml(value) {
@@ -672,17 +599,27 @@ function sensitive(value) {
 
 function walletAssetEntries() {
   const wallet = activeWallet();
-  return [
-    {
-      key: "z00z", type: "coin", label: "Z00Z", ticker: "Z00Z", unit: "Z00Z", kind: "Coin", kindKey: "assets.kindCoin", balance: wallet.summary.available, balanceLabel: `${wallet.summary.available} Z00Z`, value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: true, owner: "Protocol-native asset", assetId: "z00z:main:coin", currentSupply: "18,450,000 Z00Z", maxSupply: "21,000,000 Z00Z"
-    },
-    {
-      key: "acme", type: "token", label: "Acme Credits", ticker: "ACME", unit: "ACME", kind: "Token", kindKey: "assets.kindToken", balance: "240.00", balanceLabel: "240.00 ACME", value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: true, owner: "acme.example issuer", assetId: "asset:acme:8f31…c20e", currentSupply: "2,400,000 ACME", maxSupply: "10,000,000 ACME"
-    },
-    {
-      key: "founders", type: "nft", label: "Founders Pass #014", ticker: "PASS-014", unit: "pass", kind: "NFT", kindKey: "assets.kindCollectible", balance: "1", balanceLabel: "1 pass", value: "—", priceKey: "common.unavailable", priceNoteKey: "assets.noMarketFeed", divisible: false, owner: wallet.fullAddress || wallet.address, assetId: "nft:founders:014", currentSupply: "1 pass", maxSupply: "100 passes"
-    }
-  ];
+  const assetKeys = new Set(wallet.assetKeys || ["z00z"]);
+  const kindKeys = { coin: "assets.kindCoin", token: "assets.kindToken", nft: "assets.kindCollectible" };
+  const kinds = { coin: "Coin", token: "Token", nft: "NFT" };
+  return demoRuntime.ASSET_CATALOG
+    .filter((asset) => assetKeys.has(asset.key))
+    .map((asset) => {
+      const balance = asset.key === "z00z" ? wallet.summary.available : asset.demoBalance || "0.00";
+      return {
+        ...asset,
+        kind: kinds[asset.type],
+        kindKey: kindKeys[asset.type],
+        balance,
+        balanceLabel: `${balance} ${asset.unit}`,
+        value: "0.00",
+        priceKey: "common.unavailable",
+        priceNoteKey: "assets.noMarketFeed",
+        owner: asset.owner || wallet.fullAddress || wallet.address,
+        currentSupply: asset.currentSupply || "Unavailable",
+        maxSupply: asset.maxSupply || "Unavailable"
+      };
+    });
 }
 
 function supportedAsset(assetKey = "z00z") {
@@ -690,20 +627,93 @@ function supportedAsset(assetKey = "z00z") {
   return assets.find((asset) => asset.key === assetKey) || assets[0];
 }
 
-function flowAsset(data = state.flow?.data) {
-  return supportedAsset(data?.assetKey);
+function walletObjectEntry(family, objectId) {
+  const wallet = activeWallet();
+  const entries = family === "voucher" ? wallet.vouchers : family === "permission" ? wallet.permissions : [];
+  return (entries || []).find((entry) => entry.id === objectId) || null;
+}
+
+function sendOptionEntries() {
+  const wallet = activeWallet();
+  const assets = walletAssetEntries().map((asset) => ({
+    key: asset.key,
+    family: "asset",
+    label: asset.label,
+    kindLabel: t(asset.kindKey),
+    meta: asset.balanceLabel,
+    asset
+  }));
+  const vouchers = (wallet.vouchers || [])
+    .filter((voucher) => voucher.transferable)
+    .map((voucher) => ({
+      key: `voucher:${voucher.id}`,
+      family: "voucher",
+      label: voucher.title,
+      kindLabel: t("assets.sectionVouchers"),
+      meta: voucher.value,
+      entry: voucher
+    }));
+  const permissions = (wallet.permissions || [])
+    .filter((permission) => permission.transferable)
+    .map((permission) => ({
+      key: `permission:${permission.id}`,
+      family: "permission",
+      label: permission.title,
+      kindLabel: t("assets.sectionPermissions"),
+      meta: permission.remaining,
+      entry: permission
+    }));
+  return [...assets, ...vouchers, ...permissions];
+}
+
+function defaultSendDraft() {
+  return {
+    step: 0,
+    recipient: "",
+    recipientLabel: "",
+    amount: "",
+    memo: "",
+    itemKey: "z00z",
+    completed: null
+  };
+}
+
+function activeSendDraft() {
+  const wallet = activeWallet();
+  state.sendDrafts ||= {};
+  state.sendDrafts[wallet.id] ||= defaultSendDraft();
+  const draft = state.sendDrafts[wallet.id];
+  const options = sendOptionEntries();
+  if (!options.some((entry) => entry.key === draft.itemKey)) {
+    draft.itemKey = options[0]?.key || "z00z";
+  }
+  return draft;
+}
+
+function resetActiveSendDraft() {
+  state.sendDrafts[activeWallet().id] = defaultSendDraft();
+  return state.sendDrafts[activeWallet().id];
+}
+
+function selectedSendOption(draft = activeSendDraft()) {
+  const options = sendOptionEntries();
+  return options.find((entry) => entry.key === draft.itemKey) || options[0];
+}
+
+function sendOptionsMarkup(selectedKey) {
+  return sendOptionEntries().map((entry) => `<option value="${escapeHtml(entry.key)}"${entry.key === selectedKey ? " selected" : ""}>${escapeHtml(entry.label)} · ${escapeHtml(entry.kindLabel)}</option>`).join("");
 }
 
 function assetOptions(selectedKey = "z00z") {
-  return walletAssetEntries().map((asset) => {
-    return `<option value="${asset.key}"${asset.key === selectedKey ? " selected" : ""}>${asset.label} · ${t(asset.kindKey)}</option>`;
-  }).join("");
+  return walletAssetEntries().map((asset) => `<option value="${escapeHtml(asset.key)}"${asset.key === selectedKey ? " selected" : ""}>${escapeHtml(asset.label)} · ${t(asset.kindKey)}</option>`).join("");
 }
 
-function quickAction(type, label, helper, iconName) {
+function quickAction(target, label, helper, iconName, behavior = "flow") {
+  const targetAttribute = behavior === "view" ? `data-view="${target}"` : `data-open-flow="${target}"`;
+  const iconMarkup = iconName === "permission" ? objectFamilyIcon("right") : icon(iconName);
   return `
-    <button class="quick-action" type="button" data-open-flow="${type}">
-      <span class="quick-action-icon">${icon(iconName)}</span>
+    <button class="quick-action" type="button" ${targetAttribute}>
+      <span class="quick-action-icon">${iconMarkup}</span>
       <span><strong>${label}</strong><small>${helper}</small></span>
     </button>`;
 }
@@ -745,8 +755,8 @@ function homeView() {
         </div>
         <div class="quick-pairs">
           <div class="quick-pair">
-            ${quickAction("pay", "Send", "Send any supported asset", "send")}
-            ${quickAction("receive", "Receive", "Request any supported asset", "receive")}
+            ${quickAction("wallet-send", "Send", "Send any supported asset", "send", "view")}
+            ${quickAction("wallet-receive", "Receive", "Show this wallet's receiver card", "receive", "view")}
           </div>
           <div class="quick-pair">
             ${quickAction("asset-claim", "Claim", "Claim an asset allocation", "claim")}
@@ -763,12 +773,12 @@ function homeView() {
           </div>
           <div class="attention-list">
             <button class="attention-item" type="button" data-open-flow="voucher-review">
-              <span class="list-icon is-claim">${icon("claim")}</span>
+              <span class="list-icon is-voucher">${objectFamilyIcon("voucher")}</span>
               <span class="list-copy"><strong>Travel refund voucher</strong><small>Offered by Northwind Travel · review required</small></span>
               <span class="list-meta"><strong>86.00 Z00Z</strong><small>Ends in 2 days</small></span>
             </button>
             <button class="attention-item" type="button" data-open-flow="permission-detail">
-              <span class="list-icon is-warning">${icon("alert")}</span>
+              <span class="list-icon is-right">${objectFamilyIcon("right")}</span>
               <span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · cannot delegate</small></span>
               <span class="list-meta"><strong>2 of 5 uses</strong><small>Ends 31 Jul</small></span>
             </button>
@@ -807,7 +817,7 @@ function moneyView() {
         ${filteredAssets.map((asset) => `
           <article class="card asset-row" role="row">
             <button class="asset-identity-button" type="button" data-open-flow="asset-detail" data-asset-key="${escapeHtml(asset.key)}" aria-label="${t("assets.viewDetails", { asset: asset.label })}">
-              ${objectTypeIcon("asset", asset.type, "asset-logo")}
+              ${assetIcon(asset, "asset-logo")}
               <span class="asset-info"><strong><span class="object-label">${escapeHtml(asset.label)}</span><span class="object-kind">${t(asset.kindKey)}</span></strong></span>
             </button>
             <div class="asset-number" role="cell"><strong>${sensitive(asset.balanceLabel)}</strong></div>
@@ -819,42 +829,131 @@ function moneyView() {
     </div>`;
 }
 
-function walletTransferView(direction) {
-  const isSend = direction === "send";
-  const flow = isSend ? "pay" : "receive";
-  const labelKey = isSend ? "assets.send" : "assets.receive";
-  const ariaKey = isSend ? "assets.sendAsset" : "assets.receiveAsset";
-  const iconName = isSend ? "send" : "receive";
-  return `<div class="view-enter transfer-view"><div class="transfer-asset-list" aria-label="${t(labelKey)}">
-    ${walletAssetEntries().map((asset) => `
-      <button class="card transfer-asset-row" type="button" data-open-flow="${flow}" data-asset-key="${escapeHtml(asset.key)}" aria-label="${t(ariaKey, { asset: asset.label })}">
-        ${objectTypeIcon("asset", asset.type, "transfer-asset-icon")}
-        <span class="transfer-asset-name"><strong><span class="object-label">${escapeHtml(asset.label)}</span><span class="object-kind">${t(asset.kindKey)}</span></strong></span>
-        <strong class="transfer-asset-balance">${sensitive(asset.balanceLabel)}</strong>
-        ${icon(iconName)}
-      </button>`).join("")}
-  </div></div>`;
+function sendItemIcon(item, className = "") {
+  if (item.family === "asset") return assetIcon(item.asset, className);
+  return objectTypeIcon(item.family === "voucher" ? "voucher" : "right", item.entry.kind, className);
+}
+
+function sendStepIndicator(activeStep) {
+  return `<div class="step-indicator" aria-label="Step ${activeStep + 1} of 3">${Array.from({ length: 3 }, (_, index) => `<span class="${index < activeStep ? "is-done" : index === activeStep ? "is-active" : ""}"></span>`).join("")}</div>`;
+}
+
+function sendPanelFrame({ title, subtitle, step, body, footer }) {
+  return `<section class="send-panel" aria-labelledby="send-panel-title">
+    <header class="send-panel-header">
+      <div><h2 id="send-panel-title">${escapeHtml(title)}</h2><p>${escapeHtml(subtitle)}</p></div>
+      ${sendStepIndicator(step)}
+    </header>
+    <div class="send-panel-body">${body}</div>
+    <footer class="send-panel-footer">${footer}</footer>
+  </section>`;
+}
+
+function walletSendView() {
+  const wallet = activeWallet();
+  const draft = activeSendDraft();
+  const item = selectedSendOption(draft);
+  if (!item) return `<div class="view-enter send-view"><div class="object-empty-state"><h2>No transferable items</h2></div></div>`;
+
+  if (draft.step === 0) {
+    const amountField = item.family === "asset"
+      ? `<div class="field-group"><label class="field-label" for="send-amount">Amount</label><div class="input-with-affix"><input id="send-amount" name="amount" type="number" min="${item.asset.divisible ? "0.01" : "1"}" max="${escapeHtml(item.asset.balance.replaceAll(",", ""))}" step="${item.asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(draft.amount)}" placeholder="${item.asset.divisible ? "0.00" : "1"}" aria-describedby="send-amount-hint send-amount-error" required><span class="input-affix">${escapeHtml(item.asset.unit)}</span></div><p class="field-hint" id="send-amount-hint">Available: ${sensitive(`${item.asset.balance} ${item.asset.unit}`)} · fee shown before authorization</p><p class="field-error" id="send-amount-error" role="alert"></p></div>`
+      : `<div class="field-group"><span class="field-label">Transfer</span><div class="send-object-value">${sendItemIcon(item, "send-object-icon")}<span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.meta)} · transferred as one ${escapeHtml(item.kindLabel.toLowerCase())}</small></span></div><p class="field-error" id="send-amount-error" role="alert"></p></div>`;
+    return `<div class="view-enter send-view">${sendPanelFrame({
+      title: "Send privately",
+      subtitle: "Recipient, asset, and amount",
+      step: 0,
+      body: `<form class="form-grid" id="send-entry" autocomplete="off" novalidate>
+        <div class="field-group"><label class="field-label" for="send-recipient">Recipient or private request</label><input id="send-recipient" name="recipient" value="${escapeHtml(draft.recipient)}" placeholder="Paste or scan a private request" autocomplete="off" aria-describedby="send-recipient-hint send-recipient-error" required><p class="field-hint" id="send-recipient-hint">The wallet validates the receiver, asset, and network before review.</p><p class="field-error" id="send-recipient-error" role="alert"></p></div>
+        <div class="field-group"><label class="field-label" for="send-item">Asset</label><select id="send-item" name="itemKey">${sendOptionsMarkup(item.key)}</select><p class="field-hint">${item.family === "asset" ? `${escapeHtml(item.kindLabel)} held by ${escapeHtml(wallet.name)}.` : `${escapeHtml(item.kindLabel)} held by ${escapeHtml(wallet.name)} and ready for one transfer.`}</p></div>
+        ${amountField}
+        <div class="field-group"><label class="field-label" for="send-memo">Private note <span class="muted">(optional)</span></label><input id="send-memo" name="memo" value="${escapeHtml(draft.memo)}" maxlength="80" placeholder="What is this for?" autocomplete="off"></div>
+      </form>`,
+      footer: `<button class="button button-quiet" type="button" data-send-action="cancel">Cancel</button><button class="button button-primary" type="submit" form="send-entry">Review send ${icon("chevron")}</button>`
+    })}</div>`;
+  }
+
+  if (draft.step === 1) {
+    const amountLabel = item.family === "asset" ? `${draft.amount} ${item.asset.unit}` : item.meta;
+    const familyLabel = item.family === "asset" ? `${item.label} · ${item.kindLabel}` : `${item.label} · ${item.kindLabel}`;
+    return `<div class="view-enter send-view">${sendPanelFrame({
+      title: "Review send",
+      subtitle: "Check before authorizing",
+      step: 1,
+      body: `<div class="review-card review-hero">${sendItemIcon(item, "list-icon")}<strong>${escapeHtml(amountLabel)}</strong><span>${escapeHtml(item.label)} to ${escapeHtml(draft.recipientLabel)}</span></div>
+        <div class="review-card">
+          <div class="summary-row"><span>Asset</span><strong>${escapeHtml(familyLabel)}</strong></div>
+          <div class="summary-row"><span>Recipient</span><strong>${escapeHtml(draft.recipientLabel)} · <span class="mono">7D3B…9A40</span></strong></div>
+          <div class="summary-row"><span>From</span><strong>${escapeHtml(wallet.name)} wallet</strong></div>
+          <div class="summary-row"><span>Fee</span><strong>${item.family === "asset" ? "Included" : "Not applicable"}</strong></div>
+          <div class="summary-row"><span>Privacy route</span><strong>OnionNet · target simulation</strong></div>
+          <div class="summary-row"><span>Carrier</span><strong>Reticulum · target</strong></div>
+          <div class="summary-row"><span>Network</span><strong>${walletChainBadgeMarkup(wallet.chainId)}</strong></div>
+          ${draft.memo ? `<div class="summary-row"><span>Note</span><strong>${escapeHtml(draft.memo)}</strong></div>` : ""}
+        </div>
+        <div class="confirmation-note">${icon("shield")} Sending authorizes this ${item.family === "asset" ? "asset" : item.family} transfer once. It will appear as settling until the wallet confirms final state.</div>`,
+      footer: `<button class="button" type="button" data-send-action="back">Back</button><button class="button button-primary" type="button" data-send-action="submit">Send ${item.family === "asset" ? "asset" : item.family}</button>`
+    })}</div>`;
+  }
+
+  const completed = draft.completed || { family: item.family, label: item.label, amountLabel: item.meta, recipientLabel: draft.recipientLabel };
+  const completedFamily = completed.family === "asset" ? "Asset" : completed.family === "voucher" ? "Voucher" : "Permission";
+  return `<div class="view-enter send-view">${sendPanelFrame({
+    title: `${completedFamily} sent`,
+    subtitle: "Waiting for final settlement",
+    step: 2,
+    body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Sent · settling</h3><p>${escapeHtml(completed.label)} was accepted for processing for ${escapeHtml(completed.recipientLabel)}. It is not final yet.</p><div class="receipt-ref mono">Reference TX-8A42 · idempotency protected</div></div><div class="review-card"><div class="summary-row"><span>Amount</span><strong>${escapeHtml(completed.amountLabel)}</strong></div><div class="summary-row"><span>Next update</span><strong>Automatic</strong></div></div>`,
+    footer: `<button class="button" type="button" data-send-action="history">View history</button><button class="button button-primary" type="button" data-send-action="done">Done</button>`
+  })}</div>`;
+}
+
+function walletReceiveView() {
+  const wallet = activeWallet();
+  const fullAddress = wallet.fullAddress || wallet.address;
+  const addressLabel = fullAddress.length > 28
+    ? `${fullAddress.slice(0, 12)}…${fullAddress.slice(-10)}`
+    : fullAddress;
+  const copyLabel = t("walletShell.copyAddress", { wallet: wallet.name });
+
+  return `
+    <div class="view-enter receiver-view">
+      <section class="receiver-card" aria-label="${escapeHtml(`${t("assets.receive")} · ${wallet.name}`)}">
+        <div class="mock-qr receiver-card-qr" aria-label="${escapeHtml(`${t("assets.receive")} QR`)}">${qrCells(fullAddress)}</div>
+        <div class="receiver-address-control" title="${escapeHtml(fullAddress)}">
+          <code class="receiver-card-address">${escapeHtml(addressLabel)}</code>
+          <button class="icon-button receiver-card-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(fullAddress)}">${icon("copy")}</button>
+        </div>
+      </section>
+    </div>`;
 }
 
 const walletSections = [
-  ["assets", "assets.sectionAssets", "assets"],
-  ["vouchers", "assets.sectionVouchers", "claim"],
-  ["permissions", "assets.sectionPermissions", "permission"]
+  { key: "assets", labelKey: "assets.sectionAssets", iconName: "assets" },
+  { key: "vouchers", labelKey: "assets.sectionVouchers", iconName: "voucher" },
+  { key: "permissions", labelKey: "assets.sectionPermissions", iconName: "permission" }
 ];
 
 function walletContextNav() {
-  return `<nav class="context-nav context-tab-list" aria-label="${t("assets.sections")}">${walletSections.map(([key, labelKey, iconName]) => `
+  return `<nav class="context-nav context-tab-list" aria-label="${t("assets.sections")}">${walletSections.map(({ key, labelKey, iconName, objectFamily }) => `
     <button class="context-nav-item${state.walletSection === key ? " is-active" : ""}" type="button" ${state.walletSection === key ? 'aria-current="page"' : ""} data-wallet-section="${key}">
-      ${icon(iconName)}<span><strong>${t(labelKey)}</strong></span>
+      ${objectFamily ? objectFamilyIcon(objectFamily) : icon(iconName)}<span><strong>${t(labelKey)}</strong></span>
     </button>`).join("")}</nav>`;
 }
 
 function vouchersPanel() {
+  const vouchers = activeWallet().vouchers || [];
+  if (!vouchers.length) {
+    return `<div class="object-empty-state">
+      <span class="list-icon is-voucher">${objectFamilyIcon("voucher")}</span>
+      <h2>${t("assets.noVouchers")}</h2>
+      <p>${t("assets.noVouchersHelp")}</p>
+      <button class="button button-primary" type="button" data-open-flow="create-voucher">${icon("plus")} ${t("assets.createVoucher")}</button>
+    </div>`;
+  }
   return `
     <div class="choice-strip" aria-label="Voucher filters"><button class="choice-chip is-active" type="button">Needs action</button><button class="choice-chip" type="button">Redeemable</button><button class="choice-chip" type="button">History</button><button class="choice-chip" type="button">Quarantined</button></div>
     <div class="claim-list">
-      <button class="claim-row" type="button" data-open-flow="voucher-review">${objectTypeIcon("voucher", "refund", "list-icon")}<span class="list-copy"><strong>Travel refund voucher</strong><small>Northwind Travel · consumed-asset backing · acceptance required · refund allowed</small></span><span class="list-meta"><strong>86.00 Z00Z</strong><small class="status-badge is-ready">Offered</small></span></button>
-      <button class="claim-row" type="button" data-open-flow="voucher-settled">${objectTypeIcon("voucher", "redeemed", "list-icon")}<span class="list-copy"><strong>Event deposit return</strong><small>Riverside Events · redeemed and settled 12 Jul</small></span><span class="list-meta"><strong>150.00 Z00Z</strong><small class="status-badge is-settled">Redeemed</small></span></button>
+      ${vouchers.map((voucher) => `<button class="claim-row" type="button" data-open-flow="${escapeHtml(voucher.detailFlow || "voucher-detail")}" data-object-id="${escapeHtml(voucher.id)}">${objectTypeIcon("voucher", voucher.kind, "list-icon")}<span class="list-copy"><strong>${escapeHtml(voucher.title)}</strong><small>${escapeHtml(voucher.detail)}</small></span><span class="list-meta"><strong>${escapeHtml(voucher.value)}</strong><small class="status-badge is-${escapeHtml(voucher.tone)}">${escapeHtml(voucher.status)}</small></span></button>`).join("")}
     </div>
     <div class="notice">${icon("shield")} Imported vouchers with unknown policy, invalid signatures, or unsupported schema go to Quarantine and never enter Available.</div>`;
 }
@@ -887,11 +986,19 @@ const permissionDetails = Object.freeze({
 });
 
 function permissionsPanel() {
+  const permissions = activeWallet().permissions || [];
+  if (!permissions.length) {
+    return `<div class="object-empty-state">
+      <span class="list-icon is-right">${objectFamilyIcon("right")}</span>
+      <h2>${t("assets.noPermissions")}</h2>
+      <p>${t("assets.noPermissionsHelp")}</p>
+      <button class="button button-primary" type="button" data-open-flow="create-permission">${icon("plus")} ${t("assets.createPermission")}</button>
+    </div>`;
+  }
   return `
     <div class="choice-strip" aria-label="Permission filters"><button class="choice-chip is-active" type="button">Held</button><button class="choice-chip" type="button">Delegated</button><button class="choice-chip" type="button">Used</button></div>
     <div class="permission-list">
-      <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="receipt">${objectTypeIcon("right", "receipt", "list-icon")}<span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · view · receipts.example · cannot delegate</small></span><span class="list-meta"><strong>2 of 5 uses</strong><small class="status-badge is-active">Held</small></span></button>
-      <button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="deploy">${objectTypeIcon("right", "deploy", "list-icon")}<span class="list-copy"><strong>Deploy to staging</strong><small>Machine capability · deploy · staging.example · attenuation only</small></span><span class="list-meta"><strong>1 use</strong><small class="status-badge is-active">Held</small></span></button>
+      ${permissions.map((permission) => `<button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="${escapeHtml(permission.id)}">${objectTypeIcon("right", permission.kind, "list-icon")}<span class="list-copy"><strong>${escapeHtml(permission.title)}</strong><small>${escapeHtml(permission.detail)}</small></span><span class="list-meta"><strong>${escapeHtml(permission.remaining)}</strong><small class="status-badge is-${escapeHtml(permission.tone)}">${escapeHtml(permission.status)}</small></span></button>`).join("")}
     </div>
     <div class="notice">${icon("spark")} A permission is zero-value. “Give permission” delegates a narrower held right; monetary budgets require a separate future composition and are not projected here.</div>`;
 }
@@ -927,12 +1034,13 @@ function activityRows(items, compact = false) {
   }
 
   return items.map((item) => {
-    const iconName = item.type === "voucher" || item.id.startsWith("claim-") ? "claim" : item.type === "permission" ? "permission" : item.type === "security" ? "backup" : item.direction === "in" ? "receive" : "send";
+    const iconName = item.id.startsWith("claim-") ? "claim" : item.type === "security" ? "backup" : item.direction === "in" ? "receive" : "send";
+    const iconMarkup = item.type === "voucher" ? objectFamilyIcon("voucher") : item.type === "permission" ? objectFamilyIcon("right") : icon(iconName);
     const iconClass = item.direction === "in" ? "is-incoming" : item.direction === "out" ? "is-outgoing" : "";
     const amountClass = item.direction === "in" ? "positive" : item.direction === "out" ? "negative" : "";
     return `
       <button class="activity-row" type="button" data-open-activity="${escapeHtml(item.id)}">
-        <span class="activity-icon ${iconClass}">${icon(iconName)}</span>
+        <span class="activity-icon ${iconClass}">${iconMarkup}</span>
         <span class="activity-copy"><strong>${escapeHtml(activityText(item, "title"))}</strong><small>${escapeHtml(activityText(item, "detail"))}${compact ? ` · ${escapeHtml(activityText(item, "time"))}` : ` · <span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span>`}</small></span>
         <span class="activity-value"><strong class="${amountClass}">${escapeHtml(activityText(item, "amount"))}</strong><small>${escapeHtml(activityText(item, "time"))}</small></span>
       </button>`;
@@ -975,7 +1083,7 @@ function swapView() {
           <div class="form-grid">
             <div class="field-group"><label class="field-label" for="swap-from">From</label><select id="swap-from">${assetOptions("z00z")}</select><p class="field-hint">Available: ${sensitive(`${asset.balance} ${asset.unit}`)}</p></div>
             <div class="field-group"><label class="field-label" for="swap-amount">Amount</label><div class="input-with-affix"><input id="swap-amount" type="number" min="0.01" max="${escapeHtml(asset.balance.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div></div>
-            <div class="field-group"><label class="field-label" for="swap-to">To</label><select id="swap-to">${assetOptions("acme")}</select></div>
+            <div class="field-group"><label class="field-label" for="swap-to">To</label><select id="swap-to">${assetOptions("dai")}</select></div>
             <button class="button button-primary" type="button" data-demo-action="preview-swap">${icon("swap")} Preview swap</button>
           </div>
         </article>
@@ -1091,6 +1199,7 @@ function walletSettingsYaml() {
     "schema_version: 1",
     "wallet:",
     `  id: \"${yamlScalar(wallet.id)}\"`,
+    `  chain: \"${yamlScalar(wallet.chainId)}\"`,
     "  display:",
     `    name: \"${yamlScalar(wallet.name)}\"`,
     `    currency: ${preferences.currency}`,
@@ -1117,14 +1226,11 @@ function walletSettingsYaml() {
 
 function walletSettingsGeneralDetail() {
   const wallet = activeWallet();
-  const preferences = activeWalletPreferences();
   return `
-    <div class="settings-heading"><div><p class="eyebrow">Selected wallet</p><h2>Wallet details</h2><p>Name and transaction defaults apply only to ${escapeHtml(wallet.name)}.</p></div><span class="config-source">Local profile</span></div>
-    <div class="setting-group">
+    <div class="setting-group settings-first-group">
       <div class="setting-line"><span class="setting-line-copy"><strong>Wallet name</strong><small>${escapeHtml(wallet.name)} · local display label</small></span><button class="button" type="button" data-open-flow="wallet-rename">Rename wallet</button></div>
       <div class="setting-line"><span class="setting-line-copy"><strong>Wallet ID</strong><small class="mono">${escapeHtml(wallet.id)}</small></span><span class="status-badge">Read-only</span></div>
-      <div class="setting-line"><label class="setting-line-copy" for="wallet-currency"><strong>Display currency</strong><small>Presentation only; it never changes asset units.</small></label><select id="wallet-currency" data-wallet-settings-control="currency"><option${preferences.currency === "Z00Z" ? " selected" : ""}>Z00Z</option><option${preferences.currency === "USD" ? " selected" : ""}>USD</option><option${preferences.currency === "EUR" ? " selected" : ""}>EUR</option></select></div>
-      <div class="setting-line"><label class="setting-line-copy" for="wallet-default-fee"><strong>Default fee</strong><small>Used as a local draft default; final fee remains visible before authorization.</small></label><input id="wallet-default-fee" data-wallet-settings-control="default-fee" inputmode="decimal" value="${escapeHtml(preferences.defaultFee)}" aria-label="Default fee"></div>
+      <div class="setting-line" data-wallet-chain-readonly aria-label="${escapeHtml(t("common.chain"))}: ${escapeHtml(walletChain(wallet.chainId).label)}. ${escapeHtml(t("common.readOnly"))}."><span class="setting-line-copy"><strong>${t("common.chain")}</strong></span>${walletChainBadgeMarkup(wallet.chainId)}</div>
     </div>
     <div class="capability-note">${icon("alert")} <span><strong>Runtime boundary</strong><small>${icon("shield")} WalletService stores these fields, but a public wallet-settings write route is not registered yet. This demo keeps the change local and does not imply a real wallet write.</small></span></div>`;
 }
@@ -1133,8 +1239,7 @@ function walletSettingsSecurityDetail() {
   const wallet = activeWallet();
   const preferences = activeWalletPreferences();
   return `
-    <div class="settings-heading"><div><p class="eyebrow">Private authority</p><h2>Security</h2><p>Use a fresh password check before a sensitive operation. Private keys are never displayed.</p></div><span class="status-badge is-active">Unlocked</span></div>
-    <div class="setting-group">
+    <div class="setting-group settings-first-group">
       <div class="setting-line"><label class="setting-line-copy" for="wallet-lock-after"><strong>Lock app after</strong><small>Per-wallet inactivity preference for this local profile.</small></label><select id="wallet-lock-after" data-wallet-settings-control="lock-after"><option value="5"${preferences.lockAfterMinutes === "5" ? " selected" : ""}>5 minutes</option><option value="15"${preferences.lockAfterMinutes === "15" ? " selected" : ""}>15 minutes</option><option value="30"${preferences.lockAfterMinutes === "30" ? " selected" : ""}>30 minutes</option><option value="never"${preferences.lockAfterMinutes === "never" ? " selected" : ""}>Never</option></select></div>
       <div class="setting-line"><span class="setting-line-copy"><strong>Lock now</strong><small>Clears sensitive presentation and closes the wallet session.</small></span><button class="button" type="button" data-demo-action="lock">Lock now</button></div>
       <div class="setting-line"><span class="setting-line-copy"><strong>${t("walletSettings.password")}</strong><small>${t("walletSettings.passwordHelp")}</small></span><button class="button" type="button" data-open-flow="wallet-password-change">${t("walletSettings.changePassword")}</button></div>
@@ -1151,7 +1256,6 @@ function walletSettingsBackupDetail() {
   const wallet = activeWallet();
   const preferences = activeWalletPreferences();
   return `
-    <div class="settings-heading"><div><p class="eyebrow">Recovery state</p><h2>Backup</h2><p>A full backup can preserve more than a recovery phrase: local labels, scan context, receiver history, and encrypted wallet state.</p></div><span class="status-badge is-ready">Local only</span></div>
     <div class="review-card wallet-settings-summary"><div class="summary-row"><span>Latest backup</span><strong>10 Jul 2026 · 09:42</strong></div><div class="summary-row"><span>Integrity</span><strong class="trust-label">${icon("shield")} Verified</strong></div><div class="summary-row"><span>Encryption</span><strong>Enabled</strong></div><div class="summary-row"><span>Wallet</span><strong>${escapeHtml(wallet.name)}</strong></div></div>
     <div class="setting-group"><div class="setting-line"><span class="setting-line-copy"><strong>Automatic backup</strong><small>Create encrypted local recovery points for this wallet profile.</small></span><button class="toggle" type="button" aria-pressed="${preferences.autoBackup}" aria-label="Automatic wallet backup" data-demo-action="wallet-auto-backup"></button></div><div class="setting-line"><label class="setting-line-copy" for="wallet-backup-interval"><strong>Backup interval</strong><small>Cadence is stored with the selected wallet; its platform location is never exposed as YAML.</small></label><select id="wallet-backup-interval" data-wallet-settings-control="backup-interval"><option value="6"${preferences.backupIntervalHours === "6" ? " selected" : ""}>Every 6 hours</option><option value="24"${preferences.backupIntervalHours === "24" ? " selected" : ""}>Every 24 hours</option><option value="72"${preferences.backupIntervalHours === "72" ? " selected" : ""}>Every 3 days</option></select></div><div class="setting-line"><span class="setting-line-copy"><strong>Create fresh backup</strong><small>Choose a platform destination; no path is exposed in the demo.</small></span><button class="button button-primary" type="button" data-demo-action="backup">Create backup</button></div><div class="setting-line"><span class="setting-line-copy"><strong>Restore backup</strong><small>Always validates integrity before any local state is replaced.</small></span><button class="button" type="button" data-demo-action="restore">Restore backup</button></div></div>
     <div class="notice">${icon("shield")} A seed-only recovery may not restore labels, history, receiver context, or scoped disclosure artifacts. The network cannot reconstruct private state it never received.</div>`;
@@ -1161,8 +1265,7 @@ function walletSettingsPoliciesDetail() {
   const preferences = activeWalletPreferences();
   const rules = preferences.policyRules;
   return `
-    <div class="settings-heading"><div><p class="eyebrow">Bounded authority</p><h2>Policies</h2><p>Wallet rules may narrow spend behavior. They cannot expand protocol authority or prove legal compliance.</p></div><button class="button" type="button" data-open-flow="wallet-policy-profile">Profile preview</button></div>
-    <div class="setting-group"><div class="setting-line"><span class="setting-line-copy"><strong>Profile preview</strong><small>${escapeHtml(preferences.policyProfile)} · user-configured jurisdiction profile, not a compliance certificate.</small></span><span class="status-badge is-ready">Target</span></div><div class="setting-line"><span class="setting-line-copy"><strong>Local spend rules</strong><small>Maximum spend, daily limit, and confirmation gate map to current <code>PolicyRules</code> fields.</small></span><button class="button button-primary" type="button" data-open-flow="wallet-policy-apply">Review rules</button></div></div>
+    <div class="setting-group settings-first-group"><div class="setting-line"><span class="setting-line-copy"><strong>Profile preview</strong><small>${escapeHtml(preferences.policyProfile)} · user-configured jurisdiction profile, not a compliance certificate.</small></span><span class="status-badge is-ready">Target</span></div><div class="setting-line"><span class="setting-line-copy"><strong>Local spend rules</strong><small>Maximum spend, daily limit, and confirmation gate map to current <code>PolicyRules</code> fields.</small></span><button class="button button-primary" type="button" data-open-flow="wallet-policy-apply">Review rules</button></div></div>
     <div class="policy-stack" aria-label="Effective wallet spend rules"><div class="policy-layer is-locked"><span>1</span><div><strong>Protocol rules</strong><small>Immutable; never editable in the wallet.</small></div><span class="status-badge">Locked</span></div><div class="policy-layer is-active"><span>2</span><div><strong>Local policy rules</strong><small>Max ${escapeHtml(rules.maxTransaction)} Z00Z · daily ${escapeHtml(rules.maxDaily)} Z00Z · ${rules.allowedAssets === "all" ? "all assets" : "native asset only"} · ${rules.allowedRecipients ? "recipient allowlist" : "all recipients"} · ${rules.timeWindow === "any" ? "any time" : "business hours UTC"} · ${rules.requireConfirmation ? "confirmation required" : "no confirmation gate"}</small></div><span class="status-badge is-active">Local</span></div><div class="policy-layer"><span>3</span><div><strong>Compliance profile</strong><small>Signed profile load/apply is unavailable in the current RPC; preview only.</small></div><span class="status-badge is-ready">Target</span></div></div>
     <div class="capability-note">${icon("alert")} <span><strong>Honest profile boundary</strong><small>Current code validates local spend rules, but has no signed compliance-profile loader, signature verifier, apply, disable, or persistence route. This page never reports “compliant”.</small></span></div>`;
 }
@@ -1170,7 +1273,6 @@ function walletSettingsPoliciesDetail() {
 function walletSettingsAdvancedDetail() {
   const source = state.walletSettingsConfigDraft || walletSettingsYaml();
   return `
-    <div class="settings-heading"><div><p class="eyebrow">Wallet configuration</p><h2>Advanced</h2><p>Safe visible controls and this YAML are two views of the selected wallet configuration.</p></div><span class="config-source">Concept-local</span></div>
     <div class="yaml-toolbar"><span><strong class="mono">wallet_settings.yaml</strong><small>Secrets, local paths, session tokens, and receiver material are excluded.</small></span><div><button class="button" type="button" data-demo-action="wallet-config-validate">Validate</button><button class="button button-primary" type="button" data-demo-action="wallet-config-apply">Apply locally</button></div></div>
     ${yamlEditorMarkup("wallet-settings-yaml", source, "Selected wallet settings YAML")}
     <div class="config-foot"><span>${icon("shield")} No secrets or paths</span><span>${icon("activity")} Selected wallet only</span><span>${icon("settings")} ${escapeHtml(state.configStatus)}</span></div>
@@ -1690,8 +1792,8 @@ function render(options = {}) {
   main.innerHTML = {
     home: homeView,
     wallet: walletView,
-    "wallet-send": () => walletTransferView("send"),
-    "wallet-receive": () => walletTransferView("receive"),
+    "wallet-send": walletSendView,
+    "wallet-receive": walletReceiveView,
     activity: activityView,
     swap: swapView,
     exchange: exchangeView,
@@ -1701,6 +1803,7 @@ function render(options = {}) {
     settings: settingsView,
     telemetry: telemetryView
   }[state.view]();
+  suppressPasswordManagerUI(document);
 
   syncBalanceButtons();
   const revealActiveWalletTab = () => {
@@ -1756,6 +1859,7 @@ function validateAndApplyWalletSettingsYaml(source, apply = false) {
   const allowedAssets = readYamlScalar(source, "allowed_assets");
   const allowedRecipients = readYamlScalar(source, "allowed_recipients");
   const timeRestrictions = readYamlScalar(source, "time_restrictions");
+  const chainId = readYamlScalar(source, "chain");
 
   if (name && (name.length < 2 || name.length > 32)) return { valid: false, message: "Wallet name must contain 2–32 characters." };
   if (currency && !["Z00Z", "USD", "EUR"].includes(currency)) return { valid: false, message: "currency must be Z00Z, USD, or EUR." };
@@ -1767,6 +1871,7 @@ function validateAndApplyWalletSettingsYaml(source, apply = false) {
   if (requireConfirmation && !["true", "false"].includes(requireConfirmation)) return { valid: false, message: "require_confirmation must be true or false." };
   if (allowedAssets && !["all", "native"].includes(allowedAssets)) return { valid: false, message: "allowed_assets must be all or native." };
   if (timeRestrictions && !["any", "business-hours"].includes(timeRestrictions)) return { valid: false, message: "time_restrictions must be any or business-hours." };
+  if (chainId !== activeWallet().chainId) return { valid: false, message: `chain is read-only and must remain ${activeWallet().chainId}.` };
 
   if (apply) {
     const wallet = activeWallet();
@@ -1809,7 +1914,7 @@ function sensitiveWalletDialog(type) {
       title: "Rename wallet",
       subtitle: "Confirm with the wallet password",
       confirmation: null,
-      body: `<div class="field-group"><label class="field-label" for="wallet-rename-name">Wallet name</label><input id="wallet-rename-name" name="name" maxlength="32" value="${escapeHtml(wallet.name)}" autocomplete="off" required><p class="field-hint">This local label does not change the wallet address or key material.</p></div>`,
+      body: `<div class="field-group"><label class="field-label" for="wallet-rename-name">Wallet name</label><input id="wallet-rename-name" name="walletLabel" maxlength="32" value="${escapeHtml(wallet.name)}" autocomplete="section-z00z-wallet nickname" ${passwordManagerIgnoreAttributes} required><p class="field-hint">This local label does not change the wallet address or key material.</p></div>`,
       actionLabel: "Save wallet name"
     },
     "wallet-seed-reveal": {
@@ -1859,7 +1964,7 @@ function sensitiveWalletDialog(type) {
   return dialogFrame({
     title: definition.title,
     subtitle: definition.subtitle,
-    body: `<form class="form-grid" id="${type}-entry" novalidate>${definition.body}<div class="field-group"><label class="field-label" for="${passwordId}">Wallet password</label><input id="${passwordId}" name="password" type="password" minlength="8" autocomplete="current-password" required><p class="field-hint">This concept validates locally and clears the value immediately after use.</p><p class="field-error" id="${type}-error" role="alert"></p></div>${confirmationMarkup}</form>`,
+    body: `<form class="form-grid" id="${type}-entry" autocomplete="off" ${passwordManagerIgnoreAttributes} novalidate>${definition.body}<div class="field-group"><label class="field-label" for="${passwordId}">Wallet password</label><input id="${passwordId}" name="walletSecret" ${secureEntryAttributes("wallet-action")} minlength="8" required><p class="field-hint">This concept validates locally and clears the value immediately after use.</p><p class="field-error" id="${type}-error" role="alert"></p></div>${confirmationMarkup}</form>`,
     footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="${type}-entry">${definition.actionLabel}</button>`
   });
 }
@@ -1877,120 +1982,32 @@ function walletPasswordChangeDialog() {
   return dialogFrame({
     title: t("walletSettings.changePasswordTitle"),
     subtitle: t("walletSettings.changePasswordSubtitle"),
-    body: `<form class="form-grid" id="wallet-password-change-entry" novalidate>
-      <div class="field-group"><label class="field-label" for="wallet-current-password">${t("walletSettings.currentPassword")}</label><input id="wallet-current-password" name="currentPassword" type="password" minlength="8" autocomplete="current-password" required></div>
-      <div class="field-group"><label class="field-label" for="wallet-new-password">${t("walletSettings.newPassword")}</label><input id="wallet-new-password" name="newPassword" type="password" minlength="8" autocomplete="new-password" required><p class="field-hint">${t("walletSettings.passwordChangeHint")}</p></div>
-      <div class="field-group"><label class="field-label" for="wallet-confirm-new-password">${t("walletSettings.confirmNewPassword")}</label><input id="wallet-confirm-new-password" name="confirmNewPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+    body: `<form class="form-grid" id="wallet-password-change-entry" autocomplete="off" ${passwordManagerIgnoreAttributes} novalidate>
+      <div class="field-group"><label class="field-label" for="wallet-current-password">${t("walletSettings.currentPassword")}</label><input id="wallet-current-password" name="currentWalletSecret" ${secureEntryAttributes("current-wallet-secret")} minlength="8" required></div>
+      <div class="field-group"><label class="field-label" for="wallet-new-password">${t("walletSettings.newPassword")}</label><input id="wallet-new-password" name="newWalletSecret" ${secureEntryAttributes("new-wallet-secret")} minlength="8" required><p class="field-hint">${t("walletSettings.passwordChangeHint")}</p></div>
+      <div class="field-group"><label class="field-label" for="wallet-confirm-new-password">${t("walletSettings.confirmNewPassword")}</label><input id="wallet-confirm-new-password" name="confirmNewWalletSecret" ${secureEntryAttributes("new-wallet-secret-confirmation")} minlength="8" required></div>
       <p class="field-error" id="wallet-password-change-error" role="alert"></p>
     </form>`,
     footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="wallet-password-change-entry">${t("walletSettings.changePasswordSubmit")}</button>`
   });
 }
 
-function dialogFrame({ title, subtitle, body, footer = "", footerClass = "", steps = 0, activeStep = 0, closeLabel }) {
+function dialogFrame({ title, subtitle, body, footer = "", steps = 0, activeStep = 0, closeLabel, headerLeading = "" }) {
   const resolvedCloseLabel = closeLabel || t("common.close");
   const indicators = steps > 1
     ? `<div class="step-indicator" aria-label="Step ${activeStep + 1} of ${steps}">${Array.from({ length: steps }, (_, index) => `<span class="${index < activeStep ? "is-done" : index === activeStep ? "is-active" : ""}"></span>`).join("")}</div>`
     : "";
   return `
     <div class="dialog-shell">
-      <header class="dialog-header">
+      <header class="dialog-header${headerLeading ? " has-leading-visual" : ""}">
+        ${headerLeading}
         <div class="dialog-header-copy"><h2 id="dialog-title">${title}</h2><p>${subtitle}</p></div>
         ${indicators}
         <button class="icon-button" type="button" data-dialog-close aria-label="${escapeHtml(resolvedCloseLabel)}">${icon("close")}</button>
       </header>
       <div class="dialog-body">${body}</div>
-      ${footer ? `<footer class="dialog-footer${footerClass ? ` ${footerClass}` : ""}">${footer}</footer>` : ""}
+      ${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}
     </div>`;
-}
-
-function payDialog() {
-  const data = state.flow.data;
-  const asset = flowAsset(data);
-  const wallet = activeWallet();
-  if (state.flow.step === 0) {
-    return dialogFrame({
-      title: "Send privately",
-      subtitle: "Recipient, asset, and amount",
-      steps: 3,
-      activeStep: 0,
-      body: `
-        <form class="form-grid" id="pay-entry" novalidate>
-          <div class="field-group"><label class="field-label" for="pay-recipient">Recipient or private request</label><input id="pay-recipient" name="recipient" value="${escapeHtml(data.recipient)}" placeholder="Paste or scan a private request" autocomplete="off" aria-describedby="pay-recipient-hint pay-recipient-error" required><p class="field-hint" id="pay-recipient-hint">The wallet validates the receiver, asset, and network before review.</p><p class="field-error" id="pay-recipient-error"></p></div>
-          <div class="field-group"><label class="field-label" for="pay-asset">Asset</label><select id="pay-asset" name="assetKey">${assetOptions(asset.key)}</select><p class="field-hint">${escapeHtml(asset.kind)} held by ${escapeHtml(wallet.name)}.</p></div>
-          <div class="field-group"><label class="field-label" for="pay-amount">Amount</label><div class="input-with-affix"><input id="pay-amount" name="amount" type="number" min="${asset.divisible ? "0.01" : "1"}" max="${escapeHtml(asset.balance.replaceAll(",", ""))}" step="${asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(data.amount)}" placeholder="${asset.divisible ? "0.00" : "1"}" aria-describedby="pay-amount-hint pay-amount-error" required><span class="input-affix">${escapeHtml(asset.unit)}</span></div><p class="field-hint" id="pay-amount-hint">Available: ${sensitive(`${asset.balance} ${asset.unit}`)} · fee shown before authorization</p><p class="field-error" id="pay-amount-error"></p></div>
-          <div class="field-group"><label class="field-label" for="pay-memo">Private note <span class="muted">(optional)</span></label><input id="pay-memo" name="memo" value="${escapeHtml(data.memo)}" maxlength="80" placeholder="What is this for?"></div>
-        </form>`,
-      footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="pay-entry">Review send ${icon("chevron")}</button>`
-    });
-  }
-
-  if (state.flow.step === 1) {
-    return dialogFrame({
-      title: "Review send",
-      subtitle: "Check before authorizing",
-      steps: 3,
-      activeStep: 1,
-      body: `
-        <div class="review-card review-hero"><span class="list-icon">${icon("send")}</span><strong>${escapeHtml(data.amount)} ${escapeHtml(asset.unit)}</strong><span>${escapeHtml(asset.label)} to ${escapeHtml(data.recipientLabel)}</span></div>
-        <div class="review-card">
-          <div class="summary-row"><span>Asset</span><strong>${escapeHtml(asset.label)} · ${escapeHtml(asset.kind)}</strong></div>
-          <div class="summary-row"><span>Recipient</span><strong>${escapeHtml(data.recipientLabel)} · <span class="mono">7D3B…9A40</span></strong></div>
-          <div class="summary-row"><span>From</span><strong>${escapeHtml(wallet.name)} wallet</strong></div>
-          <div class="summary-row"><span>Fee</span><strong>Included</strong></div>
-          <div class="summary-row"><span>Privacy route</span><strong>OnionNet · target simulation</strong></div>
-          <div class="summary-row"><span>Carrier</span><strong>Reticulum · target</strong></div>
-          <div class="summary-row"><span>Network</span><strong><span class="environment-tag is-main">MAIN</span></strong></div>
-          ${data.memo ? `<div class="summary-row"><span>Note</span><strong>${escapeHtml(data.memo)}</strong></div>` : ""}
-        </div>
-        <div class="confirmation-note">${icon("shield")} Sending authorizes this asset transfer once. It will appear as settling until the wallet confirms final state.</div>`,
-      footer: `<button class="button" type="button" data-dialog-action="pay-back">Back</button><button class="button button-primary" type="button" data-dialog-action="pay-submit">Send asset</button>`
-    });
-  }
-
-  return dialogFrame({
-    title: "Asset sent",
-    subtitle: "Waiting for final settlement",
-    steps: 3,
-    activeStep: 2,
-    body: `
-      <div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Sent · settling</h3><p>${escapeHtml(asset.label)} was accepted for processing for ${escapeHtml(data.recipientLabel)}. It is not final yet.</p><div class="receipt-ref mono">Reference TX-8A42 · idempotency protected</div></div>
-      <div class="review-card"><div class="summary-row"><span>Amount</span><strong>${escapeHtml(data.amount)} ${escapeHtml(asset.unit)}</strong></div><div class="summary-row"><span>Fee</span><strong>Shown before authorization</strong></div><div class="summary-row"><span>Next update</span><strong>Automatic</strong></div></div>`,
-    footer: `<button class="button" type="button" data-dialog-action="view-activity">View history</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
-  });
-}
-
-function receiveDialog() {
-  const data = state.flow.data;
-  const asset = flowAsset(data);
-  const wallet = activeWallet();
-  if (state.flow.step === 0) {
-    return dialogFrame({
-      title: "Receive privately",
-      subtitle: "Create an asset request",
-      steps: 2,
-      activeStep: 0,
-      body: `
-        <form class="form-grid" id="receive-entry" novalidate>
-          <div class="field-group"><label class="field-label" for="receive-asset">Asset</label><select id="receive-asset" name="assetKey">${assetOptions(asset.key)}</select><p class="field-hint">Create a request for a coin, token, or collectible.</p></div>
-          <div class="field-group"><label class="field-label" for="receive-amount">Requested amount <span class="muted">(optional)</span></label><div class="input-with-affix"><input id="receive-amount" name="amount" type="number" min="${asset.divisible ? "0.01" : "1"}" step="${asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(data.amount)}" placeholder="${asset.divisible ? "Any amount" : "1"}"><span class="input-affix">${escapeHtml(asset.unit)}</span></div></div>
-          <div class="field-group"><label class="field-label" for="receive-note">What is it for? <span class="muted">(optional)</span></label><input id="receive-note" name="note" maxlength="80" value="${escapeHtml(data.note)}" placeholder="Dinner, invoice, refund…"></div>
-          <div class="field-group"><label class="field-label" for="receive-expiry">Request expires</label><select id="receive-expiry" name="expiry"><option>In 24 hours</option><option>In 7 days</option><option>Never</option></select><p class="field-hint">Expiry limits how long this request should be trusted.</p></div>
-        </form>`,
-      footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="receive-entry">Create request</button>`
-    });
-  }
-
-  return dialogFrame({
-    title: "Private asset request",
-    subtitle: "Share the QR or request text",
-    steps: 2,
-    activeStep: 1,
-    body: `
-      <div class="qr-layout"><div class="mock-qr" aria-label="Mock asset request QR code">${qrCells()}</div><div><p class="eyebrow">Ready to share</p><h3>${data.amount ? `${escapeHtml(data.amount)} ${escapeHtml(asset.unit)}` : `Any ${escapeHtml(asset.label)} amount`}</h3><p class="muted">${escapeHtml(wallet.name)} wallet · expires in 24 hours</p><code class="request-code">z00z:receive:${escapeHtml(asset.key)}?amount=${escapeHtml(data.amount || "any")}</code><button class="button button-full" type="button" data-demo-action="copy-request">${icon("copy")} Copy request</button></div></div>
-      <div class="notice">${icon("shield")} The sender sees “${escapeHtml(wallet.name)} wallet” and an abbreviated receiver. Incoming value appears as settling before it becomes available.</div>`,
-    footer: `<button class="button" type="button" data-demo-action="share-request">Share</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
-  });
 }
 
 function assetClaimDialog() {
@@ -2035,7 +2052,7 @@ function voucherDialog(settled = false) {
       subtitle: "Conditional value offered to this wallet",
       steps: 3,
       activeStep: 0,
-      body: `<div class="review-card review-hero"><span class="list-icon is-claim">${icon("claim")}</span><strong>86.00 Z00Z</strong><span>Travel refund voucher</span></div><div class="review-card"><div class="summary-row"><span>Issuer</span><strong>Northwind Travel</strong></div><div class="summary-row"><span>Backing</span><strong>Consumed asset reference</strong></div><div class="summary-row"><span>Face / remaining</span><strong>86.00 / 86.00 Z00Z</strong></div><div class="summary-row"><span>Acceptance</span><strong>Required</strong></div><div class="summary-row"><span>Ends</span><strong>21 Jul 2026 · 18:00</strong></div><div class="summary-row"><span>Holder options</span><strong>Accept · Reject</strong></div></div><div class="confirmation-note">${icon("shield")} Accepting changes the voucher lifecycle. It does not directly add 86.00 Z00Z to Available.</div>`,
+      body: `<div class="review-card review-hero"><span class="list-icon is-voucher">${objectFamilyIcon("voucher")}</span><strong>86.00 Z00Z</strong><span>Travel refund voucher</span></div><div class="review-card"><div class="summary-row"><span>Issuer</span><strong>Northwind Travel</strong></div><div class="summary-row"><span>Backing</span><strong>Consumed asset reference</strong></div><div class="summary-row"><span>Face / remaining</span><strong>86.00 / 86.00 Z00Z</strong></div><div class="summary-row"><span>Acceptance</span><strong>Required</strong></div><div class="summary-row"><span>Ends</span><strong>21 Jul 2026 · 18:00</strong></div><div class="summary-row"><span>Holder options</span><strong>Accept · Reject</strong></div></div><div class="confirmation-note">${icon("shield")} Accepting changes the voucher lifecycle. It does not directly add 86.00 Z00Z to Available.</div>`,
       footer: `<button class="button button-danger" type="button" data-dialog-action="voucher-reject">Reject voucher</button><button class="button button-primary" type="button" data-dialog-action="voucher-accept">Accept voucher</button>`
     });
   }
@@ -2058,6 +2075,49 @@ function voucherDialog(settled = false) {
     activeStep: 2,
     body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Redeemed · receiving</h3><p>The voucher lifecycle is redeemed. Its asset outcome is waiting for authoritative settlement and is not Available yet.</p></div>`,
     footer: `<button class="button" type="button" data-dialog-action="view-activity">View history</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
+  });
+}
+
+function createVoucherDialog() {
+  return dialogFrame({
+    title: "Create voucher",
+    subtitle: "Create conditional value in this wallet",
+    body: `
+      <form class="form-grid" id="create-voucher-entry" novalidate>
+        <div class="field-group"><label class="field-label" for="voucher-create-name">Voucher name</label><input id="voucher-create-name" name="title" maxlength="48" value="Gift voucher" autocomplete="off" required aria-describedby="voucher-create-error"><p class="field-error" id="voucher-create-error" role="alert"></p></div>
+        <div class="field-group"><label class="field-label" for="voucher-create-amount">Value</label><div class="input-with-affix"><input id="voucher-create-amount" name="amount" type="number" min="0.01" step="0.01" value="10.00" inputmode="decimal" required><span class="input-affix">Z00Z</span></div></div>
+        <div class="field-group"><label class="field-label" for="voucher-create-expiry">Expires</label><input id="voucher-create-expiry" name="expiry" type="date" value="2026-12-31" min="2026-07-22" required></div>
+        <div class="confirmation-note">${icon("shield")} The voucher remains a distinct wallet object. Its value is not added to Available.</div>
+      </form>`,
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="create-voucher-entry">Create voucher</button>`
+  });
+}
+
+function voucherDetailDialog() {
+  const voucher = walletObjectEntry("voucher", state.flow.data.objectId);
+  if (!voucher) return dialogFrame({ title: "Voucher unavailable", subtitle: "The wallet state changed", body: `<div class="empty-state"><p>This voucher is no longer available.</p></div>`, footer: `<button class="button button-primary" type="button" data-dialog-close>Done</button>` });
+  return dialogFrame({
+    title: voucher.title,
+    subtitle: "Wallet voucher",
+    body: `<div class="review-card review-hero"><span class="list-icon is-voucher">${objectFamilyIcon("voucher")}</span><strong>${escapeHtml(voucher.value)}</strong><span>${escapeHtml(voucher.status)}</span></div><div class="review-card"><div class="summary-row"><span>Expires</span><strong>${escapeHtml(voucher.expiry)}</strong></div><div class="summary-row"><span>Transfer</span><strong>${voucher.transferable ? "Ready" : escapeHtml(voucher.status)}</strong></div><div class="summary-row"><span>Wallet</span><strong>${escapeHtml(activeWallet().name)}</strong></div></div>`,
+    footer: `<button class="button button-primary" type="button" data-dialog-close>Done</button>`
+  });
+}
+
+function createPermissionDialog() {
+  return dialogFrame({
+    title: "Create permission",
+    subtitle: "Define bounded authority held by this wallet",
+    body: `
+      <form class="form-grid" id="create-permission-entry" novalidate>
+        <div class="field-group"><label class="field-label" for="permission-create-name">Permission name</label><input id="permission-create-name" name="title" maxlength="48" value="Service access" autocomplete="off" required aria-describedby="permission-create-error"><p class="field-error" id="permission-create-error" role="alert"></p></div>
+        <div class="field-group"><label class="field-label" for="permission-create-action">Allowed action</label><select id="permission-create-action" name="action"><option>View status</option><option>Deploy release</option><option>Read receipt</option></select></div>
+        <div class="field-group"><label class="field-label" for="permission-create-scope">Scope</label><input id="permission-create-scope" name="scope" value="service.example" autocomplete="off" required></div>
+        <div class="field-group"><label class="field-label" for="permission-create-uses">Maximum uses</label><input id="permission-create-uses" name="uses" type="number" min="1" max="100" value="1" inputmode="numeric" required></div>
+        <div class="field-group"><label class="field-label" for="permission-create-expiry">Expires</label><input id="permission-create-expiry" name="expiry" type="date" value="2026-12-31" min="2026-07-22" required></div>
+        <div class="confirmation-note">${icon("shield")} A permission carries bounded authority and no monetary value.</div>
+      </form>`,
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-primary" type="submit" form="create-permission-entry">Create permission</button>`
   });
 }
 
@@ -2089,7 +2149,7 @@ function permissionDialog() {
       steps: 3,
       activeStep: 1,
       body: `
-        <div class="review-card review-hero"><span class="list-icon is-warning">${icon("permission")}</span><strong>${escapeHtml(data.uses)} uses</strong><span>for ${escapeHtml(data.delegate)}</span></div>
+        <div class="review-card review-hero"><span class="list-icon is-right">${objectFamilyIcon("right")}</span><strong>${escapeHtml(data.uses)} uses</strong><span>for ${escapeHtml(data.delegate)}</span></div>
         <div class="review-card"><div class="summary-row"><span>Class</span><strong>Machine capability</strong></div><div class="summary-row"><span>Can</span><strong>${escapeHtml(data.action)}</strong></div><div class="summary-row"><span>Only within</span><strong>${escapeHtml(data.scope)}</strong></div><div class="summary-row"><span>Use limit</span><strong>${escapeHtml(data.uses)}</strong></div><div class="summary-row"><span>Ends</span><strong>${escapeHtml(data.expiryLabel)}</strong></div><div class="summary-row"><span>Cannot</span><strong>Sub-delegate or broaden scope</strong></div><div class="summary-row"><span>Monetary value</span><strong>None · Right is zero-value</strong></div></div>
         <div class="confirmation-note">${icon("alert")} Delegation transfers bounded authority. Revocation cannot be described as cancelling work already accepted by the protocol.</div>`,
       footer: `<button class="button" type="button" data-dialog-action="permission-back">Back</button><button class="button button-primary" type="button" data-dialog-action="permission-submit">Give permission</button>`
@@ -2107,14 +2167,14 @@ function permissionDialog() {
 }
 
 function permissionDetailDialog() {
-  const permission = permissionDetails[state.flow.data.permissionId] || permissionDetails.receipt;
+  const permission = (activeWallet().permissions || []).find((entry) => entry.id === state.flow.data.permissionId) || permissionDetails[state.flow.data.permissionId] || permissionDetails.receipt;
   return dialogFrame({
     title: permission.title,
-    subtitle: permission.subtitle,
+    subtitle: permission.subtitle || "Held bounded permission",
     body: `
-      <div class="review-card review-hero"><span class="list-icon is-warning">${icon("permission")}</span><strong>${permission.remaining}</strong><span>remaining</span></div>
-      <div class="review-card"><div class="summary-row"><span>Class</span><strong>${permission.classLabel}</strong></div><div class="summary-row"><span>Allowed action</span><strong>${permission.action}</strong></div><div class="summary-row"><span>Scope</span><strong>${permission.scope}</strong></div><div class="summary-row"><span>Delegation</span><strong>${permission.delegation}</strong></div><div class="summary-row"><span>Ends</span><strong>${permission.expiry}</strong></div><div class="summary-row"><span>Monetary value</span><strong>None</strong></div><div class="summary-row"><span>Status</span><strong><span class="status-badge is-active">Held</span></strong></div></div>
-      <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Right: ${permission.rightId}</span><span>Class: ${permission.kind}</span><span>Lifecycle: granted → held</span></div></details>`,
+      <div class="review-card review-hero"><span class="list-icon is-right">${objectFamilyIcon("right")}</span><strong>${permission.remaining}</strong><span>remaining</span></div>
+      <div class="review-card"><div class="summary-row"><span>Class</span><strong>${permission.classLabel}</strong></div><div class="summary-row"><span>Allowed action</span><strong>${permission.action}</strong></div><div class="summary-row"><span>Scope</span><strong>${permission.scope}</strong></div><div class="summary-row"><span>Delegation</span><strong>${permission.delegation}</strong></div><div class="summary-row"><span>Ends</span><strong>${permission.expiry}</strong></div><div class="summary-row"><span>Monetary value</span><strong>None</strong></div><div class="summary-row"><span>Status</span><strong><span class="status-badge is-${escapeHtml(permission.tone || "active")}">${escapeHtml(permission.status || "Held")}</span></strong></div></div>
+      <details class="technical"><summary>Technical details</summary><div class="technical-content mono"><span>Right: ${permission.rightId}</span><span>Class: ${permission.typeLabel || permission.kind}</span><span>Lifecycle: granted → held</span></div></details>`,
     footer: `<button class="button button-danger" type="button" data-dialog-action="permission-revoke">Revoke permission</button><button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
 }
@@ -2145,12 +2205,14 @@ function assetDetailDialog() {
   return dialogFrame({
     title: "Asset details",
     subtitle: `${asset.label} · ${asset.kind}`,
+    headerLeading: assetIcon(asset, "asset-detail-logo"),
     body: `<div class="asset-detail-table">${rows.map(([label, value]) => `<div class="asset-detail-row"><span>${escapeHtml(label)}</span><strong class="${["Owner", "Asset ID"].includes(label) ? "mono" : ""}">${escapeHtml(value)}</strong></div>`).join("")}</div>`,
     footer: `<button class="button button-primary" type="button" data-dialog-close>OK</button>`
   });
 }
 
 function connectionDialog() {
+  const chain = activeWallet().chainId;
   return dialogFrame({
     title: "Network",
     subtitle: "Overlay, carrier, and chain are separate",
@@ -2158,7 +2220,7 @@ function connectionDialog() {
       <p class="eyebrow">Privacy mode · target simulation</p>
       <div class="connection-options"><div class="connection-option"><span class="health-orb"></span><span><strong>OnionNet</strong><small>Target overlay example · 3 hops</small></span><span class="status-badge is-ready">Target</span></div><div class="connection-option"><span class="health-orb"></span><span><strong>Reticulum</strong><small>Target primary resilient carrier</small></span><span class="status-badge is-ready">Target</span></div><div class="connection-option"><span class="health-orb"></span><span><strong>Tor</strong><small>Current switch method is a placeholder</small></span><span class="status-badge">Stub</span></div></div>
       <p class="eyebrow" style="margin-top:22px">Chain</p>
-      <div class="connection-options"><div class="connection-option"><span class="environment-tag is-main">MAIN</span><span><strong>Main</strong><small>Real private value</small></span><span class="status-badge is-settled">In use</span></div><button class="connection-option" type="button" data-demo-action="test-network"><span class="environment-tag is-test">TEST</span><span><strong>Test</strong><small>Test value only · persistent blue label</small></span>${icon("chevron")}</button><button class="connection-option" type="button" data-demo-action="dev-network"><span class="environment-tag is-dev">DEV</span><span><strong>Dev</strong><small>Development value · persistent amber label</small></span>${icon("chevron")}</button></div>
+      <div class="connection-options"><div class="connection-option">${walletChainBadgeMarkup(chain)}<span><strong>${escapeHtml(walletChain(chain).label)}</strong><small>Bound when this wallet profile was created</small></span><span class="status-badge">Read-only</span></div></div>
       <div class="capability-note">${icon("alert")} <span><strong>Phase 080 target</strong><small>Current network RPC is stubbed; production must not show these properties until authoritative.</small></span></div>`,
     footer: `<button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
@@ -2168,7 +2230,7 @@ function notificationsDialog() {
   return dialogFrame({
     title: "Notifications",
     subtitle: "One item needs attention",
-    body: `<div class="attention-list"><button class="attention-item" type="button" data-dialog-action="notification-voucher"><span class="list-icon is-claim">${icon("claim")}</span><span class="list-copy"><strong>Travel refund voucher expires soon</strong><small>Review 86.00 Z00Z from Northwind Travel</small></span>${icon("chevron")}</button><div class="attention-item"><span class="list-icon">${icon("backup")}</span><span class="list-copy"><strong>Backup verified</strong><small>Your 10 Jul local backup passed integrity checks</small></span><span class="status-badge is-settled">Done</span></div></div>`,
+    body: `<div class="attention-list"><button class="attention-item" type="button" data-dialog-action="notification-voucher"><span class="list-icon is-voucher">${objectFamilyIcon("voucher")}</span><span class="list-copy"><strong>Travel refund voucher expires soon</strong><small>Review 86.00 Z00Z from Northwind Travel</small></span>${icon("chevron")}</button><div class="attention-item"><span class="list-icon">${icon("backup")}</span><span class="list-copy"><strong>Backup verified</strong><small>Your 10 Jul local backup passed integrity checks</small></span><span class="status-badge is-settled">Done</span></div></div>`,
     footer: `<button class="button button-primary" type="button" data-dialog-close>Done</button>`
   });
 }
@@ -2179,6 +2241,44 @@ const demoSeedWords = [
   "comet", "paper", "garden", "silver", "cloud", "stone", "echo", "north"
 ];
 
+function randomIndex(upperBound) {
+  if (globalThis.crypto?.getRandomValues) {
+    const range = 0x100000000;
+    const limit = Math.floor(range / upperBound) * upperBound;
+    const value = new Uint32Array(1);
+    do globalThis.crypto.getRandomValues(value); while (value[0] >= limit);
+    return value[0] % upperBound;
+  }
+  return Math.floor(Math.random() * upperBound);
+}
+
+function randomSeedVerificationIndexes(previousIndexes = []) {
+  const previous = new Set(previousIndexes);
+  const candidates = demoSeedWords.map((_, index) => index).filter((index) => !previous.has(index));
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomIndex(index + 1);
+    [candidates[index], candidates[swapIndex]] = [candidates[swapIndex], candidates[index]];
+  }
+  return candidates.slice(0, 4).sort((left, right) => left - right);
+}
+
+function seedVerificationOptions(seedIndex) {
+  const choices = [
+    seedIndex,
+    (seedIndex + 7) % demoSeedWords.length,
+    (seedIndex + 13) % demoSeedWords.length
+  ];
+  const rotation = seedIndex % choices.length;
+  return [...choices.slice(rotation), ...choices.slice(0, rotation)]
+    .map((index) => `<option value="${escapeHtml(demoSeedWords[index])}">${escapeHtml(demoSeedWords[index])}</option>`)
+    .join("");
+}
+
+function seedVerificationPositionList(indexes) {
+  const positions = indexes.map((index) => index + 1);
+  return `${positions.slice(0, -1).join(", ")}, and ${positions.at(-1)}`;
+}
+
 function walletsDialog() {
   const selected = activeWallet();
   return dialogFrame({
@@ -2187,7 +2287,7 @@ function walletsDialog() {
     body: `
       <div class="wallet-list">
         ${state.wallets.map((wallet) => `<button class="wallet-choice${wallet.id === selected.id ? " is-current" : ""}" type="button" data-dialog-action="select-wallet" data-wallet-id="${escapeHtml(wallet.id)}">
-          <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span><strong>${escapeHtml(wallet.name)}</strong><small class="mono">${escapeHtml(wallet.address)} · Main</small></span><span class="status-badge${wallet.id === selected.id ? " is-active" : ""}">${wallet.id === selected.id ? "Open" : "Select"}</span>
+          <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span><strong>${escapeHtml(wallet.name)}</strong><small class="mono">${escapeHtml(wallet.address)} · ${escapeHtml(walletChain(wallet.chainId).label)}</small></span><span class="status-badge${wallet.id === selected.id ? " is-active" : ""}">${wallet.id === selected.id ? "Open" : "Select"}</span>
         </button>`).join("")}
       </div>
       <div class="notice">${icon("shield")} Wallet profiles are local. Switching never sends a seed or password to another service.</div>`,
@@ -2216,8 +2316,7 @@ function removeWalletDialog() {
       </fieldset>
       <p class="remove-selection-summary" id="wallet-remove-summary">${selectedCount} of ${state.wallets.length} selected. This removes concept profiles only.</p>
       ${selectedCount === state.wallets.length ? `<p class="field-error">All concept profiles will be removed. You can add a wallet again afterward.</p>` : ""}`,
-    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-danger" type="button" data-dialog-action="confirm-remove-wallet"${canRemove ? "" : " disabled"}>${icon("remove")} Remove profiles${selectedCount ? ` (${selectedCount})` : ""}</button>`,
-    footerClass: "dialog-footer-centered"
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-danger" type="button" data-dialog-action="confirm-remove-wallet"${canRemove ? "" : " disabled"}>${icon("remove")} Remove profiles${selectedCount ? ` (${selectedCount})` : ""}</button>`
   });
 }
 
@@ -2232,8 +2331,7 @@ function addWalletDialog() {
         <button class="button add-wallet-choice is-primary" type="button" data-demo-action="open-existing-wallet">${icon("wallet")} Open existing wallet</button>
         <button class="button add-wallet-choice" type="button" data-demo-action="restore-wallet">${icon("backup")} Restore from backup</button>
       </div>`,
-    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button>`,
-    footerClass: "dialog-footer-centered"
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button>`
   });
 }
 
@@ -2246,11 +2344,11 @@ function createWalletDialog() {
       steps: 4,
       activeStep: 0,
       body: `
-        <form class="form-grid" id="create-wallet-entry" novalidate>
-          <div class="field-group"><label class="field-label" for="create-name">Wallet name</label><input id="create-name" name="name" value="${escapeHtml(data.name)}" maxlength="32" placeholder="Everyday wallet" autocomplete="off" required aria-describedby="create-name-error"><p class="field-error" id="create-name-error"></p></div>
-          <div class="field-group"><label class="field-label" for="create-password">Wallet password</label><input id="create-password" name="password" type="password" minlength="8" autocomplete="new-password" required aria-describedby="create-password-hint create-password-error"><p class="field-hint" id="create-password-hint">Use at least 8 characters. This concept never stores the value.</p><p class="field-error" id="create-password-error"></p></div>
-          <div class="field-group"><label class="field-label" for="create-confirm">Confirm password</label><input id="create-confirm" name="confirm" type="password" minlength="8" autocomplete="new-password" required aria-describedby="create-confirm-error"><p class="field-error" id="create-confirm-error"></p></div>
-          <div class="review-card"><div class="summary-row"><span>Chain</span><strong><span class="environment-tag is-main">MAIN</span></strong></div><div class="summary-row"><span>Storage</span><strong>Encrypted on this device</strong></div></div>
+        <form class="form-grid" id="create-wallet-entry" autocomplete="off" ${passwordManagerIgnoreAttributes} novalidate>
+          <div class="field-group"><label class="field-label" for="create-name">Wallet name</label><input id="create-name" name="walletLabel" value="${escapeHtml(data.name)}" maxlength="32" placeholder="Everyday wallet" autocomplete="section-z00z-new-wallet nickname" ${passwordManagerIgnoreAttributes} required aria-describedby="create-name-error"><p class="field-error" id="create-name-error"></p></div>
+          <div class="field-group"><label class="field-label" for="create-chain">${t("common.chain")}</label><select id="create-chain" name="chainId" aria-describedby="create-chain-hint create-chain-error">${walletChainOptionsMarkup(data.chainId)}</select><p class="field-hint" id="create-chain-hint">${t("common.chainLocked")}</p><p class="field-error" id="create-chain-error"></p></div>
+          <div class="field-group"><label class="field-label" for="create-password">Wallet password</label><input id="create-password" name="newWalletSecret" ${secureEntryAttributes("new-wallet-secret")} minlength="8" required aria-describedby="create-password-hint create-password-error"><p class="field-hint" id="create-password-hint">Use at least 8 characters. This concept never stores the value.</p><p class="field-error" id="create-password-error"></p></div>
+          <div class="field-group"><label class="field-label" for="create-confirm">Confirm password</label><input id="create-confirm" name="confirmWalletSecret" ${secureEntryAttributes("new-wallet-secret-confirmation")} minlength="8" required aria-describedby="create-confirm-error"><p class="field-error" id="create-confirm-error"></p></div>
         </form>`,
       footer: `<button class="button" type="button" data-dialog-action="create-back-wallets">Back</button><button class="button button-primary" type="submit" form="create-wallet-entry">Create securely</button>`
     });
@@ -2273,15 +2371,16 @@ function createWalletDialog() {
   }
 
   if (state.flow.step === 2) {
+    const verificationIndexes = state.flow.data.verificationIndexes || randomSeedVerificationIndexes();
+    state.flow.data.verificationIndexes = verificationIndexes;
     return dialogFrame({
       title: "Check your backup",
-      subtitle: "Confirm two words before continuing",
+      subtitle: "Confirm four random words before continuing",
       steps: 4,
       activeStep: 2,
       body: `
         <form class="form-grid" id="create-wallet-verify" novalidate>
-          <div class="field-group"><label class="field-label" for="seed-word-4">Word 4</label><select id="seed-word-4" name="word4" required><option value="">Choose word</option><option>harbor</option><option>velvet</option><option>meadow</option></select></div>
-          <div class="field-group"><label class="field-label" for="seed-word-17">Word 17</label><select id="seed-word-17" name="word17" required><option value="">Choose word</option><option>paper</option><option>comet</option><option>silver</option></select></div>
+          ${verificationIndexes.map((seedIndex) => `<div class="field-group"><label class="field-label" for="seed-word-${seedIndex + 1}">Word ${seedIndex + 1}</label><select id="seed-word-${seedIndex + 1}" name="word${seedIndex + 1}" data-seed-index="${seedIndex}" required><option value="">Choose word</option>${seedVerificationOptions(seedIndex)}</select></div>`).join("")}
           <p class="field-error" id="seed-verify-error" role="alert"></p>
         </form>`,
       footer: `<button class="button" type="button" data-dialog-action="create-seed-back">View words again</button><button class="button button-primary" type="submit" form="create-wallet-verify">Finish setup</button>`
@@ -2293,7 +2392,7 @@ function createWalletDialog() {
     subtitle: "Recovery check completed",
     steps: 4,
     activeStep: 3,
-    body: `<div class="result-state"><span class="result-icon">${icon("check")}</span><h3>${escapeHtml(data.name || "New wallet")} is ready</h3><p>The wallet is encrypted on this device. The demonstration phrase has been cleared from the view.</p></div><div class="review-card"><div class="summary-row"><span>Network</span><strong>Main</strong></div><div class="summary-row"><span>Backup check</span><strong class="trust-label">${icon("shield")} Completed</strong></div></div>`,
+    body: `<div class="result-state"><span class="result-icon">${icon("check")}</span><h3>${escapeHtml(data.name || "New wallet")} is ready</h3><p>The wallet is encrypted on this device. The demonstration phrase has been cleared from the view.</p></div><div class="review-card"><div class="summary-row"><span>${t("common.chain")}</span><strong>${walletChainBadgeMarkup(data.chainId)}</strong></div><div class="summary-row"><span>Backup check</span><strong class="trust-label">${icon("shield")} Completed</strong></div></div>`,
     footer: `<button class="button button-primary" type="button" data-dialog-action="create-finish">Open wallet</button>`
   });
 }
@@ -2347,11 +2446,12 @@ function openWalletDialog() {
 function renderDialog() {
   if (!state.flow) return;
   const type = state.flow.type;
-  const content = type === "pay" ? payDialog()
-    : type === "receive" ? receiveDialog()
-    : type === "asset-claim" ? assetClaimDialog()
+  const content = type === "asset-claim" ? assetClaimDialog()
+    : type === "create-voucher" ? createVoucherDialog()
+    : type === "voucher-detail" ? voucherDetailDialog()
     : type === "voucher-review" ? voucherDialog(false)
     : type === "voucher-settled" ? voucherDialog(true)
+    : type === "create-permission" ? createPermissionDialog()
     : type === "permission" ? permissionDialog()
     : type === "permission-detail" ? permissionDetailDialog()
     : type === "activity" ? activityDialog(state.flow.data.item)
@@ -2366,13 +2466,12 @@ function renderDialog() {
     : ["wallet-rename", "wallet-password-change", "wallet-seed-reveal", "wallet-public-export", "wallet-key-rotation", "wallet-policy-apply", "wallet-policy-profile"].includes(type) ? sensitiveWalletDialog(type)
     : notificationsDialog();
   dialogContent.innerHTML = content;
+  suppressPasswordManagerUI(dialogContent);
 }
 
 function defaultFlowData(type) {
-  if (type === "pay") return { recipient: "", recipientLabel: "", amount: "", memo: "", assetKey: "z00z" };
-  if (type === "receive") return { amount: "", note: "", assetKey: "z00z" };
   if (type === "permission") return { delegate: "", action: "Deploy release", scope: "staging.example", uses: "1", expiry: "2026-08-19", expiryLabel: "19 Aug 2026" };
-  if (type === "create-wallet") return { name: "" };
+  if (type === "create-wallet") return { name: "", chainId: "mainnet", verificationIndexes: randomSeedVerificationIndexes() };
   if (type === "open-wallet") return { name: "Existing wallet" };
   if (type === "recover-wallet") return { name: "Recovered wallet" };
   if (type === "remove-wallet") return { walletIds: [] };
@@ -2404,59 +2503,78 @@ function showToast(message, iconName = "check") {
   window.setTimeout(() => toast.remove(), 4200);
 }
 
-function qrCells() {
-  const fixed = new Set();
+function qrCells(seed = "") {
+  const size = 21;
+  const fixedDark = new Set();
+  const fixedLight = new Set();
+  const seedValue = Array.from(seed).reduce((total, character, index) => total + character.charCodeAt(0) * (index + 1), 0);
   function square(startX, startY) {
-    for (let y = 0; y < 5; y += 1) {
-      for (let x = 0; x < 5; x += 1) {
-        if (x === 0 || y === 0 || x === 4 || y === 4 || (x >= 2 && x <= 2 && y >= 2 && y <= 2)) fixed.add((startY + y) * 13 + startX + x);
+    for (let y = 0; y < 7; y += 1) {
+      for (let x = 0; x < 7; x += 1) {
+        const index = (startY + y) * size + startX + x;
+        const isDark = x === 0 || y === 0 || x === 6 || y === 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4);
+        (isDark ? fixedDark : fixedLight).add(index);
       }
     }
   }
-  square(0, 0); square(8, 0); square(0, 8);
-  return Array.from({ length: 169 }, (_, index) => {
-    const pseudo = ((index * 17 + Math.floor(index / 13) * 11 + 7) % 9) < 4;
-    return `<span class="${fixed.has(index) || pseudo ? "is-dark" : ""}"></span>`;
+  square(0, 0); square(14, 0); square(0, 14);
+  return Array.from({ length: size * size }, (_, index) => {
+    let hash = (seedValue ^ Math.imul(index + 1, 0x45d9f3b)) >>> 0;
+    hash = Math.imul(hash ^ (hash >>> 16), 0x45d9f3b);
+    hash = Math.imul(hash ^ (hash >>> 16), 0x45d9f3b);
+    const pseudo = ((hash ^ (hash >>> 16)) & 1) === 1;
+    const isDark = fixedDark.has(index) || (!fixedLight.has(index) && pseudo);
+    return `<span class="${isDark ? "is-dark" : ""}"></span>`;
   }).join("");
 }
 
-function validatePay(form) {
+function validateSend(form) {
+  const draft = activeSendDraft();
   const recipient = form.elements.recipient;
-  const amount = form.elements.amount;
-  const asset = supportedAsset(form.elements.assetKey.value);
+  const amount = form.elements.amount || null;
+  const item = sendOptionEntries().find((entry) => entry.key === form.elements.itemKey.value);
   let valid = true;
-  document.querySelector("#pay-recipient-error").textContent = "";
-  document.querySelector("#pay-amount-error").textContent = "";
+  document.querySelector("#send-recipient-error").textContent = "";
+  document.querySelector("#send-amount-error").textContent = "";
   recipient.removeAttribute("aria-invalid");
-  amount.removeAttribute("aria-invalid");
+  amount?.removeAttribute("aria-invalid");
 
   if (recipient.value.trim().length < 3) {
-    document.querySelector("#pay-recipient-error").textContent = "Enter or scan a valid recipient request.";
+    document.querySelector("#send-recipient-error").textContent = "Enter or scan a valid recipient request.";
     recipient.setAttribute("aria-invalid", "true");
     valid = false;
   }
-  const number = Number(amount.value);
-  if (!Number.isFinite(number) || number <= 0 || number > Number(asset.balance.replaceAll(",", "")) || (!asset.divisible && !Number.isInteger(number))) {
-    const minimum = asset.divisible ? "0.01" : "1";
-    document.querySelector("#pay-amount-error").textContent = `Enter ${asset.divisible ? "an amount" : "a whole unit"} between ${minimum} and ${asset.balance} ${asset.unit}.`;
-    amount.setAttribute("aria-invalid", "true");
+  if (!item) {
+    document.querySelector("#send-amount-error").textContent = "Choose an available wallet item.";
     valid = false;
+  }
+  let normalizedAmount = "";
+  if (item?.family === "asset") {
+    const number = Number(amount?.value);
+    if (!Number.isFinite(number) || number <= 0 || number > Number(item.asset.balance.replaceAll(",", "")) || (!item.asset.divisible && !Number.isInteger(number))) {
+      const minimum = item.asset.divisible ? "0.01" : "1";
+      document.querySelector("#send-amount-error").textContent = `Enter ${item.asset.divisible ? "an amount" : "a whole unit"} between ${minimum} and ${item.asset.balance} ${item.asset.unit}.`;
+      amount?.setAttribute("aria-invalid", "true");
+      valid = false;
+    } else {
+      normalizedAmount = item.asset.divisible ? number.toFixed(2) : String(number);
+    }
   }
   if (!valid) {
     form.querySelector('[aria-invalid="true"]')?.focus();
     return;
   }
 
-  state.flow.data = {
-    ...state.flow.data,
+  Object.assign(draft, {
     recipient: recipient.value.trim(),
     recipientLabel: recipient.value.trim().startsWith("z00z:") ? "Verified asset request" : recipient.value.trim(),
-    amount: asset.divisible ? number.toFixed(2) : String(number),
+    amount: normalizedAmount,
     memo: form.elements.memo.value.trim(),
-    assetKey: asset.key
-  };
-  state.flow.step = 1;
-  renderDialog();
+    itemKey: item.key,
+    step: 1,
+    completed: null
+  });
+  render({ focusMain: true });
 }
 
 function validatePermission(form) {
@@ -2500,7 +2618,7 @@ function validatePermission(form) {
 function validateWalletSettingsAction(form) {
   const type = state.flow?.type;
   const error = form.querySelector(".field-error");
-  const password = form.elements.password;
+  const password = form.elements.walletSecret;
   if (error) error.textContent = "";
   password?.removeAttribute("aria-invalid");
   if (!password || password.value.length < 8) {
@@ -2525,15 +2643,20 @@ function validateWalletSettingsAction(form) {
   const wallet = activeWallet();
   const preferences = activeWalletPreferences();
   if (type === "wallet-rename") {
-    const name = form.elements.name.value.trim();
+    const name = form.elements.walletLabel.value.trim();
     if (name.length < 2 || name.length > 32) {
       if (error) error.textContent = "Wallet name must contain 2–32 characters.";
-      form.elements.name.setAttribute("aria-invalid", "true");
-      form.elements.name.focus();
+      form.elements.walletLabel.setAttribute("aria-invalid", "true");
+      form.elements.walletLabel.focus();
       return;
     }
-    wallet.name = name;
-    wallet.initials = name.slice(0, 1).toUpperCase();
+    const result = walletGateway.renameWallet({ walletId: wallet.id, name });
+    if (!result.ok) {
+      if (error) error.textContent = result.error.message;
+      form.elements.walletLabel.setAttribute("aria-invalid", "true");
+      form.elements.walletLabel.focus();
+      return;
+    }
   }
   if (type === "wallet-policy-apply") {
     const maxTransaction = form.elements.maxTransaction.value.trim();
@@ -2563,9 +2686,9 @@ function validateWalletSettingsAction(form) {
 }
 
 function validateWalletPasswordChange(form) {
-  const currentPassword = form.elements.currentPassword;
-  const newPassword = form.elements.newPassword;
-  const confirmNewPassword = form.elements.confirmNewPassword;
+  const currentPassword = form.elements.currentWalletSecret;
+  const newPassword = form.elements.newWalletSecret;
+  const confirmNewPassword = form.elements.confirmNewWalletSecret;
   const error = form.querySelector(".field-error");
   const fields = [currentPassword, newPassword, confirmNewPassword];
   if (error) error.textContent = "";
@@ -2596,6 +2719,16 @@ function validateWalletPasswordChange(form) {
     return;
   }
 
+  const result = walletGateway.changePassword({
+    walletId: activeWallet().id,
+    currentPassword: currentPassword.value,
+    newPassword: newPassword.value
+  });
+  if (!result.ok) {
+    error.textContent = result.error.message;
+    currentPassword.focus();
+    return;
+  }
   fields.forEach((field) => { field.value = ""; });
   state.flow.step = 1;
   renderDialog();
@@ -2607,23 +2740,58 @@ function setButtonLoading(button, label) {
   button.textContent = label;
 }
 
-function completePay() {
-  const data = state.flow.data;
+function completeSend() {
+  const data = activeSendDraft();
   const wallet = activeWallet();
-  const asset = flowAsset(data);
-  wallet.activities.unshift({ id: `tx-${wallet.activities.length + 1}`, type: asset.key === "z00z" ? "money" : "asset", direction: "out", title: `${asset.label} sent`, detail: `Sent to ${data.recipientLabel} · waiting to settle`, amount: `− ${data.amount} ${asset.unit}`, time: "Now", status: "settling" });
-  state.flow.step = 2;
-  renderDialog();
+  const item = selectedSendOption(data);
+  if (!item) {
+    showToast("This wallet item is no longer available.", "alert");
+    resetActiveSendDraft();
+    render({ focusMain: true });
+    return;
+  }
+
+  let amountLabel = item.meta;
+  if (item.family === "asset") {
+    amountLabel = `${data.amount} ${item.asset.unit}`;
+    wallet.activities.unshift({ id: `tx-${wallet.activities.length + 1}`, type: item.asset.key === "z00z" ? "money" : "asset", direction: "out", title: `${item.label} sent`, detail: `Sent to ${data.recipientLabel} · waiting to settle`, amount: `− ${amountLabel}`, time: "Now", status: "settling" });
+  } else {
+    const result = walletGateway.transferObject({
+      walletId: wallet.id,
+      family: item.family,
+      objectId: item.entry.id,
+      recipient: data.recipient
+    });
+    if (!result.ok) {
+      showToast(result.error.message, "alert");
+      resetActiveSendDraft();
+      render({ focusMain: true });
+      return;
+    }
+    wallet.activities.unshift({
+      id: `${item.family}-send-${wallet.activities.length + 1}`,
+      type: item.family,
+      direction: "out",
+      title: `${item.label} sent`,
+      detail: `Sent to ${data.recipient} · waiting to settle`,
+      amount: item.family === "voucher" ? item.entry.value : "",
+      time: "Now",
+      status: "settling"
+    });
+  }
+
+  data.completed = {
+    family: item.family,
+    label: item.label,
+    amountLabel,
+    recipientLabel: data.recipientLabel
+  };
+  data.step = 2;
+  render({ focusMain: true });
 }
 
 function handleDialogAction(action, button) {
-  if (action === "pay-back") {
-    state.flow.step = 0;
-    renderDialog();
-  } else if (action === "pay-submit") {
-    setButtonLoading(button, "Sending once…");
-    window.setTimeout(completePay, 650);
-  } else if (action === "permission-back") {
+  if (action === "permission-back") {
     state.flow.step = 0;
     renderDialog();
   } else if (action === "permission-submit") {
@@ -2660,32 +2828,32 @@ function handleDialogAction(action, button) {
     state.selectedWalletId = button.dataset.walletId;
     state.view = "wallet";
     state.activityFilter = "all";
+    state.assetFilter = "all";
     render({ focusMain: true });
     showToast(`${activeWallet().name} wallet opened in concept mode.`);
   } else if (action === "confirm-remove-wallet") {
     const selectedIds = new Set(state.flow?.data.walletIds || []);
-    const walletsToRemove = state.wallets.filter((wallet) => selectedIds.has(wallet.id));
-    if (walletsToRemove.length === 0) {
-      showToast("Select one or more wallets to remove.", "alert");
+    const result = walletGateway.removeProfiles({
+      walletIds: selectedIds,
+      selectedWalletId: state.selectedWalletId
+    });
+    if (!result.ok) {
+      showToast(result.error.message, "alert");
       return;
     }
-    const selectedIndex = state.wallets.findIndex((wallet) => wallet.id === state.selectedWalletId);
-    const remainingWallets = state.wallets.filter((wallet) => !selectedIds.has(wallet.id));
-    state.wallets = remainingWallets;
-    const needsWalletSetup = remainingWallets.length === 0;
+    const { removed: walletsToRemove, selectedWalletId } = result.data;
+    const needsWalletSetup = state.wallets.length === 0;
     if (needsWalletSetup) {
       state.selectedWalletId = null;
       state.view = "home";
-    } else if (selectedIds.has(state.selectedWalletId)) {
-      state.selectedWalletId = remainingWallets[Math.min(selectedIndex, remainingWallets.length - 1)].id;
-      state.view = "wallet";
     } else {
+      state.selectedWalletId = selectedWalletId;
       state.view = "wallet";
     }
     state.activityFilter = "all";
     closeDialog();
     render({ focusMain: true });
-    showToast(remainingWallets.length === 0 ? "All wallet profiles removed. Add a wallet to continue." : `${walletsToRemove.length} wallet${walletsToRemove.length === 1 ? "" : "s"} removed from this concept.`);
+    showToast(state.wallets.length === 0 ? "All wallet profiles removed. Add a wallet to continue." : `${walletsToRemove.length} wallet${walletsToRemove.length === 1 ? "" : "s"} removed from this concept.`);
     if (needsWalletSetup) window.setTimeout(() => openFlow("add-wallet", button), 0);
   } else if (action === "add-wallet") {
     openFlow("add-wallet", button);
@@ -2697,17 +2865,20 @@ function handleDialogAction(action, button) {
     state.flow.step = 2;
     renderDialog();
   } else if (action === "create-seed-back") {
+    state.flow.data.verificationIndexes = randomSeedVerificationIndexes(state.flow.data.verificationIndexes);
     state.flow.step = 1;
     renderDialog();
   } else if (action === "create-finish" || action === "recover-finish") {
     const recovered = action === "recover-finish";
     const wallet = addWalletProfile(
       state.flow.data.name || (recovered ? "Recovered wallet" : "New wallet"),
+      recovered ? "mainnet" : state.flow.data.chainId,
       "Scanning"
     );
     state.selectedWalletId = wallet.id;
     state.view = "wallet";
     state.activityFilter = "all";
+    state.assetFilter = "all";
     closeDialog();
     if (state.locked) {
       state.locked = false;
@@ -2754,15 +2925,12 @@ function handleDemoAction(action, button) {
     openFlow("wallets", button);
   } else if (action === "notifications") {
     openFlow("notifications", button);
-  } else if (["copy-request", "copy-receipt", "copy-wallet-address"].includes(action)) {
+  } else if (["copy-receipt", "copy-wallet-address"].includes(action)) {
     const messages = {
-      "copy-request": "Asset request copied.",
       "copy-receipt": "Public receipt copied.",
       "copy-wallet-address": "Wallet address copied."
     };
     showToast(messages[action]);
-  } else if (action === "share-request") {
-    showToast("Native share sheet would open on this device.");
   } else if (action === "wallet-auto-backup") {
     const preferences = activeWalletPreferences();
     preferences.autoBackup = !preferences.autoBackup;
@@ -2843,8 +3011,6 @@ function handleDemoAction(action, button) {
     showToast("OnionNet would build and verify a new route before cutover.");
   } else if (action === "route-onion") {
     showToast("Route switch requires a live connectivity check.");
-  } else if (["test-network", "dev-network"].includes(action)) {
-    showToast("Chain switch requires confirmation and persistent environment labeling.", "alert");
   } else if (action === "copy-seed-warning") {
     showToast("Production copy requires a second warning and timed clipboard clearing.", "alert");
   } else if (action === "fill-demo-seed") {
@@ -2875,6 +3041,32 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const sendActionButton = event.target.closest("[data-send-action]");
+  if (sendActionButton) {
+    const action = sendActionButton.dataset.sendAction;
+    const draft = activeSendDraft();
+    if (action === "cancel") {
+      resetActiveSendDraft();
+      state.view = "wallet";
+      render({ focusMain: true });
+    } else if (action === "back") {
+      draft.step = 0;
+      draft.completed = null;
+      render({ focusMain: true });
+    } else if (action === "submit") {
+      setButtonLoading(sendActionButton, "Sending once…");
+      window.setTimeout(completeSend, 650);
+    } else if (action === "history") {
+      resetActiveSendDraft();
+      state.view = "activity";
+      render({ focusMain: true });
+    } else if (action === "done") {
+      resetActiveSendDraft();
+      render({ focusMain: true });
+    }
+    return;
+  }
+
   const walletSectionButton = event.target.closest("[data-wallet-section]");
   if (walletSectionButton) {
     state.view = "wallet";
@@ -2895,6 +3087,10 @@ document.addEventListener("click", (event) => {
   if (flowButton) {
     const flowData = flowButton.dataset.assetKey
       ? { assetKey: flowButton.dataset.assetKey }
+      : flowButton.dataset.objectKind
+        ? { objectKind: flowButton.dataset.objectKind, objectId: flowButton.dataset.objectId }
+        : flowButton.dataset.objectId
+          ? { objectId: flowButton.dataset.objectId }
       : flowButton.dataset.permissionId
         ? { permissionId: flowButton.dataset.permissionId }
         : {};
@@ -2914,6 +3110,7 @@ document.addEventListener("click", (event) => {
     state.selectedWalletId = walletButton.dataset.walletId;
     state.view = "wallet";
     state.activityFilter = "all";
+    state.assetFilter = "all";
     render({ focusMain: true });
     return;
   }
@@ -3034,32 +3231,69 @@ document.addEventListener("submit", (event) => {
     validateWalletSettingsAction(event.target);
   } else if (event.target.id === "wallet-password-change-entry") {
     validateWalletPasswordChange(event.target);
-  } else if (event.target.id === "pay-entry") {
-    validatePay(event.target);
-  } else if (event.target.id === "receive-entry") {
-    const asset = supportedAsset(event.target.elements.assetKey.value);
-    state.flow.data = {
-      ...state.flow.data,
-      assetKey: asset.key,
-      amount: event.target.elements.amount.value ? (asset.divisible ? Number(event.target.elements.amount.value).toFixed(2) : String(Number(event.target.elements.amount.value))) : "",
-      note: event.target.elements.note.value.trim()
-    };
-    state.flow.step = 1;
-    renderDialog();
+  } else if (event.target.id === "create-voucher-entry") {
+    const form = event.target;
+    const result = walletGateway.createVoucher({
+      walletId: activeWallet().id,
+      title: form.elements.title.value,
+      amount: form.elements.amount.value,
+      expiry: form.elements.expiry.value
+    });
+    const error = document.querySelector("#voucher-create-error");
+    if (!result.ok) {
+      error.textContent = result.error.message;
+      form.elements.title.focus();
+      return;
+    }
+    const wallet = activeWallet();
+    wallet.activities.unshift({ id: `voucher-create-${wallet.activities.length + 1}`, type: "voucher", direction: "neutral", title: `${result.data.voucher.title} created`, detail: "Ready to transfer", amount: result.data.voucher.value, time: "Now", status: "active" });
+    closeDialog();
+    render({ focusMain: true });
+    showToast("Voucher created and available in Send.");
+  } else if (event.target.id === "create-permission-entry") {
+    const form = event.target;
+    const result = walletGateway.createPermission({
+      walletId: activeWallet().id,
+      title: form.elements.title.value,
+      action: form.elements.action.value,
+      scope: form.elements.scope.value,
+      uses: form.elements.uses.value,
+      expiry: form.elements.expiry.value
+    });
+    const error = document.querySelector("#permission-create-error");
+    if (!result.ok) {
+      error.textContent = result.error.message;
+      form.elements.title.focus();
+      return;
+    }
+    const wallet = activeWallet();
+    wallet.activities.unshift({ id: `permission-create-${wallet.activities.length + 1}`, type: "permission", direction: "neutral", title: `${result.data.permission.title} created`, detail: "Held · ready to transfer", amount: "", time: "Now", status: "active" });
+    closeDialog();
+    render({ focusMain: true });
+    showToast("Permission created and available in Send.");
+  } else if (event.target.id === "send-entry") {
+    validateSend(event.target);
   } else if (event.target.id === "permission-entry") {
     validatePermission(event.target);
   } else if (event.target.id === "create-wallet-entry") {
-    const name = event.target.elements.name;
-    const password = event.target.elements.password;
-    const confirm = event.target.elements.confirm;
+    const name = event.target.elements.walletLabel;
+    const chainId = event.target.elements.chainId;
+    const password = event.target.elements.newWalletSecret;
+    const confirm = event.target.elements.confirmWalletSecret;
     let valid = true;
     document.querySelector("#create-name-error").textContent = "";
+    document.querySelector("#create-chain-error").textContent = "";
     document.querySelector("#create-password-error").textContent = "";
     document.querySelector("#create-confirm-error").textContent = "";
-    [name, password, confirm].forEach((field) => field.removeAttribute("aria-invalid"));
+    [name, chainId, password, confirm].forEach((field) => field.removeAttribute("aria-invalid"));
     if (name.value.trim().length < 2) {
       document.querySelector("#create-name-error").textContent = "Enter a recognizable wallet name.";
       name.setAttribute("aria-invalid", "true");
+      valid = false;
+    }
+    if (!walletChainOptions.some(({ id }) => id === chainId.value)) {
+      document.querySelector("#create-chain-error").textContent = "Choose a supported wallet chain.";
+      chainId.setAttribute("aria-invalid", "true");
       valid = false;
     }
     if (password.value.length < 8) {
@@ -3077,13 +3311,16 @@ document.addEventListener("submit", (event) => {
       return;
     }
     state.flow.data.name = name.value.trim();
+    state.flow.data.chainId = chainId.value;
     state.flow.step = 1;
     renderDialog();
   } else if (event.target.id === "create-wallet-verify") {
-    const correct = event.target.elements.word4.value === "velvet" && event.target.elements.word17.value === "comet";
-    if (!correct) {
-      document.querySelector("#seed-verify-error").textContent = "Choose the words shown at positions 4 and 17.";
-      event.target.elements.word4.focus();
+    const verificationIndexes = state.flow.data.verificationIndexes;
+    const wordSelectors = [...event.target.querySelectorAll("select[data-seed-index]")];
+    const firstIncorrect = wordSelectors.find((select) => select.value !== demoSeedWords[Number(select.dataset.seedIndex)]);
+    if (wordSelectors.length !== 4 || firstIncorrect) {
+      document.querySelector("#seed-verify-error").textContent = `Choose the words shown at positions ${seedVerificationPositionList(verificationIndexes)}.`;
+      firstIncorrect?.focus();
       return;
     }
     state.flow.step = 3;
@@ -3099,10 +3336,11 @@ document.addEventListener("submit", (event) => {
       name.focus();
       return;
     }
-    const wallet = addWalletProfile(name.value.trim(), "Scanning");
+    const wallet = addWalletProfile(name.value.trim(), "mainnet", "Scanning");
     state.selectedWalletId = wallet.id;
     state.view = "wallet";
     state.activityFilter = "all";
+    state.assetFilter = "all";
     closeDialog();
     render({ focusMain: true });
     showToast("Existing wallet opened; scan continues.");
@@ -3157,7 +3395,12 @@ document.addEventListener("submit", (event) => {
 });
 
 document.addEventListener("input", (event) => {
-  if (event.target.id === "activity-search") {
+  if (["send-recipient", "send-amount", "send-memo"].includes(event.target.id)) {
+    const draft = activeSendDraft();
+    if (event.target.id === "send-recipient") draft.recipient = event.target.value;
+    if (event.target.id === "send-amount") draft.amount = event.target.value;
+    if (event.target.id === "send-memo") draft.memo = event.target.value;
+  } else if (event.target.id === "activity-search") {
     const term = event.target.value.trim().toLowerCase();
     const items = activeWallet().activities.filter((item) => {
       const matchesFilter = matchesActivityFilter(item, state.activityFilter);
@@ -3188,6 +3431,17 @@ document.addEventListener("scroll", (event) => {
 }, true);
 
 document.addEventListener("change", (event) => {
+  if (event.target.id === "send-item") {
+    const form = event.target.form;
+    const draft = activeSendDraft();
+    draft.recipient = form.elements.recipient.value;
+    draft.memo = form.elements.memo.value;
+    draft.itemKey = event.target.value;
+    draft.amount = "";
+    render();
+    requestAnimationFrame(() => document.querySelector("#send-item")?.focus());
+    return;
+  }
   if (event.target.matches("[data-remove-wallet-id]")) {
     const walletId = event.target.dataset.removeWalletId;
     const selectedIds = new Set(state.flow?.data.walletIds || []);
@@ -3248,22 +3502,15 @@ document.addEventListener("change", (event) => {
     if (languageChanged) showToast(t("app.languageChanged"));
     return;
   }
-  if (["pay-asset", "receive-asset"].includes(event.target.id)) {
-    state.flow.data.assetKey = event.target.value;
-    state.flow.data.amount = "";
-    renderDialog();
-    document.querySelector(`#${event.target.id}`)?.focus();
-  }
 });
 
 document.addEventListener("click", (event) => {
   const toggle = event.target.closest("[data-toggle-password]");
   if (!toggle) return;
   const input = document.querySelector("#unlock-password");
-  const visible = input.type === "text";
-  input.type = visible ? "password" : "text";
-  toggle.setAttribute("aria-label", visible ? "Show password" : "Hide password");
-  toggle.querySelector("use").setAttribute("href", visible ? "#i-eye" : "#i-eye-off");
+  const visible = input.classList.toggle("is-revealed");
+  toggle.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+  toggle.querySelector("use").setAttribute("href", visible ? "#i-eye-off" : "#i-eye");
 });
 
 dialog.addEventListener("click", (event) => {

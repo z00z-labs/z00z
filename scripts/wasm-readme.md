@@ -36,11 +36,6 @@ z00z_wallets/
 │   ├── adapters/rpc/        ✅ JSON-RPC protocol
 │   ├── services/            ✅ Business logic
 │   ├── wallet_worker.rs     ✅ WASM worker
-│   └── .temp/               🗑️ Legacy UI (334 files archived)
-│       ├── z00z_wallet_egui.rs
-│       ├── egui_views/
-│       └── LEGACY_UI_README.md
-│
 ├── www/                     🌐 Web UI ready
 ├── scripts/                 🔧 Build tooling
 ├── README.md                📚 Complete guide
@@ -58,8 +53,4 @@ cargo check
 # WASM build: ✅ OK  
 cargo check --target wasm32-unknown-unknown --features wasm
 
-# Old egui build: ❌ Correctly removed
-cargo build --features egui --bin z00z_wallet_egui
-# error: no bin target named `z00z_wallet_egui`
 ```
-

@@ -1051,6 +1051,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
    Report failed plan and ask Continue/Stop; continuing may cascade into dependent plan failures.
 
 @.github/gsd-core/references/execute-phase-between-wave-reset.md
+
 8. **Execute checkpoint plans between waves** — see `<checkpoint_handling>`.
 9. **Proceed to next wave.**
 </step>
