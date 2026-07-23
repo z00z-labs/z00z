@@ -27,14 +27,14 @@ https://z00z-labs.github.io/z00z/wallet-demo/
 ```
 
 One-time repository setup: **Settings → Pages → Build and deployment → Source →
-GitHub Actions**. After it is enabled, each version tag created by the repository
-version manager publishes the current demo automatically. A normal push to
-`main` without a skip instruction also publishes it; a manual release remains
-available at **Actions → publish-wallet-demo → Run workflow**. Open the URL on a
-phone, or use the browser's responsive-device mode. Before publishing, the
-workflow verifies the complete local bundle: styles, fonts, icons, locale
-catalogues, and asset imagery. A partial unstyled upload fails in CI instead of
-reaching Pages.
+GitHub Actions**. After it is enabled, the authenticated repository version
+manager dispatches the Pages workflow immediately after it pushes a release to
+`main`. A normal push to `main` without a skip instruction also publishes it; a
+manual release remains available at **Actions → publish-wallet-demo → Run
+workflow**. Open the URL on a phone, or use the browser's responsive-device mode.
+Before publishing, the workflow verifies the complete local bundle: styles,
+fonts, icons, locale catalogues, and asset imagery. A partial unstyled upload
+fails in CI instead of reaching Pages.
 
 The page exposes a local Web App Manifest plus 192 px, 512 px, maskable, and
 Apple touch icons generated from `assets/logo/z00z-logo-gold-circle.png`.

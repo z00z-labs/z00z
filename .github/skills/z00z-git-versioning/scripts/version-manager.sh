@@ -352,6 +352,34 @@ sync_to_github() {
     log_success "Changes synced to GitHub"
 }
 
+dispatch_wallet_demo_pages() {
+    local branch="$1"
+    local workflow_file="$PROJECT_ROOT/.github/workflows/wallet-demo-pages.yml"
+
+    if [[ "$branch" != "main" || ! -f "$workflow_file" ]]; then
+        return 0
+    fi
+
+    if ! command -v gh >/dev/null 2>&1; then
+        log_warning "GitHub CLI is unavailable; wallet demo deployment was not dispatched."
+        log_warning "Run publish-wallet-demo manually after installing and authenticating gh."
+        return 0
+    fi
+
+    if ! gh auth status >/dev/null 2>&1; then
+        log_warning "GitHub CLI is not authenticated; wallet demo deployment was not dispatched."
+        log_warning "Run 'gh auth login', then dispatch publish-wallet-demo manually."
+        return 0
+    fi
+
+    log_info "Dispatching publish-wallet-demo for branch $branch"
+    if gh workflow run wallet-demo-pages.yml --ref "$branch"; then
+        log_success "Wallet demo deployment dispatched"
+    else
+        log_warning "Wallet demo deployment dispatch failed; run publish-wallet-demo manually."
+    fi
+}
+
 # Check if there are uncommitted changes
 check_git_status() {
     if [[ -n $(git status --porcelain) ]]; then
@@ -681,6 +709,7 @@ main() {
             
             # Sync to GitHub
             sync_to_github "$new_version" "$branch" "$force_push"
+            dispatch_wallet_demo_pages "$branch"
             
             log_success "Version management completed: $current_version → $new_version"
             ;;

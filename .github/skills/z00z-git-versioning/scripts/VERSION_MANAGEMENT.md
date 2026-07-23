@@ -184,6 +184,12 @@ Change type: patch|minor|major
 [skip ci]
 ```
 
+After a repository release is pushed to `main`, the version manager dispatches
+the `publish-wallet-demo` workflow when that workflow exists and GitHub CLI is
+installed and authenticated. This keeps the `[skip ci]` release policy while
+publishing the current wallet demo immediately. If dispatch is unavailable, the
+script prints a warning and the workflow can still be started manually.
+
 For crate updates:
 ```
 feat(crate-name): Description
