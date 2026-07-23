@@ -537,15 +537,31 @@ impl NovaRecoveryStoreV2 {
     ) -> Result<NovaRecoveryStoreMetricsV2, CheckpointError> {
         let mut live = self.live_snapshots()?;
         if let Some(latest) = live.last() {
-            if snapshot.height() <= latest.0.height()
-                || snapshot.bindings.chain_context_digest != latest.0.bindings.chain_context_digest
+            let reject_reason = if snapshot.height() <= latest.0.height() {
+                Some(
+                    super::recursive_reject::RecursiveCheckpointRejectReasonV2::StepReordered,
+                )
+            } else if snapshot.bindings.authority_generation
+                != latest.0.bindings.authority_generation
+                || snapshot.bindings.parameter_generation
+                    != latest.0.bindings.parameter_generation
+                || snapshot.bindings.runtime_profile_generation
+                    != latest.0.bindings.runtime_profile_generation
+                || snapshot.bindings.chain_context_digest
+                    != latest.0.bindings.chain_context_digest
                 || snapshot.bindings.config_digest != latest.0.bindings.config_digest
                 || snapshot.bindings.policy_digest != latest.0.bindings.policy_digest
                 || snapshot.bindings.authority_digest != latest.0.bindings.authority_digest
+                || snapshot.bindings.predicate_digest != latest.0.bindings.predicate_digest
                 || snapshot.bindings.profile_digest != latest.0.bindings.profile_digest
                 || snapshot.bindings.verifier_bundle_digest
                     != latest.0.bindings.verifier_bundle_digest
             {
+                Some(super::recursive_reject::RecursiveCheckpointRejectReasonV2::MixedEra)
+            } else {
+                None
+            };
+            if let Some(reject_reason) = reject_reason {
                 self.require_journal_capacity(1)?;
                 let name = snapshot_name(snapshot);
                 write_once(&self.quarantine, &name, snapshot.framed_bytes())?;
@@ -555,9 +571,7 @@ impl NovaRecoveryStoreV2 {
                     snapshot.digest(),
                     latest.0.digest(),
                 )?)?;
-                return Err(CheckpointError::RecursiveRejected(
-                    super::recursive_reject::RecursiveCheckpointRejectReasonV2::StepReordered,
-                ));
+                return Err(CheckpointError::RecursiveRejected(reject_reason));
             }
         }
 
@@ -985,27 +999,58 @@ mod tests {
     }
 
     #[test]
-    fn test_mixed_context_is_quarantined_without_replacing_live_head() {
+    fn test_mixed_era_is_quarantined() {
         let temp = tempfile::tempdir().unwrap();
         let store = NovaRecoveryStoreV2::open(temp.path().join("recovery")).unwrap();
         store.commit(&snapshot(100)).unwrap();
 
-        let mut mixed_bindings = bindings(200);
-        mixed_bindings.config_digest[0] ^= 1;
-        let mixed = NovaAccumulatorSnapshotV2::capture(
-            mixed_bindings,
-            NovaRecoveryImageV2::new(vec![200; 96]),
-        )
-        .unwrap();
-        assert!(matches!(
-            store.commit(&mixed),
-            Err(CheckpointError::RecursiveRejected(
-                super::super::recursive_reject::RecursiveCheckpointRejectReasonV2::StepReordered
-            ))
-        ));
-        assert_eq!(store.latest().unwrap().unwrap().0.height(), 100);
-        assert_eq!(store.live_snapshots().unwrap().len(), 1);
-        assert_eq!(store.quarantine.read_dir_bounded(1).unwrap().len(), 1);
+        for mutate in [
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.authority_generation += 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.parameter_generation += 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.runtime_profile_generation += 1,
+        ] {
+            let mut mixed = bindings(200);
+            mutate(&mut mixed);
+            assert!(matches!(
+                NovaAccumulatorSnapshotV2::capture(
+                    mixed,
+                    NovaRecoveryImageV2::new(vec![200; 96]),
+                ),
+                Err(CheckpointError::Authority)
+            ));
+        }
+
+        let mut cases = Vec::new();
+        for mutate in [
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.chain_context_digest[0] ^= 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.config_digest[0] ^= 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.policy_digest[0] ^= 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.authority_digest[0] ^= 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.predicate_digest[0] ^= 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.profile_digest[0] ^= 1,
+            |bindings: &mut NovaRecoveryBindingsV2| bindings.verifier_bundle_digest[0] ^= 1,
+        ] {
+            let mut mixed = bindings(200);
+            mutate(&mut mixed);
+            cases.push(mixed);
+        }
+
+        for (index, mixed_bindings) in cases.into_iter().enumerate() {
+            let mixed = NovaAccumulatorSnapshotV2::capture(
+                mixed_bindings,
+                NovaRecoveryImageV2::new(vec![u8::try_from(index + 1).unwrap(); 96]),
+            )
+            .unwrap();
+            assert!(matches!(
+                store.commit(&mixed),
+                Err(CheckpointError::RecursiveRejected(
+                    super::super::recursive_reject::RecursiveCheckpointRejectReasonV2::MixedEra
+                ))
+            ));
+            assert_eq!(store.latest().unwrap().unwrap().0.height(), 100);
+            assert_eq!(store.live_snapshots().unwrap().len(), 1);
+        }
+        assert_eq!(store.quarantine.read_dir_bounded(7).unwrap().len(), 7);
     }
 
     #[test]

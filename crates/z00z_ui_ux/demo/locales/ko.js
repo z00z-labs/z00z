@@ -1,9 +1,9 @@
 "use strict";
 
 window.Z00ZI18n.registerLocale("ko", {
-  common: { unavailable: "사용할 수 없음", readOnly: "읽기 전용", chain: "체인", chainLocked: "신중하게 선택하세요. 지갑을 만든 후에는 체인을 변경할 수 없습니다.", on: "켬", off: "끔", close: "닫기" },
+  common: { unavailable: "사용할 수 없음", readOnly: "읽기 전용", chain: "체인", chainLocked: "신중하게 선택하세요. 지갑을 만든 후에는 체인을 변경할 수 없습니다.", on: "켬", off: "끔", close: "닫기", back: "뒤로" },
   app: {
-    documentTitle: "Z00Z Wallet — 인터랙티브 콘셉트", wallets: "지갑", network: "네트워크", addWallet: "지갑 추가", removeWallet: "지갑 제거", settings: "설정", home: "홈",
+    documentTitle: "Z00Z Wallet — 인터랙티브 콘셉트", menu: "메뉴", wallets: "지갑", network: "네트워크", addWallet: "지갑 추가", removeWallet: "지갑 제거", settings: "설정", home: "홈",
     homeContext: "개인 자산을 한눈에", settingsContext: "애플리케이션 환경설정", walletContext: "{wallet} 지갑", interactiveConcept: "인터랙티브 콘셉트 · 실제 자금 없음", conceptBuild: "콘셉트 0.4 · 실제 자금 없음", logOut: "로그아웃",
     general: "일반", language: "언어", languageHelp: "이 지갑 애플리케이션 전체에 적용되는 언어", notifications: "알림", notificationsHelp: "지갑 업데이트와 필요한 작업 표시",
     regionalFormat: "지역 형식", regionalFormatHelp: "언어와 별개로 날짜, 숫자 및 소수점 구분자를 제어합니다", timeZone: "시간대", timeZoneHelp: "타임스탬프는 UTC로 저장되고 이 시간대로 표시됩니다",

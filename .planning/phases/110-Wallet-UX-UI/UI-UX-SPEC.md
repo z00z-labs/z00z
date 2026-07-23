@@ -160,7 +160,7 @@ This is a **TARGET architecture decision**, not a description of the current rep
 
 | Concern | Shared Leptos/UI responsibility | iOS Tauri adapter responsibility |
 | --- | --- | --- |
-| Layout | Breakpoints, 44 px targets, responsive cards, bottom navigation, sheets | Apply actual safe-area insets; test notches, home indicator, cut-outs, foldables, rotation, and split-screen/window resize |
+| Layout | Breakpoints, 44 px targets, responsive cards, sticky route bar, navigation drawer, popups, and sheets | Apply actual safe-area insets; test notches, home indicator, cut-outs, foldables, rotation, and split-screen/window resize |
 | Keyboard and forms | Keep the focused field and primary action visible; use semantic amount/password fields | Reconcile visual viewport and native keyboard; scroll/reposition the sheet rather than allowing the keyboard to obscure a review/submit action |
 | Back/navigation | Route state, modal stack, focus return, unsaved-input confirmation | iOS back gesture/control first closes the top dialog/sheet, then follows the route stack and never bypasses a required review |
 | Lifecycle and lock | Clear secret presentation state and stop foreground polling | Forward `backgrounded`, `suspended`, and `screen_locked` to the gateway; invoke the platform lock/privacy screen and refresh/re-auth on foreground. The wallet process remains authoritative for revocation/timeout |
@@ -173,7 +173,7 @@ This is a **TARGET architecture decision**, not a description of the current rep
 1. A mobile bottom sheet is full-screen when the task needs keyboard entry, long review text, recovery words, or an irreversible confirmation. It is never a clipped desktop dialog.
 2. App backgrounding, suspension, or screen lock immediately hides sensitive balances/identifiers and clears all seed/password/recovery words from rendered and in-memory UI state. Foregrounding does not imply an unlocked wallet.
 3. A native back/gesture never discards entered non-secret data silently and never confirms, signs, exports, or redeems an action. It closes only the top transient layer before route navigation.
-4. Mobile does not rely on hover, a permanent sidebar, a right-click, or desktop-width tables. The labelled context route strip remains scrollable and the current route stays visible.
+4. Mobile does not rely on hover, a permanent sidebar, a right-click, or desktop-width tables. The primary route row remains horizontally scrollable; third-level Assets and wallet-Settings routes open from anchored popup menus.
 5. Native capabilities are optional adapters with an unavailable state. If biometric, share, file, or secure-storage support is unavailable, the UI explains the fallback rather than imitating success.
 
 **Release gate:** validate the same build on an iPhone/iPad target for cold start, foreground/background/suspend/lock, keyboard overlap, safe areas, rotation, iOS return gesture, biometrics, share/import/export, VoiceOver, large text, reduced motion, and failed/unavailable native capability states. This is a platform-adaptation spike, not a justification for a second UI implementation.
@@ -471,16 +471,18 @@ The context rail is navigation, not a tab widget: use `nav`, links/buttons, and 
 
 ### 📱 Mobile and narrow tablet
 
-Bottom navigation contains four destinations:
+Mobile uses one sticky top navigation surface. Its order is **Menu**, Z00Z brand mark, then the horizontally scrollable current route row (Assets, Send, Receive, Swap, Exchange, Staking, Backup, History, Settings for a wallet). The desktop identity/address/privacy/account toolbar and the bottom navigation are absent.
 
-1. **Wallets** — opens the local wallet-profile picker; selecting a profile returns to that wallet's Assets route.
-2. **Network** — opens a compact picker for Reticulum, OnionNet, and Aggregators, then shows the selected read-only telemetry workspace.
+The Menu control opens a left, full-height modal drawer patterned after the public Z00Z mobile navigation. It has a backdrop, branded header, Close, focus containment, internal scrolling, and four root actions:
+
+1. **Wallets** — opens a nested wallet-profile picker; selecting a profile returns to that wallet's Assets route.
+2. **Network** — opens a nested Reticulum/OnionNet/Aggregators picker and then the selected read-only telemetry workspace.
 3. **Settings** — opens application-wide General, Appearance, Reticulum, and OnionNet settings.
-4. **Log out** — ends the current local session and returns to the lock surface.
+4. **Log out** — ends the local session and returns to the lock surface.
 
-Exactly one non-destructive bottom destination is current. Wallet-scoped routes, including Assets, Send, Receive, History, Swap, Stacking, Backup, and wallet Settings, keep **Wallets** current. A telemetry workspace keeps **Network** current. Application settings keep **Settings** current. **Log out** is an action and never remains selected.
+Nested Wallets and Network views provide Back to the drawer root. **Log out** is an action and never remains selected. Assets opens an anchored third-level popup for Assets/Vouchers/Permissions; wallet Settings opens an anchored popup for General/Security/Backup/Policies/Advanced. These popups replace their desktop context rails on narrow screens.
 
-Quick actions are stable two-by-two cards, not a carousel. The context rail becomes one labelled horizontal route strip on narrow screens; it retains the active item in view and never becomes unlabeled icons. Native back closes the most recent sheet/dialog before navigating away, then returns to the preceding route/workspace.
+Quick actions are stable two-by-two cards, not a carousel. Native back/Escape closes the most recent popup, drawer, sheet, or dialog before navigating away, then returns to the preceding route/workspace.
 
 ### 🧭 Route contract
 
@@ -525,13 +527,11 @@ Desktop order:
 
 Mobile order:
 
-1. Z00Z mark or contextual back button.
-2. Selected-wallet address plus its second-line wallet name; the address truncates within its own grid cell.
-3. Copy-address button immediately beside the address group.
-4. Hide/show sensitive amounts.
-5. Notifications.
+1. Menu button.
+2. Z00Z mark.
+3. Horizontally scrollable current route tabs.
 
-Wallet switching belongs to the mobile **Wallets** destination, and account/application preferences belong to **Settings**. Their duplicate top-bar buttons are hidden on narrow screens. All retained header controls remain 44 × 44 px, never overlap, and stay within the safe-area-adjusted viewport at 320 CSS px.
+Wallet switching belongs to the mobile drawer's **Wallets** branch, network telemetry to **Network**, and application preferences to **Settings**. The desktop address/Copy/balance-visibility/notifications/account toolbar is hidden on narrow screens. Retained controls remain at least 44 × 44 px and stay within the safe-area-adjusted viewport at 320 CSS px.
 
 Never place the full receiver ID, seed, session state, chain height, or route diagnostics in the default header.
 
@@ -616,7 +616,7 @@ A newly created local wallet starts with exactly one inventory row: native `Z00Z
 
 Desktop uses a compact list with cards for the selected asset. Mobile uses stacked cards. Never force a horizontally scrollable table.
 
-At narrow widths each asset card becomes a two-column, three-row projection: asset icon/name/class occupy the full left column; Balance, Value, and Price occupy three aligned right-column rows. The identity and numeric regions never overlap, long names and unavailable values truncate inside their own regions, and the card retains the shared 64 px row height. Browser text autosizing is normalized to 100% so mobile WebViews do not silently inflate these semantic LUT sizes and destroy the grid.
+At narrow widths each asset card becomes a two-row projection: asset icon/name/class occupy the first row, while labelled Balance, Value, and Price cells share the second row. The identity and numeric regions never overlap, long names and unavailable values truncate inside their own cells, and the card uses an 88 px mobile minimum while the shared desktop row stays 64 px. Browser text autosizing is normalized to 100% so mobile WebViews do not silently inflate these semantic LUT sizes and destroy the grid.
 
 Filters are `All`, `Coin`, `Token`, `Collectible`, and `Needs review`. An NFT uses item count/serial-oriented copy, never a decimal money balance. `Void` is excluded from normal inventory and shown only in expert/quarantine handling when present.
 
@@ -1220,7 +1220,7 @@ Every visible text node must map to exactly one LUT row. `px` values assume the 
 
 | Surface | Required LUT rows | Rule |
 | --- | --- | --- |
-| Sidebar, top bar, wallet tabs, bottom navigation | `TYPE-02`, `TYPE-08`, `TYPE-13`, `TYPE-14`, `TYPE-16`, `TYPE-18` | Active state changes colour/border only; it does not change font family or size. The selected desktop-wallet address shares the Z00Z family, size, and tracking at normal weight; high-visibility navigation uses `TYPE-18`. |
+| Sidebar, desktop top bar, wallet tabs, mobile drawer | `TYPE-02`, `TYPE-08`, `TYPE-13`, `TYPE-14`, `TYPE-16`, `TYPE-18` | Active state changes colour/border only; it does not change font family or size. The selected desktop-wallet address shares the Z00Z family, size, and tracking at normal weight; high-visibility navigation uses `TYPE-18`. |
 | Wallet cards in the left rail | `TYPE-07` name, `TYPE-13` supporting copy, `TYPE-12` literal amount | Wallet names and readable copy use Geist; literal amounts use tabular Geist Mono. |
 | Home balance and privacy cards | `TYPE-01`, `TYPE-10`, `TYPE-11`, `TYPE-12`, `TYPE-13` | Only the main available balance may use `TYPE-01`; metric cards use `TYPE-11`. Privacy labels and route states are never display type. |
 | Quick-action cards | `TYPE-06` action, `TYPE-10` explanation | A quick action never uses a generic 12 px title. |
@@ -1322,9 +1322,9 @@ Rules:
 
 | Width | Shell | Content | Dialog behavior |
 | --- | --- | --- | --- |
-| 0–380 px | Top bar + bottom nav | One column, 12 px compact gutters | Bottom sheet; full screen for seed/recovery |
-| 381–599 px | Top bar + bottom nav | One column, 16 px gutters | Bottom sheet; full screen for seed/recovery |
-| 600–1023 px | Compact rail or bottom nav by orientation | One or two columns, 24 px gutters | Center dialog or side sheet |
+| 0–380 px | Menu + brand + scrollable route bar; modal drawer | One column, 12 px compact gutters | Bottom sheet; full screen for seed/recovery |
+| 381–599 px | Menu + brand + scrollable route bar; modal drawer | One column, 16 px gutters | Bottom sheet; full screen for seed/recovery |
+| 600–1023 px | Compact rail or drawer by orientation | One or two columns, 24 px gutters | Center dialog or side sheet |
 | 1024–1439 px | 248 px left rail | Max 1120 px, adaptive grid | Right sheet up to 520 px |
 | 1440+ px | 264 px left rail | Max 1240 px; no uncontrolled stretching | Right sheet up to 560 px |
 
@@ -1335,13 +1335,14 @@ Additional rules:
 - Software keyboard must not cover the active field or primary action.
 - Use numeric/decimal keyboards for amounts. Wallet-secret inputs remain application-local and suppress browser password-manager overlays; any production OS credential integration must be an explicit native-shell action rather than browser chrome.
 - Cards become stacked lists; tables do not create page-level horizontal scrolling.
-- The wallet header uses an explicit mobile grid: logo, truncating address-plus-Copy group, balance visibility, and notifications. Wallet switching and application settings are not duplicated in that header.
-- The fixed bottom navigation is `Wallets / Network / Settings / Log out`; Network supplies the mobile entry point for all three read-only telemetry workspaces.
-- Asset cards preserve Name/Balance/Value/Price relationships by stacking the three numeric values in a dedicated right column; identity and values never share grid cells.
+- The wallet header is one sticky row: Menu, Z00Z mark, and horizontally scrollable route tabs. The desktop wallet identity and account controls are absent.
+- The Menu drawer exposes `Wallets / Network / Settings / Log out`; Network supplies the mobile entry point for all three read-only telemetry workspaces.
+- Assets and wallet Settings expose their third-level destinations through anchored popup menus; the desktop context rails are hidden.
+- Asset cards preserve Name/Balance/Value/Price relationships with identity on row one and three labelled metric cells on row two.
 - The longest supported translated labels must fit or wrap without clipping.
 - At 0–380 CSS px, every edge-to-edge scroll strip uses the same 12 px gutter as its containing content. Wallet tabs, context routes, and filters may scroll internally, but `documentElement.scrollWidth` must equal `clientWidth`; no strip may create page-level horizontal scroll.
 - A selected wallet tab or context route is fully visible within its own horizontal strip. Its target is never compressed below 44 px merely to show more neighbours.
-- The fixed mobile bottom nav includes the safe-area inset. Scrollable content, including a static wallet status bar and the final card or notice, can always be brought completely above that navigation surface.
+- The sticky mobile route bar includes the top safe-area inset in the packaged shell. Scrollable content, including the static wallet status bar and final card/notice, remains fully reachable without bottom-navigation padding.
 
 ## ♿ Accessibility contract
 
@@ -1493,7 +1494,7 @@ Required reusable components:
 
 | Component | Variants/states |
 | --- | --- |
-| `AppShell` | desktop rail, tablet compact rail, mobile bottom nav, locked |
+| `AppShell` | desktop rail, tablet compact rail, mobile sticky route bar + drawer, locked |
 | `ContextNav` | grouped rail/tree, nested current route, badge, disabled capability, mobile labelled route strip; `aria-current`, not tab semantics |
 | `ChoiceChip` | filter or compact view choice, active/inactive, overflow scroll, count, disabled; never used for route hierarchy |
 | `HealthPill` | healthy, syncing, degraded, offline, wrong environment |
@@ -1524,7 +1525,7 @@ Every component documents keyboard behavior, accessible name, loading state, err
 
 The HTML prototype must demonstrate:
 
-1. Desktop global rail and mobile bottom navigation plus Wallet/Settings context rail/tree that becomes a labelled narrow-screen route strip.
+1. Desktop global rail plus mobile Menu/brand/route bar and modal navigation drawer; Wallet/Settings context rails become anchored narrow-screen popup menus.
 2. Dark/light appearance and system token structure.
 3. Visible/hidden sensitive balances.
 4. Lock and mock unlock.
@@ -1539,7 +1540,7 @@ The HTML prototype must demonstrate:
 13. Policy-profile preview with immutable protocol layer, signed managed layer, local restrictions, and “Why blocked?” explanation.
 14. UI/YAML configuration status, provenance, valid external update, invalid-file last-known-good behavior, conflict/diff, and restart-required state.
 15. Dark/light theme toggle (Dark by default), accent presets, protected semantic colors, keyboard focus, dialog focus return, reduced motion, and 44 px targets.
-16. Mobile-adapter simulation: safe-area-aware bottom navigation, keyboard-safe entry/review sheet, back closes only the top transient layer, and background/lock clears sensitive presentation state before foreground refresh.
+16. Mobile-adapter simulation: safe-area-aware sticky route bar and drawer, keyboard-safe entry/review sheet, back closes only the top transient layer, and background/lock clears sensitive presentation state before foreground refresh.
 
 The demo uses fabricated values and must display **Interactive concept · no real funds**. It must not import production wallet code or give the impression that it signs transactions.
 

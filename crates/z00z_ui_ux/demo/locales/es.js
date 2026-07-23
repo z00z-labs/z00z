@@ -1,9 +1,9 @@
 "use strict";
 
 window.Z00ZI18n.registerLocale("es", {
-  common: { unavailable: "No disponible", readOnly: "Solo lectura", chain: "Cadena", chainLocked: "Elige con cuidado. La cadena no se puede cambiar después de crear la cartera.", on: "Activado", off: "Desactivado", close: "Cerrar" },
+  common: { unavailable: "No disponible", readOnly: "Solo lectura", chain: "Cadena", chainLocked: "Elige con cuidado. La cadena no se puede cambiar después de crear la cartera.", on: "Activado", off: "Desactivado", close: "Cerrar", back: "Atrás" },
   app: {
-    documentTitle: "Z00Z Wallet — Concepto interactivo", wallets: "Carteras", network: "Red",
+    documentTitle: "Z00Z Wallet — Concepto interactivo", menu: "Menú", wallets: "Carteras", network: "Red",
     addWallet: "Añadir cartera", removeWallet: "Eliminar cartera", settings: "Ajustes", home: "Inicio",
     homeContext: "Tu dinero privado de un vistazo", settingsContext: "Preferencias de la aplicación", walletContext: "Cartera {wallet}", interactiveConcept: "Concepto interactivo · sin fondos reales", conceptBuild: "Concepto 0.4 · sin fondos reales", logOut: "Cerrar sesión",
     general: "General", language: "Idioma", languageHelp: "Idioma utilizado en toda esta aplicación de cartera",

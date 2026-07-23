@@ -6,11 +6,15 @@
 
 use z00z_crypto::sha256_256;
 
-use super::version_registry::{
-    CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, NOVA_CADENCE_DOMAIN_V2,
-    RECURSIVE_OBJECT_PREHEADER_BYTES_V2, RECURSIVE_PARAMETER_GENERATION_V2,
-    RECURSIVE_PROFILE_MANIFEST_DIGEST_V2, RECURSIVE_RUNTIME_PROFILE_GENERATION_V2,
-    RECURSIVE_RUNTIME_PROFILE_V2,
+use super::{
+    authority_artifacts::ACTIVE_VERIFIER_BUNDLE_DIGEST_V2,
+    nova::{lockfile_digest, manifest_digest, source_revision_digest},
+    version_registry::{
+        CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, NOVA_CADENCE_DOMAIN_V2,
+        RECURSIVE_OBJECT_PREHEADER_BYTES_V2, RECURSIVE_PARAMETER_GENERATION_V2,
+        RECURSIVE_PROFILE_MANIFEST_DIGEST_V2, RECURSIVE_RUNTIME_PROFILE_GENERATION_V2,
+        RECURSIVE_RUNTIME_PROFILE_V2,
+    },
 };
 use crate::CheckpointError;
 
@@ -19,6 +23,18 @@ const CADENCE_WIRE_VERSION_V2: u16 = 2;
 const CADENCE_PAYLOAD_BYTES_V2: usize = 168;
 const CADENCE_DIGEST_LABEL_V2: &str = "canonical_manifest";
 const MEASUREMENT_DIGEST_LABEL_V2: &str = "measurement_packet";
+const MEASUREMENT_BACKEND_LABEL_V2: &str = "measurement_backend";
+const MEASUREMENT_WORKER_LABEL_V2: &str = "measurement_worker";
+const MEASUREMENT_FIXTURE_LABEL_V2: &str = "measurement_fixture";
+const NOVA_MEASUREMENT_BACKEND_ID_V2: &[u8] =
+    b"nova-snark=0.73.0;features=io;curve-cycle=pasta;transcript=keccak256";
+const NOVA_MEASUREMENT_FIXTURE_ID_V2: &[u8] =
+    b"phase069-plan06-canonical-mixed-nova-artifacts-and-continuous-chain-v2";
+const NOVA_MILESTONE_HARNESS_V2: &[u8] =
+    include_bytes!("../../../../.github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh");
+const NOVA_VERIFIER_RSS_HARNESS_V2: &[u8] = include_bytes!(
+    "../../../../.github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh"
+);
 
 pub(crate) const NOVA_IMAGE_MAX_BYTES_V2: usize = 512 * 1024 * 1024;
 pub(crate) const NOVA_SNAPSHOT_MAX_BYTES_V2: usize = 540 * 1024 * 1024;
@@ -30,6 +46,16 @@ pub(crate) const NOVA_HOT_CAP_BYTES_V2: usize =
 /// Source-bound measurements used to select the generation-2 cadence policy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct NovaCadenceMeasurementPacketV2 {
+    source_revision_digest: [u8; 32],
+    lockfile_digest: [u8; 32],
+    workspace_manifest_digest: [u8; 32],
+    backend_identity_digest: [u8; 32],
+    worker_identity_digest: [u8; 32],
+    fixture_identity_digest: [u8; 32],
+    verifier_bundle_digest: [u8; 32],
+    runtime_profile_manifest_digest: [u8; 32],
+    parameter_generation: u32,
+    runtime_profile_generation: u16,
     block_interval_millis: u64,
     representative_fold_millis: u64,
     compression_setup_millis: u64,
@@ -42,8 +68,50 @@ struct NovaCadenceMeasurementPacketV2 {
 }
 
 impl NovaCadenceMeasurementPacketV2 {
-    const fn authority_pinned() -> Self {
+    fn authority_pinned() -> Self {
+        let source_revision_digest = source_revision_digest();
+        let lockfile_digest = lockfile_digest();
+        let workspace_manifest_digest = manifest_digest();
+        let backend_identity_digest = sha256_256(
+            NOVA_CADENCE_DOMAIN_V2,
+            MEASUREMENT_BACKEND_LABEL_V2,
+            &[
+                NOVA_MEASUREMENT_BACKEND_ID_V2,
+                &lockfile_digest,
+                &workspace_manifest_digest,
+            ],
+        );
+        let worker_identity_digest = sha256_256(
+            NOVA_CADENCE_DOMAIN_V2,
+            MEASUREMENT_WORKER_LABEL_V2,
+            &[
+                NOVA_MILESTONE_HARNESS_V2,
+                NOVA_VERIFIER_RSS_HARNESS_V2,
+                &source_revision_digest,
+            ],
+        );
+        let fixture_identity_digest = sha256_256(
+            NOVA_CADENCE_DOMAIN_V2,
+            MEASUREMENT_FIXTURE_LABEL_V2,
+            &[
+                NOVA_MEASUREMENT_FIXTURE_ID_V2,
+                &source_revision_digest,
+                &RECURSIVE_PROFILE_MANIFEST_DIGEST_V2,
+                &RECURSIVE_PARAMETER_GENERATION_V2.to_le_bytes(),
+                &RECURSIVE_RUNTIME_PROFILE_GENERATION_V2.to_le_bytes(),
+            ],
+        );
         Self {
+            source_revision_digest,
+            lockfile_digest,
+            workspace_manifest_digest,
+            backend_identity_digest,
+            worker_identity_digest,
+            fixture_identity_digest,
+            verifier_bundle_digest: ACTIVE_VERIFIER_BUNDLE_DIGEST_V2,
+            runtime_profile_manifest_digest: RECURSIVE_PROFILE_MANIFEST_DIGEST_V2,
+            parameter_generation: RECURSIVE_PARAMETER_GENERATION_V2,
+            runtime_profile_generation: RECURSIVE_RUNTIME_PROFILE_GENERATION_V2,
             block_interval_millis: 5_000,
             representative_fold_millis: 554,
             compression_setup_millis: 4_445,
@@ -54,6 +122,23 @@ impl NovaCadenceMeasurementPacketV2 {
             observed_peak_rss_bytes: 10_773_794_816,
             accumulator_image_cap_bytes: NOVA_IMAGE_MAX_BYTES_V2 as u64,
         }
+    }
+
+    fn identities_are_complete(self) -> bool {
+        [
+            self.source_revision_digest,
+            self.lockfile_digest,
+            self.workspace_manifest_digest,
+            self.backend_identity_digest,
+            self.worker_identity_digest,
+            self.fixture_identity_digest,
+            self.verifier_bundle_digest,
+            self.runtime_profile_manifest_digest,
+        ]
+        .into_iter()
+        .all(|digest| digest != [0; 32])
+            && self.parameter_generation != 0
+            && self.runtime_profile_generation != 0
     }
 
     fn digest(self) -> [u8; 32] {
@@ -68,7 +153,21 @@ impl NovaCadenceMeasurementPacketV2 {
             self.observed_peak_rss_bytes,
             self.accumulator_image_cap_bytes,
         ];
-        let mut bytes = Vec::with_capacity(values.len() * 8);
+        let mut bytes = Vec::with_capacity(8 * 32 + 4 + 2 + values.len() * 8);
+        for digest in [
+            self.source_revision_digest,
+            self.lockfile_digest,
+            self.workspace_manifest_digest,
+            self.backend_identity_digest,
+            self.worker_identity_digest,
+            self.fixture_identity_digest,
+            self.verifier_bundle_digest,
+            self.runtime_profile_manifest_digest,
+        ] {
+            bytes.extend_from_slice(&digest);
+        }
+        bytes.extend_from_slice(&self.parameter_generation.to_le_bytes());
+        bytes.extend_from_slice(&self.runtime_profile_generation.to_le_bytes());
         for value in values {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
@@ -118,7 +217,9 @@ impl NovaCadenceManifestV2 {
     }
 
     pub fn validate(&self) -> Result<(), CheckpointError> {
+        let measurement = NovaCadenceMeasurementPacketV2::authority_pinned();
         if self != &Self::authority_pinned()
+            || !measurement.identities_are_complete()
             || self.fold_cadence_blocks != 1
             || self.recovery_snapshot_cadence_blocks == 0
             || self.compression_cadence_blocks == 0
@@ -385,6 +486,48 @@ impl NovaRoleDeliveryV2 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_measurement_binds_identities() {
+        let packet = NovaCadenceMeasurementPacketV2::authority_pinned();
+        assert!(packet.identities_are_complete());
+        assert_eq!(packet.source_revision_digest, source_revision_digest());
+        assert_eq!(packet.lockfile_digest, lockfile_digest());
+        assert_eq!(packet.workspace_manifest_digest, manifest_digest());
+        assert_eq!(
+            packet.verifier_bundle_digest,
+            ACTIVE_VERIFIER_BUNDLE_DIGEST_V2
+        );
+
+        for mutate in [
+            |packet: &mut NovaCadenceMeasurementPacketV2| {
+                packet.source_revision_digest[0] ^= 1
+            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| packet.lockfile_digest[0] ^= 1,
+            |packet: &mut NovaCadenceMeasurementPacketV2| {
+                packet.workspace_manifest_digest[0] ^= 1
+            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| {
+                packet.backend_identity_digest[0] ^= 1
+            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| {
+                packet.worker_identity_digest[0] ^= 1
+            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| {
+                packet.fixture_identity_digest[0] ^= 1
+            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| {
+                packet.verifier_bundle_digest[0] ^= 1
+            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| {
+                packet.runtime_profile_manifest_digest[0] ^= 1
+            },
+        ] {
+            let mut mutated = packet;
+            mutate(&mut mutated);
+            assert_ne!(mutated.digest(), packet.digest());
+        }
+    }
 
     #[test]
     fn test_cadence_registry_roundtrip() {

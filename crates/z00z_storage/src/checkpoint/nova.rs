@@ -24918,7 +24918,7 @@ fn is_source_manifest_current() -> bool {
     manifest_paths.eq(SOURCE_REVISION_ENTRIES_V2.iter().map(|(path, _)| *path))
 }
 
-fn source_revision_digest() -> [u8; 32] {
+pub(super) fn source_revision_digest() -> [u8; 32] {
     use z00z_crypto::sha256_256;
 
     // Bind the complete live proof-to-storage path and the core-owned genesis
@@ -24959,7 +24959,7 @@ pub(crate) fn executable_predicate_digest() -> Result<[u8; 32], CheckpointError>
     ))
 }
 
-fn lockfile_digest() -> [u8; 32] {
+pub(super) fn lockfile_digest() -> [u8; 32] {
     use z00z_crypto::{sha256_256_role, CheckpointShaRole};
 
     sha256_256_role(
@@ -24971,7 +24971,7 @@ fn lockfile_digest() -> [u8; 32] {
     )
 }
 
-fn manifest_digest() -> [u8; 32] {
+pub(super) fn manifest_digest() -> [u8; 32] {
     use z00z_crypto::{sha256_256_role, CheckpointShaRole};
 
     sha256_256_role(

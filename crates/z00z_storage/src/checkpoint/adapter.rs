@@ -857,7 +857,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         let mut iterator = nova_blocks.into_iter();
         let mut new_session = None;
         if let Some(existing) = session_slot.as_mut() {
-            contain_backend(|| {
+            let fold_result = contain_backend(|| {
                 existing.renew_guard(guard)?;
                 if existing.bundle_digest()? != verifier.verifier_bundle_digest() {
                     return Err(CheckpointError::Authority);
@@ -865,7 +865,14 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 let mut pending = iterator.collect::<Vec<_>>();
                 let _ = existing.fold_blocks(&mut pending)?;
                 Ok(())
-            })?;
+            });
+            if let Err(error) = fold_result {
+                // A failed mutating fold poisons the backend session by design.
+                // Drop it before returning so the next attempt can only resume
+                // from a verified recovery snapshot or replay a fresh lineage.
+                session_slot.take();
+                return Err(error);
+            }
         } else {
             new_session = Some(contain_backend(|| {
                 if let Some((snapshot, image)) = self.recovery.latest()? {
@@ -2069,10 +2076,7 @@ mod tests {
             recovery.metrics.total_hot_bytes
         ));
         prior = recovery.successor;
-        drop(evidence_store);
 
-        let resumed_store = RecursiveCheckpointEvidenceStoreV2::open(&evidence_root)
-            .expect("reopen evidence store from committed recovery");
         let fork_root = chain.path().join("fork-checkpoints");
         create_dir_all(&fork_root).expect("create fork checkpoint root");
         let (fork_checkpoint_store, fork_prep_store, fork_checkpoint_id) =
@@ -2087,7 +2091,7 @@ mod tests {
             fork_checkpoint_id,
             SettlementExecHandoff::recursive_v2_noop(),
         )];
-        assert!(resumed_store
+        assert!(evidence_store
             .produce(
                 &mut fork_blocks,
                 &mut settlement_store,
@@ -2097,6 +2101,14 @@ mod tests {
                 RecursiveEvidenceRequestV2::FoldOnly,
             )
             .is_err());
+        assert!(
+            evidence_store
+                .session
+                .lock()
+                .expect("failed-fold session lock")
+                .is_none(),
+            "a failed live fold must drop the poisoned accumulator session"
+        );
 
         let (checkpoint_store, prep_store, checkpoint_id) =
             seal_noop_checkpoint(&checkpoint_root, 9, settlement_root, prior);
@@ -2110,7 +2122,7 @@ mod tests {
             checkpoint_id,
             SettlementExecHandoff::recursive_v2_noop(),
         )];
-        let resumed = resumed_store
+        let resumed = evidence_store
             .produce(
                 &mut blocks,
                 &mut settlement_store,
@@ -2120,9 +2132,42 @@ mod tests {
                 RecursiveEvidenceRequestV2::FoldOnly,
             )
             .expect("resume exact accumulator and fold canonical successor");
-        match resumed {
-            RecursiveEvidenceOutcomeV2::Folded(successor) => assert_eq!(successor.height(), 9),
+        prior = match resumed {
+            RecursiveEvidenceOutcomeV2::Folded(successor) => {
+                assert_eq!(successor.height(), 9);
+                *successor
+            }
             _ => panic!("resumed fold returned another outcome"),
+        };
+
+        drop(evidence_store);
+        let reopened_store = RecursiveCheckpointEvidenceStoreV2::open(&evidence_root)
+            .expect("reopen evidence store after canonical post-fork recovery");
+        let (checkpoint_store, prep_store, checkpoint_id) =
+            seal_noop_checkpoint(&checkpoint_root, 10, settlement_root, prior);
+        let transition_dir = chain.path().join("transition-10");
+        create_dir_all(&transition_dir).expect("create restart transition directory");
+        let mut blocks = [RecursiveCheckpointChainBlockV2::new(
+            transition_dir,
+            profile,
+            &checkpoint_store,
+            &prep_store,
+            checkpoint_id,
+            SettlementExecHandoff::recursive_v2_noop(),
+        )];
+        let restarted = reopened_store
+            .produce(
+                &mut blocks,
+                &mut settlement_store,
+                &material,
+                &bundle,
+                &cancellation,
+                RecursiveEvidenceRequestV2::FoldOnly,
+            )
+            .expect("restart from verified recovery and fold the next canonical successor");
+        match restarted {
+            RecursiveEvidenceOutcomeV2::Folded(successor) => assert_eq!(successor.height(), 10),
+            _ => panic!("restarted fold returned another outcome"),
         }
     }
 

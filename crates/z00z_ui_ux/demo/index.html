@@ -21,6 +21,7 @@
 
     <svg class="svg-sprite" aria-hidden="true">
       <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
       <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 5h14a2 2 0 0 1 2 2v12H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M16 10h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M5 5V3h12"/></symbol>
       <symbol id="i-assets" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M.75 12a11.25 11.25 0 1 0 22.5 0a11.25 11.25 0 0 0-22.5 0"/><path d="M15.187 13.25L10.5 7L6 17"/><path d="M8.813 10.75L13.5 17L18 7"/></g></symbol>
       <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></symbol>
@@ -146,17 +147,22 @@
           </button>
         </header>
 
-        <nav class="wallet-tabs" id="wallet-tabs" aria-label="Selected wallet"></nav>
+        <div class="wallet-navigation-bar">
+          <div class="mobile-navigation-leading">
+            <button class="icon-button mobile-menu-button" id="mobile-menu-button" type="button" aria-controls="mobile-popup-menu" aria-expanded="false">
+              <svg class="icon"><use href="#i-menu"/></svg>
+            </button>
+            <span class="mobile-nav-brand" role="img" aria-label="Z00Z">
+              <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
+            </span>
+          </div>
+          <nav class="wallet-tabs" id="wallet-tabs" aria-label="Selected wallet"></nav>
+        </div>
+        <button class="mobile-menu-backdrop" id="mobile-menu-backdrop" type="button" tabindex="-1" aria-label="Close menu" hidden></button>
+        <div class="mobile-popup-menu" id="mobile-popup-menu" role="menu" hidden></div>
         <main class="main-content" id="main-content" tabindex="-1"></main>
         <footer class="wallet-statusbar" id="wallet-statusbar" aria-label="Selected wallet status"></footer>
       </div>
-
-      <nav class="bottom-nav" aria-label="Mobile navigation">
-        <button class="bottom-nav-item is-active" type="button" data-demo-action="switch-wallet" data-mobile-destination="wallets"><svg class="icon"><use href="#i-wallet"/></svg><span data-i18n="app.wallets">Wallets</span></button>
-        <button class="bottom-nav-item" type="button" data-demo-action="network-picker" data-mobile-destination="network"><svg class="icon"><use href="#i-network"/></svg><span data-i18n="app.network">Network</span></button>
-        <button class="bottom-nav-item" type="button" data-view="settings" data-mobile-destination="settings"><svg class="icon"><use href="#i-settings"/></svg><span data-i18n="app.settings">Settings</span></button>
-        <button class="bottom-nav-item" type="button" data-demo-action="logout" data-mobile-destination="logout"><svg class="icon"><use href="#i-logout"/></svg><span data-i18n="app.logOut">Log out</span></button>
-      </nav>
     </div>
 
     <dialog class="flow-dialog" id="flow-dialog" aria-labelledby="dialog-title">

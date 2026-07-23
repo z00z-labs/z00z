@@ -8,10 +8,12 @@ window.Z00ZI18n.registerLocale("ru", {
     chainLocked: "Выберите внимательно. После создания кошелька цепочку изменить нельзя.",
     on: "Вкл.",
     off: "Выкл.",
-    close: "Закрыть"
+    close: "Закрыть",
+    back: "Назад"
   },
   app: {
     documentTitle: "Z00Z Wallet — интерактивная концепция",
+    menu: "Меню",
     wallets: "Кошельки",
     network: "Сеть",
     addWallet: "Добавить кошелёк",

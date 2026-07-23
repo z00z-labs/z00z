@@ -132,7 +132,7 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   await expect(page.locator('.sidebar [data-view="activity"]')).toHaveCount(0);
   await expect(page.locator("#wallet-tabs .wallet-tab")).toHaveCount(9);
   expect(await page.locator("#wallet-tabs .wallet-tab").evaluateAll((tabs) => tabs.map((tab) => tab.dataset.view))).toEqual(["wallet", "wallet-send", "wallet-receive", "swap", "exchange", "staking", "wallet-backup", "activity", "wallet-settings"]);
-  await expect(page.locator('#wallet-tabs [data-view="wallet"] use')).toHaveAttribute("href", "#i-wallet");
+  await expect(page.locator('#wallet-tabs [data-view="wallet"] > .icon:not(.mobile-tab-disclosure) use')).toHaveAttribute("href", "#i-wallet");
   await expect(page.locator('[data-wallet-section="assets"] use')).toHaveAttribute("href", "#i-assets");
   await expect(page.locator('#wallet-tabs [data-view="home"]')).toHaveCount(0);
   await expect(page.locator('#wallet-tabs [data-view="wallet-send"]')).toHaveText("Send");
@@ -1063,7 +1063,9 @@ test("assets show table values and expose per-asset details", async ({ page }) =
   await expect(page.locator(".asset-table-head")).toContainText("Value");
   await expect(page.locator(".asset-table-head")).toContainText("Price");
   await expect(page.locator(".asset-actions")).toHaveCount(0);
-  await expect(page.locator(".asset-row small")).toHaveCount(0);
+  await expect(page.locator(".asset-info small")).toHaveCount(0);
+  await expect(page.locator(".asset-number-label")).toHaveCount(48);
+  await expect(page.locator(".asset-number-label").first()).toBeHidden();
   await expect(page.locator(".asset-logo img")).toHaveCount(16);
   await expect(page.getByText("Acme Credits", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Founders Pass #014", { exact: true })).toHaveCount(0);
@@ -1079,11 +1081,11 @@ test("assets show table values and expose per-asset details", async ({ page }) =
   await page.getByRole("button", { name: "All", exact: true }).click();
   await expect(page.locator(".asset-transfer-links")).toHaveCount(0);
   const walletTabIcons = page.locator('#wallet-tabs [data-view="wallet"], #wallet-tabs [data-view="wallet-send"], #wallet-tabs [data-view="wallet-receive"]');
-  await expect(walletTabIcons.locator(".icon")).toHaveCount(3);
-  await expect(walletTabIcons.nth(0).locator(".icon use")).toHaveAttribute("href", "#i-wallet");
-  await expect(walletTabIcons.nth(1).locator(".icon use")).toHaveAttribute("href", "#i-send");
-  await expect(walletTabIcons.nth(2).locator(".icon use")).toHaveAttribute("href", "#i-receive");
-  const tabIconBoxes = await walletTabIcons.locator(".icon").evaluateAll((icons) => icons.map((item) => {
+  await expect(walletTabIcons.locator(":scope > .icon:not(.mobile-tab-disclosure)")).toHaveCount(3);
+  await expect(walletTabIcons.nth(0).locator(":scope > .icon:not(.mobile-tab-disclosure) use")).toHaveAttribute("href", "#i-wallet");
+  await expect(walletTabIcons.nth(1).locator(":scope > .icon:not(.mobile-tab-disclosure) use")).toHaveAttribute("href", "#i-send");
+  await expect(walletTabIcons.nth(2).locator(":scope > .icon:not(.mobile-tab-disclosure) use")).toHaveAttribute("href", "#i-receive");
+  const tabIconBoxes = await walletTabIcons.locator(":scope > .icon:not(.mobile-tab-disclosure)").evaluateAll((icons) => icons.map((item) => {
     const box = item.getBoundingClientRect();
     return [box.width, box.height, getComputedStyle(item).transform];
   }));
@@ -1136,7 +1138,7 @@ test("wallet object rows stay consistent while receive uses a single responsive 
     const style = getComputedStyle(icon);
     return [style.width, style.height, style.borderRadius];
   }));
-  const expectCardRows = async (rows, minHeight) => {
+  const expectCardRows = async (rows, minHeight, renderedHeight = 64) => {
     const styles = await rows.evaluateAll((items) => items.map((item) => {
       const style = getComputedStyle(item);
       return [style.minHeight, style.borderTopWidth, style.borderRadius, style.backgroundColor, Math.round(item.getBoundingClientRect().height)];
@@ -1146,7 +1148,8 @@ test("wallet object rows stay consistent while receive uses a single responsive 
       expect(style[0]).toBe(minHeight);
       expect(style[1]).toBe("1px");
       expect(style[2]).toBe("14px");
-      expect(style[4]).toBe(64);
+      expect(style[4]).toBeGreaterThanOrEqual(renderedHeight);
+      expect(style[4]).toBeLessThanOrEqual(renderedHeight + 1);
     });
     return styles[0].slice(0, 4);
   };
@@ -1197,7 +1200,7 @@ test("wallet object rows stay consistent while receive uses a single responsive 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${demoUrl}?view=wallet`);
-  await expectCardRows(page.locator(".asset-row"), "64px");
+  await expectCardRows(page.locator(".asset-row"), "88px", 88);
   await expectCardRowGaps(page.locator(".asset-row"));
   await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
   const mobileSendBox = await page.locator(".send-panel").boundingBox();
@@ -1492,45 +1495,43 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   await page.goto(demoUrl);
-  const mobileDestinations = page.locator(".bottom-nav-item");
-  await expect(mobileDestinations).toHaveCount(4);
-  await expect(mobileDestinations).toHaveText(["Wallets", "Network", "Settings", "Log out"]);
-  expect(await mobileDestinations.evaluateAll((buttons) => buttons.map((button) => button.querySelector("use")?.getAttribute("href"))))
-    .toEqual(["#i-wallet", "#i-network", "#i-settings", "#i-logout"]);
-  await expect(page.locator(".bottom-nav-item.is-active")).toHaveCount(1);
-  await expect(page.locator('.bottom-nav-item[data-mobile-destination="wallets"]')).toHaveAttribute("aria-current", "page");
-
-  const mobileHeaderLayout = await page.evaluate(() => {
+  await expect(page.locator(".bottom-nav")).toHaveCount(0);
+  const mobileNavigationLayout = await page.evaluate(() => {
     const box = (selector) => {
       const bounds = document.querySelector(selector)?.getBoundingClientRect();
       return bounds ? { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom } : null;
     };
     return {
-      logo: box(".mobile-brand"),
-      address: box(".topbar-address-group"),
-      balance: box('.topbar [data-demo-action="toggle-balance"]'),
-      notifications: box(".topbar-notification"),
-      walletIdentityDisplay: getComputedStyle(document.querySelector("#wallet-identity")).display,
-      accountDisplay: getComputedStyle(document.querySelector(".account-button")).display,
-      contextDisplay: getComputedStyle(document.querySelector("#page-context")).display
+      bar: box(".wallet-navigation-bar"),
+      menu: box("#mobile-menu-button"),
+      logo: box(".mobile-nav-brand"),
+      tabs: box("#wallet-tabs"),
+      topbarDisplay: getComputedStyle(document.querySelector(".topbar")).display
     };
   });
-  expect(mobileHeaderLayout.walletIdentityDisplay).toBe("none");
-  expect(mobileHeaderLayout.accountDisplay).toBe("none");
-  expect(mobileHeaderLayout.contextDisplay).not.toBe("none");
-  const headerBoxes = [
-    mobileHeaderLayout.logo,
-    mobileHeaderLayout.address,
-    mobileHeaderLayout.balance,
-    mobileHeaderLayout.notifications
-  ];
-  headerBoxes.forEach((box) => {
+  expect(mobileNavigationLayout.topbarDisplay).toBe("none");
+  [mobileNavigationLayout.bar, mobileNavigationLayout.menu, mobileNavigationLayout.logo, mobileNavigationLayout.tabs].forEach((box) => {
     expect(box.left).toBeGreaterThanOrEqual(0);
     expect(box.right).toBeLessThanOrEqual(390);
   });
-  headerBoxes.slice(1).forEach((box, index) => {
-    expect(headerBoxes[index].right).toBeLessThanOrEqual(box.left);
-  });
+  expect(mobileNavigationLayout.menu.right).toBeLessThanOrEqual(mobileNavigationLayout.logo.left);
+  expect(mobileNavigationLayout.logo.right).toBeLessThanOrEqual(mobileNavigationLayout.tabs.left);
+
+  await page.locator("#mobile-menu-button").click();
+  await expect(page.locator("#mobile-popup-menu")).toBeVisible();
+  await expect(page.locator("#mobile-popup-menu .mobile-popup-item")).toHaveText(["Wallets", "Network", "Settings", "Log out"]);
+  await page.locator('[data-mobile-popup-open="wallets"]').click();
+  await expect(page.locator("[data-mobile-select-wallet] > span:nth-child(2)")).toHaveText(["Everyday", "Savings", "Travel"]);
+  await page.locator('[data-mobile-select-wallet="savings"]').click();
+  await expect(page.locator("#page-context")).toHaveText("Savings wallet");
+
+  const assetTab = page.locator('#wallet-tabs [data-mobile-popup="assets"]');
+  await assetTab.click();
+  await expect(page.locator("[data-mobile-wallet-section]")).toHaveText(["Assets", "Vouchers", "Permissions"]);
+  await page.locator('[data-mobile-wallet-section="vouchers"]').click();
+  await assetTab.click();
+  await expect(page.locator('[data-mobile-wallet-section="vouchers"]')).toHaveAttribute("aria-current", "page");
+  await page.locator('[data-mobile-wallet-section="assets"]').click();
 
   const mobileAssetGeometry = await page.locator(".asset-row").evaluateAll((rows) => rows.slice(0, 6).map((row) => {
     const rowBox = row.getBoundingClientRect();
@@ -1538,68 +1539,68 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
     const numberBoxes = [...row.querySelectorAll(".asset-number")].map((number) => number.getBoundingClientRect());
     return {
       row: { left: rowBox.left, right: rowBox.right, height: rowBox.height },
-      identityRight: identityBox.right,
-      numberLeft: Math.min(...numberBoxes.map((box) => box.left)),
-      numbersInside: numberBoxes.every((box) => box.left >= rowBox.left && box.right <= rowBox.right)
+      identityBottom: identityBox.bottom,
+      numberTop: Math.min(...numberBoxes.map((box) => box.top)),
+      numbersInside: numberBoxes.every((box) => box.left >= rowBox.left && box.right <= rowBox.right),
+      numbersSeparated: numberBoxes.every((box, index) => index === 0 || numberBoxes[index - 1].right <= box.left)
     };
   }));
   mobileAssetGeometry.forEach((geometry) => {
-    expect(Math.round(geometry.row.height)).toBe(64);
-    expect(geometry.identityRight).toBeLessThanOrEqual(geometry.numberLeft);
+    expect(Math.round(geometry.row.height)).toBeGreaterThanOrEqual(88);
+    expect(Math.round(geometry.row.height)).toBeLessThanOrEqual(89);
+    expect(geometry.identityBottom).toBeLessThanOrEqual(geometry.numberTop);
     expect(geometry.numbersInside).toBe(true);
+    expect(geometry.numbersSeparated).toBe(true);
   });
+  await expect(page.locator(".asset-number-label").first()).toBeVisible();
 
-  await page.locator('[data-mobile-destination="network"]').click();
-  await expect(page.getByRole("heading", { name: "Network" })).toBeVisible();
-  await page.locator('.network-picker-list [data-network-section="reticulum"]').click();
+  await page.locator("#mobile-menu-button").click();
+  await page.locator('[data-mobile-popup-open="network"]').click();
+  await page.locator('[data-mobile-select-network="reticulum"]').click();
   await expect(page.locator("#page-title")).toHaveText("Reticulum");
-  await expect(page.locator(".bottom-nav-item.is-active")).toHaveCount(1);
-  await expect(page.locator('[data-mobile-destination="network"]')).toHaveAttribute("aria-current", "page");
-  await page.locator('[data-mobile-destination="wallets"]').click();
-  await expect(page.getByRole("heading", { name: "Your wallets" })).toBeVisible();
-  await page.locator('[data-dialog-action="select-wallet"]').first().click();
+  await page.locator("#mobile-menu-button").click();
+  await page.locator('[data-mobile-popup-open="wallets"]').click();
+  await page.locator('[data-mobile-select-wallet="everyday"]').click();
 
   await expect(page.locator("#wallet-statusbar")).toHaveCSS("position", "static");
-  await page.locator("#wallet-statusbar").scrollIntoViewIfNeeded();
-  const [mobileStatus, mobileBottomNav] = await Promise.all([
-    page.locator("#wallet-statusbar").boundingBox(),
-    page.locator(".bottom-nav").boundingBox()
-  ]);
-  expect(mobileStatus.y + mobileStatus.height).toBeLessThanOrEqual(mobileBottomNav.y);
-  const mobileCopy = page.locator("#copy-wallet-address");
-  await mobileCopy.hover();
-  await expect(mobileCopy).toHaveAttribute("title", /ZxChpoioBEFR1PRJ/);
 
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=advanced`);
   const compactActiveContext = page.locator(".wallet-settings-context .context-nav-item.is-active");
   await expect(compactActiveContext.locator("strong")).toHaveText("Advanced");
-  const compactContextBox = await compactActiveContext.boundingBox();
-  expect(compactContextBox.x).toBeGreaterThanOrEqual(0);
-  expect(compactContextBox.x + compactContextBox.width).toBeLessThanOrEqual(320);
+  await expect(page.locator(".wallet-settings-view .context-rail")).toBeHidden();
+  const walletSettingsTab = page.locator('#wallet-tabs [data-mobile-popup="wallet-settings"]');
+  await walletSettingsTab.scrollIntoViewIfNeeded();
+  await walletSettingsTab.click();
+  await expect(page.locator('[data-mobile-wallet-settings-section="advanced"]')).toHaveAttribute("aria-current", "page");
+  const compactPopupBox = await page.locator("#mobile-popup-menu").boundingBox();
+  expect(compactPopupBox.x).toBeGreaterThanOrEqual(0);
+  expect(compactPopupBox.x + compactPopupBox.width).toBeLessThanOrEqual(320);
+  await page.keyboard.press("Escape");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 
   await page.goto(`${demoUrl}?view=wallet`);
   const compactFilterHeight = await page.locator(".choice-chip").first().evaluate((node) => node.getBoundingClientRect().height);
   expect(Math.round(compactFilterHeight)).toBeGreaterThanOrEqual(44);
-  const compactHeaderBoxes = await page.locator(".topbar").evaluate((topbar) => [
-    topbar.querySelector(".mobile-brand"),
-    topbar.querySelector(".topbar-address-group"),
-    topbar.querySelector('[data-demo-action="toggle-balance"]'),
-    topbar.querySelector(".topbar-notification")
+  const compactNavigationBoxes = await page.locator(".wallet-navigation-bar").evaluate((navigation) => [
+    navigation.querySelector("#mobile-menu-button"),
+    navigation.querySelector(".mobile-nav-brand"),
+    navigation.querySelector("#wallet-tabs")
   ].map((element) => {
     const box = element.getBoundingClientRect();
     return { left: box.left, right: box.right };
   }));
-  compactHeaderBoxes.forEach((box, index) => {
+  compactNavigationBoxes.forEach((box, index) => {
     expect(box.left).toBeGreaterThanOrEqual(0);
     expect(box.right).toBeLessThanOrEqual(320);
-    if (index > 0) expect(compactHeaderBoxes[index - 1].right).toBeLessThanOrEqual(box.left);
+    if (index > 0) expect(compactNavigationBoxes[index - 1].right).toBeLessThanOrEqual(box.left);
   });
   const compactAssetOverlap = await page.locator(".asset-row").evaluateAll((rows) => rows.slice(0, 6).some((row) => {
     const identity = row.querySelector(".asset-identity-button").getBoundingClientRect();
     const numbers = [...row.querySelectorAll(".asset-number")].map((number) => number.getBoundingClientRect());
-    return numbers.some((number) => identity.right > number.left || number.right > row.getBoundingClientRect().right);
+    return numbers.some((number, index) => identity.bottom > number.top
+      || number.right > row.getBoundingClientRect().right
+      || (index > 0 && numbers[index - 1].right > number.left));
   }));
   expect(compactAssetOverlap).toBe(false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
@@ -1655,19 +1656,6 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
     return result;
   });
   expect(tabsBackground).toBe(canvasBackground);
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${demoUrl}?view=settings&settings=general`);
-  const activeBottom = page.locator('.bottom-nav-item[data-view="settings"]');
-  const [activeBottomColor, mobileBrandStrongColor] = await activeBottom.evaluate((node) => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--brand-strong)";
-    document.body.append(probe);
-    const result = [getComputedStyle(node).color, getComputedStyle(probe).color];
-    probe.remove();
-    return result;
-  });
-  expect(activeBottomColor).not.toBe(mobileBrandStrongColor);
 
   await page.goto(`${demoUrl}?view=home`);
   const quickAction = page.locator('.quick-action[data-view="wallet-send"]');

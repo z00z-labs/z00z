@@ -1,9 +1,9 @@
 "use strict";
 
 window.Z00ZI18n.registerLocale("ja", {
-  common: { unavailable: "利用不可", readOnly: "読み取り専用", chain: "チェーン", chainLocked: "慎重に選択してください。ウォレットの作成後にチェーンを変更することはできません。", on: "オン", off: "オフ", close: "閉じる" },
+  common: { unavailable: "利用不可", readOnly: "読み取り専用", chain: "チェーン", chainLocked: "慎重に選択してください。ウォレットの作成後にチェーンを変更することはできません。", on: "オン", off: "オフ", close: "閉じる", back: "戻る" },
   app: {
-    documentTitle: "Z00Z Wallet — インタラクティブ概念", wallets: "ウォレット", network: "ネットワーク",
+    documentTitle: "Z00Z Wallet — インタラクティブ概念", menu: "メニュー", wallets: "ウォレット", network: "ネットワーク",
     addWallet: "ウォレットを追加", removeWallet: "ウォレットを削除", settings: "設定", home: "ホーム",
     homeContext: "プライベートな資産をひと目で確認", settingsContext: "アプリケーション設定", walletContext: "{wallet} ウォレット", interactiveConcept: "インタラクティブ概念 · 実際の資金は使用しません", conceptBuild: "概念 0.4 · 実際の資金は使用しません", logOut: "ログアウト",
     general: "一般", language: "言語", languageHelp: "このウォレットアプリケーション全体で使用する言語",

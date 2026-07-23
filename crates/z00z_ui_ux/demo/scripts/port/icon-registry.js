@@ -2,7 +2,7 @@
 
 ((root) => {
   const ICON_NAMES = Object.freeze([
-    "home", "wallet", "assets", "spark", "activity", "swap", "exchange", "staking",
+    "home", "menu", "wallet", "assets", "spark", "activity", "swap", "exchange", "staking",
     "settings", "advanced", "send", "receive", "coin", "token", "nft", "voucher",
     "right", "claim", "permission", "eye", "eye-off", "lock", "shield", "bell", "user",
     "chevron", "copy", "check", "close", "moon", "sun", "more", "alert", "search",

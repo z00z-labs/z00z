@@ -15,9 +15,9 @@
 
 ### ✅ Mobile annotation follow-up — 2026-07-23
 
-The annotated 390 px phone capture exposed three concrete implementation defects: the address competed with duplicate wallet/account controls, the desktop asset subgrid collapsed into overlapping cells, and the bottom bar exposed Home/Assets/History instead of mobile access to wallet profiles and network telemetry. The executable demo now reserves the mobile header for the Z00Z mark, address plus adjacent Copy, balance visibility, and notifications. Wallet switching moves to **Wallets**, application preferences remain under **Settings**, and the redundant mobile account control is removed from the header.
+The annotated phone captures exposed three concrete implementation defects: the desktop identity toolbar consumed the mobile header, asset columns overlapped, and a second fixed bottom navigation duplicated app routes. The executable demo now removes both the desktop identity toolbar and bottom navigation below 768 px. One sticky mobile bar contains **Menu**, the Z00Z mark, and the wallet/network/settings route tabs in a horizontally scrollable row.
 
-The fixed bottom destinations are now **Wallets**, **Network**, **Settings**, and **Log out**. Network opens an explicit Reticulum/OnionNet/Aggregators picker, which restores the telemetry access that disappeared when the desktop rail was hidden. Exactly one non-destructive destination owns `aria-current`. Asset rows now use a dedicated identity column and a separate three-row numeric column at 390 px and 320 px; Balance, Value, and Price cannot overlap the icon/name region. Mobile WebView text autosizing is fixed at 100% so the documented Geist LUT—not browser heuristics—controls type geometry.
+The Menu control follows the public `z00z.io` mobile navigation pattern: a left, full-height drawer with a modal backdrop, close control, focus containment, scrollable content, and nested **Wallets** and **Network** pickers. The root drawer also exposes **Settings** and **Log out**. Assets and selected-wallet Settings use compact anchored popup menus for their third-level destinations instead of permanent narrow-screen rails. Asset rows now place identity on the first row and labelled Balance/Value/Price cells on the second row at 390 px and 320 px, preventing overlap while preserving touch-size cards. Mobile WebView text autosizing remains fixed at 100% so the documented Geist LUT—not browser heuristics—controls type geometry.
 
 ### ✅ Implementation update — 2026-07-20
 
@@ -27,9 +27,9 @@ Appearance now offers the preserved Z00Z Default palette plus Black & Gold, Moon
 
 Selected-wallet Advanced now exposes a safe, editable local concept YAML draft. Security, Backup, Policies, and Advanced are selected-wallet settings; General, Appearance, and Network & privacy remain application settings. Wallet controls and YAML update the same demo state, while secrets and local paths are rejected. `Apply locally` is deliberately restricted to the browser concept; the boundary explaining that runtime configuration write, watch, revision, conflict, and rollback RPCs do not exist remains visible. This is not a claim that a real wallet file can be changed.
 
-Verification completed: `node --check`, `git diff --check`, and all 16 Playwright smoke tests pass. Desktop Wallets, Appearance, Advanced YAML, and telemetry screenshots were inspected after the change.
+Verification completed: locale, production-port, syntax, `git diff --check`, and all 32 Playwright smoke tests pass. Desktop and 390/320 px navigation, drawer, nested pickers, Assets popup, asset cards, Appearance, Advanced YAML, and telemetry states were inspected after the change.
 
-Public reference check: [`z00z.io/docs`](https://www.z00z.io/docs) renders its header wordmark with the Geist family, variable weight around 780, uppercase lettering, `0.045em` tracking, a 44 px desktop mark, and a 26 px desktop wordmark. The demo keeps the same font treatment but deliberately enlarges the desktop workspace lockup to a 52 px mark and 34 px wordmark for the requested navigation prominence; it does not copy the documentation site's web navigation or content density.
+Public reference check: [`z00z.io/docs`](https://www.z00z.io/docs) renders its header wordmark with the Geist family, variable weight around 780, uppercase lettering, `0.045em` tracking, a 44 px desktop mark, and a 26 px desktop wordmark. Its mobile hamburger opens a left full-height modal drawer with backdrop, branded header, close control, contained focus, and scrollable navigation. The wallet demo adopts that interaction pattern without copying the documentation content hierarchy.
 
 The following audit records the pre-implementation baseline and remains useful as the rationale and acceptance evidence for the changes above. The current demo has the correct product direction and most of the requested information architecture. The baseline issue was not different wallet font files: every sidebar wallet card was generated from the same template and inherited the same `Geist`/`Geist Mono` tokens. The perceived mismatch came from inconsistent semantic assignment, small raw sizes, and card/dialog overrides that did not match the specification LUT.
 
@@ -452,13 +452,13 @@ This confirms that the interface can be packaged without an Internet dependency.
 5. Remove-wallet selection uses native checkbox semantics, `fieldset`/`legend`, selected count, and non-color selection state.
 6. Tooltips are supplemental. Copy and privacy actions remain understandable and usable without hover.
 7. At 200% zoom, no page-level horizontal scrolling is required for ordinary tasks and no action is clipped.
-8. At 390 × 844, fixed status bars, bottom navigation, safe areas, and software keyboard do not cover content.
+8. At 390 × 844, the sticky route bar, drawer, status surface, safe areas, and software keyboard do not cover content.
 9. Reduced-motion preference disables nonessential transitions; state changes remain visible without motion.
 10. Palette presets pass WCAG AA for normal text and controls; focus, warning, danger, success, and selected states are tested independently.
 11. Tables transform into labelled rows/cards on narrow screens without losing the relationship between header and value.
 12. Sensitive amounts remain masked in accessible names when hidden; screen readers must not receive the secret value.
-13. The 320/390 px header keeps address, Copy, balance visibility, and notifications in non-overlapping grid cells; wallet/profile and application-settings destinations are not duplicated there.
-14. The mobile bottom bar provides reachable Wallets and Network pickers, exposes exactly one current destination, and treats Log out as an action rather than a persistent selection.
+13. The 320/390 px header contains Menu, the Z00Z mark, and one scrollable route row; the desktop address/privacy/account toolbar is absent.
+14. The modal mobile drawer provides reachable Wallets and Network pickers plus Settings and Log out; nested pickers support Back, and Log out remains an action rather than a persistent selection.
 
 ## 🛠️ Implementation backlog
 
@@ -483,8 +483,8 @@ This confirms that the interface can be packaged without an Internet dependency.
 - [x] Verify `Name`, `Balance`, `Value`, and `Price` column/header alignment in the desktop demo.
 - [x] Keep wallet tabs sticky, opaque, and aligned to the main content edge.
 - [x] Replace the broken mobile asset subgrid with a non-overlapping identity/numeric card projection at 320 px and 390 px.
-- [x] Replace the mobile Home/Assets/History shortcuts with Wallets/Network/Settings/Log out and add an explicit telemetry picker.
-- [x] Remove duplicate mobile wallet/account header controls and normalize WebView text autosizing.
+- [x] Remove the mobile bottom bar; expose Wallets/Network/Settings/Log out in the full-height Menu drawer and add nested wallet/telemetry pickers.
+- [x] Replace the desktop identity toolbar on mobile with Menu + Z00Z + the contextual route row and normalize WebView text autosizing.
 - [x] Add the five semantic palette presets and contrast-gated protected custom accent validation.
 - [x] Separate app settings from selected-wallet settings in the local YAML/Form/Mapping concept state.
 - [x] Replace generic lifecycle copy with exact receiver, transaction, object, scan, and backup states where the demo has an authoritative concept state.

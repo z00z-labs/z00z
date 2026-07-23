@@ -10,6 +10,11 @@ const walletTabs = document.querySelector("#wallet-tabs");
 const walletIdentity = document.querySelector("#wallet-identity");
 const walletStatusbar = document.querySelector("#wallet-statusbar");
 const lockWalletLabel = document.querySelector("#lock-wallet-label");
+const mobileMenuButton = document.querySelector("#mobile-menu-button");
+const mobileMenuBackdrop = document.querySelector("#mobile-menu-backdrop");
+const mobilePopupMenu = document.querySelector("#mobile-popup-menu");
+let mobilePopupType = "";
+let mobilePopupTrigger = null;
 
 const dialog = document.querySelector("#flow-dialog");
 const dialogContent = document.querySelector("#dialog-content");
@@ -533,7 +538,7 @@ function renderWalletShell() {
     walletTabs.setAttribute("aria-label", "Selected wallet");
     walletTabs.removeAttribute("role");
     walletTabs.innerHTML = [
-      { view: "wallet", labelKey: "nav.assets", iconName: "wallet" },
+      { view: "wallet", labelKey: "nav.assets", iconName: "wallet", mobilePopup: "assets" },
       { view: "wallet-send", labelKey: "assets.send", iconName: "send" },
       { view: "wallet-receive", labelKey: "assets.receive", iconName: "receive" },
       { view: "swap", labelKey: "nav.swap", iconName: "swap", title: "Compatibility preview — no canonical execution route" },
@@ -541,8 +546,8 @@ function renderWalletShell() {
       { view: "staking", labelKey: "nav.staking", iconName: "staking", title: "Compatibility preview — validator and lock terms required" },
       { view: "wallet-backup", labelKey: "nav.backup", iconName: "backup" },
       { view: "activity", labelKey: "nav.history", iconName: "activity" },
-      { view: "wallet-settings", labelKey: "nav.settings", iconName: "settings" }
-    ].map(({ view, labelKey, iconName, title = "", disabled = false }) => `<button class="wallet-tab${state.view === view ? " is-active" : ""}${disabled ? " is-unavailable" : ""}" type="button" ${state.view === view ? 'aria-current="page"' : ""}${disabled ? " disabled" : ""}${title ? ` title="${escapeHtml(title)}"` : ""} data-view="${view}">${icon(iconName)}<span>${t(labelKey)}</span>${disabled ? '<span class="sr-only">Unavailable</span>' : ""}</button>`).join("");
+      { view: "wallet-settings", labelKey: "nav.settings", iconName: "settings", mobilePopup: "wallet-settings" }
+    ].map(({ view, labelKey, iconName, title = "", disabled = false, mobilePopup = "" }) => `<button class="wallet-tab${state.view === view ? " is-active" : ""}${disabled ? " is-unavailable" : ""}" type="button" ${state.view === view ? 'aria-current="page"' : ""}${disabled ? " disabled" : ""}${title ? ` title="${escapeHtml(title)}"` : ""}${mobilePopup ? ` data-mobile-popup="${mobilePopup}" aria-haspopup="menu"` : ""} data-view="${view}">${icon(iconName)}<span>${t(labelKey)}</span>${mobilePopup ? icon("chevron", "mobile-tab-disclosure") : ""}${disabled ? '<span class="sr-only">Unavailable</span>' : ""}</button>`).join("");
   }
   walletStatusbar.innerHTML = `
     <span><small>${t("walletShell.available")}</small><strong>${sensitive(`${summary.available} Z00Z`)}</strong></span>
@@ -552,7 +557,6 @@ function renderWalletShell() {
     <span class="statusbar-telemetry"><small>${t("walletShell.routeTelemetry")}</small><strong><span class="statusbar-state-dot" aria-hidden="true"></span>${t("common.unavailable")}</strong></span>`;
   walletTabs.hidden = !isWalletView() && !telemetryTabSource && state.view !== "settings";
   walletStatusbar.hidden = !hasSelectedWalletContext();
-  document.querySelector(".bottom-nav").hidden = false;
 }
 
 function icon(name, className = "") {
@@ -821,9 +825,9 @@ function moneyView() {
               ${assetIcon(asset, "asset-logo")}
               <span class="asset-info"><strong><span class="object-label">${escapeHtml(asset.label)}</span><span class="object-kind">${t(asset.kindKey)}</span></strong></span>
             </button>
-            <div class="asset-number" role="cell"><strong>${sensitive(asset.balanceLabel)}</strong></div>
-            <div class="asset-number" role="cell"><strong>${asset.value === "—" ? asset.value : sensitive(asset.value)}</strong></div>
-            <div class="asset-number" role="cell"><strong>${t(asset.priceKey)}</strong></div>
+            <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.balance")}</small><strong>${sensitive(asset.balanceLabel)}</strong></div>
+            <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.value")}</small><strong>${asset.value === "—" ? asset.value : sensitive(asset.value)}</strong></div>
+            <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.price")}</small><strong>${t(asset.priceKey)}</strong></div>
           </article>`).join("")}
       </div>
       <div class="notice">${icon("shield")} ${t("assets.excludedNotice")}</div>
@@ -1006,7 +1010,7 @@ function permissionsPanel() {
 
 function walletView() {
   const panel = state.walletSection === "assets" ? moneyView() : state.walletSection === "vouchers" ? vouchersPanel() : permissionsPanel();
-  return `<div class="view-enter workspace-layout"><aside class="context-rail">${walletContextNav()}</aside><div class="workspace-panel">${panel}</div></div>`;
+  return `<div class="view-enter workspace-layout wallet-assets-layout"><aside class="context-rail">${walletContextNav()}</aside><div class="workspace-panel">${panel}</div></div>`;
 }
 
 function statusText(status) {
@@ -1183,6 +1187,145 @@ const walletSettingsMeta = {
   policies: ["Policies", "permission"],
   advanced: ["Advanced", "advanced"]
 };
+
+function isMobileNavigation() {
+  return window.matchMedia("(max-width: 767px)").matches;
+}
+
+function isMobileDrawer(type) {
+  return ["menu", "wallets", "network"].includes(type);
+}
+
+function mobilePopupHeader(label, nested = false, branded = false) {
+  return `<header class="mobile-popup-header${branded ? " is-branded" : ""}">
+    ${nested ? `<button class="mobile-popup-icon" type="button" data-mobile-popup-open="menu" aria-label="${escapeHtml(t("common.back"))}">${icon("chevron", "is-back")}</button>` : '<span class="mobile-popup-icon-spacer"></span>'}
+    ${branded
+      ? `<span class="mobile-drawer-brand"><img src="assets/logo/z00z-logo-gold-circle.png" alt=""><strong>Z00Z</strong></span>`
+      : `<strong>${escapeHtml(label)}</strong>`}
+    <button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button>
+  </header>`;
+}
+
+function mobilePopupItem({ label, iconName = "", active = false, attributes = "", trailing = "" }) {
+  return `<button class="mobile-popup-item${active ? " is-active" : ""}" type="button"${active ? ' aria-current="page"' : ""} ${attributes}>
+    ${iconName ? icon(iconName) : ""}
+    <span>${escapeHtml(label)}</span>
+    ${trailing}
+  </button>`;
+}
+
+function mobilePopupMarkup(type) {
+  if (type === "wallets") {
+    return `${mobilePopupHeader(t("app.wallets"), true)}
+      <div class="mobile-popup-list">
+        ${state.wallets.map((wallet) => `<button class="mobile-popup-item${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""} data-mobile-select-wallet="${escapeHtml(wallet.id)}">
+          <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span>
+          <span>${escapeHtml(wallet.name)}</span>
+          ${wallet.id === state.selectedWalletId ? icon("check") : ""}
+        </button>`).join("")}
+      </div>`;
+  }
+  if (type === "network") {
+    return `${mobilePopupHeader(t("app.network"), true)}
+      <div class="mobile-popup-list">
+        ${networkEntries.map((entry) => `<button class="mobile-popup-item${state.view === "telemetry" && state.telemetrySource === entry.key ? " is-active" : ""}" type="button"${state.view === "telemetry" && state.telemetrySource === entry.key ? ' aria-current="page"' : ""} data-mobile-select-network="${entry.key}">
+          <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
+          <span>${escapeHtml(entry.label)}</span>
+          ${state.view === "telemetry" && state.telemetrySource === entry.key ? icon("check") : ""}
+        </button>`).join("")}
+      </div>`;
+  }
+  if (type === "assets") {
+    return `${mobilePopupHeader(t("assets.sections"))}
+      <div class="mobile-popup-list">
+        ${walletSections.map(({ key, labelKey, iconName }) => mobilePopupItem({
+          label: t(labelKey),
+          iconName,
+          active: state.view === "wallet" && state.walletSection === key,
+          attributes: `data-mobile-wallet-section="${key}"`
+        })).join("")}
+      </div>`;
+  }
+  if (type === "wallet-settings") {
+    return `${mobilePopupHeader(t("nav.settings"))}
+      <div class="mobile-popup-list">
+        ${Object.entries(walletSettingsMeta).map(([key, [label, iconName]]) => mobilePopupItem({
+          label,
+          iconName,
+          active: state.view === "wallet-settings" && state.walletSettingsSection === key,
+          attributes: `data-mobile-wallet-settings-section="${key}"`
+        })).join("")}
+      </div>`;
+  }
+  return `${mobilePopupHeader(t("app.menu"), false, true)}
+    <div class="mobile-popup-list">
+      ${mobilePopupItem({ label: t("app.wallets"), iconName: "wallet", attributes: 'data-mobile-popup-open="wallets"', trailing: icon("chevron") })}
+      ${mobilePopupItem({ label: t("app.network"), iconName: "network", attributes: 'data-mobile-popup-open="network"', trailing: icon("chevron") })}
+      ${mobilePopupItem({ label: t("app.settings"), iconName: "settings", active: state.view === "settings", attributes: 'data-mobile-app-view="settings"' })}
+      ${mobilePopupItem({ label: t("app.logOut"), iconName: "logout", attributes: 'data-mobile-popup-action="logout"' })}
+    </div>`;
+}
+
+function positionMobilePopup(trigger) {
+  if (isMobileDrawer(mobilePopupType)) {
+    mobilePopupMenu.style.removeProperty("--mobile-popup-left");
+    mobilePopupMenu.style.removeProperty("--mobile-popup-top");
+    mobilePopupMenu.style.removeProperty("--mobile-popup-width");
+    return;
+  }
+  const navigationBounds = document.querySelector(".wallet-navigation-bar").getBoundingClientRect();
+  const triggerBounds = trigger?.getBoundingClientRect();
+  const popupWidth = Math.min(300, window.innerWidth - 16);
+  const preferredLeft = triggerBounds ? triggerBounds.left : 8;
+  const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - popupWidth - 8));
+  mobilePopupMenu.style.setProperty("--mobile-popup-left", `${left}px`);
+  mobilePopupMenu.style.setProperty("--mobile-popup-top", `${navigationBounds.bottom + 7}px`);
+  mobilePopupMenu.style.setProperty("--mobile-popup-width", `${popupWidth}px`);
+}
+
+function closeMobilePopup({ restoreFocus = false } = {}) {
+  if (!mobilePopupMenu || mobilePopupMenu.hidden) return;
+  const trigger = mobilePopupTrigger;
+  mobilePopupMenu.hidden = true;
+  mobilePopupMenu.innerHTML = "";
+  mobilePopupMenu.removeAttribute("data-popup-type");
+  mobilePopupMenu.setAttribute("role", "menu");
+  mobilePopupMenu.removeAttribute("aria-modal");
+  mobileMenuBackdrop.hidden = true;
+  document.body.classList.remove("has-mobile-drawer");
+  mobilePopupType = "";
+  mobilePopupTrigger = null;
+  mobileMenuButton.setAttribute("aria-expanded", "false");
+  document.querySelectorAll("[data-mobile-popup]").forEach((button) => button.setAttribute("aria-expanded", "false"));
+  if (restoreFocus && trigger?.isConnected) trigger.focus();
+}
+
+function openMobilePopup(type, trigger = mobileMenuButton) {
+  if (!isMobileNavigation()) return;
+  if (!mobilePopupMenu.hidden && mobilePopupType === type && mobilePopupTrigger === trigger) {
+    closeMobilePopup({ restoreFocus: true });
+    return;
+  }
+  mobilePopupType = type;
+  mobilePopupTrigger = trigger;
+  mobilePopupMenu.innerHTML = mobilePopupMarkup(type);
+  mobilePopupMenu.dataset.popupType = type;
+  mobilePopupMenu.setAttribute("role", isMobileDrawer(type) ? "dialog" : "menu");
+  if (isMobileDrawer(type)) {
+    mobilePopupMenu.setAttribute("aria-modal", "true");
+    mobileMenuBackdrop.hidden = false;
+    document.body.classList.add("has-mobile-drawer");
+  } else {
+    mobilePopupMenu.removeAttribute("aria-modal");
+    mobileMenuBackdrop.hidden = true;
+    document.body.classList.remove("has-mobile-drawer");
+  }
+  mobilePopupMenu.hidden = false;
+  mobileMenuButton.setAttribute("aria-expanded", String(trigger === mobileMenuButton));
+  document.querySelectorAll("[data-mobile-popup]").forEach((button) => button.setAttribute("aria-expanded", String(button === trigger)));
+  positionMobilePopup(trigger);
+  requestAnimationFrame(() => mobilePopupMenu.querySelector("button")?.focus());
+}
 
 function walletSettingsContextNav() {
   const item = (key) => {
@@ -1759,8 +1902,12 @@ function telemetryView() {
 }
 
 function render(options = {}) {
+  closeMobilePopup();
   applyAppearancePreferences();
   renderWalletShell();
+  const mobileMenuLabel = t("app.menu");
+  mobileMenuButton.setAttribute("aria-label", mobileMenuLabel);
+  mobileMenuButton.setAttribute("title", mobileMenuLabel);
   const sidebarTarget = sidebarActiveTarget();
   const walletScreen = hasSelectedWalletContext();
   const wallet = activeWallet();
@@ -1789,8 +1936,6 @@ function render(options = {}) {
       active ? button.setAttribute("aria-current", "page") : button.removeAttribute("aria-current");
     }
   });
-  syncMobileNavigation();
-
   main.innerHTML = {
     home: homeView,
     wallet: walletView,
@@ -1832,19 +1977,6 @@ function render(options = {}) {
     main.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: state.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
-}
-
-function syncMobileNavigation() {
-  const activeDestination = state.view === "telemetry"
-    ? "network"
-    : state.view === "settings"
-      ? "settings"
-      : "wallets";
-  document.querySelectorAll("[data-mobile-destination]").forEach((button) => {
-    const active = button.dataset.mobileDestination === activeDestination;
-    button.classList.toggle("is-active", active);
-    active ? button.setAttribute("aria-current", "page") : button.removeAttribute("aria-current");
-  });
 }
 
 function syncBalanceButtons() {
@@ -3069,6 +3201,99 @@ function handleDemoAction(action, button) {
 }
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("#mobile-menu-backdrop")) {
+    closeMobilePopup({ restoreFocus: true });
+    return;
+  }
+
+  const mobileMenuToggle = event.target.closest("#mobile-menu-button");
+  if (mobileMenuToggle) {
+    openMobilePopup("menu", mobileMenuToggle);
+    return;
+  }
+
+  const mobilePopupClose = event.target.closest("[data-mobile-popup-close]");
+  if (mobilePopupClose) {
+    closeMobilePopup({ restoreFocus: true });
+    return;
+  }
+
+  const mobilePopupOpen = event.target.closest("[data-mobile-popup-open]");
+  if (mobilePopupOpen) {
+    openMobilePopup(mobilePopupOpen.dataset.mobilePopupOpen, mobileMenuButton);
+    return;
+  }
+
+  const mobileWalletChoice = event.target.closest("[data-mobile-select-wallet]");
+  if (mobileWalletChoice) {
+    state.selectedWalletId = mobileWalletChoice.dataset.mobileSelectWallet;
+    state.view = "wallet";
+    state.walletSection = "assets";
+    state.activityFilter = "all";
+    state.assetFilter = "all";
+    closeMobilePopup();
+    render({ focusMain: true });
+    return;
+  }
+
+  const mobileNetworkChoice = event.target.closest("[data-mobile-select-network]");
+  if (mobileNetworkChoice) {
+    state.view = "telemetry";
+    state.telemetrySource = mobileNetworkChoice.dataset.mobileSelectNetwork;
+    state.isNetworkOpen = false;
+    closeMobilePopup();
+    render({ focusMain: true });
+    return;
+  }
+
+  const mobileAppView = event.target.closest("[data-mobile-app-view]");
+  if (mobileAppView) {
+    state.view = mobileAppView.dataset.mobileAppView;
+    state.settingsSection = "general";
+    state.networkSection = "overview";
+    state.isNetworkOpen = false;
+    closeMobilePopup();
+    render({ focusMain: true });
+    return;
+  }
+
+  const mobilePopupAction = event.target.closest("[data-mobile-popup-action]");
+  if (mobilePopupAction) {
+    closeMobilePopup();
+    handleDemoAction(mobilePopupAction.dataset.mobilePopupAction, mobilePopupAction);
+    return;
+  }
+
+  const mobileWalletSection = event.target.closest("[data-mobile-wallet-section]");
+  if (mobileWalletSection) {
+    state.view = "wallet";
+    state.walletSection = mobileWalletSection.dataset.mobileWalletSection;
+    closeMobilePopup();
+    render({ focusMain: true });
+    return;
+  }
+
+  const mobileWalletSettingsSection = event.target.closest("[data-mobile-wallet-settings-section]");
+  if (mobileWalletSettingsSection) {
+    state.view = "wallet-settings";
+    state.walletSettingsSection = mobileWalletSettingsSection.dataset.mobileWalletSettingsSection;
+    closeMobilePopup();
+    render({ focusMain: true });
+    return;
+  }
+
+  const mobileContextTrigger = event.target.closest("#wallet-tabs [data-mobile-popup]");
+  if (mobileContextTrigger && isMobileNavigation()) {
+    openMobilePopup(mobileContextTrigger.dataset.mobilePopup, mobileContextTrigger);
+    return;
+  }
+
+  if (!mobilePopupMenu.hidden
+    && !event.target.closest("#mobile-popup-menu")
+    && !event.target.closest("#mobile-menu-button")) {
+    closeMobilePopup();
+  }
+
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) {
     const view = viewButton.dataset.view;
@@ -3264,6 +3489,35 @@ document.addEventListener("click", (event) => {
 
   const demoAction = event.target.closest("[data-demo-action]");
   if (demoAction) handleDemoAction(demoAction.dataset.demoAction, demoAction);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !mobilePopupMenu.hidden) {
+    event.preventDefault();
+    closeMobilePopup({ restoreFocus: true });
+    return;
+  }
+  if (event.key === "Tab" && isMobileDrawer(mobilePopupType) && !mobilePopupMenu.hidden) {
+    const focusable = [...mobilePopupMenu.querySelectorAll("button:not([disabled])")];
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (!isMobileNavigation()) {
+    closeMobilePopup();
+  } else if (!mobilePopupMenu.hidden) {
+    positionMobilePopup(mobilePopupTrigger);
+  }
 });
 
 document.addEventListener("submit", (event) => {

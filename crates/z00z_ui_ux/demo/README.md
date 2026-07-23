@@ -56,7 +56,7 @@ machine-translation bridge, and required checks.
 
 ## 🧪 Suggested walkthrough
 
-1. Resize between desktop, 390 px, and 320 px. On mobile, confirm the header keeps the abbreviated address, adjacent Copy, balance visibility, and notifications without overlap. The fixed bar exposes Wallets, Network, Settings, and Log out; Wallets opens the local profile picker and Network opens Reticulum, OnionNet, and Aggregators.
+1. Resize between desktop, 390 px, and 320 px. On mobile, confirm the desktop identity toolbar and bottom navigation are absent. One sticky row contains Menu, the Z00Z mark, and the scrollable wallet tabs. Menu opens a full-height drawer with Wallets, Network, Settings, and Log out; Wallets and Network open nested pickers. Assets and wallet Settings open compact third-level popup menus.
 2. Use Send, asset Claim, and Give permission from Home; confirm Receive opens the selected wallet's single Receiver Card.
 3. Confirm that submitted sends, claim outputs, voucher redemption, and permission delegation show honest non-final states.
 4. Select Everyday, Savings, and Travel in the desktop wallet navigation. Confirm that Assets, History, Swap, Exchange, Staking, Backup, Settings, and the bottom status bar reflect only the selected wallet. Hover the copy control beside the address to reveal the full selected-wallet ID.

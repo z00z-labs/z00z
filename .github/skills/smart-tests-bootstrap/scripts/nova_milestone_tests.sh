@@ -84,9 +84,9 @@ run_guards() {
   local contract dollar='$'
   local -a verifier_rss_contract=(
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
-    'readonly EXPECTED_SOURCE_REVISION="5f38e7d7d2e887cdbfee78c647d495de63824d38e42bcee7025e64e5a8af6c8a"'
-    'readonly EXPECTED_WORKER_SOURCE="eccca1ec293722e9b07d077fa8259f510b46e1365a931fc4de0abb7c2e4e77c7"'
-    'readonly EXPECTED_NOVA_SHA256="cde3a620ec5bb5bccd9aed126ca9e4f9f3d9475be9c9d01269577b945101d2e1"'
+    'readonly EXPECTED_SOURCE_REVISION="8bdc4b27ae0bd478a513240324a7ab620403dd192e6688b90842863db987de56"'
+    'readonly EXPECTED_WORKER_SOURCE="d34c5c736695c140a77f0950abe6202ee3b455b850b784347ef123a39f7758db"'
+    'readonly EXPECTED_NOVA_SHA256="8d76c529922b0f3ff0f8b9806e237139eb6a22731f8425c2f84ae1ed844ef036"'
     'readonly EXPECTED_CARGO_LOCK_SHA256="dc39936ae850926a973d884ba4571eefb4be4f56e68ba459b914ec633b7f85ca"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
     "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}ROOT_DIR/target/workspace\""

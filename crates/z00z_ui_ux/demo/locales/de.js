@@ -1,9 +1,9 @@
 "use strict";
 
 window.Z00ZI18n.registerLocale("de", {
-  common: { unavailable: "Nicht verfügbar", readOnly: "Schreibgeschützt", chain: "Blockchain", chainLocked: "Wählen Sie sorgfältig. Nach dem Erstellen des Wallets kann die Blockchain nicht mehr geändert werden.", on: "Ein", off: "Aus", close: "Schließen" },
+  common: { unavailable: "Nicht verfügbar", readOnly: "Schreibgeschützt", chain: "Blockchain", chainLocked: "Wählen Sie sorgfältig. Nach dem Erstellen des Wallets kann die Blockchain nicht mehr geändert werden.", on: "Ein", off: "Aus", close: "Schließen", back: "Zurück" },
   app: {
-    documentTitle: "Z00Z Wallet — Interaktives Konzept", wallets: "Wallets", network: "Netzwerk",
+    documentTitle: "Z00Z Wallet — Interaktives Konzept", menu: "Menü", wallets: "Wallets", network: "Netzwerk",
     addWallet: "Wallet hinzufügen", removeWallet: "Wallet entfernen", settings: "Einstellungen", home: "Startseite",
     homeContext: "Ihr privates Geld auf einen Blick", settingsContext: "App-Einstellungen", walletContext: "Wallet {wallet}", interactiveConcept: "Interaktives Konzept · keine echten Mittel", conceptBuild: "Konzept 0.4 · keine echten Mittel", logOut: "Abmelden",
     general: "Allgemein", language: "Sprache", languageHelp: "Sprache, die in dieser Wallet-Anwendung verwendet wird",

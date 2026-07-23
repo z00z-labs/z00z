@@ -1,9 +1,9 @@
 "use strict";
 
 window.Z00ZI18n.registerLocale("tr", {
-  common: { unavailable: "Kullanılamıyor", readOnly: "Salt okunur", chain: "Zincir", chainLocked: "Dikkatle seçin. Cüzdan oluşturulduktan sonra zincir değiştirilemez.", on: "Açık", off: "Kapalı", close: "Kapat" },
+  common: { unavailable: "Kullanılamıyor", readOnly: "Salt okunur", chain: "Zincir", chainLocked: "Dikkatle seçin. Cüzdan oluşturulduktan sonra zincir değiştirilemez.", on: "Açık", off: "Kapalı", close: "Kapat", back: "Geri" },
   app: {
-    documentTitle: "Z00Z Wallet — Etkileşimli kavram", wallets: "Cüzdanlar", network: "Ağ", addWallet: "Cüzdan ekle", removeWallet: "Cüzdanı kaldır", settings: "Ayarlar", home: "Ana sayfa",
+    documentTitle: "Z00Z Wallet — Etkileşimli kavram", menu: "Menü", wallets: "Cüzdanlar", network: "Ağ", addWallet: "Cüzdan ekle", removeWallet: "Cüzdanı kaldır", settings: "Ayarlar", home: "Ana sayfa",
     homeContext: "Özel paranıza bir bakış", settingsContext: "Uygulama tercihleri", walletContext: "{wallet} cüzdanı", interactiveConcept: "Etkileşimli kavram · gerçek fon yok", conceptBuild: "Kavram 0.4 · gerçek fon yok", logOut: "Oturumu kapat",
     general: "Genel", language: "Dil", languageHelp: "Bu cüzdan uygulamasının tamamında kullanılan dil", notifications: "Bildirimler", notificationsHelp: "Cüzdan güncellemelerini ve gerekli işlemleri göster",
     regionalFormat: "Bölgesel biçim", regionalFormatHelp: "Dilinden bağımsız olarak tarihleri, sayıları ve ondalık ayırıcıları yönetir", timeZone: "Saat dilimi", timeZoneHelp: "Zaman damgaları UTC olarak saklanır ve bu saat diliminde gösterilir",

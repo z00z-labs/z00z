@@ -1,9 +1,9 @@
 "use strict";
 
 window.Z00ZI18n.registerLocale("zh-Hans", {
-  common: { unavailable: "不可用", readOnly: "只读", chain: "链", chainLocked: "请谨慎选择。钱包创建后无法更改链。", on: "开", off: "关", close: "关闭" },
+  common: { unavailable: "不可用", readOnly: "只读", chain: "链", chainLocked: "请谨慎选择。钱包创建后无法更改链。", on: "开", off: "关", close: "关闭", back: "返回" },
   app: {
-    documentTitle: "Z00Z Wallet — 交互式概念", wallets: "钱包", network: "网络",
+    documentTitle: "Z00Z Wallet — 交互式概念", menu: "菜单", wallets: "钱包", network: "网络",
     addWallet: "添加钱包", removeWallet: "移除钱包", settings: "设置", home: "主页",
     homeContext: "一览您的私密资产", settingsContext: "应用偏好设置", walletContext: "{wallet} 钱包", interactiveConcept: "交互式概念 · 不使用真实资金", conceptBuild: "概念 0.4 · 不使用真实资金", logOut: "退出登录",
     general: "常规", language: "语言", languageHelp: "整个钱包应用程序使用的语言",

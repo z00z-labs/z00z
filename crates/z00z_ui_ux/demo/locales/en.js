@@ -8,10 +8,12 @@ window.Z00ZI18n.registerLocale("en", {
     chainLocked: "Choose carefully. The chain cannot be changed after this wallet is created.",
     on: "On",
     off: "Off",
-    close: "Close"
+    close: "Close",
+    back: "Back"
   },
   app: {
     documentTitle: "Z00Z Wallet — Interactive Concept",
+    menu: "Menu",
     wallets: "Wallets",
     network: "Network",
     addWallet: "Add wallet",
