@@ -24,10 +24,10 @@ fn test_cadence_authority() {
             )
             .expect("per-block fold"),
         NovaCadenceActionV2 {
-            fold: true,
-            recovery_snapshot: false,
-            compress: false,
-            publish: false,
+            is_fold_required: true,
+            is_recovery_snapshot_required: false,
+            is_compression_required: false,
+            is_publication_required: false,
         }
     );
     assert_eq!(
@@ -39,10 +39,10 @@ fn test_cadence_authority() {
             )
             .expect("recovery boundary"),
         NovaCadenceActionV2 {
-            fold: true,
-            recovery_snapshot: true,
-            compress: false,
-            publish: false,
+            is_fold_required: true,
+            is_recovery_snapshot_required: true,
+            is_compression_required: false,
+            is_publication_required: false,
         }
     );
     assert_eq!(
@@ -54,10 +54,10 @@ fn test_cadence_authority() {
             )
             .expect("publication boundary"),
         NovaCadenceActionV2 {
-            fold: true,
-            recovery_snapshot: true,
-            compress: true,
-            publish: true,
+            is_fold_required: true,
+            is_recovery_snapshot_required: true,
+            is_compression_required: true,
+            is_publication_required: true,
         }
     );
     let compress = policy
@@ -67,8 +67,12 @@ fn test_cadence_authority() {
             NovaCadenceRequestV2::Compress,
         )
         .expect("authorized compression request");
-    assert!(compress.fold && compress.compress && !compress.publish);
-    assert!(!compress.recovery_snapshot);
+    assert!(
+        compress.is_fold_required
+            && compress.is_compression_required
+            && !compress.is_publication_required
+    );
+    assert!(!compress.is_recovery_snapshot_required);
     let publish = policy
         .action(
             17,
@@ -76,7 +80,11 @@ fn test_cadence_authority() {
             NovaCadenceRequestV2::Publish,
         )
         .expect("authorized publication request");
-    assert!(publish.fold && !publish.compress && publish.publish);
+    assert!(
+        publish.is_fold_required
+            && !publish.is_compression_required
+            && publish.is_publication_required
+    );
     assert!(policy
         .action(
             17,
@@ -122,10 +130,10 @@ fn test_cadence_registry_rows() {
 #[test]
 fn test_ordinary_roles_empty() {
     let action = NovaCadenceActionV2 {
-        fold: true,
-        recovery_snapshot: true,
-        compress: true,
-        publish: true,
+        is_fold_required: true,
+        is_recovery_snapshot_required: true,
+        is_compression_required: true,
+        is_publication_required: true,
     };
     for role in [
         NovaEvidenceRoleV2::CanonicalValidator,

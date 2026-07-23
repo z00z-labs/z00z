@@ -659,27 +659,42 @@ h3 {
 
 .topbar {
   position: sticky;
-  z-index: 15;
+  z-index: 40;
   top: 0;
   display: flex;
   min-height: var(--topbar-height);
   align-items: center;
-  gap: 10px;
-  padding: 0 clamp(20px, 3vw, 42px);
+  gap: 0;
+  overflow: hidden;
+  padding: 0 clamp(12px, 1.8vw, 28px);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: var(--bg-canvas);
 }
 
 .topbar-address-group {
   display: flex;
+  width: min(25vw, 262px);
+  max-width: min(25vw, 262px);
   min-width: 0;
+  flex: 0 0 min(25vw, 262px);
   align-items: center;
   gap: 8px;
-  margin-right: auto;
+}
+
+.topbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  margin-left: 10px;
 }
 
 .page-heading {
+  display: flex;
   min-width: 0;
+  min-height: 44px;
+  flex-direction: column;
+  justify-content: center;
   margin-right: 0;
 }
 
@@ -692,12 +707,12 @@ h3 {
 }
 
 .page-heading h1.is-wallet-address {
-  max-width: min(36vw, 420px);
+  max-width: min(21vw, 192px);
   font-family: var(--font-logo);
   font-size: var(--type-address);
   font-weight: 400;
   line-height: 1.04;
-  letter-spacing: 0.045em;
+  letter-spacing: 0.025em;
 }
 
 .page-heading h1.is-telemetry-title,
@@ -855,10 +870,6 @@ h3 {
   padding: 34px clamp(20px, 3vw, 42px) calc(var(--wallet-statusbar-height) + 56px);
 }
 
-.wallet-navigation-bar {
-  display: contents;
-}
-
 .mobile-navigation-leading,
 .mobile-menu-backdrop,
 .mobile-popup-menu,
@@ -867,21 +878,22 @@ h3 {
 }
 
 .wallet-tabs {
-  --content-gutter: clamp(20px, 3vw, 42px);
-  --content-frame: calc(var(--content-max) + clamp(40px, 6vw, 84px));
-  position: sticky;
-  z-index: 14;
-  top: var(--topbar-height);
   display: flex;
-  min-height: 58px;
+  min-width: 0;
+  min-height: var(--topbar-height);
+  flex: 1 1 auto;
   align-items: stretch;
   justify-content: flex-start;
   gap: 2px;
   overflow-x: auto;
-  padding: 5px max(var(--content-gutter), calc((100% - var(--content-frame)) / 2 + var(--content-gutter))) 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-canvas);
-  scrollbar-width: thin;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  scrollbar-width: none;
+}
+
+.wallet-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .wallet-tabs[hidden],
@@ -892,7 +904,7 @@ h3 {
 .wallet-tab {
   display: inline-flex;
   flex: 0 0 auto;
-  min-height: 56px;
+  min-height: var(--topbar-height);
   align-items: center;
   gap: 9px;
   padding: 0 15px;
@@ -924,6 +936,12 @@ h3 {
 .wallet-tab .icon {
   width: 19px;
   height: 19px;
+}
+
+@media (min-width: 768px) {
+  .wallet-tabs > .wallet-tab:first-child {
+    padding-left: 0;
+  }
 }
 
 .wallet-statusbar {
@@ -4529,20 +4547,18 @@ button.connection-option:hover,
   }
 
   .topbar {
-    display: none;
-  }
-
-  .wallet-navigation-bar {
-    position: sticky;
-    z-index: 40;
-    top: 0;
     display: flex;
     width: 100%;
     min-height: var(--topbar-height);
     align-items: stretch;
+    gap: 0;
     overflow: hidden;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-canvas);
+    padding: 0;
+  }
+
+  .topbar-address-group,
+  .topbar-actions {
+    display: none;
   }
 
   .mobile-navigation-leading {
@@ -4585,7 +4601,6 @@ button.connection-option:hover,
   }
 
   .wallet-tabs {
-    position: static;
     min-width: 0;
     min-height: var(--topbar-height);
     flex: 1 1 auto;

@@ -268,18 +268,27 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   expect(await visibleWalletRows()).toBe(3);
 });
 
-test("wallet content ends at the Settings tab boundary on wide screens", async ({ page }) => {
+test("the current workspace tabs live in the single topbar on wide screens", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(`${demoUrl}?view=wallet`);
 
-  const [workspaceRight, settingsRight] = await page.evaluate(() => {
-    const workspace = document.querySelector(".workspace-panel").getBoundingClientRect();
+  const navigationContract = await page.evaluate(() => {
+    const topbar = document.querySelector("#primary-topbar");
+    const tabsNode = document.querySelector("#wallet-tabs");
     const tabs = document.querySelectorAll("#wallet-tabs .wallet-tab");
     const settings = tabs[tabs.length - 1].getBoundingClientRect();
-    return [workspace.right, settings.right];
+    return {
+      tabsParent: tabsNode.parentElement.id,
+      removedSecondRow: document.querySelector(".wallet-navigation-bar") === null,
+      settingsInsideTopbar: settings.right <= topbar.getBoundingClientRect().right
+    };
   });
 
-  expect(Math.abs(workspaceRight - settingsRight)).toBeLessThanOrEqual(1);
+  expect(navigationContract).toEqual({
+    tabsParent: "primary-topbar",
+    removedSecondRow: true,
+    settingsInsideTopbar: true
+  });
 });
 
 test("history exposes only object-type filters", async ({ page }) => {
@@ -1254,7 +1263,7 @@ test("typography LUT assigns Geist and Geist Mono to their semantic roles", asyn
   expect(wordmark.weight).toBe("780");
   expect(topbarAddress.family).toBe(wordmark.family);
   expect(topbarAddress.weight).toBe("400");
-  expect(topbarAddress.size).toBe(25);
+  expect(topbarAddress.size).toBe(21);
   expect(topbarContext.size).toBe(13);
   expect(Math.abs(topbarPairHeight - copyHeight)).toBeLessThanOrEqual(1);
   expect(balance.family).toContain("Geist Mono");
@@ -1502,14 +1511,14 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
       return bounds ? { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom } : null;
     };
     return {
-      bar: box(".wallet-navigation-bar"),
+      bar: box("#primary-topbar"),
       menu: box("#mobile-menu-button"),
       logo: box(".mobile-nav-brand"),
       tabs: box("#wallet-tabs"),
       topbarDisplay: getComputedStyle(document.querySelector(".topbar")).display
     };
   });
-  expect(mobileNavigationLayout.topbarDisplay).toBe("none");
+  expect(mobileNavigationLayout.topbarDisplay).toBe("flex");
   [mobileNavigationLayout.bar, mobileNavigationLayout.menu, mobileNavigationLayout.logo, mobileNavigationLayout.tabs].forEach((box) => {
     expect(box.left).toBeGreaterThanOrEqual(0);
     expect(box.right).toBeLessThanOrEqual(390);
@@ -1582,7 +1591,7 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
   await page.goto(`${demoUrl}?view=wallet`);
   const compactFilterHeight = await page.locator(".choice-chip").first().evaluate((node) => node.getBoundingClientRect().height);
   expect(Math.round(compactFilterHeight)).toBeGreaterThanOrEqual(44);
-  const compactNavigationBoxes = await page.locator(".wallet-navigation-bar").evaluate((navigation) => [
+  const compactNavigationBoxes = await page.locator("#primary-topbar").evaluate((navigation) => [
     navigation.querySelector("#mobile-menu-button"),
     navigation.querySelector(".mobile-nav-brand"),
     navigation.querySelector("#wallet-tabs")
@@ -1634,28 +1643,64 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
 
   await page.setViewportSize({ width: 1920, height: 700 });
   await page.goto(demoUrl);
-  const [tabBox, contentEdge] = await Promise.all([
+  const [tabBox, topbarBox] = await Promise.all([
     page.locator("#wallet-tabs .wallet-tab").first().boundingBox(),
+    page.locator("#primary-topbar").boundingBox()
+  ]);
+  expect(tabBox.y).toBe(topbarBox.y);
+  expect(Math.abs(tabBox.height - topbarBox.height)).toBeLessThanOrEqual(1);
+  const [tabStart, contentEdge] = await Promise.all([
+    page.locator("#wallet-tabs .wallet-tab").first().evaluate((node) => node.getBoundingClientRect().left),
     page.locator("#main-content").evaluate((node) => {
       const box = node.getBoundingClientRect();
-      return box.x + parseFloat(getComputedStyle(node).paddingLeft);
+      return box.left + parseFloat(getComputedStyle(node).paddingLeft);
     })
   ]);
-  expect(Math.abs(tabBox.x - contentEdge)).toBeLessThanOrEqual(1);
+  expect(Math.abs(tabStart - contentEdge)).toBeLessThanOrEqual(3);
+  const workspaceTabStarts = [tabStart];
+  for (const route of [
+    `${demoUrl}?view=telemetry&telemetry=reticulum`,
+    `${demoUrl}?view=settings&settings=general`
+  ]) {
+    await page.goto(route);
+    await expect(page.locator("#wallet-tabs .wallet-tab").first()).toBeVisible();
+    workspaceTabStarts.push(await page.locator("#wallet-tabs .wallet-tab").first().evaluate((node) => node.getBoundingClientRect().left));
+  }
+  expect(Math.max(...workspaceTabStarts) - Math.min(...workspaceTabStarts)).toBeLessThanOrEqual(1);
+  await page.goto(demoUrl);
+  for (const width of [1280, 1024]) {
+    await page.setViewportSize({ width, height: 700 });
+    const segments = await page.evaluate(() => {
+      const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+      return {
+        topbar: box("#primary-topbar"),
+        address: box(".topbar-address-group"),
+        tabs: box("#wallet-tabs"),
+        actions: box(".topbar-actions")
+      };
+    });
+    expect(segments.address.right).toBeLessThanOrEqual(segments.tabs.left);
+    expect(segments.tabs.right).toBeLessThanOrEqual(segments.actions.left);
+    expect(segments.actions.right).toBeLessThanOrEqual(segments.topbar.right);
+  }
+  await page.setViewportSize({ width: 1920, height: 700 });
   await page.evaluate(() => window.scrollTo(0, 500));
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-  const stickyTabBox = await page.locator("#wallet-tabs").boundingBox();
-  expect(Math.abs(stickyTabBox.y - 80)).toBeLessThanOrEqual(1);
-  const [tabsBackground, canvasBackground] = await page.locator("#wallet-tabs").evaluate((tabs) => {
+  const [stickyTabBox, stickyTopbarBox] = await Promise.all([
+    page.locator("#wallet-tabs").boundingBox(),
+    page.locator("#primary-topbar").boundingBox()
+  ]);
+  expect(Math.abs(stickyTabBox.y - stickyTopbarBox.y)).toBeLessThanOrEqual(1);
+  const [topbarBackground, canvasBackground] = await page.locator("#primary-topbar").evaluate((topbar) => {
     const probe = document.createElement("span");
     probe.style.background = "var(--bg-canvas)";
     document.body.append(probe);
-    const result = [getComputedStyle(tabs).backgroundColor, getComputedStyle(probe).backgroundColor];
+    const result = [getComputedStyle(topbar).backgroundColor, getComputedStyle(probe).backgroundColor];
     probe.remove();
     return result;
   });
-  expect(tabsBackground).toBe(canvasBackground);
+  expect(topbarBackground).toBe(canvasBackground);
 
   await page.goto(`${demoUrl}?view=home`);
   const quickAction = page.locator('.quick-action[data-view="wallet-send"]');
@@ -1743,19 +1788,27 @@ test("language catalogues stay complete and relocalize the shell without changin
   expect(localized.japaneseRate).toContain("kbit/s");
 });
 
-test("settings tabs share the standard left tab alignment", async ({ page }) => {
+test("settings tabs share the standard single-topbar tab treatment", async ({ page }) => {
   await page.goto(`${demoUrl}?view=wallet`);
-  const assetTabBox = await page.locator('#wallet-tabs [data-view="wallet"]').boundingBox();
+  const assetTabStyle = await page.locator('#wallet-tabs [data-view="wallet"]').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.fontFamily, style.fontSize, style.minHeight];
+  });
 
   await page.goto(`${demoUrl}?view=settings&settings=general`);
   const settingsTab = page.locator('#settings-tab-general');
-  const settingsTabBox = await settingsTab.boundingBox();
-  const tabBarJustification = await page.locator("#wallet-tabs").evaluate((element) => getComputedStyle(element).justifyContent);
+  const [settingsTabStyle, tabBarJustification, tabsParent] = await Promise.all([
+    settingsTab.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [style.fontFamily, style.fontSize, style.minHeight];
+    }),
+    page.locator("#wallet-tabs").evaluate((element) => getComputedStyle(element).justifyContent),
+    page.locator("#wallet-tabs").evaluate((element) => element.parentElement.id)
+  ]);
 
-  expect(assetTabBox).not.toBeNull();
-  expect(settingsTabBox).not.toBeNull();
+  expect(settingsTabStyle).toEqual(assetTabStyle);
   expect(tabBarJustification).toBe("flex-start");
-  expect(Math.abs(assetTabBox.x - settingsTabBox.x)).toBeLessThanOrEqual(1);
+  expect(tabsParent).toBe("primary-topbar");
 });
 
 test("wallet sections omit redundant introductory headers", async ({ page }) => {

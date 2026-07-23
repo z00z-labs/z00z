@@ -817,16 +817,16 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             .ok_or(CheckpointError::Invariant)?;
         let cadence_action = match request {
             RecursiveEvidenceRequestV2::FoldOnly => NovaCadenceActionV2 {
-                fold: true,
-                recovery_snapshot: false,
-                compress: false,
-                publish: false,
+                is_fold_required: true,
+                is_recovery_snapshot_required: false,
+                is_compression_required: false,
+                is_publication_required: false,
             },
             RecursiveEvidenceRequestV2::Snapshot { authority, cadence } => {
                 let action = self
                     .compression_policy
                     .action(target_height, authority, cadence)?;
-                if !action.compress {
+                if !action.is_compression_required {
                     return Err(CheckpointError::Authority);
                 }
                 action
@@ -837,7 +837,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                     authority,
                     NovaCadenceRequestV2::RecoverySnapshot,
                 )?;
-                if !action.recovery_snapshot {
+                if !action.is_recovery_snapshot_required {
                     return Err(CheckpointError::Authority);
                 }
                 action
@@ -928,7 +928,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         if let Some(session) = new_session {
             *session_slot = Some(session);
         }
-        let recovery_snapshot = if cadence_action.recovery_snapshot {
+        let recovery_snapshot = if cadence_action.is_recovery_snapshot_required {
             let snapshot = contain_backend(|| {
                 session_slot
                     .as_ref()

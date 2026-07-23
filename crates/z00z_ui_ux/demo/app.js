@@ -1273,7 +1273,7 @@ function positionMobilePopup(trigger) {
     mobilePopupMenu.style.removeProperty("--mobile-popup-width");
     return;
   }
-  const navigationBounds = document.querySelector(".wallet-navigation-bar").getBoundingClientRect();
+  const navigationBounds = document.querySelector("#primary-topbar").getBoundingClientRect();
   const triggerBounds = trigger?.getBoundingClientRect();
   const popupWidth = Math.min(300, window.innerWidth - 16);
   const preferredLeft = triggerBounds ? triggerBounds.left : 8;

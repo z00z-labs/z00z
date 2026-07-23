@@ -455,7 +455,7 @@ Persistent left rail:
 
 The Wallets placeholder reserves the vertical capacity of exactly three list rows. Wallet cards, Add, and Remove are direct children of one ordered scroll area: all three scroll together. Remove becomes disabled when no local wallet profiles exist.
 
-Network shortcuts open distinct read-only telemetry workspaces. OnionNet reports future local route evidence, Reticulum reports future local interface and receipt evidence, and Aggregators reports future local publication evidence. They never perform route setup or configuration and must display unavailable until an authoritative bridge is registered. Runtime route/scan summary remains in the selected-wallet status bar. The header contains the selected-wallet address and copy action, balance-visibility toggle, notifications, and account menu.
+Network shortcuts open distinct read-only telemetry workspaces. OnionNet reports future local route evidence, Reticulum reports future local interface and receipt evidence, and Aggregators reports future local publication evidence. They never perform route setup or configuration and must display unavailable until an authoritative bridge is registered. Runtime route/scan summary remains in the selected-wallet status bar. One sticky header contains the current workspace tabs together with the selected-wallet address and copy action, balance-visibility toggle, notifications, and account menu; selecting a wallet, Network shortcut, or Settings replaces the tabs in place and never creates a second navigation row.
 
 The desktop rail has one active destination only: a selected wallet profile, a selected Network shortcut, or Settings. Selecting any one clears the other rail active states and leaves exactly one rail `aria-current="page"`; wallet tabs and the Settings context rail keep their own scoped current route.
 
@@ -471,7 +471,7 @@ The context rail is navigation, not a tab widget: use `nav`, links/buttons, and 
 
 ### 📱 Mobile and narrow tablet
 
-Mobile uses one sticky top navigation surface. Its order is **Menu**, Z00Z brand mark, then the horizontally scrollable current route row (Assets, Send, Receive, Swap, Exchange, Staking, Backup, History, Settings for a wallet). The desktop identity/address/privacy/account toolbar and the bottom navigation are absent.
+Mobile uses the same single sticky top navigation surface as desktop. Its compact order is **Menu**, Z00Z brand mark, then the horizontally scrollable current route tabs (Assets, Send, Receive, Swap, Exchange, Staking, Backup, History, Settings for a wallet). Desktop-only identity/address/privacy/account controls and bottom navigation are absent.
 
 The Menu control opens a left, full-height modal drawer patterned after the public Z00Z mobile navigation. It has a backdrop, branded header, Close, focus containment, internal scrolling, and four root actions:
 
@@ -1198,7 +1198,7 @@ Every visible text node must map to exactly one LUT row. `px` values assume the 
 | ID / token | Family | Weight | Desktop size | Mobile size | Line height | Tracking | Case | Demo selectors / semantic purpose |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
 | `TYPE-01` `--type-balance` | Geist Mono | 700 | 50.4 px max; fluid | 35.2 px min; fluid | 1.00 | -0.045em | Sentence | `.balance-amount`; the primary available balance only |
-| `TYPE-02` `--type-address` | Geist | 400 | 25 px | 20 px compact top bar | 1.04 | 0.045em desktop; -0.025em mobile | Mixed case | `.page-heading h1.is-wallet-address`; a 13 px / 16 px wallet-name line pairs with it to match Copy-control height while remaining outside that button |
+| `TYPE-02` `--type-address` | Geist | 400 | 21 px | 20 px compact top bar | 1.04 | 0.025em desktop; -0.025em mobile | Mixed case | `.page-heading h1.is-wallet-address`; a 13 px / 16 px wallet-name line pairs with it to match Copy-control height while remaining outside that button. The compact desktop address group ends at the main content edge so dynamic tabs start there. |
 | `TYPE-03` `--type-page-title` | Geist | 700 | 28 px | 20 px | 1.20 | -0.025em | Sentence | standalone page/lock titles; one title per view |
 | `TYPE-04` `--type-page-section` | Geist | 700 | 23.2 px | 20 px | 1.20 | -0.025em | Sentence | `.page-intro h2`, major workspace sections |
 | `TYPE-05` `--type-section` | Geist | 700 | 20 px | 18 px | 1.20 | -0.025em | Sentence | `h2`, panel and dialog section headings |
@@ -1241,7 +1241,7 @@ The production token names below mirror the executable demo. Components must con
   --font-logo: var(--font-sans);
 
   --type-balance: clamp(2.2rem, 4.2vw, 3.15rem);
-  --type-address: 1.5625rem;
+  --type-address: 1.3125rem;
   --type-page-title: 1.75rem;
   --type-page-section: 1.45rem;
   --type-section: 1.25rem;

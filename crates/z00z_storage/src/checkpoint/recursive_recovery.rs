@@ -210,7 +210,7 @@ impl NovaAccumulatorSnapshotV2 {
             return Err(CheckpointError::Limit);
         }
         let image_bytes = Zeroizing::new(reader.take(image_len)?.to_vec());
-        if !reader.done() {
+        if !reader.is_done() {
             return Err(CheckpointError::Canonical);
         }
         let cadence = NovaCadenceManifestV2::authority_pinned();
@@ -362,7 +362,7 @@ impl<'a> SnapshotReaderV2<'a> {
         Ok(u64::from_le_bytes(self.array()?))
     }
 
-    fn done(&self) -> bool {
+    fn is_done(&self) -> bool {
         self.offset == self.bytes.len()
     }
 }
@@ -538,17 +538,13 @@ impl NovaRecoveryStoreV2 {
         let mut live = self.live_snapshots()?;
         if let Some(latest) = live.last() {
             let reject_reason = if snapshot.height() <= latest.0.height() {
-                Some(
-                    super::recursive_reject::RecursiveCheckpointRejectReasonV2::StepReordered,
-                )
+                Some(super::recursive_reject::RecursiveCheckpointRejectReasonV2::StepReordered)
             } else if snapshot.bindings.authority_generation
                 != latest.0.bindings.authority_generation
-                || snapshot.bindings.parameter_generation
-                    != latest.0.bindings.parameter_generation
+                || snapshot.bindings.parameter_generation != latest.0.bindings.parameter_generation
                 || snapshot.bindings.runtime_profile_generation
                     != latest.0.bindings.runtime_profile_generation
-                || snapshot.bindings.chain_context_digest
-                    != latest.0.bindings.chain_context_digest
+                || snapshot.bindings.chain_context_digest != latest.0.bindings.chain_context_digest
                 || snapshot.bindings.config_digest != latest.0.bindings.config_digest
                 || snapshot.bindings.policy_digest != latest.0.bindings.policy_digest
                 || snapshot.bindings.authority_digest != latest.0.bindings.authority_digest
@@ -1012,10 +1008,7 @@ mod tests {
             let mut mixed = bindings(200);
             mutate(&mut mixed);
             assert!(matches!(
-                NovaAccumulatorSnapshotV2::capture(
-                    mixed,
-                    NovaRecoveryImageV2::new(vec![200; 96]),
-                ),
+                NovaAccumulatorSnapshotV2::capture(mixed, NovaRecoveryImageV2::new(vec![200; 96]),),
                 Err(CheckpointError::Authority)
             ));
         }
@@ -1054,7 +1047,7 @@ mod tests {
     }
 
     #[test]
-    fn test_corrupt_committed_snapshot_is_quarantined_on_reopen() {
+    fn test_corrupt_snapshot_quarantines() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().join("recovery");
         let store = NovaRecoveryStoreV2::open(&root).unwrap();

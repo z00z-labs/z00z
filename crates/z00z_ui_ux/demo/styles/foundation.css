@@ -27,7 +27,7 @@
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
   --font-logo: var(--font-sans);
   --type-balance: clamp(2.2rem, 4.2vw, 3.15rem);
-  --type-address: 1.5625rem;
+  --type-address: 1.3125rem;
   --type-page-title: 1.75rem;
   --type-page-section: 1.45rem;
   --type-section: 1.25rem;

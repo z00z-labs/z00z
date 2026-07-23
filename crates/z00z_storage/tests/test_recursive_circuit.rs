@@ -32,7 +32,7 @@ fn test_snapshot_terminal_is_explicit() {
         "the continuous-session owner has one non-consuming snapshot method"
     );
     assert!(NOVA.contains(
-        "expected_public_state(&self.public_input, cumulative_steps, self.terminalized)"
+        "expected_public_state(&self.public_input, cumulative_steps, self.is_terminalized)"
     ));
     assert!(NOVA.contains("runner.finish_block(false)?;"));
     assert!(!NOVA.contains("runner.finish_block(true)?;"));

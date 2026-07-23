@@ -30,8 +30,9 @@ const NOVA_MEASUREMENT_BACKEND_ID_V2: &[u8] =
     b"nova-snark=0.73.0;features=io;curve-cycle=pasta;transcript=keccak256";
 const NOVA_MEASUREMENT_FIXTURE_ID_V2: &[u8] =
     b"phase069-plan06-canonical-mixed-nova-artifacts-and-continuous-chain-v2";
-const NOVA_MILESTONE_HARNESS_V2: &[u8] =
-    include_bytes!("../../../../.github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh");
+const NOVA_MILESTONE_HARNESS_V2: &[u8] = include_bytes!(
+    "../../../../.github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh"
+);
 const NOVA_VERIFIER_RSS_HARNESS_V2: &[u8] = include_bytes!(
     "../../../../.github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh"
 );
@@ -124,7 +125,7 @@ impl NovaCadenceMeasurementPacketV2 {
         }
     }
 
-    fn identities_are_complete(self) -> bool {
+    fn has_complete_identities(self) -> bool {
         [
             self.source_revision_digest,
             self.lockfile_digest,
@@ -219,7 +220,7 @@ impl NovaCadenceManifestV2 {
     pub fn validate(&self) -> Result<(), CheckpointError> {
         let measurement = NovaCadenceMeasurementPacketV2::authority_pinned();
         if self != &Self::authority_pinned()
-            || !measurement.identities_are_complete()
+            || !measurement.has_complete_identities()
             || self.fold_cadence_blocks != 1
             || self.recovery_snapshot_cadence_blocks == 0
             || self.compression_cadence_blocks == 0
@@ -362,10 +363,10 @@ pub enum NovaCadenceRequestV2 {
 /// Independent decisions for one height. No field implies another field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NovaCadenceActionV2 {
-    pub fold: bool,
-    pub recovery_snapshot: bool,
-    pub compress: bool,
-    pub publish: bool,
+    pub is_fold_required: bool,
+    pub is_recovery_snapshot_required: bool,
+    pub is_compression_required: bool,
+    pub is_publication_required: bool,
 }
 
 /// Checked decision facade over the authority-pinned cadence manifest.
@@ -432,10 +433,10 @@ impl NovaCompressionPolicyV2 {
             _ => return Err(CheckpointError::Authority),
         };
         Ok(NovaCadenceActionV2 {
-            fold: true,
-            recovery_snapshot,
-            compress,
-            publish,
+            is_fold_required: true,
+            is_recovery_snapshot_required: recovery_snapshot,
+            is_compression_required: compress,
+            is_publication_required: publish,
         })
     }
 }
@@ -462,14 +463,14 @@ impl NovaRoleDeliveryV2 {
     pub fn for_action(
         role: NovaEvidenceRoleV2,
         action: NovaCadenceActionV2,
-        verifier_key_cached: bool,
+        is_verifier_key_cached: bool,
     ) -> Self {
         match role {
             NovaEvidenceRoleV2::RecursiveVerifier => Self {
                 public_parameters_bytes: 0,
                 prover_key_bytes: 0,
-                verifier_key_fetches: u8::from(!verifier_key_cached),
-                proof_envelope_fetches: u8::from(action.publish),
+                verifier_key_fetches: u8::from(!is_verifier_key_cached),
+                proof_envelope_fetches: u8::from(action.is_publication_required),
             },
             NovaEvidenceRoleV2::CanonicalValidator
             | NovaEvidenceRoleV2::Watcher
@@ -490,7 +491,7 @@ mod tests {
     #[test]
     fn test_measurement_binds_identities() {
         let packet = NovaCadenceMeasurementPacketV2::authority_pinned();
-        assert!(packet.identities_are_complete());
+        assert!(packet.has_complete_identities());
         assert_eq!(packet.source_revision_digest, source_revision_digest());
         assert_eq!(packet.lockfile_digest, lockfile_digest());
         assert_eq!(packet.workspace_manifest_digest, manifest_digest());
@@ -500,25 +501,13 @@ mod tests {
         );
 
         for mutate in [
-            |packet: &mut NovaCadenceMeasurementPacketV2| {
-                packet.source_revision_digest[0] ^= 1
-            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| packet.source_revision_digest[0] ^= 1,
             |packet: &mut NovaCadenceMeasurementPacketV2| packet.lockfile_digest[0] ^= 1,
-            |packet: &mut NovaCadenceMeasurementPacketV2| {
-                packet.workspace_manifest_digest[0] ^= 1
-            },
-            |packet: &mut NovaCadenceMeasurementPacketV2| {
-                packet.backend_identity_digest[0] ^= 1
-            },
-            |packet: &mut NovaCadenceMeasurementPacketV2| {
-                packet.worker_identity_digest[0] ^= 1
-            },
-            |packet: &mut NovaCadenceMeasurementPacketV2| {
-                packet.fixture_identity_digest[0] ^= 1
-            },
-            |packet: &mut NovaCadenceMeasurementPacketV2| {
-                packet.verifier_bundle_digest[0] ^= 1
-            },
+            |packet: &mut NovaCadenceMeasurementPacketV2| packet.workspace_manifest_digest[0] ^= 1,
+            |packet: &mut NovaCadenceMeasurementPacketV2| packet.backend_identity_digest[0] ^= 1,
+            |packet: &mut NovaCadenceMeasurementPacketV2| packet.worker_identity_digest[0] ^= 1,
+            |packet: &mut NovaCadenceMeasurementPacketV2| packet.fixture_identity_digest[0] ^= 1,
+            |packet: &mut NovaCadenceMeasurementPacketV2| packet.verifier_bundle_digest[0] ^= 1,
             |packet: &mut NovaCadenceMeasurementPacketV2| {
                 packet.runtime_profile_manifest_digest[0] ^= 1
             },
@@ -553,10 +542,10 @@ mod tests {
                 )
                 .unwrap(),
             NovaCadenceActionV2 {
-                fold: true,
-                recovery_snapshot: false,
-                compress: false,
-                publish: false,
+                is_fold_required: true,
+                is_recovery_snapshot_required: false,
+                is_compression_required: false,
+                is_publication_required: false,
             }
         );
         assert!(
@@ -567,7 +556,7 @@ mod tests {
                     NovaCadenceRequestV2::Scheduled,
                 )
                 .unwrap()
-                .recovery_snapshot
+                .is_recovery_snapshot_required
         );
         let epoch = policy
             .action(
@@ -576,7 +565,12 @@ mod tests {
                 NovaCadenceRequestV2::Scheduled,
             )
             .unwrap();
-        assert!(epoch.fold && epoch.recovery_snapshot && epoch.compress && epoch.publish);
+        assert!(
+            epoch.is_fold_required
+                && epoch.is_recovery_snapshot_required
+                && epoch.is_compression_required
+                && epoch.is_publication_required
+        );
         assert!(policy
             .action(
                 999,
@@ -592,7 +586,7 @@ mod tests {
                     NovaCadenceRequestV2::RecoverySnapshot,
                 )
                 .unwrap()
-                .recovery_snapshot
+                .is_recovery_snapshot_required
         );
         assert!(policy
             .action(
@@ -613,10 +607,10 @@ mod tests {
     #[test]
     fn test_ordinary_roles_empty() {
         let action = NovaCadenceActionV2 {
-            fold: true,
-            recovery_snapshot: true,
-            compress: true,
-            publish: true,
+            is_fold_required: true,
+            is_recovery_snapshot_required: true,
+            is_compression_required: true,
+            is_publication_required: true,
         };
         for role in [
             NovaEvidenceRoleV2::CanonicalValidator,

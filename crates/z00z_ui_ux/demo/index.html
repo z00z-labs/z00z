@@ -124,8 +124,15 @@
       </aside>
 
       <div class="app-column">
-        <header class="topbar">
-          <div class="mobile-brand" role="img" aria-label="Z00Z"><img class="brand-mark" src="assets/logo/z00z-logo-gold-circle.png" alt=""></div>
+        <header class="topbar" id="primary-topbar">
+          <div class="mobile-navigation-leading">
+            <button class="icon-button mobile-menu-button" id="mobile-menu-button" type="button" aria-controls="mobile-popup-menu" aria-expanded="false">
+              <svg class="icon"><use href="#i-menu"/></svg>
+            </button>
+            <span class="mobile-nav-brand" role="img" aria-label="Z00Z">
+              <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
+            </span>
+          </div>
           <div class="topbar-address-group">
             <div class="page-heading">
               <h1 id="page-title">Home</h1>
@@ -135,29 +142,20 @@
               <svg class="icon"><use href="#i-copy"/></svg>
             </button>
           </div>
-          <button class="wallet-identity" id="wallet-identity" type="button" data-demo-action="switch-wallet" aria-live="polite"></button>
-          <button class="icon-button" type="button" data-demo-action="toggle-balance" aria-label="Hide sensitive amounts" title="Hide sensitive amounts">
-            <svg class="icon"><use href="#i-eye"/></svg>
-          </button>
-          <button class="icon-button topbar-notification" type="button" data-demo-action="notifications" aria-label="Notifications, one unread" title="Notifications">
-            <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
-          </button>
-          <button class="icon-button account-button" type="button" data-view="settings" aria-label="Open account settings" title="Account settings">
-            <svg class="icon"><use href="#i-user"/></svg>
-          </button>
-        </header>
-
-        <div class="wallet-navigation-bar">
-          <div class="mobile-navigation-leading">
-            <button class="icon-button mobile-menu-button" id="mobile-menu-button" type="button" aria-controls="mobile-popup-menu" aria-expanded="false">
-              <svg class="icon"><use href="#i-menu"/></svg>
-            </button>
-            <span class="mobile-nav-brand" role="img" aria-label="Z00Z">
-              <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
-            </span>
-          </div>
           <nav class="wallet-tabs" id="wallet-tabs" aria-label="Selected wallet"></nav>
-        </div>
+          <div class="topbar-actions">
+            <button class="wallet-identity" id="wallet-identity" type="button" data-demo-action="switch-wallet" aria-live="polite"></button>
+            <button class="icon-button" type="button" data-demo-action="toggle-balance" aria-label="Hide sensitive amounts" title="Hide sensitive amounts">
+              <svg class="icon"><use href="#i-eye"/></svg>
+            </button>
+            <button class="icon-button topbar-notification" type="button" data-demo-action="notifications" aria-label="Notifications, one unread" title="Notifications">
+              <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
+            </button>
+            <button class="icon-button account-button" type="button" data-view="settings" aria-label="Open account settings" title="Account settings">
+              <svg class="icon"><use href="#i-user"/></svg>
+            </button>
+          </div>
+        </header>
         <button class="mobile-menu-backdrop" id="mobile-menu-backdrop" type="button" tabindex="-1" aria-label="Close menu" hidden></button>
         <div class="mobile-popup-menu" id="mobile-popup-menu" role="menu" hidden></div>
         <main class="main-content" id="main-content" tabindex="-1"></main>

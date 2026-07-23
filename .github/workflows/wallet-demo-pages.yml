@@ -3,9 +3,6 @@ name: publish-wallet-demo
 on:
   push:
     branches: [main]
-    paths:
-      - "crates/z00z_ui_ux/demo/**"
-      - ".github/workflows/wallet-demo-pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -35,6 +32,7 @@ jobs:
         run: |
           mkdir -p _site/wallet-demo
           cp -R crates/z00z_ui_ux/demo/. _site/wallet-demo/
+          printf '{"sha":"%s","ref":"%s","built_at":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/wallet-demo/deployment.json
           printf '%s\n' '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./wallet-demo/"><title>Z00Z Wallet Demo</title><a href="./wallet-demo/">Open Z00Z Wallet Demo</a>' > _site/index.html
           touch _site/.nojekyll
 

@@ -15,7 +15,7 @@
 
 ### ✅ Mobile annotation follow-up — 2026-07-23
 
-The annotated phone captures exposed three concrete implementation defects: the desktop identity toolbar consumed the mobile header, asset columns overlapped, and a second fixed bottom navigation duplicated app routes. The executable demo now removes both the desktop identity toolbar and bottom navigation below 768 px. One sticky mobile bar contains **Menu**, the Z00Z mark, and the wallet/network/settings route tabs in a horizontally scrollable row.
+The annotated phone captures exposed three concrete implementation defects: the desktop identity toolbar consumed the mobile header, asset columns overlapped, and a second fixed bottom navigation duplicated app routes. The executable demo now removes the bottom navigation and uses one sticky topbar at every width. Its horizontally scrollable tabs change with the selected wallet, Network workspace, or application Settings; below 768 px the desktop identity/actions collapse to **Menu** and the Z00Z mark inside that same row.
 
 The Menu control follows the public `z00z.io` mobile navigation pattern: a left, full-height drawer with a modal backdrop, close control, focus containment, scrollable content, and nested **Wallets** and **Network** pickers. The root drawer also exposes **Settings** and **Log out**. Assets and selected-wallet Settings use compact anchored popup menus for their third-level destinations instead of permanent narrow-screen rails. Asset rows now place identity on the first row and labelled Balance/Value/Price cells on the second row at 390 px and 320 px, preventing overlap while preserving touch-size cards. Mobile WebView text autosizing remains fixed at 100% so the documented Geist LUT—not browser heuristics—controls type geometry.
 
@@ -111,7 +111,7 @@ The specification LUT is structurally correct. Before implementation, revise the
 | ID / token | Family | Weight | Desktop | Mobile | Line height | Use |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `TYPE-01` `--type-balance` | Geist Mono | 700 | 35.2–50.4 px fluid | 35.2 px minimum | 1.00 | Primary available balance only |
-| `TYPE-02` `--type-address` | Geist | 400 | 25 px | 20 px compact top bar | 1.04 | Selected desktop-wallet address; paired with a 13 px / 16 px wallet-name line to match Copy-control height |
+| `TYPE-02` `--type-address` | Geist | 400 | 21 px | 20 px compact top bar | 1.04 | Selected desktop-wallet address; paired with a 13 px / 16 px wallet-name line to match Copy-control height without pushing the dynamic tabs past the main content edge |
 | `TYPE-03` `--type-page-title` | Geist | 700 | 28 px | 22 px | 1.20 | Standalone page title |
 | `TYPE-04` `--type-page-section` | Geist | 700 | 23.2 px | 20 px | 1.20 | Major page section |
 | `TYPE-05` `--type-section` | Geist | 700 | 20 px | 18 px | 1.20 | Panel/dialog section |
@@ -171,8 +171,8 @@ All textual `Cancel` controls must share the same 44 px minimum height, 1 px neu
 
 ### ⚙️ Navigation and chrome
 
-- Internal wallet tabs begin at the main content edge, not at the application rail edge.
-- Tabs remain sticky below the top bar and fully opaque. Current `.wallet-tabs` already uses `var(--bg-canvas)` without transparency; preserve this behavior.
+- Tabs live inside the single sticky topbar; there is no independent second navigation row.
+- The topbar owns the fully opaque `var(--bg-canvas)` surface. Its tab strip is transparent only to inherit that same surface, never to reveal scrolled content.
 - Increase tab label size through `TYPE-08`; do not add per-tab font overrides.
 - Wallet tabs begin with `Assets`: `History`, `Swap`, `Exchange`, `Stacking`, `Backup`, and `Settings` follow. `Overview` is never a wallet tab; the app-level Home may present a selected-wallet snapshot without duplicating a second wallet route. `Send` and `Receive` are asset-agnostic actions available from all supported assets.
 - `Exchange` must be disabled/target-labelled until an exchange contract exists. `Swap` and `Stacking` must disclose compatibility/noncanonical status until their confirmed lifecycle is canonical.

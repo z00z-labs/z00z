@@ -23382,7 +23382,7 @@ pub(crate) struct CheckpointNovaRunnerV2<State> {
     recursive: Option<NovaRecursiveProof>,
     steps: usize,
     block_index: usize,
-    terminalized: bool,
+    is_terminalized: bool,
     _state: std::marker::PhantomData<State>,
 }
 
@@ -23495,7 +23495,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
             recursive: None,
             steps: 0,
             block_index: 0,
-            terminalized: false,
+            is_terminalized: false,
             _state: std::marker::PhantomData,
         })
     }
@@ -23520,7 +23520,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerReadyV2> {
             recursive: self.recursive,
             steps: self.steps,
             block_index: self.block_index,
-            terminalized: self.terminalized,
+            is_terminalized: self.is_terminalized,
             _state: std::marker::PhantomData,
         })
     }
@@ -23540,7 +23540,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
     }
 
     fn push_event(&mut self, source: &RecursiveTraceEventV2) -> Result<(), CheckpointError> {
-        if self.terminalized {
+        if self.is_terminalized {
             return Err(CheckpointError::TraceState);
         }
         let next = NovaTypedSourceEventV2::from_source(self.phase, source)?;
@@ -23602,7 +23602,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
         &mut self,
         finalize_chain: bool,
     ) -> Result<RecursiveFinalizedIvcStateV2, CheckpointError> {
-        if self.terminalized {
+        if self.is_terminalized {
             return Err(CheckpointError::TraceState);
         }
         let final_event = self.pending.take().ok_or(CheckpointError::TraceState)?;
@@ -23629,7 +23629,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
         if uncompressed != expected_final {
             return Err(CheckpointError::Invariant);
         }
-        self.terminalized = finalize_chain;
+        self.is_terminalized = finalize_chain;
         RecursiveFinalizedIvcStateV2::expected_successor(&self.public_input, cumulative_steps)
     }
 
@@ -23640,7 +23640,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
         transition: &CanonicalCheckpointTransitionV2,
         evaluated: EvaluatedCheckpointTransitionV2,
     ) -> Result<(), CheckpointError> {
-        if self.terminalized
+        if self.is_terminalized
             || self.pending.is_some()
             || self.phase != ControlPhaseV2::Idle
             || self.recursive.is_none()
@@ -23708,7 +23708,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
             .check(cumulative_steps)
             .map_err(NovaRunStopV2::checkpoint_error)?;
         let expected_final =
-            expected_public_state(&self.public_input, cumulative_steps, self.terminalized)?;
+            expected_public_state(&self.public_input, cumulative_steps, self.is_terminalized)?;
         let compressed = NovaProof::prove(&self.material.pp, &self.material.pk, recursive)
             .map_err(|_| CheckpointError::Invariant)?;
         self.guard
@@ -23753,7 +23753,7 @@ impl CheckpointNovaRunnerV2<NovaRunnerFoldingV2> {
             portable_input: envelope.portable_input,
             framed_envelope,
             steps: u64::try_from(self.steps).map_err(|_| CheckpointError::Limit)?,
-            is_terminal: self.terminalized,
+            is_terminal: self.is_terminalized,
             envelope_digest,
         };
         self.guard
@@ -24066,7 +24066,7 @@ struct NovaRecoveryPayloadV2 {
     steps: u64,
     block_index: u64,
     block_count: u32,
-    terminalized: bool,
+    is_terminalized: bool,
     verifier_bundle_digest: [u8; 32],
 }
 
@@ -24078,7 +24078,7 @@ struct NovaRecoveryPayloadRefV2<'a> {
     steps: u64,
     block_index: u64,
     block_count: u32,
-    terminalized: bool,
+    is_terminalized: bool,
     verifier_bundle_digest: [u8; 32],
 }
 
@@ -24184,7 +24184,7 @@ impl NovaContinuousSessionV2 {
         payload.public_input.validate_recovery_identity()?;
         if payload.steps == 0
             || payload.block_count == 0
-            || payload.terminalized
+            || payload.is_terminalized
             || payload.block_index.checked_add(1) != Some(u64::from(payload.block_count))
             || payload.initial_public_input.height() > payload.public_input.height()
             || payload.verifier_bundle_digest != snapshot.bindings().verifier_bundle_digest
@@ -24252,7 +24252,7 @@ impl NovaContinuousSessionV2 {
             steps,
             block_index: usize::try_from(payload.block_index)
                 .map_err(|_| CheckpointError::Limit)?,
-            terminalized: false,
+            is_terminalized: false,
             _state: std::marker::PhantomData,
         };
         let mut resumed = Self {
@@ -24337,7 +24337,7 @@ impl NovaContinuousSessionV2 {
         self.state.ensure_live()?;
         if self.runner.pending.is_some()
             || self.runner.phase != ControlPhaseV2::Idle
-            || self.runner.terminalized
+            || self.runner.is_terminalized
         {
             return Err(CheckpointError::TraceState);
         }
@@ -24365,7 +24365,7 @@ impl NovaContinuousSessionV2 {
             block_index: u64::try_from(self.runner.block_index)
                 .map_err(|_| CheckpointError::Limit)?,
             block_count: self.state.block_count,
-            terminalized: self.runner.terminalized,
+            is_terminalized: self.runner.is_terminalized,
             verifier_bundle_digest: self.runner.bundle.digest(),
         };
         let image = NovaRecoveryImageV2::new(encode_bincode(

@@ -2373,7 +2373,7 @@ mod tests {
     }
 
     #[test]
-    fn test_v3_rejects_unmeasured_hot_recovery_cap() {
+    fn test_unmeasured_hot_cap_rejects() {
         let mut cfg = CheckpointContractConfigV3::load_repo_default().unwrap();
         cfg.limits.max_nova_hot_recovery_bytes = 0;
         assert!(matches!(
