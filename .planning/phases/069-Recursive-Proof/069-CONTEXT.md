@@ -385,7 +385,7 @@ must be read directly by every planner and executor.
 
 ## 🔎 Normative Obligation Ownership
 
-<!-- TODO_ATOMIC_CONTEXT: sha256=a0b295b10b71b99d1fabf253d969ca5f265c5049d7b7ca9bff597f48472d1f9e atoms=1336 shoulds=8 owners=13 -->
+<!-- TODO_ATOMIC_CONTEXT: sha256=06fef1042027b6d064dba16e1cb0b48c8644e8ae636c9271af2f501119a112b4 atoms=1344 shoulds=8 owners=13 -->
 
 This context incorporates every atomic obligation from the exact TODO revision
 identified by the marker above through the hash-checked inventory in
