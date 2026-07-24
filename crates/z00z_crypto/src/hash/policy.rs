@@ -1,11 +1,15 @@
 use blake2::{Blake2b512, Digest};
 use once_cell::sync::Lazy;
-use p3_field::PrimeField64;
+use p3_field::{Algebra, InjectiveMonomial, PrimeField64};
 use p3_goldilocks::{
-    Goldilocks, Poseidon2GoldilocksHL, HL_GOLDILOCKS_8_EXTERNAL_ROUND_CONSTANTS,
-    HL_GOLDILOCKS_8_INTERNAL_ROUND_CONSTANTS, MATRIX_DIAG_8_GOLDILOCKS,
+    Goldilocks, GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_FINAL,
+    GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_INITIAL, GOLDILOCKS_POSEIDON2_RC_8_INTERNAL,
 };
-use p3_poseidon2::{ExternalLayerConstants, Poseidon2};
+use p3_poseidon2::{
+    add_rc_and_sbox_generic, external_initial_permute_state, external_terminal_permute_state,
+    internal_permute_state, matmul_internal, ExternalLayer, ExternalLayerConstants,
+    ExternalLayerConstructor, HLMDSMat4, InternalLayer, InternalLayerConstructor, Poseidon2,
+};
 use p3_symmetric::Permutation;
 
 /// Width of the live width-eight Goldilocks Poseidon2 permutation.
@@ -24,6 +28,23 @@ pub const POSEIDON2_GOLDILOCKS_FRAME_BYTES_V1: usize = 4;
 pub const POSEIDON2_GOLDILOCKS_COUNT_BYTES_V1: usize = 8;
 /// Terminal Goldilocks word appended to every live framed stream.
 pub const POSEIDON2_GOLDILOCKS_DELIMITER_V1: u64 = 1;
+
+/// Canonical V1 internal-layer diagonal.
+///
+/// Plonky3 0.6 changed its width-eight Goldilocks default diagonal. Z00Z V1
+/// consensus hashes remain pinned to the original Horizen-Labs-compatible
+/// diagonal used by Plonky3 0.4, so the values are owned here instead of being
+/// inherited from a dependency default.
+const POSEIDON2_GOLDILOCKS_INTERNAL_DIAGONAL_V1: [u64; POSEIDON2_GOLDILOCKS_WIDTH_V1] = [
+    0xa98811a1fed4e3a5,
+    0x1cc48b54f377e2a0,
+    0xe40cd4f6c5609a26,
+    0x11de79ebca97a4a3,
+    0x9177c73d8b7e929c,
+    0x2a6fe8085797e791,
+    0x3de6e93329f8d5ad,
+    0x3f7af9125da962fe,
+];
 
 /// Project-owned raw parameters for the live Goldilocks Poseidon2 profile.
 ///
@@ -61,9 +82,15 @@ impl Poseidon2GoldilocksParamsV1 {
 #[must_use]
 pub fn poseidon2_goldilocks_params_v1() -> Poseidon2GoldilocksParamsV1 {
     Poseidon2GoldilocksParamsV1 {
-        external_round_constants: HL_GOLDILOCKS_8_EXTERNAL_ROUND_CONSTANTS,
-        internal_round_constants: HL_GOLDILOCKS_8_INTERNAL_ROUND_CONSTANTS,
-        internal_matrix_diagonal: MATRIX_DIAG_8_GOLDILOCKS.map(|value| value.as_canonical_u64()),
+        external_round_constants: [
+            GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_INITIAL
+                .map(|round| round.map(|value| value.as_canonical_u64())),
+            GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_FINAL
+                .map(|round| round.map(|value| value.as_canonical_u64())),
+        ],
+        internal_round_constants: GOLDILOCKS_POSEIDON2_RC_8_INTERNAL
+            .map(|value| value.as_canonical_u64()),
+        internal_matrix_diagonal: POSEIDON2_GOLDILOCKS_INTERNAL_DIAGONAL_V1,
     }
 }
 
@@ -164,11 +191,107 @@ pub fn poseidon2_framed_words_v1(domain: &[u8], data: &[&[u8]]) -> Vec<u64> {
     packer.finalize()
 }
 
-fn poseidon2_perm() -> &'static Poseidon2GoldilocksHL<POSEIDON2_GOLDILOCKS_WIDTH_V1> {
-    static INSTANCE: Lazy<Poseidon2GoldilocksHL<POSEIDON2_GOLDILOCKS_WIDTH_V1>> = Lazy::new(|| {
+const POSEIDON2_GOLDILOCKS_SBOX_DEGREE_V1: u64 = 7;
+
+/// Project-owned compatibility layer preserving the canonical V1 Horizen-Labs
+/// external matrix across the P3 0.4 -> 0.6 dependency-family migration.
+#[derive(Clone)]
+struct Z00zPoseidon2ExternalLayerGoldilocksV1<const WIDTH: usize> {
+    constants: ExternalLayerConstants<Goldilocks, WIDTH>,
+}
+
+impl<const WIDTH: usize> ExternalLayerConstructor<Goldilocks, WIDTH>
+    for Z00zPoseidon2ExternalLayerGoldilocksV1<WIDTH>
+{
+    fn new_from_constants(constants: ExternalLayerConstants<Goldilocks, WIDTH>) -> Self {
+        Self { constants }
+    }
+}
+
+impl<
+        A: Algebra<Goldilocks> + InjectiveMonomial<POSEIDON2_GOLDILOCKS_SBOX_DEGREE_V1>,
+        const WIDTH: usize,
+    > ExternalLayer<A, WIDTH, POSEIDON2_GOLDILOCKS_SBOX_DEGREE_V1>
+    for Z00zPoseidon2ExternalLayerGoldilocksV1<WIDTH>
+{
+    fn permute_state_initial(&self, state: &mut [A; WIDTH]) {
+        external_initial_permute_state(
+            state,
+            self.constants.get_initial_constants(),
+            add_rc_and_sbox_generic,
+            &HLMDSMat4,
+        );
+    }
+
+    fn permute_state_terminal(&self, state: &mut [A; WIDTH]) {
+        external_terminal_permute_state(
+            state,
+            self.constants.get_terminal_constants(),
+            add_rc_and_sbox_generic,
+            &HLMDSMat4,
+        );
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct Z00zPoseidon2InternalLayerGoldilocksV1 {
+    constants: Vec<Goldilocks>,
+}
+
+impl InternalLayerConstructor<Goldilocks> for Z00zPoseidon2InternalLayerGoldilocksV1 {
+    fn new_from_constants(constants: Vec<Goldilocks>) -> Self {
+        Self { constants }
+    }
+}
+
+fn z00z_poseidon2_internal_matmul_v1<A: Algebra<Goldilocks>>(state: &mut [A; 8]) {
+    matmul_internal(
+        state,
+        POSEIDON2_GOLDILOCKS_INTERNAL_DIAGONAL_V1.map(Goldilocks::new),
+    );
+}
+
+impl<A: Algebra<Goldilocks> + InjectiveMonomial<POSEIDON2_GOLDILOCKS_SBOX_DEGREE_V1>>
+    InternalLayer<A, POSEIDON2_GOLDILOCKS_WIDTH_V1, POSEIDON2_GOLDILOCKS_SBOX_DEGREE_V1>
+    for Z00zPoseidon2InternalLayerGoldilocksV1
+{
+    fn permute_state(&self, state: &mut [A; POSEIDON2_GOLDILOCKS_WIDTH_V1]) {
+        internal_permute_state(state, z00z_poseidon2_internal_matmul_v1, &self.constants);
+    }
+}
+
+type Z00zPoseidon2GoldilocksV1 = Poseidon2<
+    Goldilocks,
+    Z00zPoseidon2ExternalLayerGoldilocksV1<POSEIDON2_GOLDILOCKS_WIDTH_V1>,
+    Z00zPoseidon2InternalLayerGoldilocksV1,
+    POSEIDON2_GOLDILOCKS_WIDTH_V1,
+    POSEIDON2_GOLDILOCKS_SBOX_DEGREE_V1,
+>;
+
+#[cfg(test)]
+fn z00z_poseidon2_external_layer_v1(
+) -> Z00zPoseidon2ExternalLayerGoldilocksV1<POSEIDON2_GOLDILOCKS_WIDTH_V1> {
+    let params = poseidon2_goldilocks_params_v1();
+    Z00zPoseidon2ExternalLayerGoldilocksV1::new_from_constants(
+        ExternalLayerConstants::new_from_saved_array(
+            params.external_round_constants(),
+            Goldilocks::new_array,
+        ),
+    )
+}
+
+#[cfg(test)]
+fn z00z_poseidon2_internal_layer_v1() -> Z00zPoseidon2InternalLayerGoldilocksV1 {
+    Z00zPoseidon2InternalLayerGoldilocksV1::new_from_constants(
+        Goldilocks::new_array(poseidon2_goldilocks_params_v1().internal_round_constants()).to_vec(),
+    )
+}
+
+fn poseidon2_perm() -> &'static Z00zPoseidon2GoldilocksV1 {
+    static INSTANCE: Lazy<Z00zPoseidon2GoldilocksV1> = Lazy::new(|| {
         let params = poseidon2_goldilocks_params_v1();
         Poseidon2::new(
-            ExternalLayerConstants::<Goldilocks, POSEIDON2_GOLDILOCKS_WIDTH_V1>::new_from_saved_array(
+            ExternalLayerConstants::new_from_saved_array(
                 params.external_round_constants(),
                 Goldilocks::new_array,
             ),
@@ -273,17 +396,13 @@ mod poseidon2_parameter_parity_tests {
     use core::convert::TryFrom;
 
     use p3_field::PrimeField64;
-    use p3_goldilocks::{
-        Goldilocks, Poseidon2ExternalLayerGoldilocksHL, Poseidon2InternalLayerGoldilocks,
-    };
-    use p3_poseidon2::{
-        ExternalLayer, ExternalLayerConstants, ExternalLayerConstructor, InternalLayer,
-        InternalLayerConstructor,
-    };
+    use p3_goldilocks::Goldilocks;
+    use p3_poseidon2::{ExternalLayer, InternalLayer};
 
     use super::{
         poseidon2_framed_words_v1, poseidon2_goldilocks_params_v1, poseidon2_hash,
-        POSEIDON2_GOLDILOCKS_MODULUS_V1, POSEIDON2_GOLDILOCKS_WIDTH_V1,
+        z00z_poseidon2_external_layer_v1, z00z_poseidon2_internal_layer_v1,
+        POSEIDON2_GOLDILOCKS_MODULUS_V1,
     };
 
     fn reduce(value: u128) -> u64 {
@@ -361,16 +480,8 @@ mod poseidon2_parameter_parity_tests {
     fn test_poseidon2_pinned_layers() {
         let params = poseidon2_goldilocks_params_v1();
         let input = [1_u64, 2, 3, 4, 5, 6, 7, 8];
-        let external =
-            Poseidon2ExternalLayerGoldilocksHL::<POSEIDON2_GOLDILOCKS_WIDTH_V1>::new_from_constants(
-                ExternalLayerConstants::new_from_saved_array(
-                    params.external_round_constants(),
-                    Goldilocks::new_array,
-                ),
-            );
-        let internal = Poseidon2InternalLayerGoldilocks::new_from_constants(
-            Goldilocks::new_array(params.internal_round_constants()).to_vec(),
-        );
+        let external = z00z_poseidon2_external_layer_v1();
+        let internal = z00z_poseidon2_internal_layer_v1();
         let mut native = input.map(Goldilocks::new);
         external.permute_state_initial(&mut native);
         let mut emulated = external_linear(input);

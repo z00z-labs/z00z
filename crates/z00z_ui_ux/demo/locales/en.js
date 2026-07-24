@@ -141,6 +141,11 @@ window.Z00ZI18n.registerLocale("en", {
       ingress: "Ingress"
     }
   },
+  help: {
+    title: "Help", openGlobal: "Open application help", openContext: "Help for this view",
+    close: "Close help", contents: "Contents", section: "Help section {current} of {total}",
+    unavailable: "Help is unavailable for this view."
+  },
   status: {
     up: "Up",
     down: "Down",

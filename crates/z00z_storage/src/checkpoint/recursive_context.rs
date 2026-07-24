@@ -726,7 +726,7 @@ fn active_authority(
     let config = active.config();
     let config_digest = active.head().config_digest;
     let policy_digest = store.bucket_policy().bucket_policy_id();
-    let predicate_digest = super::nova::executable_predicate_digest()?;
+    let predicate_digest = super::canonical_transition::executable_predicate_digest()?;
     let checkpoint_context =
         RecursiveCheckpointContextV2::from_installed_identity(config_digest, predicate_digest)?;
     RecursiveAuthorityContextV2::new(

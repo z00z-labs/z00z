@@ -1,6 +1,6 @@
 ---
 name: security-audit
-description: 'Comprehensive security skill for codebases, services, and delivery pipelines. Use when asked to run a security review, security audit, vulnerability scan, trust-boundary review, authentication or authorization audit, dependency audit, static security scan, Semgrep or CodeQL triage, secret scanning setup, push protection bypass remediation, hardcoded-secret detection, pre-commit secret scanning, CI/CD security review, exploitability triage, residual-risk assessment, or zeroization and secure-memory-wipe analysis.'
+description: 'Comprehensive security skill for codebases, services, clients, native components, AI/LLM systems, and delivery pipelines. Use when asked to run a security review, security audit, vulnerability scan, trust-boundary review, authentication or authorization audit, dependency audit, static security scan, Semgrep or CodeQL triage, secret scanning setup, push protection bypass remediation, hardcoded-secret detection, pre-commit secret scanning, CI/CD security review, exploitability triage, residual-risk assessment, or zeroization and secure-memory-wipe analysis.'
 ---
 
 # Security Audit
@@ -9,72 +9,19 @@ An AI-powered security scanner that reasons about your codebase the way a human 
 researcher would — tracing data flows, understanding component interactions, reviewing
 security controls, and catching vulnerabilities that pattern-matching tools miss.
 
-## When to Use This Skill
+## When to Use and Scope Boundaries
 
-Use this skill when the request involves:
-
-- Scanning a codebase or file for security vulnerabilities
-- Running a security review or vulnerability check
-- Checking for SQL injection, XSS, command injection, or other injection flaws
-- Finding exposed API keys, hardcoded secrets, or credentials in code
-- Auditing dependencies for known CVEs
-- Reviewing authentication, authorization, or access control logic
-- Detecting insecure cryptography or weak randomness
-- Performing a data flow analysis to trace user input to dangerous sinks
-- Any request phrasing like "is my code secure?", "scan this file", or "check my repo for vulnerabilities"
-- Running `/security-audit` or `/security-audit <path>`
-
-### Structured Audit and Control Review Coverage
-
-- Running a structured security audit, risk assessment, control review, or security
-  posture review of a codebase, feature, service, workflow, pipeline, or deployment boundary
-- Reviewing data protection, CI/CD security, infrastructure exposure, dependency risk,
-  or compliance-relevant control coverage
-- Turning architecture, code, control, and operational evidence into prioritized
-  remediation and residual-risk decisions
-
-### Static Analysis and SAST Coverage
-
-- Running or planning SAST checks across one or more languages, frameworks, or modules
-- Triaging findings from tools such as Semgrep, CodeQL, Bandit, linters, or similar
-  static analyzers
-
-### Secret Protection and Push Protection Coverage
-
-- Enabling or configuring secret scanning for a repository or organization
-- Setting up push protection to block secrets before they reach the repository
-- Defining custom secret patterns with regular expressions
-- Resolving a blocked push from the command line
-- Triaging, dismissing, or remediating secret scanning alerts
-- Configuring delegated bypass for push protection
-- Excluding directories from secret scanning via `secret_scanning.yml`
-- Enabling validity checks or extended metadata checks
-- Scanning local code changes for secrets before committing
-
-### Zeroization and Secret Lifetime Coverage
-
-- Auditing whether passwords, keys, tokens, seeds, session material, plaintext payloads,
-  decrypted config, or API credentials are wiped from memory correctly
-- Reviewing cleanup on success, error paths, retries, cancellation, and optimized builds
-
-## When Not to Use This Skill
-
-### Audit Boundary Exclusions
-
-- The request is for formal legal advice, certification, or regulator sign-off rather
-  than a technical audit
-- The request is for intrusive production testing without clear authorization or scope approval
-
-### Static Analysis Boundary Exclusions
-
-- The task is dynamic testing, fuzzing, penetration testing, or exploit validation rather than static analysis
-- There is no source code or analyzable build artifact available
-- The user only wants architectural threat modeling with no code-level scan
-
-### Zeroization Boundary Exclusions
-
-- The target code does not hold secrets or other sensitive material in process memory
-- The task is purely performance tuning or refactoring unrelated to secret cleanup
+- Use for source-backed vulnerability, control, dependency, secret, pipeline,
+  identity, data-flow, and secure-memory reviews.
+- Perform technical, evidence-backed review of source, configuration, workflows,
+  dependencies, build artifacts, and explicitly in-scope runtime behavior.
+- Do not represent the result as legal advice, certification, regulator sign-off,
+  or proof that no vulnerability exists.
+- Do not perform intrusive production testing without explicit authorization and scope.
+- Treat DAST, fuzzing, and exploit validation as separate branches that require
+  suitable authorization and tooling.
+- Run the zeroization branch only when the target handles secrets or confidential
+  material in process memory.
 
 ## How This Skill Works
 
@@ -99,6 +46,10 @@ Unlike traditional static analysis tools that match patterns, this skill:
   against real code paths
 - Audit secret lifetime explicitly when needed, including copies, derived material,
   cleanup paths, and optimization-sensitive wipe behavior
+- Select target-specific hunting packs for AI/LLM systems, browser clients,
+  HTTP protocol and identity flows, and native or memory-unsafe components
+- Require a concrete attacker, boundary crossing, entrypoint-to-sink trace,
+  and observable impact before promoting a candidate into a finding
 
 ## Audit Lenses
 
@@ -128,6 +79,8 @@ Before scanning for vulnerabilities, build architectural understanding:
 - Build a technology map
 - Identify directory structure, entry points, config files, and high-level components
 - Map trust boundaries before making vulnerability claims
+- Inventory prior audit reports and unresolved leads when available; use them to
+  avoid duplicate work and to target unreviewed surfaces, but re-verify any reused claim
 
 Use these reconnaissance patterns when needed:
 
@@ -205,120 +158,18 @@ Scan ALL files (including config, env, CI/CD, Dockerfiles, IaC) for:
 - Database connection strings with credentials embedded
 - Read `references/secret-patterns.md` for regex patterns and entropy heuristics to apply
 
-#### GitHub Secret Scanning Operations
+#### GitHub Secret Protection Branch
 
-Secret scanning automatically detects exposed credentials across:
+For repository or organization secret protection, load:
 
-- entire Git history on all branches
-- issue descriptions, comments, and titles
-- pull request titles, descriptions, and comments
-- discussion content and wiki content
+- `references/push-protection.md` for prevention, blocked pushes, and bypass governance
+- `references/custom-patterns.md` for scoped patterns and dry runs
+- `references/alerts-and-remediation.md` for alert triage, validity, rotation,
+  history cleanup, and metadata
 
-Availability depends on repository ownership and GitHub Secret Protection configuration.
-
-If the request is about repository or organization secret scanning, include these workflows explicitly.
-
-#### Enable Secret Scanning
-
-1. Navigate to repository **Settings** → **Advanced Security**
-2. Click **Enable** next to "Secret Protection"
-3. Confirm by clicking **Enable Secret Protection**
-
-For organizations, use security configurations to enable at scale.
-
-#### Enable Push Protection
-
-1. Navigate to repository **Settings** → **Advanced Security**
-2. Enable "Push protection" under Secret Protection
-
-Push protection blocks secrets in command line pushes, GitHub UI commits,
-file uploads, REST API requests, and REST API content creation endpoints.
-
-#### Configure Exclusions
-
-Create `.github/secret_scanning.yml` to auto-close alerts for specific directories:
-
-```yaml
-paths-ignore:
-  - "docs/**"
-  - "test/fixtures/**"
-  - "**/*.example"
-```
-
-Rules:
-
-- Maximum 1,000 entries in `paths-ignore`
-- File must be under 1 MB
-- Excluded paths also skip push protection checks
-
-#### Enable Additional Secret Detection Features
-
-- Enable non-provider pattern scanning for private keys and generic connection secrets
-- Enable AI detection for unstructured secrets such as passwords
-- Enable validity checks to classify detected secrets as `active`, `inactive`, or `unknown`
-- Enable extended metadata checks after validity checks when ownership and scope context matters
-
-#### Resolve Blocked Pushes
-
-**If the secret is in the latest commit:**
-
-```bash
-# Remove the secret from the file
-# Then amend the commit
-git commit --amend --all
-git push
-```
-
-**If the secret is in an earlier commit:**
-
-```bash
-# Find the earliest commit containing the secret
-git log
-
-# Start interactive rebase before that commit
-git rebase -i <COMMIT-ID>~1
-
-# Change 'pick' to 'edit' for the offending commit
-# Remove the secret, then:
-git add .
-git commit --amend
-git rebase --continue
-git push
-```
-
-#### Bypass Push Protection
-
-1. Visit the URL returned in the push error message
-2. Select a bypass reason
-3. Click **Allow me to push this secret**
-4. Re-push within 3 hours
-
-#### Custom Secret Patterns
-
-1. Settings → Advanced Security → Custom patterns → **New pattern**
-2. Enter pattern name and regex for secret format
-3. Add a sample test string
-4. Click **Save and dry run**
-5. Review results for false positives
-6. Click **Publish pattern**
-7. Optionally enable push protection for the pattern
-
-#### Pre-Commit Scanning via AI Coding Agents
-
-For scanning local changes inside an AI coding agent before commit, install the
-Advanced Security plugin that provides the `run_secret_scanning` MCP tool.
-
-**GitHub Copilot CLI:**
-
-```bash
-/plugin install advanced-security@copilot-plugins
-```
-
-**Visual Studio Code:**
-
-- Open **Chat: Plugins** or use `@agentPlugins`
-- Install the `advanced-security` plugin
-- Run `/secret-scanning` in Copilot Chat when needed
+Verify current product availability and repository settings before making claims.
+Treat exclusions and bypasses as trust-boundary changes: require a narrow reason,
+owner, review path, and evidence that the excluded material cannot contain live secrets.
 
 ### Step 4 — Static Security Scan / SAST
 
@@ -362,53 +213,25 @@ Before the deeper manual vulnerability pass, run or reconstruct a static scan su
 
 This is the core scan. Reason about the code — don't just pattern-match.
 Read `references/vuln-categories.md` for full details on each category.
+Read `references/hunting-methodology.md` before promoting any candidate into a finding.
 
-#### Injection Flaws
+Load only the target-specific packs that apply:
 
-- SQL Injection: raw queries with string interpolation, ORM misuse, second-order SQLi
-- XSS: unescaped output, dangerouslySetInnerHTML, innerHTML, template injection
-- Command Injection: exec/spawn/system with user input
-- LDAP, XPath, Header, Log injection
+- `references/ai-llm-patterns.md` for RAG, tool-calling agents, MCP, model output,
+  or any untrusted-text-to-capability flow
+- `references/client-side-patterns.md` for browser, SPA, extension, WebView,
+  DOM, cross-window messaging, CORS, or WebSocket surfaces
+- `references/http-auth-patterns.md` for proxies, caches, custom HTTP parsing,
+  JWT, OAuth/OIDC, SAML, sessions, or account recovery
+- `references/memory-safety-patterns.md` for C/C++, Rust `unsafe`, FFI,
+  parsers, binary formats, kernels, firmware, or privileged native interfaces
 
-#### Authentication & Access Control
+Always cover the applicable core classes:
 
-- Missing authentication on sensitive endpoints
-- Broken object-level authorization (BOLA/IDOR)
-- JWT weaknesses (alg:none, weak secrets, no expiry validation)
-- Session fixation, missing CSRF protection
-- Privilege escalation paths
-- Mass assignment / parameter pollution
-
-#### Data Handling
-
-- Sensitive data in logs, error messages, or API responses
-- Missing encryption at rest or in transit
-- Insecure deserialization
-- Path traversal / directory traversal
-- XXE (XML External Entity) processing
-- SSRF (Server-Side Request Forgery)
-
-#### Cryptography
-
-- Use of MD5, SHA1, DES for security purposes
-- Hardcoded IVs or salts
-- Weak random number generation (Math.random() for tokens)
-- Missing TLS certificate validation
-
-#### Business Logic
-
-- Race conditions (TOCTOU)
-- Integer overflow in financial calculations
-- Missing rate limiting on sensitive endpoints
-- Predictable resource identifiers
-
-#### Control Review Areas
-
-Also review these control areas explicitly:
-
-- authentication and session boundaries
-- authorization, privilege separation, and administrative controls
-- secret handling, encryption expectations, privacy boundaries, and logging exposure
+- injection, unsafe sinks, traversal, SSRF, and deserialization
+- authentication, authorization, session, and administrative boundaries
+- sensitive data, secret handling, privacy, logging, and cryptography
+- business logic, ordering, concurrency, numeric, replay, and resource-abuse paths
 - pipeline security, artifact integrity, rollout safety, and environment assumptions
 
 ### Step 6 — Cross-File Data Flow Analysis
@@ -425,6 +248,22 @@ After the per-file scan, perform a **holistic review**:
 - Trace realistic attack paths from entry point to impact for high-value assets or weak controls
 - Focus on reachable paths, attacker influence, trust-boundary crossings,
   privilege transitions, and persistence or execution sinks
+
+#### Exploit Evidence Contract
+
+For every candidate finding, record:
+
+1. attacker identity and starting privileges
+2. exact input, request, file, call sequence, or race schedule
+3. line-referenced trace from entrypoint through propagation to the sink or state change
+4. the security boundary crossed and the concrete impact
+5. framework, middleware, library, deployment, and downstream controls checked
+6. observable result and the narrowest safe reproduction when local execution is feasible
+
+If exploitability depends on a proxy, cache, identity provider, runtime default,
+parser behavior, production configuration, or other evidence outside the audited
+tree, label it `requires deployment testing`. Do not count it as a confirmed
+severity-rated finding until that dependency is verified.
 
 ### Step 7 — Zeroization & Secret Lifetime Audit
 
@@ -481,8 +320,10 @@ For EACH finding:
 1. Re-read the relevant code with fresh eyes
 2. Ask: "Is this actually exploitable, or is there sanitization I missed?"
 3. Check if a framework or middleware already handles this upstream
-4. Downgrade or discard findings that aren't genuine vulnerabilities
-5. Assign final severity: CRITICAL / HIGH / MEDIUM / LOW / INFO
+4. Try to disprove the claimed data flow, boundary crossing, and impact
+5. Reproduce parser-, runtime-, race-, or memory-behavior claims when safely feasible
+6. Downgrade or discard findings that aren't genuine vulnerabilities
+7. Assign final severity from both likelihood and impact: CRITICAL / HIGH / MEDIUM / LOW / INFO
 
 #### Finding Confidence States
 
@@ -491,6 +332,12 @@ During self-verification, preserve the distinction between:
 - `confirmed issue`
 - `likely issue`
 - `needs manual review`
+
+Only `confirmed issue` entries belong in the severity findings table. Put
+evidence-backed `likely issue` entries under `needs manual review`, and put
+defense-in-depth gaps under `hardening note`. Put candidates blocked on external
+or deployment evidence under `requires deployment testing`; do not include any
+of these three classes in vulnerability counts.
 
 ### Mandatory Gate — `doublecheck` Verification
 
@@ -519,6 +366,22 @@ The review output must include:
 - Recommended remediation
 - Residual risk and next verification step
 
+#### Machine-Readable Findings
+
+When the audit is being delivered as files or the user requests structured output:
+
+1. Write `findings.json` as an array conforming to
+   `references/findings-schema.json`
+2. Include confirmed and rejected candidates so the verification trail is explicit
+3. Run:
+
+```bash
+node scripts/validate-findings.mjs findings.json
+```
+
+Run the command from this skill directory, or pass absolute paths. Structural
+validation does not prove exploitability; the mandatory `doublecheck` gate still applies.
+
 ### Step 10 — Propose Patches
 
 For every CRITICAL and HIGH finding, generate a concrete patch:
@@ -533,32 +396,10 @@ Explicitly state: **"Review each patch before applying. Nothing has been changed
 
 ### Step 11 — Optional YOLO Remediation Mode
 
-If and only if the user explicitly requests YOLO mode, convert eligible findings into
-applied fixes instead of leaving them as patch proposals only.
-
-YOLO remediation rules:
-
-- Only apply fixes for findings that survived the mandatory `doublecheck` verification gate
-- Prefer findings marked `confirmed issue` with High confidence
-- Apply the smallest safe change that fully addresses the issue
-- Preserve project style, public behavior, and trust boundaries unless the user explicitly asked for a breaking remediation
-- Do not auto-apply ambiguous fixes involving broad refactors, policy decisions, production credentials, or uncertain exploit paths
-- Skip anything that still needs human judgment and report it as unresolved rather than guessing
-- After applying YOLO fixes, run the narrowest reliable validation for the edited scope before continuing
-
-Examples of YOLO-eligible actions:
-
-- removing a clearly hardcoded secret from committed source and switching to environment lookup
-- replacing obviously unsafe string-built SQL with parameterized queries
-- tightening missing input validation where the safe boundary is already clear in surrounding code
-- adding missing secure defaults when the framework contract is explicit and local
-
-Examples that still require human approval:
-
-- rotating live credentials or choosing replacement secret values
-- changing authentication policy, authorization model, or production deployment posture
-- large cross-module refactors to eliminate deep security design flaws
-- remediation where exploitability or compatibility is still uncertain after `doublecheck`
+Only enter this mode when the user explicitly requests YOLO remediation. Read
+`references/remediation-mode.md`, apply only eligible fixes that survived
+`doublecheck`, and validate the edited scope. Leave policy decisions, live
+credential rotation, ambiguous exploit paths, and broad security redesigns unresolved.
 
 ### Step 12 — Final `doublecheck` Closeout
 
@@ -588,6 +429,8 @@ Before declaring the audit complete, run `doublecheck` one more time on the fina
 - **Group findings** by category, not by file
 - **Be specific** — include file path, line number, and the exact vulnerable code snippet
 - **Explain the risk** in plain English — what could an attacker do with this?
+- **Separate** confirmed/likely findings, hardening notes, rejected candidates,
+  and deployment-test leads; do not inflate vulnerability counts with the latter groups
 - If the codebase is clean, say so clearly: "No vulnerabilities found" with what was scanned
 
 ### Evidence and Confidence Rules
@@ -620,6 +463,19 @@ For detailed detection guidance, load the following reference files as needed:
   - Search patterns: `lodash`, `axios`, `jsonwebtoken`, `Pillow`, `log4j`, `nokogiri`, `CVE`
 - `references/report-format.md` — Structured output template for security reports with finding cards, dependency audit, secrets scan, and patch proposal formatting
   - Search patterns: `report`, `format`, `template`, `finding`, `patch`, `summary`, `confidence`
+- `references/hunting-methodology.md` — Attacker-led hunting and the mandatory exploit evidence contract
+  - Search patterns: `sad path`, `boundary`, `parser`, `replay`, `evidence`, `hardening`, `deployment testing`
+- `references/ai-llm-patterns.md` — AI/LLM, RAG, agent, MCP, tool authority, and output-handling checks
+  - Search patterns: `prompt injection`, `tool`, `agency`, `tenant`, `model output`, `MCP`
+- `references/client-side-patterns.md` — Browser-only source-to-sink, messaging, WebSocket, CORS, UI-redress, and prototype-pollution checks
+  - Search patterns: `DOM`, `postMessage`, `WebSocket`, `CORS`, `clickjacking`, `prototype`
+- `references/http-auth-patterns.md` — HTTP framing/cache differentials and authentication-protocol checks
+  - Search patterns: `smuggling`, `cache`, `Host`, `JWT`, `OAuth`, `SAML`, `session`, `recovery`
+- `references/memory-safety-patterns.md` — Native memory-safety, binary parser, FFI, kernel, and privileged-interface checks
+  - Search patterns: `out-of-bounds`, `use-after-free`, `double-fetch`, `type confusion`, `unsafe`, `FFI`
+- `references/findings-schema.json` — Strict schema for machine-readable confirmed and rejected findings
+- `scripts/validate-findings.mjs` — Zero-dependency structural and trace-order validator for `findings.json`
+- `references/remediation-mode.md` — Eligibility and safety rules for explicitly requested YOLO remediation
 
 ### Additional Secret Protection Reference Files
 
@@ -634,20 +490,3 @@ For detailed detection guidance, load the following reference files as needed:
 
 - Use recon-style entry point, component, trust-boundary, and technology-map discovery
   before asserting broad architectural security conclusions
-
-## Notes
-
-### Audit Posture Notes
-
-- A security audit is strongest when it combines architecture, code, and control evidence instead of relying on one tool or one checklist
-- Re-run the audit when core trust boundaries, deployment paths, or identity flows change materially
-
-### SAST Caveat
-
-- SAST is strongest as an early filter, not as the only security decision
-- Static findings become useful only after code-aware triage
-
-### Zeroization Remediation Note
-
-- Prefer root-cause fixes such as reducing copies, shortening lifetime, and using established wipe mechanisms
-- When the codebase already has a zeroization abstraction, audit whether all sensitive types consistently go through that abstraction

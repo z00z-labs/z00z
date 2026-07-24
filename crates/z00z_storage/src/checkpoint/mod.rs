@@ -47,6 +47,7 @@ mod ids;
 mod lifecycle;
 mod link;
 pub(crate) mod nova;
+mod plonky3;
 mod pq_anchor;
 mod pruning;
 mod publication_evidence;

@@ -19947,7 +19947,7 @@ fn uint32_lc<CS: ConstraintSystem<Scalar>>(
     result
 }
 
-fn transition_table_digest() -> [u8; 32] {
+pub(super) fn transition_table_digest() -> [u8; 32] {
     use z00z_crypto::{sha256_256_role, CheckpointShaRole};
 
     let mut bytes = Vec::with_capacity(CONTROL_TRANSITION_TABLE_V2.len() * 5);
@@ -22464,12 +22464,15 @@ impl NovaVerifierBundleV2 {
     }
 
     fn verifier_authority(&self) -> Result<RecursiveVerifierAuthorityV2, CheckpointError> {
-        RecursiveVerifierAuthorityV2::new(executable_predicate_digest()?, self.digest())
+        RecursiveVerifierAuthorityV2::new(
+            super::canonical_transition::executable_predicate_digest()?,
+            self.digest(),
+        )
     }
 
     fn public_input_binding(&self) -> Result<RecursiveVerifierInputBindingV2, CheckpointError> {
         RecursiveVerifierInputBindingV2::new(
-            executable_predicate_digest()?,
+            super::canonical_transition::executable_predicate_digest()?,
             self.header.profile_digest,
             self.header.spec_digest,
             self.header.pp_digest,
@@ -23827,7 +23830,8 @@ impl NovaCheckpointCandidateV2 {
                 .map(|value| *value.as_bytes()),
             height: self.public_input.height(),
             steps: self.steps,
-            backend_revision_result_digest: executable_predicate_digest()?,
+            backend_revision_result_digest:
+                super::canonical_transition::executable_predicate_digest()?,
         })
     }
 
@@ -24145,16 +24149,18 @@ impl NovaContinuousSessionV2 {
         )?;
         let mut ready = Some(ready);
         let mut folding: Option<CheckpointNovaRunnerV2<NovaRunnerFoldingV2>> = None;
-        first.transition.replay_nova_events(first.store, |event| {
-            if let Some(mut active) = folding.take() {
-                active.push_event(event)?;
-                folding = Some(active);
-            } else {
-                let initial = ready.take().ok_or(CheckpointError::TraceState)?;
-                folding = Some(initial.first_event(event)?);
-            }
-            Ok(())
-        })?;
+        first
+            .transition
+            .replay_canonical_events(first.store, |event| {
+                if let Some(mut active) = folding.take() {
+                    active.push_event(event)?;
+                    folding = Some(active);
+                } else {
+                    let initial = ready.take().ok_or(CheckpointError::TraceState)?;
+                    folding = Some(initial.first_event(event)?);
+                }
+                Ok(())
+            })?;
         let mut runner = folding.ok_or(CheckpointError::TraceState)?;
         runner.finish_block(false)?;
         first.transition.finish(first.store)?;
@@ -24295,7 +24301,7 @@ impl NovaContinuousSessionV2 {
             .advance_transition(block.transition, evaluated)?;
         block
             .transition
-            .replay_nova_events(block.store, |event| self.runner.push_event(event))?;
+            .replay_canonical_events(block.store, |event| self.runner.push_event(event))?;
         let successor = self.runner.finish_block(false)?;
         block.transition.finish(block.store)?;
         Ok(successor)
@@ -24940,23 +24946,6 @@ pub(super) fn source_revision_digest() -> [u8; 32] {
         "source_revision",
         &parts,
     )
-}
-
-/// Digest of the exact executable predicate selected by a verifier bundle.
-/// It is derived from the transition table, measured R1CS shape, and every
-/// source/domain owner that can change transcript semantics.
-pub(crate) fn executable_predicate_digest() -> Result<[u8; 32], CheckpointError> {
-    use z00z_crypto::{sha256_256_role, CheckpointShaRole};
-
-    Ok(sha256_256_role(
-        CheckpointShaRole::Statement,
-        &[
-            b"z00z.recursive.v2.executable-predicate",
-            &transition_table_digest(),
-            &circuit_shape_digest()?,
-            &source_revision_digest(),
-        ],
-    ))
 }
 
 pub(super) fn lockfile_digest() -> [u8; 32] {

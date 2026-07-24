@@ -4,9 +4,9 @@
   const ICON_NAMES = Object.freeze([
     "home", "menu", "wallet", "assets", "spark", "activity", "swap", "exchange", "staking",
     "settings", "advanced", "send", "receive", "coin", "token", "nft", "voucher",
-    "right", "claim", "permission", "eye", "eye-off", "lock", "shield", "bell", "user",
+    "right", "claim", "permission", "eye", "eye-off", "lock", "shield", "bell", "user", "question",
     "chevron", "copy", "check", "close", "moon", "sun", "more", "alert", "search",
-    "backup", "network", "overview", "reticulum-node", "reticulum-interface", "entry",
+    "backup", "restore", "network", "overview", "reticulum-node", "reticulum-interface", "entry",
     "reticulum-paths", "queue", "probe", "reticulum-link", "plus", "logout", "remove"
   ]);
 

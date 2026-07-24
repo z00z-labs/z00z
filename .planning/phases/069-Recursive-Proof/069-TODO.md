@@ -17,7 +17,11 @@ The one canonical recursive V2 facade, real Nova fold/compression chain,
 fork-safe recovery, 3/5-chain evidence, Model C, clean verifier RSS, bootstrap,
 targeted tests, exact workspace release tests, all-target build, clippy,
 feature guards, coverage, six reviews ending in two clean passes, and two
-doublechecks pass. Plan 07 is active; Plans 08–13 remain ordered successors.
+doublechecks pass. Plan 07 is fail-closed and incomplete: its real pinned P3
+engine currently proves canonical-vector/Poseidon2 binding but not the full
+frozen replay/SHA/uniqueness/HJMT/delta/journal/link transition relation.
+`069-07-STOP-SPLIT.md` is the live blocker authority, both adapter directions
+reject before receipt creation, and Plans 08–13 remain dependency-locked.
 All target/future design and referenced whitepaper terms remain live authority;
 `CheckpointProofSystem::VERIFIED` remains disabled.
 
@@ -30,6 +34,32 @@ packets MUST be contained fail-closed under the single physical root
 `test-results` tree is forbidden and must remain absent.
 Relative `artifacts/checkpoints/*` values remain canonical protocol locators and
 MUST be resolved beneath that physical root rather than rewritten or duplicated.
+
+The end-to-end post-quantum recursive-proof profile is mandatory live scope.
+Its sole canonical ancestry is a Plonky3 base STARK followed only by recursive
+Plonky3 STARK layers whose polynomial commitment scheme is FRI with hash/Merkle
+commitments. A Nova proof or verifier result MAY remain parallel classical
+audit evidence, but it MUST NOT be a prerequisite, child proof, ancestor, outer
+wrapper, fallback, or authority input of the post-quantum proof chain.
+
+Every base, epoch, aggregation, history, rotation, and final exported proof
+layer in that profile MUST bind one generation-pinned manifest containing its
+actual field, extension, FRI, MMCS, hash/permutation, Fiat-Shamir challenger,
+grinding, query, recursion-depth, and composition parameters. The security
+derivation MUST conservatively account for generic quantum collision/search
+attacks and Fiat-Shamir use in the quantum random-oracle model; it MUST compose
+all recursive layers and the finite accepted-proof horizon with upward-rounded,
+checked integer arithmetic. A classical hash-collision literal, an upstream
+nominal bit claim, or a copied `security_bits` value is not PQ evidence.
+
+The externally verified post-quantum proof MUST terminate at the same
+hash/FRI-based Plonky3 verifier. Groth16, KZG, IPA, Nova, or any other
+elliptic-curve/discrete-log/pairing wrapper is forbidden outside or between
+layers; config, registry, codecs, manifests, and verifier dispatch MUST reject
+such ancestry exactly and before receipt creation. “End-to-end post-quantum”
+in this phase describes this recursive proof chain only: it does not silently
+upgrade transaction signatures, commitments, range proofs, or spend predicates
+that still rely on classical assumptions.
 
 ## 🎯 Purpose
 
@@ -46,8 +76,8 @@ implementation architecture is hybrid:
 - Nova IVC fold on every checkpoint block, with compressed proof snapshots at
   a measured/configured cadence, as a fast classical lane.
 - Plonky3 recursive STARK epoch proof every configured PQ cadence interval,
-  default `1000` blocks, as PQ-oriented outer proof evidence over the accepted
-  checkpoint transition-consistency predicate.
+  default `1000` blocks, as a hash/FRI-only end-to-end post-quantum recursive
+  proof chain over the accepted checkpoint transition-consistency predicate.
 - Canonical checkpoint artifacts, exact transaction proof bytes, HJMT roots,
   witness roots, DA payload commitments, bounded archive-availability manifests,
   and checkpoint links remain mandatory.
@@ -55,11 +85,14 @@ implementation architecture is hybrid:
 📌 The Plonky3 epoch proof MUST prove or re-check the accepted canonical
 transition-consistency predicate for every step in the epoch. It MUST NOT be a
 STARK wrapper that only proves "1000 Nova proofs verified". The epoch proof MAY
-bind the Nova chain root as additional performance/audit evidence. It still
-MUST NOT be described as end-to-end post-quantum checkpoint validity while the
-accepted transaction theorem depends on classical signatures, commitments,
-range proofs, or spend proofs. Phase 069 proves the explicitly scoped predicate;
-it does not upgrade the assumptions of nested classical primitives.
+bind the Nova chain root as non-authoritative metadata, but its verification
+and every ancestor proof MUST remain completely independent of Nova. The
+Plonky3 recursion chain MAY be described as end-to-end post-quantum only after
+its quantum-aware manifest and no-EC-ancestry gates pass. It still MUST NOT be
+described as end-to-end post-quantum checkpoint validity while the accepted
+transaction theorem depends on classical signatures, commitments, range
+proofs, or spend proofs. Phase 069 proves the explicitly scoped predicate; it
+does not upgrade the assumptions of nested classical primitives.
 
 📌 Phase 069 still MUST NOT replace the current spend verifier, range-proof
 verifier, checkpoint artifact codec, checkpoint link, or canonical replay path.
@@ -5131,6 +5164,9 @@ Phase 069 MUST add source or documentation guards proving:
 | `RCP-AC-045` | No mailbox implementation or data exists, or later mailbox data is missing/corrupt/censored/expired | The recipient restores from seed | Any current unspent output is recovered from the 16-shard live state and receives a fresh membership witness; no mailbox absence changes finality/spendability, and full/spent history is not falsely recovered without `WalletBackupV5`. |
 | `RCP-AC-046` | Phase-071 mailbox upload, activation, wallet commit, ACK, expiry, or GC crashes at every durable boundary | Recovery and day-100 retention run | Replay is idempotent, ACK occurs only after the authoritative wallet-local commit, deletion is mailbox-namespace-only, ciphertext/metadata plateau at the measured 90-day window, and current state plus compact history remain untouched. Phase 069 closes this row only by an exact handoff/three-transaction contract and absence of live mailbox sagas. |
 | `RCP-AC-047` | Nova bodies cover eight closed epochs with Plonky3 unavailable, then normal PQ recovery, body-less gap handling, and both body-retirement scopes are exercised with crashes at every ledger/head/body boundary | The ninth epoch closes canonically and retention/GC replay runs | Canonical finality and the running fold continue; new compression/publication stops with `NovaEvidenceBackpressure`; retained bodies never exceed 16 or 2 MiB. A new uncompressed epoch becomes terminal `GapRecorded` with no body digest, ticket, or GC. The normal scope deletes only after independent exact-epoch Plonky3 verification, evidence join, later certified evidence-MMR inclusion, two certified-epoch grace, no hold/reference, and ticket CAS. The body-bearing abandonment scope commits a permanent body-digest-bound `not_promotable` disposition before deleting only that Nova body. Pre-CAS absence is corruption; post-CAS leftovers are idempotent GC; challenge/current-state/anchor bytes never change. |
+| `RCP-AC-048` | A valid base proof and any configured number of recursive epoch/history/rotation layers exist | The post-quantum receipt ancestry is verified | Every layer is a Plonky3 STARK using FRI plus hash/Merkle commitments, each child proof is verified in-circuit, no Nova/classical proof result is required, and exact layer count/order/generation are proof-bound. |
+| `RCP-AC-049` | The active post-quantum parameter generation is loaded | Its security budget is derived and validated | Hash, Fiat-Shamir challenger, FRI, grinding, queries, field/extension, recursion depth, composition loss, and finite horizon conservatively include quantum attack costs; checked upward-rounded composition preserves the configured minimum residual or rejects before proving. |
+| `RCP-AC-050` | A post-quantum proof is exported or verified | Its complete inner and outer wrapper ancestry is selected | The chain terminates at the hash/FRI Plonky3 verifier; Groth16, KZG, IPA, Nova, pairings, EC-discrete-log wrappers, mixed PCS, unknown ancestry, and fallback dispatch reject before a typed receipt can exist. |
 
 ## 🧱 Implementation Slices
 
@@ -5296,6 +5332,14 @@ Phase 069 is complete only when:
 - The Plonky3 adapter cryptographically proves and verifies the same base
   predicate, one recursive epoch fixture, and rolling-history base/successor/
   rotation fixtures; Nova-only and digest-only aggregation reject.
+- Every proof in the post-quantum base/epoch/history/rotation ancestry uses the
+  pinned Plonky3 STARK/FRI/hash-Merkle profile; no Nova, Groth16, KZG, IPA,
+  pairing, elliptic-curve, mixed-PCS, or fallback wrapper appears inside or
+  outside that ancestry.
+- The generation-pinned security manifest derives a quantum-aware residual
+  bound for hash collision/search, Fiat-Shamir, FRI, grinding, queries, every
+  recursive layer, and the finite accepted-proof horizon. Classical-only or
+  copied nominal bit counts reject and cannot authorize a PQ label.
 - Shape-only verification, arbitrary proof bytes, metadata booleans, or a
   concrete future task do not satisfy either backend requirement.
 - `RecursiveCheckpointContextV2` prevents cross-network, cross-genesis,

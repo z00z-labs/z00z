@@ -17,7 +17,7 @@ use super::{
 };
 
 pub const CHECKPOINT_VERSION_REGISTRY_API_V2: u16 = 2;
-pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 6;
+pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 7;
 pub const RECURSIVE_OBJECT_PREHEADER_BYTES_V2: usize = 48;
 pub const RECURSIVE_OBJECT_MAGIC_V2: [u8; 4] = *b"ZCP2";
 pub const RECURSIVE_RUNTIME_PROFILE_V2: &str = "checkpoint-contract-client-notary-v2";
@@ -55,14 +55,14 @@ pub const RECURSIVE_PROFILE_MANIFEST_DIGEST_V2: [u8; 32] = [
     0xc3, 0xb3, 0xef, 0x33, 0xf7, 0x1b, 0xff, 0x63, 0xff, 0x1e, 0x08, 0x0e, 0x9d, 0x78, 0xe7, 0x1b,
 ];
 
-/// Literal production pin for the canonical generation-6 registry bytes.
+/// Literal production pin for the canonical generation-7 registry bytes.
 ///
 /// `authority_pinned` recomputes and compares this value before exposing any
 /// row, so changing a row without an explicit generation/pin rotation fails
 /// closed in production rather than only in a unit assertion.
 pub const CHECKPOINT_VERSION_REGISTRY_DIGEST_V2: [u8; 32] = [
-    0x09, 0xf4, 0xec, 0xf4, 0x32, 0x38, 0x48, 0xd0, 0x4a, 0xf9, 0x60, 0xe3, 0xb9, 0x9c, 0xa6, 0xd1,
-    0xcf, 0x72, 0xaa, 0x8f, 0x4f, 0xef, 0x65, 0x0a, 0x52, 0x2d, 0x8f, 0x51, 0xcb, 0x3d, 0x8d, 0x6a,
+    0x7e, 0x95, 0x08, 0x73, 0x88, 0x15, 0xc6, 0x70, 0x95, 0x57, 0x24, 0x14, 0x4f, 0x72, 0xd2, 0xac,
+    0xee, 0x60, 0x66, 0xf2, 0xb8, 0x8a, 0x2f, 0x2f, 0xb1, 0xde, 0x55, 0xf2, 0xcf, 0x72, 0xfb, 0x9b,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -110,6 +110,9 @@ pub enum RecursiveBoundedObjectV2 {
     ConfigMigrationRecord = 0x0690_0105,
     NovaCadenceManifest = 0x0690_0106,
     NovaAccumulatorSnapshot = 0x0690_0107,
+    Plonky3BaseProof = 0x0690_0108,
+    Plonky3BaseVerificationReceipt = 0x0690_0109,
+    RecursiveSecurityBudgetManifest = 0x0690_010a,
     CheckpointContractConfigV2 = 0x0690_0201,
     CheckpointContractConfigV3 = 0x0690_0202,
     WalletBackup = 0x0690_0301,
@@ -144,6 +147,9 @@ impl RecursiveBoundedObjectV2 {
             0x0690_0105 => Self::ConfigMigrationRecord,
             0x0690_0106 => Self::NovaCadenceManifest,
             0x0690_0107 => Self::NovaAccumulatorSnapshot,
+            0x0690_0108 => Self::Plonky3BaseProof,
+            0x0690_0109 => Self::Plonky3BaseVerificationReceipt,
+            0x0690_010a => Self::RecursiveSecurityBudgetManifest,
             0x0690_0201 => Self::CheckpointContractConfigV2,
             0x0690_0202 => Self::CheckpointContractConfigV3,
             0x0690_0301 => Self::WalletBackup,
@@ -459,6 +465,15 @@ const fn cryptographic_domain(object: RecursiveBoundedObjectV2) -> &'static str 
         }
         RecursiveBoundedObjectV2::NovaCadenceManifest => NOVA_CADENCE_DOMAIN_V2,
         RecursiveBoundedObjectV2::NovaAccumulatorSnapshot => NOVA_SNAPSHOT_DOMAIN_V2,
+        RecursiveBoundedObjectV2::Plonky3BaseProof => {
+            "z00z.storage.checkpoint.plonky3.base-proof.v2"
+        }
+        RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt => {
+            "z00z.storage.checkpoint.plonky3.base-verification-receipt.v2"
+        }
+        RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest => {
+            "z00z.storage.checkpoint.plonky3.security-budget.v2"
+        }
         RecursiveBoundedObjectV2::CheckpointContractConfigV2 => {
             "z00z.storage.checkpoint.contract-config.v2"
         }
@@ -517,6 +532,39 @@ const fn live_v2(
         activation_boundary: 0,
         migration_owner: None,
         reject_mapping: "recursive_v2_registry_reject",
+    }
+}
+
+const fn local_plonky3_v2(
+    object: RecursiveBoundedObjectV2,
+    owner: &'static str,
+    cap: u64,
+) -> CheckpointVersionRowV2 {
+    CheckpointVersionRowV2 {
+        object,
+        api_owner: owner,
+        framing: RegistryFramingV2::LocalTyped,
+        write_wire_version: Some(2),
+        read_wire_versions: WIRE_V2,
+        cryptographic_domain: cryptographic_domain(object),
+        cryptographic_domain_generation: 2,
+        transcript_generation: Some(2),
+        root_generation: Some(2),
+        public_input_encoding_generation: Some(2),
+        max_encoded_len: cap,
+        config_schema_generation: Some(3),
+        runtime_profile: Some(RECURSIVE_RUNTIME_PROFILE_V2),
+        runtime_profile_generation: Some(RECURSIVE_RUNTIME_PROFILE_GENERATION_V2),
+        runtime_profile_manifest_digest: Some(RECURSIVE_PROFILE_MANIFEST_DIGEST_V2),
+        authority_generation: 2,
+        parameter_generation: Some(RECURSIVE_PARAMETER_GENERATION_V2),
+        semantic_owner_phase: 69,
+        reader_reachable: true,
+        writer_reachable: true,
+        lifecycle: RegistryLifecycleV2::LocalOnly,
+        activation_boundary: 1,
+        migration_owner: None,
+        reject_mapping: "plonky3_local_v2_reject",
     }
 }
 
@@ -878,6 +926,21 @@ const REGISTRY_ROWS_V2: &[CheckpointVersionRowV2] = &[
         migration_owner: None,
         reject_mapping: "nova_accumulator_snapshot_reject",
     },
+    local_plonky3_v2(
+        RecursiveBoundedObjectV2::Plonky3BaseProof,
+        "Plonky3BaseProofV2",
+        32 * 1024 * 1024,
+    ),
+    local_plonky3_v2(
+        RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt,
+        "Plonky3BaseVerificationReceiptV2",
+        16 * 1024,
+    ),
+    local_plonky3_v2(
+        RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest,
+        "RecursiveSecurityBudgetManifestV2",
+        16 * 1024,
+    ),
     config_schema(
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
         "CheckpointContractConfigV2",
@@ -1605,6 +1668,9 @@ mod tests {
         RecursiveBoundedObjectV2::ConfigMigrationRecord,
         RecursiveBoundedObjectV2::NovaCadenceManifest,
         RecursiveBoundedObjectV2::NovaAccumulatorSnapshot,
+        RecursiveBoundedObjectV2::Plonky3BaseProof,
+        RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt,
+        RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest,
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
         RecursiveBoundedObjectV2::CheckpointContractConfigV3,
         RecursiveBoundedObjectV2::WalletBackup,
@@ -1640,6 +1706,9 @@ mod tests {
         RecursiveBoundedObjectV2::ConfigMigrationRecord,
         RecursiveBoundedObjectV2::NovaCadenceManifest,
         RecursiveBoundedObjectV2::NovaAccumulatorSnapshot,
+        RecursiveBoundedObjectV2::Plonky3BaseProof,
+        RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt,
+        RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest,
     ];
 
     const BACKUP_OBJECTS: &[RecursiveBoundedObjectV2] = &[
@@ -1748,7 +1817,7 @@ mod tests {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
         assert_eq!(
             super::super::contract_config_v3::hex_digest(registry.digest()),
-            "09f4ecf4323848d04af960e3b99ca6d1cf72aa8f4fef650a522d8f51cb3d8d6a"
+            "7e9508738815c670955724144f72d2acee6066f2b88a2f2fb1de55f2cf72fb9b"
         );
         let mut bytes = registry
             .encode_preheader(
@@ -1823,7 +1892,7 @@ mod tests {
     #[test]
     fn test_registry_rows_complete() {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
-        assert_eq!(registry.rows().len(), 29);
+        assert_eq!(registry.rows().len(), 32);
         assert_eq!(
             registry
                 .rows()

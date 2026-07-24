@@ -28,7 +28,7 @@
     Object.freeze({ id: "devnet-2", label: "Devnet-2", tone: "dev" })
   ]);
   const WALLET_CHAIN_IDS = freezeList(WALLET_CHAIN_OPTIONS.map(({ id }) => id));
-  const SETTINGS_SECTION_IDS = freezeList(["general", "appearance", "reticulum", "onionnet"]);
+const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "appearance"]);
   const NETWORK_SECTION_IDS = freezeList(["overview", "reticulum", "onionnet"]);
   const TELEMETRY_SOURCE_IDS = freezeList(["onionnet", "reticulum", "aggregators"]);
   const TELEMETRY_TAB_IDS = Object.freeze({

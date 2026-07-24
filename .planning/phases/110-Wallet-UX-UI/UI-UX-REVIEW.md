@@ -500,6 +500,51 @@ This confirms that the interface can be packaged without an Internet dependency.
 - [ ] Promote Swap/Stacking only after canonical transaction/lifecycle authority and tests exist.
 - [ ] Add sanitized diagnostics with redaction, bounded export, and no private route/receiver leakage.
 
+## ❔ Contextual Help and compact application copy — implemented 2026-07-23
+
+- The permanent website-style explanation layer is removed from ordinary
+  settings, asset, object, transaction, and telemetry views. Immediate
+  validation, errors, destructive consequences, security/recovery warnings,
+  and authoritative read-only/unavailable states remain at the affected action.
+- The person/account topbar action is replaced by global Help. Mobile exposes
+  the same action from the application drawer because desktop utility actions
+  are hidden there.
+- Every routed view, settings subsection, telemetry tab, and Asset details
+  dialog resolves a stable topic from `demo/help/topics.yaml`. The audit covers
+  all 36 states derived from `PORT_CONTRACT`, including Home; each resolves
+  exactly one contextual topic and every contextual topic maps back to a route.
+  Context Help uses the local `akar-icons:question` symbol and does not change
+  the active wallet, route, filter, tab, or draft.
+- Help source lives in ten separate locale folders under
+  `demo/help/<locale>/`: 38 topics and 380 Markdown documents. Compile, check,
+  and scaffold tools derive locale IDs from the UI's canonical locale registry.
+  English topic hashes are the source anchor in `help/source-state.json`.
+  Changed English topics pass through the local build-time translation bridge
+  for every locale; builds reject stale hashes or mismatched document structure.
+  A constrained build-time compiler rejects HTML and unsafe syntax, then emits
+  one immutable bundled catalogue. No Markdown, translation, font, icon, or
+  Help request is made at runtime.
+- Shared compact rows define label, value, and action/status slots. Their
+  desktop control edge is common; their mobile form stays one logical row at
+  390/320 px when possible. Long identifiers truncate while a title, copy
+  action, or detail view preserves the full accessible value.
+- Context Help is a right-side compact dialog on desktop and a scrollable
+  bottom sheet on mobile. Opening moves focus into Help; Escape/backdrop close
+  restores focus to the invoker. Declared anchors receive a non-intercepting
+  highlight. Help invoked from a native dialog is mounted in that same top
+  layer, contains focus, and inerts only the underlying dialog content.
+- The contextual question action now belongs to one shell-level host instead of
+  each view DOM. It is fixed to the lower-right safe-area edge, aligned with the
+  topbar Help action, remains stationary during document scrolling, and clears
+  the desktop wallet status bar without reserving view padding.
+- The final 101-image visual matrix covers desktop baselines and all 36 routed
+  states at both 390×844 and 320×800, plus RU/DE/JA/KO/ZH long-label cases,
+  localized Help, Asset details, global Help, ordinary-view contextual Help,
+  and Help above Asset details. Geometry
+  tests additionally reject page-level horizontal overflow, Help/control
+  overlap, toast/Help competition, clipped active tabs, and sub-44-pixel mobile
+  targets.
+
 ## ✅ Acceptance criteria
 
 | Area | Acceptance gate |

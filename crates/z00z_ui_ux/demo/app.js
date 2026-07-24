@@ -4,6 +4,7 @@ const main = document.querySelector("#main-content");
 const pageTitle = document.querySelector("#page-title");
 const pageContext = document.querySelector("#page-context");
 const copyWalletAddress = document.querySelector("#copy-wallet-address");
+const topbarAddressGroup = document.querySelector(".topbar-address-group");
 const walletNav = document.querySelector("#wallet-nav");
 const networkNav = document.querySelector("#network-nav");
 const walletTabs = document.querySelector("#wallet-tabs");
@@ -22,6 +23,8 @@ const appShell = document.querySelector("#app-shell");
 const lockScreen = document.querySelector("#lock-screen");
 const i18n = window.Z00ZI18n;
 if (!i18n) throw new Error("Z00Z i18n must load before the wallet demo.");
+const help = window.Z00ZHelp;
+if (!help) throw new Error("Z00Z Help must load before the wallet demo.");
 const demoRuntime = window.Z00ZDemo;
 if (!demoRuntime?.PORT_CONTRACT || !demoRuntime.WALLET_CHAIN_OPTIONS || !demoRuntime.ASSET_CATALOG || !demoRuntime.createInitialState || !demoRuntime.createMockWalletGateway) {
   throw new Error("Z00Z production-port modules must load before the wallet demo.");
@@ -352,7 +355,7 @@ function paletteCard(palette) {
   const isActive = state.palette === palette.id;
   return `<button class="palette-card${isActive ? " is-active" : ""}" type="button" data-palette="${palette.id}" aria-pressed="${isActive}">
     <span class="palette-swatches" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-    <span><strong>${palette.label}</strong><small>${palette.description}</small></span>
+    <span><strong>${palette.label}</strong></span>
   </button>`;
 }
 
@@ -509,6 +512,9 @@ function renderWalletShell() {
   lockWalletLabel.innerHTML = `${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))} <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
   copyWalletAddress.setAttribute("aria-label", t("walletShell.copyAddress", { wallet: walletName }));
   copyWalletAddress.setAttribute("title", wallet.fullAddress);
+  const globalHelpButton = document.querySelector(".help-button");
+  globalHelpButton?.setAttribute("aria-label", t("help.openGlobal"));
+  globalHelpButton?.setAttribute("title", t("help.title"));
   const telemetryTabSource = state.view === "telemetry" ? {
     reticulum: { label: "Reticulum", tabs: reticulumTelemetryTabs, selectedTab: state.reticulumTelemetryTab, actionName: "reticulum-telemetry-tab" },
     onionnet: { label: "OnionNet", tabs: onionnetTelemetryTabs, selectedTab: state.onionnetTelemetryTab, actionName: "onionnet-telemetry-tab" },
@@ -516,9 +522,9 @@ function renderWalletShell() {
   }[state.telemetrySource] : null;
   const settingsTabs = [
     { id: "general", labelKey: "settings.general", iconName: "settings" },
-    { id: "appearance", labelKey: "settings.appearance", iconName: "sun" },
     { id: "reticulum", label: "Reticulum", iconName: "network" },
-    { id: "onionnet", label: "OnionNet", iconName: "shield" }
+    { id: "onionnet", label: "OnionNet", iconName: "shield" },
+    { id: "appearance", labelKey: "settings.appearance", iconName: "sun" }
   ];
   walletTabs.classList.toggle("is-settings-tabs", state.view === "settings");
   if (telemetryTabSource) {
@@ -830,7 +836,6 @@ function moneyView() {
             <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.price")}</small><strong>${t(asset.priceKey)}</strong></div>
           </article>`).join("")}
       </div>
-      <div class="notice">${icon("shield")} ${t("assets.excludedNotice")}</div>
     </div>`;
 }
 
@@ -869,8 +874,8 @@ function walletSendView() {
       subtitle: "Recipient, asset, and amount",
       step: 0,
       body: `<form class="form-grid" id="send-entry" autocomplete="off" novalidate>
-        <div class="field-group"><label class="field-label" for="send-recipient">Recipient or private request</label><input id="send-recipient" name="recipient" value="${escapeHtml(draft.recipient)}" placeholder="Paste or scan a private request" autocomplete="off" aria-describedby="send-recipient-hint send-recipient-error" required><p class="field-hint" id="send-recipient-hint">The wallet validates the receiver, asset, and network before review.</p><p class="field-error" id="send-recipient-error" role="alert"></p></div>
-        <div class="field-group"><label class="field-label" for="send-item">Asset</label><select id="send-item" name="itemKey">${sendOptionsMarkup(item.key)}</select><p class="field-hint">${item.family === "asset" ? `${escapeHtml(item.kindLabel)} held by ${escapeHtml(wallet.name)}.` : `${escapeHtml(item.kindLabel)} held by ${escapeHtml(wallet.name)} and ready for one transfer.`}</p></div>
+        <div class="field-group"><label class="field-label" for="send-recipient">Recipient or private request</label><input id="send-recipient" name="recipient" value="${escapeHtml(draft.recipient)}" placeholder="Paste or scan a private request" autocomplete="off" aria-describedby="send-recipient-error" required><p class="field-error" id="send-recipient-error" role="alert"></p></div>
+        <div class="field-group"><label class="field-label" for="send-item">Asset</label><select id="send-item" name="itemKey">${sendOptionsMarkup(item.key)}</select></div>
         ${amountField}
         <div class="field-group"><label class="field-label" for="send-memo">Private note <span class="muted">(optional)</span></label><input id="send-memo" name="memo" value="${escapeHtml(draft.memo)}" maxlength="80" placeholder="What is this for?" autocomplete="off"></div>
       </form>`,
@@ -951,16 +956,14 @@ function vouchersPanel() {
     return `<div class="object-empty-state">
       <span class="list-icon is-voucher">${objectFamilyIcon("voucher")}</span>
       <h2>${t("assets.noVouchers")}</h2>
-      <p>${t("assets.noVouchersHelp")}</p>
       <button class="button button-primary" type="button" data-open-flow="create-voucher">${icon("plus")} ${t("assets.createVoucher")}</button>
     </div>`;
   }
   return `
     <div class="choice-strip" aria-label="Voucher filters"><button class="choice-chip is-active" type="button">Needs action</button><button class="choice-chip" type="button">Redeemable</button><button class="choice-chip" type="button">History</button><button class="choice-chip" type="button">Quarantined</button></div>
     <div class="claim-list">
-      ${vouchers.map((voucher) => `<button class="claim-row" type="button" data-open-flow="${escapeHtml(voucher.detailFlow || "voucher-detail")}" data-object-id="${escapeHtml(voucher.id)}">${objectTypeIcon("voucher", voucher.kind, "list-icon")}<span class="list-copy"><strong>${escapeHtml(voucher.title)}</strong><small>${escapeHtml(voucher.detail)}</small></span><span class="list-meta"><strong>${escapeHtml(voucher.value)}</strong><small class="status-badge is-${escapeHtml(voucher.tone)}">${escapeHtml(voucher.status)}</small></span></button>`).join("")}
-    </div>
-    <div class="notice">${icon("shield")} Imported vouchers with unknown policy, invalid signatures, or unsupported schema go to Quarantine and never enter Available.</div>`;
+      ${vouchers.map((voucher) => `<button class="claim-row" type="button" data-open-flow="${escapeHtml(voucher.detailFlow || "voucher-detail")}" data-object-id="${escapeHtml(voucher.id)}">${objectTypeIcon("voucher", voucher.kind, "list-icon")}<span class="list-copy"><strong>${escapeHtml(voucher.title)}</strong></span><span class="list-meta"><strong>${escapeHtml(voucher.value)}</strong><small class="status-badge is-${escapeHtml(voucher.tone)}">${escapeHtml(voucher.status)}</small></span></button>`).join("")}
+    </div>`;
 }
 
 const permissionDetails = Object.freeze({
@@ -996,16 +999,14 @@ function permissionsPanel() {
     return `<div class="object-empty-state">
       <span class="list-icon is-right">${objectFamilyIcon("right")}</span>
       <h2>${t("assets.noPermissions")}</h2>
-      <p>${t("assets.noPermissionsHelp")}</p>
       <button class="button button-primary" type="button" data-open-flow="create-permission">${icon("plus")} ${t("assets.createPermission")}</button>
     </div>`;
   }
   return `
     <div class="choice-strip" aria-label="Permission filters"><button class="choice-chip is-active" type="button">Held</button><button class="choice-chip" type="button">Delegated</button><button class="choice-chip" type="button">Used</button></div>
     <div class="permission-list">
-      ${permissions.map((permission) => `<button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="${escapeHtml(permission.id)}">${objectTypeIcon("right", permission.kind, "list-icon")}<span class="list-copy"><strong>${escapeHtml(permission.title)}</strong><small>${escapeHtml(permission.detail)}</small></span><span class="list-meta"><strong>${escapeHtml(permission.remaining)}</strong><small class="status-badge is-${escapeHtml(permission.tone)}">${escapeHtml(permission.status)}</small></span></button>`).join("")}
-    </div>
-    <div class="notice">${icon("spark")} A permission is zero-value. “Give permission” delegates a narrower held right; monetary budgets require a separate future composition and are not projected here.</div>`;
+      ${permissions.map((permission) => `<button class="permission-row" type="button" data-open-flow="permission-detail" data-permission-id="${escapeHtml(permission.id)}">${objectTypeIcon("right", permission.kind, "list-icon")}<span class="list-copy"><strong>${escapeHtml(permission.title)}</strong></span><span class="list-meta"><strong>${escapeHtml(permission.remaining)}</strong><small class="status-badge is-${escapeHtml(permission.tone)}">${escapeHtml(permission.status)}</small></span></button>`).join("")}
+    </div>`;
 }
 
 function walletView() {
@@ -1046,7 +1047,7 @@ function activityRows(items, compact = false) {
     return `
       <button class="activity-row" type="button" data-open-activity="${escapeHtml(item.id)}">
         <span class="activity-icon ${iconClass}">${iconMarkup}</span>
-        <span class="activity-copy"><strong>${escapeHtml(activityText(item, "title"))}</strong><small>${escapeHtml(activityText(item, "detail"))}${compact ? ` · ${escapeHtml(activityText(item, "time"))}` : ` · <span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span>`}</small></span>
+        <span class="activity-copy"><strong>${escapeHtml(activityText(item, "title"))}</strong><small><span class="activity-detail">${escapeHtml(activityText(item, "detail"))}${compact ? ` · ${escapeHtml(activityText(item, "time"))}` : ""}</span>${compact ? "" : `<span class="status-badge is-${escapeHtml(item.status)}">${statusText(item.status)}</span>`}</small></span>
         <span class="activity-value"><strong class="${amountClass}">${escapeHtml(activityText(item, "amount"))}</strong><small>${escapeHtml(activityText(item, "time"))}</small></span>
       </button>`;
   }).join("");
@@ -1078,13 +1079,12 @@ function activityView() {
 }
 
 function swapView() {
-  const wallet = activeWallet();
   const asset = supportedAsset("z00z");
   return `
     <div class="view-enter wallet-tool-view">
-      <section class="wallet-tool-grid">
-        <article class="card wallet-tool-card">
-          <div class="tool-card-heading"><span class="list-icon">${icon("swap")}</span><div><h3>Build a swap</h3><p>Choose the assets before you request a quote.</p></div></div>
+      <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
+        <article class="card wallet-tool-card swap-card">
+          <div class="tool-card-heading"><span class="list-icon">${icon("swap")}</span><div><h2>Build a swap</h2></div></div>
           <div class="form-grid">
             <div class="field-group"><label class="field-label" for="swap-from">From</label><select id="swap-from">${assetOptions("z00z")}</select><p class="field-hint">Available: ${sensitive(`${asset.balance} ${asset.unit}`)}</p></div>
             <div class="field-group"><label class="field-label" for="swap-amount">Amount</label><div class="input-with-affix"><input id="swap-amount" type="number" min="0.01" max="${escapeHtml(asset.balance.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div></div>
@@ -1092,13 +1092,6 @@ function swapView() {
             <button class="button button-primary" type="button" data-demo-action="preview-swap">${icon("swap")} Preview swap</button>
           </div>
         </article>
-        <aside class="card wallet-tool-card wallet-tool-summary">
-          <p class="eyebrow">Route status</p>
-          <div class="summary-row"><span>Wallet</span><strong>${escapeHtml(wallet.name)}</strong></div>
-          <div class="summary-row"><span>Privacy route</span><strong>Target preview</strong></div>
-          <div class="summary-row"><span>Execution</span><strong>Not submitted</strong></div>
-          <div class="notice">${icon("shield")} A swap cannot use vouchers, permissions, quarantined items, or unsupported assets.</div>
-        </aside>
       </section>
     </div>`;
 }
@@ -1134,48 +1127,36 @@ function stakingView() {
   const summary = wallet.summary;
   return `
     <div class="view-enter wallet-tool-view">
-      <section class="money-summary" aria-label="${t("staking.totals")}">
-        <article class="card metric-card"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong><small>${t("staking.walletValueBefore")}</small></article>
-        <article class="card metric-card"><span>${t("staking.staked")}</span><strong>0.00 Z00Z</strong><small>${t("staking.nothingDelegated")}</small></article>
-        <article class="card metric-card"><span>${t("staking.rewards")}</span><strong>0.00 Z00Z</strong><small>${t("staking.accrualNotSimulated")}</small></article>
-      </section>
-      <section class="wallet-tool-grid">
-        <article class="card wallet-tool-card">
-          <div class="tool-card-heading"><span class="list-icon">${icon("staking")}</span><div><h3>${t("staking.prepare")}</h3><p>${t("staking.prepareHelp")}</p></div></div>
+      <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
+        <article class="card wallet-tool-card staking-card">
+          <div class="tool-card-heading"><span class="list-icon">${icon("staking")}</span><div><h2>${t("staking.prepare")}</h2></div></div>
+          <div class="staking-summary" aria-label="${t("staking.totals")}">
+            <div class="staking-metric"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong></div>
+            <div class="staking-metric"><span>${t("staking.staked")}</span><strong>0.00 Z00Z</strong></div>
+            <div class="staking-metric"><span>${t("staking.rewards")}</span><strong>0.00 Z00Z</strong></div>
+          </div>
           <div class="form-grid">
             <div class="field-group"><label class="field-label" for="stake-amount">${t("staking.amount")}</label><div class="input-with-affix"><input id="stake-amount" type="number" min="0.01" max="${escapeHtml(summary.available.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div><p class="field-hint">${t("staking.availableBalance", { value: sensitive(`${summary.available} Z00Z`) })}</p></div>
             <div class="field-group"><label class="field-label" for="stake-validator">${t("staking.validator")}</label><select id="stake-validator"><option>${t("staking.validatorPlaceholder")}</option></select></div>
             <button class="button button-primary" type="button" data-demo-action="prepare-stake">${icon("staking")} ${t("staking.review")}</button>
           </div>
         </article>
-        <aside class="card wallet-tool-card wallet-tool-summary">
-          <p class="eyebrow">${t("staking.safeguards")}</p>
-          <div class="summary-row"><span>${t("staking.validatorStatus")}</span><strong>${t("common.unavailable")}</strong></div>
-          <div class="summary-row"><span>${t("staking.unlockPeriod")}</span><strong>${t("staking.notSelected")}</strong></div>
-          <div class="summary-row"><span>${t("staking.rewards")}</span><strong>${t("staking.notProjected")}</strong></div>
-          <div class="notice">${icon("shield")} ${t("staking.notice")}</div>
-        </aside>
       </section>
     </div>`;
 }
 
 function walletBackupView() {
-  const wallet = activeWallet();
   return `
     <div class="view-enter wallet-tool-view">
-      <section class="wallet-tool-grid">
-        <article class="card wallet-tool-card">
-          <div class="tool-card-heading"><span class="list-icon">${icon("backup")}</span><div><h3>Backup status</h3><p>Backup material stays distinct from the live wallet and recovery phrase.</p></div></div>
-          <div class="review-card"><div class="summary-row"><span>Latest backup</span><strong>10 Jul 2026 · 09:42</strong></div><div class="summary-row"><span>Integrity</span><strong class="trust-label">${icon("shield")} Verified</strong></div><div class="summary-row"><span>Destination</span><strong>Encrypted local file</strong></div></div>
-          <button class="button button-primary button-full wallet-backup-action" type="button" data-demo-action="backup">${icon("backup")} Create fresh backup</button>
+      <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
+        <article class="card wallet-tool-card backup-card">
+          <div class="tool-card-heading backup-card-heading"><span class="list-icon">${icon("backup")}</span><div><h2>Backup status</h2></div></div>
+          <div class="review-card backup-summary"><div class="summary-row"><span>Latest backup</span><strong>10 Jul 2026 · 09:42</strong></div><div class="summary-row"><span>Integrity</span><strong class="trust-label">${icon("shield")} Verified</strong></div><div class="summary-row"><span>Destination</span><strong>Encrypted local file</strong></div></div>
+          <div class="wallet-backup-actions">
+            <button class="button button-primary button-full wallet-backup-action" type="button" data-demo-action="backup">${icon("backup")} Create fresh backup</button>
+            <button class="button button-full wallet-backup-recovery" type="button" data-demo-action="restore">${icon("restore")} Recover from backup</button>
+          </div>
         </article>
-        <aside class="card wallet-tool-card wallet-tool-summary">
-          <p class="eyebrow">Recovery guardrails</p>
-          <div class="summary-row"><span>Wallet</span><strong>${escapeHtml(wallet.name)}</strong></div>
-          <div class="summary-row"><span>Address</span><strong class="mono">${escapeHtml(wallet.address)}</strong></div>
-          <div class="summary-row"><span>Restore test</span><strong>Not run today</strong></div>
-          <div class="notice">${icon("shield")} Restoring validates integrity before any live wallet data is replaced.</div>
-        </aside>
       </section>
     </div>`;
 }
@@ -1223,7 +1204,11 @@ function mobilePopupMarkup(type) {
           <span>${escapeHtml(wallet.name)}</span>
           ${wallet.id === state.selectedWalletId ? icon("check") : ""}
         </button>`).join("")}
-      </div>`;
+      </div>
+      <footer class="mobile-wallet-actions">
+        <button class="mobile-popup-item mobile-wallet-action is-add" type="button" data-mobile-popup-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
+        <button class="mobile-popup-item mobile-wallet-action is-remove" type="button" data-mobile-popup-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
+      </footer>`;
   }
   if (type === "network") {
     return `${mobilePopupHeader(t("app.network"), true)}
@@ -1262,6 +1247,7 @@ function mobilePopupMarkup(type) {
       ${mobilePopupItem({ label: t("app.wallets"), iconName: "wallet", attributes: 'data-mobile-popup-open="wallets"', trailing: icon("chevron") })}
       ${mobilePopupItem({ label: t("app.network"), iconName: "network", attributes: 'data-mobile-popup-open="network"', trailing: icon("chevron") })}
       ${mobilePopupItem({ label: t("app.settings"), iconName: "settings", active: state.view === "settings", attributes: 'data-mobile-app-view="settings"' })}
+      ${mobilePopupItem({ label: t("help.title"), iconName: "question", attributes: 'data-help-topic="app"' })}
       ${mobilePopupItem({ label: t("app.logOut"), iconName: "logout", attributes: 'data-mobile-popup-action="logout"' })}
     </div>`;
 }
@@ -1372,11 +1358,10 @@ function walletSettingsGeneralDetail() {
   const wallet = activeWallet();
   return `
     <div class="setting-group settings-first-group">
-      <div class="setting-line"><span class="setting-line-copy"><strong>Wallet name</strong><small>${escapeHtml(wallet.name)} · local display label</small></span><button class="button" type="button" data-open-flow="wallet-rename">Rename wallet</button></div>
-      <div class="setting-line"><span class="setting-line-copy"><strong>Wallet ID</strong><small class="mono">${escapeHtml(wallet.id)}</small></span><span class="status-badge">Read-only</span></div>
-      <div class="setting-line" data-wallet-chain-readonly aria-label="${escapeHtml(t("common.chain"))}: ${escapeHtml(walletChain(wallet.chainId).label)}. ${escapeHtml(t("common.readOnly"))}."><span class="setting-line-copy"><strong>${t("common.chain")}</strong></span>${walletChainBadgeMarkup(wallet.chainId)}</div>
-    </div>
-    <div class="capability-note">${icon("alert")} <span><strong>Runtime boundary</strong><small>${icon("shield")} WalletService stores these fields, but a public wallet-settings write route is not registered yet. This demo keeps the change local and does not imply a real wallet write.</small></span></div>`;
+      <div class="setting-line compact-row" data-help-anchor="wallet-name"><strong class="compact-row-label">Wallet name</strong><span class="compact-value" title="${escapeHtml(wallet.name)}">${escapeHtml(wallet.name)}</span><button class="button compact-action" type="button" data-open-flow="wallet-rename">Rename</button></div>
+      <div class="setting-line compact-row" data-help-anchor="wallet-id"><strong class="compact-row-label">Wallet ID</strong><span class="compact-value mono" title="${escapeHtml(wallet.id)}">${escapeHtml(wallet.id)}</span><span class="status-badge compact-action">Read-only</span></div>
+      <div class="setting-line compact-row" data-help-anchor="wallet-chain" data-wallet-chain-readonly aria-label="${escapeHtml(t("common.chain"))}: ${escapeHtml(walletChain(wallet.chainId).label)}. ${escapeHtml(t("common.readOnly"))}."><strong class="compact-row-label">${t("common.chain")}</strong><span class="compact-value"></span><span class="compact-action">${walletChainBadgeMarkup(wallet.chainId)}</span></div>
+    </div>`;
 }
 
 function walletSettingsSecurityDetail() {
@@ -1384,16 +1369,15 @@ function walletSettingsSecurityDetail() {
   const preferences = activeWalletPreferences();
   return `
     <div class="setting-group settings-first-group">
-      <div class="setting-line"><label class="setting-line-copy" for="wallet-lock-after"><strong>Lock app after</strong><small>Per-wallet inactivity preference for this local profile.</small></label><select id="wallet-lock-after" data-wallet-settings-control="lock-after"><option value="5"${preferences.lockAfterMinutes === "5" ? " selected" : ""}>5 minutes</option><option value="15"${preferences.lockAfterMinutes === "15" ? " selected" : ""}>15 minutes</option><option value="30"${preferences.lockAfterMinutes === "30" ? " selected" : ""}>30 minutes</option><option value="never"${preferences.lockAfterMinutes === "never" ? " selected" : ""}>Never</option></select></div>
-      <div class="setting-line"><span class="setting-line-copy"><strong>Lock now</strong><small>Clears sensitive presentation and closes the wallet session.</small></span><button class="button" type="button" data-demo-action="lock">Lock now</button></div>
-      <div class="setting-line"><span class="setting-line-copy"><strong>${t("walletSettings.password")}</strong><small>${t("walletSettings.passwordHelp")}</small></span><button class="button" type="button" data-open-flow="wallet-password-change">${t("walletSettings.changePassword")}</button></div>
+      <div class="setting-line compact-row" data-help-anchor="wallet-lock"><label class="compact-row-label" for="wallet-lock-after">Lock app after</label><select class="compact-value" id="wallet-lock-after" data-wallet-settings-control="lock-after"><option value="5"${preferences.lockAfterMinutes === "5" ? " selected" : ""}>5 minutes</option><option value="15"${preferences.lockAfterMinutes === "15" ? " selected" : ""}>15 minutes</option><option value="30"${preferences.lockAfterMinutes === "30" ? " selected" : ""}>30 minutes</option><option value="never"${preferences.lockAfterMinutes === "never" ? " selected" : ""}>Never</option></select><span class="compact-action"></span></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">Lock now</strong><span class="compact-value"></span><button class="button compact-action" type="button" data-demo-action="lock">Lock now</button></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">${t("walletSettings.password")}</strong><span class="compact-value"></span><button class="button compact-action" type="button" data-open-flow="wallet-password-change">${t("walletSettings.changePassword")}</button></div>
     </div>
     <div class="setting-group wallet-key-settings">
-      <div class="setting-line"><span class="setting-line-copy"><strong>Recovery phrase</strong><small>Requires the wallet password and the exact confirmation phrase. The renderer clears it when the dialog closes.</small></span><button class="button" type="button" data-open-flow="wallet-seed-reveal">View phrase</button></div>
-      <div class="setting-line"><span class="setting-line-copy"><strong>Public keys</strong><small>Prepares encrypted public material after a password check; private keys are never shown.</small></span><button class="button" type="button" data-open-flow="wallet-public-export">View public keys</button></div>
-      <div class="setting-line"><span class="setting-line-copy"><strong>Master key</strong><small>Last rotation: ${escapeHtml(preferences.lastMasterKeyRotation)}. Rotation rewrites protected wallet records.</small></span><button class="button button-primary" type="button" data-open-flow="wallet-key-rotation">Rotate master key</button></div>
-    </div>
-    <div class="confirmation-note">${icon("alert")} Seed reveal and master-key rotation are critical operations: they require password plus an explicit typed confirmation and are rate-limited in the wallet service.</div>`;
+      <div class="setting-line compact-row" data-help-anchor="recovery-phrase"><strong class="compact-row-label">Recovery phrase</strong><span class="compact-value"></span><button class="button compact-action" type="button" data-open-flow="wallet-seed-reveal">View phrase</button></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">Public keys</strong><span class="compact-value"></span><button class="button compact-action" type="button" data-open-flow="wallet-public-export">View keys</button></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">Master key</strong><span class="compact-value" title="${escapeHtml(preferences.lastMasterKeyRotation)}">${escapeHtml(preferences.lastMasterKeyRotation)}</span><button class="button button-primary compact-action" type="button" data-open-flow="wallet-key-rotation">Rotate</button></div>
+    </div>`;
 }
 
 function walletSettingsBackupDetail() {
@@ -1401,26 +1385,28 @@ function walletSettingsBackupDetail() {
   const preferences = activeWalletPreferences();
   return `
     <div class="review-card wallet-settings-summary"><div class="summary-row"><span>Latest backup</span><strong>10 Jul 2026 · 09:42</strong></div><div class="summary-row"><span>Integrity</span><strong class="trust-label">${icon("shield")} Verified</strong></div><div class="summary-row"><span>Encryption</span><strong>Enabled</strong></div><div class="summary-row"><span>Wallet</span><strong>${escapeHtml(wallet.name)}</strong></div></div>
-    <div class="setting-group"><div class="setting-line"><span class="setting-line-copy"><strong>Automatic backup</strong><small>Create encrypted local recovery points for this wallet profile.</small></span><button class="toggle" type="button" aria-pressed="${preferences.autoBackup}" aria-label="Automatic wallet backup" data-demo-action="wallet-auto-backup"></button></div><div class="setting-line"><label class="setting-line-copy" for="wallet-backup-interval"><strong>Backup interval</strong><small>Cadence is stored with the selected wallet; its platform location is never exposed as YAML.</small></label><select id="wallet-backup-interval" data-wallet-settings-control="backup-interval"><option value="6"${preferences.backupIntervalHours === "6" ? " selected" : ""}>Every 6 hours</option><option value="24"${preferences.backupIntervalHours === "24" ? " selected" : ""}>Every 24 hours</option><option value="72"${preferences.backupIntervalHours === "72" ? " selected" : ""}>Every 3 days</option></select></div><div class="setting-line"><span class="setting-line-copy"><strong>Create fresh backup</strong><small>Choose a platform destination; no path is exposed in the demo.</small></span><button class="button button-primary" type="button" data-demo-action="backup">Create backup</button></div><div class="setting-line"><span class="setting-line-copy"><strong>Restore backup</strong><small>Always validates integrity before any local state is replaced.</small></span><button class="button" type="button" data-demo-action="restore">Restore backup</button></div></div>
-    <div class="notice">${icon("shield")} A seed-only recovery may not restore labels, history, receiver context, or scoped disclosure artifacts. The network cannot reconstruct private state it never received.</div>`;
+    <div class="setting-group"><div class="setting-line compact-row" data-help-anchor="automatic-backup"><strong class="compact-row-label">Automatic backup</strong><span class="compact-value"></span><button class="toggle compact-action" type="button" aria-pressed="${preferences.autoBackup}" aria-label="Automatic wallet backup" data-demo-action="wallet-auto-backup"></button></div><div class="setting-line compact-row"><label class="compact-row-label" for="wallet-backup-interval">Backup interval</label><select class="compact-value" id="wallet-backup-interval" data-wallet-settings-control="backup-interval"><option value="6"${preferences.backupIntervalHours === "6" ? " selected" : ""}>Every 6 hours</option><option value="24"${preferences.backupIntervalHours === "24" ? " selected" : ""}>Every 24 hours</option><option value="72"${preferences.backupIntervalHours === "72" ? " selected" : ""}>Every 3 days</option></select><span class="compact-action"></span></div></div>`;
 }
 
 function walletSettingsPoliciesDetail() {
   const preferences = activeWalletPreferences();
   const rules = preferences.policyRules;
   return `
-    <div class="setting-group settings-first-group"><div class="setting-line"><span class="setting-line-copy"><strong>Profile preview</strong><small>${escapeHtml(preferences.policyProfile)} · user-configured jurisdiction profile, not a compliance certificate.</small></span><span class="status-badge is-ready">Target</span></div><div class="setting-line"><span class="setting-line-copy"><strong>Local spend rules</strong><small>Maximum spend, daily limit, and confirmation gate map to current <code>PolicyRules</code> fields.</small></span><button class="button button-primary" type="button" data-open-flow="wallet-policy-apply">Review rules</button></div></div>
-    <div class="policy-stack" aria-label="Effective wallet spend rules"><div class="policy-layer is-locked"><span>1</span><div><strong>Protocol rules</strong><small>Immutable; never editable in the wallet.</small></div><span class="status-badge">Locked</span></div><div class="policy-layer is-active"><span>2</span><div><strong>Local policy rules</strong><small>Max ${escapeHtml(rules.maxTransaction)} Z00Z · daily ${escapeHtml(rules.maxDaily)} Z00Z · ${rules.allowedAssets === "all" ? "all assets" : "native asset only"} · ${rules.allowedRecipients ? "recipient allowlist" : "all recipients"} · ${rules.timeWindow === "any" ? "any time" : "business hours UTC"} · ${rules.requireConfirmation ? "confirmation required" : "no confirmation gate"}</small></div><span class="status-badge is-active">Local</span></div><div class="policy-layer"><span>3</span><div><strong>Compliance profile</strong><small>Signed profile load/apply is unavailable in the current RPC; preview only.</small></div><span class="status-badge is-ready">Target</span></div></div>
-    <div class="capability-note">${icon("alert")} <span><strong>Honest profile boundary</strong><small>Current code validates local spend rules, but has no signed compliance-profile loader, signature verifier, apply, disable, or persistence route. This page never reports “compliant”.</small></span></div>`;
+    <div class="setting-group settings-first-group">
+      <div class="setting-line compact-row" data-help-anchor="policy-profile"><strong class="compact-row-label">Profile preview</strong><span class="compact-value" title="${escapeHtml(preferences.policyProfile)}">${escapeHtml(preferences.policyProfile)}</span><span class="status-badge is-ready compact-action">Target</span></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">Local spend rules</strong><span class="compact-value mono">${escapeHtml(rules.maxTransaction)} / ${escapeHtml(rules.maxDaily)} Z00Z</span><button class="button button-primary compact-action" type="button" data-open-flow="wallet-policy-apply">Review</button></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">Protocol rules</strong><span class="compact-value"></span><span class="status-badge compact-action">Locked</span></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">Local policy rules</strong><span class="compact-value">${rules.requireConfirmation ? "Confirmation" : "No confirmation"}</span><span class="status-badge is-active compact-action">Local</span></div>
+      <div class="setting-line compact-row"><strong class="compact-row-label">Compliance profile</strong><span class="compact-value">${t("common.unavailable")}</span><span class="status-badge is-ready compact-action">Target</span></div>
+    </div>`;
 }
 
 function walletSettingsAdvancedDetail() {
   const source = state.walletSettingsConfigDraft || walletSettingsYaml();
   return `
-    <div class="yaml-toolbar"><span><strong class="mono">wallet_settings.yaml</strong><small>Secrets, local paths, session tokens, and receiver material are excluded.</small></span><div><button class="button" type="button" data-demo-action="wallet-config-validate">Validate</button><button class="button button-primary" type="button" data-demo-action="wallet-config-apply">Apply locally</button></div></div>
+    <div class="yaml-toolbar"><span><strong class="mono">wallet_settings.yaml</strong></span><div><button class="button" type="button" data-demo-action="wallet-config-validate">Validate</button><button class="button button-primary" type="button" data-demo-action="wallet-config-apply">Apply locally</button></div></div>
     ${yamlEditorMarkup("wallet-settings-yaml", source, "Selected wallet settings YAML")}
-    <div class="config-foot"><span>${icon("shield")} No secrets or paths</span><span>${icon("activity")} Selected wallet only</span><span>${icon("settings")} ${escapeHtml(state.configStatus)}</span></div>
-    <div class="capability-note">${icon("alert")} <span><strong>Local concept only</strong><small>Validation keeps UI and YAML aligned in this demo. A production bridge needs revisioned wallet-settings read/write capabilities before it can change durable wallet state.</small></span></div>`;
+    <div class="config-foot"><span>${icon("shield")} No secrets or paths</span><span>${icon("activity")} Selected wallet only</span><span>${icon("settings")} ${escapeHtml(state.configStatus)}</span></div>`;
 }
 
 function walletSettingsDetail() {
@@ -1464,10 +1450,10 @@ function settingsDetail() {
   if (state.settingsSection === "general") {
     return `
       <div class="setting-group settings-first-group">
-        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.language")}</strong><small>${t("app.languageHelp")}</small></span><select aria-label="${t("app.language")}" data-config-control="language">${languageOptionsMarkup()}</select></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.regionalFormat")}</strong><small>${t("app.regionalFormatHelp")}</small></span><select aria-label="${t("app.regionalFormat")}" data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.timeZone")}</strong><small>${t("app.timeZoneHelp")}</small></span><select aria-label="${t("app.timeZone")}" data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>${t("app.notifications")}</strong><small>${t("app.notificationsHelp")}</small></span><button class="toggle" type="button" data-demo-action="general-notifications" aria-pressed="${state.notifications}" aria-label="${t("app.notifications")} ${state.notifications ? t("common.on") : t("common.off")}"></button></div>
+        <div class="setting-line compact-row app-select-setting" data-help-anchor="language"><strong class="compact-row-label">${t("app.language")}</strong><select class="compact-value" aria-label="${t("app.language")}" data-config-control="language">${languageOptionsMarkup()}</select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.regionalFormat")}</strong><select class="compact-value" aria-label="${t("app.regionalFormat")}" data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.timeZone")}</strong><select class="compact-value" aria-label="${t("app.timeZone")}" data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><strong class="compact-row-label">${t("app.notifications")}</strong><span class="compact-value"></span><button class="toggle compact-action" type="button" data-demo-action="general-notifications" aria-pressed="${state.notifications}" aria-label="${t("app.notifications")} ${state.notifications ? t("common.on") : t("common.off")}"></button></div>
       </div>`;
   }
 
@@ -1521,13 +1507,13 @@ function settingsDetail() {
 
   if (state.settingsSection === "appearance") {
     return `
-      <div class="setting-group">
-        <div class="setting-line"><span class="setting-line-copy"><strong>Theme</strong><small>Switch between dark and light modes</small></span><button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to ${state.theme === "dark" ? "light" : "dark"} mode" title="Switch to ${state.theme === "dark" ? "light" : "dark"} mode">${icon(state.theme === "dark" ? "moon" : "sun")} ${state.theme === "dark" ? "Dark" : "Light"}</button></div>
-        <div class="setting-line palette-setting"><span class="setting-line-copy"><strong>Palette</strong><small>Changes decorative and primary-action colors; safety colors remain semantic.</small></span><div class="palette-grid" aria-label="Palette presets">${paletteOptions.map(paletteCard).join("")}</div></div>
-        <div class="setting-line palette-setting code-theme-setting"><span class="setting-line-copy"><strong>Code highlighting</strong><small>Changes YAML syntax colours across the application. It does not change wallet data, amounts, or runtime behavior.</small></span><div class="code-theme-sections" aria-label="YAML code highlighting theme"><section><p class="code-theme-group-label">Light</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "light").map(codeThemeCard).join("")}</div></section><section><p class="code-theme-group-label">Dark</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "dark").map(codeThemeCard).join("")}</div></section></div></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>Custom accents</strong><small>Fine-tune brand and privacy rail only. Safety, warning, failure, and focus colours stay protected.</small></span><div class="custom-color-controls"><label>Brand<input type="color" data-config-control="custom-brand" value="${state.customAppearance.brand}" aria-label="Custom brand color"></label><label>Privacy rail<input type="color" data-config-control="custom-rail" value="${state.customAppearance.rail}" aria-label="Custom privacy rail color"></label></div></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>Text scale</strong><small>Interface reflows without hiding content</small></span><select aria-label="Text scale" data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select></div>
-        <div class="setting-line"><span class="setting-line-copy"><strong>Reduced motion</strong><small>Reduce interface motion in addition to operating system preferences</small></span><button class="toggle" type="button" aria-pressed="${state.reducedMotion}" aria-label="Use reduced motion" data-demo-action="motion"></button></div>
+      <div class="setting-group settings-first-group">
+        <div class="setting-line compact-row" data-help-anchor="theme"><strong class="compact-row-label">Theme</strong><span class="compact-value"></span><button type="button" class="theme-toggle compact-action" data-theme-toggle aria-label="Switch to ${state.theme === "dark" ? "light" : "dark"} mode" title="Switch to ${state.theme === "dark" ? "light" : "dark"} mode">${icon(state.theme === "dark" ? "moon" : "sun")} ${state.theme === "dark" ? "Dark" : "Light"}</button></div>
+        <div class="setting-line palette-setting"><span class="setting-line-copy"><strong>Palette</strong></span><div class="palette-grid" aria-label="Palette presets">${paletteOptions.map(paletteCard).join("")}</div></div>
+        <div class="setting-line palette-setting code-theme-setting"><span class="setting-line-copy"><strong>Code highlighting</strong></span><div class="code-theme-sections" aria-label="YAML code highlighting theme"><section><p class="code-theme-group-label">Light</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "light").map(codeThemeCard).join("")}</div></section><section><p class="code-theme-group-label">Dark</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "dark").map(codeThemeCard).join("")}</div></section></div></div>
+        <div class="setting-line compact-row appearance-color-setting"><strong class="compact-row-label">Custom accents</strong><div class="custom-color-controls compact-value"><label>Brand<input type="color" data-config-control="custom-brand" value="${state.customAppearance.brand}" aria-label="Custom brand color"></label><label>Privacy rail<input type="color" data-config-control="custom-rail" value="${state.customAppearance.rail}" aria-label="Custom privacy rail color"></label></div><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><strong class="compact-row-label">Text scale</strong><select class="compact-value" aria-label="Text scale" data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><strong class="compact-row-label">Reduced motion</strong><span class="compact-value"></span><button class="toggle compact-action" type="button" aria-pressed="${state.reducedMotion}" aria-label="Use reduced motion" data-demo-action="motion"></button></div>
       </div>`;
   }
 
@@ -1567,16 +1553,11 @@ const reticulumTelemetryTabs = [
     id: "overview",
     labelKey: "reticulum.tabs.overview",
     iconName: RETICULUM_TAB_ICON_LUT.overview,
-    summary: "A bounded summary of managed-node, interface, path, probe, and link evidence from one local bridge.",
     metrics: [
       ["Managed-node state", "Unavailable", "No local Reticulum status bridge"],
       ["Interface availability", "Unavailable", "No local interface summary"],
       ["Path and link evidence", "Unavailable", "No managed transport summary"],
       ["Probe coverage", "Unavailable", "No controlled-destination probe results"]
-    ],
-    details: [
-      ["activity", "Local telemetry scope", "Overview collects only bounded summaries from a registered local bridge. It does not describe Reticulum as a whole or reconstruct a wallet route."],
-      ["shield", "Evidence boundary", "All values remain unavailable until a local source provides them with explicit freshness and scope. Addresses, destinations, routes, and payloads stay outside this wallet view."]
     ]
   },
   {
@@ -1584,16 +1565,11 @@ const reticulumTelemetryTabs = [
     label: "Node",
     labelKey: "reticulum.tabs.node",
     iconName: RETICULUM_TAB_ICON_LUT.node,
-    summary: "Health of one managed Reticulum instance, never a claim about the global network.",
     metrics: [
       ["RNS instance", "Unavailable", "No local rnstatus bridge"],
       ["Transport role", "Unavailable", "No managed node snapshot"],
       ["Uptime", "Unavailable", "No local process observation"],
       ["Aggregate RX / TX", "Unavailable", "No local traffic counters"]
-    ],
-    details: [
-      ["activity", "Managed-node state", "A future local bridge may show shared-instance availability, transport state, uptime, local application count, link-table count, probe responder state, and process resources."],
-      ["shield", "Node scope", "Transport and network identities are technical identifiers. This wallet view shows only a bounded local health result and never implies global Reticulum coverage." ]
     ]
   },
   {
@@ -1601,16 +1577,11 @@ const reticulumTelemetryTabs = [
     label: "Interfaces",
     labelKey: "reticulum.tabs.interfaces",
     iconName: RETICULUM_TAB_ICON_LUT.interfaces,
-    summary: "Configured local interface state, capacity metadata, and aggregate traffic.",
     metrics: [
       ["Interfaces up / total", "Unavailable", "No local interface snapshot"],
       ["Mode", "Unavailable", "No interface-mode snapshot"],
       ["Nominal bitrate", "Unavailable", "No configured-rate snapshot"],
       ["Current RX / TX", "Unavailable", "No local traffic-rate snapshot"]
-    ],
-    details: [
-      ["network", "Interface snapshot", "For each locally managed interface, show status, type, mode, nominal bitrate, current RX/TX rate, totals, and an aggregate reachable-peer or client count when the source supplies it."],
-      ["shield", "Interface boundary", "Interface addresses, peer identities, destination hashes, IFAC material, and autoconnect details remain diagnostics outside the wallet." ]
     ]
   },
   {
@@ -1618,16 +1589,11 @@ const reticulumTelemetryTabs = [
     label: "Radio",
     labelKey: "reticulum.tabs.radio",
     iconName: RETICULUM_TAB_ICON_LUT.radio,
-    summary: "RNode and LoRa radio metrics only when a local radio interface reports them.",
     metrics: [
       ["Frequency", "Unavailable", "No RNode interface snapshot"],
       ["Channel configuration", "Unavailable", "No bandwidth / SF / CR metadata"],
       ["RF health", "Unavailable", "No noise / RSSI / SNR observation"],
       ["Airtime / channel load", "Unavailable", "No short or long-window observation"]
-    ],
-    details: [
-      ["network", "Radio configuration", "Frequency, bandwidth, spreading factor, coding rate, TX power, modulation, and configured bitrate are configuration metadata for a reported radio interface."],
-      ["shield", "Hardware-only evidence", "Noise floor, interference, channel load, airtime, RSSI, SNR, link quality, battery, and device resources appear only when local hardware actually reports them. TCP and I2P never receive fake RF fields." ]
     ]
   },
   {
@@ -1635,16 +1601,11 @@ const reticulumTelemetryTabs = [
     label: "Entry points",
     labelKey: "reticulum.tabs.entrypoints",
     iconName: RETICULUM_TAB_ICON_LUT.entrypoints,
-    summary: "Published and locally discovered entry points, never a directory of every Reticulum node.",
     metrics: [
       ["Discovery state", "Unavailable", "No local discovery snapshot"],
       ["Available entry points", "Unavailable", "No trusted-entrypoint count"],
       ["Last heard", "Unavailable", "No discovery freshness signal"],
       ["Trust scope", "Unavailable", "No managed discovery policy"]
-    ],
-    details: [
-      ["network", "Discovered entry points", "A future local bridge may show published interface name/type, Available or Stale state, first discovery, last heard, hop distance, and radio metadata where it was deliberately published."],
-      ["shield", "Discovery boundary", "This is a trusted local discovery view, not a global network map. Transport IDs, addresses, ports, coordinates, and discovery history remain hidden unless a dedicated diagnostics surface is authorized." ]
     ]
   },
   {
@@ -1652,16 +1613,11 @@ const reticulumTelemetryTabs = [
     label: "Paths",
     labelKey: "reticulum.tabs.paths",
     iconName: RETICULUM_TAB_ICON_LUT.paths,
-    summary: "Known-path state and control-plane pressure from this managed node only.",
     metrics: [
       ["Known paths", "Unavailable", "No local path-table summary"],
       ["Path freshness", "Unavailable", "No local update observation"],
       ["Path churn", "Unavailable", "No managed change-rate summary"],
       ["Announce pressure", "Unavailable", "No announce-rate or hold-state summary"]
-    ],
-    details: [
-      ["network", "Control-plane summary", "Known-path count, interface/hop distribution, path churn, announce rate, rate violations, and rate-limit state can be summarized from local rnpath evidence."],
-      ["shield", "Topology boundary", "Destination hashes, next hops, raw hop lists, path entries, cache contents, and announce payloads are diagnostics, not everyday wallet data." ]
     ]
   },
   {
@@ -1669,16 +1625,11 @@ const reticulumTelemetryTabs = [
     label: "Probes",
     labelKey: "reticulum.tabs.probes",
     iconName: RETICULUM_TAB_ICON_LUT.probes,
-    summary: "End-to-end checks for specifically managed destinations that consent to probes.",
     metrics: [
       ["Probe availability", "Unavailable", "No managed-destination probe results"],
       ["RTT", "Unavailable", "No local latency sample"],
       ["Loss / jitter", "Unavailable", "No probe series"],
       ["Consecutive failures", "Unavailable", "No local failure count"]
-    ],
-    details: [
-      ["activity", "Managed availability", "Availability windows, median and p95 RTT, jitter, packet loss, and consecutive failures can be derived only from an explicit rnprobe series to a controlled destination."],
-      ["shield", "Probe scope", "A missing proof response is not evidence that Reticulum is down. RSSI and SNR describe the receiving local radio interface only, not every intermediate hop." ]
     ]
   },
   {
@@ -1686,16 +1637,11 @@ const reticulumTelemetryTabs = [
     label: "Links",
     labelKey: "reticulum.tabs.links",
     iconName: RETICULUM_TAB_ICON_LUT.links,
-    summary: "Local application link and receipt evidence, separate from interface health.",
     metrics: [
       ["Active links", "Unavailable", "No local link summary"],
       ["Receipt delivery", "Unavailable", "No local receipt observation"],
       ["Expected / establish rate", "Unavailable", "No application link-rate summary"],
       ["Measured goodput", "Unavailable", "No controlled resource transfer"]
-    ],
-    details: [
-      ["activity", "Link evidence", "For wallet-owned applications, expose link age, idle time, request response time, MTU, MDU, receipt state, resource-transfer progress, and optional local physical stats when track_phy_stats is enabled."],
-      ["shield", "No link tracing", "Remote identities, destinations, payload content, individual-link history, and teardown internals remain outside the wallet surface." ]
     ]
   }
 ];
@@ -1705,17 +1651,11 @@ const aggregatorsTelemetryTabs = [
     id: "overview",
     labelKey: "aggregators.tabs.overview",
     iconName: "overview",
-    summary: "Read-only service and publication evidence for aggregation work. It never receives wallet keys, seeds, or policy secrets.",
     metrics: [
       ["Service bindings", "Unavailable", "No wallet-to-node status bridge"],
       ["Publication", "Unavailable", "No latest publication record"],
       ["Placement", "Unavailable", "No batch placement observation"],
       ["Verdict", "Unavailable", "No validation or lifecycle evidence"]
-    ],
-    details: [
-      ["activity", "Service bindings", "When a verified local bridge exists, report whether aggregator, validator, and watcher services are attached. A detached service is not an error by itself."],
-      ["exchange", "Publication and placement", "Report a batch or publication lifecycle only when an authoritative record exists. Do not claim settlement, acceptance, or a recipient outcome from a queued publication."],
-      ["shield", "Verification evidence", "Expose a local verdict, lifecycle state, provider signal, and observation only with their freshness and scope. Keep wallet-specific identifiers and private payloads out of this page."]
     ]
   }
 ];
@@ -1725,130 +1665,91 @@ const onionnetTelemetryTabs = [
     id: "overview",
     labelKey: "onionnet.tabs.overview",
     iconName: "overview",
-    summary: "A boundary-aware view of public control-plane state, local evidence, and aggregate synthetic health. It never reconstructs a user route.",
     metrics: [
       ["Public epoch data", "Unavailable", "No verified registry or policy snapshot"],
       ["Local route evidence", "Unavailable", "No wallet or SDK status bridge"],
       ["Synthetic health", "Unavailable", "No aggregate probe feed"],
       ["Protected fields", "Hidden", "No paths, endpoints, or session IDs"]
-    ],
-    details: [
-      ["activity", "Evidence classes", "Public deterministic state may describe an epoch, registry, policy, active/reserve selection, lane contract, and diversity constraints. Local route construction and forwarding observations remain local."],
-      ["shield", "No reachability inference", "Selected active nodes are not currently reachable nodes. A future dashboard must label deterministic selection, observed reachability, and synthetic probe coverage as separate signals." ]
     ]
   },
   {
     id: "epoch",
     labelKey: "onionnet.tabs.epoch",
     iconName: "activity",
-    summary: "Epoch, registry, beacon, policy, and lane-contract agreement are public deterministic control-plane evidence.",
     metrics: [
       ["Epoch ID", "Unavailable", "No fresh verified epoch view"],
       ["Independent derivation", "Unavailable", "No observer agreement snapshot"],
       ["Registry / policy freshness", "Unavailable", "No verified roots or snapshot age"],
       ["Lane contract expiry", "Unavailable", "No active contract snapshot"]
-    ],
-    details: [
-      ["activity", "Epoch view agreement", "Independent observers may derive the same EpochView from the registry root, beacon, and policy root. A disagreement is a control-plane alert, not a normal node-down event."],
-      ["shield", "Rollback and split-view boundary", "Snapshot rollback, stale policy, beacon problems, and incompatible generations need explicit evidence. This UI never infers agreement from an unavailable source." ]
     ]
   },
   {
     id: "privacy",
     labelKey: "onionnet.tabs.privacy",
     iconName: "shield",
-    summary: "Privacy is described through separate lane, diversity, route-floor, and cover-traffic contract signals — never one universal score.",
     metrics: [
       ["Privacy", "Unavailable", "No active profile evaluation"],
       ["Active lanes", "Unavailable", "No lane-contract snapshot"],
       ["Minimum bucket population", "Unavailable", "No bucket aggregate"],
       ["Compliant route floor", "Unavailable", "No policy-bound route count"]
-    ],
-    details: [
-      ["shield", "Privacy contract", "A future source may expose active lanes, minimum bucket population, disjoint compliant-route floor, concentration headroom, cover budget, and low-load state as distinct descriptive signals."],
-      ["alert", "Fail-closed behavior", "Thin lanes are a privacy event. Low-load contraction may delay admission, increase cover requirements, or fail closed; the UI must never silently replace that outcome with a direct fallback." ]
     ]
   },
   {
     id: "transport",
     labelKey: "onionnet.tabs.transport",
     iconName: "network",
-    summary: "Carrier-neutral aggregate transport evidence keeps adjacent-link health separate from end-to-end user outcomes.",
     metrics: [
       ["Carrier availability", "Unavailable", "No local carrier snapshot"],
       ["Aggregate RTT / loss", "Unavailable", "No aggregate measurement window"],
       ["Carrier distribution", "Unavailable", "No coarse traffic-class aggregate"],
       ["Geometry compliance", "Unavailable", "No packet-class validation aggregate"]
-    ],
-    details: [
-      ["network", "Carrier observability", "QUIC, WebSocket/TLS, Tor ingress, and future adapters may report coarse carrier availability, handshake outcomes, RTT, loss, goodput, MTU, and packet-class geometry compliance."],
-      ["shield", "No endpoint telemetry", "Raw addresses, connection IDs, TLS sessions, Tor circuits, exact endpoints, hop pairs, and packet timing traces are excluded because together they could reveal route structure." ]
     ]
   },
   {
     id: "queues",
     labelKey: "onionnet.tabs.queues",
     iconName: "queue",
-    summary: "Bounded queues, durable replay protection, and explicit backpressure are local safety evidence, never a cross-hop trace.",
     metrics: [
       ["Queue utilization", "Unavailable", "No local bounded-queue aggregate"],
       ["Replay ledger", "Unavailable", "No durable replay snapshot"],
       ["Backpressure actions", "Unavailable", "No aggregated reason counts"],
       ["Forwarding invariant", "Unavailable", "No verified replay-before-forward proof"]
-    ],
-    details: [
-      ["activity", "Durable replay boundary", "Outer transport and inner canonical-envelope replay acceptance must complete durably before forwarding side effects. A future source may expose only aggregates and the required zero-violation invariant."],
-      ["shield", "No correlation database", "Replay tags, ciphertext hashes, transaction identifiers, packet timestamps, and a shared packet correlation ID remain hidden. Queue latency may be reported only at the observing local boundary." ]
     ]
   },
   {
     id: "probation",
     labelKey: "onionnet.tabs.probation",
     iconName: "probe",
-    summary: "Probation and reserve readiness use aggregate shadow traffic and controlled challenges without automatic irreversible punishment.",
     metrics: [
       ["Probation population", "Unavailable", "No lifecycle aggregate"],
       ["Shadow-probe coverage", "Unavailable", "No aggregate probe results"],
       ["Reserve activation", "Unavailable", "No activation-time observation"],
       ["Challenge outcomes", "Unavailable", "No bounded outcome summary"]
-    ],
-    details: [
-      ["activity", "Readiness evidence", "A future source may aggregate probation age, shadow-probe success, loss, replay correctness, queue stability, descriptor consistency, and reserve-activation time without exposing individual route evidence."],
-      ["shield", "Observation before punishment", "Until the anti-griefing contract is frozen, challenge telemetry may initiate re-probing but must not directly trigger slashing or irreversible demotion." ]
     ]
   },
   {
     id: "ingress",
     labelKey: "onionnet.tabs.ingress",
     iconName: "entry",
-    summary: "The double-envelope exit and ingress-decryptor boundary is visible through aggregate correctness and admission evidence only.",
     metrics: [
       ["Exit boundary", "Unavailable", "No opaque-handoff aggregate"],
       ["Inner decrypt", "Unavailable", "No result-count aggregate"],
       ["Recipient-key lifecycle", "Unavailable", "No key-age or rotation snapshot"],
       ["Runtime admission", "Unavailable", "No WorkItem admission aggregate"]
-    ],
-    details: [
-      ["activity", "Boundary correctness", "A future source may aggregate outer unwrap, transport validation, opaque handoff, inner decrypt, AAD binding, key rotation, WorkItem formation, and runtime-admission results by bounded reason code."],
-      ["shield", "Payload and identity boundary", "It must never show recipient keys, ciphertext, transaction identifiers, outer or inner envelope material, predecessor/next-hop details, or a user-session timeline." ]
     ]
   }
 ];
 
-function telemetryTabbedView({ source, tabs, selectedTabId, eyebrowKey, titleKey, summaryKey, localCapabilityKey, localCapabilityHelpKey, notice }) {
+function telemetryTabbedView({ source, tabs, selectedTabId, titleKey, localCapabilityKey }) {
   const activeTab = tabs.find((tab) => tab.id === selectedTabId) || tabs[0];
   const tabLabel = t(activeTab.labelKey);
   return `<section class="view-enter telemetry-view ${source}-telemetry-view" aria-labelledby="telemetry-heading">
-    <div class="page-intro"><div><p class="eyebrow">${t(eyebrowKey)}</p><h2 id="telemetry-heading">${t(titleKey)}</h2><p>${t(summaryKey)}</p></div><span class="status-badge">${t("common.readOnly")}</span></div>
-    <div class="capability-note">${icon("alert")}<span><strong>${t(localCapabilityKey)}</strong><small>${t(localCapabilityHelpKey)}</small></span></div>
+    <h2 class="sr-only" id="telemetry-heading">${t(titleKey)}</h2>
+    <div class="capability-note capability-note-compact">${icon("alert")}<span><strong>${t(localCapabilityKey)}</strong></span><span class="status-badge">${t("common.readOnly")}</span></div>
     <section id="${source}-panel-${activeTab.id}" class="telemetry-tab-detail" role="tabpanel" aria-label="${tabLabel}" aria-labelledby="${source}-tab-${activeTab.id}">
-      <div class="telemetry-tab-heading"><div><h3>${tabLabel}</h3><p>${activeTab.summary}</p></div><span class="status-badge">${t("common.unavailable")}</span></div>
+      <div class="telemetry-tab-heading"><div><h3>${tabLabel}</h3></div><span class="status-badge">${t("common.unavailable")}</span></div>
       <section class="network-summary-grid telemetry-summary" aria-label="${tabLabel} parameters">${activeTab.metrics.map(([label, value, helper]) => telemetryValue(label, value, helper)).join("")}</section>
-      <section class="telemetry-grid telemetry-tab-grid" aria-label="${tabLabel} boundary details">
-        ${activeTab.details.map(([iconName, title, detail]) => `<article class="card telemetry-card">${telemetryLine(iconName, title, detail)}</article>`).join("")}
-      </section>
     </section>
-    <div class="notice">${icon("shield")} ${notice}</div>
   </section>`;
 }
 
@@ -1857,12 +1758,8 @@ function reticulumTelemetryView() {
     source: "reticulum",
     tabs: reticulumTelemetryTabs,
     selectedTabId: state.reticulumTelemetryTab,
-    eyebrowKey: "network.carrierTelemetry",
     titleKey: "reticulum.title",
-    summaryKey: "reticulum.summary",
-    localCapabilityKey: "reticulum.localCapability",
-    localCapabilityHelpKey: "reticulum.localCapabilityHelp",
-    notice: "Telemetry is local evidence, not a control plane. It remains read-only, scope-labelled, freshness-labelled, and separate from wallet and application setup."
+    localCapabilityKey: "reticulum.localCapability"
   });
 }
 
@@ -1871,12 +1768,8 @@ function onionnetTelemetryView() {
     source: "onionnet",
     tabs: onionnetTelemetryTabs,
     selectedTabId: state.onionnetTelemetryTab,
-    eyebrowKey: "network.routeTelemetry",
     titleKey: "onionnet.title",
-    summaryKey: "onionnet.summary",
-    localCapabilityKey: "onionnet.localCapability",
-    localCapabilityHelpKey: "onionnet.localCapabilityHelp",
-    notice: "Telemetry is evidence, not a route controller. It remains read-only, scope-labelled, freshness-labelled, and separate from wallet and application setup."
+    localCapabilityKey: "onionnet.localCapability"
   });
 }
 
@@ -1885,12 +1778,8 @@ function aggregatorsTelemetryView() {
     source: "aggregators",
     tabs: aggregatorsTelemetryTabs,
     selectedTabId: state.aggregatorsTelemetryTab,
-    eyebrowKey: "network.publicationTelemetry",
     titleKey: "aggregators.title",
-    summaryKey: "aggregators.summary",
-    localCapabilityKey: "aggregators.localCapability",
-    localCapabilityHelpKey: "aggregators.localCapabilityHelp",
-    notice: "Telemetry is evidence, not a control plane. It remains read-only, scope-labelled, freshness-labelled, and separate from wallet and application setup."
+    localCapabilityKey: "aggregators.localCapability"
   });
 }
 
@@ -1924,6 +1813,7 @@ function render(options = {}) {
   pageTitle.classList.toggle("is-wallet-address", walletScreen);
   pageTitle.classList.toggle("is-telemetry-title", telemetryScreen);
   pageTitle.classList.toggle("is-settings-title", settingsScreen);
+  topbarAddressGroup.classList.toggle("has-wallet-address", walletScreen);
   copyWalletAddress.hidden = !walletScreen;
   walletIdentity.hidden = !walletScreen;
 
@@ -1950,6 +1840,8 @@ function render(options = {}) {
     settings: settingsView,
     telemetry: telemetryView
   }[state.view]();
+  help.configure({ language: state.language });
+  help.mountContextButton(state, main.firstElementChild);
   suppressPasswordManagerUI(document);
 
   syncBalanceButtons();
@@ -2139,17 +2031,18 @@ function walletPasswordChangeDialog() {
   });
 }
 
-function dialogFrame({ title, subtitle, body, footer = "", steps = 0, activeStep = 0, closeLabel, headerLeading = "" }) {
+function dialogFrame({ title, subtitle, body, footer = "", steps = 0, activeStep = 0, closeLabel, headerLeading = "", helpTopic = "" }) {
   const resolvedCloseLabel = closeLabel || t("common.close");
   const indicators = steps > 1
     ? `<div class="step-indicator" aria-label="Step ${activeStep + 1} of ${steps}">${Array.from({ length: steps }, (_, index) => `<span class="${index < activeStep ? "is-done" : index === activeStep ? "is-active" : ""}"></span>`).join("")}</div>`
     : "";
   return `
-    <div class="dialog-shell">
+    <div class="dialog-shell"${helpTopic ? ' data-help-anchor="current-view"' : ""}>
       <header class="dialog-header${headerLeading ? " has-leading-visual" : ""}">
         ${headerLeading}
         <div class="dialog-header-copy"><h2 id="dialog-title">${title}</h2><p>${subtitle}</p></div>
         ${indicators}
+        ${helpTopic ? `<button class="icon-button dialog-help-button" type="button" data-help-topic="${escapeHtml(helpTopic)}" aria-label="${escapeHtml(t("help.openContext"))}" title="${escapeHtml(t("help.title"))}">${icon("question")}</button>` : ""}
         <button class="icon-button" type="button" data-dialog-close aria-label="${escapeHtml(resolvedCloseLabel)}">${icon("close")}</button>
       </header>
       <div class="dialog-body">${body}</div>
@@ -2353,7 +2246,8 @@ function assetDetailDialog() {
     title: "Asset details",
     subtitle: `${asset.label} · ${asset.kind}`,
     headerLeading: assetIcon(asset, "asset-detail-logo"),
-    body: `<div class="asset-detail-table">${rows.map(([label, value]) => `<div class="asset-detail-row"><span>${escapeHtml(label)}</span><strong class="${["Owner", "Asset ID"].includes(label) ? "mono" : ""}">${escapeHtml(value)}</strong></div>`).join("")}</div>`,
+    helpTopic: "asset.details",
+    body: `<div class="asset-detail-table">${rows.map(([label, value]) => `<div class="asset-detail-row"><span>${escapeHtml(label)}</span><strong class="${["Owner", "Asset ID"].includes(label) ? "mono" : ""}" title="${escapeHtml(value)}">${escapeHtml(value)}</strong></div>`).join("")}</div>`,
     footer: `<button class="button button-primary" type="button" data-dialog-close>OK</button>`
   });
 }
@@ -3200,6 +3094,8 @@ function handleDemoAction(action, button) {
   }
 }
 
+document.addEventListener("z00z:help-opening", () => closeMobilePopup());
+
 document.addEventListener("click", (event) => {
   if (event.target.closest("#mobile-menu-backdrop")) {
     closeMobilePopup({ restoreFocus: true });
@@ -3259,8 +3155,9 @@ document.addEventListener("click", (event) => {
 
   const mobilePopupAction = event.target.closest("[data-mobile-popup-action]");
   if (mobilePopupAction) {
+    const action = mobilePopupAction.dataset.mobilePopupAction;
     closeMobilePopup();
-    handleDemoAction(mobilePopupAction.dataset.mobilePopupAction, mobilePopupAction);
+    handleDemoAction(action, mobileMenuButton);
     return;
   }
 

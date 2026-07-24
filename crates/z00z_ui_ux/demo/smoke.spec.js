@@ -50,6 +50,46 @@ async function expectDialogActionsCentered(page) {
   expect(offset).toBeLessThanOrEqual(1);
 }
 
+function routeQuery(parameters) {
+  return `?${new URLSearchParams(parameters).toString()}`;
+}
+
+function allRoutedViews(contract) {
+  return contract.views.flatMap((view) => {
+    if (view === "wallet") {
+      return contract.walletSections.map((walletSection) => ({
+        name: `wallet-${walletSection}`,
+        query: routeQuery({ view, wallet: walletSection })
+      }));
+    }
+    if (view === "wallet-settings") {
+      return contract.walletSettingsSections.map((walletSettingsSection) => ({
+        name: `wallet-settings-${walletSettingsSection}`,
+        query: routeQuery({ view, walletSettings: walletSettingsSection })
+      }));
+    }
+    if (view === "settings") {
+      return contract.settingsSections.map((settingsSection) => ({
+        name: `settings-${settingsSection}`,
+        query: routeQuery({ view, settings: settingsSection })
+      }));
+    }
+    if (view === "telemetry") {
+      return contract.telemetrySources.flatMap((telemetrySource) => (
+        contract.telemetryTabs[telemetrySource].map((tab) => ({
+          name: `telemetry-${telemetrySource}-${tab}`,
+          query: routeQuery({
+            view,
+            telemetry: telemetrySource,
+            [`${telemetrySource === "onionnet" ? "onion" : telemetrySource}Tab`]: tab
+          })
+        }))
+      ));
+    }
+    return [{ name: view, query: routeQuery({ view }) }];
+  });
+}
+
 test("object families and claim/voucher/permission flows remain distinct", async ({ page }) => {
   await page.goto(`${demoUrl}?view=home`);
 
@@ -113,6 +153,28 @@ test("object families and claim/voucher/permission flows remain distinct", async
   await page.getByRole("button", { name: /Deploy to staging/ }).click();
   await expect(page.getByRole("heading", { name: "Deploy to staging" })).toBeVisible();
   await expect(page.getByText("Machine capability", { exact: true })).toBeVisible();
+});
+
+test("wallet context rails share a compact width", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  const measureRail = () => page.locator(".workspace-layout").evaluate((layout) => {
+    const rail = layout.querySelector(".context-rail");
+    const style = getComputedStyle(layout);
+    return {
+      gap: Number.parseFloat(style.columnGap),
+      width: Math.round(rail.getBoundingClientRect().width)
+    };
+  });
+
+  await page.goto(`${demoUrl}?view=wallet`);
+  const assetsRail = await measureRail();
+
+  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=general`);
+  const settingsRail = await measureRail();
+
+  expect(assetsRail).toEqual({ gap: 24, width: 192 });
+  expect(settingsRail).toEqual(assetsRail);
 });
 
 test("wallet navigation scopes history and wallet tools to the selected wallet", async ({ page }) => {
@@ -195,7 +257,7 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   expect(sidebarButtonOrder.indexOf("Add wallet")).toBeLessThan(sidebarButtonOrder.indexOf("Settings"));
   expect(sidebarButtonOrder.indexOf("Remove wallet")).toBeLessThan(sidebarButtonOrder.indexOf("Settings"));
   await expect(page.locator(".wallet-nav-viewport")).toBeVisible();
-  await expect(page.locator(".wallet-nav-viewport")).toHaveCSS("overflow-y", "scroll");
+  await expect(page.locator(".wallet-nav-viewport")).toHaveCSS("overflow-y", "auto");
   const walletViewportScroll = await page.locator(".wallet-nav-viewport").evaluate((viewport) => {
     const nav = viewport.querySelector(".wallet-nav");
     const actions = viewport.querySelector(".wallet-nav-actions");
@@ -242,11 +304,86 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   await expect(page.getByText("Payment to RailLink")).toBeVisible();
   await expect(page.getByText("Transfer from Everyday")).toHaveCount(0);
   await page.locator('#wallet-tabs [data-view="swap"]').click();
-  await expect(page.getByRole("heading", { name: "Build a swap" })).toBeVisible();
-  await expect(page.locator(".wallet-tool-summary").getByText("Travel", { exact: true })).toBeVisible();
+  const swapHeading = page.getByRole("heading", { name: "Build a swap" });
+  await expect(swapHeading).toBeVisible();
+  await expect(swapHeading).toHaveCSS("font-size", "23.2px");
+  await expect(page.locator(".wallet-tool-summary")).toHaveCount(0);
+  await expect(page.locator(".wallet-tool-grid-single")).toHaveCSS("grid-template-columns", "640px");
+  const swapGeometry = await page.locator(".wallet-tool-grid-single").evaluate((grid) => {
+    const gridBox = grid.getBoundingClientRect();
+    const card = grid.querySelector(".swap-card");
+    const cardBox = card.getBoundingClientRect();
+    const heading = card.querySelector(".tool-card-heading");
+    const iconBox = heading.querySelector(".list-icon").getBoundingClientRect();
+    const titleBox = heading.querySelector("h2").getBoundingClientRect();
+    return {
+      centerOffset: Math.abs(
+        (cardBox.left + cardBox.width / 2) - (gridBox.left + gridBox.width / 2)
+      ),
+      headingAlignment: getComputedStyle(heading).alignItems,
+      titleIconCenterOffset: Math.abs(
+        (titleBox.top + titleBox.height / 2) - (iconBox.top + iconBox.height / 2)
+      )
+    };
+  });
+  expect(swapGeometry.centerOffset).toBeLessThanOrEqual(1);
+  expect(swapGeometry.headingAlignment).toBe("center");
+  expect(swapGeometry.titleIconCenterOffset).toBeLessThanOrEqual(1);
   await expect(page.locator('#wallet-tabs [data-view="exchange"]')).toBeDisabled();
   await page.locator('[data-view="staking"]:visible').click();
-  await expect(page.getByRole("heading", { name: "Prepare a stake" })).toBeVisible();
+  const stakingHeading = page.getByRole("heading", { name: "Prepare a stake" });
+  await expect(stakingHeading).toBeVisible();
+  await expect(stakingHeading).toHaveCSS("font-size", "23.2px");
+  await expect(page.locator(".staking-card")).toHaveCount(1);
+  await expect(page.locator(".staking-metric")).toHaveCount(3);
+  const stakingTypography = await page.locator(".staking-card").evaluate((card) => {
+    const heading = card.querySelector(".tool-card-heading h2");
+    const headingIcon = card.querySelector(".tool-card-heading .list-icon");
+    const metricLabel = card.querySelector(".staking-metric span");
+    const metricValue = card.querySelector(".staking-metric strong");
+    const availableValue = card.querySelector(".staking-metric strong .sensitive");
+    const amountLabel = card.querySelector('label[for="stake-amount"]');
+    const style = (element) => {
+      const computed = getComputedStyle(element);
+      return {
+        color: computed.color,
+        family: computed.fontFamily,
+        size: computed.fontSize,
+        weight: computed.fontWeight
+      };
+    };
+    const headingBox = heading.getBoundingClientRect();
+    const iconBox = headingIcon.getBoundingClientRect();
+    return {
+      headingCenterOffset: Math.abs(
+        (headingBox.top + headingBox.height / 2) - (iconBox.top + iconBox.height / 2)
+      ),
+      metricLabel: style(metricLabel),
+      metricValue: style(metricValue),
+      availableValue: style(availableValue),
+      amountLabel: style(amountLabel)
+    };
+  });
+  expect(stakingTypography.headingCenterOffset).toBeLessThanOrEqual(1);
+  expect(stakingTypography.metricLabel.family).toContain("Geist");
+  expect(stakingTypography.metricLabel.size).toBe("16px");
+  expect(stakingTypography.metricLabel.weight).toBe("650");
+  expect(stakingTypography.metricValue.family).toContain("Geist");
+  expect(stakingTypography.metricValue.family).not.toContain("Mono");
+  expect(stakingTypography.metricValue.size).toBe("20px");
+  expect(stakingTypography.metricValue.weight).toBe("650");
+  expect(stakingTypography.availableValue).toEqual(stakingTypography.metricValue);
+  expect(stakingTypography.amountLabel.family).toBe(stakingTypography.metricLabel.family);
+  expect(stakingTypography.amountLabel.size).toBe(stakingTypography.metricLabel.size);
+  expect(stakingTypography.amountLabel.weight).toBe(stakingTypography.metricLabel.weight);
+  await expect(page.locator(".money-summary")).toHaveCount(0);
+  await expect(page.locator(".wallet-tool-summary")).toHaveCount(0);
+  const stakingAlignment = await page.locator(".wallet-tool-grid-centered").evaluate((grid) => {
+    const card = grid.querySelector(".staking-card").getBoundingClientRect();
+    const bounds = grid.getBoundingClientRect();
+    return Math.abs((card.left + card.right) / 2 - (bounds.left + bounds.right) / 2);
+  });
+  expect(stakingAlignment).toBeLessThanOrEqual(1);
   await page.locator('#wallet-tabs [data-view="wallet-backup"]').click();
   await expect(page.getByRole("heading", { name: "Backup status" })).toBeVisible();
 
@@ -272,26 +409,82 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   expect(await visibleWalletRows()).toBe(3);
 });
 
+test("every routed view starts on the shared content baseline", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
+  const contract = await page.evaluate(() => window.Z00ZDemo.PORT_CONTRACT);
+  const routes = allRoutedViews(contract);
+
+  for (const viewport of [
+    { name: "desktop", width: 1280, height: 800 },
+    { name: "mobile-390", width: 390, height: 844 },
+    { name: "mobile-320", width: 320, height: 800 }
+  ]) {
+    await page.setViewportSize(viewport);
+    const measurements = [];
+
+    for (const route of routes) {
+      await page.goto(`${demoUrl}${route.query}`);
+      await expect(page.locator("#main-content > .view-enter")).toBeVisible();
+      const offset = await page.locator("#main-content > .view-enter").evaluate((root) => {
+        root.style.animation = "none";
+        const firstVisibleChild = [...root.children].find((child) => {
+          const bounds = child.getBoundingClientRect();
+          const style = getComputedStyle(child);
+          return !child.matches(".sr-only")
+            && style.display !== "none"
+            && style.visibility !== "hidden"
+            && bounds.width > 0
+            && bounds.height > 0;
+        });
+        const mainTop = document.querySelector("#main-content").getBoundingClientRect().top;
+        return Math.round((firstVisibleChild.getBoundingClientRect().top - mainTop) * 10) / 10;
+      });
+      measurements.push({ route: route.name, offset });
+    }
+
+    const offsets = measurements.map(({ offset }) => offset);
+    const spread = Math.max(...offsets) - Math.min(...offsets);
+    expect(
+      spread,
+      `${viewport.name} view-start offsets:\n${JSON.stringify(measurements, null, 2)}`
+    ).toBeLessThanOrEqual(1);
+  }
+});
+
 test("the current workspace tabs live in the single topbar on wide screens", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(`${demoUrl}?view=wallet`);
 
   const navigationContract = await page.evaluate(() => {
     const topbar = document.querySelector("#primary-topbar");
+    const addressGroup = document.querySelector(".topbar-address-group");
     const tabsNode = document.querySelector("#wallet-tabs");
     const tabs = document.querySelectorAll("#wallet-tabs .wallet-tab");
+    const firstTab = tabs[0];
+    const firstTabStyle = getComputedStyle(firstTab);
+    const firstTabBox = firstTab.getBoundingClientRect();
+    const addressBox = addressGroup.getBoundingClientRect();
     const settings = tabs[tabs.length - 1].getBoundingClientRect();
     return {
       tabsParent: tabsNode.parentElement.id,
       removedSecondRow: document.querySelector(".wallet-navigation-bar") === null,
-      settingsInsideTopbar: settings.right <= topbar.getBoundingClientRect().right
+      settingsInsideTopbar: settings.right <= topbar.getBoundingClientRect().right,
+      firstTabAtAddressEdge: Math.abs(firstTabBox.left - addressBox.right) <= 1,
+      firstTabPadding: [
+        Number.parseFloat(firstTabStyle.paddingLeft),
+        Number.parseFloat(firstTabStyle.paddingRight)
+      ]
     };
   });
 
   expect(navigationContract).toEqual({
     tabsParent: "primary-topbar",
     removedSecondRow: true,
-    settingsInsideTopbar: true
+    settingsInsideTopbar: true,
+    firstTabAtAddressEdge: true,
+    firstTabPadding: [15, 15]
   });
 });
 
@@ -302,6 +495,45 @@ test("history exposes only object-type filters", async ({ page }) => {
   await expect(filters).toHaveText(["All", "Assets", "Vouchers", "Permissions", "System"]);
   await expect(filters).toHaveCount(5);
   await expect(page.getByRole("button", { name: "Needs attention", exact: true })).toHaveCount(0);
+});
+
+test("history rows use a compact desktop measure and remain fluid on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?view=activity`);
+
+  const desktopGeometry = await page.locator(".activity-card-list").evaluate((list) => {
+    const listBox = list.getBoundingClientRect();
+    const filterBox = document.querySelector(".filter-bar").getBoundingClientRect();
+    const searchBox = document.querySelector(".filter-bar .search-wrap").getBoundingClientRect();
+    return {
+      width: listBox.width,
+      filterWidth: filterBox.width,
+      leftOffset: Math.abs(listBox.left - filterBox.left),
+      searchWidth: searchBox.width,
+      searchRightOffset: Math.abs(searchBox.right - listBox.right)
+    };
+  });
+  expect(desktopGeometry.width).toBeLessThanOrEqual(760.5);
+  expect(Math.abs(desktopGeometry.filterWidth - desktopGeometry.width)).toBeLessThanOrEqual(1);
+  expect(desktopGeometry.leftOffset).toBeLessThanOrEqual(1);
+  expect(desktopGeometry.searchWidth).toBeCloseTo(220, 0);
+  expect(desktopGeometry.searchRightOffset).toBeLessThanOrEqual(1);
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 800 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?view=activity`);
+    const mobileGeometry = await page.locator(".activity-card-list").evaluate((list) => {
+      const listBox = list.getBoundingClientRect();
+      const parentBox = list.parentElement.getBoundingClientRect();
+      return {
+        width: listBox.width,
+        availableWidth: parentBox.width,
+        insideViewport: listBox.left >= 0 && listBox.right <= document.documentElement.clientWidth
+      };
+    });
+    expect(Math.abs(mobileGeometry.width - mobileGeometry.availableWidth)).toBeLessThanOrEqual(1);
+    expect(mobileGeometry.insideViewport).toBe(true);
+  }
 });
 
 test("filters and row hovers use the shared neutral interaction state", async ({ page }) => {
@@ -358,12 +590,36 @@ test("filters and row hovers use the shared neutral interaction state", async ({
 test("backup action is separated from the backup status card", async ({ page }) => {
   await page.goto(`${demoUrl}?view=wallet-backup`);
 
-  await expect(page.locator(".wallet-backup-action")).toHaveCSS("margin-top", "16px");
-  const [statusBox, actionBox] = await Promise.all([
+  const heading = page.getByRole("heading", { name: "Backup status" });
+  await expect(heading).toHaveCSS("font-size", "23.2px");
+  await expect(page.locator(".wallet-tool-summary")).toHaveCount(0);
+  await expect(page.locator(".wallet-tool-grid-single")).toHaveCSS("grid-template-columns", "640px");
+  await expect(page.locator(".wallet-backup-actions")).toHaveCSS("margin-top", "16px");
+  const [statusBox, actionsBox, createBox, recoveryBox, iconBox, headingBox, gridBox, cardBox] = await Promise.all([
     page.locator(".wallet-tool-card .review-card").first().boundingBox(),
-    page.locator(".wallet-backup-action").boundingBox()
+    page.locator(".wallet-backup-actions").boundingBox(),
+    page.locator(".wallet-backup-action").boundingBox(),
+    page.locator(".wallet-backup-recovery").boundingBox(),
+    page.locator(".backup-card-heading .list-icon").boundingBox(),
+    heading.boundingBox(),
+    page.locator(".wallet-tool-grid-centered").boundingBox(),
+    page.locator(".backup-card").boundingBox()
   ]);
-  expect(actionBox.y - (statusBox.y + statusBox.height)).toBeGreaterThanOrEqual(16);
+  expect(actionsBox.y - (statusBox.y + statusBox.height)).toBeGreaterThanOrEqual(16);
+  expect(recoveryBox.y - (createBox.y + createBox.height)).toBe(10);
+  expect(recoveryBox.width).toBe(createBox.width);
+  await expect(page.locator(".wallet-backup-recovery .icon")).toBeVisible();
+  await expect(page.locator(".wallet-backup-recovery use")).toHaveAttribute("href", "#i-restore");
+  expect(Math.abs((iconBox.y + iconBox.height / 2) - (headingBox.y + headingBox.height / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs((gridBox.x + gridBox.width / 2) - (cardBox.x + cardBox.width / 2))).toBeLessThanOrEqual(1);
+
+  const rowHeights = await page.locator(".backup-summary .summary-row").evaluateAll((rows) => (
+    rows.map((row) => Math.round(row.getBoundingClientRect().height))
+  ));
+  expect(new Set(rowHeights).size).toBe(1);
+
+  await page.locator(".wallet-backup-recovery").click();
+  await expect(page.locator("#toast-region")).toContainText("Restore validates integrity before any replacement.");
 });
 
 test("selected wallet settings are scoped, re-authenticated, and capability-labelled", async ({ page }) => {
@@ -386,9 +642,10 @@ test("selected wallet settings are scoped, re-authenticated, and capability-labe
   await expect(page.getByText("Local profile", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Display currency", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Default fee")).toHaveCount(0);
-  await expect(page.getByText(/public wallet-settings write route is not registered yet/i)).toBeVisible();
+  await expect(page.getByText(/public wallet-settings write route is not registered yet/i)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Help for this view" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Rename wallet" }).click();
+  await page.getByRole("button", { name: "Rename" }).click();
   await expect(page.getByRole("heading", { name: "Rename wallet" })).toBeVisible();
   await expectDialogActionsCentered(page);
   await page.locator("#wallet-rename-name").fill("Daily");
@@ -422,8 +679,9 @@ test("selected wallet settings are scoped, re-authenticated, and capability-labe
   await page.getByRole("button", { name: "Done" }).click();
 
   await page.getByRole("button", { name: /Policies/ }).click();
-  await expect(page.getByText(/Signed profile load\/apply is unavailable in the current RPC/i)).toBeVisible();
-  await page.getByRole("button", { name: "Review rules" }).click();
+  await expect(page.getByText("Compliance profile", { exact: true })).toBeVisible();
+  await expect(page.getByText("Target", { exact: true }).last()).toBeVisible();
+  await page.getByRole("button", { name: "Review" }).click();
   await page.locator("#wallet-policy-apply-password").fill("concept-pass");
   await expect(page.locator("#wallet-policy-apply-password")).toHaveValue("concept-pass");
   await page.locator("#wallet-policy-apply-confirmation").fill("APPLY");
@@ -445,6 +703,20 @@ test("wallet settings tabs start directly with their controls", async ({ page })
   await expect(page.getByText("Recovery state", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Bounded authority", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Wallet configuration", { exact: true })).toHaveCount(0);
+});
+
+test("wallet backup settings keep scheduling controls while backup actions stay in the Backup tab", async ({ page }) => {
+  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=backup`);
+
+  const walletSettings = page.locator(".wallet-settings-view");
+  await expect(walletSettings.getByText("Automatic backup", { exact: true })).toBeVisible();
+  await expect(walletSettings.getByText("Backup interval", { exact: true })).toBeVisible();
+  await expect(walletSettings.locator('[data-demo-action="backup"]')).toHaveCount(0);
+  await expect(walletSettings.locator('[data-demo-action="restore"]')).toHaveCount(0);
+
+  await page.goto(`${demoUrl}?view=wallet-backup`);
+  await expect(page.locator(".wallet-backup-action")).toBeVisible();
+  await expect(page.locator(".wallet-backup-recovery")).toBeVisible();
 });
 
 test("every modal flow centers its footer actions on desktop and mobile", async ({ page }) => {
@@ -636,7 +908,7 @@ test("left navigation has exactly one active destination", async ({ page }) => {
   await expectOnly('[data-network-section="onionnet"]');
   await expect(page.getByRole("heading", { name: "OnionNet telemetry" })).toBeVisible();
   await expect(page.getByText("Local capability unavailable")).toBeVisible();
-  await expect(page.getByText(/never changes a route or privacy policy/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Help for this view" })).toBeVisible();
   await expect(page.locator('[data-wallet-id="everyday"]')).not.toHaveClass(/is-active/);
   await expect(page.locator('.system-nav [data-view="settings"]')).not.toHaveClass(/is-active/);
 
@@ -669,47 +941,51 @@ test("network shortcuts open read-only telemetry rather than setup", async ({ pa
   await expect(page.getByRole("heading", { name: "OnionNet telemetry" })).toBeVisible();
   await expectTelemetryTopbar("OnionNet", "Route telemetry");
   const onionnetTabs = [
-    ["overview", "Overview", "Evidence classes"],
-    ["epoch", "Epoch", "Epoch view agreement"],
-    ["privacy", "Privacy", "Privacy contract"],
-    ["transport", "Transport", "Carrier observability"],
-    ["queues", "Queues & Replay", "Durable replay boundary"],
-    ["probation", "Probation", "Readiness evidence"],
-    ["ingress", "Ingress", "Boundary correctness"]
+    ["overview", "Overview"],
+    ["epoch", "Epoch"],
+    ["privacy", "Privacy"],
+    ["transport", "Transport"],
+    ["queues", "Queues & Replay"],
+    ["probation", "Probation"],
+    ["ingress", "Ingress"]
   ];
   await expect(page.locator("#wallet-tabs")).toBeVisible();
   await expect(page.locator("#wallet-tabs [data-onionnet-telemetry-tab]")).toHaveCount(onionnetTabs.length);
-  for (const [id, label, detail] of onionnetTabs) {
+  for (const [id, label] of onionnetTabs) {
     await page.locator(`[data-onionnet-telemetry-tab="${id}"]`).click();
     await expect(page.locator(`[data-onionnet-telemetry-tab="${id}"]`)).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("[data-onionnet-telemetry-tab][aria-selected='true']")).toHaveCount(1);
-    await expect(page.getByRole("tabpanel", { name: label })).toContainText(detail);
+    await expect(page.getByRole("tabpanel", { name: label })).toContainText("Unavailable");
   }
-  await expect(page.getByText(/No live-looking route, topology, or privacy values are invented/i)).toBeVisible();
+  await page.getByRole("button", { name: "Help for this view" }).click();
+  await expect(page.locator("#help-title")).toHaveText("OnionNet ingress");
+  await page.locator(".help-panel [data-help-close]").click();
   await expect(page.locator("#wallet-tabs .wallet-tab.is-active")).toHaveCount(1);
 
   await page.locator('[data-network-section="reticulum"]').click();
   await expect(page.getByRole("heading", { name: "Reticulum telemetry" })).toBeVisible();
   await expectTelemetryTopbar("Reticulum", "Carrier telemetry");
   const reticulumTabs = [
-    ["overview", "Overview", "Local telemetry scope"],
-    ["node", "Node", "Managed-node state"],
-    ["interfaces", "Interfaces", "Interface snapshot"],
-    ["radio", "Radio", "Radio configuration"],
-    ["entrypoints", "Entry points", "Discovered entry points"],
-    ["paths", "Paths", "Control-plane summary"],
-    ["probes", "Probes", "Managed availability"],
-    ["links", "Links", "Link evidence"]
+    ["overview", "Overview"],
+    ["node", "Node"],
+    ["interfaces", "Interfaces"],
+    ["radio", "Radio"],
+    ["entrypoints", "Entry points"],
+    ["paths", "Paths"],
+    ["probes", "Probes"],
+    ["links", "Links"]
   ];
   await expect(page.locator("#wallet-tabs")).toBeVisible();
   await expect(page.locator("#wallet-tabs [data-reticulum-telemetry-tab]")).toHaveCount(reticulumTabs.length);
-  for (const [id, label, detail] of reticulumTabs) {
+  for (const [id, label] of reticulumTabs) {
     await page.locator(`[data-reticulum-telemetry-tab="${id}"]`).click();
     await expect(page.locator(`[data-reticulum-telemetry-tab="${id}"]`)).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("[data-reticulum-telemetry-tab][aria-selected='true']")).toHaveCount(1);
-    await expect(page.getByRole("tabpanel", { name: label })).toContainText(detail);
+    await expect(page.getByRole("tabpanel", { name: label })).toContainText("Unavailable");
   }
-  await expect(page.getByText(/No live-looking carrier data is invented/i)).toBeVisible();
+  await page.getByRole("button", { name: "Help for this view" }).click();
+  await expect(page.locator("#help-title")).toHaveText("Reticulum links");
+  await page.locator(".help-panel [data-help-close]").click();
   await expect(page.locator("#copy-wallet-address")).toBeHidden();
   await expect(page.locator("#wallet-tabs .wallet-tab.is-active")).toHaveCount(1);
 
@@ -721,7 +997,7 @@ test("network shortcuts open read-only telemetry rather than setup", async ({ pa
   await expect(page.locator('[data-aggregators-telemetry-tab="overview"]')).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("tabpanel", { name: "Overview" })).toContainText("Service bindings");
   await expect(page.getByText("Service bindings", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText(/wallet has no registered bridge/i)).toBeVisible();
+  await expect(page.getByText("Local capability unavailable")).toBeVisible();
   await expect(page.locator('[data-network-section="aggregators"]')).toHaveClass(/is-active/);
   await expect(page.locator(".sidebar .wallet-nav-item.is-active, .sidebar .network-nav-item.is-active, .sidebar .system-nav .nav-item.is-active")).toHaveCount(1);
 });
@@ -729,16 +1005,34 @@ test("network shortcuts open read-only telemetry rather than setup", async ({ pa
 test("wallet address copy stays next to the address and uses the shared native title tooltip", async ({ page }) => {
   await page.goto(demoUrl);
 
-  const [addressBox, copyBox] = await Promise.all([
-    page.locator("#page-title").boundingBox(),
-    page.locator("#copy-wallet-address").boundingBox()
-  ]);
-  expect(copyBox.x).toBeGreaterThanOrEqual(addressBox.x + addressBox.width);
-  expect(copyBox.x - (addressBox.x + addressBox.width)).toBeLessThanOrEqual(14);
+  const copyPositions = [];
+  for (const walletId of ["everyday", "savings", "travel"]) {
+    await page.locator(`[data-wallet-id="${walletId}"]`).click();
+    const geometry = await page.locator(".topbar-address-group").evaluate((group) => {
+      const addressBox = group.querySelector("#page-title").getBoundingClientRect();
+      const contextBox = group.querySelector("#page-context").getBoundingClientRect();
+      const copyBox = group.querySelector("#copy-wallet-address").getBoundingClientRect();
+      return {
+        copyX: copyBox.x,
+        addressRight: addressBox.right,
+        copyRight: copyBox.right,
+        copyCenterY: copyBox.top + copyBox.height / 2,
+        contextCenterY: contextBox.top + contextBox.height / 2,
+        copyWidth: copyBox.width,
+        copyHeight: copyBox.height
+      };
+    });
+    copyPositions.push(geometry.copyX);
+    expect(Math.abs(geometry.addressRight - geometry.copyRight)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.copyCenterY - geometry.contextCenterY)).toBeLessThanOrEqual(2);
+    expect([geometry.copyWidth, geometry.copyHeight]).toEqual([26, 26]);
+  }
+  expect(Math.max(...copyPositions) - Math.min(...copyPositions)).toBeLessThanOrEqual(0.5);
   await expect(page.locator(".health-pill")).toHaveCount(0);
   await expect(page.locator("#wallet-statusbar")).toContainText("Route telemetry");
   await expect(page.locator("#wallet-statusbar")).toContainText("Unavailable");
 
+  await page.locator('[data-wallet-id="everyday"]').click();
   const copy = page.locator("#copy-wallet-address");
   await expect(copy).toHaveAttribute("title", "ZxChpoioBEFR1PRJPamJxh5aWdEb94ek8J52PmT8PYAEa8RKVtSs9X3UPgaSaHvMMZKcQoiyVFhEE256vcyGPeFV23d2Mj8Pt");
   const otherPanelButton = page.locator('[data-demo-action="toggle-balance"]');
@@ -824,7 +1118,7 @@ test("send opens one compact inline form and receive shows only the receiver car
   await expect(page.locator(".transfer-asset-row, .transfer-object-row")).toHaveCount(0);
   await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
   await expect(page.locator("#send-item option")).toHaveCount(22);
-  expect((await sendPanel.boundingBox()).width).toBeLessThanOrEqual(520);
+  expect((await sendPanel.boundingBox()).width).toBe(640);
   await page.locator("#send-item").selectOption("z00z");
   await expect(page.locator("#send-amount")).toHaveAttribute("max", "12480.75");
   await page.getByLabel("Recipient or private request").fill("Mira");
@@ -851,6 +1145,34 @@ test("send opens one compact inline form and receive shows only the receiver car
   await page.locator('.quick-action[data-view="wallet-receive"]').click();
   await expect(page.locator(".receiver-card")).toBeVisible();
   await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
+});
+
+test("send, swap, staking, and backup share one responsive card width", async ({ page }) => {
+  const routes = [
+    ["wallet-send", ".send-panel"],
+    ["swap", ".swap-card"],
+    ["staking", ".staking-card"],
+    ["wallet-backup", ".backup-card"],
+  ];
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const desktopWidths = [];
+  for (const [view, selector] of routes) {
+    await page.goto(`${demoUrl}?view=${view}`);
+    desktopWidths.push(Math.round((await page.locator(selector).boundingBox()).width));
+  }
+  expect(desktopWidths).toEqual([640, 640, 640, 640]);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileWidths = [];
+  for (const [view, selector] of routes) {
+    await page.goto(`${demoUrl}?view=${view}`);
+    const box = await page.locator(selector).boundingBox();
+    mobileWidths.push(Math.round(box.width));
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+  }
+  expect(new Set(mobileWidths).size).toBe(1);
 });
 
 test("swap and staking form labels use the standard readable Geist treatment", async ({ page }) => {
@@ -1188,7 +1510,7 @@ test("wallet object rows stay consistent while receive uses a single responsive 
 
   await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
   const desktopSendBox = await page.locator(".send-panel").boundingBox();
-  expect(desktopSendBox.width).toBeLessThanOrEqual(520);
+  expect(desktopSendBox.width).toBe(640);
   await expect(page.locator(".transfer-asset-row")).toHaveCount(0);
 
   await page.locator('#wallet-tabs [data-view="wallet-receive"]').click();
@@ -1226,7 +1548,7 @@ test("wallet object rows stay consistent while receive uses a single responsive 
   expect(mobileReceiverBox.x).toBeGreaterThanOrEqual(0);
   expect(mobileReceiverBox.x + mobileReceiverBox.width).toBeLessThanOrEqual(390);
   await page.locator('#wallet-tabs [data-view="activity"]').click();
-  await expectCardRows(page.locator(".activity-card-list .activity-row"), "64px");
+  await expectCardRows(page.locator(".activity-card-list .activity-row"), "88px", 88);
   await expectCardRowGaps(page.locator(".activity-card-list .activity-row"));
 });
 
@@ -1266,7 +1588,8 @@ test("typography LUT assigns Geist and Geist Mono to their semantic roles", asyn
   expect(topbarAddress.weight).toBe("400");
   expect(topbarAddress.size).toBe(21);
   expect(topbarContext.size).toBe(13);
-  expect(Math.abs(topbarPairHeight - copyHeight)).toBeLessThanOrEqual(1);
+  expect(topbarPairHeight).toBeGreaterThan(copyHeight);
+  expect(copyHeight).toBe(26);
   expect(balance.family).toContain("Geist Mono");
   expect(balance.size).toBeGreaterThanOrEqual(35);
   expect(balance.weight).toBe("700");
@@ -1337,6 +1660,135 @@ test("common settings and selected-wallet settings keep their scopes separate", 
   await expect(page.getByLabel("Lock app after")).toBeVisible();
   await expect(page.getByRole("button", { name: "Lock now" })).toBeVisible();
   await expect(page.locator(".wallet-settings-context .context-nav-item")).toHaveCount(5);
+});
+
+test("global and contextual Help are local, multilingual, focus-safe, and state-aware", async ({ page }) => {
+  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
+
+  const globalHelp = page.locator(".help-button");
+  await globalHelp.focus();
+  await globalHelp.click();
+  await expect(page.locator("#help-title")).toHaveText("Application help");
+  await expect(page.locator(".help-panel")).toBeVisible();
+  await expect(page.locator(".help-panel")).toContainText("Test Text");
+  const globalClose = page.locator(".help-panel [data-help-close]");
+  const globalSections = page.locator(".help-panel [data-help-section]");
+  await expect(globalClose).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(globalSections.last()).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(globalClose).toBeFocused();
+  await expect(page.locator(".is-help-highlighted")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#help-host")).toBeHidden();
+  await expect(globalHelp).toBeFocused();
+
+  const contextualHelp = page.getByRole("button", { name: "Help for this view" });
+  const [globalHelpBox, contextualHelpBox, statusbarBox] = await Promise.all([
+    globalHelp.boundingBox(),
+    contextualHelp.boundingBox(),
+    page.locator("#wallet-statusbar").boundingBox()
+  ]);
+  expect(Math.abs(globalHelpBox.x + globalHelpBox.width - contextualHelpBox.x - contextualHelpBox.width)).toBeLessThanOrEqual(1);
+  expect(contextualHelpBox.y + contextualHelpBox.height).toBeLessThan(statusbarBox.y);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const contextualHelpAfterScroll = await contextualHelp.boundingBox();
+  expect(Math.abs(contextualHelpAfterScroll.y - contextualHelpBox.y)).toBeLessThanOrEqual(1);
+  await contextualHelp.click();
+  await expect(page.locator("#help-title")).toHaveText("Assets");
+  await expect(page.locator('[data-help-anchor="current-view"]')).toHaveClass(/is-help-highlighted/);
+  await page.locator('[data-help-section="1"]').click();
+  await expect(page.locator(".is-help-highlighted")).toHaveCount(0);
+  await page.locator('[data-help-section="0"]').click();
+  await expect(page.locator('[data-help-anchor="current-view"]')).toHaveClass(/is-help-highlighted/);
+  await page.locator(".help-panel [data-help-close]").click();
+  await expect(contextualHelp).toBeFocused();
+
+  await page.goto(`${demoUrl}?view=home`);
+  await page.getByRole("button", { name: "Help for this view" }).click();
+  await expect(page.locator("#help-title")).toHaveText("Home");
+  await page.keyboard.press("Escape");
+
+  await page.context().setOffline(true);
+  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
+  await globalHelp.click();
+  await expect(page.locator("#help-title")).toHaveText("Application help");
+  await page.keyboard.press("Escape");
+  await page.context().setOffline(false);
+
+  await page.goto(`${demoUrl}?view=settings&settings=general`);
+  await page.selectOption('[data-config-control="language"]', "ru");
+  await page.locator(".help-button").click();
+  await expect(page.locator("#help-title")).toHaveText("Справка приложения");
+  await expect(page.locator(".help-panel")).toContainText("работает без интернета");
+  await expect(page.locator("#toast-region")).toHaveCSS("visibility", "hidden");
+});
+
+test("mobile Help is a bottom sheet and compact rows keep logical fields aligned", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=general`);
+
+  const rowGeometry = await page.locator(".compact-row").first().evaluate((row) => {
+    const parts = [...row.children].map((element) => element.getBoundingClientRect());
+    return {
+      row: row.getBoundingClientRect(),
+      centers: parts.filter((box) => box.width > 0).map((box) => Math.round(box.top + box.height / 2)),
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth
+    };
+  });
+  expect(Math.max(...rowGeometry.centers) - Math.min(...rowGeometry.centers)).toBeLessThanOrEqual(4);
+  expect(rowGeometry.documentWidth).toBeLessThanOrEqual(rowGeometry.viewportWidth);
+  const contextualHelp = page.getByRole("button", { name: "Help for this view" });
+  const contextHelpBox = await contextualHelp.boundingBox();
+  expect(await contextualHelp.evaluate((button) => getComputedStyle(button.parentElement).position)).toBe("fixed");
+  expect(contextHelpBox.x + contextHelpBox.width).toBeLessThanOrEqual(390 - 16 + 1);
+  expect(contextHelpBox.y + contextHelpBox.height).toBeLessThanOrEqual(844 - 16 + 1);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const contextHelpAfterScroll = await contextualHelp.boundingBox();
+  expect(Math.abs(contextHelpAfterScroll.x - contextHelpBox.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(contextHelpAfterScroll.y - contextHelpBox.y)).toBeLessThanOrEqual(1);
+
+  await page.locator("#mobile-menu-button").click();
+  await page.getByRole("button", { name: "Help", exact: true }).click();
+  const sheet = await page.locator(".help-panel").boundingBox();
+  expect(Math.round(sheet.x)).toBe(0);
+  expect(Math.round(sheet.width)).toBe(390);
+  expect(Math.round(sheet.y + sheet.height)).toBe(844);
+  const closeSize = await page.locator(".help-panel [data-help-close]").boundingBox();
+  expect(closeSize.width).toBeGreaterThanOrEqual(44);
+  expect(closeSize.height).toBeGreaterThanOrEqual(44);
+});
+
+test("asset detail key and value remain one mobile row with full values accessible", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
+  await page.locator('[data-open-flow="asset-detail"]').first().click();
+
+  const rows = page.locator(".asset-detail-row");
+  await expect(rows).toHaveCount(6);
+  const geometry = await rows.evaluateAll((items) => items.map((row) => {
+    const label = row.children[0].getBoundingClientRect();
+    const value = row.children[1].getBoundingClientRect();
+    return {
+      labelCenter: Math.round(label.top + label.height / 2),
+      valueCenter: Math.round(value.top + value.height / 2)
+    };
+  }));
+  geometry.forEach(({ labelCenter, valueCenter }) => expect(Math.abs(labelCenter - valueCenter)).toBeLessThanOrEqual(2));
+  await expect(rows.nth(3).locator("strong")).toHaveAttribute("title", /.+/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+
+  const dialogHelp = page.locator(".dialog-help-button");
+  await dialogHelp.click();
+  await expect(page.locator("#help-title")).toHaveText("Asset details");
+  await expect(page.locator(".help-panel")).toBeVisible();
+  await expect(page.locator("#dialog-content")).toHaveJSProperty("inert", true);
+  await expect(page.locator("#flow-dialog .dialog-shell")).toHaveClass(/is-help-highlighted/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#help-host")).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Asset details" })).toBeVisible();
+  await expect(dialogHelp).toBeFocused();
 });
 
 test("common Settings uses the same topbar typography as OnionNet", async ({ page }) => {
@@ -1493,6 +1945,63 @@ test("colors.css is the single source for palette, semantic, and YAML preview co
   await expect(page.locator('.code-theme-card[data-code-theme="night-owl"] .code-theme-preview')).toHaveCSS("background-color", "rgb(1, 22, 39)");
 });
 
+test("mobile wallet drawer keeps actions fixed and scrolls only an overflowing wallet list", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(demoUrl);
+  await page.locator("#mobile-menu-button").click();
+  await page.locator('[data-mobile-popup-open="wallets"]').click();
+
+  const drawer = page.locator('#mobile-popup-menu[data-popup-type="wallets"]');
+  const walletList = drawer.locator(".mobile-popup-list");
+  const actions = drawer.locator(".mobile-wallet-actions");
+  const addWallet = actions.locator('[data-mobile-popup-action="add-wallet"]');
+  const removeWallet = actions.locator('[data-mobile-popup-action="remove-wallet"]');
+
+  await expect(addWallet).toHaveText("Add wallet");
+  await expect(removeWallet).toHaveText("Remove wallet");
+  await expect(removeWallet).toBeEnabled();
+  await expect(walletList).toHaveCSS("overflow-y", "auto");
+
+  const initialOverflow = await walletList.evaluate((list) => ({
+    clientHeight: list.clientHeight,
+    scrollHeight: list.scrollHeight,
+  }));
+  expect(initialOverflow.scrollHeight).toBeLessThanOrEqual(initialOverflow.clientHeight);
+
+  const fixedActionTop = (await actions.boundingBox()).y;
+  await walletList.evaluate((list) => {
+    const source = list.querySelector("[data-mobile-select-wallet]");
+    for (let index = 0; index < 12; index += 1) {
+      const clone = source.cloneNode(true);
+      clone.removeAttribute("aria-current");
+      clone.classList.remove("is-active");
+      clone.dataset.mobileSelectWallet = `overflow-${index}`;
+      clone.querySelector("span:nth-child(2)").textContent = `Overflow wallet ${index + 1}`;
+      clone.querySelector(".icon")?.remove();
+      list.append(clone);
+    }
+    list.scrollTop = list.scrollHeight;
+  });
+
+  const overflowGeometry = await walletList.evaluate((list) => ({
+    clientHeight: list.clientHeight,
+    scrollHeight: list.scrollHeight,
+    scrollTop: list.scrollTop,
+  }));
+  expect(overflowGeometry.scrollHeight).toBeGreaterThan(overflowGeometry.clientHeight);
+  expect(overflowGeometry.scrollTop).toBeGreaterThan(0);
+  expect(Math.abs((await actions.boundingBox()).y - fixedActionTop)).toBeLessThanOrEqual(1);
+
+  await addWallet.click();
+  await expect(page.getByRole("heading", { name: "Add wallet" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.locator("#mobile-menu-button").click();
+  await page.locator('[data-mobile-popup-open="wallets"]').click();
+  await page.locator('[data-mobile-popup-action="remove-wallet"]').click();
+  await expect(page.getByRole("heading", { name: "Remove wallet profiles" })).toBeVisible();
+});
+
 test("responsive navigation, hover, focus, and overflow contract", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${demoUrl}?view=settings&settings=network&network=onionnet`);
@@ -1529,9 +2038,10 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
 
   await page.locator("#mobile-menu-button").click();
   await expect(page.locator("#mobile-popup-menu")).toBeVisible();
-  await expect(page.locator("#mobile-popup-menu .mobile-popup-item")).toHaveText(["Wallets", "Network", "Settings", "Log out"]);
+  await expect(page.locator("#mobile-popup-menu .mobile-popup-item")).toHaveText(["Wallets", "Network", "Settings", "Help", "Log out"]);
   await page.locator('[data-mobile-popup-open="wallets"]').click();
   await expect(page.locator("[data-mobile-select-wallet] > span:nth-child(2)")).toHaveText(["Everyday", "Savings", "Travel"]);
+  await expect(page.locator(".mobile-wallet-actions .mobile-popup-item")).toHaveText(["Add wallet", "Remove wallet"]);
   await page.locator('[data-mobile-select-wallet="savings"]').click();
   await expect(page.locator("#page-context")).toHaveText("Savings wallet");
 
@@ -1650,14 +2160,11 @@ test("responsive navigation, hover, focus, and overflow contract", async ({ page
   ]);
   expect(tabBox.y).toBe(topbarBox.y);
   expect(Math.abs(tabBox.height - topbarBox.height)).toBeLessThanOrEqual(1);
-  const [tabStart, contentEdge] = await Promise.all([
+  const [tabStart, addressEdge] = await Promise.all([
     page.locator("#wallet-tabs .wallet-tab").first().evaluate((node) => node.getBoundingClientRect().left),
-    page.locator("#main-content").evaluate((node) => {
-      const box = node.getBoundingClientRect();
-      return box.left + parseFloat(getComputedStyle(node).paddingLeft);
-    })
+    page.locator(".topbar-address-group").evaluate((node) => node.getBoundingClientRect().right)
   ]);
-  expect(Math.abs(tabStart - contentEdge)).toBeLessThanOrEqual(3);
+  expect(Math.abs(tabStart - addressEdge)).toBeLessThanOrEqual(1);
   const workspaceTabStarts = [tabStart];
   for (const route of [
     `${demoUrl}?view=telemetry&telemetry=reticulum`,
@@ -1810,6 +2317,131 @@ test("settings tabs share the standard single-topbar tab treatment", async ({ pa
   expect(settingsTabStyle).toEqual(assetTabStyle);
   expect(tabBarJustification).toBe("flex-start");
   expect(tabsParent).toBe("primary-topbar");
+  expect(
+    await page.locator("#wallet-tabs [data-settings-section]").evaluateAll((tabs) =>
+      tabs.map((tab) => tab.dataset.settingsSection)
+    )
+  ).toEqual(["general", "reticulum", "onionnet", "appearance"]);
+});
+
+test("all app settings sections share one centered compact card", async ({ page }) => {
+  const sections = ["general", "reticulum", "onionnet", "appearance"];
+  const desktopWidths = [];
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  for (const section of sections) {
+    await page.goto(`${demoUrl}?view=settings&settings=${section}`);
+    const geometry = await page.locator(".settings-layout--full").evaluate((card) => {
+      const cardBox = card.getBoundingClientRect();
+      const mainBox = document.querySelector("#main-content").getBoundingClientRect();
+      return {
+        width: cardBox.width,
+        centerOffset: Math.abs(
+          (cardBox.left + cardBox.width / 2) - (mainBox.left + mainBox.width / 2)
+        )
+      };
+    });
+    desktopWidths.push(Math.round(geometry.width));
+    expect(geometry.width).toBeLessThanOrEqual(640.5);
+    expect(geometry.centerOffset).toBeLessThanOrEqual(1);
+  }
+  expect(new Set(desktopWidths).size).toBe(1);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const section of sections) {
+    await page.goto(`${demoUrl}?view=settings&settings=${section}`);
+    const geometry = await page.locator(".settings-layout--full").evaluate((card) => {
+      const cardBox = card.getBoundingClientRect();
+      const mainBox = document.querySelector("#main-content").getBoundingClientRect();
+      return {
+        width: cardBox.width,
+        mainWidth: mainBox.width,
+        centerOffset: Math.abs(
+          (cardBox.left + cardBox.width / 2) - (mainBox.left + mainBox.width / 2)
+        )
+      };
+    });
+    expect(geometry.width).toBeLessThanOrEqual(geometry.mainWidth);
+    expect(geometry.centerOffset).toBeLessThanOrEqual(1);
+  }
+});
+
+test("all wallet settings sections share the Assets rail gap and one compact card width", async ({ page }) => {
+  const sections = ["general", "security", "backup", "policies", "advanced"];
+  const desktopWidths = [];
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  for (const section of sections) {
+    await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=${section}`);
+    const geometry = await page.locator(".wallet-settings-view .settings-layout").evaluate((layout) => {
+      const layoutBox = layout.getBoundingClientRect();
+      const railBox = layout.querySelector(".context-rail").getBoundingClientRect();
+      const cardBox = layout.querySelector(".settings-detail").getBoundingClientRect();
+      const gap = Number.parseFloat(getComputedStyle(layout).columnGap);
+      return {
+        width: cardBox.width,
+        expectedGap: gap,
+        actualGap: cardBox.left - railBox.right,
+        contained: cardBox.right <= layoutBox.right
+      };
+    });
+    desktopWidths.push(Math.round(geometry.width));
+    expect(geometry.width).toBeLessThanOrEqual(520.5);
+    expect(Math.abs(geometry.actualGap - geometry.expectedGap)).toBeLessThanOrEqual(1);
+    expect(geometry.contained).toBe(true);
+    const labelsFit = await page.locator(".wallet-settings-view .compact-row-label").evaluateAll(
+      (labels) => labels.every((label) => label.scrollWidth <= label.clientWidth + 1)
+    );
+    expect(labelsFit).toBe(true);
+  }
+  expect(new Set(desktopWidths).size).toBe(1);
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 800 }]) {
+    await page.setViewportSize(viewport);
+    for (const section of sections) {
+      await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=${section}`);
+      const geometry = await page.locator(".wallet-settings-view .settings-layout").evaluate((layout) => {
+        const layoutBox = layout.getBoundingClientRect();
+        const cardBox = layout.querySelector(".settings-detail").getBoundingClientRect();
+        return {
+          width: cardBox.width,
+          layoutWidth: layoutBox.width,
+          centerOffset: Math.abs(
+            (cardBox.left + cardBox.width / 2) - (layoutBox.left + layoutBox.width / 2)
+          )
+        };
+      });
+      expect(geometry.width).toBeLessThanOrEqual(geometry.layoutWidth);
+      expect(geometry.centerOffset).toBeLessThanOrEqual(1);
+      const truncatedLabels = await page.locator(".wallet-settings-view .compact-row-label").evaluateAll(
+        (labels) => labels
+          .filter((label) => label.scrollWidth > label.clientWidth + 1)
+          .map((label) => ({
+            text: label.textContent.trim(),
+            width: label.clientWidth,
+            requiredWidth: label.scrollWidth
+          }))
+      );
+      expect(truncatedLabels, `${viewport.width}px ${section} labels must not truncate`).toEqual([]);
+    }
+  }
+});
+
+test("appearance starts without a redundant horizontal divider", async ({ page }) => {
+  await page.goto(`${demoUrl}?view=settings&settings=appearance`);
+  const firstGroupStyle = await page.locator(".settings-detail > .setting-group").evaluate((group) => {
+    const style = getComputedStyle(group);
+    return {
+      borderTopWidth: style.borderTopWidth,
+      marginTop: style.marginTop,
+      paddingTop: style.paddingTop
+    };
+  });
+  expect(firstGroupStyle).toEqual({
+    borderTopWidth: "0px",
+    marginTop: "0px",
+    paddingTop: "0px"
+  });
 });
 
 test("wallet sections omit redundant introductory headers", async ({ page }) => {

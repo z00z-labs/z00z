@@ -36,6 +36,20 @@ use super::{
     },
 };
 
+/// One backend-neutral path to the executable predicate authority selected by
+/// every native, Nova, and Plonky3 transition statement.
+pub(crate) fn executable_predicate_digest() -> Result<[u8; 32], CheckpointError> {
+    Ok(sha256_256_role(
+        CheckpointShaRole::Statement,
+        &[
+            b"z00z.recursive.v2.executable-predicate",
+            &super::nova::transition_table_digest(),
+            &super::nova::circuit_shape_digest()?,
+            &super::nova::source_revision_digest(),
+        ],
+    ))
+}
+
 /// Authority mode selected for the live recursive-checkpoint cutover.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettlementRootCutoverModeV2 {
@@ -370,9 +384,7 @@ impl CanonicalCheckpointTransitionV2 {
         )?;
         let spec = RecursiveCircuitSpecV2::new(context.layout(), &profile)?;
         let verifier = match verifier {
-            Some(verifier)
-                if verifier.predicate_digest() == super::nova::executable_predicate_digest()? =>
-            {
+            Some(verifier) if verifier.predicate_digest() == executable_predicate_digest()? => {
                 verifier
             }
             Some(_) => return Err(CheckpointError::Authority),
@@ -514,10 +526,11 @@ impl CanonicalCheckpointTransitionV2 {
         Ok(())
     }
 
-    /// Replay the same sealed bounded source into the Nova feeder after the
-    /// native evaluator has independently fixed `X_h`. No event tape is
-    /// materialized and the source stays eligible for the final snapshot check.
-    pub(crate) fn replay_nova_events(
+    /// Replay the same sealed bounded source into one backend-neutral feeder
+    /// after the native evaluator has independently fixed `X_h`. No event tape
+    /// is materialized and the source stays eligible for the final snapshot
+    /// check.
+    pub(crate) fn replay_canonical_events(
         &mut self,
         store: &SettlementStore,
         mut visit: impl FnMut(&RecursiveTraceEventV2) -> Result<(), CheckpointError>,

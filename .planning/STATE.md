@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.15
 milestone_name: Storage Serialization Bootstrap
-status: "Phase 069 active — 069-06 complete; 069-07 active"
-last_updated: "2026-07-24T10:50:39.000Z"
+status: "Phase 069 blocked at 069-07 — full Plonky3 transition AIR absent"
+last_updated: "2026-07-24T13:51:18.000Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 47
@@ -11,7 +11,7 @@ progress:
   total_plans: 14
   completed_plans: 7
   percent: 50
-stopped_at: Completed `069-06`; executing `069-07` in YOLO mode.
+stopped_at: Plan `069-07` fail-closed stop/split; Plans 08–13 locked.
 current_phase: 069
 current_phase_name: Recursive Proof
 current_plan: 069-07
@@ -30,12 +30,23 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 
 ## Status
 
-**Active lane:** `069-07`; `069-06` is summary-backed complete.
-**Progress:** [█████░░░░░] 50% (7/14); Plans 08–13 follow in YOLO order.
+**Blocked lane:** `069-07`; `069-06` is summary-backed complete.
+**Progress:** [█████░░░░░] 50% (7/14); Plans 08–13 are dependency-locked.
 **Output:** Only `crates/z00z_storage/outputs/checkpoint`; root `test-results` is forbidden.
 **Authority:** Target/future text is live scope; one V2 path; `CheckpointProofSystem::VERIFIED` remains disabled.
 
 ## Historical Status
+
+**069-07 fail-closed stop/split (2026-07-24):** The real pinned P3
+prover/verifier, bounded codecs, parameter/security manifests, transcript
+bindings and private facade are present, but the current AIR constrains only
+canonical `u16` vector equality, bit decomposition and Poseidon2 binding. It
+does not constrain the frozen replay, SHA-256, uniqueness, HJMT, hierarchy,
+delta, journal, link or final-root relations. Both adapter directions now
+reject with `Plonky3CanonicalRangeMissing` before proof/receipt creation.
+Mandatory bootstrap passes; the exact Plan-07 target records the expected
+fail-closed blocker. `069-07-STOP-SPLIT.md` is the authority; Plan 07 remains
+incomplete and Plans 08–13 stay locked.
 
 **069-06 closure (2026-07-24):** Plan 06 is complete on proof-source
 `0ef121e74dc36cf1d9f61504d7f4fc13cb89054cd78f59a0552825058d763699`.
@@ -45,8 +56,8 @@ retention inputs without deletion authority. Real artifacts, Model C, clean
 verifier RSS, bootstrap, targeted and exact workspace release tests,
 all-target build, clippy, feature/fmt/diff/coverage gates, six inline reviews
 ending in two clean passes, and two doublechecks pass. Closure is recorded in
-`069-06-SUMMARY.md` and `069-06-PROFILING-REPORT.md`; Plan 07 owns the now-live
-Plonky3 base-STARK lane.
+`069-06-SUMMARY.md` and `069-06-PROFILING-REPORT.md`; that closure activated
+the Plonky3 base-STARK lane now blocked by the Plan-07 stop/split above.
 
 **069-051 closure (2026-07-22):** T0–T4 are complete on proof-source
 `1da05771ae22d8da4b8e8693954540f468708be47f25f7dc654a0f7f9df4c4e3`.

@@ -8,6 +8,9 @@ output_dir="$repo_root/crates/z00z_storage/outputs/checkpoint/phase-110/playwrig
 mkdir -p "$output_dir"
 cd "$demo_dir"
 node scripts/check-locales.mjs
+node scripts/test-help-sync.mjs
+node scripts/compile-help.mjs
+node scripts/check-help.mjs
 node scripts/test-port-contracts.mjs
 node scripts/check-port-readiness.mjs
 

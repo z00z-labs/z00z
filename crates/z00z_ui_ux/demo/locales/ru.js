@@ -141,6 +141,11 @@ window.Z00ZI18n.registerLocale("ru", {
       ingress: "Граница входа"
     }
   },
+  help: {
+    title: "Справка", openGlobal: "Открыть справку приложения", openContext: "Справка по этому экрану",
+    close: "Закрыть справку", contents: "Содержание", section: "Раздел справки {current} из {total}",
+    unavailable: "Справка для этого экрана недоступна."
+  },
   status: {
     up: "Активен",
     down: "Отключён",

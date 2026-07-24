@@ -1,6 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compileHelp } from "./compile-help.mjs";
+import { synchronizeHelp } from "./sync-help.mjs";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const CSS_FILES = Object.freeze([
@@ -127,6 +129,8 @@ export async function buildPagesRelease(root, sha, ref = "main") {
 
   const read = (path) => readFile(resolve(root, path), "utf8");
   const write = (path, value) => writeFile(resolve(root, path), value, "utf8");
+  await synchronizeHelp(root);
+  await write("scripts/generated/help-catalog.js", await compileHelp(root));
   const rawIndex = await read("index.html");
 
   for (const path of scriptPaths(rawIndex)) {

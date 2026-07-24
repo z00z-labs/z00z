@@ -4,6 +4,7 @@ use z00z_crypto::sha256_256;
 
 use super::{
     adapter::{ReceiptIssuedPartsV2, ReloadedEvidenceV2},
+    contract_config_v3::CheckpointConfigResolverV3,
     version_registry::{
         CheckpointVersionRegistryV2, RecursiveBoundedObjectV2,
         CRYPTOGRAPHIC_VERIFICATION_RECEIPT_DOMAIN_V2, RECEIPT_DIGEST_LABEL_V2,
@@ -12,6 +13,9 @@ use super::{
 use crate::CheckpointError;
 
 pub(super) const RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2: usize = 588;
+const PLONKY3_BASE_RECEIPT_MAGIC_V2: [u8; 8] = *b"Z00ZP3R2";
+const PLONKY3_BASE_RECEIPT_VERSION_V2: u16 = 2;
+const PLONKY3_BASE_RECEIPT_PAYLOAD_BYTES_V2: usize = 8 + 2 + 8 + 32 * 10 + 8 + 8 + 4 + 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -60,6 +64,144 @@ pub(super) struct PreparedReceiptV2 {
 pub struct CryptographicVerificationReceiptV2 {
     wire: ReceiptWireV2,
     canonical_bytes: Vec<u8>,
+}
+
+/// Write-only local receipt produced only after the real Plonky3 verifier
+/// accepts the exact transition-selected AIR and proof bytes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Plonky3BaseVerificationReceiptV2 {
+    height: u64,
+    statement_digest: [u8; 32],
+    event_vector_digest: [u8; 32],
+    parameter_digest: [u8; 32],
+    security_budget_digest: [u8; 32],
+    air_binding_digest: [u8; 32],
+    proof_digest: [u8; 32],
+    registry_digest: [u8; 32],
+    runtime_profile_manifest_digest: [u8; 32],
+    config_digest: [u8; 32],
+    config_generation: u64,
+    authority_generation: u64,
+    parameter_generation: u32,
+    runtime_profile_generation: u16,
+    receipt_digest: [u8; 32],
+    canonical_bytes: Vec<u8>,
+}
+
+impl Plonky3BaseVerificationReceiptV2 {
+    pub(super) fn issue(
+        verified: super::plonky3::VerifiedPlonky3BaseV2,
+    ) -> Result<Self, CheckpointError> {
+        if verified.height == 0
+            || [
+                verified.statement_digest,
+                verified.event_vector_digest,
+                verified.parameter_digest,
+                verified.security_budget_digest,
+                verified.air_binding_digest,
+                verified.proof_digest,
+            ]
+            .contains(&[0; 32])
+        {
+            return Err(CheckpointError::Invariant);
+        }
+        let registry = CheckpointVersionRegistryV2::authority_pinned()?;
+        let row = registry.row(RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt)?;
+        let active = CheckpointConfigResolverV3::resolve_active()?;
+        let identity = active.identity();
+        let runtime_profile_manifest_digest = row
+            .runtime_profile_manifest_digest
+            .ok_or(CheckpointError::Authority)?;
+        let registry_digest = registry.digest();
+        if identity.registry_digest != registry_digest
+            || identity.runtime_profile_manifest_digest != runtime_profile_manifest_digest
+            || row.runtime_profile_generation != Some(identity.runtime_profile_generation)
+            || u64::from(row.authority_generation) != identity.authority_generation
+            || row.parameter_generation != Some(identity.parameter_generation)
+        {
+            return Err(CheckpointError::Authority);
+        }
+        let mut prefix = Vec::with_capacity(PLONKY3_BASE_RECEIPT_PAYLOAD_BYTES_V2 - 32);
+        prefix.extend_from_slice(&PLONKY3_BASE_RECEIPT_MAGIC_V2);
+        prefix.extend_from_slice(&PLONKY3_BASE_RECEIPT_VERSION_V2.to_le_bytes());
+        prefix.extend_from_slice(&verified.height.to_le_bytes());
+        for digest in [
+            verified.statement_digest,
+            verified.event_vector_digest,
+            verified.parameter_digest,
+            verified.security_budget_digest,
+            verified.air_binding_digest,
+            verified.proof_digest,
+        ] {
+            prefix.extend_from_slice(&digest);
+        }
+        prefix.extend_from_slice(&registry_digest);
+        prefix.extend_from_slice(&runtime_profile_manifest_digest);
+        prefix.extend_from_slice(&identity.config_digest);
+        prefix.extend_from_slice(&identity.config_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.authority_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.parameter_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.runtime_profile_generation.to_le_bytes());
+        let receipt_digest = sha256_256(
+            "z00z.storage.checkpoint.plonky3.base-verification-receipt.v2",
+            "receipt",
+            &[&prefix],
+        );
+        prefix.extend_from_slice(&receipt_digest);
+        if prefix.len() != PLONKY3_BASE_RECEIPT_PAYLOAD_BYTES_V2 {
+            return Err(CheckpointError::Invariant);
+        }
+        let preheader = registry.encode_preheader(
+            RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt,
+            prefix.len(),
+        )?;
+        let mut canonical_bytes = Vec::with_capacity(preheader.len() + prefix.len());
+        canonical_bytes.extend_from_slice(&preheader);
+        canonical_bytes.extend_from_slice(&prefix);
+        Ok(Self {
+            height: verified.height,
+            statement_digest: verified.statement_digest,
+            event_vector_digest: verified.event_vector_digest,
+            parameter_digest: verified.parameter_digest,
+            security_budget_digest: verified.security_budget_digest,
+            air_binding_digest: verified.air_binding_digest,
+            proof_digest: verified.proof_digest,
+            registry_digest,
+            runtime_profile_manifest_digest,
+            config_digest: identity.config_digest,
+            config_generation: identity.config_generation,
+            authority_generation: identity.authority_generation,
+            parameter_generation: identity.parameter_generation,
+            runtime_profile_generation: identity.runtime_profile_generation,
+            receipt_digest,
+            canonical_bytes,
+        })
+    }
+
+    #[must_use]
+    pub const fn height(&self) -> u64 {
+        self.height
+    }
+
+    #[must_use]
+    pub const fn statement_digest(&self) -> [u8; 32] {
+        self.statement_digest
+    }
+
+    #[must_use]
+    pub const fn proof_digest(&self) -> [u8; 32] {
+        self.proof_digest
+    }
+
+    #[must_use]
+    pub const fn receipt_digest(&self) -> [u8; 32] {
+        self.receipt_digest
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> &[u8] {
+        &self.canonical_bytes
+    }
 }
 
 impl CryptographicVerificationReceiptV2 {

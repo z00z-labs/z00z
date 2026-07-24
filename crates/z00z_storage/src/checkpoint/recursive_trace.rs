@@ -67,7 +67,7 @@ pub enum RecursiveTraceOpcodeV2 {
     JmtMicroOp = 17,
 }
 
-const RECURSIVE_TRACE_OPCODE_COUNT_V2: usize = 17;
+pub(super) const RECURSIVE_TRACE_OPCODE_COUNT_V2: usize = 17;
 
 /// Exact declared or consumed count for every frozen trace opcode class.
 ///
@@ -630,7 +630,7 @@ impl RecursiveTraceEventV2 {
         ))
     }
 
-    fn decode_canonical(
+    pub(super) fn decode_canonical(
         bytes: &[u8],
         profile: &RecursiveCircuitProfileV2,
     ) -> Result<Self, CheckpointError> {
@@ -715,13 +715,15 @@ const UNIQUENESS_LIST_COMMON_BYTES: usize =
     HASH_CONTROL_SCHEMA_BYTES + UNIQUENESS_LIST_BINDING_BYTES;
 const UNIQUENESS_TRANSCRIPT_COMMON_BYTES: usize =
     HASH_CONTROL_SCHEMA_BYTES + UNIQUENESS_TRANSCRIPT_BINDING_BYTES;
-const HASH_CONTROL_BLOCK_BYTES: usize = 8 + 8 + 64 + 32 + 32 + 1;
+pub(crate) const HASH_CONTROL_BLOCK_BYTES_V2: usize = 8 + 8 + 64 + 32 + 32 + 1;
 const SOURCE_BLOCK_PAYLOAD_BYTES: usize =
-    HASH_CONTROL_SOURCE_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES;
-const TRACE_BLOCK_PAYLOAD_BYTES: usize = HASH_CONTROL_TRACE_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES;
-const UNIQUENESS_LIST_BLOCK_BYTES: usize = UNIQUENESS_LIST_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES;
+    HASH_CONTROL_SOURCE_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
+const TRACE_BLOCK_PAYLOAD_BYTES: usize =
+    HASH_CONTROL_TRACE_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
+const UNIQUENESS_LIST_BLOCK_BYTES: usize =
+    UNIQUENESS_LIST_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
 const UNIQUENESS_TRANSCRIPT_BLOCK_BYTES: usize =
-    UNIQUENESS_TRANSCRIPT_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES;
+    UNIQUENESS_TRANSCRIPT_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
 const HASH_CONTROL_ORDINAL_FLAG: u64 = 1_u64 << 63;
 const HASH_CONTROL_ORDINAL_STRIDE: u64 = 1_u64 << 24;
 const TRACE_HASH_ROLE_TAG_V2: u8 = 1;
@@ -2319,7 +2321,7 @@ pub(crate) fn decode_hash_control(
         HashControlStageV2::Block => {
             if payload.len()
                 != common_bytes
-                    .checked_add(HASH_CONTROL_BLOCK_BYTES)
+                    .checked_add(HASH_CONTROL_BLOCK_BYTES_V2)
                     .ok_or(CheckpointError::Overflow)?
             {
                 return Err(CheckpointError::Canonical);

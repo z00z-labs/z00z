@@ -46,6 +46,10 @@ authenticated IPC  typed in-process adapter
 | `scripts/port/mock-wallet-gateway.js` | `z00z_wallet_ui_contract::WalletGateway` test adapter | Preserve intent/result envelopes; replace mutation internals with native gateway calls. |
 | `scripts/port/locale-registry.js` | locale enum, metadata registry, and catalogue builder | Generate every catalogue from one ordered Rust/build-time registry. |
 | `scripts/port/icon-registry.js` | `IconName` enum and one inline SVG Leptos component | Preserve semantic object-type lookup; bundle paths locally and normalize to 24x24. |
+| `help/topics.yaml` | build-time `HelpTopicId`/route matcher source | Generate an exhaustive Rust enum and fail the build when a routed view has no topic. |
+| `help/<locale>/*.md` | bundled localized Help source | Compile at build time into a constrained plain-text AST; never parse or fetch Markdown at runtime. |
+| `scripts/port/help-registry.js` | pure Help topic resolver | Port as an exhaustive state-to-topic match independent from Leptos view components. |
+| `scripts/help-controller.js` | `HelpPanel`/`ContextHelpButton` components | Preserve focus restoration, Escape/backdrop close, target highlighting, desktop panel, and mobile bottom-sheet behavior. |
 | `styles/colors.css` | `z00z_wallet_ui/styles/colors.css` | Preserve literal palette values as the single colour source. |
 | `styles/foundation.css` | `z00z_wallet_ui/styles/foundation.css` | Bundle local fonts and global design tokens. |
 | `styles/components.css` | Leptos component styles | Port by component; do not reproduce DOM selectors that no longer exist. |
@@ -82,6 +86,27 @@ the bound value as read-only; rename/settings/YAML commands cannot mutate it.
 YAML in this demo is a presentation concept. Production parses, validates,
 authorizes, revisions, and writes configuration in a typed native
 `ConfigGateway`; the renderer receives a sanitized projection and diagnostics.
+
+Help is also a build-time projection. Markdown and locale files are developer
+inputs, not renderer data loaded from disk. The packaged renderer receives an
+immutable embedded catalogue. Locale IDs are generated from the same canonical
+registry as the UI. The Help build derives the full route matrix from
+`PORT_CONTRACT` and fails unless each routed state has exactly one contextual
+topic and every topic maps back to a route. Topic content cannot contain raw
+HTML, script URLs, selectors, secrets, wallet labels, addresses, or other
+user-authored values. English is an explicit fallback only for an unavailable
+packaged catalogue; release builds fail locale-parity checks before packaging.
+
+When Help is opened from a native sheet/dialog, the production `HelpPanel`
+belongs to the same overlay stack, temporarily inerts the underlying sheet,
+contains focus, handles Escape/backdrop closure, and restores the invoking
+control. Do not render contextual Help behind a native top-layer dialog.
+
+The shared compact-row contract ports as three semantic slots—label, value, and
+action/status. Long values truncate without losing their accessible full value.
+At 320 px, ordinary settings stay one logical row; only complex editors and
+palette grids may use their declared stacked fallback. Do not port one-off
+per-view width overrides.
 
 ## Vertical migration order
 

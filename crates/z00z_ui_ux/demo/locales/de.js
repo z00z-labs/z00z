@@ -59,6 +59,7 @@ window.Z00ZI18n.registerLocale("de", {
     localCapabilityHelp: "In dieser Wallet-Demo ist keine OnionNet-Statusbrücke registriert. Es werden keine scheinbar echten Routen-, Topologie- oder Datenschutzwerte erfunden.",
     tabs: { overview: "Überblick", epoch: "Epoche", privacy: "Datenschutzschwelle", transport: "Transport", queues: "Warteschlangen und Wiederholungen", probation: "Bewährung", ingress: "Eingangsgrenze" }
   },
+  help: { title: "Hilfe", openGlobal: "Anwendungshilfe öffnen", openContext: "Hilfe für diese Ansicht", close: "Hilfe schließen", contents: "Inhalt", section: "Hilfeabschnitt {current} von {total}", unavailable: "Für diese Ansicht ist keine Hilfe verfügbar." },
   status: { up: "Aktiv", down: "Inaktiv", connecting: "Verbindung", degraded: "Eingeschränkt" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

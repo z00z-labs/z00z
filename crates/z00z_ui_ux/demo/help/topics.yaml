@@ -1,0 +1,154 @@
+version: 1
+topics:
+  - id: app
+    file: app
+    scope: global
+    match: global
+  - id: app.home
+    file: app-home
+    scope: context
+    match: view=home
+  - id: wallet.assets
+    file: wallet-assets
+    scope: context
+    match: view=wallet;walletSection=assets
+  - id: wallet.vouchers
+    file: wallet-vouchers
+    scope: context
+    match: view=wallet;walletSection=vouchers
+  - id: wallet.permissions
+    file: wallet-permissions
+    scope: context
+    match: view=wallet;walletSection=permissions
+  - id: wallet.send
+    file: wallet-send
+    scope: context
+    match: view=wallet-send
+  - id: wallet.receive
+    file: wallet-receive
+    scope: context
+    match: view=wallet-receive
+  - id: wallet.swap
+    file: wallet-swap
+    scope: context
+    match: view=swap
+  - id: wallet.exchange
+    file: wallet-exchange
+    scope: context
+    match: view=exchange
+  - id: wallet.staking
+    file: wallet-staking
+    scope: context
+    match: view=staking
+  - id: wallet.backup
+    file: wallet-backup
+    scope: context
+    match: view=wallet-backup
+  - id: wallet.history
+    file: wallet-history
+    scope: context
+    match: view=activity
+  - id: wallet.settings.general
+    file: wallet-settings-general
+    scope: context
+    match: view=wallet-settings;walletSettingsSection=general
+  - id: wallet.settings.security
+    file: wallet-settings-security
+    scope: context
+    match: view=wallet-settings;walletSettingsSection=security
+  - id: wallet.settings.backup
+    file: wallet-settings-backup
+    scope: context
+    match: view=wallet-settings;walletSettingsSection=backup
+  - id: wallet.settings.policies
+    file: wallet-settings-policies
+    scope: context
+    match: view=wallet-settings;walletSettingsSection=policies
+  - id: wallet.settings.advanced
+    file: wallet-settings-advanced
+    scope: context
+    match: view=wallet-settings;walletSettingsSection=advanced
+  - id: settings.general
+    file: settings-general
+    scope: context
+    match: view=settings;settingsSection=general
+  - id: settings.appearance
+    file: settings-appearance
+    scope: context
+    match: view=settings;settingsSection=appearance
+  - id: settings.reticulum
+    file: settings-reticulum
+    scope: context
+    match: view=settings;settingsSection=reticulum
+  - id: settings.onionnet
+    file: settings-onionnet
+    scope: context
+    match: view=settings;settingsSection=onionnet
+  - id: telemetry.reticulum.overview
+    file: telemetry-reticulum-overview
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=overview
+  - id: telemetry.reticulum.node
+    file: telemetry-reticulum-node
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=node
+  - id: telemetry.reticulum.interfaces
+    file: telemetry-reticulum-interfaces
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=interfaces
+  - id: telemetry.reticulum.radio
+    file: telemetry-reticulum-radio
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=radio
+  - id: telemetry.reticulum.entrypoints
+    file: telemetry-reticulum-entrypoints
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=entrypoints
+  - id: telemetry.reticulum.paths
+    file: telemetry-reticulum-paths
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=paths
+  - id: telemetry.reticulum.probes
+    file: telemetry-reticulum-probes
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=probes
+  - id: telemetry.reticulum.links
+    file: telemetry-reticulum-links
+    scope: context
+    match: view=telemetry;telemetrySource=reticulum;reticulumTelemetryTab=links
+  - id: telemetry.onionnet.overview
+    file: telemetry-onionnet-overview
+    scope: context
+    match: view=telemetry;telemetrySource=onionnet;onionnetTelemetryTab=overview
+  - id: telemetry.onionnet.epoch
+    file: telemetry-onionnet-epoch
+    scope: context
+    match: view=telemetry;telemetrySource=onionnet;onionnetTelemetryTab=epoch
+  - id: telemetry.onionnet.privacy
+    file: telemetry-onionnet-privacy
+    scope: context
+    match: view=telemetry;telemetrySource=onionnet;onionnetTelemetryTab=privacy
+  - id: telemetry.onionnet.transport
+    file: telemetry-onionnet-transport
+    scope: context
+    match: view=telemetry;telemetrySource=onionnet;onionnetTelemetryTab=transport
+  - id: telemetry.onionnet.queues
+    file: telemetry-onionnet-queues
+    scope: context
+    match: view=telemetry;telemetrySource=onionnet;onionnetTelemetryTab=queues
+  - id: telemetry.onionnet.probation
+    file: telemetry-onionnet-probation
+    scope: context
+    match: view=telemetry;telemetrySource=onionnet;onionnetTelemetryTab=probation
+  - id: telemetry.onionnet.ingress
+    file: telemetry-onionnet-ingress
+    scope: context
+    match: view=telemetry;telemetrySource=onionnet;onionnetTelemetryTab=ingress
+  - id: telemetry.aggregators.overview
+    file: telemetry-aggregators-overview
+    scope: context
+    match: view=telemetry;telemetrySource=aggregators;aggregatorsTelemetryTab=overview
+  - id: asset.details
+    file: asset-details
+    scope: dialog
+    match: dialog=asset-detail

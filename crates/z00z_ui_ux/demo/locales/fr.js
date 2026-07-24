@@ -59,6 +59,7 @@ window.Z00ZI18n.registerLocale("fr", {
     localCapabilityHelp: "Aucun pont de statut OnionNet n’est enregistré dans cette démo de portefeuille. Aucune valeur de route, topologie ou confidentialité semblant réelle n’est inventée.",
     tabs: { overview: "Vue d’ensemble", epoch: "Époque", privacy: "Seuil de confidentialité", transport: "Transport", queues: "Files et relectures", probation: "Probation", ingress: "Frontière d’entrée" }
   },
+  help: { title: "Aide", openGlobal: "Ouvrir l’aide de l’application", openContext: "Aide pour cette vue", close: "Fermer l’aide", contents: "Sommaire", section: "Section d’aide {current} sur {total}", unavailable: "L’aide est indisponible pour cette vue." },
   status: { up: "Actif", down: "Inactif", connecting: "Connexion", degraded: "Dégradé" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

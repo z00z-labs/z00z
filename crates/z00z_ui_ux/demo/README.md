@@ -9,12 +9,15 @@ This self-contained prototype is the executable companion to [`UI-UX-SPEC.md`](.
 From the repository root:
 
 ```bash
-python3 -m http.server 4173 --directory crates/z00z_ui_ux/demo
+node crates/z00z_ui_ux/demo/scripts/serve-demo.mjs 4173
 ```
 
-Open `http://127.0.0.1:4173`.
+Open `http://127.0.0.1:4173`. This development server watches
+`help/en/*.md`, recompiles the local Help catalogue, and reloads the open page
+after a successful update.
 
-The files can also be opened directly. The local HTTP server exists only for development screenshots and smoke tests; it is not part of the product runtime.
+The files can also be opened directly. The local HTTP server and its live-reload
+channel exist only for development; neither is part of the product runtime.
 
 ## 📱 GitHub Pages
 
@@ -56,6 +59,15 @@ Optional full visual smoke test (it starts and stops its own local HTTP server):
 crates/z00z_ui_ux/demo/run-smoke.sh
 ```
 
+The separate `run-visual-review.sh` produces a clean 101-image review matrix:
+desktop baselines and every `PORT_CONTRACT` route at 390 px and 320 px, plus
+long-locale, localized-Help, Asset details, global-Help, contextual-Help, and
+dialog-Help overlay cases.
+
+```bash
+crates/z00z_ui_ux/demo/run-visual-review.sh
+```
+
 ## 🌐 Languages
 
 The concept includes English, Russian, French, German, Spanish, Portuguese,
@@ -64,6 +76,59 @@ locale registry owns their metadata and load order. Language, regional format,
 and display time zone are independent preferences. See
 [I18N-ARCHITECTURE.md](../../../.planning/phases/110-Wallet-UX-UI/I18N-ARCHITECTURE.md) for the catalogue contract, local
 machine-translation bridge, and required checks.
+
+## ❔ Local contextual Help
+
+Application Help is authored as Markdown under `help/<locale>/`. The canonical
+`help/topics.yaml` LUT maps presentation state to one stable topic ID. Locale IDs
+come from `scripts/port/locale-registry.js`; compile, check, and scaffold tools
+do not maintain a second language list. `scripts/compile-help.mjs` converts the
+constrained Markdown subset into `scripts/generated/help-catalog.js`. Runtime
+rendering reads that bundled catalogue only: it does not fetch Markdown, load a
+CDN, or require an Internet connection.
+
+`node scripts/check-help.mjs` derives every routed state from `PORT_CONTRACT`.
+It fails unless each routed state resolves exactly one contextual topic, every
+context topic maps back to a route, one global topic exists, all 38 topics exist
+in all ten locale folders, all translated documents have the English structure,
+the English SHA-256 source hashes are synchronized, and the generated catalogue
+is current.
+
+English is the canonical Help source. `help/source-state.json` records the
+reviewed English hash for every topic and locale. When an English topic changes,
+`scripts/sync-help.mjs` sends only that topic's plain Help messages to the same
+local build-time translation bridge used by the UI catalogues, rewrites the nine
+translated Markdown documents, updates the hashes, and leaves the runtime
+network-free:
+
+```bash
+Z00Z_TRANSLATE_COMMAND=/absolute/path/to/local-translate \
+  node scripts/compile-help.mjs
+```
+
+`compile-help.mjs`, the development server, smoke suite, and Pages release all
+run this synchronization contract. If the English hash changes and the local
+translator is not configured, they fail closed instead of publishing
+English-only or structurally stale Help. Translation output is a draft and still
+requires native-language review.
+
+To add a view:
+
+1. Add its state match and stable ID to `help/topics.yaml`.
+2. Run `node scripts/scaffold-help.mjs <topic-id>`.
+3. Replace every generated translation placeholder.
+4. Run `node scripts/sync-help.mjs --record-reviewed` once after that explicit
+   review, then `node scripts/compile-help.mjs` and
+   `node scripts/check-help.mjs`.
+
+The global Help action explains application-wide behavior. The fixed question
+action at the lower-right edge opens only the active view's topic, stays in the
+same viewport position while content scrolls, preserves navigation/form state,
+and highlights a declared `{#target-id}` section anchor. Explanatory prose
+belongs in Help; validation, safety warnings, destructive consequences,
+read-only/unavailable states, and errors stay beside the affected action.
+Help opened from a native dialog stays above that dialog, contains keyboard
+focus, and returns focus to the same question action when closed.
 
 ## 🧪 Suggested walkthrough
 
@@ -117,3 +182,12 @@ node scripts/test-pages-release.mjs
 ```
 
 `run-smoke.sh` runs these gates before the full Playwright suite.
+
+The reproducible visual-review matrix is captured with
+`visual-review.spec.js` at 1280×800, 390×844, and 320×800. Its screenshots are
+written under `crates/z00z_storage/outputs/checkpoint/phase-110/ui-help-review/`.
+Run it with:
+
+```bash
+crates/z00z_ui_ux/demo/run-visual-review.sh
+```

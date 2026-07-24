@@ -59,6 +59,7 @@ window.Z00ZI18n.registerLocale("ja", {
     localCapabilityHelp: "このウォレットデモには OnionNet ステータスブリッジが登録されていません。本物らしい経路、トポロジー、プライバシー値は作成しません。",
     tabs: { overview: "概要", epoch: "エポック", privacy: "プライバシー下限", transport: "転送", queues: "キューと再生", probation: "試用", ingress: "入口境界" }
   },
+  help: { title: "ヘルプ", openGlobal: "アプリケーションヘルプを開く", openContext: "この画面のヘルプ", close: "ヘルプを閉じる", contents: "目次", section: "ヘルプセクション {current}/{total}", unavailable: "この画面のヘルプは利用できません。" },
   status: { up: "稼働中", down: "停止", connecting: "接続中", degraded: "低下" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

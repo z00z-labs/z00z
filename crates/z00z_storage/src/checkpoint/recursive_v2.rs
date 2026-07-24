@@ -11,7 +11,14 @@ pub use super::{
         SettlementRootGenerationCutoverV2,
     },
     nova::NovaProofEnvelopeV2,
-    receipt::{CryptographicVerificationReceiptV2, RecursiveVerificationResultV2},
+    plonky3::{
+        DyadicErrorBoundV2, Plonky3BaseAdapterV2, Plonky3BaseProofV2, Plonky3BaseStatementV2,
+        RecursiveSecurityBudgetManifestV2,
+    },
+    receipt::{
+        CryptographicVerificationReceiptV2, Plonky3BaseVerificationReceiptV2,
+        RecursiveVerificationResultV2,
+    },
     recursive_chain::{
         NovaChainErrorV2, NovaChainEvidenceStepV2, NovaChainMeasurementV2, NovaChainStatementV2,
         NovaRetentionInputFactsV2, VerifiedNovaChainV2,

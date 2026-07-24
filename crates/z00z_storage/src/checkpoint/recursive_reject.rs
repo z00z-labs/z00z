@@ -58,10 +58,14 @@ pub enum RecursiveCheckpointRejectReasonV2 {
     PqAnchorDigestMismatch = 45,
     PqAnchorIncomplete = 46,
     RecursiveDocumentationIncomplete = 47,
+    Plonky3SecurityBudgetInvalid = 48,
+    Plonky3TranscriptMismatch = 49,
+    Plonky3AirBindingMismatch = 50,
+    Plonky3ProofMalformed = 51,
 }
 
 impl RecursiveCheckpointRejectReasonV2 {
-    pub const ALL: [Self; 47] = [
+    pub const ALL: [Self; 51] = [
         Self::UnsupportedVersion,
         Self::UnknownField,
         Self::StatementDigestMismatch,
@@ -109,6 +113,10 @@ impl RecursiveCheckpointRejectReasonV2 {
         Self::PqAnchorDigestMismatch,
         Self::PqAnchorIncomplete,
         Self::RecursiveDocumentationIncomplete,
+        Self::Plonky3SecurityBudgetInvalid,
+        Self::Plonky3TranscriptMismatch,
+        Self::Plonky3AirBindingMismatch,
+        Self::Plonky3ProofMalformed,
     ];
 
     #[must_use]
@@ -171,6 +179,10 @@ impl RecursiveCheckpointRejectReasonV2 {
             45 => Some(Self::PqAnchorDigestMismatch),
             46 => Some(Self::PqAnchorIncomplete),
             47 => Some(Self::RecursiveDocumentationIncomplete),
+            48 => Some(Self::Plonky3SecurityBudgetInvalid),
+            49 => Some(Self::Plonky3TranscriptMismatch),
+            50 => Some(Self::Plonky3AirBindingMismatch),
+            51 => Some(Self::Plonky3ProofMalformed),
             _ => None,
         }
     }
@@ -232,6 +244,10 @@ impl RecursiveCheckpointRejectReasonV2 {
             Self::PqAnchorDigestMismatch => "PQ anchor digest mismatch",
             Self::PqAnchorIncomplete => "PQ anchor incomplete",
             Self::RecursiveDocumentationIncomplete => "recursive documentation incomplete",
+            Self::Plonky3SecurityBudgetInvalid => "Plonky3 security budget invalid",
+            Self::Plonky3TranscriptMismatch => "Plonky3 transcript mismatch",
+            Self::Plonky3AirBindingMismatch => "Plonky3 AIR binding mismatch",
+            Self::Plonky3ProofMalformed => "Plonky3 proof malformed",
         }
     }
 }
@@ -249,7 +265,7 @@ mod tests {
     #[test]
     fn test_reason_code_roundtrip() {
         for (index, reason) in Reason::ALL.into_iter().enumerate() {
-            let expected = u16::try_from(index + 1).expect("47 entries fit u16");
+            let expected = u16::try_from(index + 1).expect("51 entries fit u16");
             assert_eq!(reason.code(), expected);
             assert_eq!(Reason::from_code(expected), Some(reason));
             assert_eq!(
@@ -276,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_reason_decoder_rejects() {
-        for bytes in [&[][..], &[1][..], &[1, 0, 0][..], &[0, 0][..], &[48, 0][..]] {
+        for bytes in [&[][..], &[1][..], &[1, 0, 0][..], &[0, 0][..], &[52, 0][..]] {
             assert!(Reason::decode_canonical(bytes).is_err());
         }
     }

@@ -19,9 +19,16 @@
   --radius-card: 14px;
   --radius-sheet: 20px;
   --sidebar-width: 248px;
+  --context-rail-width: 192px;
+  --context-rail-gap: 24px;
   --topbar-height: 80px;
   --wallet-statusbar-height: 54px;
   --content-max: 1075px;
+  --wallet-action-card-max: 640px;
+  --settings-card-max: 640px;
+  --wallet-settings-card-max: 520px;
+  --history-list-max: 760px;
+  --history-search-width: 220px;
   --ease: 180ms ease;
   --font-sans: "Geist", "Geist Fallback", sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;

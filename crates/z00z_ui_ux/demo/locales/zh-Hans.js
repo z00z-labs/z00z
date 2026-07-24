@@ -59,6 +59,7 @@ window.Z00ZI18n.registerLocale("zh-Hans", {
     localCapabilityHelp: "此钱包演示未注册 OnionNet 状态桥接。不会伪造看似实时的路由、拓扑或隐私数值。",
     tabs: { overview: "概览", epoch: "纪元", privacy: "隐私下限", transport: "传输", queues: "队列与重放", probation: "观察期", ingress: "入口边界" }
   },
+  help: { title: "帮助", openGlobal: "打开应用帮助", openContext: "此视图的帮助", close: "关闭帮助", contents: "目录", section: "帮助章节 {current}/{total}", unavailable: "此视图暂无帮助。" },
   status: { up: "运行中", down: "离线", connecting: "正在连接", degraded: "受限" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

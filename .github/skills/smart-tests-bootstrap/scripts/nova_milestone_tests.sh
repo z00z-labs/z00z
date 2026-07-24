@@ -84,10 +84,10 @@ run_guards() {
   local contract dollar='$'
   local -a verifier_rss_contract=(
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
-    'readonly EXPECTED_SOURCE_REVISION="0ef121e74dc36cf1d9f61504d7f4fc13cb89054cd78f59a0552825058d763699"'
+    'readonly EXPECTED_SOURCE_REVISION="2d4a6312028d3987520d10e53f376dd22b40e303fd0e7d1b122c900f0d9e55d8"'
     'readonly EXPECTED_WORKER_SOURCE="a0fd346405c1f3d103d62b7d7b886574ad50d58dd749fcea22f8bf22960ade69"'
-    'readonly EXPECTED_NOVA_SHA256="bc6f2482f4d66fc2806da9416448fe61fd0d94d686d10624f95098ef116b8073"'
-    'readonly EXPECTED_CARGO_LOCK_SHA256="dc39936ae850926a973d884ba4571eefb4be4f56e68ba459b914ec633b7f85ca"'
+    'readonly EXPECTED_NOVA_SHA256="ef88f863c74806b667858ab571f22772d40aadb7010d56231bb9d68020a7eb88"'
+    'readonly EXPECTED_CARGO_LOCK_SHA256="0abd89e2d1fdf007051e592db3e2f764262206dfc7050c8006bc8a33540eae8d"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
     "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}ROOT_DIR/target/workspace\""
     "cargo test --release -p z00z_storage --lib \"${dollar}TEST_NAME\" --"

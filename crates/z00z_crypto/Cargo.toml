@@ -38,10 +38,10 @@ bip32 = { version = "0.5", features = ["secp256k1"] }
 argon2 = "0.5"
 zeroize = { version = "1.7", features = ["derive"] }
 subtle = "2.5"
-p3-field = "0.4.2"
-p3-goldilocks = "0.4.2"
-p3-poseidon2 = "0.4.2"
-p3-symmetric = "0.4.2"
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
 rand = "0.8"
 z00z_utils = { path = "../z00z_utils" }
 

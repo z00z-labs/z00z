@@ -25,6 +25,7 @@ jobs:
         working-directory: crates/z00z_ui_ux/demo
         run: |
           node scripts/check-locales.mjs
+          node scripts/check-help.mjs
           node scripts/test-port-contracts.mjs
           node scripts/check-port-readiness.mjs
           node scripts/test-pages-release.mjs

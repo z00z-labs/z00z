@@ -25,7 +25,8 @@ Frameworks Detected: <list>
 
 ### Executive Summary Table
 
-Always show this first — at a glance overview:
+Always show this first. Count confirmed findings only; do not include hardening
+notes, manual-review candidates, deployment-test leads, or rejected candidates.
 
 ```text
 ┌────────────────────────────────────────────────┐
@@ -58,6 +59,21 @@ Confidence: HIGH / MEDIUM / LOW
 
 📍 Location:  src/routes/users.js, Line 47
 
+👤 Attacker:
+  Authenticated low-privilege user who can choose the `id` path parameter.
+
+🚧 Boundary Crossed:
+  Object ownership — the handler returns a record owned by another user.
+
+🧭 Verified Trace:
+  1. Entrypoint: GET /users/:id → src/routes/users.js:42
+  2. Propagation: req.params.id → src/routes/users.js:47
+  3. Sink: db.execute(query) → src/routes/users.js:48
+
+🧪 Verification:
+  Source-confirmed. The route is reachable and no middleware, owner predicate,
+  or downstream constraint blocks the cross-owner lookup.
+
 🔍 Vulnerable Code:
   const query = `SELECT * FROM users WHERE id = ${req.params.id}`;
   db.execute(query);
@@ -78,6 +94,36 @@ Confidence: HIGH / MEDIUM / LOW
 📚 Reference: OWASP A03:2021 – Injection
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+---
+
+### Non-Finding Sections
+
+Keep these sections separate from confirmed findings and exclude them from
+severity counts:
+
+```text
+🧭 NEEDS MANUAL REVIEW
+══════════════════════
+- <candidate>: <verified evidence> / <remaining uncertainty>
+
+🧪 REQUIRES DEPLOYMENT TESTING
+══════════════════════════════
+- <candidate>: <exact external component or configuration needed>
+- Test: <specific request, bytes, runtime behavior, or deployment check>
+
+🛡️ HARDENING NOTES
+══════════════════
+- <defense-in-depth improvement with no standalone exploit>
+
+✅ VALIDATED CONTROLS
+════════════════════
+- <security control verified in code/config and the boundary it protects>
+```
+
+Do not convert an unavailable deployment fact into a lower-severity finding.
+Do not list a missing secondary control as a vulnerability when another verified
+layer prevents the attack.
 
 ---
 

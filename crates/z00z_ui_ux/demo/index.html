@@ -46,6 +46,7 @@
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
       <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></symbol>
       <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+      <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 0 1 4.8 1c0 2-2.5 2.2-2.5 4M12 17.5v.1"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
       <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
@@ -56,6 +57,7 @@
       <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19Z"/><path d="M12 9v5M12 17.5v.1"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
       <symbol id="i-backup" viewBox="0 0 24 24"><path d="M12 3v11m-4-4 4 4 4-4"/><path d="M5 15v5h14v-5"/></symbol>
+      <symbol id="i-restore" viewBox="0 0 24 24"><path d="M12 17V6m-4 4 4-4 4 4"/><path d="M5 14v6h14v-6"/></symbol>
       <symbol id="i-network" viewBox="0 0 24 24"><path d="M4 9a12 12 0 0 1 16 0M7 12.5a7 7 0 0 1 10 0M10 16a3 3 0 0 1 4 0"/><circle cx="12" cy="19" r="1"/></symbol>
       <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
       <symbol id="i-reticulum-node" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4.5M10.5 13.5 6.5 17M13.5 13.5l4 3.5"/></symbol>
@@ -137,10 +139,10 @@
             <div class="page-heading">
               <h1 id="page-title">Home</h1>
               <p id="page-context">Your private money at a glance</p>
+              <button class="icon-button address-copy" id="copy-wallet-address" type="button" data-demo-action="copy-wallet-address" aria-label="Copy selected wallet address" title="Copy selected wallet address">
+                <svg class="icon"><use href="#i-copy"/></svg>
+              </button>
             </div>
-            <button class="icon-button address-copy" id="copy-wallet-address" type="button" data-demo-action="copy-wallet-address" aria-label="Copy selected wallet address" title="Copy selected wallet address">
-              <svg class="icon"><use href="#i-copy"/></svg>
-            </button>
           </div>
           <nav class="wallet-tabs" id="wallet-tabs" aria-label="Selected wallet"></nav>
           <div class="topbar-actions">
@@ -151,14 +153,15 @@
             <button class="icon-button topbar-notification" type="button" data-demo-action="notifications" aria-label="Notifications, one unread" title="Notifications">
               <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
             </button>
-            <button class="icon-button account-button" type="button" data-view="settings" aria-label="Open account settings" title="Account settings">
-              <svg class="icon"><use href="#i-user"/></svg>
+            <button class="icon-button help-button" type="button" data-help-topic="app" aria-label="Open application help" title="Help">
+              <svg class="icon"><use href="#i-question"/></svg>
             </button>
           </div>
         </header>
         <button class="mobile-menu-backdrop" id="mobile-menu-backdrop" type="button" tabindex="-1" aria-label="Close menu" hidden></button>
         <div class="mobile-popup-menu" id="mobile-popup-menu" role="menu" hidden></div>
         <main class="main-content" id="main-content" tabindex="-1"></main>
+        <div class="context-help-host" id="context-help-host"></div>
         <footer class="wallet-statusbar" id="wallet-statusbar" aria-label="Selected wallet status"></footer>
       </div>
     </div>
@@ -167,6 +170,7 @@
       <div id="dialog-content"></div>
     </dialog>
 
+    <div class="help-host" id="help-host" hidden></div>
     <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
 
     <script src="scripts/port/locale-registry.js"></script>
@@ -181,6 +185,9 @@
     <script src="locales/tr.js"></script>
     <script src="locales/ja.js"></script>
     <script src="locales/zh-Hans.js"></script>
+    <script src="scripts/generated/help-catalog.js"></script>
+    <script src="scripts/port/help-registry.js"></script>
+    <script src="scripts/help-controller.js"></script>
     <script src="scripts/port/contracts.js"></script>
     <script src="scripts/port/fixtures.js"></script>
     <script src="scripts/port/presentation-state.js"></script>

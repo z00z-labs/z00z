@@ -3045,9 +3045,20 @@ inputs without owning deletion. Real artifacts, Model C, clean-verifier RSS,
 bootstrap, targeted and exact workspace release tests, all-target build,
 clippy, release-feature/fmt/diff/coverage gates, six reviews ending in two
 clean passes, and two doublechecks pass. `069-06-SUMMARY.md` and
-`069-06-PROFILING-REPORT.md` retain the closure evidence. Plan 07 is active for
-the real private Plonky3 base STARK; all future/target Phase-069 terms remain
-mandatory live authority and `CheckpointProofSystem::VERIFIED` stays disabled.
+`069-06-PROFILING-REPORT.md` retain the closure evidence. That closure
+activated the real private Plonky3 base-STARK work later stopped fail-closed by
+the Plan-07 blocker below; all future/target Phase-069 terms remain mandatory
+live authority and `CheckpointProofSystem::VERIFIED` stays disabled.
+
+**069-07 fail-closed stop/split (2026-07-24):** Plan 07 is not complete. The
+real pinned Plonky3 engine and its bounded private facade are integrated, but
+the current AIR proves only canonical-vector/Poseidon2 binding rather than the
+full frozen transition relation. `Plonky3BaseAdapterV2::{prove,verify}` now
+reject before proof or receipt creation with
+`Plonky3CanonicalRangeMissing`. Mandatory bootstrap passes and the exact
+Plan-07 acceptance target records the expected blocker. The required
+domain-specific KoalaBear AIR or sound foreign-field R1CS translation is
+specified in `069-07-STOP-SPLIT.md`; Plans 08–13 remain dependency-locked.
 
 **069-051 closure / 069-06 activation (2026-07-22):** Plan 051 is complete on
 proof-source digest
