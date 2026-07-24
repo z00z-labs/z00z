@@ -779,6 +779,11 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         let guard =
             NovaRunGuardV2::from_profile(deadline, cancellation.flag(), &authority.profile)?;
 
+        // Lock the lineage before the first live transition can mutate storage.
+        // Any admission failure after this boundary invalidates an existing
+        // in-memory session because callers cannot prove that it still matches
+        // the live store; recovery or a fresh replay must establish continuity.
+        let mut session_slot = self.session.lock().map_err(|_| CheckpointError::Storage)?;
         let mut transitions_result = Ok(Vec::with_capacity(blocks.len()));
         for block in blocks.iter() {
             let transition = CanonicalCheckpointTransitionV2::from_exec_with_verifier(
@@ -800,49 +805,52 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 (Err(_), Ok(_)) => unreachable!("failed transition loop must stop"),
             }
         }
+        let transitions_result = drop_session_on_error(&mut session_slot, transitions_result);
         let (stage, mut transitions) = stage
             .retain(transitions_result)
             .map_err(LiveGateFailureV2::into_error)?;
+        let revalidation = revalidate_attempt(&authority, &transitions, blocks, settlement_store);
+        let revalidation = drop_session_on_error(&mut session_slot, revalidation);
         let (stage, ()) = stage
-            .retain(revalidate_attempt(
-                &authority,
-                &transitions,
-                blocks,
-                settlement_store,
-            ))
+            .retain(revalidation)
             .map_err(LiveGateFailureV2::into_error)?;
-        let target_height = transitions
+        let target_height_result = transitions
             .last()
             .map(CanonicalCheckpointTransitionV2::checkpoint_height)
-            .ok_or(CheckpointError::Invariant)?;
-        let cadence_action = match request {
-            RecursiveEvidenceRequestV2::FoldOnly => NovaCadenceActionV2 {
-                is_fold_required: true,
-                is_recovery_snapshot_required: false,
-                is_compression_required: false,
-                is_publication_required: false,
-            },
-            RecursiveEvidenceRequestV2::Snapshot { authority, cadence } => {
-                let action = self
-                    .compression_policy
-                    .action(target_height, authority, cadence)?;
-                if !action.is_compression_required {
-                    return Err(CheckpointError::Authority);
+            .ok_or(CheckpointError::Invariant);
+        let target_height = drop_session_on_error(&mut session_slot, target_height_result)?;
+        let cadence_result = (|| {
+            let action = match request {
+                RecursiveEvidenceRequestV2::FoldOnly => NovaCadenceActionV2 {
+                    is_fold_required: true,
+                    is_recovery_snapshot_required: false,
+                    is_compression_required: false,
+                    is_publication_required: false,
+                },
+                RecursiveEvidenceRequestV2::Snapshot { authority, cadence } => {
+                    let action =
+                        self.compression_policy
+                            .action(target_height, authority, cadence)?;
+                    if !action.is_compression_required {
+                        return Err(CheckpointError::Authority);
+                    }
+                    action
                 }
-                action
-            }
-            RecursiveEvidenceRequestV2::RecoverySnapshot { authority } => {
-                let action = self.compression_policy.action(
-                    target_height,
-                    authority,
-                    NovaCadenceRequestV2::RecoverySnapshot,
-                )?;
-                if !action.is_recovery_snapshot_required {
-                    return Err(CheckpointError::Authority);
+                RecursiveEvidenceRequestV2::RecoverySnapshot { authority } => {
+                    let action = self.compression_policy.action(
+                        target_height,
+                        authority,
+                        NovaCadenceRequestV2::RecoverySnapshot,
+                    )?;
+                    if !action.is_recovery_snapshot_required {
+                        return Err(CheckpointError::Authority);
+                    }
+                    action
                 }
-                action
-            }
-        };
+            };
+            Ok(action)
+        })();
+        let cadence_action = drop_session_on_error(&mut session_slot, cadence_result)?;
         let nova_blocks = transitions
             .iter_mut()
             .map(|transition| NovaChainTransitionV2 {
@@ -853,9 +861,9 @@ impl RecursiveCheckpointEvidenceStoreV2 {
 
         // Keep the slot locked through receipt issuance. A concurrent caller
         // cannot observe an empty slot and fork a second accumulator lineage.
-        let mut session_slot = self.session.lock().map_err(|_| CheckpointError::Storage)?;
         let mut iterator = nova_blocks.into_iter();
         let mut new_session = None;
+        let mut has_recovery_resume = false;
         if let Some(existing) = session_slot.as_mut() {
             let fold_result = contain_backend(|| {
                 existing.renew_guard(guard)?;
@@ -874,7 +882,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 return Err(error);
             }
         } else {
-            new_session = Some(contain_backend(|| {
+            let (session, did_resume) = contain_backend(|| {
                 if let Some((snapshot, image)) = self.recovery.latest()? {
                     let first = iterator.next().ok_or(CheckpointError::Invariant)?;
                     let resumed = NovaContinuousSessionV2::resume_and_fold_block(
@@ -893,7 +901,7 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                     if !remaining.is_empty() {
                         let _ = resumed.fold_blocks(&mut remaining)?;
                     }
-                    Ok(resumed)
+                    Ok((resumed, true))
                 } else {
                     let first = iterator.next().ok_or(CheckpointError::Invariant)?;
                     let mut created = NovaContinuousSessionV2::start(
@@ -907,38 +915,45 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                     if !remaining.is_empty() {
                         let _ = created.fold_blocks(&mut remaining)?;
                     }
-                    Ok(created)
+                    Ok((created, false))
                 }
-            })?);
+            })?;
+            new_session = Some(session);
+            has_recovery_resume = did_resume;
         }
-        let session = new_session
-            .as_ref()
-            .or_else(|| session_slot.as_ref())
-            .ok_or(CheckpointError::Invariant)?;
-        if session.bundle_digest()? != verifier.verifier_bundle_digest() {
-            return Err(CheckpointError::Authority);
-        }
-        let successor = session.successor()?;
-        if successor.height() != target_height {
-            return Err(CheckpointError::Invariant);
-        }
+        let successor_result = (|| {
+            let session = new_session
+                .as_ref()
+                .or_else(|| session_slot.as_ref())
+                .ok_or(CheckpointError::Invariant)?;
+            if session.bundle_digest()? != verifier.verifier_bundle_digest() {
+                return Err(CheckpointError::Authority);
+            }
+            let successor = session.successor()?;
+            if successor.height() != target_height {
+                return Err(CheckpointError::Invariant);
+            }
+            Ok(successor)
+        })();
+        let successor = drop_session_on_error(&mut session_slot, successor_result)?;
         // The fold is already authoritative local progress. Restore the valid
         // lineage before recovery, compression, persistence, or publication
         // can fail so a non-authoritative artifact error cannot drop it.
         if let Some(session) = new_session {
             *session_slot = Some(session);
         }
-        let recovery_snapshot = if cadence_action.is_recovery_snapshot_required {
-            let snapshot = contain_backend(|| {
-                session_slot
-                    .as_ref()
-                    .ok_or(CheckpointError::Invariant)?
-                    .recovery_snapshot()
-            })?;
-            Some(snapshot)
-        } else {
-            None
-        };
+        let recovery_snapshot =
+            if cadence_action.is_recovery_snapshot_required || has_recovery_resume {
+                let snapshot = contain_backend(|| {
+                    session_slot
+                        .as_ref()
+                        .ok_or(CheckpointError::Invariant)?
+                        .recovery_snapshot()
+                })?;
+                Some(snapshot)
+            } else {
+                None
+            };
         if matches!(request, RecursiveEvidenceRequestV2::RecoverySnapshot { .. }) {
             revalidate_or_drop_session(
                 &mut session_slot,
@@ -1336,6 +1351,16 @@ fn revalidate_attempt(
 ) -> Result<(), CheckpointError> {
     revalidate_live_authority(attempt, blocks, settlement_store)?;
     revalidate_chain(transitions, blocks, settlement_store)
+}
+
+fn drop_session_on_error<T>(
+    session: &mut Option<NovaContinuousSessionV2>,
+    result: Result<T, CheckpointError>,
+) -> Result<T, CheckpointError> {
+    if result.is_err() {
+        session.take();
+    }
+    result
 }
 
 fn revalidate_or_drop_session(

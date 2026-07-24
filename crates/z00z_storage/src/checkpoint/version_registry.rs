@@ -24,29 +24,18 @@ pub const RECURSIVE_RUNTIME_PROFILE_V2: &str = "checkpoint-contract-client-notar
 pub const RECURSIVE_RUNTIME_PROFILE_GENERATION_V2: u16 = 2;
 pub const RECURSIVE_PARAMETER_GENERATION_V2: u32 = 2;
 pub const RUNTIME_MANIFEST_MAX_BYTES_V2: usize = 4 * 1024;
-/// Compatibility name retained for generation-5 callers during the bounded
-/// generation-6 reader window.
-#[allow(dead_code)]
-pub const RUNTIME_PROFILE_MANIFEST_MAX_BYTES_V2: usize = RUNTIME_MANIFEST_MAX_BYTES_V2;
 pub(crate) const NOVA_PROOF_ENVELOPE_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.nova-proof-envelope.v2";
 pub(crate) const NOVA_ENVELOPE_DIGEST_LABEL_V2: &str = "component_digest";
-#[allow(dead_code)]
-pub(crate) const NOVA_PROOF_ENVELOPE_DIGEST_LABEL_V2: &str = NOVA_ENVELOPE_DIGEST_LABEL_V2;
 pub(crate) const NOVA_CADENCE_DOMAIN_V2: &str = "z00z.storage.checkpoint.nova-cadence-manifest.v2";
 pub(crate) const NOVA_SNAPSHOT_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.nova-accumulator-snapshot.v2";
 pub(crate) const RECURSIVE_CHECKPOINT_SIDECAR_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.recursive-sidecar.v2";
 pub(crate) const RECURSIVE_SIDECAR_DIGEST_LABEL_V2: &str = "canonical_sidecar";
-#[allow(dead_code)]
-pub(crate) const RECURSIVE_CHECKPOINT_SIDECAR_DIGEST_LABEL_V2: &str =
-    RECURSIVE_SIDECAR_DIGEST_LABEL_V2;
 pub(crate) const CRYPTOGRAPHIC_VERIFICATION_RECEIPT_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.crypto-verification-receipt.v2";
 pub(crate) const RECEIPT_DIGEST_LABEL_V2: &str = "canonical_receipt";
-#[allow(dead_code)]
-pub(crate) const CRYPTOGRAPHIC_VERIFICATION_RECEIPT_DIGEST_LABEL_V2: &str = RECEIPT_DIGEST_LABEL_V2;
 const RUNTIME_PROFILE_MANIFEST_MAGIC_V2: [u8; 4] = *b"ZRPM";
 const RUNTIME_PROFILE_MANIFEST_CODEC_V2: u16 = 1;
 const RUNTIME_PROFILE_BACKEND_V2: &str = "nova-snark";

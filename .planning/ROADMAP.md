@@ -3019,7 +3019,7 @@ epochs over the existing Phase 068 checkpoint contract.
 **Requirements:** RCP-069
 **Depends on:** Phase 068 completion and its storage-owned checkpoint,
 recursive-sidecar, PQ-anchor, and authority-promotion contracts.
-**Plans:** 6/14 plans executed
+**Plans:** 7/14 plans executed
 
 - [x] 069-01-PLAN.md
 - [x] 069-02-PLAN.md
@@ -3027,7 +3027,7 @@ recursive-sidecar, PQ-anchor, and authority-promotion contracts.
 - [x] 069-04-PLAN.md
 - [x] 069-05-PLAN.md
 - [x] 069-051-PLAN.md
-- [ ] 069-06-PLAN.md
+- [x] 069-06-PLAN.md
 - [ ] 069-07-PLAN.md
 - [ ] 069-08-PLAN.md
 - [ ] 069-09-PLAN.md
@@ -3035,6 +3035,19 @@ recursive-sidecar, PQ-anchor, and authority-promotion contracts.
 - [ ] 069-11-PLAN.md
 - [ ] 069-12-PLAN.md
 - [ ] 069-13-PLAN.md
+
+**069-06 closure / 069-07 activation (2026-07-24):** Plan 06 is complete on
+proof-source digest
+`0ef121e74dc36cf1d9f61504d7f4fc13cb89054cd78f59a0552825058d763699`.
+The one canonical V2 facade now supplies source-bound Nova cadence, bounded
+fork-safe recovery, real 3/5-chain verification, and immutable retention
+inputs without owning deletion. Real artifacts, Model C, clean-verifier RSS,
+bootstrap, targeted and exact workspace release tests, all-target build,
+clippy, release-feature/fmt/diff/coverage gates, six reviews ending in two
+clean passes, and two doublechecks pass. `069-06-SUMMARY.md` and
+`069-06-PROFILING-REPORT.md` retain the closure evidence. Plan 07 is active for
+the real private Plonky3 base STARK; all future/target Phase-069 terms remain
+mandatory live authority and `CheckpointProofSystem::VERIFIED` stays disabled.
 
 **069-051 closure / 069-06 activation (2026-07-22):** Plan 051 is complete on
 proof-source digest

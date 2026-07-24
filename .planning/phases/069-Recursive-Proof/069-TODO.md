@@ -3,22 +3,22 @@ phase: 069
 artifact: recursive-proof-spec
 status: planning-ready
 registration: registered-existing-phase-reuse
-updated: 2026-07-20
+updated: 2026-07-24
 authority: phase-local
 ---
 
 # Phase 069 Recursive Proof Spec
 
-## Live execution overlay — 2026-07-20
+## Live execution overlay — 2026-07-24
 
-The canonical Plan 051 ledgers retain historical T2 closure against an older
-source revision and do not authorize the current tree. The current T3/T4
-candidate source is pinned by
-`crates/z00z_storage/src/checkpoint/recursive_source_manifest_v2.txt` and the
-independent golden
-`5a381948457e9a8aa69792c43285e28597ef2779687457221a6d56a8b3cbad2d`.
-It remains NOT ACCEPTED until source-current release verification and
-independent review are clean. Plan 06 and Plans 07–13 remain locked;
+Plans 051 and 06 are complete on the accepted current proof-source revision
+`0ef121e74dc36cf1d9f61504d7f4fc13cb89054cd78f59a0552825058d763699`.
+The one canonical recursive V2 facade, real Nova fold/compression chain,
+fork-safe recovery, 3/5-chain evidence, Model C, clean verifier RSS, bootstrap,
+targeted tests, exact workspace release tests, all-target build, clippy,
+feature guards, coverage, six reviews ending in two clean passes, and two
+doublechecks pass. Plan 07 is active; Plans 08–13 remain ordered successors.
+All target/future design and referenced whitepaper terms remain live authority;
 `CheckpointProofSystem::VERIFIED` remains disabled.
 
 All target/future design statements in this specification and its referenced
