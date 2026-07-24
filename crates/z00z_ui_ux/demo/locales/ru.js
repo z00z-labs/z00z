@@ -12,7 +12,7 @@ window.Z00ZI18n.registerLocale("ru", {
     back: "Назад"
   },
   app: {
-    documentTitle: "Z00Z Wallet — интерактивная концепция",
+    documentTitle: "Z00Z Wallet",
     menu: "Меню",
     wallets: "Кошельки",
     network: "Сеть",
@@ -23,8 +23,6 @@ window.Z00ZI18n.registerLocale("ru", {
     homeContext: "Ваши приватные средства в одном месте",
     settingsContext: "Настройки приложения",
     walletContext: "Кошелёк {wallet}",
-    interactiveConcept: "Интерактивная концепция · без реальных средств",
-    conceptBuild: "Концепция 0.4 · без реальных средств",
     logOut: "Выйти",
     general: "Общие",
     language: "Язык",

@@ -3,9 +3,9 @@
 window.Z00ZI18n.registerLocale("fr", {
   common: { unavailable: "Indisponible", readOnly: "Lecture seule", chain: "Chaîne", chainLocked: "Choisissez avec soin. La chaîne ne peut plus être modifiée après la création du portefeuille.", on: "Activé", off: "Désactivé", close: "Fermer", back: "Retour" },
   app: {
-    documentTitle: "Z00Z Wallet — Concept interactif", menu: "Menu", wallets: "Portefeuilles", network: "Réseau",
+    documentTitle: "Z00Z Wallet", menu: "Menu", wallets: "Portefeuilles", network: "Réseau",
     addWallet: "Ajouter un portefeuille", removeWallet: "Supprimer un portefeuille", settings: "Paramètres", home: "Accueil",
-    homeContext: "Vos fonds privés en un coup d’œil", settingsContext: "Préférences de l’application", walletContext: "Portefeuille {wallet}", interactiveConcept: "Concept interactif · aucun fonds réel", conceptBuild: "Concept 0.4 · aucun fonds réel", logOut: "Se déconnecter",
+    homeContext: "Vos fonds privés en un coup d’œil", settingsContext: "Préférences de l’application", walletContext: "Portefeuille {wallet}", logOut: "Se déconnecter",
     general: "Général", language: "Langue", languageHelp: "Langue utilisée dans toute cette application de portefeuille",
     notifications: "Notifications", notificationsHelp: "Afficher les mises à jour du portefeuille et les actions requises",
     regionalFormat: "Format régional", regionalFormatHelp: "Contrôle les dates, les nombres et les séparateurs décimaux indépendamment de la langue",

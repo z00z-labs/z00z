@@ -33,14 +33,8 @@ const uiLanguages = i18n.languages();
 const paletteOptions = demoRuntime.PALETTE_OPTIONS;
 const codeThemeOptions = demoRuntime.CODE_THEME_OPTIONS;
 const walletChainOptions = demoRuntime.WALLET_CHAIN_OPTIONS;
-const initialAppearance = Object.freeze({
-  brand: getComputedStyle(document.documentElement).getPropertyValue("--brand").trim(),
-  rail: getComputedStyle(document.documentElement).getPropertyValue("--rail").trim()
-});
 const state = demoRuntime.createInitialState({
-  search: window.location.search,
-  brand: initialAppearance.brand,
-  rail: initialAppearance.rail
+  search: window.location.search
 });
 const walletGateway = demoRuntime.createMockWalletGateway(state);
 const passwordManagerIgnoreAttributeMap = Object.freeze({
@@ -194,9 +188,6 @@ function effectiveDemoConfigYaml() {
     "  appearance:",
     `    theme: ${state.theme}`,
     `    palette: ${state.palette}`,
-    `    custom_enabled: ${state.hasCustomAppearance}`,
-    `    custom_brand: "${state.customAppearance.brand}"`,
-    `    custom_rail: "${state.customAppearance.rail}"`,
     `    text_scale: ${state.textScale}`,
     `    reduced_motion: ${state.reducedMotion}`,
     `    code_theme: ${state.codeTheme}`,
@@ -246,36 +237,8 @@ function applyAppearancePreferences() {
   root.dataset.textScale = state.textScale;
   root.dataset.reducedMotion = String(state.reducedMotion);
   applyDocumentTranslations();
-  if (state.hasCustomAppearance) {
-    root.style.setProperty("--brand", state.customAppearance.brand);
-    root.style.setProperty("--rail", state.customAppearance.rail);
-  } else {
-    root.style.removeProperty("--brand");
-    root.style.removeProperty("--rail");
-  }
   const themeColor = getComputedStyle(root).getPropertyValue("--bg-canvas").trim();
   if (themeColor) document.querySelector('meta[name="theme-color"]').content = themeColor;
-}
-
-function hexToRgb(value) {
-  const normalized = value.replace("#", "");
-  if (!/^[0-9a-f]{6}$/i.test(normalized)) return null;
-  return [0, 2, 4].map((index) => Number.parseInt(normalized.slice(index, index + 2), 16) / 255);
-}
-
-function relativeLuminance(value) {
-  const rgb = hexToRgb(value);
-  if (!rgb) return null;
-  const channels = rgb.map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-}
-
-function hasSafeControlContrast(value) {
-  const background = getComputedStyle(document.documentElement).getPropertyValue("--bg-canvas").trim();
-  const foregroundLum = relativeLuminance(value);
-  const backgroundLum = relativeLuminance(background);
-  if (foregroundLum === null || backgroundLum === null) return false;
-  return (Math.max(foregroundLum, backgroundLum) + 0.05) / (Math.min(foregroundLum, backgroundLum) + 0.05) >= 3;
 }
 
 function readYamlScalar(source, key) {
@@ -302,9 +265,6 @@ function validateAndApplyDemoConfig(source, apply = false) {
   const chainId = readYamlScalar(source, "chain");
   const appLockAfter = readYamlScalar(source, "lock_after_minutes");
   const defaultFee = readYamlScalar(source, "default_fee");
-  const customEnabled = readYamlScalar(source, "custom_enabled");
-  const customBrand = readYamlScalar(source, "custom_brand");
-  const customRail = readYamlScalar(source, "custom_rail");
   const hideSensitive = readYamlScalar(source, "hide_sensitive_amounts");
   const expertDetails = readYamlScalar(source, "expert_details");
 
@@ -320,9 +280,6 @@ function validateAndApplyDemoConfig(source, apply = false) {
   if (codeTheme && !codeThemeOptions.some((entry) => entry.id === codeTheme)) return { valid: false, message: "code_theme must use one of the listed preset IDs." };
   if (chainId !== activeWallet().chainId) return { valid: false, message: `chain is read-only and must remain ${activeWallet().chainId}.` };
   if (defaultFee && !/^\d+(?:\.\d+)?$/.test(defaultFee)) return { valid: false, message: "default_fee must be a non-negative decimal." };
-  if (customEnabled && !["true", "false"].includes(customEnabled)) return { valid: false, message: "custom_enabled must be true or false." };
-  if (customBrand && !hexToRgb(customBrand)) return { valid: false, message: "custom_brand must be a six-digit hex color." };
-  if (customRail && !hexToRgb(customRail)) return { valid: false, message: "custom_rail must be a six-digit hex color." };
   if (hideSensitive && !["true", "false"].includes(hideSensitive)) return { valid: false, message: "hide_sensitive_amounts must be true or false." };
   if (expertDetails && !["true", "false"].includes(expertDetails)) return { valid: false, message: "expert_details must be true or false." };
   if (appLockAfter && !["5", "15", "30", "never"].includes(appLockAfter.toLowerCase())) return { valid: false, message: "lock_after_minutes must be 5, 15, 30, or never." };
@@ -340,9 +297,6 @@ function validateAndApplyDemoConfig(source, apply = false) {
     if (codeTheme) state.codeTheme = codeTheme;
     if (appLockAfter) state.autoLockMinutes = appLockAfter.toLowerCase();
     if (defaultFee) activeWalletPreferences().defaultFee = defaultFee;
-    if (customEnabled) state.hasCustomAppearance = customEnabled === "true";
-    if (customBrand) state.customAppearance.brand = customBrand;
-    if (customRail) state.customAppearance.rail = customRail;
     if (hideSensitive) state.balanceHidden = hideSensitive === "true";
     if (expertDetails) state.expertDetails = expertDetails === "true";
     applyAppearancePreferences();
@@ -548,7 +502,7 @@ function renderWalletShell() {
       { view: "wallet-send", labelKey: "assets.send", iconName: "send" },
       { view: "wallet-receive", labelKey: "assets.receive", iconName: "receive" },
       { view: "swap", labelKey: "nav.swap", iconName: "swap", title: "Compatibility preview — no canonical execution route" },
-      { view: "exchange", labelKey: "nav.exchange", iconName: "exchange", title: "Spot venue or cross-chain intent preview" },
+      { view: "exchange", labelKey: "nav.exchange", iconName: "exchange", title: "Spot venue or cross-chain intent preview", mobilePopup: "exchange" },
       { view: "staking", labelKey: "nav.staking", iconName: "staking", title: "Compatibility preview — validator and lock terms required" },
       { view: "wallet-backup", labelKey: "nav.backup", iconName: "backup" },
       { view: "activity", labelKey: "nav.history", iconName: "activity" },
@@ -859,7 +813,7 @@ function sendStepIndicator(activeStep) {
 
 function sendPanelFrame({ title, subtitle, step, body, footer }) {
   return `<section class="send-panel" aria-labelledby="send-panel-title">
-    <header class="send-panel-header">
+    <header class="wallet-action-header send-panel-header">
       <div><h2 id="send-panel-title">${escapeHtml(title)}</h2><p>${escapeHtml(subtitle)}</p></div>
       ${sendStepIndicator(step)}
     </header>
@@ -985,11 +939,19 @@ function walletReceiveView() {
 
   return `
     <div class="view-enter receiver-view">
-      <section class="receiver-card" aria-label="${escapeHtml(`${t("assets.receive")} · ${wallet.name}`)}">
-        <div class="mock-qr receiver-card-qr" aria-label="${escapeHtml(`${t("assets.receive")} QR`)}">${qrCells(fullAddress)}</div>
-        <div class="receiver-address-control" title="${escapeHtml(fullAddress)}">
-          <code class="receiver-card-address">${escapeHtml(addressLabel)}</code>
-          <button class="icon-button receiver-card-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(fullAddress)}">${icon("copy")}</button>
+      <section class="receiver-card" aria-labelledby="receiver-card-title">
+        <header class="wallet-action-header receiver-card-header">
+          <div>
+            <h2 id="receiver-card-title">${escapeHtml(t("receive.title"))}</h2>
+            <p>${escapeHtml(t("receive.subtitle"))}</p>
+          </div>
+        </header>
+        <div class="receiver-card-body">
+          <div class="mock-qr receiver-card-qr" aria-label="${escapeHtml(`${t("assets.receive")} QR`)}">${qrCells(fullAddress)}</div>
+          <div class="receiver-address-control" title="${escapeHtml(fullAddress)}">
+            <code class="receiver-card-address">${escapeHtml(addressLabel)}</code>
+            <button class="icon-button receiver-card-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(fullAddress)}">${icon("copy")}</button>
+          </div>
         </div>
       </section>
     </div>`;
@@ -1183,12 +1145,11 @@ function activeExchangeDraft() {
   return draft;
 }
 
-function exchangeProviderSelector(draft) {
-  return `<div class="exchange-provider-strip" role="radiogroup" aria-label="${t("exchange.executionModel")}">${Object.values(demoRuntime.EXCHANGE_PROVIDER_LUT).map((provider) => `
-    <button class="exchange-provider${draft.providerId === provider.id ? " is-active" : ""}" type="button" role="radio" aria-checked="${draft.providerId === provider.id}" data-exchange-provider="${provider.id}">
-      <span class="list-icon">${icon(provider.iconName)}</span>
-      <span><strong>${t(provider.labelKey)}</strong><small>${t(provider.executionKey)}</small></span>
-    </button>`).join("")}</div>`;
+function exchangeProviderContextNav(draft) {
+  return `<nav class="context-nav context-tab-list exchange-provider-context" role="radiogroup" aria-label="${t("exchange.executionModel")}">${Object.values(demoRuntime.EXCHANGE_PROVIDER_LUT).map((provider) => `
+    <button class="context-nav-item${draft.providerId === provider.id ? " is-active" : ""}" type="button" role="radio" aria-checked="${draft.providerId === provider.id}" data-exchange-provider="${provider.id}">
+      ${icon(provider.iconName)}<span><strong>${t(provider.labelKey)}</strong></span>
+    </button>`).join("")}</nav>`;
 }
 
 function exchangeDestinationOptions(draft) {
@@ -1259,15 +1220,11 @@ function exchangeReview(draft) {
 function exchangeView() {
   const draft = activeExchangeDraft();
   const asset = supportedAsset(draft.sourceAssetKey);
-  if (draft.step === 1) {
-    return `<div class="view-enter wallet-tool-view"><section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">${exchangeReview(draft)}</section></div>`;
-  }
-  return `
-    <div class="view-enter wallet-tool-view">
-      <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
+  const panel = draft.step === 1
+    ? `<section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">${exchangeReview(draft)}</section>`
+    : `<section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
         <article class="card wallet-tool-card exchange-card">
           <div class="tool-card-heading"><span class="list-icon">${icon("exchange")}</span><div><h2>${t("exchange.title")}</h2></div></div>
-          ${exchangeProviderSelector(draft)}
           <form class="form-grid" id="exchange-entry" autocomplete="off" novalidate>
             <div class="field-group"><label class="field-label" for="exchange-source">${t("exchange.sourceAsset")}</label><select id="exchange-source" name="sourceAssetKey">${assetOptions(draft.sourceAssetKey)}</select><p class="field-hint">${t("send.available", { value: sensitive(`${asset.balance} ${asset.unit}`) })}</p></div>
             <div class="field-group"><label class="field-label" for="exchange-amount">${t("exchange.amount")}</label><div class="input-with-affix"><input id="exchange-amount" name="amount" type="number" min="${asset.divisible ? "0.01" : "1"}" max="${escapeHtml(asset.balance.replaceAll(",", ""))}" step="${asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(draft.amount)}" placeholder="0.00" aria-describedby="exchange-error" required><span class="input-affix">${escapeHtml(asset.unit)}</span></div></div>
@@ -1277,8 +1234,11 @@ function exchangeView() {
             <button class="button button-primary" type="submit">${icon("exchange")} ${t("exchange.review")}</button>
           </form>
         </article>
-      </section>
-    </div>`;
+      </section>`;
+  return `<div class="view-enter workspace-layout exchange-workspace-layout">
+    <aside class="context-rail">${exchangeProviderContextNav(draft)}</aside>
+    <div class="workspace-panel wallet-tool-view">${panel}</div>
+  </div>`;
 }
 
 function stakingView() {
@@ -1398,6 +1358,18 @@ function mobilePopupMarkup(type) {
           iconName,
           active: state.view === "wallet-settings" && state.walletSettingsSection === key,
           attributes: `data-mobile-wallet-settings-section="${key}"`
+        })).join("")}
+      </div>`;
+  }
+  if (type === "exchange") {
+    const draft = activeExchangeDraft();
+    return `${mobilePopupHeader(t("exchange.executionModel"))}
+      <div class="mobile-popup-list">
+        ${Object.values(demoRuntime.EXCHANGE_PROVIDER_LUT).map((provider) => mobilePopupItem({
+          label: t(provider.labelKey),
+          iconName: provider.iconName,
+          active: draft.providerId === provider.id,
+          attributes: `data-mobile-exchange-provider="${provider.id}"`
         })).join("")}
       </div>`;
   }
@@ -1670,7 +1642,6 @@ function settingsDetail() {
         <div class="setting-line compact-row" data-help-anchor="theme"><strong class="compact-row-label">Theme</strong><span class="compact-value"></span><button type="button" class="theme-toggle compact-action" data-theme-toggle aria-label="Switch to ${state.theme === "dark" ? "light" : "dark"} mode" title="Switch to ${state.theme === "dark" ? "light" : "dark"} mode">${icon(state.theme === "dark" ? "moon" : "sun")} ${state.theme === "dark" ? "Dark" : "Light"}</button></div>
         <div class="setting-line palette-setting"><span class="setting-line-copy"><strong>Palette</strong></span><div class="palette-grid" aria-label="Palette presets">${paletteOptions.map(paletteCard).join("")}</div></div>
         <div class="setting-line palette-setting code-theme-setting"><span class="setting-line-copy"><strong>Code highlighting</strong></span><div class="code-theme-sections" aria-label="YAML code highlighting theme"><section><p class="code-theme-group-label">Light</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "light").map(codeThemeCard).join("")}</div></section><section><p class="code-theme-group-label">Dark</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "dark").map(codeThemeCard).join("")}</div></section></div></div>
-        <div class="setting-line compact-row appearance-color-setting"><strong class="compact-row-label">Custom accents</strong><div class="custom-color-controls compact-value"><label>Brand<input type="color" data-config-control="custom-brand" value="${state.customAppearance.brand}" aria-label="Custom brand color"></label><label>Privacy rail<input type="color" data-config-control="custom-rail" value="${state.customAppearance.rail}" aria-label="Custom privacy rail color"></label></div><span class="compact-action"></span></div>
         <div class="setting-line compact-row"><strong class="compact-row-label">Text scale</strong><select class="compact-value" aria-label="Text scale" data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select><span class="compact-action"></span></div>
         <div class="setting-line compact-row"><strong class="compact-row-label">Reduced motion</strong><span class="compact-value"></span><button class="toggle compact-action" type="button" aria-pressed="${state.reducedMotion}" aria-label="Use reduced motion" data-demo-action="motion"></button></div>
       </div>`;
@@ -3370,6 +3341,20 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const mobileExchangeProvider = event.target.closest("[data-mobile-exchange-provider]");
+  if (mobileExchangeProvider) {
+    const draft = activeExchangeDraft();
+    draft.providerId = mobileExchangeProvider.dataset.mobileExchangeProvider;
+    draft.destinationId = demoRuntime.exchangeProvider(draft.providerId).defaultDestination;
+    draft.orderType = "market";
+    draft.limitPrice = "";
+    draft.step = 0;
+    state.view = "exchange";
+    closeMobilePopup();
+    render({ focusMain: true });
+    return;
+  }
+
   const mobileContextTrigger = event.target.closest("#wallet-tabs [data-mobile-popup]");
   if (mobileContextTrigger && isMobileNavigation()) {
     openMobilePopup(mobileContextTrigger.dataset.mobilePopup, mobileContextTrigger);
@@ -3572,7 +3557,6 @@ document.addEventListener("click", (event) => {
   const paletteButton = event.target.closest("[data-palette]");
   if (paletteButton && paletteButton.tagName === "BUTTON") {
     state.palette = paletteButton.dataset.palette;
-    state.hasCustomAppearance = false;
     syncConfigDraftFromState();
     applyAppearancePreferences();
     render();
@@ -3918,15 +3902,6 @@ document.addEventListener("change", (event) => {
       activeWalletPreferences().lockAfterMinutes = event.target.value;
     }
     if (configControl === "default-fee") activeWalletPreferences().defaultFee = event.target.value.trim();
-    if (["custom-brand", "custom-rail"].includes(configControl)) {
-      if (!hasSafeControlContrast(event.target.value)) {
-        showToast("Choose a colour with at least 3:1 contrast against the current canvas.", "alert");
-        render();
-        return;
-      }
-      state.customAppearance[configControl === "custom-brand" ? "brand" : "rail"] = event.target.value;
-      state.hasCustomAppearance = true;
-    }
     syncConfigDraftFromState();
     applyAppearancePreferences();
     render();

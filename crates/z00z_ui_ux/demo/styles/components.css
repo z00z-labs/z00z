@@ -193,25 +193,6 @@ h3 {
   transform: none;
 }
 
-.concept-banner {
-  position: fixed;
-  z-index: 60;
-  right: 18px;
-  bottom: calc(var(--wallet-statusbar-height) + 16px);
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 11px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text-secondary);
-  background: var(--bg-sidebar);
-  box-shadow: var(--shadow-float);
-  font-size: var(--type-label);
-}
-
-.concept-dot,
 .health-orb {
   width: 8px;
   height: 8px;
@@ -645,12 +626,6 @@ h3 {
 
 .lock-action {
   margin-bottom: 4px;
-}
-
-.build-label {
-  margin: 2px 11px 0;
-  color: var(--text-tertiary);
-  font-size: var(--type-label);
 }
 
 .app-column {
@@ -1087,7 +1062,8 @@ h3 {
 }
 
 .swap-card .tool-card-heading,
-.staking-card .tool-card-heading {
+.staking-card .tool-card-heading,
+.exchange-card .tool-card-heading {
   align-items: center;
 }
 
@@ -1924,7 +1900,7 @@ button.permission-row:hover {
   background: var(--bg-surface);
 }
 
-.send-panel-header {
+.wallet-action-header {
   display: flex;
   min-height: 76px;
   align-items: center;
@@ -1934,21 +1910,21 @@ button.permission-row:hover {
   background: var(--bg-surface);
 }
 
-.send-panel-header > div:first-child {
+.wallet-action-header > div:first-child {
   min-width: 0;
   margin-right: auto;
 }
 
-.send-panel-header h2,
-.send-panel-header p {
+.wallet-action-header h2,
+.wallet-action-header p {
   margin: 0;
 }
 
-.send-panel-header h2 {
+.wallet-action-header h2 {
   font-size: var(--type-section);
 }
 
-.send-panel-header p {
+.wallet-action-header p {
   margin-top: 3px;
   color: var(--text-secondary);
   font-size: var(--type-data-meta);
@@ -2013,6 +1989,7 @@ button.permission-row:hover {
 
 .send-workspace-layout .send-view {
   min-width: 0;
+  justify-items: start;
 }
 
 .send-family-facts {
@@ -2058,61 +2035,8 @@ button.permission-row:hover {
   width: min(100%, var(--wallet-action-card-max));
 }
 
-.exchange-provider-strip {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 20px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.exchange-provider {
-  display: flex;
+.exchange-workspace-layout .wallet-tool-view {
   min-width: 0;
-  min-height: 68px;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  color: var(--text-secondary);
-  background: var(--bg-canvas);
-  text-align: left;
-  transition: border-color var(--ease), background var(--ease), color var(--ease);
-}
-
-.exchange-provider:hover,
-.exchange-provider:focus-visible,
-.exchange-provider.is-active {
-  border-color: var(--interaction-hover-border);
-  color: var(--interaction-hover-text);
-  background: var(--interaction-hover-bg);
-}
-
-.exchange-provider.is-active {
-  box-shadow: inset 0 -3px 0 var(--brand);
-}
-
-.exchange-provider > span:last-child {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.exchange-provider strong,
-.exchange-provider small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.exchange-provider strong {
-  color: inherit;
-  font-size: var(--type-control);
-}
-
-.exchange-provider small {
-  color: var(--text-tertiary);
-  font-size: var(--type-data-meta);
 }
 
 .exchange-control-grid,
@@ -2158,15 +2082,24 @@ button.permission-row:hover {
 }
 
 .receiver-card {
-  display: grid;
+  display: block;
   width: min(100%, 300px);
-  justify-items: center;
-  gap: 22px;
-  padding: 26px;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--bg-surface);
   box-shadow: var(--shadow-float);
+}
+
+.receiver-card-header {
+  min-height: 76px;
+}
+
+.receiver-card-body {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  padding: 26px;
 }
 
 .receiver-address-control {
@@ -2580,7 +2513,6 @@ button.permission-row:hover {
 .setting-line > .environment-tag,
 .setting-line > .theme-toggle,
 .setting-line > .segmented,
-.setting-line > .accent-options,
 .setting-line > .palette-grid,
 .setting-line > .code-theme-sections {
   justify-self: end;
@@ -2938,30 +2870,6 @@ span.compact-action:empty {
   background: color-mix(in srgb, var(--bg-raised) 72%, transparent);
 }
 
-.accent-options {
-  display: flex;
-  gap: 8px;
-}
-
-.accent-swatch {
-  width: 34px;
-  height: 34px;
-  border: 2px solid transparent;
-  border-radius: 50%;
-  background: var(--swatch);
-}
-
-.accent-swatch.is-active {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-}
-
-.accent-custom {
-  border: 1px dashed var(--border-strong);
-  color: var(--text-primary);
-  background: var(--bg-raised);
-}
-
 .palette-setting {
   align-items: start;
 }
@@ -3128,33 +3036,6 @@ span.compact-action:empty {
 }
 
 .palette-swatches i { display: block; }
-
-.custom-color-controls {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 10px;
-}
-
-.custom-color-controls label {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: var(--type-label);
-  font-weight: 700;
-}
-
-.custom-color-controls input[type="color"] {
-  width: 38px;
-  height: 34px;
-  padding: 3px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--bg-raised);
-  cursor: pointer;
-}
 
 .yaml-toolbar {
   align-items: center;
@@ -4252,8 +4133,18 @@ button.permission-row:hover {
 .workspace-layout {
   display: grid;
   align-items: start;
-  gap: var(--context-rail-gap);
+  column-gap: var(--context-nav-content-gap);
+  row-gap: 0;
   grid-template-columns: var(--context-rail-width) minmax(0, 1fr);
+}
+
+.workspace-layout > .workspace-panel {
+  width: 100%;
+  justify-self: stretch;
+}
+
+.workspace-layout > .workspace-panel > .wallet-tool-grid-centered {
+  justify-content: start;
 }
 
 .settings-view {
@@ -4528,7 +4419,6 @@ button.permission-row:hover {
 
 button.connection-option,
 .why-blocked,
-.accent-swatch,
 .segmented button {
   transition: border-color var(--ease), background var(--ease), color var(--ease), box-shadow var(--ease);
 }
@@ -4538,10 +4428,6 @@ button.connection-option:hover,
   border-color: var(--interaction-hover-border);
   background: var(--interaction-hover-bg);
   box-shadow: inset 0 0 0 1px var(--interaction-hover-border);
-}
-
-.accent-swatch:hover {
-  border-color: var(--interaction-hover-border);
 }
 
 .segmented button:hover {
@@ -4652,8 +4538,7 @@ button.connection-option:hover,
   .network-nav-copy,
   .network-nav-state,
   .connection-card span,
-  .connection-card > .icon,
-  .build-label {
+  .connection-card > .icon {
     display: none;
   }
 
@@ -4754,7 +4639,7 @@ button.connection-option:hover,
   .context-rail {
     position: static;
     overflow-x: auto;
-    margin-bottom: 20px;
+    margin-bottom: var(--context-nav-content-gap);
     padding: 8px;
     scrollbar-width: thin;
   }
@@ -5364,6 +5249,7 @@ button.connection-option:hover,
   }
 
   .wallet-assets-layout > .context-rail,
+  .exchange-workspace-layout > .context-rail,
   .wallet-settings-view .context-rail {
     display: none;
   }
@@ -5411,7 +5297,7 @@ button.connection-option:hover,
   .context-rail {
     position: static;
     overflow-x: auto;
-    margin: 0 -16px 20px;
+    margin: 0 -16px var(--context-nav-content-gap);
     padding: 8px 16px;
     border-right: 0;
     border-left: 0;
@@ -5449,10 +5335,6 @@ button.connection-option:hover,
   }
 
   .context-nav-item small {
-    display: none;
-  }
-
-  .concept-banner {
     display: none;
   }
 
@@ -5769,7 +5651,6 @@ button.connection-option:hover,
 .setting-line > .environment-tag,
 .setting-line > .theme-toggle,
 .setting-line > .segmented,
-  .setting-line > .accent-options,
   .setting-line > .palette-grid,
   .setting-line > .code-theme-sections {
     justify-self: start;
@@ -5780,40 +5661,6 @@ button.connection-option:hover,
   .config-form-grid,
   .policy-rule-form {
     grid-template-columns: 1fr;
-  }
-
-  .custom-color-controls {
-    justify-content: start;
-  }
-
-  .appearance-color-setting.setting-line.compact-row {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-    gap: 7px;
-  }
-
-  .appearance-color-setting .compact-row-label,
-  .appearance-color-setting .compact-value {
-    grid-column: 1;
-  }
-
-  .appearance-color-setting .compact-row-label {
-    grid-row: 1;
-  }
-
-  .appearance-color-setting .custom-color-controls {
-    display: grid;
-    width: 100%;
-    grid-row: 2;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .appearance-color-setting .custom-color-controls label {
-    justify-content: space-between;
-  }
-
-  .appearance-color-setting .compact-action {
-    display: none;
   }
 
   .config-diff {
@@ -5848,7 +5695,7 @@ button.connection-option:hover,
     flex: 1;
   }
 
-  .send-panel-header,
+  .wallet-action-header,
   .send-panel-body,
   .send-panel-footer {
     padding-right: 16px;
@@ -5869,7 +5716,6 @@ button.connection-option:hover,
     flex: 1;
   }
 
-  .exchange-provider-strip,
   .exchange-control-grid,
   .exchange-unavailable-grid {
     grid-template-columns: 1fr;
@@ -5877,10 +5723,6 @@ button.connection-option:hover,
 
   .send-family-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .exchange-provider {
-    min-height: 60px;
   }
 
   .wallet-tool-actions .button {

@@ -20,7 +20,7 @@
     Object.freeze({ id: "night-owl", label: "Night Owl", description: "Deep dark technical surface with muted violet, sand, and orange tokens.", mode: "dark" })
   ]);
 
-  function createInitialState({ search = "", brand = "", rail = "" } = {}) {
+  function createInitialState({ search = "" } = {}) {
     const navigation = demo.resolveInitialNavigation(search);
     return {
       view: navigation.view,
@@ -52,8 +52,6 @@
       configDraft: "",
       walletSettingsConfigDraft: "",
       configStatus: "Local draft is in sync with the visible controls.",
-      hasCustomAppearance: false,
-      customAppearance: { brand, rail },
       walletPreferences: {},
       sendDrafts: {},
       exchangeDrafts: {},

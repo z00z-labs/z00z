@@ -3,8 +3,8 @@
 window.Z00ZI18n.registerLocale("pt", {
   common: { unavailable: "Indisponível", readOnly: "Só de leitura", chain: "Cadeia", chainLocked: "Escolha com cuidado. A cadeia não pode ser alterada após a criação da carteira.", on: "Ligado", off: "Desligado", close: "Fechar", back: "Voltar" },
   app: {
-    documentTitle: "Z00Z Wallet — Conceito interativo", menu: "Menu", wallets: "Carteiras", network: "Rede", addWallet: "Adicionar carteira", removeWallet: "Remover carteira", settings: "Definições", home: "Início",
-    homeContext: "O seu dinheiro privado num relance", settingsContext: "Preferências da aplicação", walletContext: "Carteira {wallet}", interactiveConcept: "Conceito interativo · sem fundos reais", conceptBuild: "Conceito 0.4 · sem fundos reais", logOut: "Terminar sessão",
+    documentTitle: "Z00Z Wallet", menu: "Menu", wallets: "Carteiras", network: "Rede", addWallet: "Adicionar carteira", removeWallet: "Remover carteira", settings: "Definições", home: "Início",
+    homeContext: "O seu dinheiro privado num relance", settingsContext: "Preferências da aplicação", walletContext: "Carteira {wallet}", logOut: "Terminar sessão",
     general: "Geral", language: "Idioma", languageHelp: "Idioma utilizado em toda esta aplicação de carteira", notifications: "Notificações", notificationsHelp: "Mostrar atualizações da carteira e ações necessárias",
     regionalFormat: "Formato regional", regionalFormatHelp: "Controla datas, números e separadores decimais independentemente do idioma", timeZone: "Fuso horário", timeZoneHelp: "As marcas temporais são guardadas em UTC e apresentadas neste fuso horário",
     networkUnits: "Unidades de rede", networkUnitsHelp: "As velocidades de rede usam bits decimais por segundo", decimalBitrate: "Bits decimais por segundo", translationCoverage: "Cobertura de tradução", translationCoverageHelp: "{count} catálogos de idiomas estão sincronizados com as chaves de origem em inglês", languageChanged: "Idioma alterado localmente."

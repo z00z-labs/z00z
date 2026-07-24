@@ -90,7 +90,7 @@ for (const wallet of demo.INITIAL_WALLET_FIXTURES) {
 assert.deepEqual(Array.from(deterministicProfile.assetKeys), friendlyAssetKeys);
 assert.deepEqual(Array.from(demo.createEmptyWallet().assetKeys), friendlyAssetKeys);
 
-const state = demo.createInitialState({ search: "?view=activity", brand: "brand-token", rail: "rail-token" });
+const state = demo.createInitialState({ search: "?view=activity" });
 assert.equal(state.view, "activity");
 assert.equal(state.wallets.length, 3);
 assert.equal(demo.activeWallet(state).id, "everyday");

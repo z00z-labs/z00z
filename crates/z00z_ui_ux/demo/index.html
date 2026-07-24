@@ -13,7 +13,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=2">
     <link rel="icon" type="image/png" href="assets/logo/z00z-logo-gold-circle.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/logo/z00z-apple-touch-icon-v2-180.png">
-    <title>Z00Z Wallet — Interactive Concept</title>
+    <title>Z00Z Wallet</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -72,11 +72,6 @@
       <symbol id="i-remove" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-3h4l1 3M6 7l1 13h10l1-13"/></symbol>
     </svg>
 
-    <div class="concept-banner" role="note">
-      <span class="concept-dot" aria-hidden="true"></span>
-      <span data-i18n="app.interactiveConcept">Interactive concept · no real funds</span>
-    </div>
-
     <section class="lock-screen" id="lock-screen" aria-labelledby="lock-title" hidden>
       <div class="lock-card">
         <div class="brand brand-centered">
@@ -120,9 +115,9 @@
         <div class="sidebar-spacer"></div>
         <nav class="system-nav" aria-label="Application actions">
           <button class="nav-item" type="button" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span data-i18n="app.settings">Settings</span></button>
+          <button class="nav-item help-button" type="button" data-help-topic="app" aria-label="Open application help" title="Help"><svg class="icon"><use href="#i-question"/></svg><span data-i18n="help.title">Help</span></button>
           <button class="nav-item" type="button" data-demo-action="logout"><svg class="icon"><use href="#i-logout"/></svg><span data-i18n="app.logOut">Log out</span></button>
         </nav>
-        <p class="build-label" data-i18n="app.conceptBuild">Concept 0.4 · no real funds</p>
       </aside>
 
       <div class="app-column">
@@ -152,9 +147,6 @@
             </button>
             <button class="icon-button topbar-notification" type="button" data-demo-action="notifications" aria-label="Notifications, one unread" title="Notifications">
               <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
-            </button>
-            <button class="icon-button help-button" type="button" data-help-topic="app" aria-label="Open application help" title="Help">
-              <svg class="icon"><use href="#i-question"/></svg>
             </button>
           </div>
         </header>

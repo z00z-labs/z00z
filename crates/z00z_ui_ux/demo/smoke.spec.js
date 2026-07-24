@@ -180,6 +180,7 @@ test("wallet context rails share a compact width", async ({ page }) => {
 test("wallet navigation scopes history and wallet tools to the selected wallet", async ({ page }) => {
   await page.goto(demoUrl);
 
+  await expect(page).toHaveTitle("Z00Z Wallet");
   await expect(page.locator("#wallet-nav .wallet-nav-item")).toHaveCount(3);
   const [activeStripeColor, brandColor, stripeTop, stripeBottom, stripeHeight, stripeRadius] = await page.locator("#wallet-nav .wallet-nav-item.is-active").evaluate((node) => {
     const probe = document.createElement("span");
@@ -225,10 +226,12 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
     return {
       aggregators: read('#network-nav [data-network-section="aggregators"] .network-nav-copy strong'),
       settings: read('.system-nav [data-view="settings"] > span'),
+      help: read('.system-nav .help-button > span'),
       logout: read('.system-nav [data-demo-action="logout"] > span')
     };
   });
   expect(sidebarTypography.settings).toEqual(sidebarTypography.aggregators);
+  expect(sidebarTypography.help).toEqual(sidebarTypography.aggregators);
   expect(sidebarTypography.logout).toEqual(sidebarTypography.aggregators);
   const [walletNameSize, walletAmountSize, walletTabSize] = await page.locator("#wallet-nav .wallet-nav-item").first().evaluate((walletCard) => {
     const tab = document.querySelector("#wallet-tabs .wallet-tab");
@@ -287,6 +290,9 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   await expect(page.locator("html")).toHaveCSS("font-family", /Geist/);
   await expect(page.locator(".sidebar").getByRole("button", { name: "Create wallet" })).toHaveCount(0);
   await expect(page.locator('.system-nav [data-view="settings"]')).toBeVisible();
+  await expect(page.locator(".topbar-actions .help-button")).toHaveCount(0);
+  await expect(page.locator(".system-nav .help-button")).toBeVisible();
+  await expect(page.locator(".system-nav .nav-item > span")).toHaveText(["Settings", "Help", "Log out"]);
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
   await expect(page.locator(".connection-card")).toHaveCount(0);
   await expect(page.locator("#page-title")).toHaveText("ZxChpo…2Mj8Pt");
@@ -1134,10 +1140,14 @@ test("send opens one compact inline form and receive shows only the receiver car
   await page.locator('#wallet-tabs [data-view="wallet-receive"]').click();
   const receiverCard = page.locator(".receiver-card");
   await expect(receiverCard).toBeVisible();
+  await expect(receiverCard.getByRole("heading", { name: "Receive privately" })).toBeVisible();
+  await expect(receiverCard.getByText("Assets, Vouchers and Permissions", { exact: true })).toBeVisible();
   await expect(receiverCard.locator(".mock-qr span")).toHaveCount(441);
   await expect(receiverCard.locator(".receiver-card-address")).toContainText("ZxChpoioBEFR");
   await expect(receiverCard.locator(".receiver-card-address")).toContainText("23d2Mj8Pt");
-  await expect(receiverCard.locator("h1, h2, h3, p, .transfer-asset-row, .choice-strip")).toHaveCount(0);
+  await expect(receiverCard.locator("h1, h3, .transfer-asset-row, .choice-strip")).toHaveCount(0);
+  await expect(receiverCard.locator("h2")).toHaveCount(1);
+  await expect(receiverCard.locator("p")).toHaveCount(1);
   await expect(receiverCard.locator("button")).toHaveCount(1);
   await receiverCard.locator(".receiver-card-copy").click();
   await expect(page.getByText("Wallet address copied.")).toBeVisible();
@@ -1205,6 +1215,14 @@ test("exchange branches between NEAR Intents and Hyperliquid Spot without invent
   await page.goto(`${demoUrl}?view=exchange`);
 
   await expect(page.getByRole("heading", { name: "Build an exchange request" })).toBeVisible();
+  const exchangeHeadingCenters = await page.locator(".exchange-card .tool-card-heading").evaluate((heading) => {
+    const iconBox = heading.querySelector(".list-icon").getBoundingClientRect();
+    const titleBox = heading.querySelector("h2").getBoundingClientRect();
+    return [iconBox.top + iconBox.height / 2, titleBox.top + titleBox.height / 2];
+  });
+  expect(Math.abs(exchangeHeadingCenters[0] - exchangeHeadingCenters[1])).toBeLessThanOrEqual(1);
+  await expect(page.locator(".exchange-provider-context")).toBeVisible();
+  await expect(page.locator(".exchange-provider-strip")).toHaveCount(0);
   await expect(page.getByRole("radio", { name: /NEAR Intents/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.locator("#exchange-recipient")).toBeVisible();
   await expect(page.locator("#exchange-order-type")).toHaveCount(0);
@@ -1213,7 +1231,7 @@ test("exchange branches between NEAR Intents and Hyperliquid Spot without invent
   await page.locator("#exchange-refund").fill("z00z-refund.example");
   await page.getByRole("button", { name: /Review request/ }).click();
   await expect(page.getByRole("heading", { name: "Review exchange request" })).toBeVisible();
-  await expect(page.getByText("NEAR Intents", { exact: true })).toBeVisible();
+  await expect(page.locator(".exchange-card").getByText("NEAR Intents", { exact: true })).toBeVisible();
   await expect(page.locator(".exchange-unavailable-grid").getByText("Unavailable", { exact: true })).toHaveCount(7);
   await expect(page.getByText(/No provider connector is registered/)).toBeVisible();
 
@@ -1226,9 +1244,58 @@ test("exchange branches between NEAR Intents and Hyperliquid Spot without invent
   await page.locator("#exchange-amount").fill("1");
   await page.locator("#exchange-limit-price").fill("0.5");
   await page.getByRole("button", { name: /Review request/ }).click();
-  await expect(page.getByText("Hyperliquid Spot", { exact: true })).toBeVisible();
+  await expect(page.locator(".exchange-card").getByText("Hyperliquid Spot", { exact: true })).toBeVisible();
   await expect(page.getByText("Limit", { exact: true })).toBeVisible();
   await expect(page.getByText("Z00Z/USDC", { exact: true })).toBeVisible();
+});
+
+test("context navigation uses one content-gap token across wallet workspaces", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const cases = [
+    ["wallet", ".wallet-assets-layout > .workspace-panel"],
+    ["wallet-send", ".send-panel"],
+    ["exchange", ".exchange-card"],
+    ["wallet-settings", ".settings-detail"]
+  ];
+
+  for (const [view, contentSelector] of cases) {
+    await page.goto(`${demoUrl}?view=${view}`);
+    const geometry = await page.locator(".workspace-layout").evaluate((layout, selector) => {
+      const rail = layout.querySelector(":scope > .context-rail");
+      const content = layout.querySelector(selector);
+      const rootStyle = getComputedStyle(document.documentElement);
+      return {
+        gap: content.getBoundingClientRect().left - rail.getBoundingClientRect().right,
+        token: Number.parseFloat(rootStyle.getPropertyValue("--context-nav-content-gap"))
+      };
+    }, contentSelector);
+    expect(Math.abs(geometry.gap - geometry.token)).toBeLessThanOrEqual(1);
+  }
+});
+
+test("mobile Exchange chooses its provider from the top-tab popup", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?view=wallet`);
+
+  const exchangeTab = page.locator('#wallet-tabs [data-mobile-popup="exchange"]');
+  await exchangeTab.scrollIntoViewIfNeeded();
+  await exchangeTab.click();
+
+  const popup = page.locator('#mobile-popup-menu[data-popup-type="exchange"]');
+  await expect(popup).toBeVisible();
+  await expect(popup.locator("[data-mobile-exchange-provider]")).toHaveText(["Hyperliquid Spot", "NEAR Intents"]);
+  await expect(popup.locator('[data-mobile-exchange-provider="near-intents"]')).toHaveAttribute("aria-current", "page");
+
+  await popup.locator('[data-mobile-exchange-provider="hyperliquid"]').click();
+  await expect(page.locator("#exchange-order-type")).toBeVisible();
+  await expect(page.locator(".exchange-workspace-layout > .context-rail")).toBeHidden();
+
+  await exchangeTab.click();
+  await page.locator('[data-mobile-exchange-provider="near-intents"]').click();
+  await expect(page.locator("#exchange-recipient")).toBeVisible();
+
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
 
 test("swap and staking form labels use the standard readable Geist treatment", async ({ page }) => {
@@ -1742,12 +1809,15 @@ test("global and contextual Help are local, multilingual, focus-safe, and state-
   await expect(globalHelp).toBeFocused();
 
   const contextualHelp = page.getByRole("button", { name: "Help for this view" });
-  const [globalHelpBox, contextualHelpBox, statusbarBox] = await Promise.all([
+  const [settingsBox, globalHelpBox, logoutBox, contextualHelpBox, statusbarBox] = await Promise.all([
+    page.locator('.system-nav [data-view="settings"]').boundingBox(),
     globalHelp.boundingBox(),
+    page.locator('.system-nav [data-demo-action="logout"]').boundingBox(),
     contextualHelp.boundingBox(),
     page.locator("#wallet-statusbar").boundingBox()
   ]);
-  expect(Math.abs(globalHelpBox.x + globalHelpBox.width - contextualHelpBox.x - contextualHelpBox.width)).toBeLessThanOrEqual(1);
+  expect(globalHelpBox.y).toBeGreaterThan(settingsBox.y);
+  expect(globalHelpBox.y).toBeLessThan(logoutBox.y);
   expect(contextualHelpBox.y + contextualHelpBox.height).toBeLessThan(statusbarBox.y);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   const contextualHelpAfterScroll = await contextualHelp.boundingBox();
@@ -1935,11 +2005,6 @@ test("appearance palettes and YAML highlighting stay application-wide", async ({
   await expect(page.locator("html")).toHaveAttribute("data-code-theme", "night-owl");
   await page.locator('[data-palette="moonlit-stroll"]').click();
   await expect(page.locator("html")).toHaveAttribute("data-palette", "moonlit-stroll");
-  await page.getByLabel("Custom brand color").evaluate((input) => {
-    input.value = "#f4c95d";
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-  await expect(page.locator("html")).toHaveCSS("--brand", "#f4c95d");
   await page.getByLabel("Text scale").selectOption("110");
   await expect(page.locator("html")).toHaveAttribute("data-text-scale", "110");
 

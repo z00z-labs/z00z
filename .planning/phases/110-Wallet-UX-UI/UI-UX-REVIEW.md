@@ -263,7 +263,7 @@ Required behavior:
 2. Preset cards show five source swatches and a small live component preview.
 3. Selection previews immediately but requires Apply or reverts on Cancel.
 4. Reset restores `z00z-default` without touching nonappearance settings.
-5. Custom palette editing validates every required text/surface, focus, control-boundary, and state pair before Apply.
+5. Per-token custom colour editing is not exposed; users select complete validated palette presets.
 6. Success, warning, danger, focus, privacy rail, testnet/devnet, and quarantine meanings remain stable across presets.
 7. State is never communicated by color alone.
 8. Text scale, reduced motion, and compact density stay separate from palette.

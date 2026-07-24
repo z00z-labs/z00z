@@ -27,6 +27,7 @@ const desktopReviewRoutes = [
   { name: "app-appearance", query: "?view=settings&settings=appearance" },
   { name: "assets", query: "?view=wallet&wallet=assets" },
   { name: "send", query: "?view=wallet-send" },
+  { name: "receive", query: "?view=wallet-receive" },
   { name: "swap", query: "?view=swap" },
   { name: "exchange", query: "?view=exchange" },
   { name: "staking", query: "?view=staking" },
@@ -261,6 +262,14 @@ test("capture multilingual Help and compact-layout review matrix", async ({ page
       await page.locator('[data-mobile-popup-open="wallets"]').click();
       await expect(page.locator(".mobile-wallet-actions")).toBeVisible();
       await capture(page, `${viewport.name}-wallets-menu`);
+      await page.keyboard.press("Escape");
+
+      await page.goto(`${demoUrl}?view=exchange`);
+      const exchangeTab = page.locator('#wallet-tabs [data-mobile-popup="exchange"]');
+      await exchangeTab.scrollIntoViewIfNeeded();
+      await exchangeTab.click();
+      await expect(page.locator('#mobile-popup-menu[data-popup-type="exchange"]')).toBeVisible();
+      await capture(page, `${viewport.name}-exchange-menu`);
       await page.keyboard.press("Escape");
     }
 

@@ -12,7 +12,7 @@ window.Z00ZI18n.registerLocale("en", {
     back: "Back"
   },
   app: {
-    documentTitle: "Z00Z Wallet — Interactive Concept",
+    documentTitle: "Z00Z Wallet",
     menu: "Menu",
     wallets: "Wallets",
     network: "Network",
@@ -23,8 +23,6 @@ window.Z00ZI18n.registerLocale("en", {
     homeContext: "Your private money at a glance",
     settingsContext: "Application preferences",
     walletContext: "{wallet} wallet",
-    interactiveConcept: "Interactive concept · no real funds",
-    conceptBuild: "Concept 0.4 · no real funds",
     logOut: "Log out",
     general: "General",
     language: "Language",

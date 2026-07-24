@@ -1176,7 +1176,7 @@ YAML uses only `--code-bg`, `--code-border`, `--code-fg`, `--code-comment`, `--c
 
 1. Change a colour at the matching `--lut-{palette}-{mode}-{role}` entry and verify both themes plus all five palette cards.
 2. A new colour requires a semantic role, a dark/light value, a palette mapping, a WCAG contrast check, and a documented use. Copying a hex value into component CSS or JavaScript is prohibited.
-3. Custom Appearance may override only `--brand` and `--rail`. It must not override success, warning, danger, focus, code, QR, or security meaning.
+3. Appearance exposes complete palette presets rather than individual semantic-token overrides; this keeps brand, privacy, safety, focus, code, QR, and security colours coherent.
 4. Never encode state with colour alone; pair it with a label, icon, or status text.
 
 ### 🔤 Typography

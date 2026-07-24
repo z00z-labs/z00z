@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD013 -->
 
-# Z00Z Wallet Interactive Concept
+# Z00Z Wallet Demo
 
 This self-contained prototype is the executable companion to [`UI-UX-SPEC.md`](../../../.planning/phases/110-Wallet-UX-UI/UI-UX-SPEC.md). It uses fabricated data and never connects to a wallet or signs a transaction.
 
