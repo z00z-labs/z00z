@@ -5,8 +5,8 @@ summary: Senden erklärt die Bedienelemente und Zustände dieser Ansicht.
 scope: context
 ---
 ## Diese Ansicht verwenden {#current-view}
-- Geben Sie Empfänger oder private Anfrage ein, wählen Sie ein unterstütztes Objekt und den Betrag und prüfen Sie den Versand.
-- Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt.
+- Wählen Sie zuerst Assets, Gutscheine oder Berechtigungen: Wert, regelgebundener bedingter Wert oder begrenzte wertlose Autorität.
+- Prüfen Sie Empfänger sowie Saldo oder Regeln, Ablauf, verbleibende Nutzungen, Umfang und Delegation vor der einmaligen Autorisierung.
 
 ## Lokales und sicheres Verhalten
 - Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.

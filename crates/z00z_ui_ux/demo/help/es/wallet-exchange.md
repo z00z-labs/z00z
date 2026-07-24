@@ -5,8 +5,8 @@ summary: Casa de cambio explica los controles y estados de esta vista.
 scope: context
 ---
 ## Usar esta vista {#current-view}
-- Solicite una cotización externa y verifique proveedor, tasa, caducidad, comisiones, custodia y liquidación.
-- Los estados no disponible, solo lectura y pendiente se muestran claramente.
+- Elija Hyperliquid Spot para un libro de órdenes o NEAR Intents para una solicitud entre cadenas mediante solver.
+- Revise par o ruta, destinatario/reembolso, deslizamiento y plazo. Cotización, salida, comisiones, dirección de depósito y estado quedan no disponibles sin un conector verificado.
 
 ## Funcionamiento local y seguro
 - Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.

@@ -5,8 +5,8 @@ summary: Exchange explains the controls and status shown in this view.
 scope: context
 ---
 ## Use this view {#current-view}
-- Request an external quote and verify provider, rate, expiry, fees, custody, and settlement responsibility when available.
-- Unavailable, read-only, and pending states are shown explicitly.
+- Choose Hyperliquid Spot for an order-book request or NEAR Intents for a solver-driven cross-chain request, then enter only the fields required by that execution model.
+- Review pair or route, recipient/refund controls, slippage and deadline. Quote, output, fees, deposit address, and execution status stay unavailable until a verified connector supplies them.
 
 ## Local and safe behavior
 - Wallet secrets and private transport data never enter Help.

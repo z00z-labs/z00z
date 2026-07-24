@@ -11,7 +11,7 @@ vm.runInContext(registrySource, context, { filename: "scripts/port/locale-regist
 const localeRegistry = context.window.Z00ZLocaleRegistry;
 const localeFiles = Object.fromEntries(localeRegistry.map(({ id, catalogue }) => [id, catalogue]));
 
-for (const resource of ["i18n.js", ...Object.values(localeFiles)]) {
+for (const resource of ["i18n.js", ...Object.values(localeFiles), "locales/send-exchange.js"]) {
   const source = await readFile(resolve(demoRoot, resource), "utf8");
   vm.runInContext(source, context, { filename: resource });
 }

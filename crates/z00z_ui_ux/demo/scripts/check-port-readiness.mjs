@@ -24,10 +24,12 @@ const expectedScripts = [
   "scripts/port/locale-registry.js",
   "i18n.js",
   ...localeRegistry.map(({ catalogue }) => catalogue),
+  "locales/send-exchange.js",
   "scripts/generated/help-catalog.js",
   "scripts/port/help-registry.js",
   "scripts/help-controller.js",
   "scripts/port/contracts.js",
+  "scripts/port/exchange-catalog.js",
   "scripts/port/fixtures.js",
   "scripts/port/presentation-state.js",
   "scripts/port/mock-wallet-gateway.js",
@@ -119,6 +121,7 @@ const runtimeFiles = [
   "app.js",
   "i18n.js",
   "scripts/port/contracts.js",
+  "scripts/port/exchange-catalog.js",
   "scripts/port/fixtures.js",
   "scripts/port/presentation-state.js",
   "scripts/port/mock-wallet-gateway.js",
@@ -127,6 +130,7 @@ const runtimeFiles = [
   "scripts/generated/help-catalog.js",
   "scripts/port/help-registry.js",
   "scripts/help-controller.js",
+  "locales/send-exchange.js",
   ...localeRegistry.map(({ catalogue }) => catalogue)
 ];
 const forbiddenRuntimePatterns = [

@@ -12,6 +12,7 @@ const context = vm.createContext({
 });
 const modules = [
   "scripts/port/contracts.js",
+  "scripts/port/exchange-catalog.js",
   "scripts/port/fixtures.js",
   "scripts/port/presentation-state.js",
   "scripts/port/mock-wallet-gateway.js",
@@ -37,6 +38,14 @@ assert.deepEqual(
   Array.from(demo.PORT_CONTRACT.walletChains),
   ["mainnet", "testnet-1", "testnet-2", "devnet-1", "devnet-2"]
 );
+assert.deepEqual(Object.keys(demo.EXCHANGE_PROVIDER_LUT), ["hyperliquid", "near-intents"]);
+assert.equal(demo.exchangeProvider("unknown").id, "near-intents");
+assert.deepEqual(Array.from(demo.exchangeDestinations("hyperliquid"), ({ id }) => id), [
+  "hyperliquid-usdc",
+  "hyperliquid-hype",
+  "hyperliquid-btc"
+]);
+assert.ok(Object.isFrozen(demo.EXCHANGE_PROVIDER_LUT));
 
 const defaults = demo.resolveInitialNavigation("?view=unknown&wallet=everything&settings=invalid");
 assert.equal(defaults.view, "wallet");

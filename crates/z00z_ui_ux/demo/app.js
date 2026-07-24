@@ -548,7 +548,7 @@ function renderWalletShell() {
       { view: "wallet-send", labelKey: "assets.send", iconName: "send" },
       { view: "wallet-receive", labelKey: "assets.receive", iconName: "receive" },
       { view: "swap", labelKey: "nav.swap", iconName: "swap", title: "Compatibility preview — no canonical execution route" },
-      { view: "exchange", labelKey: "nav.exchange", iconName: "exchange", title: "Unavailable — no verified exchange provider or route", disabled: true },
+      { view: "exchange", labelKey: "nav.exchange", iconName: "exchange", title: "Spot venue or cross-chain intent preview" },
       { view: "staking", labelKey: "nav.staking", iconName: "staking", title: "Compatibility preview — validator and lock terms required" },
       { view: "wallet-backup", labelKey: "nav.backup", iconName: "backup" },
       { view: "activity", labelKey: "nav.history", iconName: "activity" },
@@ -644,7 +644,13 @@ function walletObjectEntry(family, objectId) {
   return (entries || []).find((entry) => entry.id === objectId) || null;
 }
 
-function sendOptionEntries() {
+const sendFamilies = Object.freeze([
+  Object.freeze({ id: "asset", labelKey: "assets.sectionAssets", iconName: "assets", createFlow: "" }),
+  Object.freeze({ id: "voucher", labelKey: "assets.sectionVouchers", iconName: "voucher", createFlow: "create-voucher" }),
+  Object.freeze({ id: "permission", labelKey: "assets.sectionPermissions", iconName: "permission", createFlow: "create-permission" })
+]);
+
+function sendOptionEntries(family = "") {
   const wallet = activeWallet();
   const assets = walletAssetEntries().map((asset) => ({
     key: asset.key,
@@ -674,11 +680,13 @@ function sendOptionEntries() {
       meta: permission.remaining,
       entry: permission
     }));
-  return [...assets, ...vouchers, ...permissions];
+  const entries = [...assets, ...vouchers, ...permissions];
+  return family ? entries.filter((entry) => entry.family === family) : entries;
 }
 
 function defaultSendDraft() {
   return {
+    family: "asset",
     step: 0,
     recipient: "",
     recipientLabel: "",
@@ -694,9 +702,10 @@ function activeSendDraft() {
   state.sendDrafts ||= {};
   state.sendDrafts[wallet.id] ||= defaultSendDraft();
   const draft = state.sendDrafts[wallet.id];
-  const options = sendOptionEntries();
+  if (!sendFamilies.some(({ id }) => id === draft.family)) draft.family = "asset";
+  const options = sendOptionEntries(draft.family);
   if (!options.some((entry) => entry.key === draft.itemKey)) {
-    draft.itemKey = options[0]?.key || "z00z";
+    draft.itemKey = options[0]?.key || "";
   }
   return draft;
 }
@@ -707,12 +716,12 @@ function resetActiveSendDraft() {
 }
 
 function selectedSendOption(draft = activeSendDraft()) {
-  const options = sendOptionEntries();
+  const options = sendOptionEntries(draft.family);
   return options.find((entry) => entry.key === draft.itemKey) || options[0];
 }
 
-function sendOptionsMarkup(selectedKey) {
-  return sendOptionEntries().map((entry) => `<option value="${escapeHtml(entry.key)}"${entry.key === selectedKey ? " selected" : ""}>${escapeHtml(entry.label)} · ${escapeHtml(entry.kindLabel)}</option>`).join("");
+function sendOptionsMarkup(family, selectedKey) {
+  return sendOptionEntries(family).map((entry) => `<option value="${escapeHtml(entry.key)}"${entry.key === selectedKey ? " selected" : ""}>${escapeHtml(entry.label)} · ${escapeHtml(entry.kindLabel)}</option>`).join("");
 }
 
 function assetOptions(selectedKey = "z00z") {
@@ -859,62 +868,111 @@ function sendPanelFrame({ title, subtitle, step, body, footer }) {
   </section>`;
 }
 
+function sendFamilyContextNav(activeFamily) {
+  return `<nav class="context-nav context-tab-list" aria-label="${t("send.familyNavigation")}">${sendFamilies.map(({ id, labelKey, iconName }) => `
+    <button class="context-nav-item${activeFamily === id ? " is-active" : ""}" type="button" ${activeFamily === id ? 'aria-current="page"' : ""} data-send-family="${id}">
+      ${icon(iconName)}<span><strong>${t(labelKey)}</strong></span>
+    </button>`).join("")}</nav>`;
+}
+
+function sendFamilyFacts(item) {
+  if (!item) return "";
+  const facts = item.family === "asset"
+    ? [
+      [t("send.objectType"), item.kindLabel],
+      [t("send.spendableBalance"), item.asset.balanceLabel],
+      [t("send.unit"), item.asset.unit],
+      [t("common.chain"), walletChain(activeWallet().chainId).label]
+    ]
+    : item.family === "voucher"
+      ? [
+        [t("send.conditionalValue"), item.entry.value],
+        [t("send.lifecycle"), item.entry.status],
+        [t("send.expires"), item.entry.expiry || t("common.unavailable")],
+        [t("send.receiverAcceptance"), t("send.required")]
+      ]
+      : [
+        [t("send.authorityValue"), t("send.zeroValue")],
+        [t("send.action"), item.entry.action],
+        [t("send.scope"), item.entry.scope],
+        [t("send.remainingUses"), item.entry.remaining],
+        [t("send.expires"), item.entry.expiry],
+        [t("send.delegation"), item.entry.delegation]
+      ];
+  return `<dl class="send-family-facts">${facts.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
+}
+
+function sendEmptyPanel(draft) {
+  const family = sendFamilies.find(({ id }) => id === draft.family) || sendFamilies[0];
+  const action = family.createFlow
+    ? `<button class="button button-primary" type="button" data-open-flow="${family.createFlow}">${icon("plus")} ${t(family.id === "voucher" ? "assets.createVoucher" : "assets.createPermission")}</button>`
+    : "";
+  return sendPanelFrame({
+    title: t("send.title"),
+    subtitle: t("send.subtitle"),
+    step: 0,
+    body: `<div class="object-empty-state"><h2>${t(`send.empty.${family.id}`)}</h2>${action}</div>`,
+    footer: `<button class="button button-quiet" type="button" data-send-action="cancel">${t("common.back")}</button>`
+  });
+}
+
 function walletSendView() {
   const wallet = activeWallet();
   const draft = activeSendDraft();
   const item = selectedSendOption(draft);
-  if (!item) return `<div class="view-enter send-view"><div class="object-empty-state"><h2>No transferable items</h2></div></div>`;
+  const frame = !item && draft.step !== 2
+    ? sendEmptyPanel(draft)
+    : draft.step === 0
+      ? (() => {
+        const amountField = item.family === "asset"
+          ? `<div class="field-group"><label class="field-label" for="send-amount">${t("send.amount")}</label><div class="input-with-affix"><input id="send-amount" name="amount" type="number" min="${item.asset.divisible ? "0.01" : "1"}" max="${escapeHtml(item.asset.balance.replaceAll(",", ""))}" step="${item.asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(draft.amount)}" placeholder="${item.asset.divisible ? "0.00" : "1"}" aria-describedby="send-amount-hint send-amount-error" required><span class="input-affix">${escapeHtml(item.asset.unit)}</span></div><p class="field-hint" id="send-amount-hint">${t("send.available", { value: sensitive(`${item.asset.balance} ${item.asset.unit}`) })}</p><p class="field-error" id="send-amount-error" role="alert"></p></div>`
+          : `<div class="field-group"><span class="field-label">${t("send.transferObject")}</span><div class="send-object-value">${sendItemIcon(item, "send-object-icon")}<span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.meta)}</small></span></div><p class="field-error" id="send-amount-error" role="alert"></p></div>`;
+        return sendPanelFrame({
+          title: t("send.title"),
+          subtitle: t("send.subtitle"),
+          step: 0,
+          body: `<form class="form-grid" id="send-entry" autocomplete="off" novalidate>
+            <div class="field-group"><label class="field-label" for="send-recipient">${t("send.recipient")}</label><input id="send-recipient" name="recipient" value="${escapeHtml(draft.recipient)}" placeholder="${t("send.recipientPlaceholder")}" autocomplete="off" aria-describedby="send-recipient-error" required><p class="field-error" id="send-recipient-error" role="alert"></p></div>
+            <div class="field-group"><label class="field-label" for="send-item">${t(`send.itemLabel.${item.family}`)}</label><select id="send-item" name="itemKey">${sendOptionsMarkup(item.family, item.key)}</select></div>
+            ${sendFamilyFacts(item)}
+            ${amountField}
+            <div class="field-group"><label class="field-label" for="send-memo">${t("send.note")} <span class="muted">(${t("send.optional")})</span></label><input id="send-memo" name="memo" value="${escapeHtml(draft.memo)}" maxlength="80" placeholder="${t("send.notePlaceholder")}" autocomplete="off"></div>
+          </form>`,
+          footer: `<button class="button button-quiet" type="button" data-send-action="cancel">${t("send.cancel")}</button><button class="button button-primary" type="submit" form="send-entry">${t("send.review")} ${icon("chevron")}</button>`
+        });
+      })()
+      : draft.step === 1
+        ? (() => {
+          const amountLabel = item.family === "asset" ? `${draft.amount} ${item.asset.unit}` : item.meta;
+          return sendPanelFrame({
+            title: t("send.reviewTitle"),
+            subtitle: t("send.reviewSubtitle"),
+            step: 1,
+            body: `<div class="review-card review-hero">${sendItemIcon(item, "list-icon")}<strong>${escapeHtml(amountLabel)}</strong><span>${escapeHtml(item.label)} · ${escapeHtml(draft.recipientLabel)}</span></div>
+              <div class="review-card">
+                <div class="summary-row"><span>${t("send.family")}</span><strong>${t(`send.familyName.${item.family}`)}</strong></div>
+                <div class="summary-row"><span>${t("send.item")}</span><strong>${escapeHtml(item.label)}</strong></div>
+                <div class="summary-row"><span>${t("send.recipientShort")}</span><strong>${escapeHtml(draft.recipientLabel)}</strong></div>
+                <div class="summary-row"><span>${t("send.from")}</span><strong>${escapeHtml(wallet.name)}</strong></div>
+                <div class="summary-row"><span>${t("send.fee")}</span><strong>${item.family === "asset" ? t("send.feeAtAuthorization") : t("send.notApplicable")}</strong></div>
+                ${draft.memo ? `<div class="summary-row"><span>${t("send.noteShort")}</span><strong>${escapeHtml(draft.memo)}</strong></div>` : ""}
+              </div>
+              <div class="confirmation-note">${icon("shield")} ${t(`send.confirmation.${item.family}`)}</div>`,
+            footer: `<button class="button" type="button" data-send-action="back">${t("common.back")}</button><button class="button button-primary" type="button" data-send-action="submit">${t(`send.submit.${item.family}`)}</button>`
+          });
+        })()
+        : (() => {
+          const completed = draft.completed || { family: item.family, label: item.label, amountLabel: item.meta, recipientLabel: draft.recipientLabel };
+          return sendPanelFrame({
+            title: t(`send.sent.${completed.family}`),
+            subtitle: t("send.settlementPending"),
+            step: 2,
+            body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>${t("send.settling")}</h3><p>${escapeHtml(completed.label)} · ${escapeHtml(completed.recipientLabel)}</p><div class="receipt-ref">TX-8A42</div></div><div class="review-card"><div class="summary-row"><span>${t("send.value")}</span><strong>${escapeHtml(completed.amountLabel)}</strong></div><div class="summary-row"><span>${t("send.nextUpdate")}</span><strong>${t("send.automatic")}</strong></div></div>`,
+            footer: `<button class="button" type="button" data-send-action="history">${t("send.viewHistory")}</button><button class="button button-primary" type="button" data-send-action="done">${t("history.done")}</button>`
+          });
+        })();
 
-  if (draft.step === 0) {
-    const amountField = item.family === "asset"
-      ? `<div class="field-group"><label class="field-label" for="send-amount">Amount</label><div class="input-with-affix"><input id="send-amount" name="amount" type="number" min="${item.asset.divisible ? "0.01" : "1"}" max="${escapeHtml(item.asset.balance.replaceAll(",", ""))}" step="${item.asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(draft.amount)}" placeholder="${item.asset.divisible ? "0.00" : "1"}" aria-describedby="send-amount-hint send-amount-error" required><span class="input-affix">${escapeHtml(item.asset.unit)}</span></div><p class="field-hint" id="send-amount-hint">Available: ${sensitive(`${item.asset.balance} ${item.asset.unit}`)} · fee shown before authorization</p><p class="field-error" id="send-amount-error" role="alert"></p></div>`
-      : `<div class="field-group"><span class="field-label">Transfer</span><div class="send-object-value">${sendItemIcon(item, "send-object-icon")}<span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.meta)} · transferred as one ${escapeHtml(item.kindLabel.toLowerCase())}</small></span></div><p class="field-error" id="send-amount-error" role="alert"></p></div>`;
-    return `<div class="view-enter send-view">${sendPanelFrame({
-      title: "Send privately",
-      subtitle: "Recipient, asset, and amount",
-      step: 0,
-      body: `<form class="form-grid" id="send-entry" autocomplete="off" novalidate>
-        <div class="field-group"><label class="field-label" for="send-recipient">Recipient or private request</label><input id="send-recipient" name="recipient" value="${escapeHtml(draft.recipient)}" placeholder="Paste or scan a private request" autocomplete="off" aria-describedby="send-recipient-error" required><p class="field-error" id="send-recipient-error" role="alert"></p></div>
-        <div class="field-group"><label class="field-label" for="send-item">Asset</label><select id="send-item" name="itemKey">${sendOptionsMarkup(item.key)}</select></div>
-        ${amountField}
-        <div class="field-group"><label class="field-label" for="send-memo">Private note <span class="muted">(optional)</span></label><input id="send-memo" name="memo" value="${escapeHtml(draft.memo)}" maxlength="80" placeholder="What is this for?" autocomplete="off"></div>
-      </form>`,
-      footer: `<button class="button button-quiet" type="button" data-send-action="cancel">Cancel</button><button class="button button-primary" type="submit" form="send-entry">Review send ${icon("chevron")}</button>`
-    })}</div>`;
-  }
-
-  if (draft.step === 1) {
-    const amountLabel = item.family === "asset" ? `${draft.amount} ${item.asset.unit}` : item.meta;
-    const familyLabel = item.family === "asset" ? `${item.label} · ${item.kindLabel}` : `${item.label} · ${item.kindLabel}`;
-    return `<div class="view-enter send-view">${sendPanelFrame({
-      title: "Review send",
-      subtitle: "Check before authorizing",
-      step: 1,
-      body: `<div class="review-card review-hero">${sendItemIcon(item, "list-icon")}<strong>${escapeHtml(amountLabel)}</strong><span>${escapeHtml(item.label)} to ${escapeHtml(draft.recipientLabel)}</span></div>
-        <div class="review-card">
-          <div class="summary-row"><span>Asset</span><strong>${escapeHtml(familyLabel)}</strong></div>
-          <div class="summary-row"><span>Recipient</span><strong>${escapeHtml(draft.recipientLabel)} · <span class="mono">7D3B…9A40</span></strong></div>
-          <div class="summary-row"><span>From</span><strong>${escapeHtml(wallet.name)} wallet</strong></div>
-          <div class="summary-row"><span>Fee</span><strong>${item.family === "asset" ? "Included" : "Not applicable"}</strong></div>
-          <div class="summary-row"><span>Privacy route</span><strong>OnionNet · target simulation</strong></div>
-          <div class="summary-row"><span>Carrier</span><strong>Reticulum · target</strong></div>
-          <div class="summary-row"><span>Network</span><strong>${walletChainBadgeMarkup(wallet.chainId)}</strong></div>
-          ${draft.memo ? `<div class="summary-row"><span>Note</span><strong>${escapeHtml(draft.memo)}</strong></div>` : ""}
-        </div>
-        <div class="confirmation-note">${icon("shield")} Sending authorizes this ${item.family === "asset" ? "asset" : item.family} transfer once. It will appear as settling until the wallet confirms final state.</div>`,
-      footer: `<button class="button" type="button" data-send-action="back">Back</button><button class="button button-primary" type="button" data-send-action="submit">Send ${item.family === "asset" ? "asset" : item.family}</button>`
-    })}</div>`;
-  }
-
-  const completed = draft.completed || { family: item.family, label: item.label, amountLabel: item.meta, recipientLabel: draft.recipientLabel };
-  const completedFamily = completed.family === "asset" ? "Asset" : completed.family === "voucher" ? "Voucher" : "Permission";
-  return `<div class="view-enter send-view">${sendPanelFrame({
-    title: `${completedFamily} sent`,
-    subtitle: "Waiting for final settlement",
-    step: 2,
-    body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>Sent · settling</h3><p>${escapeHtml(completed.label)} was accepted for processing for ${escapeHtml(completed.recipientLabel)}. It is not final yet.</p><div class="receipt-ref mono">Reference TX-8A42 · idempotency protected</div></div><div class="review-card"><div class="summary-row"><span>Amount</span><strong>${escapeHtml(completed.amountLabel)}</strong></div><div class="summary-row"><span>Next update</span><strong>Automatic</strong></div></div>`,
-    footer: `<button class="button" type="button" data-send-action="history">View history</button><button class="button button-primary" type="button" data-send-action="done">Done</button>`
-  })}</div>`;
+  return `<div class="view-enter workspace-layout send-workspace-layout"><aside class="context-rail">${sendFamilyContextNav(draft.family)}</aside><div class="workspace-panel send-view">${frame}</div></div>`;
 }
 
 function walletReceiveView() {
@@ -1096,28 +1154,129 @@ function swapView() {
     </div>`;
 }
 
-function exchangeView() {
+function defaultExchangeDraft() {
+  return {
+    step: 0,
+    providerId: "near-intents",
+    sourceAssetKey: "z00z",
+    amount: "",
+    destinationId: demoRuntime.exchangeProvider("near-intents").defaultDestination,
+    orderType: "market",
+    limitPrice: "",
+    recipient: "",
+    refundAddress: "",
+    slippageBps: "100",
+    deadlineMinutes: "5"
+  };
+}
+
+function activeExchangeDraft() {
   const wallet = activeWallet();
-  const asset = supportedAsset("z00z");
+  state.exchangeDrafts ||= {};
+  state.exchangeDrafts[wallet.id] ||= defaultExchangeDraft();
+  const draft = state.exchangeDrafts[wallet.id];
+  const provider = demoRuntime.exchangeProvider(draft.providerId);
+  if (!walletAssetEntries().some(({ key }) => key === draft.sourceAssetKey)) draft.sourceAssetKey = walletAssetEntries()[0]?.key || "z00z";
+  if (!demoRuntime.exchangeDestinations(provider.id).some(({ id }) => id === draft.destinationId)) {
+    draft.destinationId = provider.defaultDestination;
+  }
+  return draft;
+}
+
+function exchangeProviderSelector(draft) {
+  return `<div class="exchange-provider-strip" role="radiogroup" aria-label="${t("exchange.executionModel")}">${Object.values(demoRuntime.EXCHANGE_PROVIDER_LUT).map((provider) => `
+    <button class="exchange-provider${draft.providerId === provider.id ? " is-active" : ""}" type="button" role="radio" aria-checked="${draft.providerId === provider.id}" data-exchange-provider="${provider.id}">
+      <span class="list-icon">${icon(provider.iconName)}</span>
+      <span><strong>${t(provider.labelKey)}</strong><small>${t(provider.executionKey)}</small></span>
+    </button>`).join("")}</div>`;
+}
+
+function exchangeDestinationOptions(draft) {
+  return demoRuntime.exchangeDestinations(draft.providerId).map((destination) => `<option value="${escapeHtml(destination.id)}"${draft.destinationId === destination.id ? " selected" : ""}>${escapeHtml(destination.label)} · ${escapeHtml(destination.network)}</option>`).join("");
+}
+
+function exchangeProviderFields(draft) {
+  if (draft.providerId === "hyperliquid") {
+    return `
+      <div class="field-group"><label class="field-label" for="exchange-order-type">${t("exchange.orderType")}</label><select id="exchange-order-type" name="orderType"><option value="market"${draft.orderType === "market" ? " selected" : ""}>${t("exchange.market")}</option><option value="limit"${draft.orderType === "limit" ? " selected" : ""}>${t("exchange.limit")}</option></select></div>
+      ${draft.orderType === "limit" ? `<div class="field-group"><label class="field-label" for="exchange-limit-price">${t("exchange.limitPrice")}</label><input id="exchange-limit-price" name="limitPrice" type="number" min="0" step="any" inputmode="decimal" value="${escapeHtml(draft.limitPrice)}" placeholder="${t("exchange.limitPricePlaceholder")}"></div>` : ""}`;
+  }
+  return `
+    <div class="field-group"><label class="field-label" for="exchange-recipient">${t("exchange.recipient")}</label><input id="exchange-recipient" name="recipient" value="${escapeHtml(draft.recipient)}" placeholder="${t("exchange.recipientPlaceholder")}" autocomplete="off"></div>
+    <div class="field-group"><label class="field-label" for="exchange-refund">${t("exchange.refundAddress")}</label><input id="exchange-refund" name="refundAddress" value="${escapeHtml(draft.refundAddress)}" placeholder="${t("exchange.refundPlaceholder")}" autocomplete="off"></div>
+    <div class="exchange-control-grid">
+      <div class="field-group"><label class="field-label" for="exchange-slippage">${t("exchange.slippage")}</label><select id="exchange-slippage" name="slippageBps"><option value="50"${draft.slippageBps === "50" ? " selected" : ""}>0.5%</option><option value="100"${draft.slippageBps === "100" ? " selected" : ""}>1%</option><option value="200"${draft.slippageBps === "200" ? " selected" : ""}>2%</option></select></div>
+      <div class="field-group"><label class="field-label" for="exchange-deadline">${t("exchange.deadline")}</label><select id="exchange-deadline" name="deadlineMinutes"><option value="3"${draft.deadlineMinutes === "3" ? " selected" : ""}>3 min</option><option value="5"${draft.deadlineMinutes === "5" ? " selected" : ""}>5 min</option><option value="10"${draft.deadlineMinutes === "10" ? " selected" : ""}>10 min</option></select></div>
+    </div>`;
+}
+
+function captureExchangeDraft(form) {
+  const draft = activeExchangeDraft();
+  const fields = ["sourceAssetKey", "amount", "destinationId", "orderType", "limitPrice", "recipient", "refundAddress", "slippageBps", "deadlineMinutes"];
+  fields.forEach((name) => {
+    if (form.elements[name]) draft[name] = form.elements[name].value.trim();
+  });
+  return draft;
+}
+
+function exchangeReview(draft) {
+  const provider = demoRuntime.exchangeProvider(draft.providerId);
+  const source = supportedAsset(draft.sourceAssetKey);
+  const destination = demoRuntime.EXCHANGE_DESTINATION_LUT[draft.destinationId];
+  const providerRows = draft.providerId === "hyperliquid"
+    ? `<div class="summary-row"><span>${t("exchange.pair")}</span><strong>${escapeHtml(source.unit)}/${escapeHtml(destination.unit)}</strong></div>
+       <div class="summary-row"><span>${t("exchange.orderType")}</span><strong>${t(`exchange.${draft.orderType}`)}</strong></div>
+       ${draft.orderType === "limit" ? `<div class="summary-row"><span>${t("exchange.limitPrice")}</span><strong>${escapeHtml(draft.limitPrice)}</strong></div>` : ""}`
+    : `<div class="summary-row"><span>${t("exchange.route")}</span><strong>${escapeHtml(walletChain(activeWallet().chainId).label)} → ${escapeHtml(destination.network)}</strong></div>
+       <div class="summary-row"><span>${t("exchange.mode")}</span><strong>${t("exchange.exactInput")}</strong></div>
+       <div class="summary-row"><span>${t("exchange.recipient")}</span><strong>${escapeHtml(draft.recipient)}</strong></div>
+       <div class="summary-row"><span>${t("exchange.refundAddress")}</span><strong>${escapeHtml(draft.refundAddress)}</strong></div>
+       <div class="summary-row"><span>${t("exchange.slippage")}</span><strong>${Number(draft.slippageBps) / 100}%</strong></div>
+       <div class="summary-row"><span>${t("exchange.deadline")}</span><strong>${escapeHtml(draft.deadlineMinutes)} min</strong></div>`;
+  return `<article class="card wallet-tool-card exchange-card">
+    <div class="tool-card-heading"><span class="list-icon">${icon(provider.iconName)}</span><div><h2>${t("exchange.reviewTitle")}</h2></div></div>
+    <div class="review-card">
+      <div class="summary-row"><span>${t("exchange.executionModel")}</span><strong>${t(provider.labelKey)}</strong></div>
+      <div class="summary-row"><span>${t("exchange.from")}</span><strong>${escapeHtml(draft.amount)} ${escapeHtml(source.unit)}</strong></div>
+      <div class="summary-row"><span>${t("exchange.to")}</span><strong>${escapeHtml(destination.label)} · ${escapeHtml(destination.network)}</strong></div>
+      ${providerRows}
+    </div>
+    <div class="exchange-unavailable-grid">
+      <div><span>${t("exchange.rate")}</span><strong>${t("common.unavailable")}</strong></div>
+      <div><span>${t("exchange.expectedOutput")}</span><strong>${t("common.unavailable")}</strong></div>
+      <div><span>${t("exchange.minimumReceived")}</span><strong>${t("common.unavailable")}</strong></div>
+      <div><span>${t("exchange.fee")}</span><strong>${t("common.unavailable")}</strong></div>
+      <div><span>${t("exchange.eta")}</span><strong>${t("common.unavailable")}</strong></div>
+      ${draft.providerId === "near-intents"
+        ? `<div><span>${t("exchange.depositAddress")}</span><strong>${t("common.unavailable")}</strong></div><div><span>${t("exchange.executionStatus")}</span><strong>${t("common.unavailable")}</strong></div>`
+        : `<div><span>${t("exchange.marketState")}</span><strong>${t("common.unavailable")}</strong></div>`}
+    </div>
+    <div class="confirmation-note">${icon("shield")} ${t("exchange.connectorBoundary")}</div>
+    <div class="wallet-tool-actions"><button class="button" type="button" data-exchange-action="back">${t("common.back")}</button><button class="button button-primary" type="button" data-exchange-action="new">${t("exchange.editRequest")}</button></div>
+  </article>`;
+}
+
+function exchangeView() {
+  const draft = activeExchangeDraft();
+  const asset = supportedAsset(draft.sourceAssetKey);
+  if (draft.step === 1) {
+    return `<div class="view-enter wallet-tool-view"><section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">${exchangeReview(draft)}</section></div>`;
+  }
   return `
     <div class="view-enter wallet-tool-view">
-      <div class="page-intro"><div><p class="eyebrow">External exchange</p><h2>Compare exchange routes</h2><p>Exchange remains separate from an in-wallet swap, so provider, rate, and settlement responsibility stay visible.</p></div><span class="status-badge">No route selected</span></div>
-      <section class="wallet-tool-grid">
-        <article class="card wallet-tool-card">
-          <div class="tool-card-heading"><span class="list-icon">${icon("exchange")}</span><div><h3>Request a quote</h3><p>Only assets held by ${escapeHtml(wallet.name)} can be prepared.</p></div></div>
-          <div class="form-grid">
-            <div class="field-group"><label class="field-label" for="exchange-asset">Asset to exchange</label><select id="exchange-asset">${assetOptions("z00z")}</select><p class="field-hint">${sensitive(`${asset.balance} ${asset.unit}`)} available in this wallet.</p></div>
-            <div class="field-group"><label class="field-label" for="exchange-destination">Receive</label><select id="exchange-destination"><option>USDC · Token</option><option>EURC · Token</option><option>BTC · Coin</option></select></div>
-            <button class="button button-primary" type="button" data-demo-action="request-exchange-quote">${icon("exchange")} Request quote</button>
-          </div>
+      <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
+        <article class="card wallet-tool-card exchange-card">
+          <div class="tool-card-heading"><span class="list-icon">${icon("exchange")}</span><div><h2>${t("exchange.title")}</h2></div></div>
+          ${exchangeProviderSelector(draft)}
+          <form class="form-grid" id="exchange-entry" autocomplete="off" novalidate>
+            <div class="field-group"><label class="field-label" for="exchange-source">${t("exchange.sourceAsset")}</label><select id="exchange-source" name="sourceAssetKey">${assetOptions(draft.sourceAssetKey)}</select><p class="field-hint">${t("send.available", { value: sensitive(`${asset.balance} ${asset.unit}`) })}</p></div>
+            <div class="field-group"><label class="field-label" for="exchange-amount">${t("exchange.amount")}</label><div class="input-with-affix"><input id="exchange-amount" name="amount" type="number" min="${asset.divisible ? "0.01" : "1"}" max="${escapeHtml(asset.balance.replaceAll(",", ""))}" step="${asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(draft.amount)}" placeholder="0.00" aria-describedby="exchange-error" required><span class="input-affix">${escapeHtml(asset.unit)}</span></div></div>
+            <div class="field-group"><label class="field-label" for="exchange-destination">${t("exchange.destinationAsset")}</label><select id="exchange-destination" name="destinationId">${exchangeDestinationOptions(draft)}</select></div>
+            ${exchangeProviderFields(draft)}
+            <p class="field-error" id="exchange-error" role="alert"></p>
+            <button class="button button-primary" type="submit">${icon("exchange")} ${t("exchange.review")}</button>
+          </form>
         </article>
-        <aside class="card wallet-tool-card wallet-tool-summary">
-          <p class="eyebrow">Before exchange</p>
-          <div class="summary-row"><span>Provider</span><strong>Not selected</strong></div>
-          <div class="summary-row"><span>Rate</span><strong>Unavailable</strong></div>
-          <div class="summary-row"><span>Settlement</span><strong>Not started</strong></div>
-          <div class="capability-note">${icon("alert")} <span><strong>Concept-only route</strong><small>Production requires a verified provider and an authoritative quote before enabling exchange.</small></span></div>
-        </aside>
       </section>
     </div>`;
 }
@@ -2591,7 +2750,7 @@ function validateSend(form) {
   const draft = activeSendDraft();
   const recipient = form.elements.recipient;
   const amount = form.elements.amount || null;
-  const item = sendOptionEntries().find((entry) => entry.key === form.elements.itemKey.value);
+  const item = sendOptionEntries(draft.family).find((entry) => entry.key === form.elements.itemKey.value);
   let valid = true;
   document.querySelector("#send-recipient-error").textContent = "";
   document.querySelector("#send-amount-error").textContent = "";
@@ -2633,6 +2792,38 @@ function validateSend(form) {
     step: 1,
     completed: null
   });
+  render({ focusMain: true });
+}
+
+function validateExchange(form) {
+  const draft = captureExchangeDraft(form);
+  const source = supportedAsset(draft.sourceAssetKey);
+  const amount = Number(draft.amount);
+  const error = document.querySelector("#exchange-error");
+  const amountInput = form.elements.amount;
+  error.textContent = "";
+  amountInput.removeAttribute("aria-invalid");
+
+  if (!Number.isFinite(amount) || amount <= 0 || amount > Number(source.balance.replaceAll(",", "")) || (!source.divisible && !Number.isInteger(amount))) {
+    error.textContent = t("exchange.amountError", { balance: source.balance, unit: source.unit });
+    amountInput.setAttribute("aria-invalid", "true");
+    amountInput.focus();
+    return;
+  }
+  if (draft.providerId === "hyperliquid" && draft.orderType === "limit" && !(Number(draft.limitPrice) > 0)) {
+    error.textContent = t("exchange.limitPriceError");
+    form.elements.limitPrice?.setAttribute("aria-invalid", "true");
+    form.elements.limitPrice?.focus();
+    return;
+  }
+  if (draft.providerId === "near-intents" && (draft.recipient.length < 3 || draft.refundAddress.length < 3)) {
+    error.textContent = t("exchange.addressError");
+    (draft.recipient.length < 3 ? form.elements.recipient : form.elements.refundAddress)?.setAttribute("aria-invalid", "true");
+    (draft.recipient.length < 3 ? form.elements.recipient : form.elements.refundAddress)?.focus();
+    return;
+  }
+  draft.amount = source.divisible ? amount.toFixed(2) : String(amount);
+  draft.step = 1;
   render({ focusMain: true });
 }
 
@@ -3204,6 +3395,40 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const sendFamilyButton = event.target.closest("[data-send-family]");
+  if (sendFamilyButton) {
+    const draft = activeSendDraft();
+    draft.family = sendFamilyButton.dataset.sendFamily;
+    draft.itemKey = sendOptionEntries(draft.family)[0]?.key || "";
+    draft.amount = "";
+    draft.step = 0;
+    draft.completed = null;
+    render({ focusMain: true });
+    return;
+  }
+
+  const exchangeProviderButton = event.target.closest("[data-exchange-provider]");
+  if (exchangeProviderButton) {
+    const form = document.querySelector("#exchange-entry");
+    const draft = form ? captureExchangeDraft(form) : activeExchangeDraft();
+    draft.providerId = exchangeProviderButton.dataset.exchangeProvider;
+    draft.destinationId = demoRuntime.exchangeProvider(draft.providerId).defaultDestination;
+    draft.orderType = "market";
+    draft.limitPrice = "";
+    draft.step = 0;
+    render({ focusMain: true });
+    requestAnimationFrame(() => document.querySelector(`[data-exchange-provider="${draft.providerId}"]`)?.focus());
+    return;
+  }
+
+  const exchangeActionButton = event.target.closest("[data-exchange-action]");
+  if (exchangeActionButton) {
+    const draft = activeExchangeDraft();
+    draft.step = 0;
+    render({ focusMain: true });
+    return;
+  }
+
   const sendActionButton = event.target.closest("[data-send-action]");
   if (sendActionButton) {
     const action = sendActionButton.dataset.sendAction;
@@ -3465,6 +3690,8 @@ document.addEventListener("submit", (event) => {
     showToast("Permission created and available in Send.");
   } else if (event.target.id === "send-entry") {
     validateSend(event.target);
+  } else if (event.target.id === "exchange-entry") {
+    validateExchange(event.target);
   } else if (event.target.id === "permission-entry") {
     validatePermission(event.target);
   } else if (event.target.id === "create-wallet-entry") {
@@ -3592,6 +3819,8 @@ document.addEventListener("input", (event) => {
     if (event.target.id === "send-recipient") draft.recipient = event.target.value;
     if (event.target.id === "send-amount") draft.amount = event.target.value;
     if (event.target.id === "send-memo") draft.memo = event.target.value;
+  } else if (event.target.closest("#exchange-entry")) {
+    captureExchangeDraft(event.target.form);
   } else if (event.target.id === "activity-search") {
     const term = event.target.value.trim().toLowerCase();
     const items = activeWallet().activities.filter((item) => {
@@ -3632,6 +3861,16 @@ document.addEventListener("change", (event) => {
     draft.amount = "";
     render();
     requestAnimationFrame(() => document.querySelector("#send-item")?.focus());
+    return;
+  }
+  if (event.target.closest("#exchange-entry")) {
+    const draft = captureExchangeDraft(event.target.form);
+    if (["exchange-source", "exchange-order-type"].includes(event.target.id)) {
+      render();
+      requestAnimationFrame(() => document.querySelector(`#${event.target.id}`)?.focus());
+    } else {
+      state.exchangeDrafts[activeWallet().id] = draft;
+    }
     return;
   }
   if (event.target.matches("[data-remove-wallet-id]")) {

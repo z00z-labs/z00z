@@ -56,6 +56,7 @@
       customAppearance: { brand, rail },
       walletPreferences: {},
       sendDrafts: {},
+      exchangeDrafts: {},
       locked: false,
       flow: null,
       lastDialogTrigger: null,

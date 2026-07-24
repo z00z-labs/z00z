@@ -28,6 +28,7 @@ const desktopReviewRoutes = [
   { name: "assets", query: "?view=wallet&wallet=assets" },
   { name: "send", query: "?view=wallet-send" },
   { name: "swap", query: "?view=swap" },
+  { name: "exchange", query: "?view=exchange" },
   { name: "staking", query: "?view=staking" },
   { name: "backup", query: "?view=wallet-backup" },
 ];

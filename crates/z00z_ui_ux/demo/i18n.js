@@ -27,6 +27,11 @@
     catalogues.set(language, flatten(messages));
   }
 
+  function extendLocale(language, messages) {
+    if (!languageMeta.has(language)) throw new Error("Unsupported UI language: " + language);
+    catalogues.set(language, { ...(catalogues.get(language) ?? {}), ...flatten(messages) });
+  }
+
   function resolveLanguage(language) {
     return languageMeta.has(language) ? language : fallbackLanguage;
   }
@@ -99,6 +104,7 @@
   window.Z00ZI18n = Object.freeze({
     fallbackLanguage,
     registerLocale,
+    extendLocale,
     resolveLanguage,
     resolveLocale,
     translate,

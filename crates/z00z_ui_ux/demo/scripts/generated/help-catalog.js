@@ -567,8 +567,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Enter a receiver or private request, choose a supported wallet object, set the amount, then review before submission.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
+                  "Choose Assets, Vouchers, or Permissions first. Assets carry value, vouchers carry policy-bound conditional value, and permissions carry bounded zero-value authority.",
+                  "Review the receiver plus the selected family’s balance or policy, expiry, remaining uses, scope, and delegation limits before authorizing once."
                 ]
               }
             ]
@@ -669,8 +669,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Request an external quote and verify provider, rate, expiry, fees, custody, and settlement responsibility when available.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
+                  "Choose Hyperliquid Spot for an order-book request or NEAR Intents for a solver-driven cross-chain request, then enter only the fields required by that execution model.",
+                  "Review pair or route, recipient/refund controls, slippage and deadline. Quote, output, fees, deposit address, and execution status stay unavailable until a verified connector supplies them."
                 ]
               }
             ]
@@ -1874,8 +1874,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Введите получателя или приватный запрос, выберите поддерживаемый объект кошелька, сумму и проверьте операцию перед отправкой.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
+                  "Сначала выберите Активы, Ваучеры или Полномочия. Это стоимость, условная стоимость по правилам или ограниченное право с нулевой стоимостью.",
+                  "Перед однократной авторизацией проверьте получателя, а также баланс либо правила, срок, оставшиеся использования, область и делегирование."
                 ]
               }
             ]
@@ -1976,8 +1976,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Запросите внешнюю котировку и проверьте провайдера, курс, срок, комиссии, custody и ответственность за расчёт.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
+                  "Выберите Hyperliquid Spot для книги ордеров или NEAR Intents для кроссчейн-запроса через solver, затем заполните поля выбранной модели.",
+                  "Проверьте пару либо маршрут, получателя/возврат, проскальзывание и срок. Курс, выход, комиссии, депозитный адрес и статус недоступны без проверенного коннектора."
                 ]
               }
             ]
@@ -3181,8 +3181,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Saisissez un destinataire ou une requête privée, choisissez un objet pris en charge, le montant, puis vérifiez l’envoi.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
+                  "Choisissez d’abord Actifs, Bons ou Permissions : valeur, valeur conditionnelle régie par une politique, ou autorité limitée de valeur nulle.",
+                  "Avant l’autorisation unique, vérifiez le destinataire ainsi que le solde ou la politique, l’expiration, les usages, la portée et la délégation."
                 ]
               }
             ]
@@ -3283,8 +3283,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Demandez un devis externe et vérifiez fournisseur, taux, expiration, frais, garde et responsabilité de règlement.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
+                  "Choisissez Hyperliquid Spot pour un carnet d’ordres ou NEAR Intents pour une requête inter-chaînes pilotée par solveur.",
+                  "Vérifiez paire ou route, destinataire/remboursement, glissement et délai. Devis, sortie, frais, adresse de dépôt et statut restent indisponibles sans connecteur vérifié."
                 ]
               }
             ]
@@ -4488,8 +4488,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Geben Sie Empfänger oder private Anfrage ein, wählen Sie ein unterstütztes Objekt und den Betrag und prüfen Sie den Versand.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
+                  "Wählen Sie zuerst Assets, Gutscheine oder Berechtigungen: Wert, regelgebundener bedingter Wert oder begrenzte wertlose Autorität.",
+                  "Prüfen Sie Empfänger sowie Saldo oder Regeln, Ablauf, verbleibende Nutzungen, Umfang und Delegation vor der einmaligen Autorisierung."
                 ]
               }
             ]
@@ -4590,8 +4590,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Fordern Sie ein externes Angebot an und prüfen Sie Anbieter, Kurs, Ablauf, Gebühren, Verwahrung und Abwicklung.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
+                  "Wählen Sie Hyperliquid Spot für eine Orderbuch-Anfrage oder NEAR Intents für eine Solver-basierte Cross-Chain-Anfrage.",
+                  "Prüfen Sie Paar oder Route, Empfänger/Rückzahlung, Slippage und Frist. Angebot, Ausgabe, Gebühren, Einzahlungsadresse und Status bleiben ohne verifizierten Connector nicht verfügbar."
                 ]
               }
             ]
@@ -5795,8 +5795,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Introduzca destinatario o solicitud privada, elija un objeto compatible y el importe y revise antes de enviar.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
+                  "Elija primero Activos, Vales o Permisos: valor, valor condicional sujeto a política o autoridad limitada de valor cero.",
+                  "Antes de autorizar una vez, revise el destinatario y el saldo o la política, caducidad, usos restantes, alcance y delegación."
                 ]
               }
             ]
@@ -5897,8 +5897,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Solicite una cotización externa y verifique proveedor, tasa, caducidad, comisiones, custodia y liquidación.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
+                  "Elija Hyperliquid Spot para un libro de órdenes o NEAR Intents para una solicitud entre cadenas mediante solver.",
+                  "Revise par o ruta, destinatario/reembolso, deslizamiento y plazo. Cotización, salida, comisiones, dirección de depósito y estado quedan no disponibles sin un conector verificado."
                 ]
               }
             ]
@@ -7102,8 +7102,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Introduza destinatário ou pedido privado, escolha um objeto suportado e o montante e reveja antes de enviar.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
+                  "Escolha primeiro Ativos, Vouchers ou Permissões: valor, valor condicional sujeito a política ou autoridade limitada de valor zero.",
+                  "Antes da autorização única, reveja o destinatário e o saldo ou política, validade, utilizações restantes, âmbito e delegação."
                 ]
               }
             ]
@@ -7204,8 +7204,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Peça uma cotação externa e confirme fornecedor, taxa, validade, taxas, custódia e liquidação.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
+                  "Escolha Hyperliquid Spot para um livro de ordens ou NEAR Intents para um pedido entre cadeias orientado por solver.",
+                  "Reveja par ou rota, destinatário/reembolso, slippage e prazo. Cotação, saída, taxas, endereço de depósito e estado ficam indisponíveis sem conector verificado."
                 ]
               }
             ]
@@ -8409,8 +8409,8 @@
               {
                 "type": "list",
                 "items": [
-                  "수신자 또는 비공개 요청, 지원 객체와 금액을 입력한 뒤 제출 전에 검토합니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
+                  "먼저 자산, 바우처 또는 권한을 선택합니다. 각각 가치, 정책 기반 조건부 가치, 가치가 0인 제한된 권한입니다.",
+                  "한 번 승인하기 전에 수신자와 잔액 또는 정책, 만료, 남은 사용 횟수, 범위, 위임 조건을 확인합니다."
                 ]
               }
             ]
@@ -8511,8 +8511,8 @@
               {
                 "type": "list",
                 "items": [
-                  "외부 견적을 요청하고 제공자, 환율, 만료, 수수료, 보관과 결제 책임을 확인합니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
+                  "오더북 요청은 Hyperliquid Spot, solver 기반 크로스체인 요청은 NEAR Intents를 선택합니다.",
+                  "페어 또는 경로, 수신자/환불, 슬리피지와 기한을 확인합니다. 검증된 커넥터 없이는 견적, 출력, 수수료, 입금 주소, 실행 상태가 제공되지 않습니다."
                 ]
               }
             ]
@@ -9716,8 +9716,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Alıcı veya özel istek, desteklenen nesne ve tutarı girin; göndermeden önce inceleyin.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
+                  "Önce Varlıklar, Kuponlar veya İzinler’i seçin: değer, politikaya bağlı koşullu değer veya sıfır değerli sınırlı yetki.",
+                  "Tek seferlik yetkilendirmeden önce alıcıyı ve bakiye ya da politika, süre, kalan kullanım, kapsam ve devri inceleyin."
                 ]
               }
             ]
@@ -9818,8 +9818,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Harici teklif isteyin; sağlayıcı, oran, süre, ücret, saklama ve mutabakat sorumluluğunu doğrulayın.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
+                  "Emir defteri isteği için Hyperliquid Spot’u, solver tabanlı zincirler arası istek için NEAR Intents’i seçin.",
+                  "Çift veya rota, alıcı/iade, kayma ve süreyi inceleyin. Doğrulanmış bağlayıcı olmadan teklif, çıktı, ücret, yatırma adresi ve durum kullanılamaz kalır."
                 ]
               }
             ]
@@ -11023,8 +11023,8 @@
               {
                 "type": "list",
                 "items": [
-                  "受信者または非公開リクエスト、対応オブジェクト、金額を入力し、送信前に確認します。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
+                  "最初に資産、バウチャー、権限を選びます。これらは価値、ポリシーに従う条件付き価値、ゼロ価値の限定権限です。",
+                  "1回の承認前に、受取人と残高またはポリシー、有効期限、残り使用回数、範囲、委任条件を確認します。"
                 ]
               }
             ]
@@ -11125,8 +11125,8 @@
               {
                 "type": "list",
                 "items": [
-                  "外部見積りを要求し、提供者、レート、期限、手数料、保管、決済責任を確認します。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
+                  "注文板リクエストには Hyperliquid Spot、solver によるクロスチェーンリクエストには NEAR Intents を選びます。",
+                  "ペアまたはルート、受取人/返金、スリッページ、期限を確認します。検証済みコネクタなしでは見積、出力、手数料、入金先、実行状態は利用できません。"
                 ]
               }
             ]
@@ -12330,8 +12330,8 @@
               {
                 "type": "list",
                 "items": [
-                  "输入接收者或私密请求，选择支持的钱包对象和金额，然后在提交前复核。",
-                  "不可用、只读和待处理状态会明确显示。"
+                  "先选择资产、凭证或权限：它们分别表示价值、受策略约束的条件价值，以及零价值的有限权限。",
+                  "单次授权前，请检查接收者，以及所选类别的余额或策略、到期时间、剩余次数、范围和委托限制。"
                 ]
               }
             ]
@@ -12432,8 +12432,8 @@
               {
                 "type": "list",
                 "items": [
-                  "请求外部报价，并在可用时核对提供商、汇率、期限、费用、托管和结算责任。",
-                  "不可用、只读和待处理状态会明确显示。"
+                  "订单簿请求选择 Hyperliquid Spot；solver 驱动的跨链请求选择 NEAR Intents。",
+                  "检查交易对或路线、接收/退款地址、滑点和期限。没有已验证连接器时，报价、输出、费用、充值地址和执行状态保持不可用。"
                 ]
               }
             ]

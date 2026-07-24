@@ -329,7 +329,7 @@ test("wallet navigation scopes history and wallet tools to the selected wallet",
   expect(swapGeometry.centerOffset).toBeLessThanOrEqual(1);
   expect(swapGeometry.headingAlignment).toBe("center");
   expect(swapGeometry.titleIconCenterOffset).toBeLessThanOrEqual(1);
-  await expect(page.locator('#wallet-tabs [data-view="exchange"]')).toBeDisabled();
+  await expect(page.locator('#wallet-tabs [data-view="exchange"]')).toBeEnabled();
   await page.locator('[data-view="staking"]:visible').click();
   const stakingHeading = page.getByRole("heading", { name: "Prepare a stake" });
   await expect(stakingHeading).toBeVisible();
@@ -1117,7 +1117,8 @@ test("send opens one compact inline form and receive shows only the receiver car
   await expect(recipientLabel).toHaveCSS("font-size", "16px");
   await expect(page.locator(".transfer-asset-row, .transfer-object-row")).toHaveCount(0);
   await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
-  await expect(page.locator("#send-item option")).toHaveCount(22);
+  await expect(page.locator("[data-send-family]")).toHaveCount(3);
+  await expect(page.locator("#send-item option")).toHaveCount(16);
   expect((await sendPanel.boundingBox()).width).toBe(640);
   await page.locator("#send-item").selectOption("z00z");
   await expect(page.locator("#send-amount")).toHaveAttribute("max", "12480.75");
@@ -1125,7 +1126,7 @@ test("send opens one compact inline form and receive shows only the receiver car
   await page.locator("#send-amount").fill("12");
   await page.getByRole("button", { name: /Review send/ }).click();
   await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
-  await expect(page.getByText("Z00Z · Coin")).toBeVisible();
+  await expect(page.locator(".review-card").first()).toContainText("Z00Z");
   await page.getByRole("button", { name: "Send asset" }).click();
   await expect(page.getByRole("heading", { name: "Asset sent" })).toBeVisible({ timeout: 2000 });
   await page.getByRole("button", { name: "Done" }).click();
@@ -1147,10 +1148,11 @@ test("send opens one compact inline form and receive shows only the receiver car
   await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
 });
 
-test("send, swap, staking, and backup share one responsive card width", async ({ page }) => {
+test("send, swap, exchange, staking, and backup share one responsive card width", async ({ page }) => {
   const routes = [
     ["wallet-send", ".send-panel"],
     ["swap", ".swap-card"],
+    ["exchange", ".exchange-card"],
     ["staking", ".staking-card"],
     ["wallet-backup", ".backup-card"],
   ];
@@ -1161,7 +1163,7 @@ test("send, swap, staking, and backup share one responsive card width", async ({
     await page.goto(`${demoUrl}?view=${view}`);
     desktopWidths.push(Math.round((await page.locator(selector).boundingBox()).width));
   }
-  expect(desktopWidths).toEqual([640, 640, 640, 640]);
+  expect(desktopWidths).toEqual([640, 640, 640, 640, 640]);
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileWidths = [];
@@ -1173,6 +1175,60 @@ test("send, swap, staking, and backup share one responsive card width", async ({
     expect(box.x + box.width).toBeLessThanOrEqual(390);
   }
   expect(new Set(mobileWidths).size).toBe(1);
+});
+
+test("send keeps object families distinct and swap remains asset-only", async ({ page }) => {
+  await page.goto(`${demoUrl}?view=wallet-send`);
+
+  await expect(page.locator('[data-send-family="asset"]')).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("#send-item option")).toHaveCount(16);
+  await expect(page.locator(".send-family-facts")).toContainText("Spendable balance");
+
+  await page.locator('[data-send-family="voucher"]').click();
+  await expect(page.locator("#send-item option")).toHaveCount(3);
+  await expect(page.locator(".send-family-facts")).toContainText("Conditional value");
+  await expect(page.locator(".send-family-facts")).toContainText("Receiver acceptance");
+
+  await page.locator('[data-send-family="permission"]').click();
+  await expect(page.locator("#send-item option")).toHaveCount(3);
+  await expect(page.locator(".send-family-facts")).toContainText("Zero-value");
+  await expect(page.locator(".send-family-facts")).toContainText("Delegation");
+
+  await page.locator('#wallet-tabs [data-view="swap"]').click();
+  await expect(page.locator("#swap-from option")).toHaveCount(16);
+  await expect(page.locator("#swap-to option")).toHaveCount(16);
+  await expect(page.locator("#swap-from")).not.toContainText("voucher");
+  await expect(page.locator("#swap-from")).not.toContainText("permission");
+});
+
+test("exchange branches between NEAR Intents and Hyperliquid Spot without inventing a quote", async ({ page }) => {
+  await page.goto(`${demoUrl}?view=exchange`);
+
+  await expect(page.getByRole("heading", { name: "Build an exchange request" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /NEAR Intents/ })).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator("#exchange-recipient")).toBeVisible();
+  await expect(page.locator("#exchange-order-type")).toHaveCount(0);
+  await page.locator("#exchange-amount").fill("1");
+  await page.locator("#exchange-recipient").fill("near-destination.example");
+  await page.locator("#exchange-refund").fill("z00z-refund.example");
+  await page.getByRole("button", { name: /Review request/ }).click();
+  await expect(page.getByRole("heading", { name: "Review exchange request" })).toBeVisible();
+  await expect(page.getByText("NEAR Intents", { exact: true })).toBeVisible();
+  await expect(page.locator(".exchange-unavailable-grid").getByText("Unavailable", { exact: true })).toHaveCount(7);
+  await expect(page.getByText(/No provider connector is registered/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("radio", { name: /Hyperliquid Spot/ }).click();
+  await expect(page.locator("#exchange-order-type")).toBeVisible();
+  await expect(page.locator("#exchange-recipient")).toHaveCount(0);
+  await page.locator("#exchange-order-type").selectOption("limit");
+  await expect(page.locator("#exchange-limit-price")).toBeVisible();
+  await page.locator("#exchange-amount").fill("1");
+  await page.locator("#exchange-limit-price").fill("0.5");
+  await page.getByRole("button", { name: /Review request/ }).click();
+  await expect(page.getByText("Hyperliquid Spot", { exact: true })).toBeVisible();
+  await expect(page.getByText("Limit", { exact: true })).toBeVisible();
+  await expect(page.getByText("Z00Z/USDC", { exact: true })).toBeVisible();
 });
 
 test("swap and staking form labels use the standard readable Geist treatment", async ({ page }) => {
@@ -1331,7 +1387,8 @@ test("add wallet dialog creates and restores wallet cards", async ({ page }) => 
 
   await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
   await expect(page.locator(".transfer-asset-row, .transfer-object-row")).toHaveCount(0);
-  await expect(page.locator("#send-item option")).toContainText(["Field credit", "Field access"]);
+  await page.locator('[data-send-family="voucher"]').click();
+  await expect(page.locator("#send-item option")).toContainText(["Field credit"]);
   await page.locator("#send-item").selectOption({ label: "Field credit · Vouchers" });
   await expect(page.locator("#send-amount")).toHaveCount(0);
   await expect(page.locator(".send-object-value")).toContainText("Field credit");
@@ -1340,6 +1397,7 @@ test("add wallet dialog creates and restores wallet cards", async ({ page }) => 
   await page.getByRole("button", { name: "Send voucher" }).click();
   await expect(page.getByRole("heading", { name: "Voucher sent" })).toBeVisible({ timeout: 2000 });
   await page.getByRole("button", { name: "Done" }).click();
+  await page.locator('[data-send-family="permission"]').click();
   await expect(page.locator("#send-item")).toContainText("Field access");
   await expect(page.locator("#send-item")).not.toContainText("Field credit");
 

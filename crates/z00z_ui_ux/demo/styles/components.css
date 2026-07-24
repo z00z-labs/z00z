@@ -2011,6 +2011,146 @@ button.permission-row:hover {
   flex: 0 0 40px;
 }
 
+.send-workspace-layout .send-view {
+  min-width: 0;
+}
+
+.send-family-facts {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--border);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.send-family-facts > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--bg-canvas);
+}
+
+.send-family-facts dt {
+  color: var(--text-tertiary);
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.send-family-facts dd {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--type-data-meta);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exchange-card {
+  width: min(100%, var(--wallet-action-card-max));
+}
+
+.exchange-provider-strip {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.exchange-provider {
+  display: flex;
+  min-width: 0;
+  min-height: 68px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  background: var(--bg-canvas);
+  text-align: left;
+  transition: border-color var(--ease), background var(--ease), color var(--ease);
+}
+
+.exchange-provider:hover,
+.exchange-provider:focus-visible,
+.exchange-provider.is-active {
+  border-color: var(--interaction-hover-border);
+  color: var(--interaction-hover-text);
+  background: var(--interaction-hover-bg);
+}
+
+.exchange-provider.is-active {
+  box-shadow: inset 0 -3px 0 var(--brand);
+}
+
+.exchange-provider > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.exchange-provider strong,
+.exchange-provider small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exchange-provider strong {
+  color: inherit;
+  font-size: var(--type-control);
+}
+
+.exchange-provider small {
+  color: var(--text-tertiary);
+  font-size: var(--type-data-meta);
+}
+
+.exchange-control-grid,
+.exchange-unavailable-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.exchange-unavailable-grid {
+  margin-top: 16px;
+}
+
+.exchange-unavailable-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-canvas);
+}
+
+.exchange-unavailable-grid span {
+  color: var(--text-tertiary);
+  font-size: var(--type-data-meta);
+}
+
+.exchange-unavailable-grid strong {
+  color: var(--text-primary);
+}
+
+.wallet-tool-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 .receiver-view {
   display: grid;
   justify-items: center;
@@ -5726,6 +5866,24 @@ button.connection-option:hover,
   }
 
   .send-panel-footer .button {
+    flex: 1;
+  }
+
+  .exchange-provider-strip,
+  .exchange-control-grid,
+  .exchange-unavailable-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .send-family-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .exchange-provider {
+    min-height: 60px;
+  }
+
+  .wallet-tool-actions .button {
     flex: 1;
   }
 

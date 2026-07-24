@@ -5,8 +5,8 @@ summary: Enviar explica os controlos e estados desta vista.
 scope: context
 ---
 ## Utilizar esta vista {#current-view}
-- Introduza destinatário ou pedido privado, escolha um objeto suportado e o montante e reveja antes de enviar.
-- Os estados indisponível, só de leitura e pendente são mostrados claramente.
+- Escolha primeiro Ativos, Vouchers ou Permissões: valor, valor condicional sujeito a política ou autoridade limitada de valor zero.
+- Antes da autorização única, reveja o destinatário e o saldo ou política, validade, utilizações restantes, âmbito e delegação.
 
 ## Funcionamento local e seguro
 - Os segredos da carteira e os dados privados de transporte não entram na ajuda.

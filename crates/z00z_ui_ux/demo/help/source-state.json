@@ -79,18 +79,18 @@
       }
     },
     "wallet.send": {
-      "sourceHash": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
+      "sourceHash": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
       "locales": {
-        "en": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "ru": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "fr": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "de": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "es": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "pt": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "ko": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "tr": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "ja": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8",
-        "zh-Hans": "sha256:55fbf945b72131e6fd67b406ee54578e911526ed3a0e84f0e892d5bea0e0b5f8"
+        "en": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "ru": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "fr": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "de": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "es": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "pt": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "ko": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "tr": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "ja": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737",
+        "zh-Hans": "sha256:32c0f082842f586d7f0c5da66aac822a6ff0c8dffa1f2df6957cbc0eb1562737"
       }
     },
     "wallet.receive": {
@@ -124,18 +124,18 @@
       }
     },
     "wallet.exchange": {
-      "sourceHash": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
+      "sourceHash": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
       "locales": {
-        "en": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "ru": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "fr": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "de": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "es": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "pt": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "ko": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "tr": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "ja": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd",
-        "zh-Hans": "sha256:d362e96c524f21b17ea98d73be28b209beed5b4c0919eaa8970c4bf832c9e7fd"
+        "en": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "ru": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "fr": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "de": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "es": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "pt": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "ko": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "tr": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "ja": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae",
+        "zh-Hans": "sha256:49c1a188768e53756de3bb057555dfeb0ab4cc5686c2d02dafe2860f4c7a9fae"
       }
     },
     "wallet.staking": {
