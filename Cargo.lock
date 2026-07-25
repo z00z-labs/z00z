@@ -6060,6 +6060,7 @@ dependencies = [
  "p3-koala-bear",
  "p3-maybe-rayon",
  "p3-merkle-tree",
+ "p3-poseidon2-circuit-air",
  "p3-symmetric",
  "p3-uni-stark",
  "p3-util",

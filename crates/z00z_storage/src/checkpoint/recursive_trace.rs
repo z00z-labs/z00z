@@ -28,12 +28,16 @@ pub(crate) const TRACE_EVENT_HEADER_BYTES_V2: usize = 1 + 8 + 32 + 4;
 /// A chunk is only a view of the one canonical source-record encoding below;
 /// it is never a second record serialization.
 pub(crate) const TRACE_CANONICAL_CHUNK_BYTES_V2: usize = 64;
-const TRACE_CHUNK_CONTROL_VERSION_V2: u8 = 1;
-const TRACE_CONTROL_PAYLOAD_BYTES_V2: usize = 1 + 8 + 4 + 4 + 1 + TRACE_CANONICAL_CHUNK_BYTES_V2;
+pub(crate) const TRACE_CHUNK_CONTROL_VERSION_V2: u8 = 1;
+pub(crate) const TRACE_CHUNK_CONTROL_HEADER_BYTES_V2: usize = 1 + 8 + 4 + 4 + 1;
+pub(crate) const TRACE_CONTROL_PAYLOAD_BYTES_V2: usize =
+    TRACE_CHUNK_CONTROL_HEADER_BYTES_V2 + TRACE_CANONICAL_CHUNK_BYTES_V2;
 const TRACE_CHUNK_ORDINAL_FLAG_V2: u64 = 1_u64 << 62;
 const SOURCE_WRITE_ORDINAL_FLAG_V2: u64 = 1_u64 << 61;
 /// Frozen first part of every per-source SHA control transcript.
 pub(crate) const SOURCE_RECORD_HASH_LABEL_V2: &[u8] = b"z00z.recursive.v2.source-record-hash";
+/// Frozen structural event identifier label shared by every backend.
+pub(crate) const STRUCTURAL_EVENT_HASH_LABEL_V2: &[u8] = b"z00z.recursive.v2.structural-event";
 
 /// Frozen recursive V2 opcode grammar at the storage trace boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -239,7 +243,7 @@ pub(crate) fn structural_event_id(
     sha256_256_role(
         CheckpointShaRole::Trace,
         &[
-            b"z00z.recursive.v2.structural-event",
+            STRUCTURAL_EVENT_HASH_LABEL_V2,
             &opcode_byte,
             &ordinal_bytes,
             payload,
@@ -707,23 +711,23 @@ const HASH_CONTROL_SOURCE_BINDING_BYTES: usize = 8 + 1 + 32;
 const HASH_CONTROL_TRACE_BINDING_BYTES: usize = 8 + 8 + 8 + 8 + 1;
 const UNIQUENESS_LIST_BINDING_BYTES: usize = 1 + 4 + 8;
 const UNIQUENESS_TRANSCRIPT_BINDING_BYTES: usize = 1 + 8;
-const HASH_CONTROL_SOURCE_COMMON_BYTES: usize =
+pub(crate) const HASH_CONTROL_SOURCE_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + HASH_CONTROL_SOURCE_BINDING_BYTES;
-const HASH_CONTROL_TRACE_COMMON_BYTES: usize =
+pub(crate) const HASH_CONTROL_TRACE_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + HASH_CONTROL_TRACE_BINDING_BYTES;
-const UNIQUENESS_LIST_COMMON_BYTES: usize =
+pub(crate) const UNIQUENESS_LIST_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + UNIQUENESS_LIST_BINDING_BYTES;
-const UNIQUENESS_TRANSCRIPT_COMMON_BYTES: usize =
+pub(crate) const UNIQUENESS_TRANSCRIPT_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + UNIQUENESS_TRANSCRIPT_BINDING_BYTES;
 pub(crate) const HASH_CONTROL_BLOCK_BYTES_V2: usize = 8 + 8 + 64 + 32 + 32 + 1;
 const SOURCE_BLOCK_PAYLOAD_BYTES: usize =
-    HASH_CONTROL_SOURCE_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
+    HASH_CONTROL_SOURCE_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
 const TRACE_BLOCK_PAYLOAD_BYTES: usize =
-    HASH_CONTROL_TRACE_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
+    HASH_CONTROL_TRACE_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
 const UNIQUENESS_LIST_BLOCK_BYTES: usize =
-    UNIQUENESS_LIST_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
+    UNIQUENESS_LIST_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
 const UNIQUENESS_TRANSCRIPT_BLOCK_BYTES: usize =
-    UNIQUENESS_TRANSCRIPT_COMMON_BYTES + HASH_CONTROL_BLOCK_BYTES_V2;
+    UNIQUENESS_TRANSCRIPT_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
 const HASH_CONTROL_ORDINAL_FLAG: u64 = 1_u64 << 63;
 const HASH_CONTROL_ORDINAL_STRIDE: u64 = 1_u64 << 24;
 const TRACE_HASH_ROLE_TAG_V2: u8 = 1;
@@ -813,7 +817,7 @@ impl UniquenessTranscriptHashJobV2 {
         }
     }
 
-    const fn role_tag(self) -> u8 {
+    pub(crate) const fn role_tag(self) -> u8 {
         6 + self as u8
     }
 
@@ -881,7 +885,7 @@ impl UniquenessListHashJobV2 {
         }
     }
 
-    const fn role_tag(self) -> u8 {
+    pub(crate) const fn role_tag(self) -> u8 {
         match self {
             Self::SpentOriginal => SPENT_ORIGINAL_ROLE_TAG_V2,
             Self::OutputOriginal => OUTPUT_ORIGINAL_ROLE_TAG_V2,
@@ -890,7 +894,7 @@ impl UniquenessListHashJobV2 {
         }
     }
 
-    const fn row(self) -> (UniquenessSetKindV2, UniquenessListKindV2) {
+    pub(crate) const fn row(self) -> (UniquenessSetKindV2, UniquenessListKindV2) {
         match self {
             Self::SpentOriginal => (UniquenessSetKindV2::Spent, UniquenessListKindV2::Original),
             Self::OutputOriginal => (UniquenessSetKindV2::Output, UniquenessListKindV2::Original),
@@ -920,6 +924,222 @@ pub(crate) fn emit_derived_hash_controls(
     let mut ignore_chunk =
         |_: RecursiveTraceCanonicalChunkV2, _: &mut _| Ok::<(), CheckpointError>(());
     emit_chunk_hash_controls(source, profile, &mut forward, &mut ignore_chunk)
+}
+
+/// Test-only exact expansion of the source-local and whole-trace SHA schedule.
+///
+/// This follows the production pass order but omits the unrelated uniqueness
+/// schedules, allowing backend tests to exercise the one canonical trace
+/// precommit relation without inventing a second control grammar.
+#[cfg(test)]
+pub(crate) fn emit_expanded_trace_hash_controls_for_test(
+    sources: &[RecursiveTraceEventV2],
+    profile: &RecursiveCircuitProfileV2,
+    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+) -> Result<(), CheckpointError> {
+    if sources.is_empty() {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut byte_count = 0_u64;
+    let mut trace = CheckpointSha256V2::new(CheckpointShaRole::Trace);
+    for (expected_ordinal, source) in sources.iter().enumerate() {
+        if !source.opcode().is_source_record()
+            || source.ordinal()
+                != u64::try_from(expected_ordinal).map_err(|_| CheckpointError::Limit)?
+        {
+            return Err(CheckpointError::EventOrder);
+        }
+        let bytes = source.canonical_bytes()?;
+        byte_count = byte_count
+            .checked_add(u64::try_from(bytes.len()).map_err(|_| CheckpointError::Limit)?)
+            .ok_or(CheckpointError::Overflow)?;
+        trace.update_part(&bytes)?;
+    }
+    let precommit = RecursiveTracePrecommitV2 {
+        event_count: u64::try_from(sources.len()).map_err(|_| CheckpointError::Limit)?,
+        byte_count,
+        trace_digest: trace.finalize(),
+        spent_original_ids_digest: [0; 32],
+        spent_sorted_ids_digest: [0; 32],
+        output_original_ids_digest: [0; 32],
+        output_sorted_ids_digest: [0; 32],
+    };
+    let (message_bytes, block_count, padding_bytes, bit_length) = trace_hash_geometry(precommit)?;
+    emit(trace_hash_control_event(
+        HashControlStageV2::Begin,
+        RecursiveTraceOpcodeV2::BeginHash,
+        precommit,
+        message_bytes,
+        block_count,
+        padding_bytes,
+        bit_length,
+        None,
+        profile,
+    )?)?;
+
+    let mut trace_stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::Trace);
+    let mut emitted_blocks = 0_u64;
+    for source in sources {
+        emit(source.clone())?;
+        trace_stream
+            .begin_part_with(source.canonical_len()?, &mut |block| {
+                emit_trace_hash_block(
+                    block,
+                    precommit,
+                    message_bytes,
+                    block_count,
+                    padding_bytes,
+                    bit_length,
+                    profile,
+                    &mut |event| emit(event.clone()),
+                    &mut emitted_blocks,
+                )
+            })
+            .map_err(map_block_visit_error)?;
+        let mut forward = |event: &RecursiveTraceEventV2| emit(event.clone());
+        let mut feed_chunk = |chunk: RecursiveTraceCanonicalChunkV2, sink: &mut _| {
+            trace_stream
+                .update_part_bytes_with(
+                    &chunk.bytes()[..usize::from(chunk.byte_count())],
+                    &mut |block| {
+                        emit_trace_hash_block(
+                            block,
+                            precommit,
+                            message_bytes,
+                            block_count,
+                            padding_bytes,
+                            bit_length,
+                            profile,
+                            sink,
+                            &mut emitted_blocks,
+                        )
+                    },
+                )
+                .map_err(map_block_visit_error)
+        };
+        emit_chunk_hash_controls(source, profile, &mut forward, &mut feed_chunk)?;
+        trace_stream.finish_part().map_err(CheckpointError::from)?;
+    }
+    let digest = trace_stream
+        .finalize_with(&mut |block| {
+            emit_trace_hash_block(
+                block,
+                precommit,
+                message_bytes,
+                block_count,
+                padding_bytes,
+                bit_length,
+                profile,
+                &mut |event| emit(event.clone()),
+                &mut emitted_blocks,
+            )
+        })
+        .map_err(map_block_visit_error)?;
+    if digest != precommit.trace_digest || emitted_blocks != block_count {
+        return Err(CheckpointError::Invariant);
+    }
+    emit(trace_hash_control_event(
+        HashControlStageV2::End,
+        RecursiveTraceOpcodeV2::EndHash,
+        precommit,
+        message_bytes,
+        block_count,
+        padding_bytes,
+        bit_length,
+        None,
+        profile,
+    )?)
+}
+
+/// Test-only exact expansion of the four uniqueness-list SHA schedules.
+///
+/// The source records and their source-local SHA controls are emitted in the
+/// same order as the production replay pass. This keeps backend tests on the
+/// one canonical event/control grammar while omitting unrelated whole-trace
+/// and uniqueness-transcript schedules.
+#[cfg(test)]
+pub(crate) fn emit_expanded_uniqueness_list_hash_controls_for_test(
+    sources: &[RecursiveTraceEventV2],
+    profile: &RecursiveCircuitProfileV2,
+    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+) -> Result<(), CheckpointError> {
+    if sources.is_empty() {
+        return Err(CheckpointError::Canonical);
+    }
+    let trace_event_count = u64::try_from(sources.len()).map_err(|_| CheckpointError::Limit)?;
+    let mut schedule = UniquenessListHashScheduleV2::default();
+    for (expected_ordinal, source) in sources.iter().enumerate() {
+        if !source.opcode().is_source_record()
+            || source.ordinal()
+                != u64::try_from(expected_ordinal).map_err(|_| CheckpointError::Limit)?
+        {
+            return Err(CheckpointError::EventOrder);
+        }
+        schedule.before_source(source, trace_event_count, profile, &mut |control| {
+            emit(control.clone())
+        })?;
+        emit(source.clone())?;
+        {
+            let mut forward = |control: &RecursiveTraceEventV2| emit(control.clone());
+            let mut ignore_chunk =
+                |_: RecursiveTraceCanonicalChunkV2, _: &mut _| Ok::<(), CheckpointError>(());
+            emit_chunk_hash_controls(source, profile, &mut forward, &mut ignore_chunk)?;
+        }
+        schedule.after_source(source, trace_event_count, profile, &mut |control| {
+            emit(control.clone())
+        })?;
+    }
+    if schedule.precommit.is_none()
+        || schedule.active.is_some()
+        || schedule.next_job != UniquenessListHashJobV2::ALL.len()
+    {
+        return Err(CheckpointError::EventOrder);
+    }
+    Ok(())
+}
+
+/// Test-only expansion of all fourteen canonical uniqueness/settlement
+/// transcript jobs through the production encoder.
+#[cfg(test)]
+pub(crate) fn emit_expanded_uniqueness_transcript_hash_controls_for_test(
+    context: RecursivePreUniquenessContextV2,
+    precommit: UniquenessPrecommitV2,
+    post_definition_root: [u8; 32],
+    post_settlement_root: [u8; 32],
+    trace_event_count: u64,
+    profile: &RecursiveCircuitProfileV2,
+    mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), CheckpointError>,
+) -> Result<(), CheckpointError> {
+    let grammar = RecursiveTraceOpcodeV2::grammar_digest();
+    let challenge_payload = super::recursive_semantics::encode_uniqueness_challenge(
+        context.digest(),
+        grammar,
+        precommit,
+    );
+    let challenges =
+        decode_uniqueness_challenge(&challenge_payload, context.digest(), grammar, precommit)?;
+    let schedule = UniquenessTranscriptHashScheduleV2::new(Some(context));
+    for job in UniquenessTranscriptHashJobV2::ALL {
+        schedule.emit_job(
+            job,
+            context,
+            precommit,
+            if job as usize >= 2
+                && (job as usize) < UniquenessTranscriptHashJobV2::UNIQUENESS_JOB_COUNT
+            {
+                Some(challenges)
+            } else {
+                None
+            },
+            Some(post_definition_root),
+            Some(post_settlement_root),
+            grammar,
+            trace_event_count,
+            profile,
+            &mut |control| emit(control.clone()),
+        )?;
+    }
+    Ok(())
 }
 
 /// Emit one source SHA schedule while handing each canonical chunk to the
@@ -1113,7 +1333,7 @@ fn source_hash_control_event(
     let payload_bytes = if block.is_some() {
         SOURCE_BLOCK_PAYLOAD_BYTES
     } else {
-        HASH_CONTROL_SOURCE_COMMON_BYTES
+        HASH_CONTROL_SOURCE_COMMON_BYTES_V2
     };
     let mut payload = Vec::new();
     payload
@@ -1224,7 +1444,7 @@ fn trace_hash_control_event(
     let payload_bytes = if block.is_some() {
         TRACE_BLOCK_PAYLOAD_BYTES
     } else {
-        HASH_CONTROL_TRACE_COMMON_BYTES
+        HASH_CONTROL_TRACE_COMMON_BYTES_V2
     };
     let mut payload = Vec::new();
     payload
@@ -1313,7 +1533,7 @@ fn uniqueness_list_hash_control_event(
     let payload_bytes = if block.is_some() {
         UNIQUENESS_LIST_BLOCK_BYTES
     } else {
-        UNIQUENESS_LIST_COMMON_BYTES
+        UNIQUENESS_LIST_COMMON_BYTES_V2
     };
     let mut payload = Vec::new();
     payload
@@ -1668,7 +1888,7 @@ fn uniqueness_transcript_hash_control_event(
     let payload_bytes = if block.is_some() {
         UNIQUENESS_TRANSCRIPT_BLOCK_BYTES
     } else {
-        UNIQUENESS_TRANSCRIPT_COMMON_BYTES
+        UNIQUENESS_TRANSCRIPT_COMMON_BYTES_V2
     };
     let mut payload = Vec::new();
     payload
@@ -2189,7 +2409,7 @@ pub(crate) fn decode_hash_control(
             if role != TRACE_HASH_ROLE_TAG_V2 {
                 return Err(CheckpointError::Canonical);
             }
-            if payload.len() < HASH_CONTROL_SOURCE_COMMON_BYTES {
+            if payload.len() < HASH_CONTROL_SOURCE_COMMON_BYTES_V2 {
                 return Err(CheckpointError::Canonical);
             }
             let ordinal = u64::from_le_bytes(
@@ -2205,7 +2425,7 @@ pub(crate) fn decode_hash_control(
                 .try_into()
                 .map_err(|_| CheckpointError::Canonical)?;
             (
-                HASH_CONTROL_SOURCE_COMMON_BYTES,
+                HASH_CONTROL_SOURCE_COMMON_BYTES_V2,
                 Some(HashControlSourceBindingV2 {
                     ordinal,
                     opcode,
@@ -2220,7 +2440,7 @@ pub(crate) fn decode_hash_control(
             if role != TRACE_HASH_ROLE_TAG_V2 {
                 return Err(CheckpointError::Canonical);
             }
-            if payload.len() < HASH_CONTROL_TRACE_COMMON_BYTES {
+            if payload.len() < HASH_CONTROL_TRACE_COMMON_BYTES_V2 {
                 return Err(CheckpointError::Canonical);
             }
             let event_count = u64::from_le_bytes(
@@ -2249,7 +2469,7 @@ pub(crate) fn decode_hash_control(
                 _ => return Err(CheckpointError::Canonical),
             };
             (
-                HASH_CONTROL_TRACE_COMMON_BYTES,
+                HASH_CONTROL_TRACE_COMMON_BYTES_V2,
                 None,
                 Some(HashControlTraceBindingV2 {
                     event_count,
@@ -2263,7 +2483,7 @@ pub(crate) fn decode_hash_control(
             )
         }
         HashControlSchemaV2::UniquenessList => {
-            if payload.len() < UNIQUENESS_LIST_COMMON_BYTES {
+            if payload.len() < UNIQUENESS_LIST_COMMON_BYTES_V2 {
                 return Err(CheckpointError::Canonical);
             }
             let job = UniquenessListHashJobV2::decode(payload[51])?;
@@ -2281,7 +2501,7 @@ pub(crate) fn decode_hash_control(
                     .map_err(|_| CheckpointError::Canonical)?,
             );
             (
-                UNIQUENESS_LIST_COMMON_BYTES,
+                UNIQUENESS_LIST_COMMON_BYTES_V2,
                 None,
                 None,
                 Some(UniquenessListBindingV2 {
@@ -2293,7 +2513,7 @@ pub(crate) fn decode_hash_control(
             )
         }
         HashControlSchemaV2::UniquenessTranscript => {
-            if payload.len() < UNIQUENESS_TRANSCRIPT_COMMON_BYTES {
+            if payload.len() < UNIQUENESS_TRANSCRIPT_COMMON_BYTES_V2 {
                 return Err(CheckpointError::Canonical);
             }
             let job = UniquenessTranscriptHashJobV2::decode(payload[51])?;
@@ -2306,7 +2526,7 @@ pub(crate) fn decode_hash_control(
                     .map_err(|_| CheckpointError::Canonical)?,
             );
             (
-                UNIQUENESS_TRANSCRIPT_COMMON_BYTES,
+                UNIQUENESS_TRANSCRIPT_COMMON_BYTES_V2,
                 None,
                 None,
                 None,

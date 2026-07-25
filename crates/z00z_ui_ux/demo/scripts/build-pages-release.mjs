@@ -5,12 +5,14 @@ import { compileHelp } from "./compile-help.mjs";
 import { synchronizeHelp } from "./sync-help.mjs";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
-const CSS_FILES = Object.freeze([
+export const RELEASE_CSS_FILES = Object.freeze([
   "styles.css",
   "styles/colors.css",
   "styles/foundation.css",
-  "styles/components.css"
+  "styles/components.css",
+  "styles/help.css"
 ]);
+export const RELEASE_HTML_FILES = Object.freeze(["index.html", "help.html"]);
 
 function splitUrl(value) {
   const hashIndex = value.indexOf("#");
@@ -131,21 +133,25 @@ export async function buildPagesRelease(root, sha, ref = "main") {
   const write = (path, value) => writeFile(resolve(root, path), value, "utf8");
   await synchronizeHelp(root);
   await write("scripts/generated/help-catalog.js", await compileHelp(root));
-  const rawIndex = await read("index.html");
+  const rawHtml = Object.fromEntries(await Promise.all(
+    RELEASE_HTML_FILES.map(async (path) => [path, await read(path)])
+  ));
 
-  for (const path of scriptPaths(rawIndex)) {
+  const scripts = new Set(Object.values(rawHtml).flatMap(scriptPaths));
+  for (const path of scripts) {
     await write(path, versionScriptAssets(await read(path), sha));
   }
 
-  for (const path of CSS_FILES) {
+  for (const path of RELEASE_CSS_FILES) {
     await write(path, versionCss(await read(path), sha));
   }
 
   const manifest = versionManifest(JSON.parse(await read("manifest.webmanifest")), sha);
   await write("manifest.webmanifest", `${JSON.stringify(manifest, null, 2)}\n`);
 
-  const index = injectRefreshScript(versionHtml(rawIndex, sha), sha);
-  await write("index.html", index);
+  for (const [path, source] of Object.entries(rawHtml)) {
+    await write(path, injectRefreshScript(versionHtml(source, sha), sha));
+  }
   await write("deployment.json", `${JSON.stringify({
     sha,
     ref,

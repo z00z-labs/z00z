@@ -22,6 +22,7 @@
   "topics": [
     {
       "id": "app",
+      "group": "app",
       "file": "app",
       "scope": "global",
       "match": {
@@ -30,6 +31,7 @@
     },
     {
       "id": "app.home",
+      "group": "app",
       "file": "app-home",
       "scope": "context",
       "match": {
@@ -38,6 +40,7 @@
     },
     {
       "id": "wallet.assets",
+      "group": "wallets",
       "file": "wallet-assets",
       "scope": "context",
       "match": {
@@ -47,6 +50,7 @@
     },
     {
       "id": "wallet.vouchers",
+      "group": "wallets",
       "file": "wallet-vouchers",
       "scope": "context",
       "match": {
@@ -56,6 +60,7 @@
     },
     {
       "id": "wallet.permissions",
+      "group": "wallets",
       "file": "wallet-permissions",
       "scope": "context",
       "match": {
@@ -65,6 +70,7 @@
     },
     {
       "id": "wallet.send",
+      "group": "wallets",
       "file": "wallet-send",
       "scope": "context",
       "match": {
@@ -73,6 +79,7 @@
     },
     {
       "id": "wallet.receive",
+      "group": "wallets",
       "file": "wallet-receive",
       "scope": "context",
       "match": {
@@ -81,6 +88,7 @@
     },
     {
       "id": "wallet.swap",
+      "group": "wallets",
       "file": "wallet-swap",
       "scope": "context",
       "match": {
@@ -89,6 +97,7 @@
     },
     {
       "id": "wallet.exchange",
+      "group": "wallets",
       "file": "wallet-exchange",
       "scope": "context",
       "match": {
@@ -97,6 +106,7 @@
     },
     {
       "id": "wallet.staking",
+      "group": "wallets",
       "file": "wallet-staking",
       "scope": "context",
       "match": {
@@ -105,6 +115,7 @@
     },
     {
       "id": "wallet.backup",
+      "group": "wallets",
       "file": "wallet-backup",
       "scope": "context",
       "match": {
@@ -113,6 +124,7 @@
     },
     {
       "id": "wallet.history",
+      "group": "wallets",
       "file": "wallet-history",
       "scope": "context",
       "match": {
@@ -121,6 +133,7 @@
     },
     {
       "id": "wallet.settings.general",
+      "group": "wallets",
       "file": "wallet-settings-general",
       "scope": "context",
       "match": {
@@ -130,6 +143,7 @@
     },
     {
       "id": "wallet.settings.security",
+      "group": "wallets",
       "file": "wallet-settings-security",
       "scope": "context",
       "match": {
@@ -139,6 +153,7 @@
     },
     {
       "id": "wallet.settings.backup",
+      "group": "wallets",
       "file": "wallet-settings-backup",
       "scope": "context",
       "match": {
@@ -148,6 +163,7 @@
     },
     {
       "id": "wallet.settings.policies",
+      "group": "wallets",
       "file": "wallet-settings-policies",
       "scope": "context",
       "match": {
@@ -157,6 +173,7 @@
     },
     {
       "id": "wallet.settings.advanced",
+      "group": "wallets",
       "file": "wallet-settings-advanced",
       "scope": "context",
       "match": {
@@ -166,6 +183,7 @@
     },
     {
       "id": "settings.general",
+      "group": "settings",
       "file": "settings-general",
       "scope": "context",
       "match": {
@@ -175,6 +193,7 @@
     },
     {
       "id": "settings.appearance",
+      "group": "settings",
       "file": "settings-appearance",
       "scope": "context",
       "match": {
@@ -184,6 +203,7 @@
     },
     {
       "id": "settings.reticulum",
+      "group": "settings",
       "file": "settings-reticulum",
       "scope": "context",
       "match": {
@@ -193,6 +213,7 @@
     },
     {
       "id": "settings.onionnet",
+      "group": "settings",
       "file": "settings-onionnet",
       "scope": "context",
       "match": {
@@ -202,6 +223,7 @@
     },
     {
       "id": "telemetry.reticulum.overview",
+      "group": "network",
       "file": "telemetry-reticulum-overview",
       "scope": "context",
       "match": {
@@ -212,6 +234,7 @@
     },
     {
       "id": "telemetry.reticulum.node",
+      "group": "network",
       "file": "telemetry-reticulum-node",
       "scope": "context",
       "match": {
@@ -222,6 +245,7 @@
     },
     {
       "id": "telemetry.reticulum.interfaces",
+      "group": "network",
       "file": "telemetry-reticulum-interfaces",
       "scope": "context",
       "match": {
@@ -232,6 +256,7 @@
     },
     {
       "id": "telemetry.reticulum.radio",
+      "group": "network",
       "file": "telemetry-reticulum-radio",
       "scope": "context",
       "match": {
@@ -242,6 +267,7 @@
     },
     {
       "id": "telemetry.reticulum.entrypoints",
+      "group": "network",
       "file": "telemetry-reticulum-entrypoints",
       "scope": "context",
       "match": {
@@ -252,6 +278,7 @@
     },
     {
       "id": "telemetry.reticulum.paths",
+      "group": "network",
       "file": "telemetry-reticulum-paths",
       "scope": "context",
       "match": {
@@ -262,6 +289,7 @@
     },
     {
       "id": "telemetry.reticulum.probes",
+      "group": "network",
       "file": "telemetry-reticulum-probes",
       "scope": "context",
       "match": {
@@ -272,6 +300,7 @@
     },
     {
       "id": "telemetry.reticulum.links",
+      "group": "network",
       "file": "telemetry-reticulum-links",
       "scope": "context",
       "match": {
@@ -282,6 +311,7 @@
     },
     {
       "id": "telemetry.onionnet.overview",
+      "group": "network",
       "file": "telemetry-onionnet-overview",
       "scope": "context",
       "match": {
@@ -292,6 +322,7 @@
     },
     {
       "id": "telemetry.onionnet.epoch",
+      "group": "network",
       "file": "telemetry-onionnet-epoch",
       "scope": "context",
       "match": {
@@ -302,6 +333,7 @@
     },
     {
       "id": "telemetry.onionnet.privacy",
+      "group": "network",
       "file": "telemetry-onionnet-privacy",
       "scope": "context",
       "match": {
@@ -312,6 +344,7 @@
     },
     {
       "id": "telemetry.onionnet.transport",
+      "group": "network",
       "file": "telemetry-onionnet-transport",
       "scope": "context",
       "match": {
@@ -322,6 +355,7 @@
     },
     {
       "id": "telemetry.onionnet.queues",
+      "group": "network",
       "file": "telemetry-onionnet-queues",
       "scope": "context",
       "match": {
@@ -332,6 +366,7 @@
     },
     {
       "id": "telemetry.onionnet.probation",
+      "group": "network",
       "file": "telemetry-onionnet-probation",
       "scope": "context",
       "match": {
@@ -342,6 +377,7 @@
     },
     {
       "id": "telemetry.onionnet.ingress",
+      "group": "network",
       "file": "telemetry-onionnet-ingress",
       "scope": "context",
       "match": {
@@ -352,6 +388,7 @@
     },
     {
       "id": "telemetry.aggregators.overview",
+      "group": "network",
       "file": "telemetry-aggregators-overview",
       "scope": "context",
       "match": {
@@ -362,6 +399,7 @@
     },
     {
       "id": "asset.details",
+      "group": "wallets",
       "file": "asset-details",
       "scope": "dialog",
       "match": {

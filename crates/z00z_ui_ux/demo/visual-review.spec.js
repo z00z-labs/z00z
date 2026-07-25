@@ -91,6 +91,19 @@ async function capture(page, name, { fullPage = false } = {}) {
   });
 }
 
+async function captureHelp(page, trigger, viewport, name) {
+  const popupPromise = page.waitForEvent("popup");
+  await trigger.click();
+  const helpPage = await popupPromise;
+  await helpPage.setViewportSize({ width: viewport.width, height: viewport.height });
+  await expect(helpPage.locator("#help-document")).toBeVisible();
+  await helpPage.screenshot({
+    path: path.join(reviewRoot, `${name}.png`),
+    fullPage: true,
+  });
+  await helpPage.close();
+}
+
 async function auditMobileGeometry(page, viewport, route) {
   await page.evaluate(() => document.fonts?.ready);
   await page.waitForTimeout(40);
@@ -234,34 +247,45 @@ test("capture multilingual Help and compact-layout review matrix", async ({ page
     await page.locator(".asset-identity-button").first().click();
     await expect(page.getByRole("heading", { name: "Asset details" })).toBeVisible();
     await capture(page, `${viewport.name}-asset-details`);
-    await page.locator(".dialog-help-button").click();
-    await expect(page.locator("#help-title")).toHaveText("Asset details");
-    await capture(page, `${viewport.name}-asset-details-help`);
-    await page.keyboard.press("Escape");
+    await captureHelp(page, page.locator(".dialog-help-button"), viewport, `${viewport.name}-asset-details-help`);
     await page.keyboard.press("Escape");
 
-    await page.getByRole("button", { name: "Help for this view" }).click();
-    await expect(page.locator(".help-panel")).toBeVisible();
-    await capture(page, `${viewport.name}-context-help`);
-    await page.keyboard.press("Escape");
+    await captureHelp(
+      page,
+      page.getByRole("button", { name: "Help for this view" }),
+      viewport,
+      `${viewport.name}-context-help`,
+    );
 
     if (viewport.width <= 390) {
       await page.locator("#mobile-menu-button").click();
-      await page.getByRole("button", { name: "Help", exact: true }).click();
+      await captureHelp(
+        page,
+        page.getByRole("button", { name: "Help", exact: true }),
+        viewport,
+        `${viewport.name}-global-help`,
+      );
     } else {
-      await page.locator(".help-button").click();
+      await captureHelp(page, page.locator(".help-button"), viewport, `${viewport.name}-global-help`);
     }
-    await expect(page.locator(".help-panel")).toBeVisible();
-    await expect(page.locator("#help-title")).toHaveText("Application help");
-    await capture(page, `${viewport.name}-global-help`);
-    await page.keyboard.press("Escape");
 
     if (viewport.width <= 390) {
       await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
       await page.locator("#mobile-menu-button").click();
-      await page.locator('[data-mobile-popup-open="wallets"]').click();
+      await page.locator('[data-mobile-menu-group="wallets"]').click();
+      await expect(page.locator("#mobile-menu-wallets")).toBeVisible();
       await expect(page.locator(".mobile-wallet-actions")).toBeVisible();
       await capture(page, `${viewport.name}-wallets-menu`);
+
+      await page.locator('[data-mobile-menu-group="network"]').click();
+      await expect(page.locator("#mobile-menu-wallets")).toBeVisible();
+      await expect(page.locator("#mobile-menu-network")).toBeVisible();
+      await capture(page, `${viewport.name}-wallets-network-menu`);
+
+      await page.locator('[data-mobile-menu-group="wallets"]').click();
+      await expect(page.locator("#mobile-menu-wallets")).toBeHidden();
+      await expect(page.locator("#mobile-menu-network")).toBeVisible();
+      await capture(page, `${viewport.name}-network-menu`);
       await page.keyboard.press("Escape");
 
       await page.goto(`${demoUrl}?view=exchange`);
@@ -278,10 +302,12 @@ test("capture multilingual Help and compact-layout review matrix", async ({ page
         await page.goto(`${demoUrl}?view=settings&settings=general`);
         await page.locator('[data-config-control="language"]').selectOption(locale);
         await capture(page, `${viewport.name}-locale-${locale}`);
-        await page.locator(".context-help-button").click();
-        await expect(page.locator(".help-panel")).toBeVisible();
-        await capture(page, `${viewport.name}-locale-${locale}-context-help`);
-        await page.keyboard.press("Escape");
+        await captureHelp(
+          page,
+          page.locator(".context-help-button"),
+          viewport,
+          `${viewport.name}-locale-${locale}-context-help`,
+        );
       }
     }
   }

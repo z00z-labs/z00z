@@ -33,6 +33,8 @@
     globalTopic,
     resolveTopicId,
     resolveDocument,
+    topic: (topicId) => topicsById.get(topicId) || null,
+    topics: () => [...catalogue.topics],
     hasTopic: (topicId) => topicsById.has(topicId)
   });
 })(typeof window === "undefined" ? globalThis : window);

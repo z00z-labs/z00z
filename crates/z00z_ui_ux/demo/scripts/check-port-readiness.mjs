@@ -19,6 +19,7 @@ for (const modulePath of [
 const demo = context.window.Z00ZDemo;
 const localeRegistry = context.window.Z00ZLocaleRegistry;
 const index = await read("index.html");
+const helpPage = await read("help.html");
 const scriptSources = [...index.matchAll(/<script\s+src="([^"]+)"/g)].map((match) => match[1]);
 const expectedScripts = [
   "scripts/port/locale-registry.js",
@@ -37,8 +38,23 @@ const expectedScripts = [
   "app.js"
 ];
 assert.deepEqual(scriptSources, expectedScripts, "index.html script order must follow the canonical registries and bootstrap contract");
+assert.deepEqual(
+  [...helpPage.matchAll(/<script\s+src="([^"]+)"/g)].map((match) => match[1]),
+  [
+    "scripts/port/locale-registry.js",
+    "i18n.js",
+    ...localeRegistry.map(({ catalogue }) => catalogue),
+    "scripts/generated/help-catalog.js",
+    "scripts/port/help-registry.js",
+    "scripts/help-app.js"
+  ],
+  "help.html script order must follow the canonical locale and Help registries"
+);
 assert.equal(/<(?:script|link)\b[^>]*(?:src|href)="https?:\/\//i.test(index), false, "runtime scripts and styles must be local");
-const staticResourceUrls = [...index.matchAll(/<(?:script|link|img|source|video|audio)\b[^>]*\b(?:src|href)="([^"]+)"/gi)].map((match) => match[1]);
+assert.equal(/<(?:script|link)\b[^>]*(?:src|href)="https?:\/\//i.test(helpPage), false, "Help runtime scripts and styles must be local");
+const staticResourceUrls = [index, helpPage].flatMap((source) => (
+  [...source.matchAll(/<(?:script|link|img|source|video|audio)\b[^>]*\b(?:src|href)="([^"]+)"/gi)].map((match) => match[1])
+));
 for (const resourceUrl of staticResourceUrls) {
   assert.equal(/^(?:https?:)?\/\//i.test(resourceUrl), false, `static resource ${resourceUrl} must be bundled locally`);
 }
@@ -130,6 +146,7 @@ const runtimeFiles = [
   "scripts/generated/help-catalog.js",
   "scripts/port/help-registry.js",
   "scripts/help-controller.js",
+  "scripts/help-app.js",
   "locales/send-exchange.js",
   ...localeRegistry.map(({ catalogue }) => catalogue)
 ];
@@ -165,6 +182,15 @@ for (const styleFile of ["styles.css", "styles/foundation.css", "styles/componen
   assert.equal(/url\(["']?https?:\/\//i.test(source), false, `${styleFile} must not load remote assets`);
   assert.equal(/#[0-9a-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(/i.test(source), false, `${styleFile} must consume semantic colour tokens only`);
 }
+const helpStyle = await read("styles/help.css");
+assert.equal(/@import\s+url\(["']?https?:\/\//i.test(helpStyle), false, "styles/help.css must not import remote CSS");
+assert.equal(/url\(["']?https?:\/\//i.test(helpStyle), false, "styles/help.css must not load remote assets");
+assert.equal(/#[0-9a-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(/i.test(helpStyle), false, "styles/help.css must consume semantic colour tokens only");
+assert.deepEqual(
+  [...helpPage.matchAll(/<link\s+rel="stylesheet"\s+href="([^"]+)"/g)].map((match) => match[1]),
+  ["styles.css", "styles/help.css"],
+  "help.html must load the shared foundation before its page-specific styles"
+);
 const colorSource = await read("styles/colors.css");
 assert.equal(/@import\s+url\(["']?https?:\/\//i.test(colorSource), false, "styles/colors.css must not import remote CSS");
 assert.equal(/url\(["']?https?:\/\//i.test(colorSource), false, "styles/colors.css must not load remote assets");

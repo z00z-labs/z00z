@@ -3,7 +3,12 @@ import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadHelpLocales, loadHelpSource, parseHelpMarkdown } from "./help-source.mjs";
+import {
+  helpDocumentPath,
+  loadHelpLocales,
+  loadHelpSource,
+  parseHelpMarkdown
+} from "./help-source.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
@@ -110,8 +115,8 @@ export function serializeHelpMarkdown(document) {
   return `---\nid: ${document.id}\ntitle: ${document.title}\nsummary: ${document.summary}\nscope: ${document.scope}\n---\n${body}\n`;
 }
 
-async function loadDocument(root, locale, file) {
-  const path = resolve(root, "help", locale, `${file}.md`);
+async function loadDocument(root, locale, topic) {
+  const path = helpDocumentPath(root, locale, topic);
   return {
     path,
     document: parseHelpMarkdown(await readFile(path, "utf8"), path)
@@ -183,10 +188,10 @@ export async function recordReviewedHelpState(root = demoRoot) {
   const localeIds = await loadHelpLocales(root);
   const topics = {};
   for (const topic of lut.topics) {
-    const source = await loadDocument(root, SOURCE_LOCALE, topic.file);
+    const source = await loadDocument(root, SOURCE_LOCALE, topic);
     const structure = JSON.stringify(helpStructure(source.document));
     for (const locale of localeIds) {
-      const localized = await loadDocument(root, locale, topic.file);
+      const localized = await loadDocument(root, locale, topic);
       if (JSON.stringify(helpStructure(localized.document)) !== structure) {
         throw new Error(`${localized.path}: structure does not match English source ${source.path}`);
       }
@@ -214,7 +219,7 @@ export async function assertHelpSynchronized(root = demoRoot) {
   }
 
   for (const topic of lut.topics) {
-    const source = await loadDocument(root, SOURCE_LOCALE, topic.file);
+    const source = await loadDocument(root, SOURCE_LOCALE, topic);
     const sourceHash = helpSourceHash(source.document);
     const entry = state.topics[topic.id];
     if (entry.sourceHash !== sourceHash) {
@@ -239,7 +244,7 @@ export async function synchronizeHelp(root = demoRoot, options = {}) {
   const changedTopics = [];
 
   for (const topic of lut.topics) {
-    const source = await loadDocument(root, SOURCE_LOCALE, topic.file);
+    const source = await loadDocument(root, SOURCE_LOCALE, topic);
     const sourceHash = helpSourceHash(source.document);
     const previous = state.topics[topic.id];
     const staleLocales = localeIds.filter((locale) => (
@@ -261,8 +266,10 @@ export async function synchronizeHelp(root = demoRoot, options = {}) {
       const translatedMessages = translationCommand(translator, locale, topic, sourceHash, messages);
       const localized = localizeHelpDocument(source.document, translatedMessages);
       const output = serializeHelpMarkdown(localized);
-      parseHelpMarkdown(output, `${locale}/${topic.file}.md`);
-      await writeFile(resolve(root, "help", locale, `${topic.file}.md`), output, "utf8");
+      const outputPath = helpDocumentPath(root, locale, topic);
+      parseHelpMarkdown(output, `${locale}/${topic.group}/${topic.file}.md`);
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, output, "utf8");
     }
     state.topics[topic.id] = topicState(sourceHash, localeIds);
     changedTopics.push(topic.id);

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadHelpLocales, loadHelpSource } from "./help-source.mjs";
+import { helpDocumentPath, loadHelpLocales, loadHelpSource } from "./help-source.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
@@ -14,7 +14,7 @@ async function main() {
   if (!topic) throw new Error(`Add ${requestedId} to help/topics.yaml before scaffolding it.`);
 
   for (const locale of localeIds) {
-    const path = resolve(demoRoot, "help", locale, `${topic.file}.md`);
+    const path = helpDocumentPath(demoRoot, locale, topic);
     try {
       await readFile(path, "utf8");
       console.log(`Kept existing ${path}`);

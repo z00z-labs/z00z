@@ -1,10 +1,15 @@
 import { readFile, readdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { compileHelp } from "./compile-help.mjs";
 import { assertHelpSynchronized, helpStructure } from "./sync-help.mjs";
-import { loadHelpLocales, loadHelpSource, parseHelpMarkdown } from "./help-source.mjs";
+import {
+  helpDocumentPath,
+  loadHelpLocales,
+  loadHelpSource,
+  parseHelpMarkdown
+} from "./help-source.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
@@ -68,25 +73,37 @@ function checkRouteCoverage(lut, contract) {
   return routedStates.length;
 }
 
+async function listMarkdownFiles(root, directory = root) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) return listMarkdownFiles(root, path);
+    return entry.isFile() && entry.name.endsWith(".md")
+      ? [relative(root, path).replaceAll("\\", "/")]
+      : [];
+  }));
+  return files.flat().sort();
+}
+
 async function main() {
   const { lut } = await loadHelpSource(demoRoot);
   const localeIds = await loadHelpLocales(demoRoot);
   await assertHelpSynchronized(demoRoot);
   const routeCount = checkRouteCoverage(lut, await loadPortContract());
-  const expectedFiles = lut.topics.map(({ file }) => `${file}.md`).sort();
+  const expectedFiles = lut.topics.map(({ group, file }) => `${group}/${file}.md`).sort();
   const englishStructures = Object.fromEntries(await Promise.all(lut.topics.map(async (topic) => {
-    const path = resolve(demoRoot, "help", "en", `${topic.file}.md`);
+    const path = helpDocumentPath(demoRoot, "en", topic);
     return [topic.id, JSON.stringify(helpStructure(parseHelpMarkdown(await readFile(path, "utf8"), path)))];
   })));
 
   for (const locale of localeIds) {
     const localeRoot = resolve(demoRoot, "help", locale);
-    const actualFiles = (await readdir(localeRoot)).filter((file) => file.endsWith(".md")).sort();
+    const actualFiles = await listMarkdownFiles(localeRoot);
     if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
       throw new Error(`${localeRoot}: Help topic files do not match topics.yaml`);
     }
     for (const topic of lut.topics) {
-      const path = resolve(localeRoot, `${topic.file}.md`);
+      const path = helpDocumentPath(demoRoot, locale, topic);
       const document = parseHelpMarkdown(await readFile(path, "utf8"), path);
       if (document.id !== topic.id || document.scope !== topic.scope) {
         throw new Error(`${path}: metadata does not match topics.yaml`);

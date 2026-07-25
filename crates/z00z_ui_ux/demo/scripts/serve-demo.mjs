@@ -67,7 +67,7 @@ const server = createServer(async (request, response) => {
     const filePath = safeFilePath(pathname);
     if (!(await stat(filePath)).isFile()) throw new Error("Not a file");
     let content = await readFile(filePath);
-    if (filePath.endsWith("index.html")) {
+    if (filePath.endsWith(".html")) {
       content = Buffer.from(content.toString("utf8").replace("</body>", `${liveReload}</body>`));
     }
     response.writeHead(200, {
@@ -84,7 +84,7 @@ const server = createServer(async (request, response) => {
 await rebuildHelp();
 server.listen(port, "127.0.0.1", () => {
   console.log(`Z00Z wallet demo: http://127.0.0.1:${port}`);
-  console.log("Watching help/en/*.md; translated Help rebuilds and reloads the page automatically.");
+  console.log("Watching help/en/**/*.md; translated Help rebuilds and reloads the page automatically.");
 });
 
 let debounce;

@@ -17,7 +17,7 @@
 
 The annotated phone captures exposed three concrete implementation defects: the desktop identity toolbar consumed the mobile header, asset columns overlapped, and a second fixed bottom navigation duplicated app routes. The executable demo now removes the bottom navigation and uses one sticky topbar at every width. Its horizontally scrollable tabs change with the selected wallet, Network workspace, or application Settings; below 768 px the desktop identity/actions collapse to **Menu** and the Z00Z mark inside that same row.
 
-The Menu control follows the public `z00z.io` mobile navigation pattern: a left, full-height drawer with a modal backdrop, close control, focus containment, scrollable content, and nested **Wallets** and **Network** pickers. The root drawer also exposes **Settings** and **Log out**. Assets and selected-wallet Settings use compact anchored popup menus for their third-level destinations instead of permanent narrow-screen rails. Asset rows now place identity on the first row and labelled Balance/Value/Price cells on the second row at 390 px and 320 px, preventing overlap while preserving touch-size cards. Mobile WebView text autosizing remains fixed at 100% so the documented Geist LUT—not browser heuristics—controls type geometry.
+The Menu control follows the public `z00z.io` mobile navigation pattern: a left, full-height drawer with a modal backdrop, close control, focus containment, scrollable content, and independent **Wallets** and **Network** accordion groups. Both groups may remain open; closing one preserves the other until the user selects a destination. The root drawer also exposes **Settings** and **Log out**. Assets and selected-wallet Settings use compact anchored popup menus for their third-level destinations instead of permanent narrow-screen rails. Asset rows now place identity on the first row and labelled Balance/Value/Price cells on the second row at 390 px and 320 px, preventing overlap while preserving touch-size cards. Mobile WebView text autosizing remains fixed at 100% so the documented Geist LUT—not browser heuristics—controls type geometry.
 
 ### ✅ Implementation update — 2026-07-20
 
@@ -27,7 +27,7 @@ Appearance now offers the preserved Z00Z Default palette plus Black & Gold, Moon
 
 Selected-wallet Advanced now exposes a safe, editable local concept YAML draft. Security, Backup, Policies, and Advanced are selected-wallet settings; General, Appearance, and Network & privacy remain application settings. Wallet controls and YAML update the same demo state, while secrets and local paths are rejected. `Apply locally` is deliberately restricted to the browser concept; the boundary explaining that runtime configuration write, watch, revision, conflict, and rollback RPCs do not exist remains visible. This is not a claim that a real wallet file can be changed.
 
-Verification completed: locale, production-port, syntax, `git diff --check`, and all 32 Playwright smoke tests pass. Desktop and 390/320 px navigation, drawer, nested pickers, Assets popup, asset cards, Appearance, Advanced YAML, and telemetry states were inspected after the change.
+Verification completed: locale, production-port, syntax, `git diff --check`, and all 32 Playwright smoke tests pass. Desktop and 390/320 px navigation, drawer accordion groups, Assets popup, asset cards, Appearance, Advanced YAML, and telemetry states were inspected after the change.
 
 Public reference check: [`z00z.io/docs`](https://www.z00z.io/docs) renders its header wordmark with the Geist family, variable weight around 780, uppercase lettering, `0.045em` tracking, a 44 px desktop mark, and a 26 px desktop wordmark. Its mobile hamburger opens a left full-height modal drawer with backdrop, branded header, close control, contained focus, and scrollable navigation. The wallet demo adopts that interaction pattern without copying the documentation content hierarchy.
 
@@ -458,7 +458,7 @@ This confirms that the interface can be packaged without an Internet dependency.
 11. Tables transform into labelled rows/cards on narrow screens without losing the relationship between header and value.
 12. Sensitive amounts remain masked in accessible names when hidden; screen readers must not receive the secret value.
 13. The 320/390 px header contains Menu, the Z00Z mark, and one scrollable route row; the desktop address/privacy/account toolbar is absent.
-14. The modal mobile drawer provides reachable Wallets and Network pickers plus Settings and Log out; nested pickers support Back, and Log out remains an action rather than a persistent selection.
+14. The modal mobile drawer provides reachable Wallets and Network accordion groups plus Settings and Log out; both groups can stay open, closing one preserves the other, and Log out remains an action rather than a persistent selection.
 
 ## 🛠️ Implementation backlog
 
@@ -483,7 +483,7 @@ This confirms that the interface can be packaged without an Internet dependency.
 - [x] Verify `Name`, `Balance`, `Value`, and `Price` column/header alignment in the desktop demo.
 - [x] Keep wallet tabs sticky, opaque, and aligned to the main content edge.
 - [x] Replace the broken mobile asset subgrid with a non-overlapping identity/numeric card projection at 320 px and 390 px.
-- [x] Remove the mobile bottom bar; expose Wallets/Network/Settings/Log out in the full-height Menu drawer and add nested wallet/telemetry pickers.
+- [x] Remove the mobile bottom bar; expose Wallets/Network/Settings/Log out in the full-height Menu drawer and add independent multi-open wallet/telemetry accordion groups.
 - [x] Replace the desktop identity toolbar on mobile with Menu + Z00Z + the contextual route row and normalize WebView text autosizing.
 - [x] Add the five semantic palette presets and contrast-gated protected custom accent validation.
 - [x] Separate app settings from selected-wallet settings in the local YAML/Form/Mapping concept state.
@@ -515,9 +515,10 @@ This confirms that the interface can be packaged without an Internet dependency.
   exactly one contextual topic and every contextual topic maps back to a route.
   Context Help uses the local `akar-icons:question` symbol and does not change
   the active wallet, route, filter, tab, or draft.
-- Help source lives in ten separate locale folders under
-  `demo/help/<locale>/`: 38 topics and 380 Markdown documents. Compile, check,
-  and scaffold tools derive locale IDs from the UI's canonical locale registry.
+- Help source lives in ten separate locale trees under
+  `demo/help/<locale>/{app,wallets,network,settings}/`: 38 topics and 380
+  Markdown documents. Compile, check, and scaffold tools derive locale IDs from
+  the UI's canonical locale registry.
   English topic hashes are the source anchor in `help/source-state.json`.
   Changed English topics pass through the local build-time translation bridge
   for every locale; builds reject stale hashes or mismatched document structure.
@@ -528,11 +529,11 @@ This confirms that the interface can be packaged without an Internet dependency.
   desktop control edge is common; their mobile form stays one logical row at
   390/320 px when possible. Long identifiers truncate while a title, copy
   action, or detail view preserves the full accessible value.
-- Context Help is a right-side compact dialog on desktop and a scrollable
-  bottom sheet on mobile. Opening moves focus into Help; Escape/backdrop close
-  restores focus to the invoker. Declared anchors receive a non-intercepting
-  highlight. Help invoked from a native dialog is mounted in that same top
-  layer, contains focus, and inerts only the underlying dialog content.
+- Global and Context Help open one named standalone Help page/window while the
+  wallet remains open in parallel. The desktop page uses a multi-open accordion
+  tree; mobile uses an Escape/backdrop-closable navigation drawer. Context
+  actions route directly to the active topic and its declared section without
+  mutating or inerting the wallet page or a parent dialog.
 - The contextual question action now belongs to one shell-level host instead of
   each view DOM. It is fixed to the lower-right safe-area edge, aligned with the
   topbar Help action, remains stationary during document scrolling, and clears

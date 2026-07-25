@@ -13,7 +13,7 @@ node crates/z00z_ui_ux/demo/scripts/serve-demo.mjs 4173
 ```
 
 Open `http://127.0.0.1:4173`. This development server watches
-`help/en/*.md`, recompiles the local Help catalogue, and reloads the open page
+`help/en/**/*.md`, recompiles the local Help catalogue, and reloads the open page
 after a successful update.
 
 The files can also be opened directly. The local HTTP server and its live-reload
@@ -79,13 +79,15 @@ machine-translation bridge, and required checks.
 
 ## ❔ Local contextual Help
 
-Application Help is authored as Markdown under `help/<locale>/`. The canonical
-`help/topics.yaml` LUT maps presentation state to one stable topic ID. Locale IDs
-come from `scripts/port/locale-registry.js`; compile, check, and scaffold tools
-do not maintain a second language list. `scripts/compile-help.mjs` converts the
-constrained Markdown subset into `scripts/generated/help-catalog.js`. Runtime
-rendering reads that bundled catalogue only: it does not fetch Markdown, load a
-CDN, or require an Internet connection.
+Application Help is authored as Markdown under
+`help/<locale>/{app,wallets,network,settings}/`. The canonical
+`help/topics.yaml` LUT owns each topic's group and maps presentation state to one
+stable topic ID. Locale IDs come from `scripts/port/locale-registry.js`; compile,
+check, and scaffold tools do not maintain a second language list.
+`scripts/compile-help.mjs` converts the constrained Markdown subset into
+`scripts/generated/help-catalog.js`. Runtime rendering reads that bundled
+catalogue only: it does not fetch Markdown, load a CDN, or require an Internet
+connection.
 
 `node scripts/check-help.mjs` derives every routed state from `PORT_CONTRACT`.
 It fails unless each routed state resolves exactly one contextual topic, every
@@ -121,18 +123,18 @@ To add a view:
    review, then `node scripts/compile-help.mjs` and
    `node scripts/check-help.mjs`.
 
-The global Help action explains application-wide behavior. The fixed question
-action at the lower-right edge opens only the active view's topic, stays in the
-same viewport position while content scrolls, preserves navigation/form state,
-and highlights a declared `{#target-id}` section anchor. Explanatory prose
+The global Help action opens `help.html` in a named parallel browser tab. Its
+left tree is a multi-open accordion organized by the four source groups. The
+fixed question action at the lower-right edge opens the same standalone Help
+application at the active view's exact topic and `{#current-view}` section. The
+wallet page remains open with its navigation, filters, drafts, and forms intact;
+repeated Help actions reuse and focus the same Help tab. Explanatory prose
 belongs in Help; validation, safety warnings, destructive consequences,
 read-only/unavailable states, and errors stay beside the affected action.
-Help opened from a native dialog stays above that dialog, contains keyboard
-focus, and returns focus to the same question action when closed.
 
 ## 🧪 Suggested walkthrough
 
-1. Resize between desktop, 390 px, and 320 px. The shell has one sticky top row at every width: its scrollable tabs change with the selected wallet, network workspace, or application Settings. On mobile the desktop identity/actions are replaced in that same row by Menu and the Z00Z mark; bottom navigation is absent. Menu opens a full-height drawer with Wallets, Network, Settings, and Log out; Wallets and Network open nested pickers. Assets and wallet Settings open compact third-level popup menus.
+1. Resize between desktop, 390 px, and 320 px. The shell has one sticky top row at every width: its scrollable tabs change with the selected wallet, network workspace, or application Settings. On mobile the desktop identity/actions are replaced in that same row by Menu and the Z00Z mark; bottom navigation is absent. Menu opens a full-height drawer with independently expandable Wallets and Network accordion groups plus Settings and Log out. Closing either group leaves the other group open until the user selects a destination. Assets and wallet Settings open compact third-level popup menus.
 2. Use Send, asset Claim, and Give permission from Home; confirm Receive opens the selected wallet's single Receiver Card.
 3. Confirm that submitted sends, claim outputs, voucher redemption, and permission delegation show honest non-final states.
 4. Select Everyday, Savings, and Travel in the desktop wallet navigation. Confirm that Assets, History, Swap, Exchange, Staking, Backup, Settings, and the bottom status bar reflect only the selected wallet. Hover the copy control beside the address to reveal the full selected-wallet ID.

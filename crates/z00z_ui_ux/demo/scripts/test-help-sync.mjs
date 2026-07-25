@@ -20,8 +20,8 @@ ${sections}
 
 try {
   await mkdir(resolve(fixtureRoot, "scripts/port"), { recursive: true });
-  await mkdir(resolve(fixtureRoot, "help/en"), { recursive: true });
-  await mkdir(resolve(fixtureRoot, "help/de"), { recursive: true });
+  await mkdir(resolve(fixtureRoot, "help/en/app"), { recursive: true });
+  await mkdir(resolve(fixtureRoot, "help/de/app"), { recursive: true });
   await writeFile(
     resolve(fixtureRoot, "scripts/port/locale-registry.js"),
     '"use strict"; window.Z00ZLocaleRegistry = Object.freeze([{ id: "en" }, { id: "de" }]);\n',
@@ -29,16 +29,16 @@ try {
   );
   await writeFile(
     resolve(fixtureRoot, "help/topics.yaml"),
-    "version: 1\ntopics:\n  - id: app\n    file: app\n    scope: global\n    match: global\n",
+    "version: 1\ntopics:\n  - id: app\n    group: app\n    file: app\n    scope: global\n    match: global\n",
     "utf8"
   );
   await writeFile(
-    resolve(fixtureRoot, "help/en/app.md"),
+    resolve(fixtureRoot, "help/en/app/app.md"),
     helpDocument("Application help", "## Existing section\n- Existing guidance."),
     "utf8"
   );
   await writeFile(
-    resolve(fixtureRoot, "help/de/app.md"),
+    resolve(fixtureRoot, "help/de/app/app.md"),
     helpDocument("Anwendungshilfe", "## Bestehender Abschnitt\n- Bestehender Hinweis."),
     "utf8"
   );
@@ -46,7 +46,7 @@ try {
   await assertHelpSynchronized(fixtureRoot);
 
   await writeFile(
-    resolve(fixtureRoot, "help/en/app.md"),
+    resolve(fixtureRoot, "help/en/app/app.md"),
     helpDocument("Application help", "## Existing section\n- Existing guidance.\n\n## New section\n- New guidance."),
     "utf8"
   );
@@ -72,7 +72,7 @@ process.stdin.on("end", () => {
   const changed = await synchronizeHelp(fixtureRoot, { translatorCommand: translatorPath });
   assert.deepEqual([...changed], ["app"]);
   await assertHelpSynchronized(fixtureRoot);
-  const german = await readFile(resolve(fixtureRoot, "help/de/app.md"), "utf8");
+  const german = await readFile(resolve(fixtureRoot, "help/de/app/app.md"), "utf8");
   assert.match(german, /## \[de\] New section/);
   assert.match(german, /- \[de\] New guidance\./);
   console.log("Help hash synchronization test passed.");

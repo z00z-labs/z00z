@@ -46,10 +46,11 @@ authenticated IPC  typed in-process adapter
 | `scripts/port/mock-wallet-gateway.js` | `z00z_wallet_ui_contract::WalletGateway` test adapter | Preserve intent/result envelopes; replace mutation internals with native gateway calls. |
 | `scripts/port/locale-registry.js` | locale enum, metadata registry, and catalogue builder | Generate every catalogue from one ordered Rust/build-time registry. |
 | `scripts/port/icon-registry.js` | `IconName` enum and one inline SVG Leptos component | Preserve semantic object-type lookup; bundle paths locally and normalize to 24x24. |
-| `help/topics.yaml` | build-time `HelpTopicId`/route matcher source | Generate an exhaustive Rust enum and fail the build when a routed view has no topic. |
-| `help/<locale>/*.md` | bundled localized Help source | Compile at build time into a constrained plain-text AST; never parse or fetch Markdown at runtime. |
+| `help/topics.yaml` | build-time `HelpTopicId`/route matcher and Help-tree group source | Generate an exhaustive Rust enum and fail the build when a routed view has no topic or Help group. |
+| `help/<locale>/{app,wallets,network,settings}/*.md` | bundled localized Help source | Compile at build time into a constrained plain-text AST; never parse or fetch Markdown at runtime. |
 | `scripts/port/help-registry.js` | pure Help topic resolver | Port as an exhaustive state-to-topic match independent from Leptos view components. |
-| `scripts/help-controller.js` | `HelpPanel`/`ContextHelpButton` components | Preserve focus restoration, Escape/backdrop close, target highlighting, desktop panel, and mobile bottom-sheet behavior. |
+| `scripts/help-controller.js` | standalone Help-window launcher and `ContextHelpButton` component | Preserve named-window reuse, language/topic deep links, application state isolation, and mobile-menu close behavior. |
+| `help.html`, `scripts/help-app.js` | independent Help application/window | Port the multi-open accordion tree, localized article routing, mobile drawer, and explicit Wallet switch target as a parallel Tauri webview/window. |
 | `styles/colors.css` | `z00z_wallet_ui/styles/colors.css` | Preserve literal palette values as the single colour source. |
 | `styles/foundation.css` | `z00z_wallet_ui/styles/foundation.css` | Bundle local fonts and global design tokens. |
 | `styles/components.css` | Leptos component styles | Port by component; do not reproduce DOM selectors that no longer exist. |

@@ -84,6 +84,7 @@ p3-batch-stark = "=0.6.1"
 p3-challenger = "=0.6.1"
 p3-circuit = { git = "https://github.com/Plonky3/Plonky3-recursion", rev = "b36339709a7a67ee9760fb578b3d4339fd983709" }
 p3-circuit-prover = { git = "https://github.com/Plonky3/Plonky3-recursion", rev = "b36339709a7a67ee9760fb578b3d4339fd983709" }
+p3-poseidon2-circuit-air = { git = "https://github.com/Plonky3/Plonky3-recursion", rev = "b36339709a7a67ee9760fb578b3d4339fd983709" }
 p3-commit = "=0.6.1"
 p3-dft = "=0.6.1"
 p3-field = "=0.6.1"

@@ -16,6 +16,7 @@ const mobileMenuBackdrop = document.querySelector("#mobile-menu-backdrop");
 const mobilePopupMenu = document.querySelector("#mobile-popup-menu");
 let mobilePopupType = "";
 let mobilePopupTrigger = null;
+const mobileMenuExpandedGroups = new Set();
 
 const dialog = document.querySelector("#flow-dialog");
 const dialogContent = document.querySelector("#dialog-content");
@@ -1293,12 +1294,12 @@ function isMobileNavigation() {
 }
 
 function isMobileDrawer(type) {
-  return ["menu", "wallets", "network"].includes(type);
+  return type === "menu";
 }
 
-function mobilePopupHeader(label, nested = false, branded = false) {
+function mobilePopupHeader(label, branded = false) {
   return `<header class="mobile-popup-header${branded ? " is-branded" : ""}">
-    ${nested ? `<button class="mobile-popup-icon" type="button" data-mobile-popup-open="menu" aria-label="${escapeHtml(t("common.back"))}">${icon("chevron", "is-back")}</button>` : '<span class="mobile-popup-icon-spacer"></span>'}
+    <span class="mobile-popup-icon-spacer"></span>
     ${branded
       ? `<span class="mobile-drawer-brand"><img src="assets/logo/z00z-logo-gold-circle.png" alt=""><strong>Z00Z</strong></span>`
       : `<strong>${escapeHtml(label)}</strong>`}
@@ -1314,31 +1315,47 @@ function mobilePopupItem({ label, iconName = "", active = false, attributes = ""
   </button>`;
 }
 
+function mobileMenuAccordionMarkup({ group, label, iconName, content }) {
+  const expanded = mobileMenuExpandedGroups.has(group);
+  const buttonId = `mobile-menu-${group}-toggle`;
+  const panelId = `mobile-menu-${group}`;
+  return `<section class="mobile-menu-accordion">
+    <button id="${buttonId}" class="mobile-popup-item mobile-menu-accordion-toggle" type="button" data-mobile-menu-group="${group}" aria-expanded="${expanded}" aria-controls="${panelId}">
+      ${icon(iconName)}
+      <span>${escapeHtml(label)}</span>
+      ${icon("chevron", "mobile-menu-accordion-chevron")}
+    </button>
+    <div id="${panelId}" class="mobile-menu-accordion-panel" data-mobile-menu-panel="${group}" role="region" aria-labelledby="${buttonId}"${expanded ? "" : " hidden"}>
+      ${content}
+    </div>
+  </section>`;
+}
+
+function mobileWalletAccordionContent() {
+  return `<div class="mobile-menu-accordion-items">
+    ${state.wallets.map((wallet) => `<button class="mobile-popup-item${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""} data-mobile-select-wallet="${escapeHtml(wallet.id)}">
+      <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span>
+      <span>${escapeHtml(wallet.name)}</span>
+      ${wallet.id === state.selectedWalletId ? icon("check") : ""}
+    </button>`).join("")}
+  </div>
+  <div class="mobile-wallet-actions">
+    <button class="mobile-popup-item mobile-wallet-action is-add" type="button" data-mobile-popup-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
+    <button class="mobile-popup-item mobile-wallet-action is-remove" type="button" data-mobile-popup-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
+  </div>`;
+}
+
+function mobileNetworkAccordionContent() {
+  return `<div class="mobile-menu-accordion-items">
+    ${networkEntries.map((entry) => `<button class="mobile-popup-item${state.view === "telemetry" && state.telemetrySource === entry.key ? " is-active" : ""}" type="button"${state.view === "telemetry" && state.telemetrySource === entry.key ? ' aria-current="page"' : ""} data-mobile-select-network="${entry.key}">
+      <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
+      <span>${escapeHtml(entry.label)}</span>
+      ${state.view === "telemetry" && state.telemetrySource === entry.key ? icon("check") : ""}
+    </button>`).join("")}
+  </div>`;
+}
+
 function mobilePopupMarkup(type) {
-  if (type === "wallets") {
-    return `${mobilePopupHeader(t("app.wallets"), true)}
-      <div class="mobile-popup-list">
-        ${state.wallets.map((wallet) => `<button class="mobile-popup-item${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""} data-mobile-select-wallet="${escapeHtml(wallet.id)}">
-          <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span>
-          <span>${escapeHtml(wallet.name)}</span>
-          ${wallet.id === state.selectedWalletId ? icon("check") : ""}
-        </button>`).join("")}
-      </div>
-      <footer class="mobile-wallet-actions">
-        <button class="mobile-popup-item mobile-wallet-action is-add" type="button" data-mobile-popup-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
-        <button class="mobile-popup-item mobile-wallet-action is-remove" type="button" data-mobile-popup-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
-      </footer>`;
-  }
-  if (type === "network") {
-    return `${mobilePopupHeader(t("app.network"), true)}
-      <div class="mobile-popup-list">
-        ${networkEntries.map((entry) => `<button class="mobile-popup-item${state.view === "telemetry" && state.telemetrySource === entry.key ? " is-active" : ""}" type="button"${state.view === "telemetry" && state.telemetrySource === entry.key ? ' aria-current="page"' : ""} data-mobile-select-network="${entry.key}">
-          <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
-          <span>${escapeHtml(entry.label)}</span>
-          ${state.view === "telemetry" && state.telemetrySource === entry.key ? icon("check") : ""}
-        </button>`).join("")}
-      </div>`;
-  }
   if (type === "assets") {
     return `${mobilePopupHeader(t("assets.sections"))}
       <div class="mobile-popup-list">
@@ -1373,10 +1390,20 @@ function mobilePopupMarkup(type) {
         })).join("")}
       </div>`;
   }
-  return `${mobilePopupHeader(t("app.menu"), false, true)}
+  return `${mobilePopupHeader(t("app.menu"), true)}
     <div class="mobile-popup-list">
-      ${mobilePopupItem({ label: t("app.wallets"), iconName: "wallet", attributes: 'data-mobile-popup-open="wallets"', trailing: icon("chevron") })}
-      ${mobilePopupItem({ label: t("app.network"), iconName: "network", attributes: 'data-mobile-popup-open="network"', trailing: icon("chevron") })}
+      ${mobileMenuAccordionMarkup({
+        group: "wallets",
+        label: t("app.wallets"),
+        iconName: "wallet",
+        content: mobileWalletAccordionContent()
+      })}
+      ${mobileMenuAccordionMarkup({
+        group: "network",
+        label: t("app.network"),
+        iconName: "network",
+        content: mobileNetworkAccordionContent()
+      })}
       ${mobilePopupItem({ label: t("app.settings"), iconName: "settings", active: state.view === "settings", attributes: 'data-mobile-app-view="settings"' })}
       ${mobilePopupItem({ label: t("help.title"), iconName: "question", attributes: 'data-help-topic="app"' })}
       ${mobilePopupItem({ label: t("app.logOut"), iconName: "logout", attributes: 'data-mobile-popup-action="logout"' })}
@@ -1970,7 +1997,7 @@ function render(options = {}) {
     settings: settingsView,
     telemetry: telemetryView
   }[state.view]();
-  help.configure({ language: state.language });
+  help.configure({ language: state.language, theme: state.theme, palette: state.palette });
   help.mountContextButton(state, main.firstElementChild);
   suppressPasswordManagerUI(document);
 
@@ -2167,7 +2194,7 @@ function dialogFrame({ title, subtitle, body, footer = "", steps = 0, activeStep
     ? `<div class="step-indicator" aria-label="Step ${activeStep + 1} of ${steps}">${Array.from({ length: steps }, (_, index) => `<span class="${index < activeStep ? "is-done" : index === activeStep ? "is-active" : ""}"></span>`).join("")}</div>`
     : "";
   return `
-    <div class="dialog-shell"${helpTopic ? ' data-help-anchor="current-view"' : ""}>
+    <div class="dialog-shell">
       <header class="dialog-header${headerLeading ? " has-leading-visual" : ""}">
         ${headerLeading}
         <div class="dialog-header-copy"><h2 id="dialog-title">${title}</h2><p>${subtitle}</p></div>
@@ -3276,9 +3303,19 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const mobilePopupOpen = event.target.closest("[data-mobile-popup-open]");
-  if (mobilePopupOpen) {
-    openMobilePopup(mobilePopupOpen.dataset.mobilePopupOpen, mobileMenuButton);
+  const mobileMenuGroup = event.target.closest("[data-mobile-menu-group]");
+  if (mobileMenuGroup) {
+    const group = mobileMenuGroup.dataset.mobileMenuGroup;
+    const panel = mobilePopupMenu.querySelector(`[data-mobile-menu-panel="${group}"]`);
+    if (!panel) return;
+    const expanded = !mobileMenuExpandedGroups.has(group);
+    if (expanded) {
+      mobileMenuExpandedGroups.add(group);
+    } else {
+      mobileMenuExpandedGroups.delete(group);
+    }
+    mobileMenuGroup.setAttribute("aria-expanded", String(expanded));
+    panel.hidden = !expanded;
     return;
   }
 

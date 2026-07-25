@@ -1519,15 +1519,16 @@ Required reusable components:
 | `EmptyState` | first-use, filtered-empty, offline, error |
 | `TechnicalDetails` | closed by default, copy-safe rows, redacted secret rows |
 | `ContextHelpButton` | one local question action per routed view; translated accessible name; stable topic ID; never stores view state |
-| `HelpPanel` | labelled dialog, section navigation, optional target highlight, focus restoration, desktop side panel, mobile bottom sheet, offline catalogue |
+| `HelpApplication` | independent parallel page/window, multi-open accordion tree, localized topic deep links, responsive navigation drawer, offline catalogue |
 | `CompactRow` | label, value, action/status; common control edge, ellipsis with accessible full value, controlled complex-content fallback |
 
 Every component documents keyboard behavior, accessible name, loading state, error state, empty state, and responsive behavior before implementation is considered complete.
 
 ### ❔ Contextual Help contract
 
-- Editable Help source is `demo/help/<locale>/<topic>.md`; each locale has the
-  exact topic set declared by `demo/help/topics.yaml`.
+- Editable Help source is
+  `demo/help/<locale>/{app,wallets,network,settings}/<topic>.md`; each locale has
+  the exact grouped topic set declared by `demo/help/topics.yaml`.
 - Locale IDs come from the same canonical locale registry as the application;
   Help compile/check/scaffold tooling must not own a duplicated language list.
 - Topic routing is an exhaustive presentation-state LUT, not conditionals
@@ -1545,25 +1546,25 @@ Every component documents keyboard behavior, accessible name, loading state, err
   changes trigger the local build-time translation bridge for the changed
   topic; compilation and Pages publication fail closed when any locale remains
   on an older source hash or has a different section/block structure.
-- Global Help covers application behavior. Context Help covers the active view
-  or content-bearing dialog and preserves the selected wallet, filters, drafts,
-  scroll context, and route.
+- Global Help covers application behavior. Context Help opens the same
+  standalone Help application at the active view or content-bearing dialog
+  topic and preserves the selected wallet, filters, drafts, scroll context, and
+  route in the parallel wallet page.
 - Explanatory prose moves to Help. Point-of-action validation, errors,
   irreversible consequences, recovery/security warnings, capability honesty,
   and read-only/unavailable state never depend on opening Help.
-- The panel is keyboard-operable, Escape/backdrop closable, restores invoker
-  focus, and announces its current section. A target highlight is visual
-  reinforcement only and cannot intercept input.
+- The Help page exposes a keyboard-operable multi-open accordion tree on
+  desktop and an Escape/backdrop-closable navigation drawer on mobile. Topic
+  selection updates a stable URL and announces the new article.
 - The contextual question action is a shell-level fixed control aligned to the
   right application edge. It stays at the lower-right safe-area position while
   any view scrolls, clears the sticky wallet status bar on desktop, and never
   reserves or overlaps view content.
-- Help is the foreground modal layer while open. Timed toast presentation is
-  suppressed until Help closes so it cannot obscure the panel or compete for
-  attention.
-- Help invoked from a native dialog is presented in the same top-layer overlay
-  stack, inerts the underlying dialog content, contains focus, and restores the
-  invoking control without closing the parent dialog.
+- Help is never a modal layer. Global and contextual actions reuse one named
+  standalone Help page/window so the wallet and Help applications remain open
+  in parallel and can be switched without changing wallet state.
+- Help invoked from a native dialog opens that dialog's stable topic in the
+  parallel Help page without closing or inerting the parent dialog.
 - Help text is translated application copy. User-authored wallet labels,
   addresses, identifiers, asset names, and protocol data are never translated
   or interpolated into Help documents.

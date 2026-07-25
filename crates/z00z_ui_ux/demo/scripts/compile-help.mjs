@@ -2,7 +2,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { synchronizeHelp } from "./sync-help.mjs";
-import { loadHelpLocales, loadHelpSource, parseHelpMarkdown } from "./help-source.mjs";
+import {
+  helpDocumentPath,
+  loadHelpLocales,
+  loadHelpSource,
+  parseHelpMarkdown
+} from "./help-source.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
@@ -16,7 +21,7 @@ export async function compileHelp(root = demoRoot) {
   for (const locale of localeIds) {
     catalogues[locale] = {};
     for (const topic of lut.topics) {
-      const path = resolve(root, "help", locale, `${topic.file}.md`);
+      const path = helpDocumentPath(root, locale, topic);
       const document = parseHelpMarkdown(await readFile(path, "utf8"), path);
       if (document.id !== topic.id) throw new Error(`${path}: expected id ${topic.id}`);
       if (document.scope !== topic.scope) throw new Error(`${path}: expected scope ${topic.scope}`);

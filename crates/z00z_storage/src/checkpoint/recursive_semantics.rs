@@ -32,6 +32,8 @@ pub(crate) const FLOW_PAYLOAD_MAX_BYTES_V2: u32 = 1
 /// The streaming Nova relation imports this exact codec constant; it does not
 /// maintain an independent payload grammar or length source.
 pub(crate) const UNIQUENESS_PRECOMMIT_VERSION_V2: u8 = 1;
+/// Canonical first part of the uniqueness-list aggregate precommit.
+pub(crate) const UNIQUENESS_PRECOMMIT_LABEL_V2: &[u8] = b"z00z.recursive.v2.uniqueness-precommit";
 /// Exact byte width of the one canonical uniqueness-precommit payload.
 pub(crate) const UNIQUENESS_PRECOMMIT_BYTES_V2: usize = 1 + 4 + 4 + 32 * 5;
 /// Number of domain-separated challenge digests carried for each ID set.
@@ -463,7 +465,7 @@ pub(crate) fn uniqueness_precommit_from_rows(
     })
 }
 
-fn encode_uniqueness_precommit_value(
+pub(crate) fn encode_uniqueness_precommit_value(
     value: UniquenessPrecommitV2,
 ) -> Result<Vec<u8>, CheckpointError> {
     let mut bytes = Vec::new();
@@ -818,7 +820,7 @@ fn derive_precommit_digest(
     sha256_256_role(
         CheckpointShaRole::IdPrecommit,
         &[
-            b"z00z.recursive.v2.uniqueness-precommit",
+            UNIQUENESS_PRECOMMIT_LABEL_V2,
             &spent_count.to_le_bytes(),
             &output_count.to_le_bytes(),
             &spent_original_digest,

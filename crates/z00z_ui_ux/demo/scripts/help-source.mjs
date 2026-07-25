@@ -2,10 +2,11 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import vm from "node:vm";
 
-const TOPIC_KEYS = new Set(["id", "file", "scope", "match"]);
+const TOPIC_KEYS = new Set(["id", "group", "file", "scope", "match"]);
 const FRONT_MATTER_KEYS = new Set(["id", "title", "summary", "scope"]);
 const SAFE_ID = /^[a-z0-9][a-z0-9.-]*$/;
 const SAFE_FILE = /^[a-z0-9][a-z0-9-]*$/;
+const SAFE_GROUPS = new Set(["app", "network", "settings", "wallets"]);
 const SAFE_TARGET = /^[a-z][a-z0-9-]*$/;
 const SAFE_LOCALE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
@@ -54,6 +55,7 @@ export function parseTopicLut(source, sourceName = "topics.yaml") {
       if (!topic[key]) throw new Error(`${sourceName}: topic is missing ${key}`);
     }
     if (!SAFE_ID.test(topic.id)) throw new Error(`${sourceName}: unsafe topic id ${topic.id}`);
+    if (!SAFE_GROUPS.has(topic.group)) throw new Error(`${sourceName}: invalid topic group ${topic.group}`);
     if (!SAFE_FILE.test(topic.file)) throw new Error(`${sourceName}: unsafe topic file ${topic.file}`);
     if (!["global", "context", "dialog"].includes(topic.scope)) throw new Error(`${sourceName}: invalid scope ${topic.scope}`);
     if (ids.has(topic.id)) throw new Error(`${sourceName}: duplicate id ${topic.id}`);
@@ -141,6 +143,14 @@ export async function loadHelpSource(root) {
   const topicPath = resolve(root, "help/topics.yaml");
   const lut = parseTopicLut(await readFile(topicPath, "utf8"), topicPath);
   return { lut, topicPath };
+}
+
+export function helpDocumentPath(root, locale, topic) {
+  if (!SAFE_LOCALE.test(locale)) throw new Error(`Unsafe Help locale ${locale}`);
+  if (!topic || !SAFE_GROUPS.has(topic.group) || !SAFE_FILE.test(topic.file)) {
+    throw new Error("Invalid Help topic path.");
+  }
+  return resolve(root, "help", locale, topic.group, `${topic.file}.md`);
 }
 
 export async function loadHelpLocales(root) {

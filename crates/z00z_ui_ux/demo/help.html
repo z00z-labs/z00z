@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-palette="z00z-default">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#081019">
+    <meta name="description" content="Local, multilingual help for the Z00Z wallet.">
+    <link rel="icon" type="image/png" href="assets/logo/z00z-logo-gold-circle.png?v=2">
+    <title>Z00Z Help</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles/help.css">
+  </head>
+  <body class="help-page">
+    <a class="skip-link" href="#help-main">Skip to Help content</a>
+
+    <svg class="svg-sprite" aria-hidden="true">
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+      <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 5h14a2 2 0 0 1 2 2v12H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M16 10h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M5 5V3h12"/></symbol>
+      <symbol id="i-network" viewBox="0 0 24 24"><path d="M4 9a12 12 0 0 1 16 0M7 12.5a7 7 0 0 1 10 0M10 16a3 3 0 0 1 4 0"/><circle cx="12" cy="19" r="1"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
+      <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 0 1 4.8 1c0 2-2.5 2.2-2.5 4M12 17.5v.1"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    </svg>
+
+    <header class="help-site-header">
+      <button class="icon-button help-menu-button" id="help-menu-button" type="button" aria-controls="help-sidebar" aria-expanded="false">
+        <svg class="icon"><use href="#i-menu"/></svg>
+      </button>
+      <a class="help-brand" id="help-home-link" href="help.html">
+        <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
+        <span>Z00Z</span>
+        <small id="help-product-label">Help</small>
+      </a>
+      <div class="help-header-actions">
+        <label class="help-language-control" for="help-language">
+          <span id="help-language-label">Language</span>
+          <select id="help-language"></select>
+        </label>
+        <a class="help-wallet-link" href="index.html" target="z00z-wallet">
+          <svg class="icon"><use href="#i-wallet"/></svg>
+          <span id="help-wallet-label">Wallet</span>
+        </a>
+      </div>
+    </header>
+
+    <button class="help-sidebar-backdrop" id="help-sidebar-backdrop" type="button" tabindex="-1" hidden></button>
+    <div class="help-page-shell">
+      <aside class="help-sidebar" id="help-sidebar">
+        <div class="help-sidebar-header">
+          <div>
+            <span class="eyebrow" id="help-contents-eyebrow">Help</span>
+            <strong id="help-contents-title">Contents</strong>
+          </div>
+          <button class="icon-button help-sidebar-close" id="help-sidebar-close" type="button">
+            <svg class="icon"><use href="#i-close"/></svg>
+          </button>
+        </div>
+        <nav class="help-tree" id="help-tree" aria-label="Help contents"></nav>
+      </aside>
+
+      <main class="help-main" id="help-main" tabindex="-1">
+        <article class="help-document" id="help-document" aria-live="polite"></article>
+      </main>
+    </div>
+
+    <script src="scripts/port/locale-registry.js"></script>
+    <script src="i18n.js"></script>
+    <script src="locales/en.js"></script>
+    <script src="locales/ru.js"></script>
+    <script src="locales/fr.js"></script>
+    <script src="locales/de.js"></script>
+    <script src="locales/es.js"></script>
+    <script src="locales/pt.js"></script>
+    <script src="locales/ko.js"></script>
+    <script src="locales/tr.js"></script>
+    <script src="locales/ja.js"></script>
+    <script src="locales/zh-Hans.js"></script>
+    <script src="scripts/generated/help-catalog.js"></script>
+    <script src="scripts/port/help-registry.js"></script>
+    <script src="scripts/help-app.js"></script>
+  </body>
+</html>
