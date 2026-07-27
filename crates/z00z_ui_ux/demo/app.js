@@ -358,10 +358,6 @@ function formatLocalizedBitrate(bitsPerSecond) {
   return i18n.formatBitrate(bitsPerSecond, state.language, state.regionalLocale);
 }
 
-function walletScanLabel(scan) {
-  return t(scan === "Scanning" ? "walletShell.scanning" : "walletShell.current");
-}
-
 function activeWallet() {
   return demoRuntime.activeWallet(state);
 }
@@ -809,7 +805,10 @@ function mobileNavigationDrawerMarkup() {
   return `<header class="mobile-popup-header mobile-drawer-header"><strong>${escapeHtml(t("app.menu"))}</strong><button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button></header>
     <section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
       <p>${escapeHtml(t("app.wallets"))}</p>
-      <div class="mobile-wallet-list">${state.wallets.map((wallet) => `<button class="mobile-wallet-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-mobile-wallet-id="${escapeHtml(wallet.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}><span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span>${escapeHtml(wallet.name)}</span></button>`).join("")}</div>
+      <div class="mobile-wallet-list">${state.wallets.map((wallet) => {
+        const chain = walletChain(wallet.chainId);
+        return `<button class="mobile-wallet-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-mobile-wallet-id="${escapeHtml(wallet.id)}" data-wallet-chain="${escapeHtml(chain.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}><span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span>${escapeHtml(wallet.name)}</span><span class="wallet-nav-state is-${escapeHtml(chain.tone)}" role="img" aria-label="${escapeHtml(chain.label)}"></span></button>`;
+      }).join("")}</div>
       <div class="mobile-wallet-actions">
         <button class="mobile-wallet-action nav-item nav-item-primary" type="button" data-mobile-wallet-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
         <button class="mobile-wallet-action nav-item nav-item-danger" type="button" data-mobile-wallet-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
@@ -829,12 +828,15 @@ function mobileNavigationDrawerMarkup() {
 function renderWalletShell() {
   const wallet = activeWallet();
   const summary = wallet.summary;
-  walletNav.innerHTML = `${state.wallets.map((entry) => `
-    <button class="wallet-nav-item${entry.id === state.selectedWalletId ? " is-active" : ""}" type="button" ${entry.id === state.selectedWalletId ? 'aria-current="page"' : ""} data-wallet-id="${escapeHtml(entry.id)}">
+  walletNav.innerHTML = `${state.wallets.map((entry) => {
+    const chain = walletChain(entry.chainId);
+    return `
+    <button class="wallet-nav-item${entry.id === state.selectedWalletId ? " is-active" : ""}" type="button" ${entry.id === state.selectedWalletId ? 'aria-current="page"' : ""} data-wallet-id="${escapeHtml(entry.id)}" data-wallet-chain="${escapeHtml(chain.id)}">
       <span class="wallet-avatar" aria-hidden="true">${escapeHtml(entry.initials)}</span>
       <span class="wallet-nav-copy"><strong>${escapeHtml(entry.name)}</strong><small>${t("walletShell.balanceAvailable", { value: `<span class="mono">${sensitive(`${entry.summary.available} Z00Z`)}</span>` })}</small></span>
-      <span class="wallet-nav-state${entry.summary.scan === "Scanning" ? " is-scanning" : ""}" aria-label="${escapeHtml(walletScanLabel(entry.summary.scan))}"></span>
-    </button>`).join("")}
+      <span class="wallet-nav-state is-${escapeHtml(chain.tone)}" role="img" aria-label="${escapeHtml(chain.label)}"></span>
+    </button>`;
+  }).join("")}
     <div class="wallet-nav-actions" id="wallet-nav-actions">
       <button class="nav-item nav-item-primary" type="button" data-demo-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
       <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>

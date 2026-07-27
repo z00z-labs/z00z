@@ -430,13 +430,23 @@ h3 {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 16%, transparent);
+  background: var(--text-tertiary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-tertiary) 16%, transparent);
 }
 
-.wallet-nav-state.is-scanning {
-  background: var(--warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 16%, transparent);
+.wallet-nav-state.is-main {
+  background: var(--network-mainnet);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--network-mainnet) 16%, transparent);
+}
+
+.wallet-nav-state.is-test {
+  background: var(--network-testnet);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--network-testnet) 16%, transparent);
+}
+
+.wallet-nav-state.is-dev {
+  background: var(--network-devnet);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--network-devnet) 16%, transparent);
 }
 
 .wallet-nav-actions {
@@ -6812,6 +6822,7 @@ button.connection-option:hover,
     padding: 3px 10px;
     font-size: 11px;
     line-height: 1.1;
+    transform: translateX(8px);
   }
 
   .wallet-identity-copy.icon-button {
@@ -6823,6 +6834,7 @@ button.connection-option:hover,
     height: var(--wallet-address-copy-size);
     border-radius: 7px;
     color: var(--text-secondary);
+    transform: translateX(8px);
   }
 
   .route-breadcrumb {
@@ -7488,8 +7500,12 @@ button.connection-option:hover,
     background: transparent;
     font-size: var(--type-control);
     font-weight: 650;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     text-align: left;
+  }
+
+  .mobile-wallet-choice .wallet-nav-state {
+    display: block;
   }
 
   .mobile-wallet-choice.is-active {

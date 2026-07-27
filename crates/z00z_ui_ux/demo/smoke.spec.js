@@ -235,6 +235,65 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   expect(desktopSidebarScroll.terminalTopAfter).toBeLessThan(desktopSidebarScroll.terminalTopBefore);
 });
 
+test("wallet selectors derive their marker colours from the wallet chain", async ({ page }) => {
+  const expectedDefaults = [
+    { wallet: "everyday", chain: "mainnet", tone: "is-main" },
+    { wallet: "savings", chain: "mainnet", tone: "is-main" },
+    { wallet: "travel", chain: "mainnet", tone: "is-main" },
+  ];
+  const readMarkers = (selector) => page.locator(selector).evaluateAll((nodes) => nodes.map((node) => ({
+    wallet: node.dataset.walletId || node.dataset.mobileWalletId,
+    chain: node.dataset.walletChain,
+    tone: [...node.querySelector(".wallet-nav-state").classList].find((name) => name.startsWith("is-")),
+    colour: getComputedStyle(node.querySelector(".wallet-nav-state")).backgroundColor,
+  })));
+  const createWallet = async (name, chainId) => {
+    await page.locator('#wallet-nav-actions [data-demo-action="add-wallet"]').click();
+    await page.locator('#flow-dialog [data-demo-action="create-wallet"]').click();
+    await page.locator("#create-name").fill(name);
+    await page.locator("#create-chain").selectOption(chainId);
+    await page.locator("#create-password").fill("demonstration-passphrase");
+    await page.locator("#create-confirm").fill("demonstration-passphrase");
+    await page.locator('button[form="create-wallet-entry"]').click();
+    const seedWords = await page.locator(".seed-grid li strong").allTextContents();
+    await page.locator('#flow-dialog [data-dialog-action="create-seed-saved"]').click();
+    const verificationIndexes = await page.locator("#create-wallet-verify select[data-seed-index]").evaluateAll((selects) => selects.map((select) => Number(select.dataset.seedIndex)));
+    for (const [index, seedIndex] of verificationIndexes.entries()) {
+      await page.locator("#create-wallet-verify select[data-seed-index]").nth(index).selectOption(seedWords[seedIndex]);
+    }
+    await page.locator('button[form="create-wallet-verify"]').click();
+    await page.locator('#flow-dialog [data-dialog-action="create-finish"]').click();
+  };
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const defaultMarkers = await readMarkers("#wallet-nav .wallet-nav-item");
+  expect(defaultMarkers.map(({ wallet, chain, tone }) => ({ wallet, chain, tone }))).toEqual(expectedDefaults);
+  expect(new Set(defaultMarkers.map(({ colour }) => colour)).size).toBe(1);
+
+  await createWallet("Test network", "testnet-1");
+  await createWallet("Development network", "devnet-1");
+  const desktop = await readMarkers("#wallet-nav .wallet-nav-item");
+  const expected = [
+    ...expectedDefaults,
+    { wallet: "wallet-4", chain: "testnet-1", tone: "is-test" },
+    { wallet: "wallet-5", chain: "devnet-1", tone: "is-dev" },
+  ];
+  expect(desktop.map(({ wallet, chain, tone }) => ({ wallet, chain, tone }))).toEqual(expected);
+  expect(new Set(desktop.map(({ colour }) => colour)).size).toBe(3);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#mobile-menu-button").click();
+  const mobile = await readMarkers("#mobile-popup-menu .mobile-wallet-choice");
+  expect(mobile.map(({ wallet, chain, tone }) => ({ wallet, chain, tone }))).toEqual(expected);
+  expect(mobile.map(({ colour }) => colour)).toEqual(desktop.map(({ colour }) => colour));
+
+  const componentsCss = await readFile(path.join(demoDir, "styles/components.css"), "utf8");
+  expect(componentsCss).toMatch(/\.wallet-nav-state\.is-main\s*\{[^}]*--network-mainnet/s);
+  expect(componentsCss).toMatch(/\.wallet-nav-state\.is-test\s*\{[^}]*--network-testnet/s);
+  expect(componentsCss).toMatch(/\.wallet-nav-state\.is-dev\s*\{[^}]*--network-devnet/s);
+});
+
 test("desktop tree keeps root accordions independent and opens sublevels inside the workspace", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${demoUrl}?route=wallet.assets`);
