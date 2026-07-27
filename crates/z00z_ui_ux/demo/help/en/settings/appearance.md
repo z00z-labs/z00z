@@ -1,13 +1,36 @@
 ---
 id: settings.appearance
-title: Appearance
-summary: Appearance explains the controls and status shown in this view.
+title: Settings Appearance
+route: settings.appearance
 scope: context
 ---
-## Use this view {#current-view}
-- Switch Dark or Light mode, choose a palette, and select the local YAML highlighting theme.
-- Unavailable, read-only, and pending states are shown explicitly.
 
-## Local and safe behavior
-- Wallet secrets and private transport data never enter Help.
-- This Help is packaged with the application and works offline.
+# Settings Appearance
+
+[TOC]
+
+## App View {#current-view}
+
+![Settings Appearance application view](help/assets/en/settings-appearance.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"settings/appearance.md","route_id":"settings.appearance","screenshot":"help/assets/en/settings-appearance.png","topic_id":"settings.appearance"} -->

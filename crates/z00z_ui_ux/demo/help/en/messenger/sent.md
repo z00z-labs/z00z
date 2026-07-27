@@ -1,13 +1,36 @@
 ---
 id: messenger.sent
-title: Sent
-summary: Sent shows local delivery states while keeping them strictly separate from Wallet settlement.
+title: Messenger Sent
+route: messenger.sent
 scope: context
 ---
-## Use this view {#current-view}
-- Use Sent to inspect deterministic local messages, delivery states, expiry, and recovery states.
-- A sent or acknowledged message does not prove delivery, ownership, or Wallet settlement.
 
-## Local and safe behavior
-- Messenger is a roadmap preview for short-lived relay coordination, not permanent on-chain chat.
-- Retrying, expiring, or acknowledging content never changes Wallet settlement state.
+# Messenger Sent
+
+[TOC]
+
+## App View {#current-view}
+
+![Messenger Sent application view](help/assets/en/messenger-sent.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"messenger/sent.md","route_id":"messenger.sent","screenshot":"help/assets/en/messenger-sent.png","topic_id":"messenger.sent"} -->

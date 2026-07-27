@@ -1,0 +1,46 @@
+{
+  "capture_route": "telemetry.onionnet.queues",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.onionnet.epoch",
+    "button|type=button|data-workspace-route=telemetry.onionnet.ingress",
+    "button|type=button|data-workspace-route=telemetry.onionnet.overview",
+    "button|type=button|data-workspace-route=telemetry.onionnet.privacy",
+    "button|type=button|data-workspace-route=telemetry.onionnet.probation",
+    "button|type=button|data-workspace-route=telemetry.onionnet.queues",
+    "button|type=button|data-workspace-route=telemetry.onionnet.transport"
+  ],
+  "presentation_sha256": "4d36b39a0546500eef7a20747ce9094d9a283f5664fe3ac13e06a674c16e77b0",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-onionnet-queues.png",
+  "screenshot_sha256": "d954ed3d2049141d66291345510142479be13ae4fb7b65ed377b5d64eb8ebd08",
+  "sections": [
+    "OnionNet telemetry",
+    "Queues & Replay"
+  ],
+  "terms": [
+    "Backpressure actions",
+    "Epoch",
+    "Forwarding invariant",
+    "Ingress",
+    "Local capability unavailable",
+    "No aggregated reason counts",
+    "No durable replay snapshot",
+    "No local bounded-queue aggregate",
+    "No verified replay-before-forward proof",
+    "OnionNet",
+    "OnionNet telemetry",
+    "Overview",
+    "Privacy",
+    "Probation",
+    "Queue utilization",
+    "Queues",
+    "Queues & Replay",
+    "Queues & Replay parameters",
+    "Read-only",
+    "Replay ledger",
+    "Transport",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.onionnet.queues",
+  "version": 3
+}

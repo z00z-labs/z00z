@@ -1,13 +1,36 @@
 ---
 id: telemetry.onionnet.privacy
-title: OnionNet privacy
-summary: OnionNet privacy presents privacy-safe OnionNet telemetry aggregates without exposing routes or sessions.
+title: Telemetry Onionnet Privacy
+route: telemetry.onionnet.privacy
 scope: context
 ---
-## Use this view {#current-view}
-- Review onionnet privacy aggregates supplied by the registered local bridge; this view cannot change OnionNet.
-- Unavailable means that no fresh local snapshot exists; routes, endpoints, session identifiers, and payloads remain hidden.
 
-## Local and safe behavior
-- Wallet secrets and private transport data never enter Help.
-- This Help is packaged with the application and works offline.
+# Telemetry Onionnet Privacy
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Onionnet Privacy application view](help/assets/en/telemetry-onionnet-privacy.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/onionnet/privacy.md","route_id":"telemetry.onionnet.privacy","screenshot":"help/assets/en/telemetry-onionnet-privacy.png","topic_id":"telemetry.onionnet.privacy"} -->

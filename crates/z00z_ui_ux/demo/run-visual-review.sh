@@ -7,6 +7,7 @@ output_dir="${Z00Z_VISUAL_REVIEW_DIR:-$repo_root/crates/z00z_storage/outputs/che
 
 cd "$demo_dir"
 node scripts/check-locales.mjs
+node scripts/help/sync-markdown-runtime.mjs
 node scripts/check-help.mjs
 node scripts/test-palette-contrast.mjs
 mkdir -p "$output_dir"

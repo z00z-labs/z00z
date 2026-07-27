@@ -1,0 +1,36 @@
+{
+  "capture_route": "wallet.assets",
+  "components": [
+    "button|type=button",
+    "button|type=button|aria-label=Close",
+    "button|type=button|aria-label=Help for this view|data-help-topic=asset.details"
+  ],
+  "presentation_sha256": "a5dbc12f535ae928ba5d49bca34a7e525ff1cea30b13f046754109029502ea84",
+  "scope": "dialog",
+  "screenshot": "help/assets/en/asset-details.png",
+  "screenshot_sha256": "001650ed30782bccd369adb044330967fe488c4e278996544ae6319ff752ad0d",
+  "sections": [
+    "Asset details"
+  ],
+  "terms": [
+    "18,450,000 Z00Z",
+    "21,000,000 Z00Z",
+    "Asset ID",
+    "Asset details",
+    "Asset name",
+    "Close",
+    "Current supply",
+    "Help",
+    "Help for this view",
+    "Max supply",
+    "OK",
+    "Owner",
+    "Ticker",
+    "Z00Z",
+    "Z00Z protocol",
+    "Z00Z \u00b7 Coin",
+    "z00z:main:coin"
+  ],
+  "topic_id": "asset.details",
+  "version": 3
+}

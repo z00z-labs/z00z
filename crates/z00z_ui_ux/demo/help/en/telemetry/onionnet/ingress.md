@@ -1,13 +1,36 @@
 ---
 id: telemetry.onionnet.ingress
-title: OnionNet ingress
-summary: OnionNet ingress presents privacy-safe OnionNet telemetry aggregates without exposing routes or sessions.
+title: Telemetry Onionnet Ingress
+route: telemetry.onionnet.ingress
 scope: context
 ---
-## Use this view {#current-view}
-- Review onionnet ingress aggregates supplied by the registered local bridge; this view cannot change OnionNet.
-- Unavailable means that no fresh local snapshot exists; routes, endpoints, session identifiers, and payloads remain hidden.
 
-## Local and safe behavior
-- Wallet secrets and private transport data never enter Help.
-- This Help is packaged with the application and works offline.
+# Telemetry Onionnet Ingress
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Onionnet Ingress application view](help/assets/en/telemetry-onionnet-ingress.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/onionnet/ingress.md","route_id":"telemetry.onionnet.ingress","screenshot":"help/assets/en/telemetry-onionnet-ingress.png","topic_id":"telemetry.onionnet.ingress"} -->

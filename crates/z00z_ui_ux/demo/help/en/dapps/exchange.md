@@ -1,13 +1,36 @@
 ---
 id: wallet.exchange
-title: Exchange
-summary: Exchange explains the controls and status shown in this view.
+title: Wallet Exchange
+route: wallet.exchange
 scope: context
 ---
-## Use this view {#current-view}
-- Choose Hyperliquid Spot for an order-book request or NEAR Intents for a solver-driven cross-chain request, then enter only the fields required by that execution model.
-- Review pair or route, recipient/refund controls, slippage and deadline. Quote, output, fees, deposit address, and execution status stay unavailable until a verified connector supplies them.
 
-## Local and safe behavior
-- Wallet secrets and private transport data never enter Help.
-- This Help is packaged with the application and works offline.
+# Wallet Exchange
+
+[TOC]
+
+## App View {#current-view}
+
+![Wallet Exchange application view](help/assets/en/wallet-exchange.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"dapps/exchange.md","route_id":"wallet.exchange","screenshot":"help/assets/en/wallet-exchange.png","topic_id":"wallet.exchange"} -->

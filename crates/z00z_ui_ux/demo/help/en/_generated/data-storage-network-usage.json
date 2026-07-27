@@ -1,0 +1,30 @@
+{
+  "capture_route": "data-storage.network-usage",
+  "components": [],
+  "presentation_sha256": "147a9d76e3c968729fb4aacd47d389e6888d22f75ab069ef360e96b48da9ee42",
+  "scope": "context",
+  "screenshot": "help/assets/en/data-storage-network-usage.png",
+  "screenshot_sha256": "6659160e37c3d4c3c814b33eb8edfac320dcef3933bebcc14a8126ef69936775",
+  "sections": [
+    "Network Usage"
+  ],
+  "terms": [
+    "138 MB",
+    "184 MB",
+    "42 MB",
+    "88 MB",
+    "Data & Storage",
+    "Local demonstration counters. No wallet address, contact, message, or route detail is exported.",
+    "Local fixture",
+    "Network Usage",
+    "OnionNet",
+    "Private overlay total",
+    "Production counters must remain aggregate and must not expose contacts, destinations, message content, or wallet activity.",
+    "Received today",
+    "Reticulum",
+    "Sent today",
+    "Transport total"
+  ],
+  "topic_id": "data-storage.network-usage",
+  "version": 3
+}

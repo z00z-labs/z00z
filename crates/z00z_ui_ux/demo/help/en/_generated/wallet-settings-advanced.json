@@ -1,0 +1,31 @@
+{
+  "capture_route": "wallet.settings.advanced",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-demo-action=wallet-config-apply",
+    "button|type=button|data-demo-action=wallet-config-validate",
+    "textarea"
+  ],
+  "presentation_sha256": "dc245a95750c04b958321dc71247784c9ac9f83da9e0f16fd34a1daa5afdd530",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-settings-advanced.png",
+  "screenshot_sha256": "2598ad0685bbd1369fdccb7eda8096c5222e723cb6264d04da3ed6a0397333f4",
+  "sections": [],
+  "terms": [
+    "Advanced",
+    "Apply locally",
+    "Backup",
+    "General",
+    "Local draft is in sync with the visible controls.",
+    "No secrets or paths",
+    "Policies",
+    "Security",
+    "Selected wallet only",
+    "Selected wallet settings",
+    "Selected wallet settings YAML",
+    "Validate",
+    "wallet_settings.yaml"
+  ],
+  "topic_id": "wallet.settings.advanced",
+  "version": 3
+}

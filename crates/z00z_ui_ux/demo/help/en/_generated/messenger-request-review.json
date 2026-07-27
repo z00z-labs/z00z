@@ -1,0 +1,49 @@
+{
+  "capture_route": "messenger.inbox",
+  "components": [
+    "button|type=button|data-messenger-action=accept-request",
+    "button|type=button|data-messenger-action=detail",
+    "button|type=button|data-messenger-action=reject-request",
+    "button|type=button|data-messenger-action=relay-recover",
+    "button|type=button|data-messenger-action=relay-unavailable"
+  ],
+  "presentation_sha256": "fbbe37fd30909c5239f37556d9de751332bd7ab444fe04ae0709fc7058aea2aa",
+  "scope": "dialog",
+  "screenshot": "help/assets/en/messenger-request-review.png",
+  "screenshot_sha256": "f46b26788fe84a01d0b795ed30274beb58b29f2e01b4a7bf36d0ba03f9a9ecc2",
+  "sections": [
+    "Payment request"
+  ],
+  "terms": [
+    "18.50 Z00Z",
+    "18.50 Z00Z \u00b7 one recipient \u00b7 one review",
+    "Accept for Wallet review",
+    "Accepting creates a typed Messenger decision only. Wallet revalidates the immutable handoff and owns every later mutation.",
+    "Action",
+    "Advisory request review",
+    "Asset",
+    "Exact scope",
+    "Expires",
+    "Fee",
+    "Jul 27, 2026, 9:40 AM",
+    "Local deterministic fixture; no durable mailbox or live relay is connected.",
+    "Local merchant",
+    "Object family",
+    "Payment Request",
+    "Payment request",
+    "Pending",
+    "Prepare one native-asset payment",
+    "Recipient",
+    "Reject",
+    "Relay degraded",
+    "Retry locally",
+    "Separate Wallet review",
+    "Show unavailable",
+    "Type",
+    "Value",
+    "Withheld until Wallet review",
+    "\u2190 Message"
+  ],
+  "topic_id": "messenger.request-review",
+  "version": 3
+}

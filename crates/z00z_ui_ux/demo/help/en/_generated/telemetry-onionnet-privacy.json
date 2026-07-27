@@ -1,0 +1,44 @@
+{
+  "capture_route": "telemetry.onionnet.privacy",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.onionnet.epoch",
+    "button|type=button|data-workspace-route=telemetry.onionnet.ingress",
+    "button|type=button|data-workspace-route=telemetry.onionnet.overview",
+    "button|type=button|data-workspace-route=telemetry.onionnet.privacy",
+    "button|type=button|data-workspace-route=telemetry.onionnet.probation",
+    "button|type=button|data-workspace-route=telemetry.onionnet.queues",
+    "button|type=button|data-workspace-route=telemetry.onionnet.transport"
+  ],
+  "presentation_sha256": "8b1dc3da573b1d1ce73c7fb7f877a266f1da16c84ef66d097cc9095d729db6c8",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-onionnet-privacy.png",
+  "screenshot_sha256": "259c74b9973c34d3d506ea692eed64bdb6c9d8c06827058f4a428f7e31dcd087",
+  "sections": [
+    "OnionNet telemetry",
+    "Privacy"
+  ],
+  "terms": [
+    "Active lanes",
+    "Compliant route floor",
+    "Epoch",
+    "Ingress",
+    "Local capability unavailable",
+    "Minimum bucket population",
+    "No active profile evaluation",
+    "No bucket aggregate",
+    "No lane-contract snapshot",
+    "No policy-bound route count",
+    "OnionNet",
+    "OnionNet telemetry",
+    "Overview",
+    "Privacy",
+    "Privacy parameters",
+    "Probation",
+    "Queues",
+    "Read-only",
+    "Transport",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.onionnet.privacy",
+  "version": 3
+}

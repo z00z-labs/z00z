@@ -1,8 +1,7 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileHelp } from "./compile-help.mjs";
-import { synchronizeHelp } from "./sync-help.mjs";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 export const RELEASE_CSS_FILES = Object.freeze([
@@ -13,6 +12,11 @@ export const RELEASE_CSS_FILES = Object.freeze([
   "styles/help.css"
 ]);
 export const RELEASE_HTML_FILES = Object.freeze(["index.html", "help.html"]);
+export const RELEASE_MARKDOWN_RUNTIME_FILES = Object.freeze([
+  "scripts/vendor/markdown/mermaid.min.js",
+  "scripts/vendor/markdown/katex.min.css",
+  "scripts/vendor/markdown/fonts/KaTeX_Main-Regular.woff2"
+]);
 
 function splitUrl(value) {
   const hashIndex = value.indexOf("#");
@@ -131,7 +135,13 @@ export async function buildPagesRelease(root, sha, ref = "main") {
 
   const read = (path) => readFile(resolve(root, path), "utf8");
   const write = (path, value) => writeFile(resolve(root, path), value, "utf8");
-  await synchronizeHelp(root);
+  await Promise.all(RELEASE_MARKDOWN_RUNTIME_FILES.map(async (path) => {
+    try {
+      await access(resolve(root, path));
+    } catch {
+      throw new Error(`Missing ${path}; run node scripts/help/sync-markdown-runtime.mjs before preparing the static release.`);
+    }
+  }));
   await write("scripts/generated/help-catalog.js", await compileHelp(root));
   const rawHtml = Object.fromEntries(await Promise.all(
     RELEASE_HTML_FILES.map(async (path) => [path, await read(path)])

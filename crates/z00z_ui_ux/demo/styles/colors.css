@@ -111,6 +111,10 @@
   --warning: var(--lut-z00z-dark-warning);
   --danger: var(--lut-z00z-dark-danger);
   --focus: var(--lut-z00z-dark-focus);
+  /* Wallet network LUT: Mainnet / Testnet / Devnet. */
+  --network-mainnet: var(--success);
+  --network-testnet: var(--warning);
+  --network-devnet: var(--rail);
   /* Shared row and filter interaction states. */
   --interaction-hover-bg: var(--bg-raised);
   --interaction-hover-border: var(--border);
@@ -168,6 +172,9 @@ html[data-palette="z00z-corporate"] {
   --warning: var(--lut-z00z-corporate-warning-contrast);
   --danger: var(--lut-z00z-corporate-error-contrast);
   --focus: var(--lut-z00z-corporate-primary-contrast);
+  --network-mainnet: var(--success);
+  --network-testnet: var(--warning);
+  --network-devnet: var(--focus);
   --shadow: 0 20px 60px rgb(24 26 42 / 18%);
   --elevation-highlight-subtle: rgb(24 26 42 / 8%);
   --elevation-highlight-medium: rgb(24 26 42 / 14%);

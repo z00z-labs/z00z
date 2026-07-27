@@ -285,7 +285,7 @@ h3 {
 }
 
 .sidebar-label {
-  margin: 30px 10px 8px;
+  margin: 0 10px 8px;
   color: var(--text-tertiary);
   font-size: var(--type-nav);
   font-weight: 700;
@@ -297,15 +297,24 @@ h3 {
   --wallet-card-height: 68px;
   flex: 0 0 calc((var(--wallet-card-height) * 3) + 28px);
   display: flex;
+  overflow-x: hidden;
   overflow-y: auto;
   flex-direction: column;
   overscroll-behavior: contain;
   padding: 5px;
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: var(--radius-card);
+  clip-path: inset(0 round var(--radius-card));
   background: color-mix(in srgb, var(--bg-canvas) 36%, transparent);
+  background-clip: padding-box;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: auto;
+  scrollbar-width: none;
+}
+
+.wallet-nav-viewport:hover,
+.wallet-nav-viewport:focus-within {
   scrollbar-color: color-mix(in srgb, var(--brand) 58%, var(--border)) transparent;
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 
@@ -330,7 +339,7 @@ h3 {
 }
 
 .wallet-nav-viewport::-webkit-scrollbar {
-  width: 6px;
+  width: 0;
 }
 
 .wallet-nav-viewport::-webkit-scrollbar-thumb {
@@ -338,6 +347,17 @@ h3 {
   border-radius: 999px;
   background: color-mix(in srgb, var(--brand) 58%, var(--border));
   background-clip: padding-box;
+}
+
+.wallet-nav-viewport::-webkit-scrollbar-track {
+  margin-block: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.wallet-nav-viewport:hover::-webkit-scrollbar,
+.wallet-nav-viewport:focus-within::-webkit-scrollbar {
+  width: 6px;
 }
 
 .wallet-nav-item {
@@ -4762,18 +4782,21 @@ textarea[aria-invalid="true"] {
 }
 
 .environment-tag.is-main {
-  color: var(--brand-strong);
-  border-color: color-mix(in srgb, var(--brand) 35%, var(--border));
+  color: var(--network-mainnet);
+  border-color: color-mix(in srgb, var(--network-mainnet) 48%, var(--border));
+  background: color-mix(in srgb, var(--network-mainnet) 8%, transparent);
 }
 
 .environment-tag.is-test {
-  color: var(--rail);
-  border-color: color-mix(in srgb, var(--rail) 35%, var(--border));
+  color: var(--network-testnet);
+  border-color: color-mix(in srgb, var(--network-testnet) 48%, var(--border));
+  background: color-mix(in srgb, var(--network-testnet) 8%, transparent);
 }
 
 .environment-tag.is-dev {
-  color: var(--warning);
-  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  color: var(--network-devnet);
+  border-color: color-mix(in srgb, var(--network-devnet) 48%, var(--border));
+  background: color-mix(in srgb, var(--network-devnet) 8%, transparent);
 }
 
 details.technical {
@@ -5625,6 +5648,8 @@ button.connection-option:hover,
     display: flex;
     width: 100%;
     min-height: var(--topbar-height);
+    flex-wrap: wrap;
+    align-content: flex-start;
     align-items: stretch;
     gap: 0;
     overflow: hidden;
@@ -5638,7 +5663,9 @@ button.connection-option:hover,
 
   .mobile-navigation-leading {
     display: flex;
+    order: 1;
     flex: 0 0 auto;
+    min-height: var(--topbar-height);
     align-items: center;
     gap: 4px;
     padding: 0 5px 0 7px;
@@ -5677,13 +5704,15 @@ button.connection-option:hover,
 
   .mobile-topbar-context {
     display: block;
+    order: 3;
+    width: 100%;
     min-width: 0;
-    min-height: 0;
-    flex: 1 1 auto;
-    align-self: stretch;
+    min-height: var(--topbar-height);
+    flex: 0 0 100%;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     scrollbar-width: none;
+    border-top: 1px solid var(--border);
   }
 
   .mobile-topbar-context[hidden] {
@@ -5715,16 +5744,17 @@ button.connection-option:hover,
   }
 
   .mobile-active-wallet {
-    position: sticky;
-    z-index: 30;
-    top: var(--topbar-height);
     display: grid;
-    min-height: 64px;
+    order: 2;
+    width: auto;
+    min-width: 0;
+    min-height: var(--topbar-height);
+    flex: 1 1 0;
     align-content: center;
-    padding: 6px 16px;
-    border-bottom: 1px solid var(--border);
+    padding: 4px 12px;
+    border: 0;
     background: var(--bg-surface);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 76%, transparent);
+    box-shadow: none;
   }
 
   .mobile-active-wallet[hidden] {
@@ -5822,7 +5852,7 @@ button.connection-option:hover,
     background: var(--bg-popup-menu);
     box-shadow: var(--shadow);
     animation: mobile-drawer-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
   }
 
   .mobile-popup-header {
@@ -6320,6 +6350,17 @@ button.connection-option:hover,
     font-size: var(--type-data-meta);
   }
 
+  /* Keep the selected-wallet identifiers visually anchored to their actions.
+     They share a right edge at every mobile width without changing the layout
+     of the other settings controls. */
+  .wallet-settings-view [data-help-anchor="wallet-name"] > .compact-value,
+  .wallet-settings-view [data-help-anchor="wallet-id"] > .compact-value {
+    width: auto;
+    max-width: 100%;
+    justify-self: end;
+    text-align: right;
+  }
+
   .compact-row .button {
     min-height: 40px;
     padding: 7px 10px;
@@ -6556,6 +6597,38 @@ button.connection-option:hover,
 }
 
 @media (max-width: 480px) {
+  .asset-row {
+    grid-template-columns: 48px minmax(88px, 1.25fr) minmax(60px, 0.85fr) minmax(80px, 1.1fr);
+  }
+
+  .asset-identity-button {
+    gap: 8px;
+  }
+
+  .asset-logo {
+    width: 52px;
+    height: 52px;
+    flex-basis: 52px;
+    border-radius: 14px;
+  }
+
+  .asset-logo.has-brand-icon img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .asset-row > .asset-number:nth-of-type(1) {
+    grid-column: 2;
+  }
+
+  .asset-row > .asset-number:nth-of-type(2) {
+    grid-column: 3;
+  }
+
+  .asset-row > .asset-number:nth-of-type(3) {
+    grid-column: 4;
+  }
+
   .notification-choice-setting.setting-line.compact-row {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
@@ -6718,11 +6791,27 @@ button.connection-option:hover,
   }
 
   .wallet-identity-name {
-    margin-top: 2px;
-    padding-right: calc(var(--wallet-address-copy-size) + 5px);
+    margin: 0;
     color: var(--text-secondary);
     font-size: var(--type-label);
     line-height: 1.23;
+  }
+
+  .wallet-identity-meta {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .wallet-identity-meta .environment-tag {
+    min-height: 22px;
+    flex: 0 0 auto;
+    padding: 3px 10px;
+    font-size: 11px;
+    line-height: 1.1;
   }
 
   .wallet-identity-copy.icon-button {
@@ -7235,7 +7324,7 @@ button.connection-option:hover,
 
   .app-shell {
     display: grid;
-    grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .app-body {
@@ -7311,12 +7400,22 @@ button.connection-option:hover,
     width: min(22rem, calc(100vw - 14px));
     max-height: calc(100dvh - var(--topbar-height));
     overflow: hidden;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .app-shell.has-mobile-topbar-context .mobile-popup-menu[data-popup-type="menu"] {
+    top: calc(var(--topbar-height) + var(--topbar-height) + 1px);
+    max-height: calc(100dvh - var(--topbar-height) - var(--topbar-height) - 1px);
   }
 
   .mobile-menu-backdrop {
     top: var(--topbar-height);
     height: calc(100dvh - var(--topbar-height));
+  }
+
+  .app-shell.has-mobile-topbar-context .mobile-menu-backdrop {
+    top: calc(var(--topbar-height) + var(--topbar-height) + 1px);
+    height: calc(100dvh - var(--topbar-height) - var(--topbar-height) - 1px);
   }
 
   .mobile-drawer-header {
@@ -7338,8 +7437,12 @@ button.connection-option:hover,
   }
 
   .mobile-wallet-selector {
-    padding: 0 0 10px;
+    display: grid;
+    flex: 0 0 auto;
+    gap: 0;
+    padding: 12px;
     border-bottom: 1px solid var(--border);
+    background: var(--bg-popup-menu);
   }
 
   .mobile-wallet-selector > p {
@@ -7351,9 +7454,26 @@ button.connection-option:hover,
     text-transform: uppercase;
   }
 
-  .mobile-wallet-selector > div {
+  .mobile-wallet-list {
     display: grid;
+    max-height: min(22dvh, 176px);
     gap: 4px;
+    overflow-y: auto;
+    padding-right: 2px;
+    overscroll-behavior: contain;
+    scrollbar-color: color-mix(in srgb, var(--brand) 58%, var(--border)) transparent;
+    scrollbar-width: thin;
+  }
+
+  .mobile-wallet-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .mobile-wallet-list::-webkit-scrollbar-thumb {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--brand) 58%, var(--border));
+    background-clip: padding-box;
   }
 
   .mobile-wallet-choice {
@@ -7376,6 +7496,24 @@ button.connection-option:hover,
     border-color: var(--interaction-selected-border);
     color: var(--interaction-selected-text);
     background: var(--interaction-selected-bg);
+  }
+
+  .mobile-wallet-actions {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  }
+
+  .mobile-wallet-action.nav-item {
+    min-height: 44px;
+    justify-content: flex-start;
+    padding: 0 8px;
+  }
+
+  .mobile-wallet-action.nav-item span {
+    display: inline;
   }
 
   .mobile-navigation-tree {

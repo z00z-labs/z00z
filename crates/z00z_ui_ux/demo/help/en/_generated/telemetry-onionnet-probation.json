@@ -1,0 +1,45 @@
+{
+  "capture_route": "telemetry.onionnet.probation",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.onionnet.epoch",
+    "button|type=button|data-workspace-route=telemetry.onionnet.ingress",
+    "button|type=button|data-workspace-route=telemetry.onionnet.overview",
+    "button|type=button|data-workspace-route=telemetry.onionnet.privacy",
+    "button|type=button|data-workspace-route=telemetry.onionnet.probation",
+    "button|type=button|data-workspace-route=telemetry.onionnet.queues",
+    "button|type=button|data-workspace-route=telemetry.onionnet.transport"
+  ],
+  "presentation_sha256": "7e8d86fb307fa7c178867eb1d34897f39fd3231c55c38b48bce0bac40480afcb",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-onionnet-probation.png",
+  "screenshot_sha256": "f2e96267fc62bf8a7d4a086227336ccf851ba6ae9937958c2da6d3608f097382",
+  "sections": [
+    "OnionNet telemetry",
+    "Probation"
+  ],
+  "terms": [
+    "Challenge outcomes",
+    "Epoch",
+    "Ingress",
+    "Local capability unavailable",
+    "No activation-time observation",
+    "No aggregate probe results",
+    "No bounded outcome summary",
+    "No lifecycle aggregate",
+    "OnionNet",
+    "OnionNet telemetry",
+    "Overview",
+    "Privacy",
+    "Probation",
+    "Probation parameters",
+    "Probation population",
+    "Queues",
+    "Read-only",
+    "Reserve activation",
+    "Shadow-probe coverage",
+    "Transport",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.onionnet.probation",
+  "version": 3
+}

@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.evidence
-title: Explorer public evidence
-summary: Explorer public evidence explains the privacy-bounded Explorer roadmap preview for supported public identifiers.
+title: Telemetry Explorer Evidence
+route: telemetry.explorer.evidence
 scope: context
 ---
-## Use this view {#current-view}
-- Use Explorer public evidence only with the supported public checkpoint, batch, alert, or evidence identifiers.
-- Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup.
 
-## Local and safe behavior
-- Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.
-- Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer.
+# Telemetry Explorer Evidence
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer Evidence application view](help/assets/en/telemetry-explorer-evidence.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/evidence.md","route_id":"telemetry.explorer.evidence","screenshot":"help/assets/en/telemetry-explorer-evidence.png","topic_id":"telemetry.explorer.evidence"} -->

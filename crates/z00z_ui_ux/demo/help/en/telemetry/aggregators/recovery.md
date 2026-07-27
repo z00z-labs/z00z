@@ -1,13 +1,36 @@
 ---
 id: telemetry.aggregators.recovery
-title: Aggregator recovery
-summary: Recovery explains restart and secondary-takeover checks against committed route, generation, primary, and journal lineage.
+title: Telemetry Aggregators Recovery
+route: telemetry.aggregators.recovery
 scope: context
 ---
-## Use this view {#current-view}
-- Review the `ShardRecoveryRecord`, recovery intent, durable state, and execution-ticket contract.
-- Unavailable means no committed recovery snapshot is connected.
 
-## Fail-closed boundary
-- Wrong generation, primary, shard, batch, route, or lineage is rejected.
-- The renderer cannot initiate failover or mutate storage recovery truth.
+# Telemetry Aggregators Recovery
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Aggregators Recovery application view](help/assets/en/telemetry-aggregators-recovery.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/aggregators/recovery.md","route_id":"telemetry.aggregators.recovery","screenshot":"help/assets/en/telemetry-aggregators-recovery.png","topic_id":"telemetry.aggregators.recovery"} -->

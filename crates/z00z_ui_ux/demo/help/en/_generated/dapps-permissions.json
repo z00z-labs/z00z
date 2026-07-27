@@ -1,0 +1,52 @@
+{
+  "capture_route": "dapps.permissions",
+  "components": [
+    "button|type=button|data-dapp-action=open",
+    "button|type=button|data-dapp-action=revoke"
+  ],
+  "presentation_sha256": "c2f7e85d7115a468c75ba5488fd41b88e01834d051d4626c70d6b3cc85b9f174",
+  "scope": "context",
+  "screenshot": "help/assets/en/dapps-permissions.png",
+  "screenshot_sha256": "74dbe26b7da850d33b4ee079a7a8f3c6e2ccd83407a446d15f0cabac0c540305",
+  "sections": [
+    "Permissions",
+    "Private Voucher",
+    "Scoped Expenses",
+    "Service Credits"
+  ],
+  "terms": [
+    "0 of 3 remaining",
+    "2 of 5 remaining",
+    "8 of 12 remaining",
+    "Active",
+    "Already expired; no usable authority remains.",
+    "App details",
+    "Attenuation only",
+    "Aug 2, 2026, 12:00 AM",
+    "Community voucher class \u00b7 claim inspection only",
+    "Compute class C2 \u00b7 presentation only",
+    "Delegation",
+    "Displayed grants are bounded local fixtures. Revocation blocks future app proposals and never rewrites a prior wallet outcome.",
+    "Expired",
+    "Expires",
+    "Expiring",
+    "Expiry enforced locally",
+    "Jul 25, 2026, 8:20 AM",
+    "Jul 27, 2026, 6:00 PM",
+    "Local fixture workflow",
+    "Not allowed",
+    "On revoke",
+    "Operations \u00b7 native asset \u00b7 maximum 75 Z00Z per request",
+    "Permissions",
+    "Private Voucher",
+    "Reject future proposals without rewriting prior wallet outcomes.",
+    "Revoke permission",
+    "Scoped Expenses",
+    "Service Credits",
+    "Stop future claim inspection; issued objects remain wallet-owned.",
+    "Uses",
+    "dApp permissions"
+  ],
+  "topic_id": "dapps.permissions",
+  "version": 3
+}

@@ -1,0 +1,45 @@
+{
+  "capture_route": "telemetry.onionnet.ingress",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.onionnet.epoch",
+    "button|type=button|data-workspace-route=telemetry.onionnet.ingress",
+    "button|type=button|data-workspace-route=telemetry.onionnet.overview",
+    "button|type=button|data-workspace-route=telemetry.onionnet.privacy",
+    "button|type=button|data-workspace-route=telemetry.onionnet.probation",
+    "button|type=button|data-workspace-route=telemetry.onionnet.queues",
+    "button|type=button|data-workspace-route=telemetry.onionnet.transport"
+  ],
+  "presentation_sha256": "ffddb01725a1d1761c3dca725268e5cad7a925f07d039641b20b4f9cbb4dfdb5",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-onionnet-ingress.png",
+  "screenshot_sha256": "7ba0dc9ebdd8a6f1ceb19b6e84d31342bb8426f12d4bdd861b771d74af9c42f5",
+  "sections": [
+    "Ingress",
+    "OnionNet telemetry"
+  ],
+  "terms": [
+    "Epoch",
+    "Exit boundary",
+    "Ingress",
+    "Ingress parameters",
+    "Inner decrypt",
+    "Local capability unavailable",
+    "No WorkItem admission aggregate",
+    "No key-age or rotation snapshot",
+    "No opaque-handoff aggregate",
+    "No result-count aggregate",
+    "OnionNet",
+    "OnionNet telemetry",
+    "Overview",
+    "Privacy",
+    "Probation",
+    "Queues",
+    "Read-only",
+    "Recipient-key lifecycle",
+    "Runtime admission",
+    "Transport",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.onionnet.ingress",
+  "version": 3
+}

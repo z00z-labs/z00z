@@ -1,0 +1,46 @@
+{
+  "capture_route": "telemetry.onionnet.overview",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.onionnet.epoch",
+    "button|type=button|data-workspace-route=telemetry.onionnet.ingress",
+    "button|type=button|data-workspace-route=telemetry.onionnet.overview",
+    "button|type=button|data-workspace-route=telemetry.onionnet.privacy",
+    "button|type=button|data-workspace-route=telemetry.onionnet.probation",
+    "button|type=button|data-workspace-route=telemetry.onionnet.queues",
+    "button|type=button|data-workspace-route=telemetry.onionnet.transport"
+  ],
+  "presentation_sha256": "cd310780b585c04b063c26d866a41419e063696869f5a6839e8c24e4274df6cb",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-onionnet-overview.png",
+  "screenshot_sha256": "ed56f8cd2e731d35c0b87c0e0e489d742259af0b471d878478e1b5df39e3dd23",
+  "sections": [
+    "OnionNet telemetry",
+    "Overview"
+  ],
+  "terms": [
+    "Epoch",
+    "Hidden",
+    "Ingress",
+    "Local capability unavailable",
+    "Local route evidence",
+    "No aggregate probe feed",
+    "No paths, endpoints, or session IDs",
+    "No verified registry or policy snapshot",
+    "No wallet or SDK status bridge",
+    "OnionNet",
+    "OnionNet telemetry",
+    "Overview",
+    "Overview parameters",
+    "Privacy",
+    "Probation",
+    "Protected fields",
+    "Public epoch data",
+    "Queues",
+    "Read-only",
+    "Synthetic health",
+    "Transport",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.onionnet.overview",
+  "version": 3
+}

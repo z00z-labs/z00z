@@ -1,0 +1,22 @@
+{
+  "capture_route": "settings.general",
+  "components": [
+    "button|type=button",
+    "button|type=button|aria-label=Language"
+  ],
+  "presentation_sha256": "4d6677b03c396c0dc7a0147cf8ce8c7e08f9a589f53770a0d639839f1648835f",
+  "scope": "context",
+  "screenshot": "help/assets/en/settings-general.png",
+  "screenshot_sha256": "a53777b36d9f88afb1dbc7c5297f81b8c72e31d34626d283c5195816cdbd8c01",
+  "sections": [],
+  "terms": [
+    "English",
+    "English \u00b7 en-US",
+    "Language",
+    "Regional format",
+    "Time zone",
+    "UTC"
+  ],
+  "topic_id": "settings.general",
+  "version": 3
+}

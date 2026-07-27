@@ -1,0 +1,45 @@
+{
+  "capture_route": "telemetry.onionnet.epoch",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.onionnet.epoch",
+    "button|type=button|data-workspace-route=telemetry.onionnet.ingress",
+    "button|type=button|data-workspace-route=telemetry.onionnet.overview",
+    "button|type=button|data-workspace-route=telemetry.onionnet.privacy",
+    "button|type=button|data-workspace-route=telemetry.onionnet.probation",
+    "button|type=button|data-workspace-route=telemetry.onionnet.queues",
+    "button|type=button|data-workspace-route=telemetry.onionnet.transport"
+  ],
+  "presentation_sha256": "2a644a993956e8daeeee869d0e9cbd567b1e5129b7b65f65a244087db6b238bd",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-onionnet-epoch.png",
+  "screenshot_sha256": "a2f5c678f197acc864cad636e6bcf9dcae6db8e48c87982772a485df423013f0",
+  "sections": [
+    "Epoch",
+    "OnionNet telemetry"
+  ],
+  "terms": [
+    "Epoch",
+    "Epoch ID",
+    "Epoch parameters",
+    "Independent derivation",
+    "Ingress",
+    "Lane contract expiry",
+    "Local capability unavailable",
+    "No active contract snapshot",
+    "No fresh verified epoch view",
+    "No observer agreement snapshot",
+    "No verified roots or snapshot age",
+    "OnionNet",
+    "OnionNet telemetry",
+    "Overview",
+    "Privacy",
+    "Probation",
+    "Queues",
+    "Read-only",
+    "Registry / policy freshness",
+    "Transport",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.onionnet.epoch",
+  "version": 3
+}

@@ -1,13 +1,36 @@
 ---
 id: messenger.conversations
-title: Conversations
-summary: Conversations explains the private request-coordination roadmap preview and its Wallet handoff.
+title: Messenger Conversations
+route: messenger.conversations
 scope: context
 ---
-## Use this view {#current-view}
-- Use Conversations to inspect deterministic local messages, requests, receipts, expiry, and recovery states.
-- Accepting a request creates a Wallet review intent; it does not settle or mutate wallet state.
 
-## Local and safe behavior
-- Messenger is a roadmap preview for short-lived relay coordination, not permanent on-chain chat.
-- Opening, deleting, blocking, or reporting content never changes Wallet settlement state.
+# Messenger Conversations
+
+[TOC]
+
+## App View {#current-view}
+
+![Messenger Conversations application view](help/assets/en/messenger-conversations.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"messenger/conversations.md","route_id":"messenger.conversations","screenshot":"help/assets/en/messenger-conversations.png","topic_id":"messenger.conversations"} -->

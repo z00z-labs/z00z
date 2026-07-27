@@ -1,13 +1,36 @@
 ---
 id: telemetry.aggregators.planning
-title: Aggregator planning
-summary: Planning explains deterministic batch and shard-route binding without claiming settlement authority.
+title: Telemetry Aggregators Planning
+route: telemetry.aggregators.planning
 scope: context
 ---
-## Use this view {#current-view}
-- Review planner mode, route generation, intake count, operation count, and digest ownership.
-- Unavailable means no verified `BatchPlanned` snapshot is connected.
 
-## Fail-closed boundary
-- Planner configuration, generation, route-table digest, and recomputed plan must agree.
-- Planning never finalizes settlement, publication, or storage truth.
+# Telemetry Aggregators Planning
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Aggregators Planning application view](help/assets/en/telemetry-aggregators-planning.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/aggregators/planning.md","route_id":"telemetry.aggregators.planning","screenshot":"help/assets/en/telemetry-aggregators-planning.png","topic_id":"telemetry.aggregators.planning"} -->

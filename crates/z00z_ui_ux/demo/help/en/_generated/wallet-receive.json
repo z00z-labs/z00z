@@ -1,0 +1,23 @@
+{
+  "capture_route": "wallet.receive",
+  "components": [
+    "button|type=button|aria-label=Copy full address for Everyday wallet|data-demo-action=copy-wallet-address"
+  ],
+  "presentation_sha256": "f3643a5caa504691c9e65d4dedd1df4010714d7f9c8ffade569bc0795a6bb716",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-receive.png",
+  "screenshot_sha256": "e6094ead650ddf7d9aed4782328cb1a6a4d660bf7521a2b93d52aed0d63f600a",
+  "sections": [
+    "Receive privately"
+  ],
+  "terms": [
+    "Assets, Vouchers and Permissions",
+    "Copy full address for Everyday wallet",
+    "Receive QR",
+    "Receive privately",
+    "ZxChpoioBEFR1PRJPamJxh5aWdEb94ek8J52PmT8PYAEa8RKVtSs9X3UPgaSaHvMMZKcQoiyVFhEE256vcyGPeFV23d2Mj8Pt",
+    "ZxChpoioBEFR\u2026V23d2Mj8Pt"
+  ],
+  "topic_id": "wallet.receive",
+  "version": 3
+}

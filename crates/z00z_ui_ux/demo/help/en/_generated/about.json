@@ -1,0 +1,26 @@
+{
+  "capture_route": "about",
+  "components": [
+    "a",
+    "button|type=button|data-demo-action=check-for-updates"
+  ],
+  "presentation_sha256": "4db5b6a367ac2ec444b4f261ae11d183c8c35aa5a0b515fd99cff1ff9ac3b0c2",
+  "scope": "context",
+  "screenshot": "help/assets/en/about.png",
+  "screenshot_sha256": "8681575ded12cd042c5dfc62e07230d06161fe79a9f6392277b5416a095dc812",
+  "sections": [
+    "Z00Z Wallet v0.1.0"
+  ],
+  "terms": [
+    "Check for updates...",
+    "Privacy Policy",
+    "Private wallet and protocol workspace. This demo defines the desktop and mobile UX target for the future Rust and Tauri application.",
+    "Terms of Use",
+    "Visit Z00Z GitHub repository",
+    "Visit Z00Z Website",
+    "Z00Z Wallet v0.1.0",
+    "Z00Z information and external links"
+  ],
+  "topic_id": "about",
+  "version": 3
+}

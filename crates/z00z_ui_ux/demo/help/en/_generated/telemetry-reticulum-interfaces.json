@@ -1,0 +1,47 @@
+{
+  "capture_route": "telemetry.reticulum.interfaces",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.reticulum.entrypoints",
+    "button|type=button|data-workspace-route=telemetry.reticulum.interfaces",
+    "button|type=button|data-workspace-route=telemetry.reticulum.links",
+    "button|type=button|data-workspace-route=telemetry.reticulum.node",
+    "button|type=button|data-workspace-route=telemetry.reticulum.overview",
+    "button|type=button|data-workspace-route=telemetry.reticulum.paths",
+    "button|type=button|data-workspace-route=telemetry.reticulum.probes",
+    "button|type=button|data-workspace-route=telemetry.reticulum.radio"
+  ],
+  "presentation_sha256": "5c4ce380a3449e2ed848d54a1b8f571a6dab609b669d45f0af24df950cb95080",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-reticulum-interfaces.png",
+  "screenshot_sha256": "8104417767996bdf52511ea5dcb85ce8b97b4dcdecdd478e19272baa0d5485f7",
+  "sections": [
+    "Interfaces",
+    "Reticulum telemetry"
+  ],
+  "terms": [
+    "Current RX / TX",
+    "Entrypoints",
+    "Interfaces",
+    "Interfaces parameters",
+    "Interfaces up / total",
+    "Links",
+    "Local capability unavailable",
+    "Mode",
+    "No configured-rate snapshot",
+    "No interface-mode snapshot",
+    "No local interface snapshot",
+    "No local traffic-rate snapshot",
+    "Node",
+    "Nominal bitrate",
+    "Overview",
+    "Paths",
+    "Probes",
+    "Radio",
+    "Read-only",
+    "Reticulum",
+    "Reticulum telemetry",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.reticulum.interfaces",
+  "version": 3
+}

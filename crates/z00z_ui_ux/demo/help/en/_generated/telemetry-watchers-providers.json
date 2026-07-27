@@ -1,0 +1,50 @@
+{
+  "capture_route": "telemetry.watchers.providers",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-workspace-route=telemetry.watchers.alerts",
+    "button|type=button|data-workspace-route=telemetry.watchers.censorship",
+    "button|type=button|data-workspace-route=telemetry.watchers.evidence",
+    "button|type=button|data-workspace-route=telemetry.watchers.overview",
+    "button|type=button|data-workspace-route=telemetry.watchers.providers",
+    "button|type=button|data-workspace-route=telemetry.watchers.publication"
+  ],
+  "presentation_sha256": "a1f92836be3adf4ad52674124a3d718b142552c0352156b9907b8bf95d9b248f",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-watchers-providers.png",
+  "screenshot_sha256": "acef98340b3a6ceead6a42f8440cd91129bb8ae4cf4cce801ace352964e1ca32",
+  "sections": [
+    "DA providers"
+  ],
+  "terms": [
+    "Alerts",
+    "Batch",
+    "Censorship signals",
+    "DA provider signals",
+    "DA providers",
+    "Deterministic Watchers controls",
+    "Deterministic, privacy-safe observation and evidence workflow.",
+    "Evidence export",
+    "Observation source",
+    "Observe \u00b7 Success",
+    "Opaque DA ref",
+    "Overview",
+    "ProviderCompare",
+    "ProviderSignal",
+    "Publication checks",
+    "Resolve \u00b7 RetryPending",
+    "Runtime projection",
+    "Scenario",
+    "Useful fixture",
+    "Watchers",
+    "archive-mirror",
+    "batch_4f91c7a0",
+    "batch_72bc108f",
+    "da_ref_18ac40",
+    "da_ref_72be91",
+    "is currently a marker type; this preview compares typed fixture rows without inventing a provider ranking or semantic verdict.",
+    "local-bridge"
+  ],
+  "topic_id": "telemetry.watchers.providers",
+  "version": 3
+}

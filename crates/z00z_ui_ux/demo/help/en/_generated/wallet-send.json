@@ -1,0 +1,48 @@
+{
+  "capture_route": "wallet.send",
+  "components": [
+    "button|type=button",
+    "button|type=submit",
+    "input|name=memo|placeholder=What is this for?",
+    "input|name=recipient|placeholder=Paste or scan a private request",
+    "input|type=number|name=amount|placeholder=0.00"
+  ],
+  "presentation_sha256": "a84ebbe5fe39880ba7062d5bffff317be23af7ab68df7f1ac5714c3e0f92f87e",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-send.png",
+  "screenshot_sha256": "0c0626e9ed066a068153600ac9d445b0523df111ffc50e617c592bb6b3449e29",
+  "sections": [
+    "Send privately"
+  ],
+  "terms": [
+    "(optional)",
+    "0.00",
+    "12,480.75 Z00Z",
+    "Amount",
+    "Asset",
+    "Assets",
+    "Available:",
+    "Cancel",
+    "Chain",
+    "Coin",
+    "Mainnet",
+    "Object type",
+    "Paste or scan a private request",
+    "Permissions",
+    "Private note",
+    "Recipient or private request",
+    "Recipient, object, and authorization",
+    "Review send",
+    "Send object family",
+    "Send privately",
+    "Spendable balance",
+    "Step 1 of 3",
+    "Unit",
+    "Vouchers",
+    "What is this for?",
+    "Z00Z",
+    "Z00Z \u00b7 Coin"
+  ],
+  "topic_id": "wallet.send",
+  "version": 3
+}

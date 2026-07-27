@@ -1,13 +1,36 @@
 ---
 id: dapps.detail
-title: dApp details
-summary: dApp details explains the bounded local dApps roadmap preview and its permission boundary.
+title: Dapps Detail
+route: none
 scope: dialog
 ---
-## Use this view {#current-view}
-- Use dApp details to inspect deterministic local descriptors, scoped intents, and explicit outcomes.
-- Review scope, uses, expiry, value, fee, disclosure, and revoke behavior before accepting an intent.
 
-## Local and safe behavior
-- dApps is a roadmap preview: no remote app code, arbitrary URL, or generic signing request is executed.
-- Accepted intents are revalidated by the Wallet; this view cannot mutate wallet objects.
+# Dapps Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Dapps Detail application view](help/assets/en/dapps-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"dapps/detail.md","route_id":"none","screenshot":"help/assets/en/dapps-detail.png","topic_id":"dapps.detail"} -->

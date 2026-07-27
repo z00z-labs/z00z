@@ -1,398 +1,368 @@
-version: 1
+version: 2
+source_locale: en
 topics:
   - id: app
-    group: app
-    file: app
+    file: app/index.md
+    label_key: help.title
+    route: none
     scope: global
-    match: global
-  - id: about
-    group: app
-    file: about
-    source: root
-    scope: context
-    match: activeRoute=about
   - id: wallet.assets
-    group: wallets
-    file: assets-rights/assets
+    file: wallet/assets-rights/index.md
+    label_key: navigation.assets
+    route: wallet.assets
     scope: context
-    match: activeRoute=wallet.assets
   - id: wallet.vouchers
-    group: wallets
-    file: assets-rights/vouchers
+    file: wallet/assets-rights/vouchers.md
+    label_key: navigation.vouchers
+    route: wallet.vouchers
     scope: context
-    match: activeRoute=wallet.vouchers
   - id: wallet.permissions
-    group: wallets
-    file: assets-rights/permissions
+    file: wallet/assets-rights/permissions.md
+    label_key: navigation.permissions
+    route: wallet.permissions
     scope: context
-    match: activeRoute=wallet.permissions
   - id: wallet.quarantine
-    group: wallets
-    file: quarantine
+    file: wallet/assets-rights/quarantine.md
+    label_key: navigation.quarantine
+    route: wallet.quarantine
     scope: context
-    match: activeRoute=wallet.quarantine
   - id: wallet.send
-    group: wallets
-    file: send
+    file: wallet/send.md
+    label_key: navigation.send
+    route: wallet.send
     scope: context
-    match: activeRoute=wallet.send
   - id: wallet.receive
-    group: wallets
-    file: receive
+    file: wallet/receive.md
+    label_key: navigation.receive
+    route: wallet.receive
     scope: context
-    match: activeRoute=wallet.receive
   - id: wallet.history
-    group: wallets
-    file: history
+    file: wallet/history.md
+    label_key: navigation.history
+    route: wallet.history
     scope: context
-    match: activeRoute=wallet.history
-  - id: wallet.staking.stake
-    group: wallets
-    file: staking/stake
-    scope: context
-    match: activeRoute=wallet.staking.stake
-  - id: wallet.staking.unstake
-    group: wallets
-    file: staking/unstake
-    scope: context
-    match: activeRoute=wallet.staking.unstake
-  - id: wallet.backup
-    group: wallets
-    file: backup
-    scope: context
-    match: activeRoute=wallet.backup
-  - id: wallet.settings.general
-    group: wallets
-    file: settings/general
-    scope: context
-    match: activeRoute=wallet.settings.general
-  - id: wallet.settings.security
-    group: wallets
-    file: settings/security
-    scope: context
-    match: activeRoute=wallet.settings.security
-  - id: wallet.settings.backup
-    group: wallets
-    file: settings/backup
-    scope: context
-    match: activeRoute=wallet.settings.backup
-  - id: wallet.settings.policies
-    group: wallets
-    file: settings/policies
-    scope: context
-    match: activeRoute=wallet.settings.policies
-  - id: wallet.settings.advanced
-    group: wallets
-    file: settings/advanced
-    scope: context
-    match: activeRoute=wallet.settings.advanced
-  - id: telemetry.reticulum.overview
-    group: telemetry
-    file: reticulum/overview
-    scope: context
-    match: activeRoute=telemetry.reticulum.overview
-  - id: telemetry.reticulum.node
-    group: telemetry
-    file: reticulum/node
-    scope: context
-    match: activeRoute=telemetry.reticulum.node
-  - id: telemetry.reticulum.interfaces
-    group: telemetry
-    file: reticulum/interfaces
-    scope: context
-    match: activeRoute=telemetry.reticulum.interfaces
-  - id: telemetry.reticulum.radio
-    group: telemetry
-    file: reticulum/radio
-    scope: context
-    match: activeRoute=telemetry.reticulum.radio
-  - id: telemetry.reticulum.entrypoints
-    group: telemetry
-    file: reticulum/entrypoints
-    scope: context
-    match: activeRoute=telemetry.reticulum.entrypoints
-  - id: telemetry.reticulum.paths
-    group: telemetry
-    file: reticulum/paths
-    scope: context
-    match: activeRoute=telemetry.reticulum.paths
-  - id: telemetry.reticulum.probes
-    group: telemetry
-    file: reticulum/probes
-    scope: context
-    match: activeRoute=telemetry.reticulum.probes
-  - id: telemetry.reticulum.links
-    group: telemetry
-    file: reticulum/links
-    scope: context
-    match: activeRoute=telemetry.reticulum.links
-  - id: telemetry.onionnet.overview
-    group: telemetry
-    file: onionnet/overview
-    scope: context
-    match: activeRoute=telemetry.onionnet.overview
-  - id: telemetry.onionnet.epoch
-    group: telemetry
-    file: onionnet/epoch
-    scope: context
-    match: activeRoute=telemetry.onionnet.epoch
-  - id: telemetry.onionnet.privacy
-    group: telemetry
-    file: onionnet/privacy
-    scope: context
-    match: activeRoute=telemetry.onionnet.privacy
-  - id: telemetry.onionnet.transport
-    group: telemetry
-    file: onionnet/transport
-    scope: context
-    match: activeRoute=telemetry.onionnet.transport
-  - id: telemetry.onionnet.queues
-    group: telemetry
-    file: onionnet/queues
-    scope: context
-    match: activeRoute=telemetry.onionnet.queues
-  - id: telemetry.onionnet.probation
-    group: telemetry
-    file: onionnet/probation
-    scope: context
-    match: activeRoute=telemetry.onionnet.probation
-  - id: telemetry.onionnet.ingress
-    group: telemetry
-    file: onionnet/ingress
-    scope: context
-    match: activeRoute=telemetry.onionnet.ingress
-  - id: telemetry.aggregators.overview
-    group: telemetry
-    file: aggregators/overview
-    scope: context
-    match: activeRoute=telemetry.aggregators.overview
-  - id: telemetry.aggregators.ingress
-    group: telemetry
-    file: aggregators/ingress
-    scope: context
-    match: activeRoute=telemetry.aggregators.ingress
-  - id: telemetry.aggregators.planning
-    group: telemetry
-    file: aggregators/planning
-    scope: context
-    match: activeRoute=telemetry.aggregators.planning
-  - id: telemetry.aggregators.placement
-    group: telemetry
-    file: aggregators/placement
-    scope: context
-    match: activeRoute=telemetry.aggregators.placement
-  - id: telemetry.aggregators.publication
-    group: telemetry
-    file: aggregators/publication
-    scope: context
-    match: activeRoute=telemetry.aggregators.publication
-  - id: telemetry.aggregators.recovery
-    group: telemetry
-    file: aggregators/recovery
-    scope: context
-    match: activeRoute=telemetry.aggregators.recovery
-  - id: telemetry.watchers.overview
-    group: telemetry
-    file: watchers/overview
-    scope: context
-    match: activeRoute=telemetry.watchers.overview
-  - id: telemetry.watchers.alerts
-    group: telemetry
-    file: watchers/alerts
-    scope: context
-    match: activeRoute=telemetry.watchers.alerts
-  - id: telemetry.watchers.publication
-    group: telemetry
-    file: watchers/publication
-    scope: context
-    match: activeRoute=telemetry.watchers.publication
-  - id: telemetry.watchers.providers
-    group: telemetry
-    file: watchers/providers
-    scope: context
-    match: activeRoute=telemetry.watchers.providers
-  - id: telemetry.watchers.censorship
-    group: telemetry
-    file: watchers/censorship
-    scope: context
-    match: activeRoute=telemetry.watchers.censorship
-  - id: telemetry.watchers.evidence
-    group: telemetry
-    file: watchers/evidence
-    scope: context
-    match: activeRoute=telemetry.watchers.evidence
-  - id: telemetry.explorer.overview
-    group: telemetry
-    file: explorer/overview
-    scope: context
-    match: activeRoute=telemetry.explorer.overview
-  - id: telemetry.explorer.search
-    group: telemetry
-    file: explorer/search
-    scope: context
-    match: activeRoute=telemetry.explorer.search
-  - id: telemetry.explorer.checkpoints
-    group: telemetry
-    file: explorer/checkpoints
-    scope: context
-    match: activeRoute=telemetry.explorer.checkpoints
-  - id: telemetry.explorer.batches
-    group: telemetry
-    file: explorer/batches
-    scope: context
-    match: activeRoute=telemetry.explorer.batches
-  - id: telemetry.explorer.evidence
-    group: telemetry
-    file: explorer/evidence
-    scope: context
-    match: activeRoute=telemetry.explorer.evidence
-  - id: dapps.discover
-    group: dapps
-    file: discover
-    scope: context
-    match: activeRoute=dapps.discover
-  - id: dapps.installed
-    group: dapps
-    file: installed
-    scope: context
-    match: activeRoute=dapps.installed
-  - id: dapps.connections
-    group: dapps
-    file: connections
-    scope: context
-    match: activeRoute=dapps.connections
-  - id: dapps.permissions
-    group: dapps
-    file: permissions
-    scope: context
-    match: activeRoute=dapps.permissions
   - id: wallet.swap
-    group: dapps
-    file: swap
+    file: dapps/swap.md
+    label_key: navigation.swap
+    route: wallet.swap
     scope: context
-    match: activeRoute=wallet.swap
   - id: wallet.exchange
-    group: dapps
-    file: exchange
+    file: dapps/exchange.md
+    label_key: navigation.exchange
+    route: wallet.exchange
     scope: context
-    match: activeRoute=wallet.exchange
+  - id: wallet.staking.stake
+    file: wallet/staking/index.md
+    label_key: navigation.staking
+    route: wallet.staking.stake
+    scope: context
+  - id: wallet.staking.unstake
+    file: wallet/staking/unstake.md
+    label_key: navigation.unstake
+    route: wallet.staking.unstake
+    scope: context
+  - id: wallet.backup
+    file: wallet/backup.md
+    label_key: navigation.backup
+    route: wallet.backup
+    scope: context
+  - id: wallet.settings.general
+    file: wallet/settings/index.md
+    label_key: navigation.walletSettings
+    route: wallet.settings.general
+    scope: context
+  - id: wallet.settings.security
+    file: wallet/settings/security.md
+    label_key: navigation.security
+    route: wallet.settings.security
+    scope: context
+  - id: wallet.settings.backup
+    file: wallet/settings/backup.md
+    label_key: navigation.backup
+    route: wallet.settings.backup
+    scope: context
+  - id: wallet.settings.policies
+    file: wallet/settings/policies.md
+    label_key: navigation.policies
+    route: wallet.settings.policies
+    scope: context
+  - id: wallet.settings.advanced
+    file: wallet/settings/advanced.md
+    label_key: navigation.advanced
+    route: wallet.settings.advanced
+    scope: context
+  - id: telemetry.reticulum.overview
+    file: telemetry/reticulum/index.md
+    label_key: navigation.reticulum
+    route: telemetry.reticulum.overview
+    scope: context
+  - id: telemetry.reticulum.node
+    file: telemetry/reticulum/node.md
+    label_key: navigation.node
+    route: telemetry.reticulum.node
+    scope: context
+  - id: telemetry.reticulum.interfaces
+    file: telemetry/reticulum/interfaces.md
+    label_key: navigation.interfaces
+    route: telemetry.reticulum.interfaces
+    scope: context
+  - id: telemetry.reticulum.radio
+    file: telemetry/reticulum/radio.md
+    label_key: navigation.radio
+    route: telemetry.reticulum.radio
+    scope: context
+  - id: telemetry.reticulum.entrypoints
+    file: telemetry/reticulum/entrypoints.md
+    label_key: navigation.entrypoints
+    route: telemetry.reticulum.entrypoints
+    scope: context
+  - id: telemetry.reticulum.paths
+    file: telemetry/reticulum/paths.md
+    label_key: navigation.paths
+    route: telemetry.reticulum.paths
+    scope: context
+  - id: telemetry.reticulum.probes
+    file: telemetry/reticulum/probes.md
+    label_key: navigation.probes
+    route: telemetry.reticulum.probes
+    scope: context
+  - id: telemetry.reticulum.links
+    file: telemetry/reticulum/links.md
+    label_key: navigation.links
+    route: telemetry.reticulum.links
+    scope: context
+  - id: telemetry.onionnet.overview
+    file: telemetry/onionnet/index.md
+    label_key: navigation.onionnet
+    route: telemetry.onionnet.overview
+    scope: context
+  - id: telemetry.onionnet.epoch
+    file: telemetry/onionnet/epoch.md
+    label_key: navigation.epoch
+    route: telemetry.onionnet.epoch
+    scope: context
+  - id: telemetry.onionnet.privacy
+    file: telemetry/onionnet/privacy.md
+    label_key: navigation.privacy
+    route: telemetry.onionnet.privacy
+    scope: context
+  - id: telemetry.onionnet.transport
+    file: telemetry/onionnet/transport.md
+    label_key: navigation.transport
+    route: telemetry.onionnet.transport
+    scope: context
+  - id: telemetry.onionnet.queues
+    file: telemetry/onionnet/queues.md
+    label_key: navigation.queues
+    route: telemetry.onionnet.queues
+    scope: context
+  - id: telemetry.onionnet.probation
+    file: telemetry/onionnet/probation.md
+    label_key: navigation.probation
+    route: telemetry.onionnet.probation
+    scope: context
+  - id: telemetry.onionnet.ingress
+    file: telemetry/onionnet/ingress.md
+    label_key: navigation.ingress
+    route: telemetry.onionnet.ingress
+    scope: context
+  - id: telemetry.aggregators.overview
+    file: telemetry/aggregators/index.md
+    label_key: navigation.aggregators
+    route: telemetry.aggregators.overview
+    scope: context
+  - id: telemetry.aggregators.ingress
+    file: telemetry/aggregators/ingress.md
+    label_key: navigation.ingress
+    route: telemetry.aggregators.ingress
+    scope: context
+  - id: telemetry.aggregators.planning
+    file: telemetry/aggregators/planning.md
+    label_key: navigation.planning
+    route: telemetry.aggregators.planning
+    scope: context
+  - id: telemetry.aggregators.placement
+    file: telemetry/aggregators/placement.md
+    label_key: navigation.placement
+    route: telemetry.aggregators.placement
+    scope: context
+  - id: telemetry.aggregators.publication
+    file: telemetry/aggregators/publication.md
+    label_key: navigation.publication
+    route: telemetry.aggregators.publication
+    scope: context
+  - id: telemetry.aggregators.recovery
+    file: telemetry/aggregators/recovery.md
+    label_key: navigation.recovery
+    route: telemetry.aggregators.recovery
+    scope: context
+  - id: telemetry.watchers.overview
+    file: telemetry/watchers/index.md
+    label_key: navigation.watchers
+    route: telemetry.watchers.overview
+    scope: context
+  - id: telemetry.watchers.alerts
+    file: telemetry/watchers/alerts.md
+    label_key: navigation.alerts
+    route: telemetry.watchers.alerts
+    scope: context
+  - id: telemetry.watchers.publication
+    file: telemetry/watchers/publication.md
+    label_key: navigation.publicationChecks
+    route: telemetry.watchers.publication
+    scope: context
+  - id: telemetry.watchers.providers
+    file: telemetry/watchers/providers.md
+    label_key: navigation.daProviders
+    route: telemetry.watchers.providers
+    scope: context
+  - id: telemetry.watchers.censorship
+    file: telemetry/watchers/censorship.md
+    label_key: navigation.censorship
+    route: telemetry.watchers.censorship
+    scope: context
+  - id: telemetry.watchers.evidence
+    file: telemetry/watchers/evidence.md
+    label_key: navigation.evidenceExport
+    route: telemetry.watchers.evidence
+    scope: context
+  - id: telemetry.explorer.overview
+    file: telemetry/explorer/index.md
+    label_key: navigation.explorer
+    route: telemetry.explorer.overview
+    scope: context
+  - id: telemetry.explorer.search
+    file: telemetry/explorer/search.md
+    label_key: navigation.search
+    route: telemetry.explorer.search
+    scope: context
+  - id: telemetry.explorer.checkpoints
+    file: telemetry/explorer/checkpoints.md
+    label_key: navigation.checkpoints
+    route: telemetry.explorer.checkpoints
+    scope: context
+  - id: telemetry.explorer.batches
+    file: telemetry/explorer/batches.md
+    label_key: navigation.batches
+    route: telemetry.explorer.batches
+    scope: context
+  - id: telemetry.explorer.evidence
+    file: telemetry/explorer/evidence.md
+    label_key: navigation.publicEvidence
+    route: telemetry.explorer.evidence
+    scope: context
+  - id: dapps.discover
+    file: dapps/discover.md
+    label_key: navigation.discover
+    route: dapps.discover
+    scope: context
+  - id: dapps.installed
+    file: dapps/installed.md
+    label_key: navigation.installed
+    route: dapps.installed
+    scope: context
+  - id: dapps.connections
+    file: dapps/connections.md
+    label_key: navigation.connections
+    route: dapps.connections
+    scope: context
+  - id: dapps.permissions
+    file: dapps/permissions.md
+    label_key: navigation.permissions
+    route: dapps.permissions
+    scope: context
   - id: messenger.inbox
-    group: messenger
-    file: inbox
+    file: messenger/inbox.md
+    label_key: navigation.inbox
+    route: messenger.inbox
     scope: context
-    match: activeRoute=messenger.inbox
   - id: messenger.sent
-    group: messenger
-    file: sent
+    file: messenger/sent.md
+    label_key: navigation.sent
+    route: messenger.sent
     scope: context
-    match: activeRoute=messenger.sent
   - id: messenger.conversations
-    group: messenger
-    file: conversations
+    file: messenger/conversations.md
+    label_key: navigation.conversations
+    route: messenger.conversations
     scope: context
-    match: activeRoute=messenger.conversations
   - id: data-storage.disk-usage
-    group: data-storage
-    file: disk-usage
+    file: data-storage/disk-usage.md
+    label_key: navigation.diskUsage
+    route: data-storage.disk-usage
     scope: context
-    match: activeRoute=data-storage.disk-usage
   - id: data-storage.network-usage
-    group: data-storage
-    file: network-usage
+    file: data-storage/network-usage.md
+    label_key: navigation.networkUsage
+    route: data-storage.network-usage
     scope: context
-    match: activeRoute=data-storage.network-usage
   - id: contacts.list
-    group: contacts
-    file: contacts
+    file: contacts/list.md
+    label_key: navigation.contacts
+    route: contacts.list
     scope: context
-    match: activeRoute=contacts.list
   - id: settings.general
-    group: settings
-    file: general
+    file: settings/general.md
+    label_key: navigation.general
+    route: settings.general
     scope: context
-    match: activeRoute=settings.general
   - id: settings.notifications
-    group: settings
-    file: notifications
+    file: settings/notifications.md
+    label_key: navigation.notifications
+    route: settings.notifications
     scope: context
-    match: activeRoute=settings.notifications
   - id: settings.appearance
-    group: settings
-    file: appearance
+    file: settings/appearance.md
+    label_key: navigation.appearance
+    route: settings.appearance
     scope: context
-    match: activeRoute=settings.appearance
-  - id: help.faq
-    group: app
-    file: faq
-    source: root
-    scope: article
-    match: article=faq
-  - id: help.how-to
-    group: app
-    file: how-to
-    source: root
-    scope: article
-    match: article=how-to
-  - id: help.report-issues
-    group: app
-    file: report-issues
-    source: root
-    scope: article
-    match: article=report-issues
-  - id: help.tips-and-tricks
-    group: app
-    file: tips-and-tricks
-    source: root
-    scope: article
-    match: article=tips-and-tricks
-  - id: help.video-tutorials
-    group: app
-    file: video-tutorials
-    source: root
-    scope: article
-    match: article=video-tutorials
+  - id: about
+    file: about/index.md
+    label_key: navigation.about
+    route: about
+    scope: context
   - id: asset.details
-    group: wallets
-    file: assets-rights/asset-details
+    file: wallet/assets-rights/asset-details.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=asset-detail
   - id: dapps.detail
-    group: dapps
-    file: detail
+    file: dapps/detail.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=dapps-detail
   - id: dapps.permission-review
-    group: dapps
-    file: permission-review
+    file: dapps/permission-review.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=dapps-permission-review
   - id: messenger.detail
-    group: messenger
-    file: detail
+    file: messenger/detail.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=messenger-detail
   - id: messenger.request-review
-    group: messenger
-    file: request-review
+    file: messenger/request-review.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=messenger-request-review
   - id: contacts.detail
-    group: contacts
-    file: detail
+    file: contacts/detail.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=contacts-detail
   - id: contacts.identity-review
-    group: contacts
-    file: identity-review
+    file: contacts/identity-review.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=contacts-identity-review
   - id: telemetry.watchers.alert-detail
-    group: telemetry
-    file: watchers/alert-detail
+    file: telemetry/watchers/alert-detail.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=watchers-alert-detail
   - id: telemetry.explorer.detail
-    group: telemetry
-    file: explorer/detail
+    file: telemetry/explorer/detail.md
+    label_key: help.title
+    route: none
     scope: dialog
-    match: dialog=explorer-detail

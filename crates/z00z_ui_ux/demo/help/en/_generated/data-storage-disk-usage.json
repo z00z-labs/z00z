@@ -1,0 +1,32 @@
+{
+  "capture_route": "data-storage.disk-usage",
+  "components": [],
+  "presentation_sha256": "271dfef6b02cdd223d94f99200fee2d78639530986671232ba3662c2749ee4e0",
+  "scope": "context",
+  "screenshot": "help/assets/en/data-storage-disk-usage.png",
+  "screenshot_sha256": "ed639090c39be08d5773bcbeac447c8d68580da91c45a168649d282e37716480",
+  "sections": [
+    "Disk Usage"
+  ],
+  "terms": [
+    "13 MB",
+    "164 MB",
+    "286 MB",
+    "31 MB",
+    "78 MB",
+    "Data & Storage",
+    "Disk Usage",
+    "Help content",
+    "Help content: 6%",
+    "Network cache",
+    "Network cache: 15%",
+    "Sanitized logs",
+    "Sanitized logs: 3%",
+    "Understand local space without exposing private wallet material.",
+    "Values are deterministic demo fixtures. Seed phrases, keys, passwords, and arbitrary file paths are never shown.",
+    "Wallet indexes",
+    "Wallet indexes: 32%"
+  ],
+  "topic_id": "data-storage.disk-usage",
+  "version": 3
+}

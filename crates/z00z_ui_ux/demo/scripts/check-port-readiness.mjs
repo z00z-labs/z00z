@@ -53,14 +53,19 @@ assert.deepEqual(
   [
     "scripts/port/locale-registry.js",
     "i18n.js",
-    ...localeRegistry.map(({ catalogue }) => catalogue),
+    "locales/en.js",
     "locales/navigation.js",
+    "scripts/port/contracts.js",
+    "scripts/port/navigation-model.js",
     "scripts/generated/help-catalog.js",
     "scripts/port/help-registry.js",
+    "scripts/vendor/markdown/mermaid.min.js",
+    "scripts/help-markdown-enhancer.js",
     "scripts/help-app.js"
   ],
   "help.html script order must follow the canonical locale and Help registries"
 );
+assert.doesNotMatch(helpPage, /help-wallet-link|help-wallet-label/u, "Help must not expose a redundant wallet placeholder");
 assert.equal(/<(?:script|link)\b[^>]*(?:src|href)="https?:\/\//i.test(index), false, "runtime scripts and styles must be local");
 assert.equal(/<(?:script|link)\b[^>]*(?:src|href)="https?:\/\//i.test(helpPage), false, "Help runtime scripts and styles must be local");
 const staticResourceUrls = [index, helpPage].flatMap((source) => (
@@ -166,6 +171,7 @@ const runtimeFiles = [
   "scripts/port/help-registry.js",
   "scripts/help-controller.js",
   "scripts/help-app.js",
+  "scripts/help-markdown-enhancer.js",
   "locales/send-exchange.js",
   "locales/navigation.js",
   "locales/demo-plan-2.js",

@@ -2,40 +2,29 @@
 
 ((root) => {
   const catalogue = root.Z00ZHelpCatalog;
-  if (!catalogue?.groups || !catalogue?.topics || !catalogue?.catalogues) {
-    throw new Error("Z00Z Help catalogue must load before the Help registry.");
+  if (!catalogue?.records || !catalogue?.catalogues?.en) {
+    throw new Error("Navigation-derived Help catalogue must load before the Help registry.");
   }
 
-  const topicsById = new Map(catalogue.topics.map((topic) => [topic.id, topic]));
-
-  function matchesState(topic, state) {
-    if (topic.match.global === "true") return false;
-    return Object.entries(topic.match).every(([key, value]) => String(state?.[key] ?? "") === value);
-  }
+  const topicsById = new Map(catalogue.records.map((topic) => [topic.id, topic]));
 
   function resolveTopicId(state, explicitTopicId = "") {
     if (explicitTopicId && topicsById.has(explicitTopicId)) return explicitTopicId;
-    return catalogue.topics.find((topic) => topic.scope === "context" && matchesState(topic, state))?.id || "";
+    if (state?.activeRoute) return catalogue.records.find((topic) => topic.routeId === state.activeRoute)?.id || "";
+    if (state?.dialog) return catalogue.records.find((topic) => topic.dialog === state.dialog)?.id || "";
+    return "";
   }
 
-  function resolveDocument(language, topicId) {
-    const selectedLanguage = catalogue.locales.includes(language) ? language : "en";
-    return catalogue.catalogues[selectedLanguage]?.[topicId]
-      || catalogue.catalogues.en?.[topicId]
-      || null;
-  }
-
-  function globalTopic() {
-    return "app";
+  function resolveDocument(_language, topicId) {
+    return catalogue.catalogues.en[topicId] || null;
   }
 
   root.Z00ZHelpRegistry = Object.freeze({
-    globalTopic,
-    groups: () => [...catalogue.groups],
-    resolveTopicId,
+    globalTopic: () => "app",
+    hasTopic: (topicId) => topicsById.has(topicId),
     resolveDocument,
+    resolveTopicId,
     topic: (topicId) => topicsById.get(topicId) || null,
-    topics: () => [...catalogue.topics],
-    hasTopic: (topicId) => topicsById.has(topicId)
+    topics: () => [...catalogue.records],
   });
 })(typeof window === "undefined" ? globalThis : window);

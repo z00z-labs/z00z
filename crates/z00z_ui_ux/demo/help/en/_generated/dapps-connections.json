@@ -1,0 +1,53 @@
+{
+  "capture_route": "dapps.connections",
+  "components": [
+    "button|type=button|data-dapp-action=open",
+    "button|type=button|data-dapp-action=review"
+  ],
+  "presentation_sha256": "832e2b56010d0d633eb8e40ec748c8469f64c80cd47c4aea16b60f03db73494c",
+  "scope": "context",
+  "screenshot": "help/assets/en/dapps-connections.png",
+  "screenshot_sha256": "6a35977774e33f301f1e8f8eed19dec83389ff0417d5925896234c546afe651d",
+  "sections": [
+    "Connections",
+    "Offline Pay",
+    "Scoped Expenses",
+    "Service Credits"
+  ],
+  "terms": [
+    "0 of 3 remaining",
+    "1 use",
+    "8 of 12 remaining",
+    "Action",
+    "Active",
+    "App details",
+    "Aug 2, 2026, 12:00 AM",
+    "Compute class C2 \u00b7 3 uses",
+    "Connections",
+    "Expired",
+    "Expiry",
+    "Inspect scope",
+    "Jul 25, 2026, 8:20 AM",
+    "Jul 27, 2026, 9:15 AM",
+    "Local fixture workflow",
+    "Native Z00Z asset \u00b7 one prepared handoff",
+    "Offline Pay",
+    "Operations \u00b7 native asset \u00b7 maximum 75 Z00Z per request",
+    "Pending",
+    "Pending, active, rejected, and expired intent-level relationships from deterministic local fixtures.",
+    "Prepare one offline payment package for later recipient handoff.",
+    "Prepare payment handoff",
+    "Present a bounded compute-service credit.",
+    "Present service credit",
+    "Propose expenses inside the displayed weekly operations scope.",
+    "Propose scoped expense",
+    "Review request",
+    "Scope",
+    "Scoped Expenses",
+    "Service Credits",
+    "Uses",
+    "dApp connections"
+  ],
+  "topic_id": "dapps.connections",
+  "version": 3
+}

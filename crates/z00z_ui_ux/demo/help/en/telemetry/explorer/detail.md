@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.detail
-title: Explorer details
-summary: Explorer details explains the privacy-bounded Explorer roadmap preview for supported public identifiers.
+title: Telemetry Explorer Detail
+route: none
 scope: dialog
 ---
-## Use this view {#current-view}
-- Use Explorer details only with the supported public checkpoint, batch, alert, or evidence identifiers.
-- Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup.
 
-## Local and safe behavior
-- Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.
-- Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer.
+# Telemetry Explorer Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer Detail application view](help/assets/en/telemetry-explorer-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/detail.md","route_id":"none","screenshot":"help/assets/en/telemetry-explorer-detail.png","topic_id":"telemetry.explorer.detail"} -->

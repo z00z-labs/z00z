@@ -1,14 +1,16 @@
 import { createServer } from "node:http";
+import { execFile as executeFile } from "node:child_process";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { watch } from "node:fs";
 import { compileHelp } from "./compile-help.mjs";
-import { synchronizeHelp } from "./sync-help.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
 const port = Number(process.argv[2] || process.env.PORT || 4173);
+const execFile = promisify(executeFile);
 const reloadClients = new Set();
 const mimeTypes = Object.freeze({
   ".css": "text/css; charset=utf-8",
@@ -27,17 +29,19 @@ const liveReload = `<script>
   })();
 </script>`;
 
-async function rebuildHelp() {
-  const changed = await synchronizeHelp(demoRoot);
+async function rebuildHelp({ syncViews = false } = {}) {
+  await execFile("node", ["scripts/help/sync-markdown-runtime.mjs"], { cwd: demoRoot });
+  if (syncViews) {
+    await execFile("python3", ["scripts/help/sync_views.py"], { cwd: demoRoot });
+    await execFile("node", ["scripts/help/write-navigation-manifest.mjs"], { cwd: demoRoot });
+  }
   await writeFile(
     resolve(demoRoot, "scripts/generated/help-catalog.js"),
     await compileHelp(demoRoot),
     "utf8"
   );
   reloadClients.forEach((response) => response.write("event: help-updated\ndata: ready\n\n"));
-  console.log(changed.length
-    ? `Help rebuilt after English source update: ${changed.join(", ")}`
-    : "Help catalogue rebuilt.");
+  console.log(syncViews ? "Help views synchronized and catalogue rebuilt." : "Help catalogue rebuilt.");
 }
 
 function safeFilePath(pathname) {
@@ -81,26 +85,45 @@ const server = createServer(async (request, response) => {
   }
 });
 
-await rebuildHelp();
+await rebuildHelp({ syncViews: true });
 server.listen(port, "127.0.0.1", () => {
   console.log(`Z00Z wallet demo: http://127.0.0.1:${port}`);
-  console.log("Watching help/en/**/*.{md,yaml,yml}; all Help locales rebuild and reload automatically.");
+  console.log("Watching English Help and Demo view files; UI changes create non-destructive Help drafts automatically.");
 });
 
 let debounce;
-const watcher = watch(resolve(demoRoot, "help", "en"), { recursive: true }, (_event, filename = "") => {
-  if (
-    ![".md", ".yaml", ".yml"].includes(extname(filename))
-    || filename.split(sep).includes("_drafts")
-  ) return;
+let pendingViewSynchronization = false;
+function scheduleHelpRebuild(syncViews) {
+  pendingViewSynchronization ||= syncViews;
   clearTimeout(debounce);
   debounce = setTimeout(() => {
-    rebuildHelp().catch((error) => console.error(`Help rebuild failed: ${error.message}`));
+    const shouldSynchronize = pendingViewSynchronization;
+    pendingViewSynchronization = false;
+    rebuildHelp({ syncViews: shouldSynchronize }).catch((error) => console.error(`Help rebuild failed: ${error.message}`));
   }, 120);
+}
+
+const helpWatcher = watch(resolve(demoRoot, "help", "en"), { recursive: true }, (_event, filename = "") => {
+  if (
+    ![".md", ".yaml", ".yml"].includes(extname(filename))
+    || filename.split(sep).includes("_generated")
+  ) return;
+  scheduleHelpRebuild(false);
+});
+
+const viewWatcher = watch(demoRoot, { recursive: true }, (_event, filename = "") => {
+  const changed = filename.split(sep).join("/");
+  const isViewSource = changed === "app.js"
+    || changed === "index.html"
+    || changed.startsWith("styles/")
+    || changed.startsWith("scripts/port/")
+    || changed === "locales/en.js";
+  if (isViewSource) scheduleHelpRebuild(true);
 });
 
 function close() {
-  watcher.close();
+  helpWatcher.close();
+  viewWatcher.close();
   reloadClients.forEach((response) => response.end());
   server.close(() => process.exit(0));
 }

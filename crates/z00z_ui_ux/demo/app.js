@@ -807,11 +807,15 @@ function renderNavigationTree() {
 function mobileNavigationDrawerMarkup() {
   const rootNodes = demoRuntime.navigationChildren();
   return `<header class="mobile-popup-header mobile-drawer-header"><strong>${escapeHtml(t("app.menu"))}</strong><button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button></header>
+    <section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
+      <p>${escapeHtml(t("app.wallets"))}</p>
+      <div class="mobile-wallet-list">${state.wallets.map((wallet) => `<button class="mobile-wallet-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-mobile-wallet-id="${escapeHtml(wallet.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}><span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span>${escapeHtml(wallet.name)}</span></button>`).join("")}</div>
+      <div class="mobile-wallet-actions">
+        <button class="mobile-wallet-action nav-item nav-item-primary" type="button" data-mobile-wallet-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
+        <button class="mobile-wallet-action nav-item nav-item-danger" type="button" data-mobile-wallet-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
+      </div>
+    </section>
     <div class="mobile-navigation-scroll-region">
-      <section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
-        <p>${escapeHtml(t("app.wallets"))}</p>
-        <div>${state.wallets.map((wallet) => `<button class="mobile-wallet-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-mobile-wallet-id="${escapeHtml(wallet.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}><span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span>${escapeHtml(wallet.name)}</span></button>`).join("")}</div>
-      </section>
       <nav class="mobile-navigation-tree" aria-label="${escapeHtml(t("app.menu"))}">
       ${rootNodes.filter((node) => !["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-navigation" })).join("")}
       </nav>
@@ -843,7 +847,10 @@ function renderWalletShell() {
         <strong class="wallet-identity-address" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</strong>
         <button class="icon-button wallet-identity-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button>
       </div>
-      <p class="wallet-identity-name">${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))}</p>
+      <div class="wallet-identity-meta">
+        <p class="wallet-identity-name">${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))}</p>
+        ${walletChainBadgeMarkup(wallet.chainId)}
+      </div>
     </div>
   `;
   walletIdentity.setAttribute("aria-label", t("walletShell.identityAria", { wallet: walletName }));
@@ -878,15 +885,18 @@ function renderMobileTopbarContext() {
   mobileTopbarContext.replaceChildren();
   if (!isMobileNavigation()) {
     mobileTopbarContext.hidden = true;
+    appShell.classList.remove("has-mobile-topbar-context");
     return;
   }
   const source = main.querySelector(".workspace-layout > .context-rail > .context-nav");
   if (!source) {
     mobileTopbarContext.hidden = true;
+    appShell.classList.remove("has-mobile-topbar-context");
     return;
   }
   mobileTopbarContext.append(source);
   mobileTopbarContext.hidden = false;
+  appShell.classList.add("has-mobile-topbar-context");
 }
 
 function icon(name, className = "") {
@@ -1688,7 +1698,11 @@ function openMobilePopup(type = "menu", trigger = mobileMenuButton) {
   mergeShellState({ type: "set_drawer", open: true });
   mobilePopupMenu.hidden = false;
   mobileMenuButton.setAttribute("aria-expanded", "true");
-  requestAnimationFrame(() => mobilePopupMenu.querySelector("button")?.focus());
+  requestAnimationFrame(() => {
+    mobilePopupMenu.querySelector(".mobile-wallet-choice.is-active")?.scrollIntoView({ block: "nearest" });
+    mobilePopupMenu.querySelector(".mobile-navigation-tree [aria-current='page']")?.scrollIntoView({ block: "nearest" });
+    mobilePopupMenu.querySelector("button")?.focus();
+  });
 }
 
 function walletSettingsContextNav() {
@@ -4921,6 +4935,13 @@ document.addEventListener("click", (event) => {
   const mobilePopupClose = event.target.closest("[data-mobile-popup-close]");
   if (mobilePopupClose) {
     closeMobilePopup({ restoreFocus: true });
+    return;
+  }
+
+  const mobileWalletAction = event.target.closest("[data-mobile-wallet-action]");
+  if (mobileWalletAction) {
+    closeMobilePopup();
+    handleDemoAction(mobileWalletAction.dataset.mobileWalletAction, mobileMenuButton);
     return;
   }
 

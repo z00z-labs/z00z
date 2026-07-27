@@ -1,0 +1,38 @@
+{
+  "capture_route": "wallet.permissions",
+  "components": [
+    "button|type=button"
+  ],
+  "presentation_sha256": "b47157c7d9aabb998fa4b49c0f2b0b58c5d538854806a80b78d97f7c193fa170",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-permissions.png",
+  "screenshot_sha256": "2ba07f5495fb485f9d2253b63445e7bb0297a25c9200c2bb3f817bb402a225c5",
+  "sections": [],
+  "terms": [
+    "1 use",
+    "12 uses",
+    "2 of 5 uses",
+    "2 uses",
+    "20 uses",
+    "3 uses",
+    "Approve vendor invoice",
+    "Assets",
+    "Delegated",
+    "Delivery receipt access",
+    "Deploy to staging",
+    "Emergency route override",
+    "Held",
+    "Needs review",
+    "Pair field terminal",
+    "Permission filters",
+    "Permissions",
+    "Publish release notes",
+    "Read audit trail",
+    "Used",
+    "View service status",
+    "Vouchers",
+    "Wallet sections"
+  ],
+  "topic_id": "wallet.permissions",
+  "version": 3
+}

@@ -31,8 +31,8 @@
       <symbol id="i-staking" viewBox="0 0 24 24"><path d="m12 4 7 4-7 4-7-4Z"/><path d="m5 12 7 4 7-4"/><path d="m5 16 7 4 7-4"/></symbol>
       <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
       <symbol id="i-advanced" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 18h2M10 18h10M4 12h4M12 12h8"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="10" cy="12" r="2"/></symbol>
-      <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 20V5m-6 6 6-6 6 6"/></symbol>
-      <symbol id="i-receive" viewBox="0 0 24 24"><path d="M12 4v15m-6-6 6 6 6-6"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="m5 19 14-14M9 5h10v10"/></symbol>
+      <symbol id="i-receive" viewBox="0 0 24 24"><path d="m19 5-14 14M5 9v10h10"/></symbol>
       <symbol id="i-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 8.5c-.6-.5-1.5-.8-2.5-.8-1.4 0-2.6.8-2.6 2s1 1.7 2.7 2.1c1.7.4 2.6.9 2.6 2.1 0 1.2-1.1 2-2.7 2-1.2 0-2.2-.4-2.8-1.1M12 6.2v11.6"/></symbol>
       <symbol id="i-token" viewBox="0 0 24 24"><path d="m12 3.5 7.5 4.3v8.4L12 20.5l-7.5-4.3V7.8Z"/><path d="M8.8 9.3h6.4M8.8 12h6.4M8.8 14.7h6.4"/></symbol>
       <symbol id="i-nft" viewBox="0 0 24 24"><path d="m12 3 8 9-8 9-8-9Z"/><path d="m8.5 12 3.5 3.5 3.5-3.5L12 8.5Z"/></symbol>
@@ -118,6 +118,7 @@
             <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
           </span>
         </div>
+        <section class="mobile-active-wallet" id="mobile-active-wallet" aria-label="Active wallet" hidden></section>
         <div class="mobile-topbar-context" id="mobile-topbar-context" aria-label="Current section" hidden></div>
         <div class="topbar-address-group">
           <div class="page-heading">
@@ -147,7 +148,6 @@
         </aside>
 
         <div class="app-column">
-        <section class="mobile-active-wallet" id="mobile-active-wallet" aria-label="Active wallet" hidden></section>
         <main class="main-content" id="main-content" tabindex="-1"></main>
         <div class="context-help-host" id="context-help-host"></div>
         <footer class="wallet-statusbar" id="wallet-statusbar" aria-label="Selected wallet status"></footer>

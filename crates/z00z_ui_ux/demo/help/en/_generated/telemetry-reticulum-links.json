@@ -1,0 +1,47 @@
+{
+  "capture_route": "telemetry.reticulum.links",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.reticulum.entrypoints",
+    "button|type=button|data-workspace-route=telemetry.reticulum.interfaces",
+    "button|type=button|data-workspace-route=telemetry.reticulum.links",
+    "button|type=button|data-workspace-route=telemetry.reticulum.node",
+    "button|type=button|data-workspace-route=telemetry.reticulum.overview",
+    "button|type=button|data-workspace-route=telemetry.reticulum.paths",
+    "button|type=button|data-workspace-route=telemetry.reticulum.probes",
+    "button|type=button|data-workspace-route=telemetry.reticulum.radio"
+  ],
+  "presentation_sha256": "221a421f03f3eedcc4f7123597add5845499917764e362fec1e57b24023c28f4",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-reticulum-links.png",
+  "screenshot_sha256": "c1d97e4d51f13645397a8d652704a798f69c6666a1d37d24749684d9d958a866",
+  "sections": [
+    "Links",
+    "Reticulum telemetry"
+  ],
+  "terms": [
+    "Active links",
+    "Entrypoints",
+    "Expected / establish rate",
+    "Interfaces",
+    "Links",
+    "Links parameters",
+    "Local capability unavailable",
+    "Measured goodput",
+    "No application link-rate summary",
+    "No controlled resource transfer",
+    "No local link summary",
+    "No local receipt observation",
+    "Node",
+    "Overview",
+    "Paths",
+    "Probes",
+    "Radio",
+    "Read-only",
+    "Receipt delivery",
+    "Reticulum",
+    "Reticulum telemetry",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.reticulum.links",
+  "version": 3
+}

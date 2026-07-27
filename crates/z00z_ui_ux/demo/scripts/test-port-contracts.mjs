@@ -847,26 +847,14 @@ assert.deepEqual(
   Array.from(demo.navigationChildren("dapps"), ({ target }) => target.routeId),
   ["dapps.discover", "dapps.installed", "dapps.connections", "dapps.permissions", "wallet.swap", "wallet.exchange"]
 );
-assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.swap").group, "dapps");
-assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.exchange").group, "dapps");
+assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.swap").pagePath.join("/"), "dapps/swap");
+assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.exchange").pagePath.join("/"), "dapps/exchange");
 assert.deepEqual(
   Array.from(demo.navigationChildren("messenger"), ({ target }) => target.routeId),
   ["messenger.inbox", "messenger.sent", "messenger.conversations"]
 );
-const appIconByHelpGroup = {
-  app: demo.navigationNode("help").iconId,
-  wallets: demo.navigationNode("wallet").iconId,
-  telemetry: demo.navigationNode("telemetry").iconId,
-  dapps: demo.navigationNode("dapps").iconId,
-  messenger: demo.navigationNode("messenger").iconId,
-  contacts: demo.navigationNode("contacts.list").iconId,
-  "data-storage": demo.navigationNode("data-storage").iconId,
-  settings: demo.navigationNode("settings").iconId
-};
-assert.deepEqual(
-  Object.fromEntries(context.window.Z00ZHelpRegistry.groups().map(({ id, iconId }) => [id, iconId])),
-  appIconByHelpGroup
-);
+assert.equal(context.window.Z00ZHelpRegistry.hasTopic("logout"), false);
+assert.equal(context.window.Z00ZHelpRegistry.globalTopic(), "app");
 assert.equal(demo.capabilityProfile("messenger").presentationMode, "roadmap_preview");
 assert.equal(demo.capabilityProfile("telemetry.watchers").evidenceSource, "fixture");
 assert.deepEqual(

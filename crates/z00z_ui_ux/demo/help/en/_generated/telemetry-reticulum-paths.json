@@ -1,0 +1,47 @@
+{
+  "capture_route": "telemetry.reticulum.paths",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.reticulum.entrypoints",
+    "button|type=button|data-workspace-route=telemetry.reticulum.interfaces",
+    "button|type=button|data-workspace-route=telemetry.reticulum.links",
+    "button|type=button|data-workspace-route=telemetry.reticulum.node",
+    "button|type=button|data-workspace-route=telemetry.reticulum.overview",
+    "button|type=button|data-workspace-route=telemetry.reticulum.paths",
+    "button|type=button|data-workspace-route=telemetry.reticulum.probes",
+    "button|type=button|data-workspace-route=telemetry.reticulum.radio"
+  ],
+  "presentation_sha256": "4b3590d4cb575e14fcec15ceaf1438ba6fda0989fadba95597dc1064fb7585c4",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-reticulum-paths.png",
+  "screenshot_sha256": "450d44e1cbd1cacdae9d00e76e7aa963567d31d93cb8bddc0286254bf410a070",
+  "sections": [
+    "Paths",
+    "Reticulum telemetry"
+  ],
+  "terms": [
+    "Announce pressure",
+    "Entrypoints",
+    "Interfaces",
+    "Known paths",
+    "Links",
+    "Local capability unavailable",
+    "No announce-rate or hold-state summary",
+    "No local path-table summary",
+    "No local update observation",
+    "No managed change-rate summary",
+    "Node",
+    "Overview",
+    "Path churn",
+    "Path freshness",
+    "Paths",
+    "Paths parameters",
+    "Probes",
+    "Radio",
+    "Read-only",
+    "Reticulum",
+    "Reticulum telemetry",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.reticulum.paths",
+  "version": 3
+}

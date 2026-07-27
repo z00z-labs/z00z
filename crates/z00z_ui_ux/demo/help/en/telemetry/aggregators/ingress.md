@@ -1,13 +1,36 @@
 ---
 id: telemetry.aggregators.ingress
-title: Aggregator ingress
-summary: Ingress explains how the runtime admits a transaction or claim payload as a digest-bound work item.
+title: Telemetry Aggregators Ingress
+route: telemetry.aggregators.ingress
 scope: context
 ---
-## Use this view {#current-view}
-- Check the `WorkPayload` to `WorkItem` or `RejectRecord` contract.
-- Unavailable means no fresh admission snapshot exists; it does not mean accepted or rejected.
 
-## Fail-closed boundary
-- Object-package binding changes the admission digest and intake identity.
-- Raw payloads, receivers, memos, and wallet-local routes never enter Help.
+# Telemetry Aggregators Ingress
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Aggregators Ingress application view](help/assets/en/telemetry-aggregators-ingress.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/aggregators/ingress.md","route_id":"telemetry.aggregators.ingress","screenshot":"help/assets/en/telemetry-aggregators-ingress.png","topic_id":"telemetry.aggregators.ingress"} -->

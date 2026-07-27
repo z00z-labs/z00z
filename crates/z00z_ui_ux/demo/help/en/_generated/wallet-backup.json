@@ -1,0 +1,27 @@
+{
+  "capture_route": "wallet.backup",
+  "components": [
+    "button|type=button|data-demo-action=backup",
+    "button|type=button|data-demo-action=restore"
+  ],
+  "presentation_sha256": "a3446607693f5e346a2223dbef99acddd0d67db64bc09f77c25cbe67efdae971",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-backup.png",
+  "screenshot_sha256": "12abb668463d1728d9088c3549f69133abc8d289aae764861f79500f9d78704a",
+  "sections": [
+    "Backup status"
+  ],
+  "terms": [
+    "10 Jul 2026 \u00b7 09:42",
+    "Backup status",
+    "Create fresh backup",
+    "Destination",
+    "Encrypted local file",
+    "Integrity",
+    "Latest backup",
+    "Recover from backup",
+    "Verified"
+  ],
+  "topic_id": "wallet.backup",
+  "version": 3
+}

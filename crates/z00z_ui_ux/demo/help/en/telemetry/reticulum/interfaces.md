@@ -1,13 +1,36 @@
 ---
 id: telemetry.reticulum.interfaces
-title: Reticulum interfaces
-summary: Reticulum interfaces presents read-only carrier evidence from the registered local Reticulum bridge.
+title: Telemetry Reticulum Interfaces
+route: telemetry.reticulum.interfaces
 scope: context
 ---
-## Use this view {#current-view}
-- Review reticulum interfaces evidence supplied by the registered local bridge; this view cannot change Reticulum.
-- Unavailable means that no fresh local snapshot exists; addresses, destinations, routes, and payloads remain hidden.
 
-## Local and safe behavior
-- Wallet secrets and private transport data never enter Help.
-- This Help is packaged with the application and works offline.
+# Telemetry Reticulum Interfaces
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Reticulum Interfaces application view](help/assets/en/telemetry-reticulum-interfaces.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/reticulum/interfaces.md","route_id":"telemetry.reticulum.interfaces","screenshot":"help/assets/en/telemetry-reticulum-interfaces.png","topic_id":"telemetry.reticulum.interfaces"} -->

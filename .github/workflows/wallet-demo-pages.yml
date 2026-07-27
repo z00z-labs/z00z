@@ -24,7 +24,12 @@ jobs:
       - name: Validate self-contained demo bundle
         working-directory: crates/z00z_ui_ux/demo
         run: |
+          npm ci --ignore-scripts
           node scripts/check-locales.mjs
+          node scripts/help/sync-markdown-runtime.mjs
+          node scripts/test-help-markdown-parity.mjs
+          python3 scripts/help/test_sync_views.py
+          python3 scripts/help/sync_views.py --check
           node scripts/check-help.mjs
           node scripts/test-port-contracts.mjs
           node scripts/check-port-readiness.mjs
@@ -33,7 +38,7 @@ jobs:
       - name: Prepare static demo
         run: |
           mkdir -p _site/wallet-demo
-          cp -R crates/z00z_ui_ux/demo/. _site/wallet-demo/
+          tar -C crates/z00z_ui_ux/demo --exclude=node_modules -cf - . | tar -C _site/wallet-demo -xf -
           node crates/z00z_ui_ux/demo/scripts/build-pages-release.mjs _site/wallet-demo "$GITHUB_SHA" "$GITHUB_REF_NAME"
           printf '%s\n' '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./wallet-demo/"><title>Z00Z Wallet Demo</title><a href="./wallet-demo/">Open Z00Z Wallet Demo</a>' > _site/index.html
           touch _site/.nojekyll

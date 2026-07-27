@@ -1,0 +1,30 @@
+{
+  "capture_route": "wallet.swap",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-demo-action=preview-swap",
+    "input|type=number|placeholder=0.00"
+  ],
+  "presentation_sha256": "8a6b094706159bfb00e38f8c11b7683061abb79b76ab7101a4adb4762cb32438",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-swap.png",
+  "screenshot_sha256": "16af1d6dc94c4581e6e97a370a09c424ac90ad80e3041a337c4dc88e2f1f59a4",
+  "sections": [
+    "Build a swap"
+  ],
+  "terms": [
+    "0.00",
+    "12,480.75 Z00Z",
+    "Amount",
+    "Available:",
+    "Build a swap",
+    "From",
+    "Preview experimental recipe",
+    "To",
+    "Z00Z",
+    "Z00Z \u00b7 Coin",
+    "wDAI \u00b7 Token"
+  ],
+  "topic_id": "wallet.swap",
+  "version": 3
+}

@@ -13,7 +13,7 @@ node crates/z00z_ui_ux/demo/scripts/serve-demo.mjs 4173
 ```
 
 Open `http://127.0.0.1:4173`. This development server watches
-`help/en/**/*.{md,yaml,yml}`, runs the English-to-all-locales Help synchronizer,
+`help/en/**/*.{md,yaml,yml}`, synchronizes English view evidence without touching locales,
 recompiles the local Help catalogue, and reloads the open page after a
 successful update.
 
@@ -81,74 +81,43 @@ machine-translation bridge, and required checks.
 
 ## ❔ Local contextual Help
 
-Application Help is authored as Markdown under
-`help/<locale>/{app,wallets,telemetry,dapps,messenger,contacts,data-storage,settings}/`. The canonical
-`help/topics.yaml` LUT owns each topic's group and maps presentation state to one
-stable topic ID. Locale IDs come from `scripts/port/locale-registry.js`; compile,
-check, and scaffold tools do not maintain a second language list.
-`scripts/compile-help.mjs` converts the constrained Markdown subset into
-`scripts/generated/help-catalog.js`. Runtime rendering reads that bundled
-catalogue only: it does not fetch Markdown, load a CDN, or require an Internet
-connection.
+English is the active Help source. `help/topics.yaml` is generated from the
+Demo navigation contract: every navigable view has one Markdown page under the
+same root and workspace folders as the app. `Log out` is deliberately absent;
+the Help tree has no separate `WALLETS` placeholder.
 
-Pre-existing Help Markdown is never deleted by the canonicalization workflow.
-`help/preserved-sources.json` requires the original tracked paths in every
-locale and allows explicitly listed locale-only user sources to coexist without
-entering the runtime catalogue.
+`scripts/help/markdown-renderer.mjs` imports an exact synchronized snapshot of
+the sibling `z00z-website` renderer. Thus Help Markdown uses the same MarkdownIt
+pipeline, sanitization, anchors, extensions, figure handling, and external-link
+policy as the website without a runtime Website checkout. The resulting network-free catalogue is
+`scripts/generated/help-catalog.js`.
 
-`node scripts/check-help.mjs` derives every routed state from `PORT_CONTRACT`.
-It fails unless each routed state resolves exactly one contextual topic, every
-context topic maps back to a route or supported detail state, one global topic
-exists, all 76 topics exist in all ten locale folders, all translated documents have the English structure,
-the English SHA-256 source hashes are synchronized, and the generated catalogue
-is current.
+Every canonical page follows [help/TEMPLATE.md](help/TEMPLATE.md): front matter,
+an `App View` screenshot, overview, workflow, terms and controls, and safety
+limits. The global and contextual Help actions both open the named standalone
+`help.html` tab at the exact topic and `#current-view` anchor without changing
+the application page.
 
-English is the canonical Help source. `help/source-state.json` records the
-English source and per-locale review hashes for every topic. When an English
-topic changes, `scripts/sync-help.mjs` updates all nine localized Markdown
-documents, synchronizes folder metadata and landing-page structure, updates the
-hashes, and leaves the runtime network-free. The configured translation bridge
-takes precedence:
+Run the non-destructive view sync after a UI change:
 
 ```bash
-Z00Z_TRANSLATE_COMMAND=/absolute/path/to/local-translate \
-  node scripts/sync-help.mjs
+python3 scripts/help/sync_views.py
 ```
 
-Without that override, the bundled synchronizer preserves unchanged reviewed
-translations, uses the exact English message for a newly added or changed key,
-and never leaves an older structure or source hash behind. Translation output
-is a draft and still requires native-language review.
+It captures all English views, extracts visible terms, sections, and component
+signatures, settled presentation signatures, and compares them with
+`help/en/_generated/`. It never changes a
+canonical page. A UI difference creates a same-folder review draft named
+`<page>-draft-YYYYMMDD.md` (with a numeric suffix only if another draft already
+exists that day). The development server watches view sources and runs this
+sync automatically. Use `python3 scripts/help/sync_views.py --check` for
+portable baseline integrity and `python3 scripts/help/sync_views.py --verify-current`
+for a live Chromium drift gate, then run `node scripts/compile-help.mjs` and
+`node scripts/check-help.mjs`.
 
-`compile-help.mjs`, the development server, smoke suite, Pages release, and the
-repository pre-commit hook all run this synchronization contract. A commit that
-stages `help/en/` automatically stages the affected localized files,
-`help/source-state.json`, and the compiled Help catalogue. New clones enable the
-tracked hooks once with:
-
-```bash
-git config core.hooksPath .github/hooks
-```
-
-To add a view:
-
-1. Add its state match and stable ID to `help/topics.yaml`.
-2. Run `node scripts/scaffold-help.mjs <topic-id>`.
-3. Replace every generated translation placeholder.
-4. Run `node scripts/sync-help.mjs --record-reviewed` once after that explicit
-   review, then `node scripts/compile-help.mjs` and
-   `node scripts/check-help.mjs`.
-
-The global Help action opens `help.html` in a named parallel browser tab. Its
-left tree is a root-only multi-open accordion organized by the seven canonical
-source groups. Workspace-local destinations render as a vertical internal rail
-on desktop and sticky horizontal tabs on mobile. The
-fixed question action at the lower-right edge opens the same standalone Help
-application at the active view's exact topic and `{#current-view}` section. The
-wallet page remains open with its navigation, filters, drafts, and forms intact;
-repeated Help actions reuse and focus the same Help tab. Explanatory prose
-belongs in Help; validation, safety warnings, destructive consequences,
-read-only/unavailable states, and errors stay beside the affected action.
+Other language folders are intentionally preserved but are not part of the
+English-first Help catalogue. Localized authored pages are the next phase after
+the English pages and drafts are reviewed.
 
 ## 🧪 Suggested walkthrough
 

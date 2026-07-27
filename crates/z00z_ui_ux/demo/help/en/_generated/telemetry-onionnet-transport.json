@@ -1,0 +1,45 @@
+{
+  "capture_route": "telemetry.onionnet.transport",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.onionnet.epoch",
+    "button|type=button|data-workspace-route=telemetry.onionnet.ingress",
+    "button|type=button|data-workspace-route=telemetry.onionnet.overview",
+    "button|type=button|data-workspace-route=telemetry.onionnet.privacy",
+    "button|type=button|data-workspace-route=telemetry.onionnet.probation",
+    "button|type=button|data-workspace-route=telemetry.onionnet.queues",
+    "button|type=button|data-workspace-route=telemetry.onionnet.transport"
+  ],
+  "presentation_sha256": "a32e14c83f4d11a9475118540aee025bc2f424cb94cdd50fc8ccc89d29cb5812",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-onionnet-transport.png",
+  "screenshot_sha256": "577522d1a675048e0288130522c91176515899e9e4a91f12808815ac45da614b",
+  "sections": [
+    "OnionNet telemetry",
+    "Transport"
+  ],
+  "terms": [
+    "Aggregate RTT / loss",
+    "Carrier availability",
+    "Carrier distribution",
+    "Epoch",
+    "Geometry compliance",
+    "Ingress",
+    "Local capability unavailable",
+    "No aggregate measurement window",
+    "No coarse traffic-class aggregate",
+    "No local carrier snapshot",
+    "No packet-class validation aggregate",
+    "OnionNet",
+    "OnionNet telemetry",
+    "Overview",
+    "Privacy",
+    "Probation",
+    "Queues",
+    "Read-only",
+    "Transport",
+    "Transport parameters",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.onionnet.transport",
+  "version": 3
+}

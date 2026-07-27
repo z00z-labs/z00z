@@ -1,13 +1,36 @@
 ---
 id: telemetry.aggregators.placement
-title: Aggregator placement
-summary: Placement explains the runtime-owned shard generation, primary owner, secondary readiness, and journal lineage view.
+title: Telemetry Aggregators Placement
+route: telemetry.aggregators.placement
 scope: context
 ---
-## Use this view {#current-view}
-- Review the `ShardPlacementView` contract without inferring global topology.
-- Unavailable means no current placement-table observation is connected.
 
-## Fail-closed boundary
-- The placement table must own the exact shard and routing generation.
-- Aggregator IDs are operational data; endpoints and wallet identities stay hidden.
+# Telemetry Aggregators Placement
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Aggregators Placement application view](help/assets/en/telemetry-aggregators-placement.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/aggregators/placement.md","route_id":"telemetry.aggregators.placement","screenshot":"help/assets/en/telemetry-aggregators-placement.png","topic_id":"telemetry.aggregators.placement"} -->

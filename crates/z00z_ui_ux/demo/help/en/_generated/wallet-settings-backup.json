@@ -1,0 +1,34 @@
+{
+  "capture_route": "wallet.settings.backup",
+  "components": [
+    "button|type=button",
+    "button|type=button|aria-label=Automatic wallet backup|data-demo-action=wallet-auto-backup"
+  ],
+  "presentation_sha256": "26f9bdc95976aab169f96722f1f0682c2cdebaa321787047b3d8037298635481",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-settings-backup.png",
+  "screenshot_sha256": "c2ce721872e674dce840ad6449bf9e02a86d004989e420c757ff50813d32fbb9",
+  "sections": [],
+  "terms": [
+    "10 Jul 2026 \u00b7 09:42",
+    "Advanced",
+    "Automatic backup",
+    "Automatic wallet backup",
+    "Backup",
+    "Backup interval",
+    "Enabled",
+    "Encryption",
+    "Every 24 hours",
+    "Everyday",
+    "General",
+    "Integrity",
+    "Latest backup",
+    "Policies",
+    "Security",
+    "Selected wallet settings",
+    "Verified",
+    "Wallet"
+  ],
+  "topic_id": "wallet.settings.backup",
+  "version": 3
+}

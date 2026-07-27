@@ -1,0 +1,36 @@
+{
+  "capture_route": "contacts.list",
+  "components": [
+    "button|type=button|data-contact-action=detail",
+    "button|type=button|data-contact-action=identity-accept",
+    "button|type=button|data-contact-action=identity-reject"
+  ],
+  "presentation_sha256": "769a990041772c52df356ad76f78768c7fe28036d85c0e97823cecaba9dcbfe4",
+  "scope": "dialog",
+  "screenshot": "help/assets/en/contacts-identity-review.png",
+  "screenshot_sha256": "4bc1b0c5e93427c9ea071970359c6f2a85ef846a60cd6350fe3429891b734e8a",
+  "sections": [
+    "Operations"
+  ],
+  "terms": [
+    "Accept",
+    "Accepting updates local compatibility only. It does not create public trust, upload the contact, or mutate Wallet value.",
+    "Compare reviewed receiver material outside this demo before accepting.",
+    "Compatibility",
+    "Displayed change",
+    "Identity Changed",
+    "Identity change review",
+    "None; local confirmation only",
+    "OLD 913F\u20264D20 \u2192 NEW 5AE1\u2026883C",
+    "OP",
+    "Operations",
+    "Receiver-card update",
+    "Reject",
+    "Revalidation required",
+    "Source",
+    "Trust effect",
+    "\u2190 Contacts"
+  ],
+  "topic_id": "contacts.identity-review",
+  "version": 3
+}

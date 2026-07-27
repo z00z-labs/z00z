@@ -1,0 +1,45 @@
+{
+  "capture_route": "messenger.inbox",
+  "components": [
+    "button|type=button|data-messenger-action=acknowledge",
+    "button|type=button|data-messenger-action=back",
+    "button|type=button|data-messenger-action=block",
+    "button|type=button|data-messenger-action=delete",
+    "button|type=button|data-messenger-action=relay-recover",
+    "button|type=button|data-messenger-action=relay-unavailable",
+    "button|type=button|data-messenger-action=report"
+  ],
+  "presentation_sha256": "ce2c779599084e85900728c092a4e6549dc6a1c52faf0456608857a93b5f6aca",
+  "scope": "dialog",
+  "screenshot": "help/assets/en/messenger-detail.png",
+  "screenshot_sha256": "8f54df1ee5c8d45823b72f6ac7af6b67751a130150aac31ba2b43d5617a76c1d",
+  "sections": [
+    "Backup check reminder"
+  ],
+  "terms": [
+    "Acknowledge locally",
+    "Advisory",
+    "Backup check reminder",
+    "Block sender",
+    "Delete locally",
+    "Delivered",
+    "Delivered \u00b7 advisory only",
+    "Delivery",
+    "Expires",
+    "From",
+    "Jul 26, 2026, 10:25 AM",
+    "Jul 29, 2026, 10:25 AM",
+    "Local deterministic fixture; no durable mailbox or live relay is connected.",
+    "Local wallet notice",
+    "Opening this item recorded only local presentation state. No Wallet object, balance, ownership, or settlement status changed.",
+    "Received",
+    "Relay degraded",
+    "Report abuse",
+    "Retry locally",
+    "Review the selected wallet backup status when convenient.",
+    "Show unavailable",
+    "\u2190 Back"
+  ],
+  "topic_id": "messenger.detail",
+  "version": 3
+}

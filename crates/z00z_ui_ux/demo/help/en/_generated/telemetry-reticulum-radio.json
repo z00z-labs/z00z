@@ -1,0 +1,47 @@
+{
+  "capture_route": "telemetry.reticulum.radio",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.reticulum.entrypoints",
+    "button|type=button|data-workspace-route=telemetry.reticulum.interfaces",
+    "button|type=button|data-workspace-route=telemetry.reticulum.links",
+    "button|type=button|data-workspace-route=telemetry.reticulum.node",
+    "button|type=button|data-workspace-route=telemetry.reticulum.overview",
+    "button|type=button|data-workspace-route=telemetry.reticulum.paths",
+    "button|type=button|data-workspace-route=telemetry.reticulum.probes",
+    "button|type=button|data-workspace-route=telemetry.reticulum.radio"
+  ],
+  "presentation_sha256": "65fd665a126a977e0eaa2bd8883abae7133d6374a17622c0fa30b8266a295f6a",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-reticulum-radio.png",
+  "screenshot_sha256": "c4f557209433ac6dabe1c28acc394c43df61f10d190aae4cccaef99317841eff",
+  "sections": [
+    "Radio",
+    "Reticulum telemetry"
+  ],
+  "terms": [
+    "Airtime / channel load",
+    "Channel configuration",
+    "Entrypoints",
+    "Frequency",
+    "Interfaces",
+    "Links",
+    "Local capability unavailable",
+    "No RNode interface snapshot",
+    "No bandwidth / SF / CR metadata",
+    "No noise / RSSI / SNR observation",
+    "No short or long-window observation",
+    "Node",
+    "Overview",
+    "Paths",
+    "Probes",
+    "RF health",
+    "Radio",
+    "Radio parameters",
+    "Read-only",
+    "Reticulum",
+    "Reticulum telemetry",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.reticulum.radio",
+  "version": 3
+}

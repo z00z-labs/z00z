@@ -1,0 +1,44 @@
+{
+  "capture_route": "telemetry.explorer.batches",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-workspace-route=telemetry.explorer.batches",
+    "button|type=button|data-workspace-route=telemetry.explorer.checkpoints",
+    "button|type=button|data-workspace-route=telemetry.explorer.evidence",
+    "button|type=button|data-workspace-route=telemetry.explorer.overview",
+    "button|type=button|data-workspace-route=telemetry.explorer.search"
+  ],
+  "presentation_sha256": "3e11a5f9cdfde56d8345d6013c917bf578ce364867893349ee7f656d2cba3916",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-explorer-batches.png",
+  "screenshot_sha256": "91a81c5a92067bd4e245f83986a3b5727e43ab5e2b2cc699740c28330e99ca22",
+  "sections": [
+    "Batches"
+  ],
+  "terms": [
+    "Batch \u00b7 checkpoint 184",
+    "Batch \u00b7 checkpoint 185",
+    "Batch \u00b7 checkpoint 186",
+    "Batches",
+    "Checkpoints",
+    "Choose a record to inspect only its allowlisted public summary and technical DTO.",
+    "Deterministic Explorer controls",
+    "Deterministic, privacy-restricted public evidence workflow.",
+    "Explorer",
+    "Overview",
+    "Public evidence",
+    "Published batches",
+    "Scenario",
+    "Search",
+    "Select public evidence",
+    "Useful fixture",
+    "batch_4f91c7a0",
+    "batch_72bc108f",
+    "batch_a13d9e22",
+    "checkpoint_000184 \u00b7 PublishedBatch \u2192 CheckpointPublicationV1",
+    "checkpoint_000185 \u00b7 PublicationRecord \u2192 readiness bundle",
+    "checkpoint_000186 \u00b7 PublishedBatch \u2192 PublicationRouteSnapshotV1"
+  ],
+  "topic_id": "telemetry.explorer.batches",
+  "version": 3
+}

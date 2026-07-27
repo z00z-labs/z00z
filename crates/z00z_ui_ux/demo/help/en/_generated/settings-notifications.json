@@ -1,0 +1,29 @@
+{
+  "capture_route": "settings.notifications",
+  "components": [
+    "button|type=button",
+    "button|type=button|aria-label=Notifications On|data-demo-action=general-notifications"
+  ],
+  "presentation_sha256": "156a1203d80992b0c998e2b70186bb41e7850c8503c4f3fa5a0b379669644719",
+  "scope": "context",
+  "screenshot": "help/assets/en/settings-notifications.png",
+  "screenshot_sha256": "a89ee521e89366066e1756142e67b06114fee8ba566d336a750172faee22796a",
+  "sections": [
+    "Notifications"
+  ],
+  "terms": [
+    "Choose how this device announces messages and important wallet events.",
+    "Haptic feedback policy",
+    "Master notification control for this device",
+    "Messages and alerts",
+    "Notifications",
+    "Notifications On",
+    "Ringtone",
+    "Sound used for new messages",
+    "These choices are local demo preferences. A packaged app must request the operating-system permissions before using sound or vibration.",
+    "Vibrate",
+    "Z00Z Pulse"
+  ],
+  "topic_id": "settings.notifications",
+  "version": 3
+}
