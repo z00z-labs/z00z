@@ -1078,13 +1078,13 @@ body.has-help-search {
   .help-sidebar.mobile-popup-menu[data-popup-type="menu"] {
     position: fixed;
     z-index: 70;
-    top: var(--help-header-height);
+    top: 0;
     bottom: 0;
     left: 0;
     display: grid;
     width: min(22rem, calc(100vw - 14px));
     height: auto;
-    max-height: calc(100dvh - var(--help-header-height));
+    max-height: 100dvh;
     overflow: hidden;
     border-width: 0 1px 0 0;
     border-radius: 0 var(--radius-sheet) var(--radius-sheet) 0;
@@ -1128,8 +1128,8 @@ body.has-help-search {
   }
 
   .help-sidebar-backdrop {
-    inset: var(--help-header-height) 0 0 0;
-    height: calc(100dvh - var(--help-header-height));
+    inset: 0;
+    height: 100dvh;
     background: var(--bg-overlay);
     backdrop-filter: blur(5px);
     animation: mobile-drawer-backdrop-in 180ms ease-out;

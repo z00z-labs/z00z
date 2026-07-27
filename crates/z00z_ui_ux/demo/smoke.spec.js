@@ -2476,6 +2476,27 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   await page.locator("#mobile-menu-button").click();
   const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
   await expect(drawer).toBeVisible();
+  await page.waitForTimeout(250);
+  const buttonOpenGeometry = await page.evaluate(() => {
+    const drawerElement = document.querySelector('#mobile-popup-menu[data-popup-type="menu"]');
+    const backdrop = document.querySelector("#mobile-menu-backdrop");
+    const drawerRect = drawerElement.getBoundingClientRect();
+    const backdropRect = backdrop.getBoundingClientRect();
+    return {
+      drawerTop: Math.round(drawerRect.top),
+      drawerBottom: Math.round(drawerRect.bottom),
+      backdropTop: Math.round(backdropRect.top),
+      backdropBottom: Math.round(backdropRect.bottom),
+      topLeftBelongsToDrawer: drawerElement.contains(document.elementFromPoint(12, 1)),
+    };
+  });
+  expect(buttonOpenGeometry).toEqual({
+    drawerTop: 0,
+    drawerBottom: 800,
+    backdropTop: 0,
+    backdropBottom: 800,
+    topLeftBelongsToDrawer: true,
+  });
   await expect(drawer.locator(".mobile-drawer-header")).toHaveCount(0);
   await expect(drawer.locator(".mobile-navigation-scroll-region")).toBeVisible();
   const walletSelector = drawer.locator(".mobile-wallet-selector");
@@ -2847,11 +2868,15 @@ test("mobile edge swipe supplements the Menu button without hijacking vertical s
     return {
       offsetX: Math.round(transform.m41),
       width: Math.round(drawer.getBoundingClientRect().width),
+      top: Math.round(drawer.getBoundingClientRect().top),
+      bottom: Math.round(drawer.getBoundingClientRect().bottom),
       backdropOpacity: Number(getComputedStyle(document.querySelector("#mobile-menu-backdrop")).opacity),
     };
   });
   expect(dragProgress.offsetX).toBeLessThan(0);
   expect(dragProgress.offsetX).toBeGreaterThan(-dragProgress.width);
+  expect(dragProgress.top).toBe(0);
+  expect(dragProgress.bottom).toBe(844);
   expect(dragProgress.backdropOpacity).toBeGreaterThan(0);
   expect(dragProgress.backdropOpacity).toBeLessThan(1);
   await page.evaluate(() => {
@@ -2872,6 +2897,18 @@ test("mobile edge swipe supplements the Menu button without hijacking vertical s
   await expect(menuButton).toHaveAttribute("aria-expanded", "true");
   await page.waitForTimeout(250);
   await expect(drawer.locator(":scope > .mobile-wallet-selector")).toBeVisible();
+  await expect.poll(async () => drawer.evaluate((drawerElement) => {
+    const rect = drawerElement.getBoundingClientRect();
+    return {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      coversTopLeft: drawerElement.contains(document.elementFromPoint(12, 1)),
+    };
+  })).toEqual({
+    top: 0,
+    bottom: 844,
+    coversTopLeft: true,
+  });
 
   await mobileSwipe(page, { from: { x: 260, y: 340 }, to: { x: 126, y: 340 }, source: "touch" });
   await expect(drawer).toBeHidden();
@@ -3212,8 +3249,10 @@ test("768px narrow tablet starts the drawer with Wallets while the tree scrolls"
   await expect(walletSelector).toBeVisible();
   await expect(walletSelector.locator(":scope > p")).toHaveText("Wallets");
   const positions = await Promise.all([
-    page.locator(".topbar").boundingBox(),
+    drawer.boundingBox(),
     walletSelector.boundingBox(),
   ]);
-  expect(Math.abs(positions[0].y + positions[0].height - positions[1].y)).toBeLessThanOrEqual(1);
+  expect(positions[0].y).toBe(0);
+  expect(positions[0].height).toBe(1024);
+  expect(positions[1].y).toBe(0);
 });

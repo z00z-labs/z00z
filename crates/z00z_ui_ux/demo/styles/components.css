@@ -7542,6 +7542,10 @@ button.connection-option:hover,
     padding-top: env(safe-area-inset-top);
   }
 
+  body.has-mobile-drawer .topbar {
+    z-index: 60;
+  }
+
   .app-body > .sidebar {
     display: none;
   }
@@ -7593,28 +7597,20 @@ button.connection-option:hover,
     pointer-events: auto;
   }
 
-  .mobile-popup-menu[data-popup-type="menu"] {
-    top: var(--topbar-height);
+  .mobile-popup-menu[data-popup-type="menu"],
+  .app-shell.has-mobile-topbar-context .mobile-popup-menu[data-popup-type="menu"] {
+    top: 0;
     bottom: 0;
     width: min(22rem, calc(100vw - 14px));
-    max-height: calc(100dvh - var(--topbar-height));
+    max-height: 100dvh;
     overflow: hidden;
     grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .app-shell.has-mobile-topbar-context .mobile-popup-menu[data-popup-type="menu"] {
-    top: calc(var(--topbar-height) + var(--topbar-height) + 1px);
-    max-height: calc(100dvh - var(--topbar-height) - var(--topbar-height) - 1px);
-  }
-
-  .mobile-menu-backdrop {
-    top: var(--topbar-height);
-    height: calc(100dvh - var(--topbar-height));
-  }
-
+  .mobile-menu-backdrop,
   .app-shell.has-mobile-topbar-context .mobile-menu-backdrop {
-    top: calc(var(--topbar-height) + var(--topbar-height) + 1px);
-    height: calc(100dvh - var(--topbar-height) - var(--topbar-height) - 1px);
+    top: 0;
+    height: 100dvh;
   }
 
   .mobile-drawer-header {
