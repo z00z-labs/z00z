@@ -81,6 +81,11 @@ async function expectNoViewportOverflow(page, label = "responsive geometry") {
   expect(geometry.main.right, `${label}: main right edge`).toBeLessThanOrEqual(geometry.viewport + 1);
 }
 
+async function visibleContextNavigation(page, desktopSelector = ".workspace-layout > .context-rail") {
+  const mobile = await page.evaluate(() => window.matchMedia("(max-width: 768px)").matches);
+  return page.locator(mobile ? "#mobile-topbar-context" : desktopSelector);
+}
+
 test("canonical navigation replaces global tabs and has no stale hierarchy styles", async ({ page }) => {
   const [index, app, components] = await Promise.all([
     readFile(path.join(demoDir, "index.html"), "utf8"),
@@ -908,7 +913,7 @@ test("all root Help articles are selectable on desktop and mobile", async ({ pag
   }
 });
 
-test("context navigation stays vertical on desktop and becomes top tabs on mobile", async ({ page }) => {
+test("context navigation stays vertical on desktop and moves into the mobile topbar beside a persistent wallet identity", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${demoUrl}?route=wallet.assets`);
   const desktopRail = page.locator(".wallet-assets-layout > .context-rail");
@@ -924,43 +929,72 @@ test("context navigation stays vertical on desktop and becomes top tabs on mobil
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto(`${demoUrl}?route=wallet.assets`);
   const mobileRail = page.locator(".wallet-assets-layout > .context-rail");
-  const mobileTabs = mobileRail.locator("[data-wallet-section]");
-  await expect(mobileRail).toBeVisible();
+  const mobileTopbarContext = page.locator("#mobile-topbar-context");
+  const mobileTabs = mobileTopbarContext.locator("[data-wallet-section]");
+  const mobileWalletIdentity = page.locator("#mobile-active-wallet");
+  await expect(mobileRail).toBeHidden();
+  await expect(mobileTopbarContext).toBeVisible();
   await expect(mobileTabs).toHaveCount(3);
-  await page.locator(".wallet-assets-layout").evaluate((layout) => (
-    Promise.all(layout.getAnimations().map((animation) => animation.finished))
-  ));
+  await expect(mobileWalletIdentity).toBeVisible();
+  await expect(mobileWalletIdentity).toContainText("ZxChpo…2Mj8Pt");
+  await expect(mobileWalletIdentity).toContainText("Everyday wallet");
   const mobileGeometry = await page.evaluate(() => {
     const topbar = document.querySelector(".topbar").getBoundingClientRect();
-    const rail = document.querySelector(".wallet-assets-layout > .context-rail").getBoundingClientRect();
-    const tabs = [...document.querySelectorAll(".wallet-assets-layout [data-wallet-section]")]
+    const walletIdentity = document.querySelector("#mobile-active-wallet").getBoundingClientRect();
+    const tabs = [...document.querySelectorAll("#mobile-topbar-context [data-wallet-section]")]
       .map((tab) => tab.getBoundingClientRect());
     return {
+      topbarTop: topbar.top,
       topbarBottom: topbar.bottom,
-      railTop: rail.top,
-      tabTops: tabs.map(({ top }) => top),
+      walletIdentityTop: walletIdentity.top,
+      tabBounds: tabs.map(({ top, bottom }) => ({ top, bottom })),
     };
   });
-  expect(Math.abs(mobileGeometry.railTop - mobileGeometry.topbarBottom)).toBeLessThanOrEqual(1);
-  expect(new Set(mobileGeometry.tabTops.map((top) => Math.round(top))).size).toBe(1);
+  expect(Math.abs(mobileGeometry.walletIdentityTop - mobileGeometry.topbarBottom)).toBeLessThanOrEqual(1);
+  for (const tab of mobileGeometry.tabBounds) {
+    expect(tab.top).toBeGreaterThanOrEqual(mobileGeometry.topbarTop);
+    expect(tab.bottom).toBeLessThanOrEqual(mobileGeometry.topbarBottom);
+  }
 
   await mobileTabs.filter({ hasText: "Vouchers" }).click();
   await expect(page.locator(".claim-row")).toHaveCount(8);
-  await expect(page.locator('[data-wallet-section="vouchers"]')).toHaveAttribute("aria-current", "page");
+  await expect(mobileTopbarContext.locator('[data-wallet-section="vouchers"]')).toHaveAttribute("aria-current", "page");
   await expect(page.locator('#app-navigation-tree [data-navigation-route="wallet.vouchers"]')).toHaveCount(0);
   await expectNoViewportOverflow(page);
 
   await page.goto(`${demoUrl}?route=wallet.send`);
-  await expect(page.locator(".send-workspace-layout > .context-rail")).toBeVisible();
-  await expect(page.locator("[data-send-family]")).toHaveCount(3);
+  await expect(page.locator(".send-workspace-layout > .context-rail")).toBeHidden();
+  await expect(mobileTopbarContext.locator("[data-send-family]")).toHaveCount(3);
 
   await page.goto(`${demoUrl}?route=telemetry.reticulum.overview`);
   const telemetryRail = page.locator(".telemetry-workspace-layout > .context-rail");
-  await expect(telemetryRail).toBeVisible();
-  await expect(telemetryRail.locator("[data-workspace-route]")).toHaveCount(8);
-  await telemetryRail.locator('[data-workspace-route="telemetry.reticulum.node"]').click();
+  await expect(telemetryRail).toBeHidden();
+  await expect(mobileTopbarContext.locator("[data-workspace-route]")).toHaveCount(8);
+  await mobileTopbarContext.locator('[data-workspace-route="telemetry.reticulum.node"]').click();
   await expect(page.locator("#page-title")).toHaveText("Node");
   await expect(page.locator("#mobile-popup-menu")).toBeHidden();
+
+  await page.goto(`${demoUrl}?route=contacts.list`);
+  await expect(mobileTopbarContext).toBeHidden();
+  await expect(mobileWalletIdentity).toContainText("ZxChpo…2Mj8Pt");
+  await page.locator("#mobile-menu-button").click();
+  await page.locator('[data-mobile-wallet-id="savings"]').click();
+  await expect(mobileWalletIdentity).toContainText("ZxR5vK…8Ee1Qm");
+  await expect(mobileWalletIdentity).toContainText("Savings wallet");
+
+  for (const routeId of [
+    "telemetry.reticulum.overview",
+    "dapps.discover",
+    "messenger.inbox",
+    "contacts.list",
+    "data-storage.disk-usage",
+    "settings.general",
+    "about",
+  ]) {
+    await page.goto(`${demoUrl}?route=${routeId}`);
+    await expect(mobileWalletIdentity).toBeVisible();
+    await expect(mobileWalletIdentity).toContainText("ZxChpo…2Mj8Pt");
+  }
   await expectNoViewportOverflow(page);
 });
 
@@ -1010,7 +1044,7 @@ test("all Telemetry components keep deeper routes inside desktop rails and mobil
     await page.setViewportSize(viewport);
     for (const workspace of workspaces) {
       await page.goto(`${demoUrl}?route=${workspace.route}`);
-      const rail = page.locator(".telemetry-workspace-layout > .context-rail");
+      const rail = await visibleContextNavigation(page, ".telemetry-workspace-layout > .context-rail");
       await expect(rail).toBeVisible();
       await expect(rail.locator("[data-workspace-route]")).toHaveCount(workspace.localCount);
       await rail.locator(`[data-workspace-route="${workspace.childRoute}"]`).click();
@@ -1070,7 +1104,7 @@ test("every canonical workspace projects deeper routes only inside the main wind
     await page.setViewportSize(viewport);
     for (const [workspaceId, defaultRoute, childRoute, localCount] of workspaces) {
       await page.goto(`${demoUrl}?route=${defaultRoute}`);
-      const localNavigation = page.locator(".workspace-layout > .context-rail");
+      const localNavigation = await visibleContextNavigation(page);
       await expect(localNavigation).toBeVisible();
       await expect(localNavigation.locator("button")).toHaveCount(localCount);
 
@@ -1165,7 +1199,7 @@ test("Watchers roadmap completes typed alert to sanitized evidence across deskto
     await page.locator('[data-watcher-action="recover"]').click();
     await expect(page.locator(".watcher-roadmap")).toHaveAttribute("data-watcher-result", "success");
 
-    const localTabs = page.locator(".telemetry-workspace-layout > .context-rail [data-workspace-route]");
+    const localTabs = (await visibleContextNavigation(page, ".telemetry-workspace-layout > .context-rail")).locator("[data-workspace-route]");
     await expect(localTabs).toHaveCount(6);
     if (viewport.width === 320) {
       const tabTops = await localTabs.evaluateAll((tabs) => tabs.map((tab) => Math.round(tab.getBoundingClientRect().top)));
@@ -1223,7 +1257,7 @@ test("Explorer roadmap accepts only public typed IDs and keeps detail inside des
       await expect(page.locator("#main-content")).not.toContainText(query);
     }
 
-    const contextRail = page.locator(".telemetry-workspace-layout > .context-rail");
+    const contextRail = await visibleContextNavigation(page, ".telemetry-workspace-layout > .context-rail");
     const localTabs = contextRail.locator("[data-workspace-route]");
     await expect(localTabs).toHaveCount(5);
     await contextRail.locator('[data-workspace-route="telemetry.explorer.checkpoints"]').click();
@@ -1461,7 +1495,7 @@ test("mobile profile selection, Help, and drawer focus are independent of deskto
   await expect(drawer.getByRole("button", { name: "Log out", exact: true })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(drawer.locator("[data-mobile-popup-close]")).toBeFocused();
-  await page.locator("#mobile-menu-backdrop").click({ position: { x: 310, y: 400 } });
+  await page.locator("#mobile-menu-backdrop").click({ position: { x: 380, y: 400 } });
   await expect(drawer).toBeHidden();
   await expect(page.locator("#app-body")).toHaveJSProperty("inert", false);
   await expect(page.locator("#mobile-menu-button")).toBeFocused();
@@ -1846,14 +1880,14 @@ test("768px narrow tablet uses the drawer and keeps its branded header while the
     await expectNoViewportOverflow(page, `Messenger Sent at 768px in ${palette}`);
 
     await page.goto(`${demoUrl}?route=telemetry.reticulum.node&palette=${palette}`);
-    const localRail = page.locator('[data-workspace-id="telemetry.reticulum"] > .context-rail');
+    const localRail = await visibleContextNavigation(page, '[data-workspace-id="telemetry.reticulum"] > .context-rail');
     await expect(localRail).toBeVisible();
     const railGeometry = await localRail.evaluate((node) => ({
       clientWidth: node.clientWidth,
       scrollWidth: node.scrollWidth,
       position: getComputedStyle(node).position,
     }));
-    expect(railGeometry.position).toBe("sticky");
+    expect(railGeometry.position).toBe("static");
     expect(railGeometry.scrollWidth).toBeGreaterThan(railGeometry.clientWidth);
     await expectNoViewportOverflow(page, `Reticulum local tabs at 768px in ${palette}`);
   }

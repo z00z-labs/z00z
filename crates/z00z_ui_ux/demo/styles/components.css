@@ -788,6 +788,8 @@ h3 {
 }
 
 .mobile-navigation-leading,
+.mobile-topbar-context,
+.mobile-active-wallet,
 .mobile-menu-backdrop,
 .mobile-popup-menu {
   display: none;
@@ -5422,6 +5424,100 @@ button.connection-option:hover,
     filter: var(--logo-glow);
   }
 
+  .mobile-topbar-context {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    align-self: stretch;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .mobile-topbar-context[hidden] {
+    display: none;
+  }
+
+  .mobile-topbar-context .context-nav {
+    display: flex;
+    width: max-content;
+    min-height: 100%;
+    align-items: stretch;
+    gap: 4px;
+    padding: 5px 8px;
+  }
+
+  .mobile-topbar-context .context-nav-item,
+  .mobile-topbar-context .context-nav-child {
+    width: auto;
+    min-width: max-content;
+    min-height: 44px;
+    padding: 7px 10px;
+    scroll-snap-align: start;
+  }
+
+  .mobile-topbar-context .context-nav-item > .icon,
+  .mobile-topbar-context .context-nav-child > .icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .mobile-active-wallet {
+    position: sticky;
+    z-index: 30;
+    top: var(--topbar-height);
+    display: grid;
+    min-height: 76px;
+    align-content: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-surface);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 76%, transparent);
+  }
+
+  .mobile-active-wallet[hidden] {
+    display: none;
+  }
+
+  .mobile-active-wallet-address-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .mobile-active-wallet-address,
+  .mobile-active-wallet-name {
+    margin: 0;
+  }
+
+  .mobile-active-wallet-address {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: var(--type-address);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    line-height: 1.14;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-active-wallet-name {
+    margin-top: 2px;
+    color: var(--text-secondary);
+    font-size: var(--type-label);
+    line-height: 1.3;
+  }
+
+  .mobile-active-wallet-copy.icon-button {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    color: var(--text-secondary);
+  }
+
   .mobile-popup-menu {
     position: fixed;
     z-index: 70;
@@ -6817,6 +6913,10 @@ button.connection-option:hover,
     overscroll-behavior-inline: contain;
     scroll-snap-type: inline proximity;
     scrollbar-width: thin;
+  }
+
+  .workspace-layout > .context-rail {
+    display: none;
   }
 
   .workspace-layout > .context-rail .context-nav-item,

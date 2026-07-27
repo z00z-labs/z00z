@@ -5,6 +5,8 @@ const pageTitle = document.querySelector("#page-title");
 const pageContext = document.querySelector("#page-context");
 const copyWalletAddress = document.querySelector("#copy-wallet-address");
 const topbarAddressGroup = document.querySelector(".topbar-address-group");
+const mobileTopbarContext = document.querySelector("#mobile-topbar-context");
+const mobileActiveWallet = document.querySelector("#mobile-active-wallet");
 const routeBreadcrumb = document.querySelector("#route-breadcrumb");
 const walletNav = document.querySelector("#wallet-nav");
 const navigationTree = document.querySelector("#app-navigation-tree");
@@ -18,6 +20,7 @@ const mobilePopupMenu = document.querySelector("#mobile-popup-menu");
 const appBody = document.querySelector("#app-body");
 let mobilePopupType = "";
 let mobilePopupTrigger = null;
+let mobileNavigationLayout = window.matchMedia("(max-width: 768px)").matches;
 
 const dialog = document.querySelector("#flow-dialog");
 const dialogContent = document.querySelector("#dialog-content");
@@ -663,6 +666,37 @@ function renderWalletShell() {
     <span><small>${t("walletShell.pendingOut")}</small><strong>${sensitive(`${summary.pendingOut} Z00Z`)}</strong></span>
     <span class="statusbar-telemetry"><small>${t("walletShell.routeTelemetry")}</small><strong><span class="statusbar-state-dot" aria-hidden="true"></span>${t("common.unavailable")}</strong></span>`;
   walletStatusbar.hidden = !hasSelectedWalletContext();
+}
+
+function renderMobileActiveWallet(wallet) {
+  const hasActiveWallet = Boolean(state.selectedWalletId && wallet);
+  mobileActiveWallet.hidden = !hasActiveWallet;
+  if (!hasActiveWallet) {
+    mobileActiveWallet.innerHTML = "";
+    return;
+  }
+  const copyLabel = t("walletShell.copyAddress", { wallet: wallet.name });
+  mobileActiveWallet.innerHTML = `
+    <div class="mobile-active-wallet-address-row">
+      <p class="mobile-active-wallet-address mono" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</p>
+      <button class="icon-button mobile-active-wallet-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button>
+    </div>
+    <p class="mobile-active-wallet-name">${escapeHtml(t("walletShell.lockLabel", { wallet: wallet.name }))}</p>`;
+}
+
+function renderMobileTopbarContext() {
+  mobileTopbarContext.replaceChildren();
+  if (!isMobileNavigation()) {
+    mobileTopbarContext.hidden = true;
+    return;
+  }
+  const source = main.querySelector(".workspace-layout > .context-rail > .context-nav");
+  if (!source) {
+    mobileTopbarContext.hidden = true;
+    return;
+  }
+  mobileTopbarContext.append(source);
+  mobileTopbarContext.hidden = false;
 }
 
 function icon(name, className = "") {
@@ -3264,6 +3298,7 @@ function render(options = {}) {
   mobileMenuButton.setAttribute("title", mobileMenuLabel);
   const walletScreen = hasSelectedWalletContext();
   const wallet = activeWallet();
+  renderMobileActiveWallet(wallet);
   const routeNode = demoRuntime.navigationNodeForRoute(state.activeRoute);
   const [legacyTitle = "", legacyContext = ""] = headings[state.view] || [];
   const ancestorLabels = routeNode
@@ -3300,6 +3335,7 @@ function render(options = {}) {
   }[state.view];
   main.dataset.mountedRoute = state.activeRoute;
   main.innerHTML = renderActiveWorkspace(activeRenderer);
+  renderMobileTopbarContext();
   help.configure({ language: state.language, palette: state.palette });
   help.mountContextButton(state, main.firstElementChild);
   suppressPasswordManagerUI(document);
@@ -3307,7 +3343,9 @@ function render(options = {}) {
   syncBalanceButtons();
   if (!mobilePopupMenu.hidden && mobilePopupType === "menu") mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
   requestAnimationFrame(() => {
-    const activeContext = main.querySelector(".context-nav-child.is-active") || main.querySelector(".context-nav-item.is-active");
+    const activeContext = isMobileNavigation()
+      ? mobileTopbarContext.querySelector(".context-nav-child.is-active, .context-nav-item.is-active")
+      : main.querySelector(".context-nav-child.is-active, .context-nav-item.is-active");
     activeContext?.scrollIntoView({ block: "nearest", inline: "center" });
   });
   if (options.focusMain) {
@@ -5434,9 +5472,13 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("resize", () => {
-  if (!isMobileNavigation()) {
+  const mobileNavigation = isMobileNavigation();
+  if (!mobileNavigation) {
     closeMobilePopup();
   }
+  if (mobileNavigation === mobileNavigationLayout) return;
+  mobileNavigationLayout = mobileNavigation;
+  render();
 });
 
 window.addEventListener("popstate", (event) => {

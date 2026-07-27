@@ -41,6 +41,8 @@ function allReviewRoutes(contract) {
 
 async function capture(page, name, { fullPage = false } = {}) {
   await expect(page.locator("#main-content")).toBeVisible();
+  await page.evaluate(() => document.fonts?.ready);
+  await page.waitForTimeout(180);
   await page.screenshot({
     path: path.join(reviewRoot, `${name}.png`),
     fullPage,
@@ -516,6 +518,26 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
     }
 
     await page.goto(`${demoUrl}?route=wallet.assets`);
+    if (viewport.width <= 768) {
+      const mobileTopbarContext = page.locator("#mobile-topbar-context");
+      const mobileWalletIdentity = page.locator("#mobile-active-wallet");
+      await expect(mobileTopbarContext.locator("[data-wallet-section]")).toHaveCount(3);
+      await expect(mobileWalletIdentity).toContainText("ZxChpo…2Mj8Pt");
+      await expect(page.locator(".wallet-assets-layout > .context-rail")).toBeHidden();
+      await capture(page, `${viewport.name}-phase-6-mobile-topbar-assets`);
+
+      await page.goto(`${demoUrl}?route=wallet.staking.unstake`);
+      await expect(mobileTopbarContext.locator("[data-workspace-route]")).toHaveCount(2);
+      await expect(mobileWalletIdentity).toContainText("Everyday wallet");
+      await capture(page, `${viewport.name}-phase-6-mobile-topbar-staking`);
+
+      await page.goto(`${demoUrl}?route=contacts.list`);
+      await expect(mobileTopbarContext).toBeHidden();
+      await expect(mobileWalletIdentity).toContainText("ZxChpo…2Mj8Pt");
+      await capture(page, `${viewport.name}-phase-6-mobile-active-wallet-contacts`);
+
+      await page.goto(`${demoUrl}?route=wallet.assets`);
+    }
     if (viewport.width <= 768) {
       await page.locator("#mobile-menu-button").click();
       await page.locator("#mobile-popup-menu").evaluate((drawer) => (
