@@ -5468,9 +5468,9 @@ button.connection-option:hover,
     z-index: 30;
     top: var(--topbar-height);
     display: grid;
-    min-height: 76px;
+    min-height: 64px;
     align-content: center;
-    padding: 10px 16px;
+    padding: 6px 16px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-surface);
     box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 76%, transparent);

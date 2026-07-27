@@ -974,10 +974,12 @@ test("context navigation stays vertical on desktop and moves into the mobile top
       topbarTop: topbar.top,
       topbarBottom: topbar.bottom,
       walletIdentityTop: walletIdentity.top,
+      walletIdentityHeight: walletIdentity.height,
       tabBounds: tabs.map(({ top, bottom }) => ({ top, bottom })),
     };
   });
   expect(Math.abs(mobileGeometry.walletIdentityTop - mobileGeometry.topbarBottom)).toBeLessThanOrEqual(1);
+  expect(mobileGeometry.walletIdentityHeight).toBe(64);
   for (const tab of mobileGeometry.tabBounds) {
     expect(tab.top).toBeGreaterThanOrEqual(mobileGeometry.topbarTop);
     expect(tab.bottom).toBeLessThanOrEqual(mobileGeometry.topbarBottom);
