@@ -6373,6 +6373,7 @@ button.connection-option:hover,
 }
 
 .desktop-topbar-brand {
+  justify-content: center;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: var(--topbar-height);

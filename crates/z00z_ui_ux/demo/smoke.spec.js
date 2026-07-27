@@ -164,6 +164,7 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   const desktopTopbarOrder = await page.evaluate(() => {
     const brand = document.querySelector(".desktop-topbar-brand").getBoundingClientRect();
     const logo = document.querySelector(".desktop-topbar-brand .brand-mark").getBoundingClientRect();
+    const brandWordmark = document.querySelector(".desktop-topbar-brand > span").getBoundingClientRect();
     const wallet = document.querySelector("#wallet-identity").getBoundingClientRect();
     const heading = document.querySelector(".topbar-address-group").getBoundingClientRect();
     const address = document.querySelector(".wallet-identity-address");
@@ -173,6 +174,7 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
     return {
       brand: { left: brand.left, right: brand.right, center: brand.left + brand.width / 2 },
       logo: { left: logo.left, width: logo.width, height: logo.height, centerY: logo.top + logo.height / 2 },
+      brandGroupCenter: (logo.left + brandWordmark.right) / 2,
       wallet: { left: wallet.left, right: wallet.right },
       heading: { left: heading.left },
       walletIdentityWidth: wallet.width,
@@ -189,7 +191,7 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   expect(desktopTopbarOrder.wallet.left).toBeGreaterThanOrEqual(desktopTopbarOrder.brand.right - 1);
   expect(desktopTopbarOrder.heading.left).toBeGreaterThanOrEqual(desktopTopbarOrder.wallet.right - 1);
   expect(desktopTopbarOrder.logo).toMatchObject({ width: 52, height: 52 });
-  expect(desktopTopbarOrder.logo.left - desktopTopbarOrder.brand.left).toBe(18);
+  expect(Math.abs(desktopTopbarOrder.brandGroupCenter - desktopTopbarOrder.brand.center)).toBeLessThanOrEqual(1);
   expect(desktopTopbarOrder.logo.centerY).toBeCloseTo(desktopTopbarOrder.topbar.centerY, 0);
   expect(desktopTopbarOrder.walletIdentityWidth).toBe(262);
   expect(desktopTopbarOrder.walletAddress.fontFamily).toContain("Geist");
