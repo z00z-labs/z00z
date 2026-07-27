@@ -197,6 +197,27 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   expect(desktopTopbarOrder.walletAddress).toMatchObject({ fontSize: "21px", fontWeight: "400", lineHeight: "21.84px" });
   expect(desktopTopbarOrder.copy).toMatchObject({ width: 26, height: 26 });
   expect(desktopTopbarOrder.topbar.borderBottomWidth).toBe("0px");
+
+  await page.setViewportSize({ width: 1280, height: 520 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const desktopSidebarScroll = await page.evaluate(() => {
+    const sidebar = document.querySelector(".app-body > .sidebar");
+    const terminal = document.querySelector("#app-navigation-terminal");
+    const tree = document.querySelector("#app-navigation-tree");
+    const terminalTopBefore = terminal.getBoundingClientRect().top;
+    sidebar.scrollTop = sidebar.scrollHeight;
+    return {
+      sidebarOverflow: getComputedStyle(sidebar).overflowY,
+      treeOverflow: getComputedStyle(tree).overflowY,
+      sidebarScrollTop: sidebar.scrollTop,
+      terminalTopBefore,
+      terminalTopAfter: terminal.getBoundingClientRect().top,
+    };
+  });
+  expect(desktopSidebarScroll.sidebarOverflow).toBe("auto");
+  expect(desktopSidebarScroll.treeOverflow).toBe("visible");
+  expect(desktopSidebarScroll.sidebarScrollTop).toBeGreaterThan(0);
+  expect(desktopSidebarScroll.terminalTopAfter).toBeLessThan(desktopSidebarScroll.terminalTopBefore);
 });
 
 test("desktop tree keeps root accordions independent and opens sublevels inside the workspace", async ({ page }) => {

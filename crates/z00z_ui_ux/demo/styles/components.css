@@ -6518,7 +6518,8 @@ button.connection-option:hover,
   height: calc(100vh - var(--topbar-height));
   min-height: 0;
   align-items: stretch;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-top: 0;
 }
 
@@ -6531,10 +6532,10 @@ button.connection-option:hover,
 .app-navigation-tree {
   display: flex;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 4px;
-  overflow: hidden auto;
+  overflow: visible;
   margin: 16px -8px 0;
   padding: 0 8px 10px;
   overscroll-behavior: contain;
