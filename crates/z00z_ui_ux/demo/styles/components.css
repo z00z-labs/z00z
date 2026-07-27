@@ -5079,7 +5079,13 @@ button.permission-row:hover {
 
 @media (min-width: 901px) {
   .wallet-settings-view .setting-line.compact-row {
-    grid-template-columns: minmax(148px, 0.72fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(118px, 0.5fr) minmax(0, 1fr) auto;
+  }
+
+  .wallet-settings-view [data-help-anchor="wallet-name"] > .compact-value,
+  .wallet-settings-view [data-help-anchor="wallet-id"] > .compact-value {
+    justify-self: start;
+    text-align: left;
   }
 }
 
@@ -6352,7 +6358,7 @@ button.connection-option:hover,
   .setting-line.compact-row {
     min-height: 52px;
     align-items: center;
-    grid-template-columns: minmax(152px, 0.72fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(96px, 0.5fr) minmax(0, 1fr) auto;
     gap: 8px;
     margin: 0 -8px;
     padding: 6px 8px;
@@ -6366,15 +6372,12 @@ button.connection-option:hover,
     font-size: var(--type-data-meta);
   }
 
-  /* Keep the selected-wallet identifiers visually anchored to their actions.
-     They share a right edge at every mobile width without changing the layout
-     of the other settings controls. */
+  /* Keep selected-wallet values next to their labels, leaving each action in
+     its own trailing column. */
   .wallet-settings-view [data-help-anchor="wallet-name"] > .compact-value,
   .wallet-settings-view [data-help-anchor="wallet-id"] > .compact-value {
-    width: auto;
-    max-width: 100%;
-    justify-self: end;
-    text-align: right;
+    justify-self: start;
+    text-align: left;
   }
 
   .compact-row .button {
@@ -8472,7 +8475,7 @@ button.connection-option:hover,
   display: grid;
   overflow: hidden;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sheet);
+  border-radius: var(--radius-control);
   color: var(--text-primary);
   background: var(--bg-popup-menu);
   box-shadow: var(--shadow-float);
@@ -8556,7 +8559,7 @@ button.connection-option:hover,
 .wallet-picker-list {
   display: grid;
   min-height: 0;
-  gap: 6px;
+  gap: 2px;
   overflow: hidden auto;
   padding: 6px;
   overscroll-behavior: contain;
@@ -8568,10 +8571,10 @@ button.connection-option:hover,
   position: relative;
   display: grid;
   width: 100%;
-  min-height: 58px;
+  min-height: 44px;
   align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 6px 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-control);
   color: var(--text-secondary);
@@ -8593,17 +8596,6 @@ button.connection-option:hover,
   background: var(--interaction-selected-bg);
 }
 
-.wallet-picker-choice.is-active::after {
-  position: absolute;
-  right: 10px;
-  bottom: -1px;
-  left: 10px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--brand);
-  content: "";
-}
-
 .wallet-picker-copy {
   min-width: 0;
 }
@@ -8617,13 +8609,13 @@ button.connection-option:hover,
 }
 
 .wallet-picker-copy strong {
-  font-size: var(--type-row-title);
+  font-size: var(--type-control);
   font-weight: 700;
   line-height: 1.25;
 }
 
 .wallet-picker-copy small {
-  margin-top: 2px;
+  margin-top: 1px;
   color: var(--text-secondary);
   font-size: var(--type-data-meta);
   font-weight: 500;
@@ -8632,14 +8624,14 @@ button.connection-option:hover,
 
 .wallet-picker-actions {
   display: grid;
-  gap: 6px;
-  padding: 10px;
+  gap: 2px;
+  padding: 6px;
   border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: var(--bg-popup-menu);
 }
 
 .wallet-picker-action.nav-item {
-  min-height: 44px;
+  min-height: 38px;
   justify-content: flex-start;
   padding: 0 9px;
 }

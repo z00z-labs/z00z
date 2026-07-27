@@ -819,9 +819,9 @@ function usesWalletPickerPopup() {
 }
 
 function walletPickerListMarkup() {
-  return `<div class="wallet-picker-list">${state.wallets.map((wallet) => {
+  return `<div class="wallet-picker-list" role="group" aria-label="Wallets">${state.wallets.map((wallet) => {
     const chain = walletChain(wallet.chainId);
-    return `<button class="wallet-picker-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-wallet-picker-id="${escapeHtml(wallet.id)}" data-wallet-chain="${escapeHtml(chain.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}>
+    return `<button class="wallet-picker-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" role="menuitemradio" data-wallet-picker-id="${escapeHtml(wallet.id)}" data-wallet-chain="${escapeHtml(chain.id)}" aria-checked="${wallet.id === state.selectedWalletId}">
       <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span>
       <span class="wallet-picker-copy"><strong>${escapeHtml(wallet.name)}</strong><small>${t("walletShell.balanceAvailable", { value: `<span class="mono">${sensitive(`${wallet.summary.available} Z00Z`)}</span>` })}</small></span>
       <span class="wallet-nav-state is-${escapeHtml(chain.tone)}" role="img" aria-label="${escapeHtml(chain.label)}"></span>
@@ -832,14 +832,14 @@ function walletPickerListMarkup() {
 function walletPickerPopupMarkup() {
   return `${walletPickerListMarkup()}
   <div class="wallet-picker-actions">
-    <button class="wallet-picker-action nav-item nav-item-primary" type="button" data-wallet-picker-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
-    <button class="wallet-picker-action nav-item nav-item-danger" type="button" data-wallet-picker-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
+    <button class="wallet-picker-action nav-item nav-item-primary" type="button" role="menuitem" data-wallet-picker-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
+    <button class="wallet-picker-action nav-item nav-item-danger" type="button" role="menuitem" data-wallet-picker-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
   </div>`;
 }
 
 function walletPickerTriggerMarkup(wallet, className) {
   const chain = walletChain(wallet.chainId);
-  return `<button class="wallet-picker-trigger ${escapeHtml(className)}" type="button" data-wallet-picker-trigger aria-haspopup="dialog" aria-expanded="false" aria-controls="wallet-picker-popup">
+  return `<button class="wallet-picker-trigger ${escapeHtml(className)}" type="button" data-wallet-picker-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="wallet-picker-popup">
     <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span>
     <span class="wallet-picker-trigger-copy"><strong>${escapeHtml(wallet.name)}</strong><small>${t("walletShell.balanceAvailable", { value: `<span class="mono">${sensitive(`${wallet.summary.available} Z00Z`)}</span>` })}</small></span>
     <span class="wallet-nav-state is-${escapeHtml(chain.tone)}" role="img" aria-label="${escapeHtml(chain.label)}"></span>
@@ -1776,13 +1776,15 @@ function openDesktopWalletPicker(trigger) {
     const triggerRect = trigger.getBoundingClientRect();
     const anchorRect = trigger.closest(".mobile-wallet-selector, .wallet-nav-viewport")?.getBoundingClientRect() || triggerRect;
     const viewportPadding = isMobileNavigation() ? 8 : 12;
-    const width = Math.min(Math.max(anchorRect.width, 262), 360, window.innerWidth - viewportPadding * 2);
-    const left = Math.max(viewportPadding, Math.min(anchorRect.left, window.innerWidth - width - viewportPadding));
+    const maxWidth = isMobileNavigation() ? 300 : 288;
+    const minWidth = isMobileNavigation() ? 240 : 252;
+    const width = Math.min(Math.max(anchorRect.width, minWidth), maxWidth, window.innerWidth - viewportPadding * 2);
+    const left = Math.max(viewportPadding, Math.min(triggerRect.left, window.innerWidth - width - viewportPadding));
     const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
     const spaceAbove = triggerRect.top - viewportPadding;
-    const popupHeight = Math.min(walletPickerPopup.scrollHeight, 420);
-    const opensUpward = spaceBelow < Math.min(popupHeight, 240) && spaceAbove > spaceBelow;
-    const availableHeight = Math.max(168, opensUpward ? spaceAbove : spaceBelow);
+    const popupHeight = Math.min(walletPickerPopup.scrollHeight, 280);
+    const opensUpward = spaceBelow < Math.min(popupHeight, 176) && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(156, opensUpward ? spaceAbove : spaceBelow);
     walletPickerPopup.style.left = `${Math.round(left)}px`;
     walletPickerPopup.style.width = `${Math.round(width)}px`;
     walletPickerPopup.style.maxHeight = `${Math.floor(availableHeight)}px`;
@@ -4192,11 +4194,11 @@ function removeWalletDialog() {
   const selectedCount = selectedIds.size;
   const canRemove = selectedCount > 0;
   return dialogFrame({
-    title: "Remove wallet profiles",
-    subtitle: "Remove local demo profiles from this concept. Wallet files are not deleted.",
+    title: "Remove Wallet(s)",
+    subtitle: "Remove local wallets from this concept. Wallet files are not deleted.",
     body: `
       <fieldset class="wallet-remove-list" aria-describedby="wallet-remove-summary">
-        <legend class="sr-only">Wallet profiles to remove</legend>
+        <legend class="sr-only">Wallets to remove</legend>
         ${state.wallets.map((wallet) => {
           const checked = selectedIds.has(wallet.id);
           return `<label class="wallet-remove-choice${checked ? " is-selected" : ""}">
@@ -4206,9 +4208,9 @@ function removeWalletDialog() {
           </label>`;
         }).join("")}
       </fieldset>
-      <p class="remove-selection-summary" id="wallet-remove-summary">${selectedCount} of ${state.wallets.length} selected. This removes concept profiles only.</p>
-      ${selectedCount === state.wallets.length ? `<p class="field-error">All concept profiles will be removed. You can add a wallet again afterward.</p>` : ""}`,
-    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-danger" type="button" data-dialog-action="confirm-remove-wallet"${canRemove ? "" : " disabled"}>${icon("remove")} Remove profiles${selectedCount ? ` (${selectedCount})` : ""}</button>`
+      <p class="remove-selection-summary" id="wallet-remove-summary">${selectedCount} of ${state.wallets.length} selected. This removes local wallets only.</p>
+      ${selectedCount === state.wallets.length ? `<p class="field-error">All local wallets will be removed. You can add a wallet again afterward.</p>` : ""}`,
+    footer: `<button class="button button-quiet" type="button" data-dialog-close>Cancel</button><button class="button button-danger" type="button" data-dialog-action="confirm-remove-wallet"${canRemove ? "" : " disabled"}>${icon("remove")} Remove Wallet(s)${selectedCount ? ` (${selectedCount})` : ""}</button>`
   });
 }
 
@@ -5246,6 +5248,7 @@ document.addEventListener("click", (event) => {
 
   if (!mobilePopupMenu.hidden
     && !event.target.closest("#mobile-popup-menu")
+    && !event.target.closest("#wallet-picker-popup")
     && !event.target.closest("#mobile-menu-button")
     && !event.target.closest("[data-wallet-picker-trigger]")) {
     closeMobilePopup();

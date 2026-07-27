@@ -342,15 +342,23 @@ test("wallet picker comparison keeps Variant 1 intact and exposes Variant 2 on d
       await page.locator("#mobile-popup-menu [data-wallet-picker-trigger]").click();
       await expect(page.locator("#wallet-picker-popup")).toBeVisible();
       await expect(page.locator("#mobile-popup-menu")).toBeVisible();
+      await expect(page.locator("#wallet-picker-popup")).toHaveAttribute("role", "menu");
+      await page.waitForFunction(() => document.querySelector("#wallet-picker-popup").style.top !== "");
       await expect(page.locator("#wallet-picker-popup .wallet-picker-choice")).toHaveCount(3);
       await expect(page.locator("#wallet-picker-popup .wallet-picker-actions [data-wallet-picker-action]")).toHaveCount(2);
+      const mobilePickerGeometry = await page.evaluate(() => {
+        const trigger = document.querySelector("#mobile-popup-menu [data-wallet-picker-trigger]").getBoundingClientRect();
+        const menu = document.querySelector("#wallet-picker-popup").getBoundingClientRect();
+        return { offsetX: Math.round(menu.left - trigger.left), offsetY: Math.round(menu.top - trigger.bottom) };
+      });
+      expect(mobilePickerGeometry).toEqual({ offsetX: 0, offsetY: 8 });
       await page.locator('#wallet-picker-popup [data-wallet-picker-id="savings"]').click();
       await expect(page.locator("#mobile-popup-menu .mobile-wallet-picker-trigger")).toContainText("Savings");
       await expect(page.locator("#wallet-picker-popup")).toBeHidden();
       await expect(page.locator("#mobile-popup-menu")).toBeVisible();
       await page.locator("#mobile-popup-menu [data-wallet-picker-trigger]").click();
       await page.locator('#wallet-picker-popup [data-wallet-picker-action="remove-wallet"]').click();
-      await expect(page.locator("#dialog-title")).toHaveText("Remove wallet profiles");
+      await expect(page.locator("#dialog-title")).toHaveText("Remove Wallet(s)");
       await page.keyboard.press("Escape");
     } else {
       await expect(page.locator(".sidebar-label")).toBeVisible();
@@ -374,8 +382,16 @@ test("wallet picker comparison keeps Variant 1 intact and exposes Variant 2 on d
       expect(desktopTopbarAfter).toEqual(desktopTopbarBefore);
       await page.locator("#wallet-nav [data-wallet-picker-trigger]").click();
       await expect(page.locator("#wallet-picker-popup")).toBeVisible();
+      await expect(page.locator("#wallet-picker-popup")).toHaveAttribute("role", "menu");
+      await page.waitForFunction(() => document.querySelector("#wallet-picker-popup").style.top !== "");
       await expect(page.locator("#wallet-picker-popup .wallet-picker-choice")).toHaveCount(3);
       await expect(page.locator("#wallet-picker-popup .wallet-picker-actions [data-wallet-picker-action]")).toHaveCount(2);
+      const desktopPickerGeometry = await page.evaluate(() => {
+        const trigger = document.querySelector("#wallet-nav [data-wallet-picker-trigger]").getBoundingClientRect();
+        const menu = document.querySelector("#wallet-picker-popup").getBoundingClientRect();
+        return { offsetX: Math.round(menu.left - trigger.left), offsetY: Math.round(menu.top - trigger.bottom) };
+      });
+      expect(desktopPickerGeometry).toEqual({ offsetX: 0, offsetY: 8 });
       await page.locator('#wallet-picker-popup [data-wallet-picker-id="savings"]').click();
       await expect(page.locator("#wallet-nav [data-wallet-picker-trigger]")).toContainText("Savings");
       await expect(page.locator("#wallet-picker-popup")).toBeHidden();
@@ -1264,16 +1280,22 @@ test("English Help mirrors the Demo navigation and workspace menu", async ({ pag
   expect(helpChrome.titleStyle.fontSize).toBeGreaterThan(sendTitleStyle.fontSize);
   await expect(helpPage.locator("#help-contents-eyebrow")).toHaveCount(0);
   await expect(helpPage.locator("#help-contents-title")).toHaveCount(0);
-  const sidebarChrome = await helpPage.evaluate(() => {
-    const header = document.querySelector(".help-site-header").getBoundingClientRect();
-    const search = document.querySelector("#help-search").getBoundingClientRect();
+  const searchPlacement = await helpPage.evaluate(() => {
+    const search = document.querySelector("#help-search-trigger").getBoundingClientRect();
+    const language = document.querySelector(".help-header-language").getBoundingClientRect();
     return {
       headerDisplay: getComputedStyle(document.querySelector(".help-sidebar-header")).display,
-      searchDividerAlignment: Math.round(search.top - header.bottom),
+      sidebarSearchCount: document.querySelectorAll("#help-sidebar #help-search").length,
+      searchBeforeLanguage: search.right <= language.left,
+      verticalAlignment: Math.round(search.top - language.top),
     };
   });
-  expect(sidebarChrome.headerDisplay).toBe("none");
-  expect(Math.abs(sidebarChrome.searchDividerAlignment)).toBeLessThanOrEqual(1);
+  expect(searchPlacement).toEqual({
+    headerDisplay: "none",
+    sidebarSearchCount: 0,
+    searchBeforeLanguage: true,
+    verticalAlignment: 0,
+  });
 
   await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
   await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
@@ -1410,8 +1432,25 @@ test("English Help mirrors the Demo navigation and workspace menu", async ({ pag
   await expect(helpPage.locator("#help-title")).toHaveText("Активы");
   await expect(helpPage.locator(".table-of-contents")).toHaveAttribute("aria-label", "Содержание");
   await expect(helpPage.locator(".table-of-contents")).toHaveAttribute("data-title", "Содержание");
+  await expect(helpPage.locator("#help-search-trigger")).toContainText("Поиск");
+  await helpPage.locator("#help-search-trigger").click();
+  await expect(helpPage.locator("#help-search-overlay")).toBeVisible();
+  await expect(helpPage.locator("#help-search")).toBeFocused();
   await helpPage.locator("#help-search").fill("Отправка");
   await expect(helpPage.locator('[data-help-search-topic="wallet.send"]')).toBeVisible();
+  await expect(helpPage.locator("#help-tree")).toBeVisible();
+  await helpPage.locator('[data-help-search-topic="wallet.send"]').click();
+  await expect(helpPage.locator("#help-search-overlay")).toBeHidden();
+  await expect(helpPage.locator("#help-search")).toHaveValue("");
+  await expect(helpPage.locator("#help-title")).toHaveText("Отправка");
+  await expect(helpPage.locator('[data-help-topic-link="wallet.send"]')).toHaveAttribute("aria-current", "page");
+  await helpPage.keyboard.press("Control+K");
+  await expect(helpPage.locator("#help-search-overlay")).toBeVisible();
+  await helpPage.keyboard.press("Escape");
+  await expect(helpPage.locator("#help-search-overlay")).toBeHidden();
+  await expect(helpPage.locator("#help-search-trigger")).toBeFocused();
+  await helpPage.locator('[data-help-topic-link="wallet.assets"]').click();
+  await expect(helpPage.locator("#help-title")).toHaveText("Активы");
 
   await helpPage.setViewportSize({ width: 390, height: 844 });
   await expect(helpPage.locator("#help-mobile-topbar-context")).toBeVisible();
@@ -1426,6 +1465,17 @@ test("English Help mirrors the Demo navigation and workspace menu", async ({ pag
   await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
   await expect(helpPage.locator("#help-search")).toBeHidden();
   await expect(helpPage.locator(".help-search-results")).toBeHidden();
+  await helpPage.locator("#help-sidebar-close").click();
+  await expect(helpPage.locator("#help-sidebar")).toBeHidden();
+  await helpPage.locator("#help-search-trigger").click();
+  await expect(helpPage.locator("#help-search-overlay")).toBeVisible();
+  await helpPage.locator("#help-search").fill("Отправка");
+  await expect(helpPage.locator('[data-help-search-topic="wallet.send"]')).toBeVisible();
+  await helpPage.locator('[data-help-search-topic="wallet.send"]').click();
+  await expect(helpPage.locator("#help-search-overlay")).toBeHidden();
+  await expect(helpPage.locator("#help-search")).toHaveValue("");
+  await expect(helpPage.locator("#help-title")).toHaveText("Отправка");
+  await expect(helpPage.locator("#help-sidebar")).toBeHidden();
   await expectNoViewportOverflow(helpPage);
   await helpPage.close();
 });
@@ -1784,8 +1834,8 @@ test("context navigation stays vertical on desktop and uses a second mobile topb
   await expectNoViewportOverflow(page);
 });
 
-test("mobile wallet settings right-align selected wallet values to their actions", async ({ page }) => {
-  for (const width of [390, 320]) {
+test("wallet settings keep selected wallet values beside their labels", async ({ page }) => {
+  for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`${demoUrl}?route=wallet.settings.general`);
 
@@ -1794,12 +1844,14 @@ test("mobile wallet settings right-align selected wallet values to their actions
         const row = view.querySelector(`[data-help-anchor="${anchor}"]`);
         const value = row.querySelector(".compact-value").getBoundingClientRect();
         const action = row.querySelector(".compact-action").getBoundingClientRect();
-        return { actionLeft: action.left, valueRight: value.right };
+        const style = getComputedStyle(row.querySelector(".compact-value"));
+        return { actionLeft: action.left, valueLeft: value.left, textAlign: style.textAlign };
       }),
     );
 
     for (const row of geometry) {
-      expect(row.actionLeft - row.valueRight).toBeCloseTo(8, 0);
+      expect(row.valueLeft).toBeLessThan(row.actionLeft);
+      expect(row.textAlign).toBe("left");
     }
     await expectNoViewportOverflow(page, `wallet settings at ${width}px`);
   }
@@ -2446,6 +2498,7 @@ test("mobile Help reuses the App drawer shell, topbar positions, and interaction
   const mobileBackgrounds = await page.evaluate(() => ({
     body: getComputedStyle(document.body).backgroundColor,
     header: getComputedStyle(document.querySelector(".help-site-header")).backgroundColor,
+    controls: getComputedStyle(document.querySelector(".help-header-controls")).backgroundColor,
     language: getComputedStyle(document.querySelector(".help-header-language")).backgroundColor,
   }));
   expect(new Set(Object.values(mobileBackgrounds)).size).toBe(1);
@@ -2473,7 +2526,7 @@ test("mobile Help reuses the App drawer shell, topbar positions, and interaction
     };
   }, {
     leading: ".help-navigation-leading",
-    identity: ".help-header-language",
+    identity: ".help-header-controls",
     context: "#help-mobile-topbar-context",
   });
   expect(helpTopbar).toEqual({
@@ -2493,7 +2546,7 @@ test("mobile Help reuses the App drawer shell, topbar positions, and interaction
   await expect(helpDrawer.locator("[data-mobile-popup-close]")).toBeFocused();
   await expect(page.locator("#help-main")).toHaveJSProperty("inert", true);
   await expect(helpDrawer.locator(".mobile-wallet-selector")).toHaveCount(0);
-  await expect(helpDrawer.locator(".help-search")).toBeHidden();
+  await expect(helpDrawer.locator("#help-search")).toHaveCount(0);
   await expect(helpDrawer.locator(".mobile-navigation-scroll-region")).toBeVisible();
   await expect(helpDrawer.locator(".mobile-navigation-terminal")).toContainText("Settings");
   await expect(helpDrawer.locator(".mobile-navigation-terminal")).toContainText("Version 0.1.0");
@@ -2502,7 +2555,7 @@ test("mobile Help reuses the App drawer shell, topbar positions, and interaction
 
   const helpShell = await page.evaluate(mobileShellSnapshot, {
     leading: ".help-navigation-leading",
-    identity: ".help-header-language",
+    identity: ".help-header-controls",
     context: "#help-mobile-topbar-context",
     drawer: '#help-sidebar[data-popup-type="menu"]',
     drawerHeader: ".mobile-drawer-header",
