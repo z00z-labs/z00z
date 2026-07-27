@@ -153,7 +153,34 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
     };
   });
   expect(topbarTypography.family).toContain("Geist");
-  expect(topbarTypography.size).toBe("20px");
+  expect(topbarTypography.size).toBe("28px");
+
+  await page.goto(`${demoUrl}?route=telemetry.reticulum.overview`);
+  await expect(page.locator("#wallet-identity")).toBeVisible();
+  await expect(page.locator(".wallet-identity-address")).toHaveText("ZxChpo…2Mj8Pt");
+  await expect(page.locator(".wallet-identity-name")).toHaveText("Everyday wallet");
+  await expect(page.locator("#page-title")).toHaveText("Reticulum");
+  await expect(page.locator("#page-context")).toBeHidden();
+  const desktopTopbarOrder = await page.evaluate(() => {
+    const brand = document.querySelector(".desktop-topbar-brand").getBoundingClientRect();
+    const logo = document.querySelector(".desktop-topbar-brand .brand-mark").getBoundingClientRect();
+    const wallet = document.querySelector("#wallet-identity").getBoundingClientRect();
+    const heading = document.querySelector(".topbar-address-group").getBoundingClientRect();
+    const topbarStyle = getComputedStyle(document.querySelector(".topbar"));
+    return {
+      brand: { left: brand.left, right: brand.right, center: brand.left + brand.width / 2 },
+      logo: { left: logo.left, width: logo.width, height: logo.height, centerY: logo.top + logo.height / 2 },
+      wallet: { left: wallet.left, right: wallet.right },
+      heading: { left: heading.left },
+      topbar: { centerY: brand.top + brand.height / 2, borderBottomWidth: topbarStyle.borderBottomWidth },
+    };
+  });
+  expect(desktopTopbarOrder.wallet.left).toBeGreaterThanOrEqual(desktopTopbarOrder.brand.right - 1);
+  expect(desktopTopbarOrder.heading.left).toBeGreaterThanOrEqual(desktopTopbarOrder.wallet.right - 1);
+  expect(desktopTopbarOrder.logo).toMatchObject({ width: 52, height: 52 });
+  expect(desktopTopbarOrder.logo.left - desktopTopbarOrder.brand.left).toBe(18);
+  expect(desktopTopbarOrder.logo.centerY).toBeCloseTo(desktopTopbarOrder.topbar.centerY, 0);
+  expect(desktopTopbarOrder.topbar.borderBottomWidth).toBe("0px");
 });
 
 test("desktop tree keeps root accordions independent and opens sublevels inside the workspace", async ({ page }) => {
@@ -1664,7 +1691,7 @@ test("compact route context, status, privacy, attention, and lock utilities keep
   await page.goto(`${demoUrl}?route=wallet.assets`);
 
   await expect(page.locator("#route-breadcrumb")).toContainText("Wallet");
-  await expect(page.locator("#page-context")).toContainText("Everyday");
+  await expect(page.locator("#page-context")).toBeHidden();
   const contextualHelpGap = await page.evaluate(() => {
     const helpButton = document.querySelector(".context-help-button").getBoundingClientRect();
     const statusbar = document.querySelector("#wallet-statusbar").getBoundingClientRect();

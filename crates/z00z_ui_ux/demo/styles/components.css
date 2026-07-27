@@ -6381,6 +6381,96 @@ button.connection-option:hover,
   background: var(--bg-sidebar);
 }
 
+@media (min-width: 769px) {
+  .topbar {
+    border-bottom: 0;
+  }
+
+  .topbar::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: var(--sidebar-width);
+    height: 1px;
+    background: color-mix(in srgb, var(--border) 72%, transparent);
+    content: "";
+    pointer-events: none;
+  }
+
+  .topbar > .wallet-identity {
+    display: grid;
+    width: min(25vw, 262px);
+    min-width: 0;
+    height: var(--topbar-height);
+    min-height: var(--topbar-height);
+    flex: 0 0 min(25vw, 262px);
+    align-content: center;
+    gap: 2px;
+    padding: 0 var(--topbar-inline-pad);
+    border: 0;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--text-primary);
+    background: var(--bg-canvas);
+    text-align: left;
+  }
+
+  .topbar > .wallet-identity[hidden] {
+    display: none;
+  }
+
+  .topbar > .wallet-identity:hover {
+    border-right-color: var(--border);
+    background: var(--bg-canvas);
+  }
+
+  .wallet-identity-address-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .wallet-identity-address,
+  .wallet-identity-name {
+    margin: 0;
+  }
+
+  .wallet-identity-address {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: var(--type-address);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    line-height: 1.14;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .wallet-identity-name {
+    color: var(--text-secondary);
+    font-size: var(--type-label);
+    line-height: 1.3;
+  }
+
+  .wallet-identity-copy.icon-button {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    color: var(--text-secondary);
+  }
+
+  .route-breadcrumb {
+    display: none;
+  }
+
+  .topbar-address-group .page-heading h1 {
+    font-size: var(--type-page-title);
+    line-height: 1.08;
+  }
+}
+
 .topbar-address-group {
   width: auto;
   max-width: none;
@@ -6393,7 +6483,7 @@ button.connection-option:hover,
 }
 
 .route-breadcrumb {
-  display: block;
+  display: none;
   overflow: hidden;
   margin: 0 0 2px;
   color: var(--text-tertiary);

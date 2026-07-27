@@ -3,7 +3,6 @@
 const main = document.querySelector("#main-content");
 const pageTitle = document.querySelector("#page-title");
 const pageContext = document.querySelector("#page-context");
-const copyWalletAddress = document.querySelector("#copy-wallet-address");
 const topbarAddressGroup = document.querySelector(".topbar-address-group");
 const mobileTopbarContext = document.querySelector("#mobile-topbar-context");
 const mobileActiveWallet = document.querySelector("#mobile-active-wallet");
@@ -653,11 +652,15 @@ function renderWalletShell() {
       <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
     </div>`;
   const walletName = wallet.name;
-  walletIdentity.innerHTML = `<span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span><strong>${escapeHtml(walletName)}</strong><small class="mono">${escapeHtml(wallet.address)}</small></span>`;
+  const copyLabel = t("walletShell.copyAddress", { wallet: walletName });
+  walletIdentity.innerHTML = `
+    <div class="wallet-identity-address-row">
+      <strong class="wallet-identity-address mono" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</strong>
+      <button class="icon-button wallet-identity-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button>
+    </div>
+    <p class="wallet-identity-name">${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))}</p>`;
   walletIdentity.setAttribute("aria-label", t("walletShell.identityAria", { wallet: walletName }));
   lockWalletLabel.innerHTML = `${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))} <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
-  copyWalletAddress.setAttribute("aria-label", t("walletShell.copyAddress", { wallet: walletName }));
-  copyWalletAddress.setAttribute("title", wallet.fullAddress);
   renderNavigationTree();
   walletStatusbar.innerHTML = `
     <span><small>${t("walletShell.available")}</small><strong>${sensitive(`${summary.available} Z00Z`)}</strong></span>
@@ -3300,20 +3303,22 @@ function render(options = {}) {
   const wallet = activeWallet();
   renderMobileActiveWallet(wallet);
   const routeNode = demoRuntime.navigationNodeForRoute(state.activeRoute);
-  const [legacyTitle = "", legacyContext = ""] = headings[state.view] || [];
+  const [legacyTitle = ""] = headings[state.view] || [];
   const ancestorLabels = routeNode
     ? demoRuntime.ancestorContainerIdsForNode(routeNode.id).map((containerId) => navigationLabel(demoRuntime.navigationNode(containerId)))
     : [];
   routeBreadcrumb.textContent = routeNode ? [...ancestorLabels, navigationLabel(routeNode)].join(" / ") : "";
   routeBreadcrumb.hidden = !routeNode;
-  pageTitle.textContent = routeNode ? navigationLabel(routeNode) : t(legacyTitle);
-  pageContext.textContent = walletScreen
-    ? `${wallet.name} · ${wallet.address}`
-    : legacyContext ? t(legacyContext) : "";
+  const telemetryOverview = /^telemetry\.(reticulum|onionnet|aggregators)\.overview$/.exec(state.activeRoute);
+  const [topbarTitle] = telemetryOverview
+    ? telemetryTopbar[telemetryOverview[1]]
+    : [routeNode ? navigationLabel(routeNode) : t(legacyTitle), null];
+  pageTitle.textContent = topbarTitle;
+  pageContext.textContent = "";
+  pageContext.hidden = true;
   pageTitle.classList.remove("is-wallet-address", "is-telemetry-title", "is-settings-title");
   topbarAddressGroup.classList.remove("has-wallet-address");
-  copyWalletAddress.hidden = !walletScreen;
-  walletIdentity.hidden = !walletScreen;
+  walletIdentity.hidden = !Boolean(state.selectedWalletId && wallet);
   const activeRenderer = {
     wallet: walletView,
     "wallet-send": walletSendView,

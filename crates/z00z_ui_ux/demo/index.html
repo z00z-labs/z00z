@@ -109,6 +109,7 @@
           <img class="brand-mark" src="assets/logo/z00z-logo-gold-circle.png" alt="">
           <span>Z00Z</span>
         </div>
+        <section class="wallet-identity" id="wallet-identity" aria-label="Active wallet" aria-live="polite"></section>
         <div class="mobile-navigation-leading">
           <button class="icon-button mobile-menu-button" id="mobile-menu-button" type="button" aria-controls="mobile-popup-menu" aria-expanded="false">
             <svg class="icon"><use href="#i-menu"/></svg>
@@ -122,14 +123,10 @@
           <div class="page-heading">
             <p class="route-breadcrumb" id="route-breadcrumb" aria-label="Current path"></p>
             <h1 id="page-title">Home</h1>
-            <p id="page-context">Your private money at a glance</p>
-            <button class="icon-button address-copy" id="copy-wallet-address" type="button" data-demo-action="copy-wallet-address" aria-label="Copy selected wallet address" title="Copy selected wallet address">
-              <svg class="icon"><use href="#i-copy"/></svg>
-            </button>
+            <p id="page-context" hidden></p>
           </div>
         </div>
         <div class="topbar-actions">
-          <button class="wallet-identity" id="wallet-identity" type="button" data-demo-action="switch-wallet" aria-live="polite"></button>
           <button class="icon-button" type="button" data-demo-action="toggle-balance" aria-label="Hide sensitive amounts" title="Hide sensitive amounts">
             <svg class="icon"><use href="#i-eye"/></svg>
           </button>

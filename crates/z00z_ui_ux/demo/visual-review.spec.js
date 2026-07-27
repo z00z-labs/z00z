@@ -517,6 +517,14 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
       await reviewState(viewport, name);
     }
 
+    if (viewport.width > 768) {
+      await page.goto(`${demoUrl}?route=telemetry.reticulum.overview`);
+      await expect(page.locator("#wallet-identity")).toContainText("ZxChpo…2Mj8Pt");
+      await expect(page.locator("#page-title")).toHaveText("Reticulum");
+      await expect(page.locator("#page-context")).toBeHidden();
+      await reviewState(viewport, "topbar-wallet-context");
+    }
+
     await page.goto(`${demoUrl}?route=wallet.assets`);
     if (viewport.width <= 768) {
       const mobileTopbarContext = page.locator("#mobile-topbar-context");
