@@ -13,6 +13,20 @@ async function openStandaloneHelp(page, trigger) {
   return helpPage;
 }
 
+async function selectAppLanguage(page, languageId) {
+  await page.locator("[data-language-picker-trigger]").click();
+  const option = page.locator(`[data-language-picker-option="${languageId}"]`);
+  await expect(option).toHaveCount(1);
+  await option.click();
+}
+
+async function selectHelpLanguage(page, languageId) {
+  await page.locator("#help-language").click();
+  const option = page.locator(`[data-help-language-option="${languageId}"]`);
+  await expect(option).toHaveCount(1);
+  await option.click();
+}
+
 async function selectCanonicalRoute(page, routeId, { mobile = false } = {}) {
   const navigation = mobile
     ? page.locator("#mobile-popup-menu")
@@ -895,7 +909,9 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
     await expect(page.locator('[data-config-control="ringtone"]')).toHaveValue("soft-chime");
 
     await page.goto(`${demoUrl}?route=settings.general`);
-    await expect(page.locator('[data-config-control="language"] option').first()).toContainText("🇬🇧");
+    await expect(page.locator("[data-language-picker-trigger]")).toContainText("🇬🇧");
+    await selectAppLanguage(page, "ru");
+    await expect(page.locator("[data-language-picker-trigger]")).toContainText("Русский");
     await expectNoViewportOverflow(page);
   }
 });
@@ -913,7 +929,10 @@ test("Help reuses App section icons, language flags, and searchable localized co
   await expect(helpPage.locator("#i-language")).toHaveAttribute("data-icon-source", "material-symbols-light:language");
   await expect(helpPage.locator("#help-language-label")).toHaveClass(/visually-hidden/);
   await expect(helpPage.locator("#help-language")).toHaveAttribute("aria-label", "Language");
-  await expect(helpPage.locator("#help-language option").first()).toContainText("🇬🇧");
+  await expect(helpPage.locator("#help-language")).toContainText("🇬🇧");
+  await selectHelpLanguage(helpPage, "ru");
+  await expect(helpPage.locator("#help-language")).toContainText("Русский");
+  await selectHelpLanguage(helpPage, "en");
   await helpPage.locator("#help-search").fill("signed release manifest");
   await expect(helpPage.locator('[data-help-search-topic="about"]')).toBeVisible();
   await helpPage.locator('[data-help-search-topic="about"]').click();

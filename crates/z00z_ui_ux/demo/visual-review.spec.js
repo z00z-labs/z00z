@@ -72,6 +72,16 @@ async function captureHelp(page, trigger, viewport, name) {
   await helpPage.close();
 }
 
+async function selectAppLanguage(page, languageId) {
+  await page.locator("[data-language-picker-trigger]").click();
+  await page.locator(`[data-language-picker-option="${languageId}"]`).click();
+}
+
+async function selectHelpLanguage(page, languageId) {
+  await page.locator("#help-language").click();
+  await page.locator(`[data-help-language-option="${languageId}"]`).click();
+}
+
 async function settleMainAnimations(page) {
   await page.locator("#main-content").evaluate((main) => (
     Promise.all(main.getAnimations({ subtree: true })
@@ -446,7 +456,7 @@ test("capture multilingual Help and compact-layout review matrix", async ({ page
     if (viewport.width === 320) {
       for (const locale of ["ru", "de", "fr", "pt", "tr", "ja", "ko", "zh-Hans"]) {
         await page.goto(`${demoUrl}?view=settings&settings=general`);
-        await page.locator('[data-config-control="language"]').selectOption(locale);
+        await selectAppLanguage(page, locale);
         await capture(page, `${viewport.name}-locale-${locale}`);
         await captureHelp(
           page,
@@ -757,7 +767,7 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
         await helpPage.locator("#help-sidebar-close").click();
       }
       for (const locale of ["ru", "fr", "de", "es", "pt", "ko", "tr", "ja", "zh-Hans"]) {
-        await helpPage.locator("#help-language").selectOption(locale);
+        await selectHelpLanguage(helpPage, locale);
         await reviewHelp(helpPage, viewport, `locale-${locale}`);
       }
     }

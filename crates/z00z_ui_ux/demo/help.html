@@ -40,11 +40,12 @@
         <small id="help-product-label">Help</small>
       </a>
       <div class="help-header-actions">
-        <label class="help-language-control" for="help-language">
+        <div class="help-language-control" data-help-language-picker>
           <svg class="icon help-language-icon" aria-hidden="true"><use href="#i-language"/></svg>
           <span class="visually-hidden" id="help-language-label">Language</span>
-          <select id="help-language"></select>
-        </label>
+          <button class="help-language-trigger" id="help-language" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="help-language-options"></button>
+          <div class="help-language-menu" id="help-language-options" role="listbox" aria-labelledby="help-language-label" hidden></div>
+        </div>
         <a class="help-wallet-link" href="index.html" target="z00z-wallet">
           <svg class="icon"><use href="#i-wallet"/></svg>
           <span id="help-wallet-label">Wallet</span>

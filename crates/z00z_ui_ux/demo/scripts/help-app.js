@@ -85,7 +85,9 @@
   const menuButton = document.querySelector("#help-menu-button");
   const closeButton = document.querySelector("#help-sidebar-close");
   const backdrop = document.querySelector("#help-sidebar-backdrop");
-  const languageSelect = document.querySelector("#help-language");
+  const languagePicker = document.querySelector("[data-help-language-picker]");
+  const languageTrigger = document.querySelector("#help-language");
+  const languageMenu = document.querySelector("#help-language-options");
   const walletLink = document.querySelector(".help-wallet-link");
   const openGroups = new Set();
   let language = "en";
@@ -201,16 +203,62 @@
     menuButton.setAttribute("aria-label", translate("app.menu"));
     closeButton.setAttribute("aria-label", translate("common.close"));
     backdrop.setAttribute("aria-label", translate("common.close"));
-    languageSelect.setAttribute("aria-label", translate("app.language"));
+    languageTrigger.setAttribute("aria-label", translate("app.language"));
     walletLink.setAttribute("aria-label", translate("assets.wallet"));
     tree.setAttribute("aria-label", translate("help.contents"));
     searchInput.setAttribute("placeholder", `${translate("navigation.search")}…`);
     searchInput.setAttribute("aria-label", translate("navigation.search"));
     searchClear.setAttribute("aria-label", translate("common.close"));
     contextTabs.setAttribute("aria-label", translate("help.contents"));
-    languageSelect.innerHTML = localeRegistry.map(({ id, nativeName, flag }) => (
-      `<option value="${escapeHtml(id)}"${id === language ? " selected" : ""}>${escapeHtml(flag)} ${escapeHtml(nativeName)}</option>`
+    const selectedLanguage = localeRegistry.find(({ id }) => id === language) || localeRegistry[0];
+    languageTrigger.innerHTML = `<span class="help-language-current"><span aria-hidden="true">${escapeHtml(selectedLanguage.flag)}</span><span class="help-language-name">${escapeHtml(selectedLanguage.nativeName)}</span></span>${icon("chevron")}`;
+    languageMenu.innerHTML = localeRegistry.map(({ id, nativeName, flag }) => (
+      `<button class="help-language-option${id === language ? " is-selected" : ""}" type="button" role="option" aria-selected="${id === language}" tabindex="${id === language ? "0" : "-1"}" data-help-language-option="${escapeHtml(id)}"><span aria-hidden="true">${escapeHtml(flag)}</span><span>${escapeHtml(nativeName)}</span><i aria-hidden="true"></i></button>`
     )).join("");
+  }
+
+  function closeLanguagePicker({ restoreFocus = false } = {}) {
+    if (!languagePicker.classList.contains("is-open")) return;
+    languagePicker.classList.remove("is-open");
+    languageMenu.hidden = true;
+    languageMenu.removeAttribute("style");
+    languageTrigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus) languageTrigger.focus();
+  }
+
+  function openLanguagePicker() {
+    languagePicker.classList.add("is-open");
+    languageTrigger.setAttribute("aria-expanded", "true");
+    languageMenu.hidden = false;
+    root.requestAnimationFrame(() => {
+      if (!languagePicker.classList.contains("is-open")) return;
+      const triggerRect = languageTrigger.getBoundingClientRect();
+      const viewportPadding = 12;
+      const menuHeight = Math.min(languageMenu.scrollHeight, 360);
+      const spaceAbove = triggerRect.top - viewportPadding;
+      const spaceBelow = root.innerHeight - triggerRect.bottom - viewportPadding;
+      const opensUpward = spaceBelow < Math.min(menuHeight, 224) && spaceAbove > spaceBelow;
+      const availableHeight = Math.max(128, opensUpward ? spaceAbove : spaceBelow);
+      const width = Math.min(Math.max(triggerRect.width, 220), root.innerWidth - viewportPadding * 2);
+      const left = Math.max(viewportPadding, Math.min(triggerRect.right - width, root.innerWidth - width - viewportPadding));
+      languageMenu.style.left = `${Math.round(left)}px`;
+      languageMenu.style.width = `${Math.round(width)}px`;
+      languageMenu.style.maxHeight = `${Math.floor(availableHeight)}px`;
+      if (opensUpward) {
+        languageMenu.style.top = "auto";
+        languageMenu.style.bottom = `${Math.max(viewportPadding, Math.round(root.innerHeight - triggerRect.top + 6))}px`;
+      } else {
+        languageMenu.style.top = `${Math.round(triggerRect.bottom + 6)}px`;
+        languageMenu.style.bottom = "auto";
+      }
+    });
+  }
+
+  function selectLanguage(languageId) {
+    language = i18n.resolveLanguage(languageId);
+    root.history.pushState({}, "", routeUrl(activeTopicId, language, sectionTarget));
+    render();
+    root.requestAnimationFrame(() => languageTrigger.focus());
   }
 
   function searchableText(topic) {
@@ -392,10 +440,17 @@
     openTopic(topicLink.dataset.helpContextTopic);
   });
 
-  languageSelect.addEventListener("change", () => {
-    language = i18n.resolveLanguage(languageSelect.value);
-    root.history.pushState({}, "", routeUrl(activeTopicId, language, sectionTarget));
-    render();
+  languageTrigger.addEventListener("click", () => {
+    if (languagePicker.classList.contains("is-open")) closeLanguagePicker();
+    else openLanguagePicker();
+  });
+  languageMenu.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-help-language-option]");
+    if (!option) return;
+    selectLanguage(option.dataset.helpLanguageOption);
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-help-language-picker]")) closeLanguagePicker();
   });
 
   walletLink.addEventListener("click", (event) => {
@@ -407,6 +462,11 @@
   closeButton.addEventListener("click", () => setDrawer(false, { restoreFocus: true }));
   backdrop.addEventListener("click", () => setDrawer(false, { restoreFocus: true }));
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && languagePicker.classList.contains("is-open")) {
+      event.preventDefault();
+      closeLanguagePicker({ restoreFocus: true });
+      return;
+    }
     if (event.key === "Escape" && sidebar.classList.contains("is-open")) {
       event.preventDefault();
       setDrawer(false, { restoreFocus: true });
@@ -417,6 +477,7 @@
     render();
   });
   root.addEventListener("resize", () => {
+    closeLanguagePicker();
     const open = sidebar.classList.contains("is-open");
     setDrawer(open);
   });

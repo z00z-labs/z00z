@@ -145,8 +145,80 @@ function walletChainBadgeMarkup(chainId) {
   return `<span class="environment-tag is-${chain.tone}" title="${escapeHtml(t("common.readOnly"))}">${escapeHtml(chain.label)}</span>`;
 }
 
-function languageOptionsMarkup() {
-  return uiLanguages.map(({ id, nativeName, flag }) => `<option value="${id}"${state.language === id ? " selected" : ""}>${flag} ${nativeName}</option>`).join("");
+function languagePickerMarkup(className = "") {
+  const selected = uiLanguages.find(({ id }) => id === state.language) || uiLanguages[0];
+  const label = t("app.language");
+  return `<div class="language-picker${className ? ` ${className}` : ""}" data-language-picker>
+    <button class="language-picker-trigger" type="button" data-language-picker-trigger aria-label="${escapeHtml(label)}" aria-haspopup="listbox" aria-expanded="false" aria-controls="language-picker-options">
+      <span class="language-picker-value"><span aria-hidden="true">${escapeHtml(selected.flag)}</span><span>${escapeHtml(selected.nativeName)}</span></span>
+      ${icon("chevron")}
+    </button>
+    <div class="language-picker-menu" id="language-picker-options" data-language-picker-menu role="listbox" aria-label="${escapeHtml(label)}" hidden>
+      ${uiLanguages.map(({ id, nativeName, flag }) => `<button class="language-picker-option${id === state.language ? " is-selected" : ""}" type="button" role="option" aria-selected="${id === state.language}" tabindex="${id === state.language ? "0" : "-1"}" data-language-picker-option="${escapeHtml(id)}"><span aria-hidden="true">${escapeHtml(flag)}</span><span>${escapeHtml(nativeName)}</span>${id === state.language ? icon("check") : ""}</button>`).join("")}
+    </div>
+  </div>`;
+}
+
+function closeLanguagePicker(picker, { restoreFocus = false } = {}) {
+  if (!picker?.classList.contains("is-open")) return;
+  picker.classList.remove("is-open");
+  const menu = picker.querySelector("[data-language-picker-menu]");
+  if (menu) {
+    menu.hidden = true;
+    menu.removeAttribute("style");
+  }
+  const trigger = picker.querySelector("[data-language-picker-trigger]");
+  trigger?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) trigger?.focus();
+}
+
+function closeLanguagePickers({ restoreFocus = false } = {}) {
+  document.querySelectorAll("[data-language-picker].is-open").forEach((picker) => {
+    closeLanguagePicker(picker, { restoreFocus });
+  });
+}
+
+function openLanguagePicker(picker) {
+  closeLanguagePickers();
+  const trigger = picker.querySelector("[data-language-picker-trigger]");
+  const menu = picker.querySelector("[data-language-picker-menu]");
+  if (!trigger || !menu) return;
+  picker.classList.add("is-open");
+  trigger.setAttribute("aria-expanded", "true");
+  menu.hidden = false;
+  requestAnimationFrame(() => {
+    if (!picker.classList.contains("is-open")) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const viewportPadding = 12;
+    const menuHeight = Math.min(menu.scrollHeight, 360);
+    const spaceAbove = triggerRect.top - viewportPadding;
+    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+    const opensUpward = spaceBelow < Math.min(menuHeight, 224) && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(128, opensUpward ? spaceAbove : spaceBelow);
+    const width = Math.min(Math.max(triggerRect.width, 220), window.innerWidth - viewportPadding * 2);
+    const left = Math.max(viewportPadding, Math.min(triggerRect.right - width, window.innerWidth - width - viewportPadding));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.width = `${Math.round(width)}px`;
+    menu.style.maxHeight = `${Math.floor(availableHeight)}px`;
+    if (opensUpward) {
+      menu.style.top = "auto";
+      menu.style.bottom = `${Math.max(viewportPadding, Math.round(window.innerHeight - triggerRect.top + 6))}px`;
+    } else {
+      menu.style.top = `${Math.round(triggerRect.bottom + 6)}px`;
+      menu.style.bottom = "auto";
+    }
+  });
+}
+
+function selectLanguage(languageId) {
+  const nextLanguage = i18n.resolveLanguage(languageId);
+  const languageChanged = state.language !== nextLanguage;
+  state.language = nextLanguage;
+  syncConfigDraftFromState();
+  applyAppearancePreferences();
+  render();
+  if (languageChanged) showToast(t("app.languageChanged"));
+  requestAnimationFrame(() => document.querySelector("[data-language-picker-trigger]")?.focus());
 }
 
 function regionalLocaleOptionsMarkup() {
@@ -412,7 +484,7 @@ function advancedConfigContent() {
   const source = state.configDraft || effectiveDemoConfigYaml();
   const formContent = `
     <div class="config-form-grid">
-      <label><span>${t("app.language")}</span><select data-config-control="language">${languageOptionsMarkup()}</select></label>
+      <div class="config-field"><span>${t("app.language")}</span>${languagePickerMarkup()}</div>
       <label><span>${t("app.regionalFormat")}</span><select data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select></label>
       <label><span>${t("app.timeZone")}</span><select data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select></label>
       <label><span>${escapeHtml(t("plan2.palette.label"))}</span><select data-config-control="palette">${paletteOptions.map((palette) => `<option value="${palette.id}"${state.palette === palette.id ? " selected" : ""}>${escapeHtml(paletteName(palette))}</option>`).join("")}</select></label>
@@ -1643,7 +1715,7 @@ function settingsDetail() {
   if (state.settingsSection === "general") {
     return `
       <div class="setting-group settings-first-group">
-        <div class="setting-line compact-row app-select-setting" data-help-anchor="language"><strong class="compact-row-label">${t("app.language")}</strong><select class="compact-value" aria-label="${t("app.language")}" data-config-control="language">${languageOptionsMarkup()}</select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting" data-help-anchor="language"><strong class="compact-row-label">${t("app.language")}</strong>${languagePickerMarkup("compact-value")}<span class="compact-action"></span></div>
         <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.regionalFormat")}</strong><select class="compact-value" aria-label="${t("app.regionalFormat")}" data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select><span class="compact-action"></span></div>
         <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.timeZone")}</strong><select class="compact-value" aria-label="${t("app.timeZone")}" data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select><span class="compact-action"></span></div>
       </div>`;
@@ -5459,6 +5531,11 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.querySelector("[data-language-picker].is-open")) {
+    event.preventDefault();
+    closeLanguagePickers({ restoreFocus: true });
+    return;
+  }
   if (event.key === "Escape" && !mobilePopupMenu.hidden) {
     event.preventDefault();
     closeMobilePopup({ restoreFocus: true });
@@ -5480,6 +5557,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("resize", () => {
+  closeLanguagePickers();
   const mobileNavigation = isMobileNavigation();
   if (!mobileNavigation) {
     closeMobilePopup();
@@ -5877,8 +5955,10 @@ document.addEventListener("change", (event) => {
   }
   const configControl = event.target.dataset.configControl;
   if (configControl) {
-    const languageChanged = configControl === "language" && state.language !== event.target.value;
-    if (configControl === "language") state.language = i18n.resolveLanguage(event.target.value);
+    if (configControl === "language") {
+      selectLanguage(event.target.value);
+      return;
+    }
     if (configControl === "regional-locale") state.regionalLocale = event.target.value;
     if (configControl === "time-zone") state.timeZone = event.target.value;
     if (configControl === "network-units") state.networkUnits = event.target.value;
@@ -5895,12 +5975,29 @@ document.addEventListener("change", (event) => {
     syncConfigDraftFromState();
     applyAppearancePreferences();
     render();
-    if (languageChanged) showToast(t("app.languageChanged"));
     return;
   }
 });
 
 document.addEventListener("click", (event) => {
+  const languageOption = event.target.closest("[data-language-picker-option]");
+  if (languageOption) {
+    event.preventDefault();
+    selectLanguage(languageOption.dataset.languagePickerOption);
+    return;
+  }
+
+  const languageTrigger = event.target.closest("[data-language-picker-trigger]");
+  if (languageTrigger) {
+    event.preventDefault();
+    const picker = languageTrigger.closest("[data-language-picker]");
+    if (picker?.classList.contains("is-open")) closeLanguagePicker(picker);
+    else if (picker) openLanguagePicker(picker);
+    return;
+  }
+
+  if (!event.target.closest("[data-language-picker]")) closeLanguagePickers();
+
   const toggle = event.target.closest("[data-toggle-password]");
   if (!toggle) return;
   const input = document.querySelector("#unlock-password");
