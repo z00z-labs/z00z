@@ -64,7 +64,7 @@
   --lut-code-xcode-string: #c41a16;
   --lut-code-xcode-number: #1c00cf;
   --lut-code-xcode-title: #1c00cf;
-  --lut-code-one-dark-bg: #0d161b;
+  --lut-code-one-dark-bg: var(--lut-z00z-dark-canvas);
   --lut-code-one-dark-border: #181a1f;
   --lut-code-one-dark-fg: #caced6;
   --lut-code-one-dark-comment: #75715e;

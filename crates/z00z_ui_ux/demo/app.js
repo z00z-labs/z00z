@@ -19,21 +19,36 @@ const mobileMenuButton = document.querySelector("#mobile-menu-button");
 const mobileMenuBackdrop = document.querySelector("#mobile-menu-backdrop");
 const mobilePopupMenu = document.querySelector("#mobile-popup-menu");
 const walletPickerPopup = document.querySelector("#wallet-picker-popup");
+const menuSearchTrigger = document.querySelector("#menu-search-trigger");
+const menuSearchOverlay = document.querySelector("#menu-search-overlay");
+const menuSearchBackdrop = document.querySelector("#menu-search-backdrop");
+const menuSearchDialog = document.querySelector("#menu-search-dialog");
+const menuSearchTitle = document.querySelector("#menu-search-title");
+const menuSearchLabel = document.querySelector("#menu-search-label");
+const menuSearchInput = document.querySelector("#menu-search-input");
+const menuSearchClose = document.querySelector("#menu-search-close");
+const menuSearchResults = document.querySelector("#menu-search-results");
+const menuSearchStatus = document.querySelector("#menu-search-status");
 const appBody = document.querySelector("#app-body");
-const walletPickerVariant = new URLSearchParams(window.location.search).get("walletPicker") === "inline" ? "inline" : "popup";
 let mobilePopupType = "";
 let mobilePopupTrigger = null;
 let desktopWalletPickerTrigger = null;
+let menuSearchQuery = "";
 let mobileNavigationLayout = window.matchMedia("(max-width: 768px)").matches;
 const mobileDrawerSwipe = {
   pointerId: null,
   source: "",
   startX: 0,
   startY: 0,
-  direction: ""
+  direction: "",
+  isDragging: false,
+  offsetX: 0,
+  opacity: 0
 };
 const mobileDrawerSwipeEdge = 48;
 const mobileDrawerSwipeDistance = 56;
+let mobileDrawerAnimations = [];
+let mobileDrawerMotionId = 0;
 
 const dialog = document.querySelector("#flow-dialog");
 const dialogContent = document.querySelector("#dialog-content");
@@ -748,6 +763,163 @@ function navigationLabel(node) {
   return t(node.labelKey);
 }
 
+function normalizeMenuSearchValue(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function normalizeMenuSearchText(value) {
+  return normalizeMenuSearchValue(value).toLocaleLowerCase(state.language);
+}
+
+function menuSearchRecords() {
+  return demoRuntime.NAVIGATION_NODES
+    .filter((node) => node.isVisible)
+    .map((node, index) => {
+      const nodeLabel = navigationLabel(node);
+      const titleKey = node.target.kind === "workspace"
+        ? node.target.defaultLabelKey
+        : node.labelKey;
+      const title = normalizeMenuSearchValue(t(titleKey));
+      const ancestorLabels = demoRuntime.ancestorContainerIdsForNode(node.id)
+        .map((nodeId) => demoRuntime.navigationNode(nodeId))
+        .filter(Boolean)
+        .map(navigationLabel);
+      const pathLabels = node.target.kind === "workspace"
+        ? [...ancestorLabels, nodeLabel]
+        : ancestorLabels;
+      const path = normalizeMenuSearchValue(pathLabels.join(" › ") || t("app.menu"));
+      return {
+        index,
+        node,
+        path,
+        searchText: normalizeMenuSearchText([title, nodeLabel, ...pathLabels].join(" ")),
+        title
+      };
+    });
+}
+
+function searchMenu(queryValue) {
+  const query = normalizeMenuSearchText(queryValue);
+  return menuSearchRecords()
+    .map((record) => {
+      if (!query) return { ...record, score: Number.MAX_SAFE_INTEGER };
+      const title = normalizeMenuSearchText(record.title);
+      const path = normalizeMenuSearchText(record.path);
+      const tokens = query.split(/\s+/u).filter(Boolean);
+      if (!tokens.every((token) => record.searchText.includes(token))) return null;
+      let score = 60;
+      if (title === query) score = 0;
+      else if (title.startsWith(query)) score = 10;
+      else if (title.includes(query)) score = 20;
+      else if (path.includes(query)) score = 40;
+      return { ...record, score };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.score - right.score
+      || left.index - right.index
+      || left.node.id.localeCompare(right.node.id))
+    .slice(0, 10);
+}
+
+function renderMenuSearch() {
+  const matches = searchMenu(menuSearchQuery);
+  const searchLabel = t("navigation.search");
+  menuSearchStatus.textContent = `${matches.length} ${searchLabel}`;
+  menuSearchResults.innerHTML = matches.map((record) => {
+    const isActive = ["route", "workspace"].includes(record.node.target.kind)
+      && record.node.target.routeId === state.activeRoute;
+    return `<button class="menu-search-result${isActive ? " is-active" : ""}" type="button" data-menu-search-node="${escapeHtml(record.node.id)}"${isActive ? ' aria-current="page"' : ""}>
+      ${icon(record.node.iconId, "menu-search-result-icon")}
+      <span class="menu-search-result-content">
+        <strong>${escapeHtml(record.title)}</strong>
+        <small>${escapeHtml(record.path)}</small>
+      </span>
+      <span class="menu-search-result-path">${escapeHtml(record.path)}</span>
+    </button>`;
+  }).join("") || `<p class="menu-search-empty">${escapeHtml(t("common.unavailable"))}</p>`;
+}
+
+function renderMenuSearchChrome() {
+  const searchLabel = t("navigation.search");
+  menuSearchTitle.textContent = searchLabel;
+  menuSearchLabel.textContent = searchLabel;
+  menuSearchInput.placeholder = `${searchLabel}…`;
+  menuSearchInput.setAttribute("aria-label", searchLabel);
+  menuSearchTrigger.setAttribute("aria-label", searchLabel);
+  menuSearchTrigger.setAttribute("title", searchLabel);
+  menuSearchClose.setAttribute("aria-label", t("common.close"));
+  renderMenuSearch();
+}
+
+function menuSearchIsOpen() {
+  return !menuSearchOverlay.hidden;
+}
+
+function openMenuSearch() {
+  if (menuSearchIsOpen()) {
+    menuSearchInput.focus();
+    return;
+  }
+  if (dialog.open || state.locked) return;
+  closeMobilePopup();
+  closeDesktopWalletPicker();
+  closeLanguagePickers();
+  closeSelectPickers();
+  menuSearchOverlay.hidden = false;
+  document.body.classList.add("has-menu-search");
+  menuSearchTrigger.setAttribute("aria-expanded", "true");
+  appShell.inert = true;
+  renderMenuSearch();
+  requestAnimationFrame(() => menuSearchInput.focus());
+}
+
+function closeMenuSearch({ restoreFocus = false } = {}) {
+  const wasOpen = menuSearchIsOpen();
+  menuSearchOverlay.hidden = true;
+  document.body.classList.remove("has-menu-search");
+  menuSearchTrigger.setAttribute("aria-expanded", "false");
+  menuSearchQuery = "";
+  menuSearchInput.value = "";
+  renderMenuSearch();
+  appShell.inert = state.locked;
+  if (restoreFocus && wasOpen && menuSearchTrigger.getClientRects().length > 0) {
+    menuSearchTrigger.focus();
+  }
+}
+
+function activateMenuSearchNode(nodeId) {
+  const node = demoRuntime.navigationNode(nodeId);
+  if (!node) return;
+  closeMenuSearch();
+  if (["route", "workspace"].includes(node.target.kind)) {
+    selectCanonicalRoute(node.target.routeId);
+    render({ focusMain: true });
+    return;
+  }
+  if (node.target.kind === "branch") {
+    if (!state.expandedBranchIds.includes(node.id)) {
+      mergeShellState({ type: "toggle_branch", nodeId: node.id });
+    }
+    render();
+    requestAnimationFrame(() => {
+      const branch = navigationTree.querySelector(`[data-navigation-branch="${CSS.escape(node.id)}"]`);
+      branch?.scrollIntoView({ block: "nearest" });
+      branch?.focus({ preventScroll: true });
+    });
+    return;
+  }
+  if (node.target.kind === "help") {
+    help.open(node.helpTopicId);
+    return;
+  }
+  if (node.target.kind === "action") {
+    handleDemoAction(node.target.actionId, menuSearchTrigger);
+  }
+}
+
 function navigationNodeMarkup(node, { prefix, depth = 0, terminal = false } = {}) {
   const nodeLabel = escapeHtml(navigationLabel(node));
   const selectedRouteNode = demoRuntime.navigationNodeForRoute(state.activeRoute);
@@ -814,10 +986,6 @@ function renderNavigationTree() {
     + `<p class="app-version">Version ${escapeHtml(demoRuntime.APP_VERSION)}</p>`;
 }
 
-function usesWalletPickerPopup() {
-  return walletPickerVariant === "popup";
-}
-
 function walletPickerListMarkup() {
   return `<div class="wallet-picker-list" role="group" aria-label="Wallets">${state.wallets.map((wallet) => {
     const chain = walletChain(wallet.chainId);
@@ -829,11 +997,15 @@ function walletPickerListMarkup() {
   }).join("")}</div>`;
 }
 
+function walletAddActionMarkup({ className = "", hasMenuRole = false } = {}) {
+  return `<button class="wallet-picker-action nav-item nav-item-primary${className ? ` ${escapeHtml(className)}` : ""}" type="button"${hasMenuRole ? ' role="menuitem"' : ""} data-wallet-picker-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>`;
+}
+
 function walletPickerPopupMarkup() {
-  return `${walletPickerListMarkup()}
+  return `${state.wallets.length ? walletPickerListMarkup() : ""}
   <div class="wallet-picker-actions">
-    <button class="wallet-picker-action nav-item nav-item-primary" type="button" role="menuitem" data-wallet-picker-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
-    <button class="wallet-picker-action nav-item nav-item-danger" type="button" role="menuitem" data-wallet-picker-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
+    ${walletAddActionMarkup({ hasMenuRole: true })}
+    ${state.wallets.length ? `<button class="wallet-picker-action nav-item nav-item-danger" type="button" role="menuitem" data-wallet-picker-action="remove-wallet">${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>` : ""}
   </div>`;
 }
 
@@ -849,19 +1021,14 @@ function walletPickerTriggerMarkup(wallet, className) {
 
 function mobileNavigationDrawerMarkup() {
   const rootNodes = demoRuntime.navigationChildren();
-  const walletSelector = usesWalletPickerPopup() ? `<section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
+  const walletControl = state.wallets.length
+    ? walletPickerTriggerMarkup(activeWallet(), "mobile-wallet-picker-trigger")
+    : walletAddActionMarkup({ className: "wallet-empty-action" });
+  const walletSelector = `<section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
       <p>${escapeHtml(t("app.wallets"))}</p>
-      ${walletPickerTriggerMarkup(activeWallet(), "mobile-wallet-picker-trigger")}
-    </section>` : `<section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
-      <p>${escapeHtml(t("app.wallets"))}</p>
-      ${mobileWalletListMarkup()}
-      <div class="mobile-wallet-actions">
-        <button class="mobile-wallet-action nav-item nav-item-primary" type="button" data-mobile-wallet-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
-        <button class="mobile-wallet-action nav-item nav-item-danger" type="button" data-mobile-wallet-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
-      </div>
+      ${walletControl}
     </section>`;
-  return `<header class="mobile-popup-header mobile-drawer-header"><strong>${escapeHtml(t("app.menu"))}</strong><button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button></header>
-    ${walletSelector}
+  return `${walletSelector}
     <div class="mobile-navigation-scroll-region">
       <nav class="mobile-navigation-tree" aria-label="${escapeHtml(t("app.menu"))}">
       ${rootNodes.filter((node) => !["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-navigation" })).join("")}
@@ -873,33 +1040,22 @@ function mobileNavigationDrawerMarkup() {
     </div>`;
 }
 
-function mobileWalletListMarkup() {
-  return `<div class="mobile-wallet-list">${state.wallets.map((wallet) => {
-    const chain = walletChain(wallet.chainId);
-    return `<button class="mobile-wallet-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-mobile-wallet-id="${escapeHtml(wallet.id)}" data-wallet-chain="${escapeHtml(chain.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}><span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span>${escapeHtml(wallet.name)}</span><span class="wallet-nav-state is-${escapeHtml(chain.tone)}" role="img" aria-label="${escapeHtml(chain.label)}"></span></button>`;
-  }).join("")}</div>`;
-}
-
 function renderWalletShell() {
-  const wallet = activeWallet();
-  const summary = wallet.summary;
-  const popupPicker = usesWalletPickerPopup();
-  appShell.dataset.walletPickerVariant = walletPickerVariant;
   sidebarWalletsLabel.hidden = false;
   walletNavViewport.hidden = false;
-  walletNav.innerHTML = popupPicker ? walletPickerTriggerMarkup(wallet, "wallet-nav-item wallet-picker-sidebar-trigger is-active") : `${state.wallets.map((entry) => {
-    const chain = walletChain(entry.chainId);
-    return `
-    <button class="wallet-nav-item${entry.id === state.selectedWalletId ? " is-active" : ""}" type="button" ${entry.id === state.selectedWalletId ? 'aria-current="page"' : ""} data-wallet-id="${escapeHtml(entry.id)}" data-wallet-chain="${escapeHtml(chain.id)}">
-      <span class="wallet-avatar" aria-hidden="true">${escapeHtml(entry.initials)}</span>
-      <span class="wallet-nav-copy"><strong>${escapeHtml(entry.name)}</strong><small>${t("walletShell.balanceAvailable", { value: `<span class="mono">${sensitive(`${entry.summary.available} Z00Z`)}</span>` })}</small></span>
-      <span class="wallet-nav-state is-${escapeHtml(chain.tone)}" role="img" aria-label="${escapeHtml(chain.label)}"></span>
-    </button>`;
-  }).join("")}
-    <div class="wallet-nav-actions" id="wallet-nav-actions">
-      <button class="nav-item nav-item-primary" type="button" data-demo-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
-      <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
-    </div>`;
+  if (state.wallets.length === 0) {
+    walletNav.innerHTML = walletAddActionMarkup({ className: "wallet-empty-action" });
+    walletIdentity.replaceChildren();
+    walletIdentity.removeAttribute("aria-label");
+    lockWalletLabel.textContent = "";
+    renderNavigationTree();
+    walletStatusbar.replaceChildren();
+    walletStatusbar.hidden = true;
+    return;
+  }
+  const wallet = activeWallet();
+  const summary = wallet.summary;
+  walletNav.innerHTML = walletPickerTriggerMarkup(wallet, "wallet-nav-item wallet-picker-sidebar-trigger is-active");
   const walletName = wallet.name;
   const copyLabel = t("walletShell.copyAddress", { wallet: walletName });
   walletIdentity.innerHTML = `
@@ -1743,6 +1899,7 @@ function closeDesktopWalletPicker({ restoreFocus = false } = {}) {
 
 function closeMobilePopup({ restoreFocus = false } = {}) {
   if (!mobilePopupMenu || mobilePopupMenu.hidden) return;
+  clearMobileDrawerMotion();
   const trigger = mobilePopupTrigger;
   mobilePopupMenu.hidden = true;
   mobilePopupMenu.innerHTML = "";
@@ -1761,7 +1918,6 @@ function closeMobilePopup({ restoreFocus = false } = {}) {
 }
 
 function openDesktopWalletPicker(trigger) {
-  if (!usesWalletPickerPopup()) return;
   if (!walletPickerPopup.hidden && desktopWalletPickerTrigger === trigger) {
     closeDesktopWalletPicker({ restoreFocus: true });
     return;
@@ -1800,7 +1956,6 @@ function openDesktopWalletPicker(trigger) {
 }
 
 function openWalletPicker(trigger) {
-  if (!usesWalletPickerPopup()) return;
   closeLanguagePickers();
   closeSelectPickers();
   openDesktopWalletPicker(trigger);
@@ -1816,13 +1971,20 @@ function selectWalletFromPicker(walletId) {
   render({ focusMain: true });
 }
 
-function openMobilePopup(trigger = mobileMenuButton) {
+function focusMobileDrawer() {
+  mobilePopupMenu.querySelector(
+    "[data-wallet-picker-trigger], [data-wallet-picker-action='add-wallet'], button:not([disabled])"
+  )?.focus();
+}
+
+function openMobilePopup(trigger = mobileMenuButton, { isSwipePreview = false } = {}) {
   if (!isMobileNavigation()) return;
-  if (!mobilePopupMenu.hidden && mobilePopupType === "menu" && mobilePopupTrigger === trigger) {
+  if (!isSwipePreview && !mobilePopupMenu.hidden && mobilePopupType === "menu" && mobilePopupTrigger === trigger) {
     closeMobilePopup({ restoreFocus: true });
     return;
   }
   if (!mobilePopupMenu.hidden) closeMobilePopup();
+  clearMobileDrawerMotion();
   closeDesktopWalletPicker();
   mobilePopupType = "menu";
   mobilePopupTrigger = trigger;
@@ -1837,10 +1999,15 @@ function openMobilePopup(trigger = mobileMenuButton) {
   mergeShellState({ type: "set_drawer", open: true });
   mobilePopupMenu.hidden = false;
   trigger.setAttribute("aria-expanded", "true");
+  if (isSwipePreview) {
+    mobilePopupMenu.classList.add("is-swipe-dragging");
+    mobileMenuBackdrop.classList.add("is-swipe-dragging");
+    return;
+  }
   requestAnimationFrame(() => {
-    mobilePopupMenu.querySelector(".mobile-wallet-choice.is-active")?.scrollIntoView({ block: "nearest" });
+    mobilePopupMenu.querySelector(".mobile-wallet-picker-trigger")?.scrollIntoView({ block: "nearest" });
     mobilePopupMenu.querySelector(".mobile-navigation-tree [aria-current='page']")?.scrollIntoView({ block: "nearest" });
-    mobilePopupMenu.querySelector("[data-mobile-popup-close]")?.focus();
+    focusMobileDrawer();
   });
 }
 
@@ -3640,6 +3807,7 @@ function render(options = {}) {
   const mobileMenuLabel = t("app.menu");
   mobileMenuButton.setAttribute("aria-label", mobileMenuLabel);
   mobileMenuButton.setAttribute("title", mobileMenuLabel);
+  renderMenuSearchChrome();
   const walletScreen = hasSelectedWalletContext();
   const wallet = activeWallet();
   renderMobileActiveWallet(wallet);
@@ -4341,6 +4509,7 @@ function renderDialog() {
   if (!state.flow) return;
   closeSelectPickers();
   const type = state.flow.type;
+  dialog.dataset.flowType = type;
   const content = type === "asset-claim" ? assetClaimDialog()
     : type === "create-voucher" ? createVoucherDialog()
     : type === "voucher-detail" ? voucherDetailDialog()
@@ -4871,7 +5040,7 @@ function handleDialogAction(action, button) {
     }
     state.activityFilter = "all";
     render({ focusMain: true });
-    showToast(state.wallets.length === 0 ? "All wallet profiles removed. Add a wallet to continue." : `${walletsToRemove.length} wallet${walletsToRemove.length === 1 ? "" : "s"} removed from this concept.`);
+    showToast(state.wallets.length === 0 ? "All wallets removed. Add a wallet to continue." : `${walletsToRemove.length} wallet${walletsToRemove.length === 1 ? "" : "s"} removed from this concept.`);
     if (needsWalletSetup) openFlow("add-wallet", button);
     else closeDialog();
   } else if (action === "add-wallet") {
@@ -5060,14 +5229,77 @@ function handleDemoAction(action, button) {
 }
 
 document.addEventListener("z00z:help-opening", () => {
+  closeMenuSearch();
   closeMobilePopup();
   closeDesktopWalletPicker();
 });
+
+function clearMobileDrawerMotion() {
+  mobileDrawerMotionId += 1;
+  mobileDrawerAnimations.forEach((animation) => animation.cancel());
+  mobileDrawerAnimations = [];
+  mobilePopupMenu.classList.remove("is-swipe-dragging", "is-swipe-settled");
+  mobileMenuBackdrop.classList.remove("is-swipe-dragging", "is-swipe-settled");
+  mobilePopupMenu.style.removeProperty("transform");
+  mobileMenuBackdrop.style.removeProperty("opacity");
+}
+
+function settleMobileDrawerSwipe(shouldOpen, { offsetX, opacity }) {
+  if (mobilePopupMenu.hidden) return;
+  const drawerWidth = Math.max(1, mobilePopupMenu.getBoundingClientRect().width);
+  const targetX = shouldOpen ? 0 : -drawerWidth;
+  const targetOpacity = shouldOpen ? 1 : 0;
+  const remaining = Math.min(1, Math.abs(targetX - offsetX) / drawerWidth);
+  const reduceMotion = state.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const duration = reduceMotion ? 1 : Math.max(90, Math.round(220 * remaining));
+  const motionId = ++mobileDrawerMotionId;
+
+  mobileDrawerAnimations.forEach((animation) => animation.cancel());
+  mobilePopupMenu.classList.add("is-swipe-dragging");
+  mobileMenuBackdrop.classList.add("is-swipe-dragging");
+  const drawerAnimation = mobilePopupMenu.animate([
+    { transform: `translate3d(${offsetX}px, 0, 0)` },
+    { transform: `translate3d(${targetX}px, 0, 0)` }
+  ], {
+    duration,
+    easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    fill: "forwards"
+  });
+  const backdropAnimation = mobileMenuBackdrop.animate([
+    { opacity },
+    { opacity: targetOpacity }
+  ], {
+    duration,
+    easing: "ease-out",
+    fill: "forwards"
+  });
+  mobileDrawerAnimations = [drawerAnimation, backdropAnimation];
+
+  Promise.all([drawerAnimation.finished, backdropAnimation.finished]).then(() => {
+    if (motionId !== mobileDrawerMotionId) return;
+    mobileDrawerAnimations.forEach((animation) => animation.cancel());
+    mobileDrawerAnimations = [];
+    mobilePopupMenu.classList.remove("is-swipe-dragging");
+    mobileMenuBackdrop.classList.remove("is-swipe-dragging");
+    mobilePopupMenu.style.removeProperty("transform");
+    mobileMenuBackdrop.style.removeProperty("opacity");
+    if (shouldOpen) {
+      mobilePopupMenu.classList.add("is-swipe-settled");
+      mobileMenuBackdrop.classList.add("is-swipe-settled");
+      focusMobileDrawer();
+    } else {
+      closeMobilePopup({ restoreFocus: true });
+    }
+  }).catch(() => {});
+}
 
 function resetMobileDrawerSwipe() {
   mobileDrawerSwipe.pointerId = null;
   mobileDrawerSwipe.source = "";
   mobileDrawerSwipe.direction = "";
+  mobileDrawerSwipe.isDragging = false;
+  mobileDrawerSwipe.offsetX = 0;
+  mobileDrawerSwipe.opacity = 0;
 }
 
 function beginMobileDrawerSwipe({ source, pointerId, clientX, clientY, target }) {
@@ -5086,15 +5318,66 @@ function beginMobileDrawerSwipe({ source, pointerId, clientX, clientY, target })
   mobileDrawerSwipe.startX = clientX;
   mobileDrawerSwipe.startY = clientY;
   mobileDrawerSwipe.direction = drawerIsOpen ? "close" : "open";
+  mobileDrawerSwipe.isDragging = false;
+  mobileDrawerSwipe.offsetX = drawerIsOpen ? 0 : -window.innerWidth;
+  mobileDrawerSwipe.opacity = drawerIsOpen ? 1 : 0;
+}
+
+function updateMobileDrawerSwipe({ source, pointerId, clientX, clientY }) {
+  if (source !== mobileDrawerSwipe.source || pointerId !== mobileDrawerSwipe.pointerId) return false;
+  const deltaX = clientX - mobileDrawerSwipe.startX;
+  const deltaY = clientY - mobileDrawerSwipe.startY;
+  const { direction } = mobileDrawerSwipe;
+
+  if (!mobileDrawerSwipe.isDragging) {
+    if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return false;
+    const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
+    const movesInDirection = direction === "open" ? deltaX > 0 : deltaX < 0;
+    if (!isHorizontal || !movesInDirection) {
+      mobileDrawerSwipe.direction = "";
+      return false;
+    }
+    if (direction === "open" && mobilePopupMenu.hidden) {
+      openMobilePopup(mobileMenuButton, { isSwipePreview: true });
+    }
+    mobileDrawerSwipe.isDragging = true;
+    mobilePopupMenu.classList.add("is-swipe-dragging");
+    mobileMenuBackdrop.classList.add("is-swipe-dragging");
+  }
+
+  const drawerWidth = Math.max(1, mobilePopupMenu.getBoundingClientRect().width);
+  const offsetX = direction === "open"
+    ? Math.min(0, -drawerWidth + Math.max(0, deltaX))
+    : Math.max(-drawerWidth, Math.min(0, deltaX));
+  const opacity = Math.max(0, Math.min(1, 1 + offsetX / drawerWidth));
+  mobileDrawerSwipe.offsetX = offsetX;
+  mobileDrawerSwipe.opacity = opacity;
+  mobilePopupMenu.style.transform = `translate3d(${offsetX}px, 0, 0)`;
+  mobileMenuBackdrop.style.opacity = String(opacity);
+  return true;
 }
 
 function completeMobileDrawerSwipe({ source, pointerId, clientX, clientY }) {
   if (source !== mobileDrawerSwipe.source || pointerId !== mobileDrawerSwipe.pointerId) return;
-  const { startX, startY, direction } = mobileDrawerSwipe;
+  const {
+    startX,
+    startY,
+    direction,
+    isDragging,
+    offsetX,
+    opacity
+  } = mobileDrawerSwipe;
   resetMobileDrawerSwipe();
 
   const deltaX = clientX - startX;
   const deltaY = clientY - startY;
+  if (isDragging) {
+    const commitsOpen = direction === "open"
+      ? deltaX >= mobileDrawerSwipeDistance || opacity >= 0.35
+      : !(Math.abs(deltaX) >= mobileDrawerSwipeDistance || opacity <= 0.65);
+    settleMobileDrawerSwipe(commitsOpen, { offsetX, opacity });
+    return;
+  }
   const isHorizontalSwipe = Math.abs(deltaX) >= mobileDrawerSwipeDistance
     && Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
   if (!isHorizontalSwipe) return;
@@ -5108,7 +5391,16 @@ function completeMobileDrawerSwipe({ source, pointerId, clientX, clientY }) {
 
 function cancelMobileDrawerSwipe({ source, pointerId }) {
   if (source !== mobileDrawerSwipe.source || pointerId !== mobileDrawerSwipe.pointerId) return;
+  const {
+    direction,
+    isDragging,
+    offsetX,
+    opacity
+  } = mobileDrawerSwipe;
   resetMobileDrawerSwipe();
+  if (isDragging) {
+    settleMobileDrawerSwipe(direction === "close", { offsetX, opacity });
+  }
 }
 
 document.addEventListener("pointerdown", (event) => {
@@ -5120,6 +5412,16 @@ document.addEventListener("pointerdown", (event) => {
     clientY: event.clientY,
     target: event.target
   });
+});
+
+document.addEventListener("pointermove", (event) => {
+  if (event.pointerType !== "touch" || event.isPrimary === false) return;
+  if (updateMobileDrawerSwipe({
+    source: "pointer",
+    pointerId: event.pointerId,
+    clientX: event.clientX,
+    clientY: event.clientY
+  }) && event.cancelable) event.preventDefault();
 });
 
 document.addEventListener("pointerup", (event) => {
@@ -5147,6 +5449,17 @@ document.addEventListener("touchstart", (event) => {
   });
 }, { passive: true });
 
+document.addEventListener("touchmove", (event) => {
+  const touch = event.changedTouches[0];
+  if (!touch) return;
+  if (updateMobileDrawerSwipe({
+    source: "touch",
+    pointerId: touch.identifier,
+    clientX: touch.clientX,
+    clientY: touch.clientY
+  }) && event.cancelable) event.preventDefault();
+}, { passive: false });
+
 document.addEventListener("touchend", (event) => {
   const touch = event.changedTouches[0];
   if (!touch) return;
@@ -5166,6 +5479,19 @@ document.addEventListener("touchcancel", (event) => {
 
 document.addEventListener("contextmenu", (event) => {
   if (event.target.closest("[data-wallet-section]")) event.preventDefault();
+});
+
+menuSearchTrigger.addEventListener("click", openMenuSearch);
+menuSearchBackdrop.addEventListener("pointerdown", () => closeMenuSearch({ restoreFocus: true }));
+menuSearchClose.addEventListener("click", () => closeMenuSearch({ restoreFocus: true }));
+menuSearchInput.addEventListener("input", () => {
+  menuSearchQuery = menuSearchInput.value;
+  renderMenuSearch();
+});
+menuSearchResults.addEventListener("click", (event) => {
+  const result = event.target.closest("[data-menu-search-node]");
+  if (!result) return;
+  activateMenuSearchNode(result.dataset.menuSearchNode);
 });
 
 document.addEventListener("click", (event) => {
@@ -5201,19 +5527,6 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const mobilePopupClose = event.target.closest("[data-mobile-popup-close]");
-  if (mobilePopupClose) {
-    closeMobilePopup({ restoreFocus: true });
-    return;
-  }
-
-  const mobileWalletAction = event.target.closest("[data-mobile-wallet-action]");
-  if (mobileWalletAction) {
-    closeMobilePopup();
-    handleDemoAction(mobileWalletAction.dataset.mobileWalletAction, mobileMenuButton);
-    return;
-  }
-
   const navigationBranch = event.target.closest("[data-navigation-branch]");
   if (navigationBranch) {
     const nodeId = navigationBranch.dataset.navigationBranch;
@@ -5228,19 +5541,6 @@ document.addEventListener("click", (event) => {
   const navigationRoute = event.target.closest("[data-navigation-route]");
   if (navigationRoute) {
     selectCanonicalRoute(navigationRoute.dataset.navigationRoute);
-    closeMobilePopup();
-    render({ focusMain: true });
-    return;
-  }
-
-  const mobileWalletChoice = event.target.closest("[data-mobile-wallet-id]");
-  if (mobileWalletChoice) {
-    const walletId = mobileWalletChoice.dataset.mobileWalletId;
-    const walletRouteCompatible = demoRuntime.isWalletRoute(state.activeRoute);
-    clearExternalReviewHandoffs();
-    state.selectedWalletId = walletId;
-    mergeShellState({ type: "switch_wallet", walletId, walletRouteCompatible });
-    Object.assign(state, legacyStateForRoute(state.activeRoute));
     closeMobilePopup();
     render({ focusMain: true });
     return;
@@ -5949,6 +6249,33 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "k") {
+    event.preventDefault();
+    openMenuSearch();
+    return;
+  }
+  if (menuSearchIsOpen()) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenuSearch({ restoreFocus: true });
+      return;
+    }
+    if (event.key === "Tab") {
+      const focusable = [...menuSearchDialog.querySelectorAll('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+        .filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    return;
+  }
   if (event.key === "Escape" && document.querySelector("[data-select-picker].is-open")) {
     event.preventDefault();
     closeSelectPickers({ restoreFocus: true });
@@ -5998,6 +6325,7 @@ window.addEventListener("resize", () => {
 });
 
 window.addEventListener("popstate", (event) => {
+  closeMenuSearch();
   if (event.state?.z00zOverlay === "flow-dialog" && event.state.z00zFlow) {
     restoreDialogFromHistory(event.state.z00zFlow);
     return;

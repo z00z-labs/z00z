@@ -384,9 +384,10 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
     }
 
     if (viewport.width > 768) {
-      await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
+      await page.goto(`${demoUrl}?route=wallet.assets`);
       for (const walletId of ["everyday", "savings", "travel"]) {
-        await page.locator(`[data-wallet-id="${walletId}"]`).click();
+        await page.locator("#wallet-nav [data-wallet-picker-trigger]").click();
+        await page.locator(`#wallet-picker-popup [data-wallet-picker-id="${walletId}"]`).click();
         await capture(page, `${viewport.name}-wallet-header-${walletId}`);
       }
     }
@@ -789,4 +790,107 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
   const auditPath = path.join(reviewRoot, "phase-7-help-responsive-audit.json");
   await writeFile(auditPath, `${JSON.stringify(helpAudit, null, 2)}\n`);
   expect(helpAudit.filter(({ issues }) => issues.length), `Phase 7 Help audit failed; inspect ${auditPath}`).toEqual([]);
+});
+
+test("capture annotated mobile wallet and Help corrections", async ({ page }) => {
+  await mkdir(reviewRoot, { recursive: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const audit = [];
+
+  await page.goto(`${demoUrl}?route=wallet.settings.general`);
+  const settings = await page.locator(".wallet-settings-view").evaluate((view) => {
+    const rows = ["wallet-name", "wallet-id", "wallet-chain"].map((anchor) => {
+      const row = view.querySelector(`[data-help-anchor="${anchor}"]`);
+      const value = row.querySelector(".compact-value").getBoundingClientRect();
+      return { anchor, valueLeft: Math.round(value.left * 10) / 10 };
+    });
+    const valueLefts = rows.map(({ valueLeft }) => valueLeft);
+    return {
+      rows,
+      issues: Math.max(...valueLefts) - Math.min(...valueLefts) > 1
+        ? ["wallet-setting-values-misaligned"]
+        : [],
+    };
+  });
+  audit.push({ state: "wallet-settings-general", ...settings });
+  await capture(page, "mobile-390-annotated-wallet-settings-general");
+
+  await page.goto(`${demoUrl}?route=telemetry.reticulum.radio`);
+  const topbar = await page.evaluate(() => {
+    const topbarBackground = getComputedStyle(document.querySelector(".topbar")).backgroundColor;
+    const walletBackground = getComputedStyle(document.querySelector("#mobile-active-wallet")).backgroundColor;
+    return {
+      topbarBackground,
+      walletBackground,
+      issues: walletBackground === topbarBackground ? [] : ["mobile-wallet-background-mismatch"],
+    };
+  });
+  audit.push({ state: "telemetry-mobile-topbar", ...topbar });
+  await capture(page, "mobile-390-annotated-telemetry-topbar");
+
+  const openWalletSheet = async (action, expectedTitle, screenshotName) => {
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    await expect(page.locator("#mobile-active-wallet")).toBeVisible();
+    await page.locator("#mobile-menu-button").click();
+    const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+    await expect(drawer).toBeVisible();
+    await drawer.locator("[data-wallet-picker-trigger]").click();
+    await page.locator(`#wallet-picker-popup [data-wallet-picker-action="${action}"]`).click();
+    const sheet = page.locator("#flow-dialog");
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator("#dialog-title")).toHaveText(expectedTitle);
+    const result = await sheet.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const copy = element.textContent.replace(/\s+/g, " ").trim();
+      return {
+        top: Math.round(rect.top),
+        bottom: Math.round(rect.bottom),
+        viewportHeight: window.innerHeight,
+        mentionsProfiles: /\bprofiles?\b/i.test(copy),
+        issues: [
+          ...(rect.top > 29 ? ["sheet-too-low"] : []),
+          ...(rect.bottom < window.innerHeight - 1 ? ["sheet-not-bottom-aligned"] : []),
+        ],
+      };
+    });
+    if (action === "remove-wallet" && result.mentionsProfiles) result.issues.push("remove-profile-copy");
+    audit.push({ state: action, ...result });
+    await page.screenshot({
+      path: path.join(reviewRoot, `${screenshotName}.png`),
+      fullPage: false,
+    });
+    await page.keyboard.press("Escape");
+  };
+
+  await openWalletSheet("add-wallet", "Add wallet", "mobile-390-annotated-add-wallet");
+  await openWalletSheet("remove-wallet", "Remove Wallet(s)", "mobile-390-annotated-remove-wallets");
+
+  await page.goto(new URL("help.html?topic=wallet.history&lang=en&section=current-view", demoUrl).toString());
+  await expect(page.locator("#current-view")).toBeFocused();
+  const help = await page.evaluate(() => {
+    const backgrounds = [
+      document.body,
+      document.querySelector(".help-site-header"),
+      document.querySelector(".help-header-controls"),
+      document.querySelector(".help-header-language"),
+    ].map((element) => getComputedStyle(element).backgroundColor);
+    const outlineWidth = getComputedStyle(document.querySelector("#current-view")).outlineWidth;
+    return {
+      backgrounds,
+      outlineWidth,
+      issues: [
+        ...(new Set(backgrounds).size !== 1 ? ["help-background-mismatch"] : []),
+        ...(outlineWidth !== "0px" ? ["app-view-frame-present"] : []),
+      ],
+    };
+  });
+  audit.push({ state: "help-wallet-history", ...help });
+  await page.screenshot({
+    path: path.join(reviewRoot, "mobile-390-annotated-help-wallet-history.png"),
+    fullPage: false,
+  });
+
+  const auditPath = path.join(reviewRoot, "annotated-mobile-corrections-audit.json");
+  await writeFile(auditPath, `${JSON.stringify(audit, null, 2)}\n`);
+  expect(audit.filter(({ issues }) => issues.length), `Annotated mobile audit failed; inspect ${auditPath}`).toEqual([]);
 });

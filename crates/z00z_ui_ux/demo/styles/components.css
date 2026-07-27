@@ -232,6 +232,7 @@ h3 {
 }
 
 .sidebar {
+  --sidebar-inline-padding: 18px;
   position: sticky;
   z-index: 20;
   top: 0;
@@ -240,7 +241,7 @@ h3 {
   overflow-y: auto;
   flex-direction: column;
   overscroll-behavior: contain;
-  padding: 0 18px 18px;
+  padding: 0 var(--sidebar-inline-padding) 18px;
   border-right: 1px solid var(--border);
   background: var(--bg-sidebar);
 }
@@ -295,25 +296,12 @@ h3 {
 
 .wallet-nav-viewport {
   --wallet-card-height: 68px;
-  flex: 0 0 calc((var(--wallet-card-height) * 3) + 28px);
+  flex: 0 0 calc(var(--wallet-card-height) + 10px);
+  height: calc(var(--wallet-card-height) + 10px);
   display: flex;
-  overflow-x: hidden;
-  overflow-y: scroll;
+  overflow: visible;
   flex-direction: column;
-  overscroll-behavior: contain;
   padding: 5px;
-  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  border-radius: var(--radius-card);
-  background: color-mix(in srgb, var(--bg-canvas) 36%, transparent);
-  background-clip: padding-box;
-  scrollbar-gutter: stable;
-  scrollbar-color: transparent transparent;
-  scrollbar-width: thin;
-}
-
-.wallet-nav-viewport:hover,
-.wallet-nav-viewport:focus-within {
-  scrollbar-color: color-mix(in srgb, var(--brand) 58%, var(--border)) transparent;
 }
 
 .wallet-nav {
@@ -376,32 +364,6 @@ h3 {
   content: "";
 }
 
-.wallet-nav-copy {
-  min-width: 0;
-}
-
-.wallet-nav-copy strong,
-.wallet-nav-copy small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wallet-nav-copy strong {
-  font-size: var(--type-row-title);
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.wallet-nav-copy small {
-  margin-top: 2px;
-  color: var(--text-secondary);
-  font-size: var(--type-data-meta);
-  font-weight: 500;
-  line-height: 1.3;
-}
-
 .wallet-nav-state {
   width: 8px;
   height: 8px;
@@ -423,14 +385,6 @@ h3 {
 .wallet-nav-state.is-dev {
   background: var(--network-devnet);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--network-devnet) 16%, transparent);
-}
-
-.wallet-nav-actions {
-  display: grid;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
 
 .nav-item.nav-item-primary {
@@ -784,6 +738,187 @@ h3 {
   border: 2px solid var(--bg-surface);
   border-radius: 50%;
   background: var(--warning);
+}
+
+body.has-menu-search {
+  overflow: hidden;
+}
+
+.menu-search-overlay {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  align-items: start;
+  padding: clamp(24px, 5vh, 48px) 16px;
+}
+
+.menu-search-overlay[hidden] {
+  display: none;
+}
+
+.menu-search-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-overlay);
+  backdrop-filter: blur(5px);
+}
+
+.menu-search-dialog {
+  position: relative;
+  display: grid;
+  width: min(672px, 100%);
+  max-height: calc(100dvh - clamp(48px, 10vh, 96px));
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sheet);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.menu-search-dialog-header {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
+.menu-search-dialog-header > .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-tertiary);
+}
+
+.menu-search-dialog-header:focus-within {
+  box-shadow: inset 0 -1px 0 var(--interaction-selected-border);
+}
+
+.menu-search-dialog input {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font: inherit;
+}
+
+.menu-search-dialog input::-webkit-search-cancel-button {
+  display: none;
+  appearance: none;
+}
+
+.menu-search-close {
+  min-height: 30px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--type-status);
+  cursor: pointer;
+}
+
+.menu-search-close:hover {
+  color: var(--text-primary);
+  background: var(--interaction-hover-bg);
+}
+
+.menu-search-results {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 96px;
+  overflow-y: auto;
+  padding: 8px;
+  overscroll-behavior: contain;
+}
+
+.menu-search-result {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.menu-search-result:hover,
+.menu-search-result:focus-visible,
+.menu-search-result.is-active {
+  border-color: var(--interaction-hover-border);
+  color: var(--interaction-hover-text);
+  background: var(--interaction-hover-bg);
+}
+
+.menu-search-result-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+
+.menu-search-result-content,
+.menu-search-result strong,
+.menu-search-result small,
+.menu-search-result-path {
+  display: block;
+  min-width: 0;
+}
+
+.menu-search-result-content {
+  flex: 1 1 auto;
+}
+
+.menu-search-result strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--type-support);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-search-result small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--type-status);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-search-result-path {
+  max-width: 38%;
+  flex: 0 0 auto;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--type-status);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-search-empty {
+  margin: 0;
+  padding: 28px 12px;
+  color: var(--text-secondary);
+  font-size: var(--type-support);
+  line-height: 1.5;
 }
 
 .main-content {
@@ -4939,8 +5074,7 @@ details.technical summary {
   }
 
   .sidebar {
-    padding-right: 22px;
-    padding-left: 22px;
+    --sidebar-inline-padding: 22px;
   }
 
 }
@@ -5047,7 +5181,7 @@ button.permission-row:hover {
   justify-self: stretch;
 }
 
-.workspace-layout > .workspace-panel > .wallet-tool-grid-centered {
+.workspace-layout > .workspace-panel .wallet-tool-grid-centered {
   justify-content: start;
 }
 
@@ -5082,8 +5216,15 @@ button.permission-row:hover {
     grid-template-columns: minmax(118px, 0.5fr) minmax(0, 1fr) auto;
   }
 
+  .wallet-settings-view .setting-line[data-help-anchor="wallet-name"],
+  .wallet-settings-view .setting-line[data-help-anchor="wallet-id"],
+  .wallet-settings-view .setting-line[data-help-anchor="wallet-chain"] {
+    grid-template-columns: 132px minmax(0, 1fr) auto;
+  }
+
   .wallet-settings-view [data-help-anchor="wallet-name"] > .compact-value,
-  .wallet-settings-view [data-help-anchor="wallet-id"] > .compact-value {
+  .wallet-settings-view [data-help-anchor="wallet-id"] > .compact-value,
+  .wallet-settings-view [data-help-anchor="wallet-chain"] > .compact-value {
     justify-self: start;
     text-align: left;
   }
@@ -5441,9 +5582,8 @@ button.connection-option:hover,
   }
 
   .sidebar {
+    --sidebar-inline-padding: 12px;
     align-items: center;
-    padding-right: 12px;
-    padding-left: 12px;
   }
 
 .sidebar .brand {
@@ -5453,7 +5593,6 @@ button.connection-option:hover,
   .sidebar .brand > :not(.brand-mark),
   .sidebar-label,
   .nav-item span,
-  .wallet-nav-copy,
   .wallet-nav-state,
   .connection-card span,
   .connection-card > .icon {
@@ -5471,8 +5610,7 @@ button.connection-option:hover,
     width: 100%;
   }
 
-  .wallet-nav,
-  .wallet-nav-actions {
+  .wallet-nav {
     width: 100%;
   }
 
@@ -5751,7 +5889,7 @@ button.connection-option:hover,
     gap: 7px;
     padding: 4px 12px;
     border: 0;
-    background: var(--bg-surface);
+    background: var(--bg-canvas);
     box-shadow: none;
     grid-template-columns: minmax(0, 1fr) auto;
   }
@@ -5873,8 +6011,16 @@ button.connection-option:hover,
     background: var(--bg-popup-menu);
     box-shadow: var(--shadow);
     animation: mobile-drawer-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     touch-action: pan-y;
+  }
+
+  .mobile-popup-menu[data-popup-type="menu"].is-swipe-dragging,
+  .mobile-popup-menu[data-popup-type="menu"].is-swipe-settled,
+  .mobile-menu-backdrop.is-swipe-dragging,
+  .mobile-menu-backdrop.is-swipe-settled {
+    animation: none;
+    will-change: transform, opacity;
   }
 
   .mobile-popup-header {
@@ -6375,9 +6521,16 @@ button.connection-option:hover,
   /* Keep selected-wallet values next to their labels, leaving each action in
      its own trailing column. */
   .wallet-settings-view [data-help-anchor="wallet-name"] > .compact-value,
-  .wallet-settings-view [data-help-anchor="wallet-id"] > .compact-value {
+  .wallet-settings-view [data-help-anchor="wallet-id"] > .compact-value,
+  .wallet-settings-view [data-help-anchor="wallet-chain"] > .compact-value {
     justify-self: start;
     text-align: left;
+  }
+
+  .wallet-settings-view .setting-line[data-help-anchor="wallet-name"],
+  .wallet-settings-view .setting-line[data-help-anchor="wallet-id"],
+  .wallet-settings-view .setting-line[data-help-anchor="wallet-chain"] {
+    grid-template-columns: 96px minmax(0, 1fr) auto;
   }
 
   .compact-row .button {
@@ -6414,11 +6567,30 @@ button.connection-option:hover,
     width: 100vw;
     max-width: none;
     max-height: calc(100vh - 28px);
+    max-height: calc(100dvh - 28px);
     margin: auto 0 0;
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+
+  .flow-dialog[data-flow-type="add-wallet"],
+  .flow-dialog[data-flow-type="remove-wallet"] {
+    height: calc(100vh - 28px);
+    height: calc(100dvh - 28px);
+  }
+
+  .flow-dialog[data-flow-type="add-wallet"] .dialog-shell,
+  .flow-dialog[data-flow-type="remove-wallet"] .dialog-shell {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+  }
+
+  .flow-dialog[data-flow-type="add-wallet"] .dialog-body,
+  .flow-dialog[data-flow-type="remove-wallet"] .dialog-body {
+    flex: 1 1 auto;
   }
 
   .dialog-body {
@@ -6890,9 +7062,8 @@ button.connection-option:hover,
 }
 
 .sidebar .wallet-nav-viewport {
-  flex: 0 0 calc((var(--wallet-card-height) * 3) + 28px);
-  height: calc((var(--wallet-card-height) * 3) + 28px);
-  min-height: 0;
+  flex: 0 0 calc(var(--wallet-card-height) + 10px);
+  height: calc(var(--wallet-card-height) + 10px);
 }
 
 .sidebar-navigation-scroll-region {
@@ -6900,8 +7071,12 @@ button.connection-option:hover,
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
+  margin-right: calc(-1 * var(--sidebar-inline-padding));
   overflow: hidden auto;
+  padding-right: var(--sidebar-inline-padding);
   overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--brand) 58%, var(--border)) transparent;
+  scrollbar-width: thin;
 }
 
 .app-navigation-tree {
@@ -7236,13 +7411,10 @@ button.connection-option:hover,
 
   .app-body > .sidebar {
     align-items: stretch;
-    padding-right: 12px;
-    padding-left: 12px;
   }
 
   .sidebar-label,
   .nav-item span,
-  .wallet-nav-copy,
   .wallet-nav-state,
   .navigation-tree-label {
     display: block;
@@ -7251,8 +7423,6 @@ button.connection-option:hover,
   .wallet-nav-viewport {
     width: auto;
     padding: 5px;
-    border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-    background: color-mix(in srgb, var(--bg-canvas) 36%, transparent);
   }
 
   .wallet-nav-item {
@@ -7429,7 +7599,7 @@ button.connection-option:hover,
     width: min(22rem, calc(100vw - 14px));
     max-height: calc(100dvh - var(--topbar-height));
     overflow: hidden;
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .app-shell.has-mobile-topbar-context .mobile-popup-menu[data-popup-type="menu"] {
@@ -7481,56 +7651,6 @@ button.connection-option:hover,
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-  }
-
-  .mobile-wallet-list {
-    display: grid;
-    gap: 4px;
-    overflow: visible;
-  }
-
-  .mobile-wallet-choice {
-    display: grid;
-    min-height: 44px;
-    align-items: center;
-    gap: 9px;
-    padding: 5px 8px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-control);
-    color: var(--text-secondary);
-    background: transparent;
-    font-size: var(--type-control);
-    font-weight: 650;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    text-align: left;
-  }
-
-  .mobile-wallet-choice .wallet-nav-state {
-    display: block;
-  }
-
-  .mobile-wallet-choice.is-active {
-    border-color: var(--interaction-selected-border);
-    color: var(--interaction-selected-text);
-    background: var(--interaction-selected-bg);
-  }
-
-  .mobile-wallet-actions {
-    display: grid;
-    gap: 4px;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  }
-
-  .mobile-wallet-action.nav-item {
-    min-height: 44px;
-    justify-content: flex-start;
-    padding: 0 8px;
-  }
-
-  .mobile-wallet-action.nav-item span {
-    display: inline;
   }
 
   .mobile-navigation-tree {
@@ -8467,8 +8587,7 @@ button.connection-option:hover,
   }
 }
 
-/* The normal wallet selector is one anchored menu. The old inline selector is
-   retained only for comparison at `?walletPicker=inline`. */
+/* One wallet selector shared by desktop and mobile. */
 .wallet-picker-popup {
   position: fixed;
   z-index: 90;
@@ -8547,13 +8666,6 @@ button.connection-option:hover,
   width: 18px;
   height: 18px;
   transform: rotate(90deg);
-}
-
-.app-shell[data-wallet-picker-variant="popup"] .wallet-nav-viewport {
-  flex: 0 0 calc(var(--wallet-card-height) + 10px);
-  height: calc(var(--wallet-card-height) + 10px);
-  overflow: visible;
-  scrollbar-width: none;
 }
 
 .wallet-picker-list {
@@ -8640,7 +8752,34 @@ button.connection-option:hover,
   display: inline;
 }
 
+.wallet-empty-action.wallet-picker-action.nav-item {
+  min-height: 48px;
+  align-self: flex-start;
+}
+
 @media (max-width: 768px) {
+  .menu-search-overlay {
+    padding: 16px 10px;
+  }
+
+  .menu-search-dialog {
+    max-height: calc(100dvh - 32px);
+  }
+
+  .menu-search-dialog-header {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .menu-search-result {
+    min-height: 60px;
+    padding: 9px 10px;
+  }
+
+  .menu-search-result-path {
+    display: none;
+  }
+
   .mobile-wallet-picker-trigger {
     min-height: 48px;
     padding: 7px 8px;
