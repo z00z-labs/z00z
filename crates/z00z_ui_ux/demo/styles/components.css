@@ -8467,10 +8467,19 @@ button.connection-option:hover,
 /* Wallet-picker comparison prototype. The default remains the inline sidebar
    selector; `?walletPicker=popup` reuses these rows in a single anchored menu. */
 .wallet-picker-popup {
-  display: none;
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sheet);
+  color: var(--text-primary);
+  background: var(--bg-popup-menu);
+  box-shadow: var(--shadow-float);
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
-.wallet-nav-viewport[hidden] {
+.wallet-picker-popup[hidden] {
   display: none;
 }
 
@@ -8487,6 +8496,61 @@ button.connection-option:hover,
 .wallet-picker-trigger:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+.wallet-picker-sidebar-trigger.wallet-nav-item,
+.mobile-wallet-picker-trigger {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: var(--wallet-card-height, 68px);
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--interaction-selected-border);
+  border-radius: var(--radius-control);
+  color: var(--interaction-selected-text);
+  background: var(--interaction-selected-bg);
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.wallet-picker-trigger-copy {
+  min-width: 0;
+}
+
+.wallet-picker-trigger-copy strong,
+.wallet-picker-trigger-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wallet-picker-trigger-copy strong {
+  font-size: var(--type-row-title);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.wallet-picker-trigger-copy small {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: var(--type-data-meta);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.wallet-picker-trigger-chevron {
+  width: 18px;
+  height: 18px;
+  transform: rotate(90deg);
+}
+
+.app-shell[data-wallet-picker-variant="popup"] .wallet-nav-viewport {
+  flex: 0 0 calc(var(--wallet-card-height) + 10px);
+  height: calc(var(--wallet-card-height) + 10px);
+  overflow: visible;
+  scrollbar-width: none;
 }
 
 .wallet-picker-list {
@@ -8584,96 +8648,9 @@ button.connection-option:hover,
   display: inline;
 }
 
-@media (min-width: 769px) {
-  .wallet-picker-popup {
-    position: fixed;
-    z-index: 90;
-    display: grid;
-    overflow: hidden;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sheet);
-    color: var(--text-primary);
-    background: var(--bg-popup-menu);
-    box-shadow: var(--shadow-float);
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-
-  .wallet-picker-popup[hidden] {
-    display: none;
-  }
-
-  .wallet-picker-header {
-    display: grid;
-    min-height: 52px;
-    align-items: center;
-    padding: 6px 8px 6px 14px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-popup-menu);
-    grid-template-columns: minmax(0, 1fr) 38px;
-  }
-
-  .wallet-picker-header strong {
-    overflow: hidden;
-    font-size: var(--type-nav);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .wallet-identity-select {
-    display: block;
-    width: 100%;
-    min-height: 44px;
-  }
-
-  .wallet-identity-select:hover .wallet-identity-address,
-  .wallet-identity-select:hover .wallet-identity-name {
-    color: var(--interaction-hover-text);
-  }
-}
-
 @media (max-width: 768px) {
-  .mobile-active-wallet-select {
-    display: grid;
-    width: 100%;
-    min-width: 0;
-    gap: 0;
-  }
-
-  .mobile-popup-menu[data-popup-type="wallet-picker"] {
-    top: calc(var(--topbar-height) + 8px);
-    right: 7px;
-    bottom: auto;
-    left: 7px;
-    display: grid;
-    width: auto;
-    max-height: min(66dvh, 520px);
-    overflow: hidden;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-
-  .app-shell.has-mobile-topbar-context .mobile-popup-menu[data-popup-type="wallet-picker"] {
-    top: calc(var(--topbar-height) + var(--topbar-height) + 9px);
-    max-height: min(calc(66dvh - var(--topbar-height)), 520px);
-  }
-
-  .mobile-popup-menu[data-popup-type="wallet-picker"] .wallet-picker-header {
-    display: grid;
-    min-height: 52px;
-    align-items: center;
-    padding: 6px 8px 6px 14px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-popup-menu);
-    grid-template-columns: minmax(0, 1fr) 38px;
-  }
-
-  .mobile-popup-menu[data-popup-type="wallet-picker"] .wallet-picker-header strong {
-    overflow: hidden;
-    font-size: var(--type-nav);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-popup-menu[data-popup-type="wallet-picker"] .wallet-picker-choice {
-    min-height: 54px;
+  .mobile-wallet-picker-trigger {
+    min-height: 48px;
+    padding: 7px 8px;
   }
 }

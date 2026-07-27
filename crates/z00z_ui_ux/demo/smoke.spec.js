@@ -306,6 +306,7 @@ test("wallet picker comparison keeps Variant 1 intact and exposes Variant 2 on d
   ]) {
     await page.setViewportSize(viewport);
     await page.goto(`${demoUrl}?route=wallet.assets`);
+    let desktopTopbarBefore = null;
 
     if (viewport.mobile) {
       await page.locator("#mobile-menu-button").click();
@@ -316,35 +317,69 @@ test("wallet picker comparison keeps Variant 1 intact and exposes Variant 2 on d
       await expect(page.locator(".sidebar-label")).toBeVisible();
       await expect(page.locator(".wallet-nav-viewport")).toBeVisible();
       await expect(page.locator("#wallet-nav [data-wallet-id]")).toHaveCount(3);
+      desktopTopbarBefore = await page.evaluate(() => {
+        const box = (selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return [rect.x, rect.y, rect.width, rect.height].map(Math.round);
+        };
+        return {
+          brand: box(".desktop-topbar-brand"),
+          identity: box("#wallet-identity"),
+          address: box(".wallet-identity-address"),
+          copy: box(".wallet-identity-copy"),
+          badge: box("#wallet-identity .environment-tag"),
+          title: box("#page-title")
+        };
+      });
     }
 
     await page.goto(`${demoUrl}?route=wallet.assets&walletPicker=popup`);
     if (viewport.mobile) {
+      await expect(page.locator("#mobile-active-wallet [data-wallet-picker-trigger]")).toHaveCount(0);
       await page.locator("#mobile-menu-button").click();
-      await expect(page.locator("#mobile-popup-menu .mobile-wallet-selector")).toHaveCount(0);
-      await page.locator("#mobile-menu-backdrop").click();
-      await page.locator("#mobile-active-wallet [data-wallet-picker-trigger]").click();
-      await expect(page.locator('#mobile-popup-menu[data-popup-type="wallet-picker"]')).toBeVisible();
-      await expect(page.locator("#mobile-popup-menu .wallet-picker-choice")).toHaveCount(3);
-      await expect(page.locator("#mobile-popup-menu .wallet-picker-actions [data-wallet-picker-action]")).toHaveCount(2);
-      await page.locator('#mobile-popup-menu [data-wallet-picker-id="savings"]').click();
-      await expect(page.locator("#mobile-active-wallet")).toContainText("Savings wallet");
-      await expect(page.locator("#mobile-popup-menu")).toBeHidden();
-      await page.locator("#mobile-active-wallet [data-wallet-picker-trigger]").click();
-      await page.locator('#mobile-popup-menu [data-wallet-picker-action="remove-wallet"]').click();
+      await expect(page.locator("#mobile-popup-menu .mobile-wallet-selector")).toBeVisible();
+      await expect(page.locator("#mobile-popup-menu .mobile-wallet-choice")).toHaveCount(0);
+      await page.locator("#mobile-popup-menu [data-wallet-picker-trigger]").click();
+      await expect(page.locator("#wallet-picker-popup")).toBeVisible();
+      await expect(page.locator("#mobile-popup-menu")).toBeVisible();
+      await expect(page.locator("#wallet-picker-popup .wallet-picker-choice")).toHaveCount(3);
+      await expect(page.locator("#wallet-picker-popup .wallet-picker-actions [data-wallet-picker-action]")).toHaveCount(2);
+      await page.locator('#wallet-picker-popup [data-wallet-picker-id="savings"]').click();
+      await expect(page.locator("#mobile-popup-menu .mobile-wallet-picker-trigger")).toContainText("Savings");
+      await expect(page.locator("#wallet-picker-popup")).toBeHidden();
+      await expect(page.locator("#mobile-popup-menu")).toBeVisible();
+      await page.locator("#mobile-popup-menu [data-wallet-picker-trigger]").click();
+      await page.locator('#wallet-picker-popup [data-wallet-picker-action="remove-wallet"]').click();
       await expect(page.locator("#dialog-title")).toHaveText("Remove wallet profiles");
       await page.keyboard.press("Escape");
     } else {
-      await expect(page.locator(".sidebar-label")).toBeHidden();
-      await expect(page.locator(".wallet-nav-viewport")).toBeHidden();
-      await page.locator("#wallet-identity [data-wallet-picker-trigger]").click();
+      await expect(page.locator(".sidebar-label")).toBeVisible();
+      await expect(page.locator(".wallet-nav-viewport")).toBeVisible();
+      await expect(page.locator("#wallet-identity [data-wallet-picker-trigger]")).toHaveCount(0);
+      await expect(page.locator("#wallet-nav [data-wallet-picker-trigger]")).toHaveCount(1);
+      const desktopTopbarAfter = await page.evaluate(() => {
+        const box = (selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return [rect.x, rect.y, rect.width, rect.height].map(Math.round);
+        };
+        return {
+          brand: box(".desktop-topbar-brand"),
+          identity: box("#wallet-identity"),
+          address: box(".wallet-identity-address"),
+          copy: box(".wallet-identity-copy"),
+          badge: box("#wallet-identity .environment-tag"),
+          title: box("#page-title")
+        };
+      });
+      expect(desktopTopbarAfter).toEqual(desktopTopbarBefore);
+      await page.locator("#wallet-nav [data-wallet-picker-trigger]").click();
       await expect(page.locator("#wallet-picker-popup")).toBeVisible();
       await expect(page.locator("#wallet-picker-popup .wallet-picker-choice")).toHaveCount(3);
       await expect(page.locator("#wallet-picker-popup .wallet-picker-actions [data-wallet-picker-action]")).toHaveCount(2);
       await page.locator('#wallet-picker-popup [data-wallet-picker-id="savings"]').click();
-      await expect(page.locator("#wallet-identity")).toContainText("Savings wallet");
+      await expect(page.locator("#wallet-nav [data-wallet-picker-trigger]")).toContainText("Savings");
       await expect(page.locator("#wallet-picker-popup")).toBeHidden();
-      await page.locator("#wallet-identity [data-wallet-picker-trigger]").click();
+      await page.locator("#wallet-nav [data-wallet-picker-trigger]").click();
       await page.locator('#wallet-picker-popup [data-wallet-picker-action="add-wallet"]').click();
       await expect(page.locator("#dialog-title")).toHaveText("Add wallet");
       await page.keyboard.press("Escape");
@@ -1183,6 +1218,17 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
 
 test("English Help mirrors the Demo navigation and workspace menu", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.send`);
+  const sendTitleStyle = await page.locator("#page-title").evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      fontFamily: styles.fontFamily,
+      fontSize: Number.parseFloat(styles.fontSize),
+      fontWeight: styles.fontWeight,
+      letterSpacingRatio: Number((Number.parseFloat(styles.letterSpacing) / Number.parseFloat(styles.fontSize)).toFixed(3)),
+      lineHeightRatio: Number((Number.parseFloat(styles.lineHeight) / Number.parseFloat(styles.fontSize)).toFixed(2)),
+    };
+  });
   await page.goto(`${demoUrl}?route=wallet.assets`);
   const helpPage = await openStandaloneHelp(page, page.locator("#app-navigation-terminal [data-help-topic]"));
 
@@ -1196,17 +1242,55 @@ test("English Help mirrors the Demo navigation and workspace menu", async ({ pag
     headerHeight: Math.round(document.querySelector(".help-site-header").getBoundingClientRect().height),
     titleLeft: Math.round(document.querySelector("#help-product-label").getBoundingClientRect().left),
     titleText: document.querySelector("#help-product-label").textContent.trim(),
+    titleStyle: (() => {
+      const styles = getComputedStyle(document.querySelector("#help-product-label"));
+      return {
+        fontFamily: styles.fontFamily,
+        fontSize: Number.parseFloat(styles.fontSize),
+        fontWeight: styles.fontWeight,
+        letterSpacingRatio: Number((Number.parseFloat(styles.letterSpacing) / Number.parseFloat(styles.fontSize)).toFixed(3)),
+        lineHeightRatio: Number((Number.parseFloat(styles.lineHeight) / Number.parseFloat(styles.fontSize)).toFixed(2)),
+      };
+    })(),
   }));
   expect(helpChrome.headerHeight).toBe(appChrome.headerHeight);
   expect(helpChrome.brandWidth).toBe(appChrome.brandWidth);
   expect(helpChrome.titleLeft).toBe(helpChrome.brandRight);
   expect(helpChrome.titleText).toBe("Help");
+  expect(helpChrome.titleStyle).toEqual({
+    ...sendTitleStyle,
+    fontSize: helpChrome.titleStyle.fontSize,
+  });
+  expect(helpChrome.titleStyle.fontSize).toBeGreaterThan(sendTitleStyle.fontSize);
+  await expect(helpPage.locator("#help-contents-eyebrow")).toHaveCount(0);
+  await expect(helpPage.locator("#help-contents-title")).toHaveCount(0);
+  const sidebarChrome = await helpPage.evaluate(() => {
+    const header = document.querySelector(".help-site-header").getBoundingClientRect();
+    const search = document.querySelector("#help-search").getBoundingClientRect();
+    return {
+      headerDisplay: getComputedStyle(document.querySelector(".help-sidebar-header")).display,
+      searchDividerAlignment: Math.round(search.top - header.bottom),
+    };
+  });
+  expect(sidebarChrome.headerDisplay).toBe("none");
+  expect(Math.abs(sidebarChrome.searchDividerAlignment)).toBeLessThanOrEqual(1);
 
   await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
   await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
   await expect(helpPage.locator(".help-wallet-link")).toHaveCount(0);
   await expect(helpPage.locator("#help-tree")).not.toContainText(/Help|About|Log out/);
   await expect(helpPage.locator("#help-navigation-terminal")).not.toContainText(/Help|About|Log out/);
+  const terminalLayout = await helpPage.evaluate(() => {
+    const treeRect = document.querySelector("#help-tree").getBoundingClientRect();
+    const terminal = document.querySelector("#help-navigation-terminal");
+    return {
+      gap: Math.round(terminal.getBoundingClientRect().top - treeRect.bottom),
+      topBorderWidth: getComputedStyle(terminal).borderTopWidth,
+    };
+  });
+  expect(terminalLayout.gap).toBeGreaterThanOrEqual(0);
+  expect(terminalLayout.gap).toBeLessThanOrEqual(8);
+  expect(terminalLayout.topBorderWidth).toBe("0px");
   const navigationParity = await helpPage.evaluate(() => {
     const excluded = new Set(["help", "about", "logout"]);
     const terminal = new Set(["settings", "help", "about", "logout"]);
@@ -1422,6 +1506,7 @@ test("Help follows the App language and resolves the matching localized catalogu
 
 test("Help renders Website Markdown enhancements without a network dependency", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(new URL("help.html", demoUrl).toString());
   await expect(page.locator("#help-title")).toBeVisible();
 
@@ -1480,6 +1565,7 @@ test("Help renders Website Markdown enhancements without a network dependency", 
   await expect(frame).toHaveAttribute("role", "region");
   await expect(frame).toHaveAttribute("tabindex", "0");
   await expect(frame).toHaveAttribute("aria-keyshortcuts", /ArrowLeft/);
+  expect((await frame.boundingBox()).height).toBeLessThan(300);
   await frame.focus();
   const initialTransform = await diagram.evaluate((element) => element.style.transform);
   await page.keyboard.press("Equal");
@@ -1490,6 +1576,10 @@ test("Help renders Website Markdown enhancements without a network dependency", 
   await page.keyboard.press("Minus");
   await expect.poll(() => diagram.evaluate((element) => element.style.transform)).not.toBe(zoomedTransform);
   await page.keyboard.press("0");
+  await expect.poll(() => diagram.evaluate((element) => element.style.transform)).toBe(initialTransform);
+  await frame.dispatchEvent("wheel", { deltaY: -120 });
+  await expect.poll(() => diagram.evaluate((element) => element.style.transform)).not.toBe(initialTransform);
+  await frame.dblclick();
   await expect.poll(() => diagram.evaluate((element) => element.style.transform)).toBe(initialTransform);
 });
 
@@ -2348,11 +2438,19 @@ test("mobile Help reuses the App drawer shell, topbar positions, and interaction
     terminal: ".mobile-navigation-terminal",
   });
 
-  await page.goto(new URL("help.html?topic=wallet.assets&lang=en", demoUrl).toString());
+  await page.goto(new URL("help.html?topic=wallet.assets&lang=en&section=current-view", demoUrl).toString());
   await expect(page.locator("#help-sidebar")).toBeHidden();
   await expect(page.locator("#help-product-label")).toBeHidden();
   await expect(page.locator("#help-mobile-topbar-context")).toBeVisible();
   await expect(page.locator("#help-search")).toBeHidden();
+  const mobileBackgrounds = await page.evaluate(() => ({
+    body: getComputedStyle(document.body).backgroundColor,
+    header: getComputedStyle(document.querySelector(".help-site-header")).backgroundColor,
+    language: getComputedStyle(document.querySelector(".help-header-language")).backgroundColor,
+  }));
+  expect(new Set(Object.values(mobileBackgrounds)).size).toBe(1);
+  await expect(page.locator("#current-view")).toBeFocused();
+  expect(await page.locator("#current-view").evaluate((element) => getComputedStyle(element).outlineWidth)).toBe("0px");
 
   const helpTopbar = await page.evaluate((selectors) => {
     const rectangle = (element) => {
