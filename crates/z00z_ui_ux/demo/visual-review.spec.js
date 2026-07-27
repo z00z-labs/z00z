@@ -759,12 +759,15 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
       await expect(helpPage.locator(".help-mobile-menu-title")).toHaveText("Menu");
       await expect(helpPage.locator(".mobile-wallet-selector")).toHaveCount(0);
       await reviewHelp(helpPage, viewport, "app-menu-parity");
-    } else {
-      await helpPage.locator("#help-search").fill("Safety and limits");
-      await expect(helpPage.locator(".help-search-result").first()).toBeVisible();
-      await reviewHelp(helpPage, viewport, "search-results");
-      await helpPage.locator("#help-search-clear").click();
+      await helpPage.locator("#help-sidebar-close").click();
     }
+    await helpPage.locator("#help-search-trigger").click();
+    await expect(helpPage.locator("#help-search-overlay")).toBeVisible();
+    await helpPage.locator("#help-search").fill("Safety and limits");
+    await expect(helpPage.locator(".help-search-result").first()).toBeVisible();
+    await reviewHelp(helpPage, viewport, "search-results");
+    await helpPage.locator("#help-search-close").click();
+    await expect(helpPage.locator("#help-search-overlay")).toBeHidden();
     await helpPage.close();
 
     await page.goto(`${demoUrl}?route=telemetry.watchers.alerts`);

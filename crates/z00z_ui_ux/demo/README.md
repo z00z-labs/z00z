@@ -13,8 +13,8 @@ node crates/z00z_ui_ux/demo/scripts/serve-demo.mjs 4173
 ```
 
 Open `http://127.0.0.1:4173`. This development server watches
-`help/en/**/*.{md,yaml,yml}`, synchronizes English view evidence without touching locales,
-recompiles the local Help catalogue, and reloads the open page after a
+`help/**/*.{md,yaml,yml}`, synchronizes English view evidence without touching
+authored localized source, recompiles every local Help catalogue, and reloads the open page after a
 successful update.
 
 The files can also be opened directly. The local HTTP server and its live-reload
@@ -81,10 +81,15 @@ machine-translation bridge, and required checks.
 
 ## ❔ Local contextual Help
 
-English is the active Help source. `help/topics.yaml` is generated from the
+English is the capture and review source. `help/topics.yaml` is generated from the
 Demo navigation contract: every navigable view has one Markdown page under the
-same root and workspace folders as the app. `Log out` is deliberately absent;
-the Help tree has no separate `WALLETS` placeholder.
+same root and workspace folders as the app. Help reuses the App branch/leaf
+menu and accordion behavior while omitting the separate `WALLETS` selector and
+the `Help`, `About`, and `Log out` terminal items. The navigable `Wallet` branch
+and `Settings` remain available. On mobile, Help reuses the App topbar-leading,
+context-tab, popup-drawer, backdrop, focus, and edge-swipe contracts in the same
+positions. Search lives in the topbar before Languages on desktop and mobile,
+opens a dedicated results modal, and never replaces the navigation tree.
 
 `scripts/help/markdown-renderer.mjs` imports an exact synchronized snapshot of
 the sibling `z00z-website` renderer. Thus Help Markdown uses the same MarkdownIt
@@ -115,9 +120,11 @@ portable baseline integrity and `python3 scripts/help/sync_views.py --verify-cur
 for a live Chromium drift gate, then run `node scripts/compile-help.mjs` and
 `node scripts/check-help.mjs`.
 
-Other language folders are intentionally preserved but are not part of the
-English-first Help catalogue. Localized authored pages are the next phase after
-the English pages and drafts are reviewed.
+Help inherits the App language through its `lang` URL parameter. The generated
+catalogue resolves each registered locale from its existing stable-topic Markdown
+source, wraps it in the same `App View`/Website-Markdown structure, and fails
+closed if a source is missing or conflicts. English screenshots remain shared UI
+evidence; localized Markdown is never machine-translated or overwritten.
 
 ## 🧪 Suggested walkthrough
 

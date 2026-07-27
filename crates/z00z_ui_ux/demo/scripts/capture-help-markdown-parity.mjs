@@ -19,6 +19,72 @@ const liveUrl = "https://www.z00z.io/docs/learn/what-is-z00z";
 const executablePath = process.env.Z00Z_PLAYWRIGHT_EXECUTABLE_PATH || "/usr/bin/chromium";
 const source = (await readFile(contentPath, "utf8")).replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, "");
 const helpHtml = renderHelpMarkdown(source, contentPath);
+const pluginFixtureHtml = renderHelpMarkdown(`
+# Markdown extension matrix
+
+[TOC]
+
+*[HTML]: HyperText Markup Language
+
+HTML linkify: https://z00z.io/website -- "typography".
+
+> [!NOTE]
+> Note alert
+
+> [!IMPORTANT]
+> Important alert
+
+> [!TIP]
+> Tip alert
+
+> [!WARNING]
+> Warning alert
+
+> [!CAUTION]
+> Caution alert
+
+::: center
+Aligned content
+:::
+
+## Attributes {#fixture-attributes .accent}
+
+Term
+: Definition
+
+Footnote reference[^note].
+
+[^note]: Footnote text.
+
+++inserted++ ==marked== !!spoiler!! H~2~O x^2^ $x^2$
+
+::: tabs
+@tab First #first
+First panel
+@tab Second #second
+Second panel
+:::
+
+- [x] Checked task
+
+\`\`\`mermaid
+flowchart LR
+  Parse --> Render --> Enhance
+\`\`\`
+
++++ Details
+Hidden detail
++++
+
+| Control | Purpose |
+| --- | --- |
+| Parser | Produces sanitized HTML |
+| Enhancer | Adds tabs and Mermaid Panzoom |
+
+\`\`\`js
+const parity = true;
+\`\`\`
+`, contentPath);
 
 await mkdir(evidenceRoot, { recursive: true });
 
@@ -66,6 +132,7 @@ async function verifyPanzoom(page, selector) {
     initial,
     panned,
     reset: await svg.evaluate((element) => element.style.transform),
+    source: await frame.evaluate((element) => element.parentElement?.dataset.mermaidSource),
     svgAttributes: await svg.evaluate((element) => ({
       height: element.getAttribute("height"),
       style: element.getAttribute("style"),
@@ -153,17 +220,96 @@ async function captureHelp(name, viewport) {
   await page.locator("#website-markdown-parity-document .mermaid").first().screenshot({ path: mermaidPath });
   const tablePath = resolve(evidenceRoot, `help-table-${name}.png`);
   await page.locator("#website-markdown-parity-document table").first().screenshot({ path: tablePath });
+  const rawMermaid = await page.evaluate(async () => {
+    const node = document.querySelector("#website-markdown-parity-document .mermaid");
+    const source = node.dataset.mermaidSource;
+    const { svg } = await window.mermaid.render(`z00z-help-mermaid-audit-${Date.now()}`, source);
+    const holder = document.createElement("div");
+    holder.innerHTML = svg;
+    const element = holder.querySelector("svg");
+    return {
+      height: element.getAttribute("height"),
+      style: element.getAttribute("style"),
+      viewBox: element.getAttribute("viewBox"),
+      width: element.getAttribute("width"),
+    };
+  });
   const result = {
     errors,
     fullPagePath,
     heading: await page.locator("#website-markdown-parity-document h1").first().textContent(),
     mermaidPath,
     panzoom,
+    rawMermaid,
     tablePath,
     viewport,
   };
   await page.close();
   return result;
+}
+
+async function capturePluginFixture(name, viewport) {
+  const page = await browser.newPage({ viewport });
+  const errors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(helpUrl, { waitUntil: "networkidle", timeout: 60_000 });
+  await page.locator("#help-document").waitFor({ state: "visible" });
+  await page.evaluate(async (html) => {
+    const article = document.createElement("article");
+    article.id = "website-markdown-plugin-fixture";
+    article.className = "help-markdown";
+    article.innerHTML = html;
+    document.querySelector("#help-document").replaceChildren(article);
+    await window.Z00ZHelpMarkdownEnhancer.enhance(article);
+    document.querySelector("#help-main").scrollTop = 0;
+    window.scrollTo(0, 0);
+  }, pluginFixtureHtml);
+  await page.locator("#website-markdown-plugin-fixture .mermaid-panzoom-frame").waitFor({ state: "visible" });
+  await page.locator("#website-markdown-plugin-fixture .tabs-nav-btn", { hasText: "Second" }).click();
+  await page.locator("#website-markdown-plugin-fixture details summary").click();
+  const selectors = await page.locator("#website-markdown-plugin-fixture").evaluate((article) => {
+    const expected = [
+      ".table-of-contents",
+      "abbr",
+      ".markdown-alert-note",
+      ".markdown-alert-important",
+      ".markdown-alert-tip",
+      ".markdown-alert-warning",
+      ".markdown-alert-caution",
+      "[style*='text-align']",
+      "#fixture-attributes.accent",
+      "dl",
+      ".footnote-ref",
+      "ins",
+      "mark",
+      ".spoiler",
+      "sub",
+      "sup",
+      ".katex",
+      ".tabs-block",
+      ".task-list-item-checkbox",
+      ".mermaid-panzoom-frame",
+      "details[open]",
+      "table",
+      "code.hljs",
+    ];
+    return Object.fromEntries(expected.map((selector) => [selector, article.querySelectorAll(selector).length]));
+  });
+  const screenshotPath = resolve(evidenceRoot, `help-plugin-matrix-${name}.png`);
+  await page.addStyleTag({
+    content: `
+      .help-site-header, .help-sidebar, .help-sidebar-backdrop { display: none !important; }
+      .help-page-shell { display: block !important; }
+      .help-main { margin-inline: auto !important; }
+    `,
+  });
+  await page.locator("#website-markdown-plugin-fixture").screenshot({ path: screenshotPath });
+  await page.close();
+  return { errors, screenshotPath, selectors, viewport };
 }
 
 try {
@@ -173,6 +319,7 @@ try {
   })) {
     audit.pages[`live-${name}`] = await captureLive(name, viewport);
     audit.pages[`help-${name}`] = await captureHelp(name, viewport);
+    audit.pages[`help-plugin-matrix-${name}`] = await capturePluginFixture(name, viewport);
   }
 } finally {
   await browser.close();

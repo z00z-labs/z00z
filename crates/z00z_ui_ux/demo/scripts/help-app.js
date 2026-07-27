@@ -11,8 +11,15 @@
   const topicIds = new Set(registry.topics().map(({ id }) => id));
   const tree = document.querySelector("#help-tree");
   const navigationTerminal = document.querySelector("#help-navigation-terminal");
+  const searchTrigger = document.querySelector("#help-search-trigger");
+  const searchTriggerLabel = document.querySelector("#help-search-trigger-label");
+  const searchShortcut = document.querySelector("#help-search-shortcut");
+  const searchOverlay = document.querySelector("#help-search-overlay");
+  const searchBackdrop = document.querySelector("#help-search-backdrop");
+  const searchDialog = document.querySelector("#help-search-dialog");
+  const searchDialogTitle = document.querySelector("#help-search-dialog-title");
   const searchInput = document.querySelector("#help-search");
-  const searchClear = document.querySelector("#help-search-clear");
+  const searchClose = document.querySelector("#help-search-close");
   const searchResults = document.querySelector("#help-search-results");
   const searchStatus = document.querySelector("#help-search-status");
   const article = document.querySelector("#help-document");
@@ -258,24 +265,126 @@
     document.body.classList.add("has-help-mobile-context");
   }
 
-  function searchableText(topic) {
+  function normalizeSearchValue(value) {
+    return String(value || "")
+      .normalize("NFKC")
+      .replace(/\s+/gu, " ")
+      .trim();
+  }
+
+  function normalizeSearchText(value) {
+    return normalizeSearchValue(value).toLocaleLowerCase(language);
+  }
+
+  function searchRecord(topic) {
     const documentData = registry.resolveDocument(language, topic.id);
-    return `${documentData?.title || ""} ${documentData?.text || ""}`.toLocaleLowerCase(language);
+    return {
+      body: normalizeSearchValue(documentData?.text),
+      documentData,
+      path: topic.pagePath || topic.id,
+      title: normalizeSearchValue(documentData?.title || topic.id),
+      topic
+    };
+  }
+
+  function scoreSearchRecord(record, query) {
+    if (!query) {
+      return { ...record, exactPhrase: false, score: Number.MAX_SAFE_INTEGER };
+    }
+    const title = normalizeSearchText(record.title);
+    const body = normalizeSearchText(record.body);
+    const tokens = query.split(/\s+/u).filter(Boolean);
+    const haystack = `${title} ${body}`.trim();
+    if (!tokens.every((token) => haystack.includes(token))) return null;
+
+    const exactPhrase = title.includes(query) || body.includes(query);
+    let score = 80;
+    if (title === query) score = 0;
+    else if (title.startsWith(query)) score = 10;
+    else if (title.includes(query)) score = 20;
+    else if (tokens.every((token) => title.includes(token))) score = 30;
+    else if (body.includes(query)) score = 70;
+    return { ...record, exactPhrase, score };
+  }
+
+  function searchTopics(queryValue) {
+    const query = normalizeSearchText(queryValue);
+    const ranked = registry.topics()
+      .map(searchRecord)
+      .map((record) => scoreSearchRecord(record, query))
+      .filter(Boolean);
+    const matches = query.includes(" ")
+      ? ranked.filter(({ exactPhrase }) => exactPhrase)
+      : ranked;
+    return matches
+      .sort((left, right) => left.score - right.score
+        || left.title.localeCompare(right.title, language)
+        || left.topic.id.localeCompare(right.topic.id))
+      .slice(0, 10);
+  }
+
+  function searchExcerpt(record, queryValue) {
+    const body = normalizeSearchValue(record.body);
+    const query = normalizeSearchText(queryValue);
+    const matchIndex = query ? normalizeSearchText(body).indexOf(query) : -1;
+    const start = matchIndex === -1 ? 0 : Math.max(0, matchIndex - 72);
+    const end = matchIndex === -1
+      ? Math.min(body.length, 240)
+      : Math.min(body.length, matchIndex + query.length + 144);
+    const excerpt = `${start > 0 ? "…" : ""}${body.slice(start, end).trim()}${end < body.length ? "…" : ""}`;
+    return excerpt || translate("help.unavailable");
   }
 
   function renderSearch() {
-    const query = searchQuery.trim().toLocaleLowerCase(language);
-    const matches = query ? registry.topics().filter((topic) => searchableText(topic).includes(query)) : [];
-    tree.hidden = !mobileNavigationLayout && Boolean(query);
-    searchClear.hidden = !searchQuery;
-    searchResults.hidden = mobileNavigationLayout || !query;
-    searchStatus.textContent = query ? `${matches.length} ${translate("navigation.search")}` : "";
-    searchResults.innerHTML = query
-      ? matches.map((topic) => {
-        const documentData = registry.resolveDocument(language, topic.id);
-        return `<a class="help-search-result" href="${escapeHtml(routeUrl(topic.id).href)}" data-help-search-topic="${escapeHtml(topic.id)}"><span>${escapeHtml(documentData?.title || topic.id)}</span></a>`;
-      }).join("") || `<p class="help-search-empty">${escapeHtml(translate("help.unavailable"))}</p>`
-      : "";
+    const matches = searchTopics(searchQuery);
+    const resultLabel = translate("navigation.search");
+    searchStatus.textContent = `${matches.length} ${resultLabel}`;
+    searchResults.innerHTML = matches.map((record) => `
+      <a class="help-search-result" href="${escapeHtml(routeUrl(record.topic.id).href)}" data-help-search-topic="${escapeHtml(record.topic.id)}">
+        <span class="help-search-result-content">
+          <strong>${escapeHtml(record.title)}</strong>
+          <small>${escapeHtml(searchExcerpt(record, searchQuery))}</small>
+        </span>
+        <span class="help-search-result-path">${escapeHtml(record.path)}</span>
+      </a>`).join("") || `<p class="help-search-empty">${escapeHtml(translate("help.unavailable"))}</p>`;
+  }
+
+  function searchIsOpen() {
+    return !searchOverlay.hidden;
+  }
+
+  function setSearchBackgroundInert(inert) {
+    siteHeader.inert = inert;
+    main.inert = inert;
+    sidebar.inert = inert;
+    backdrop.inert = inert;
+  }
+
+  function openSearch() {
+    if (searchIsOpen()) {
+      searchInput.focus();
+      return;
+    }
+    closeSidebar();
+    closeLanguagePicker();
+    searchOverlay.hidden = false;
+    document.body.classList.add("has-help-search");
+    searchTrigger.setAttribute("aria-expanded", "true");
+    setSearchBackgroundInert(true);
+    renderSearch();
+    requestAnimationFrame(() => searchInput.focus());
+  }
+
+  function closeSearch({ restoreFocus = false } = {}) {
+    const wasOpen = searchIsOpen();
+    searchOverlay.hidden = true;
+    document.body.classList.remove("has-help-search");
+    searchTrigger.setAttribute("aria-expanded", "false");
+    searchQuery = "";
+    searchInput.value = "";
+    renderSearch();
+    setSearchBackgroundInert(false);
+    if (restoreFocus && wasOpen) searchTrigger.focus();
   }
 
   function closeLanguagePicker({ restoreFocus = false } = {}) {
@@ -370,18 +479,22 @@
   }
 
   function renderChrome() {
+    const searchLabel = translate("navigation.search");
     document.documentElement.lang = language;
     document.documentElement.dir = languageMetadata().direction || "ltr";
     document.querySelector("#help-product-label").textContent = translate("navigation.help");
-    document.querySelector("#help-contents-eyebrow").textContent = translate("navigation.help");
-    document.querySelector("#help-contents-title").textContent = translate("help.contents");
     document.querySelector("#help-mobile-menu-title").textContent = translate("app.menu");
-    document.querySelector("#help-search-label").textContent = translate("navigation.search");
+    document.querySelector("#help-search-label").textContent = searchLabel;
+    searchDialogTitle.textContent = searchLabel;
+    searchTriggerLabel.textContent = searchLabel;
+    searchTrigger.setAttribute("aria-label", searchLabel);
+    searchShortcut.textContent = navigator.platform.toLocaleLowerCase().includes("mac") ? "⌘K" : "Ctrl K";
     menuButton.setAttribute("aria-label", translate("app.menu"));
     closeButton.setAttribute("aria-label", translate("common.close"));
     backdrop.setAttribute("aria-label", translate("common.close"));
-    searchInput.placeholder = `${translate("navigation.search")}…`;
-    searchInput.setAttribute("aria-label", translate("navigation.search"));
+    searchClose.setAttribute("aria-label", translate("common.close"));
+    searchInput.placeholder = `${searchLabel}…`;
+    searchInput.setAttribute("aria-label", searchLabel);
     tree.setAttribute("aria-label", translate("help.contents"));
     navigationTerminal.setAttribute("aria-label", translate("navigation.settings"));
     languagePicker.innerHTML = languagePickerMarkup();
@@ -431,7 +544,7 @@
     sidebar.classList.remove("is-open");
     backdrop.hidden = true;
     document.body.classList.remove("has-mobile-drawer");
-    main.inert = false;
+    main.inert = searchIsOpen();
     menuButton.setAttribute("aria-expanded", "false");
     sidebar.removeAttribute("aria-modal");
     if (mobileNavigationLayout) {
@@ -454,6 +567,7 @@
 
   function beginMobileDrawerSwipe({ source, pointerId, clientX, clientY, target }) {
     if (!mobileNavigationLayout) return;
+    if (searchIsOpen()) return;
     const touchReplacesPointer = source === "touch" && mobileDrawerSwipe.source === "pointer";
     if (mobileDrawerSwipe.pointerId !== null && !touchReplacesPointer) return;
     if (document.querySelector("[data-help-language-picker].is-open")) return;
@@ -555,18 +669,16 @@
     const link = event.target.closest("[data-help-search-topic]");
     if (!link) return;
     event.preventDefault();
+    closeSearch();
     openTopic(link.dataset.helpSearchTopic);
   });
 
+  searchTrigger.addEventListener("click", openSearch);
+  searchBackdrop.addEventListener("pointerdown", () => closeSearch({ restoreFocus: true }));
+  searchClose.addEventListener("click", () => closeSearch({ restoreFocus: true }));
   searchInput.addEventListener("input", () => {
     searchQuery = searchInput.value;
     renderSearch();
-  });
-  searchClear.addEventListener("click", () => {
-    searchQuery = "";
-    searchInput.value = "";
-    renderSearch();
-    searchInput.focus();
   });
   menuButton.addEventListener("click", openSidebar);
   closeButton.addEventListener("click", () => closeSidebar({ restoreFocus: true }));
@@ -576,6 +688,7 @@
     openTopic(registry.globalTopic());
   });
   root.addEventListener("popstate", () => {
+    closeSearch();
     closeSidebar();
     readRoute();
     render();
@@ -588,6 +701,33 @@
     render();
   });
   document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "k") {
+      event.preventDefault();
+      openSearch();
+      return;
+    }
+    if (searchIsOpen()) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSearch({ restoreFocus: true });
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusable = [...searchDialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+          .filter((element) => element.getClientRects().length > 0);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+      return;
+    }
     if (event.key === "Escape" && !sidebar.hidden) {
       event.preventDefault();
       closeSidebar({ restoreFocus: true });

@@ -73,31 +73,41 @@
         </a>
       </div>
       <strong class="help-header-title" id="help-product-label">Help</strong>
-      <div class="help-header-language" id="help-language-picker"></div>
+      <div class="help-header-controls">
+        <button class="help-search-trigger" id="help-search-trigger" type="button" aria-haspopup="dialog" aria-controls="help-search-dialog" aria-expanded="false">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <span class="help-search-trigger-label" id="help-search-trigger-label">Search</span>
+          <span class="help-search-shortcut" id="help-search-shortcut" aria-hidden="true">Ctrl K</span>
+        </button>
+        <div class="help-header-language" id="help-language-picker"></div>
+      </div>
       <div class="mobile-topbar-context help-mobile-topbar-context" id="help-mobile-topbar-context" aria-label="Current section" hidden></div>
     </header>
+
+    <div class="help-search-overlay" id="help-search-overlay" hidden>
+      <div class="help-search-backdrop" id="help-search-backdrop" aria-hidden="true"></div>
+      <section class="help-search-dialog" id="help-search-dialog" role="dialog" aria-modal="true" aria-labelledby="help-search-dialog-title" tabindex="-1">
+        <div class="help-search-dialog-header">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <h2 class="visually-hidden" id="help-search-dialog-title">Search</h2>
+          <label class="visually-hidden" id="help-search-label" for="help-search">Search</label>
+          <input id="help-search" type="search" autocomplete="off" maxlength="80">
+          <button class="help-search-close" id="help-search-close" type="button">Esc</button>
+        </div>
+        <p class="visually-hidden" id="help-search-status" role="status" aria-live="polite"></p>
+        <div class="help-search-results" id="help-search-results"></div>
+      </section>
+    </div>
 
     <button class="mobile-menu-backdrop help-sidebar-backdrop" id="help-sidebar-backdrop" type="button" tabindex="-1" hidden></button>
     <div class="help-page-shell">
       <aside class="mobile-popup-menu help-sidebar" id="help-sidebar" role="dialog" data-popup-type="menu" hidden>
         <header class="mobile-popup-header mobile-drawer-header help-sidebar-header">
-          <div class="help-sidebar-heading">
-            <span class="eyebrow" id="help-contents-eyebrow">Help</span>
-            <strong id="help-contents-title">Contents</strong>
-          </div>
           <strong class="help-mobile-menu-title" id="help-mobile-menu-title">Menu</strong>
           <button class="mobile-popup-icon help-sidebar-close" id="help-sidebar-close" type="button" data-mobile-popup-close>
             <svg class="icon"><use href="#i-close"/></svg>
           </button>
         </header>
-        <div class="help-search">
-          <label class="visually-hidden" id="help-search-label" for="help-search">Search</label>
-          <span aria-hidden="true"><svg class="icon"><use href="#i-search"/></svg></span>
-          <input id="help-search" type="search" autocomplete="off" maxlength="80">
-          <button class="icon-button" id="help-search-clear" type="button" hidden><svg class="icon"><use href="#i-close"/></svg></button>
-        </div>
-        <p class="visually-hidden" id="help-search-status" role="status"></p>
-        <div class="help-search-results" id="help-search-results" hidden></div>
         <div class="mobile-navigation-scroll-region help-navigation-scroll-region">
           <nav class="mobile-navigation-tree help-tree app-navigation-tree" id="help-tree" aria-label="Help contents"></nav>
           <nav class="mobile-navigation-terminal help-navigation-terminal app-navigation-terminal" id="help-navigation-terminal" aria-label="Application settings"></nav>
