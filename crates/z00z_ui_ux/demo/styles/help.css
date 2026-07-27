@@ -500,34 +500,34 @@
 }
 
 .help-markdown .markdown-alert-note {
-  border-inline-start-color: #4cb3d4;
-  color: #dff8ff;
-  background: #193c47;
+  border-inline-start-color: var(--rail);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--rail) 18%, var(--bg-raised));
 }
 
 .help-markdown .markdown-alert-important {
-  border-inline-start-color: #8e24aa;
-  color: #f5e8ff;
-  background: color-mix(in srgb, #6b21a8 30%, var(--bg-raised));
+  border-inline-start-color: var(--brand);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--brand) 20%, var(--bg-raised));
 }
 
 .help-markdown .markdown-alert-tip {
-  border-inline-start-color: #43a047;
-  color: #e8f5e9;
-  background: color-mix(in srgb, #009400 24%, var(--bg-raised));
+  border-inline-start-color: var(--success);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--success) 18%, var(--bg-raised));
 }
 
 .help-markdown .markdown-alert-warning,
 .help-markdown .warning {
-  border-inline-start-color: #e6a700;
-  color: #fff8e6;
-  background: color-mix(in srgb, #e6a700 20%, var(--bg-raised));
+  border-inline-start-color: var(--warning);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--warning) 18%, var(--bg-raised));
 }
 
 .help-markdown .markdown-alert-caution {
-  border-inline-start-color: #e13238;
-  color: #ffebec;
-  background: color-mix(in srgb, #e13238 20%, var(--bg-raised));
+  border-inline-start-color: var(--danger);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--danger) 18%, var(--bg-raised));
 }
 
 .help-markdown .markdown-alert :where(.markdown-alert-title, mark),
@@ -638,20 +638,20 @@
 .help-markdown .mermaid {
   overflow-x: auto;
   padding: 20px;
-  border-color: rgba(84, 110, 122, 0.24);
+  border-color: color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 12px;
-  color: #263238;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
-  box-shadow: 0 14px 28px rgba(12, 17, 23, 0.12);
+  color: var(--text-primary);
+  background: linear-gradient(180deg, var(--bg-surface), var(--bg-raised));
+  box-shadow: var(--shadow-float);
 }
 
 .help-markdown .mermaid-panzoom-frame {
   position: relative;
   overflow: hidden;
   padding: 12px;
-  border: 1px solid rgba(84, 110, 122, 0.24);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 247, 250, 0.98));
+  background: linear-gradient(180deg, var(--bg-surface), var(--bg-raised));
   touch-action: none;
 }
 
@@ -668,29 +668,29 @@
 
 .help-markdown .mermaid svg :where(.label, .label text, .label tspan, .nodeLabel, .nodeLabel p, .cluster-label, .cluster-label text, .cluster-label span),
 .help-markdown .mermaid svg foreignObject :where(div, span) {
-  color: #263238 !important;
-  fill: #263238 !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
 }
 
 .help-markdown .mermaid svg :where(.edgeLabel, .edgeLabel p, .edgeLabel span, .labelBkg, .edgeLabel rect) {
-  color: #263238 !important;
-  fill: rgba(255, 255, 255, 0.96) !important;
-  background-color: rgba(255, 255, 255, 0.96) !important;
+  color: var(--text-primary) !important;
+  fill: var(--bg-surface) !important;
+  background-color: var(--bg-surface) !important;
 }
 
 .help-markdown .mermaid svg[aria-roledescription="flowchart-v2"] :where(.flowchart-link, .edgePath .path) {
   fill: none !important;
-  stroke: #000 !important;
+  stroke: var(--text-primary) !important;
 }
 
 .help-markdown .mermaid svg marker path {
-  fill: #000 !important;
-  stroke: #000 !important;
+  fill: var(--text-primary) !important;
+  stroke: var(--text-primary) !important;
 }
 
 .help-markdown .mermaid-panzoom-hint {
   margin: 20px 0 0;
-  color: #5f6b76;
+  color: var(--text-tertiary);
   font-size: 0.68rem;
   line-height: 1rem;
 }
