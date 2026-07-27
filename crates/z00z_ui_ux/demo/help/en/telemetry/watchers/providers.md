@@ -1,17 +1,17 @@
 ---
 id: telemetry.watchers.providers
-title: Telemetry Watchers Providers
+title: Telemetry Watchers: Providers
 route: telemetry.watchers.providers
 scope: context
 ---
 
-# Telemetry Watchers Providers
+# Telemetry Watchers: Providers
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Watchers Providers application view](help/assets/en/telemetry-watchers-providers.png)
+![Telemetry Watchers: Providers application view](help/assets/en/telemetry-watchers-providers.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.radio
-title: Telemetry Reticulum Radio
+title: Telemetry Reticulum: Radio
 route: telemetry.reticulum.radio
 scope: context
 ---
 
-# Telemetry Reticulum Radio
+# Telemetry Reticulum: Radio
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Radio application view](help/assets/en/telemetry-reticulum-radio.png)
+![Telemetry Reticulum: Radio application view](help/assets/en/telemetry-reticulum-radio.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: data-storage.disk-usage
-title: Data Storage Disk Usage
+title: Data & Storage: Disk Usage
 route: data-storage.disk-usage
 scope: context
 ---
 
-# Data Storage Disk Usage
+# Data & Storage: Disk Usage
 
 [TOC]
 
 ## App View {#current-view}
 
-![Data Storage Disk Usage application view](help/assets/en/data-storage-disk-usage.png)
+![Data & Storage: Disk Usage application view](help/assets/en/data-storage-disk-usage.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

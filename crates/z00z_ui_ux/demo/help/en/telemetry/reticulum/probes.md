@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.probes
-title: Telemetry Reticulum Probes
+title: Telemetry Reticulum: Probes
 route: telemetry.reticulum.probes
 scope: context
 ---
 
-# Telemetry Reticulum Probes
+# Telemetry Reticulum: Probes
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Probes application view](help/assets/en/telemetry-reticulum-probes.png)
+![Telemetry Reticulum: Probes application view](help/assets/en/telemetry-reticulum-probes.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

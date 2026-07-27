@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.entrypoints
-title: Telemetry Reticulum Entrypoints
+title: Telemetry Reticulum: Entrypoints
 route: telemetry.reticulum.entrypoints
 scope: context
 ---
 
-# Telemetry Reticulum Entrypoints
+# Telemetry Reticulum: Entrypoints
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Entrypoints application view](help/assets/en/telemetry-reticulum-entrypoints.png)
+![Telemetry Reticulum: Entrypoints application view](help/assets/en/telemetry-reticulum-entrypoints.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

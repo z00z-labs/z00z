@@ -1,17 +1,17 @@
 ---
 id: wallet.exchange
-title: Wallet Exchange
+title: Wallet: Exchange
 route: wallet.exchange
 scope: context
 ---
 
-# Wallet Exchange
+# Wallet: Exchange
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Exchange application view](help/assets/en/wallet-exchange.png)
+![Wallet: Exchange application view](help/assets/en/wallet-exchange.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

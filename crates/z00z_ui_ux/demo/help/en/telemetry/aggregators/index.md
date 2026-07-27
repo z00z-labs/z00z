@@ -1,17 +1,17 @@
 ---
 id: telemetry.aggregators.overview
-title: Telemetry Aggregators Overview
+title: Telemetry Aggregators: Overview
 route: telemetry.aggregators.overview
 scope: context
 ---
 
-# Telemetry Aggregators Overview
+# Telemetry Aggregators: Overview
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Aggregators Overview application view](help/assets/en/telemetry-aggregators-overview.png)
+![Telemetry Aggregators: Overview application view](help/assets/en/telemetry-aggregators-overview.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

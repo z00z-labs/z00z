@@ -1,17 +1,17 @@
 ---
 id: asset.details
-title: Asset Details
+title: Asset: Details
 route: none
 scope: dialog
 ---
 
-# Asset Details
+# Asset: Details
 
 [TOC]
 
 ## App View {#current-view}
 
-![Asset Details application view](help/assets/en/asset-details.png)
+![Asset: Details application view](help/assets/en/asset-details.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: dapps.detail
-title: Dapps Detail
+title: dApps: Detail
 route: none
 scope: dialog
 ---
 
-# Dapps Detail
+# dApps: Detail
 
 [TOC]
 
 ## App View {#current-view}
 
-![Dapps Detail application view](help/assets/en/dapps-detail.png)
+![dApps: Detail application view](help/assets/en/dapps-detail.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

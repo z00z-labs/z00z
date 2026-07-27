@@ -1,17 +1,17 @@
 ---
 id: contacts.detail
-title: Contacts Detail
+title: Contacts: Detail
 route: none
 scope: dialog
 ---
 
-# Contacts Detail
+# Contacts: Detail
 
 [TOC]
 
 ## App View {#current-view}
 
-![Contacts Detail application view](help/assets/en/contacts-detail.png)
+![Contacts: Detail application view](help/assets/en/contacts-detail.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

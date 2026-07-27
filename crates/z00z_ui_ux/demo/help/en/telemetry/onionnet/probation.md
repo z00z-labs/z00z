@@ -1,17 +1,17 @@
 ---
 id: telemetry.onionnet.probation
-title: Telemetry Onionnet Probation
+title: Telemetry OnionNet: Probation
 route: telemetry.onionnet.probation
 scope: context
 ---
 
-# Telemetry Onionnet Probation
+# Telemetry OnionNet: Probation
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Onionnet Probation application view](help/assets/en/telemetry-onionnet-probation.png)
+![Telemetry OnionNet: Probation application view](help/assets/en/telemetry-onionnet-probation.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

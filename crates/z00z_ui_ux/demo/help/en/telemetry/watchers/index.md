@@ -1,17 +1,17 @@
 ---
 id: telemetry.watchers.overview
-title: Telemetry Watchers Overview
+title: Telemetry Watchers: Overview
 route: telemetry.watchers.overview
 scope: context
 ---
 
-# Telemetry Watchers Overview
+# Telemetry Watchers: Overview
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Watchers Overview application view](help/assets/en/telemetry-watchers-overview.png)
+![Telemetry Watchers: Overview application view](help/assets/en/telemetry-watchers-overview.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

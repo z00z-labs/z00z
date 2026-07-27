@@ -1,17 +1,17 @@
 ---
 id: about
-title: About
+title: App: About
 route: about
 scope: context
 ---
 
-# About
+# App: About
 
 [TOC]
 
 ## App View {#current-view}
 
-![About application view](help/assets/en/about.png)
+![App: About application view](help/assets/en/about.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

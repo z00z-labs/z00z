@@ -13,5 +13,5 @@ export async function compileHelp(root = demoRoot) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await writeFile(resolve(demoRoot, "scripts/generated/help-catalog.js"), await compileHelp(demoRoot), "utf8");
-  console.log("Compiled navigation-derived English Help catalogue.");
+  console.log("Compiled navigation-derived Help catalogue.");
 }

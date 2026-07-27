@@ -828,11 +828,19 @@ assert.deepEqual(
   ["wallet", "telemetry", "dapps", "messenger", "data-storage", "contacts.list", "settings", "help", "about", "logout"]
 );
 assert.ok(demo.ICON_NAMES.includes("message"));
+assert.ok(demo.ICON_NAMES.includes("inbox"));
+assert.ok(demo.ICON_NAMES.includes("sent"));
 assert.ok(demo.ICON_NAMES.includes("storage"));
+assert.ok(demo.ICON_NAMES.includes("bar-chart"));
+assert.ok(demo.ICON_NAMES.includes("line-chart"));
 assert.ok(demo.ICON_NAMES.includes("info"));
 assert.deepEqual(
   Array.from(demo.navigationChildren("data-storage"), ({ target }) => target.routeId),
   ["data-storage.disk-usage", "data-storage.network-usage"]
+);
+assert.deepEqual(
+  Array.from(demo.navigationChildren("data-storage"), ({ iconId }) => iconId),
+  ["bar-chart", "line-chart"]
 );
 assert.deepEqual(
   Array.from(demo.navigationChildren("settings"), ({ target }) => target.routeId),
@@ -852,6 +860,10 @@ assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.exchange").pagePath.j
 assert.deepEqual(
   Array.from(demo.navigationChildren("messenger"), ({ target }) => target.routeId),
   ["messenger.inbox", "messenger.sent", "messenger.conversations"]
+);
+assert.deepEqual(
+  Array.from(demo.navigationChildren("messenger"), ({ iconId }) => iconId),
+  ["inbox", "sent", "message"]
 );
 assert.equal(context.window.Z00ZHelpRegistry.hasTopic("logout"), false);
 assert.equal(context.window.Z00ZHelpRegistry.globalTopic(), "app");

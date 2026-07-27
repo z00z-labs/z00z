@@ -1,17 +1,17 @@
 ---
 id: telemetry.explorer.overview
-title: Telemetry Explorer Overview
+title: Telemetry Explorer: Overview
 route: telemetry.explorer.overview
 scope: context
 ---
 
-# Telemetry Explorer Overview
+# Telemetry Explorer: Overview
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Explorer Overview application view](help/assets/en/telemetry-explorer-overview.png)
+![Telemetry Explorer: Overview application view](help/assets/en/telemetry-explorer-overview.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

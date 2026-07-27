@@ -1,17 +1,17 @@
 ---
 id: dapps.discover
-title: Dapps Discover
+title: dApps: Discover
 route: dapps.discover
 scope: context
 ---
 
-# Dapps Discover
+# dApps: Discover
 
 [TOC]
 
 ## App View {#current-view}
 
-![Dapps Discover application view](help/assets/en/dapps-discover.png)
+![dApps: Discover application view](help/assets/en/dapps-discover.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

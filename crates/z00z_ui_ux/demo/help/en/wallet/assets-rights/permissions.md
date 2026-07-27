@@ -1,17 +1,17 @@
 ---
 id: wallet.permissions
-title: Wallet Permissions
+title: Wallet: Permissions
 route: wallet.permissions
 scope: context
 ---
 
-# Wallet Permissions
+# Wallet: Permissions
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Permissions application view](help/assets/en/wallet-permissions.png)
+![Wallet: Permissions application view](help/assets/en/wallet-permissions.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

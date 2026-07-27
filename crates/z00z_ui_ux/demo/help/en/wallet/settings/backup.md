@@ -1,17 +1,17 @@
 ---
 id: wallet.settings.backup
-title: Wallet Settings Backup
+title: Wallet Settings: Backup
 route: wallet.settings.backup
 scope: context
 ---
 
-# Wallet Settings Backup
+# Wallet Settings: Backup
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Settings Backup application view](help/assets/en/wallet-settings-backup.png)
+![Wallet Settings: Backup application view](help/assets/en/wallet-settings-backup.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

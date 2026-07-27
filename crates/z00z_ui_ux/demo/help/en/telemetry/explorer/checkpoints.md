@@ -1,17 +1,17 @@
 ---
 id: telemetry.explorer.checkpoints
-title: Telemetry Explorer Checkpoints
+title: Telemetry Explorer: Checkpoints
 route: telemetry.explorer.checkpoints
 scope: context
 ---
 
-# Telemetry Explorer Checkpoints
+# Telemetry Explorer: Checkpoints
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Explorer Checkpoints application view](help/assets/en/telemetry-explorer-checkpoints.png)
+![Telemetry Explorer: Checkpoints application view](help/assets/en/telemetry-explorer-checkpoints.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

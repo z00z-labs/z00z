@@ -1,17 +1,17 @@
 ---
 id: wallet.receive
-title: Wallet Receive
+title: Wallet: Receive
 route: wallet.receive
 scope: context
 ---
 
-# Wallet Receive
+# Wallet: Receive
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Receive application view](help/assets/en/wallet-receive.png)
+![Wallet: Receive application view](help/assets/en/wallet-receive.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

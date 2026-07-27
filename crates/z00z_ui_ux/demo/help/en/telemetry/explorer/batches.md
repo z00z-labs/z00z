@@ -1,17 +1,17 @@
 ---
 id: telemetry.explorer.batches
-title: Telemetry Explorer Batches
+title: Telemetry Explorer: Batches
 route: telemetry.explorer.batches
 scope: context
 ---
 
-# Telemetry Explorer Batches
+# Telemetry Explorer: Batches
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Explorer Batches application view](help/assets/en/telemetry-explorer-batches.png)
+![Telemetry Explorer: Batches application view](help/assets/en/telemetry-explorer-batches.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

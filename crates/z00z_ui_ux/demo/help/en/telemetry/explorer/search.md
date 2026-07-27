@@ -1,17 +1,17 @@
 ---
 id: telemetry.explorer.search
-title: Telemetry Explorer Search
+title: Telemetry Explorer: Search
 route: telemetry.explorer.search
 scope: context
 ---
 
-# Telemetry Explorer Search
+# Telemetry Explorer: Search
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Explorer Search application view](help/assets/en/telemetry-explorer-search.png)
+![Telemetry Explorer: Search application view](help/assets/en/telemetry-explorer-search.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

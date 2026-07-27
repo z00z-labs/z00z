@@ -1,17 +1,17 @@
 ---
 id: telemetry.explorer.detail
-title: Telemetry Explorer Detail
+title: Telemetry Explorer: Detail
 route: none
 scope: dialog
 ---
 
-# Telemetry Explorer Detail
+# Telemetry Explorer: Detail
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Explorer Detail application view](help/assets/en/telemetry-explorer-detail.png)
+![Telemetry Explorer: Detail application view](help/assets/en/telemetry-explorer-detail.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

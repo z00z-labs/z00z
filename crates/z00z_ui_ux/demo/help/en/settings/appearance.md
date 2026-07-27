@@ -1,17 +1,17 @@
 ---
 id: settings.appearance
-title: Settings Appearance
+title: Settings: Appearance
 route: settings.appearance
 scope: context
 ---
 
-# Settings Appearance
+# Settings: Appearance
 
 [TOC]
 
 ## App View {#current-view}
 
-![Settings Appearance application view](help/assets/en/settings-appearance.png)
+![Settings: Appearance application view](help/assets/en/settings-appearance.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

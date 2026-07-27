@@ -1,17 +1,17 @@
 ---
 id: contacts.identity-review
-title: Contacts Identity Review
+title: Contacts: Identity Review
 route: none
 scope: dialog
 ---
 
-# Contacts Identity Review
+# Contacts: Identity Review
 
 [TOC]
 
 ## App View {#current-view}
 
-![Contacts Identity Review application view](help/assets/en/contacts-identity-review.png)
+![Contacts: Identity Review application view](help/assets/en/contacts-identity-review.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

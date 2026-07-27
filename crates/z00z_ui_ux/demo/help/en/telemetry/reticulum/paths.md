@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.paths
-title: Telemetry Reticulum Paths
+title: Telemetry Reticulum: Paths
 route: telemetry.reticulum.paths
 scope: context
 ---
 
-# Telemetry Reticulum Paths
+# Telemetry Reticulum: Paths
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Paths application view](help/assets/en/telemetry-reticulum-paths.png)
+![Telemetry Reticulum: Paths application view](help/assets/en/telemetry-reticulum-paths.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

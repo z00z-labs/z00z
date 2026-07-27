@@ -1,17 +1,17 @@
 ---
 id: telemetry.watchers.alert-detail
-title: Telemetry Watchers Alert Detail
+title: Telemetry Watchers: Alert Detail
 route: none
 scope: dialog
 ---
 
-# Telemetry Watchers Alert Detail
+# Telemetry Watchers: Alert Detail
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Watchers Alert Detail application view](help/assets/en/telemetry-watchers-alert-detail.png)
+![Telemetry Watchers: Alert Detail application view](help/assets/en/telemetry-watchers-alert-detail.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

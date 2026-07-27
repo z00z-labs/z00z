@@ -1,17 +1,17 @@
 ---
 id: telemetry.onionnet.privacy
-title: Telemetry Onionnet Privacy
+title: Telemetry OnionNet: Privacy
 route: telemetry.onionnet.privacy
 scope: context
 ---
 
-# Telemetry Onionnet Privacy
+# Telemetry OnionNet: Privacy
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Onionnet Privacy application view](help/assets/en/telemetry-onionnet-privacy.png)
+![Telemetry OnionNet: Privacy application view](help/assets/en/telemetry-onionnet-privacy.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

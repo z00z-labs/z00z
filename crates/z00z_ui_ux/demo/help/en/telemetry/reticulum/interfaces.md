@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.interfaces
-title: Telemetry Reticulum Interfaces
+title: Telemetry Reticulum: Interfaces
 route: telemetry.reticulum.interfaces
 scope: context
 ---
 
-# Telemetry Reticulum Interfaces
+# Telemetry Reticulum: Interfaces
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Interfaces application view](help/assets/en/telemetry-reticulum-interfaces.png)
+![Telemetry Reticulum: Interfaces application view](help/assets/en/telemetry-reticulum-interfaces.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

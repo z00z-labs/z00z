@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="dark light">
     <meta name="theme-color" content="#081019">
-    <meta name="description" content="Local English Help for the Z00Z wallet.">
+    <meta name="description" content="Local Help for the Z00Z wallet.">
     <link rel="icon" type="image/png" href="assets/logo/z00z-logo-gold-circle.png?v=2">
     <title>Z00Z Help</title>
     <link rel="stylesheet" href="styles.css">
@@ -18,41 +18,77 @@
       <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
       <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 5h14a2 2 0 0 1 2 2v12H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M16 10h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M5 5V3h12"/></symbol>
+      <symbol id="i-assets" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M.75 12a11.25 11.25 0 1 0 22.5 0a11.25 11.25 0 0 0-22.5 0"/><path d="M15.187 13.25L10.5 7L6 17"/><path d="M8.813 10.75L13.5 17L18 7"/></g></symbol>
       <symbol id="i-network" viewBox="0 0 24 24"><path d="M4 9a12 12 0 0 1 16 0M7 12.5a7 7 0 0 1 10 0M10 16a3 3 0 0 1 4 0"/><circle cx="12" cy="19" r="1"/></symbol>
       <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
+      <symbol id="i-advanced" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 18h2M10 18h10M4 12h4M12 12h8"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="10" cy="12" r="2"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="m5 19 14-14M9 5h10v10"/></symbol>
+      <symbol id="i-receive" viewBox="0 0 24 24"><path d="m19 5-14 14M5 9v10h10"/></symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24"><path class="icon-fill" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 12h-4a3 3 0 0 1-6 0H5V5h14v10Z"/></symbol>
+      <symbol id="i-sent" viewBox="0 0 24 24"><path class="icon-fill" d="M3 20.4v-6.5l7-1.9-7-1.9V3.6L21 12 3 20.4Z"/></symbol>
+      <symbol id="i-voucher" viewBox="0 0 24 24"><path class="icon-fill" d="M5 14h14v1H5zm16 3V8H3v9zM1 5h22v14H1zm4 5h7v2H5z"/></symbol>
+      <symbol id="i-permission" viewBox="0 0 24 24"><g transform="scale(.5)" stroke-width="4"><path d="M20 10H6a2 2 0 0 0-2 2v26a2 2 0 0 0 2 2h36a2 2 0 0 0 2-2v-2.5"/><path d="M10 23h8m-8 8h24"/><circle cx="34" cy="16" r="6"/><path d="M44 28.419C42.047 24.602 38 22 34 22s-5.993 1.133-8.05 3"/></g></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 6.1A11 11 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.2 2.8M6.2 6.2C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6a9.8 9.8 0 0 0 3-.5"/><path d="M10 10a2.8 2.8 0 0 0 4 4"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></symbol>
       <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 0 1 4.8 1c0 2-2.5 2.2-2.5 4M12 17.5v.1"/></symbol>
       <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+      <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 7h12m0 0-3-3m3 3-3 3M17 17H5m0 0 3 3m-3-3 3-3"/></symbol>
+      <symbol id="i-exchange" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3.53 11.47v2.118a4.235 4.235 0 0 0 4.235 4.236H20.47M3.53 6.176h12.705a4.235 4.235 0 0 1 4.236 4.236v2.117"/><path d="m17.294 14.647l3.177 3.176L17.294 21M6.706 9.353L3.529 6.176L6.706 3"/></g></symbol>
+      <symbol id="i-staking" viewBox="0 0 24 24"><path d="m12 4 7 4-7 4-7-4Z"/><path d="m5 12 7 4 7-4"/><path d="m5 16 7 4 7-4"/></symbol>
       <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
       <symbol id="i-message" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4Z"/><path d="M8 9h8M8 12h5"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19Z"/><path d="M12 9v5M12 17.5v.1"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+      <symbol id="i-backup" viewBox="0 0 24 24"><path d="M12 3v11m-4-4 4 4 4-4"/><path d="M5 15v5h14v-5"/></symbol>
+      <symbol id="i-restore" viewBox="0 0 24 24"><path d="M12 17V6m-4 4 4-4 4 4"/><path d="M5 14v6h14v-6"/></symbol>
+      <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+      <symbol id="i-reticulum-node" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4.5M10.5 13.5 6.5 17M13.5 13.5l4 3.5"/></symbol>
+      <symbol id="i-reticulum-interface" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M7 10h10M7 14h5M7 3v3M17 3v3"/></symbol>
+      <symbol id="i-entry" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M17 12H1m10.5-5c0 .577.665 1.562 1.228 2.294a7.5 7.5 0 0 0 1.745 1.662C15.2 11.445 16.2 12 16.99 12c-.79 0-1.79.556-2.517 1.044a7.5 7.5 0 0 0-1.745 1.662c-.563.732-1.228 1.717-1.228 2.294m-3-10V2.5h.329A46 46 0 0 0 21.897.605L22.25.5h.25v23h-.25l-.353-.105A46 46 0 0 0 8.829 21.5H8.5V17"/></symbol>
+      <symbol id="i-reticulum-paths" viewBox="0 0 24 24"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="7" cy="19" r="2"/><path d="M7 5h3a4 4 0 0 1 4 4v3a4 4 0 0 0 4 4h1M7 19h2a5 5 0 0 0 5-5V9a2 2 0 0 1 2-2h1"/></symbol>
+      <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6h16M4 12h11M4 18h11M18 14l3 3-3 3"/></symbol>
+      <symbol id="i-probe" viewBox="0 0 24 24"><path d="M10 5a3 3 0 0 1 6 0v8.2a5 5 0 1 1-6 0Z"/><path d="M13 6v9M13 18h.01"/></symbol>
+      <symbol id="i-reticulum-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"/></symbol>
       <symbol id="i-storage" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/></symbol>
-      <symbol id="i-language" viewBox="0 0 24 24" data-icon-source="material-symbols-light:language"><path fill="currentColor" d="M8.5 20.29q-1.642-.711-2.86-1.93T3.71 15.5T3 11.997t.71-3.5T5.64 5.64T8.5 3.71Q10.142 3 12.003 3q1.86 0 3.5.71q1.64.711 2.858 1.93t1.929 2.857q.71 1.64.71 3.5t-.71 3.503q-.711 1.642-1.93 2.86t-2.857 1.93t-3.5.71t-3.503-.71m3.5-.282q.88-1.131 1.452-2.221q.571-1.09.929-2.44H9.619q.397 1.426.948 2.517q.552 1.09 1.433 2.144m-1.273-.15q-.7-.825-1.278-2.04q-.578-1.214-.86-2.472H4.754q.86 1.865 2.437 3.06q1.578 1.194 3.536 1.452m2.546 0q1.958-.258 3.536-1.452q1.577-1.195 2.437-3.06h-3.834q-.38 1.277-.957 2.491q-.578 1.215-1.182 2.02m-8.927-5.51h4.035q-.114-.616-.16-1.2q-.048-.583-.048-1.147t.047-1.147t.16-1.2H4.347q-.163.52-.255 1.133Q4 11.398 4 12t.091 1.215t.255 1.131m5.035 0h5.238q.114-.615.16-1.18q.048-.564.048-1.166t-.047-1.166t-.16-1.18H9.38q-.113.615-.16 1.18q-.047.564-.047 1.166t.047 1.166t.16 1.18m6.24 0h4.034q.163-.519.255-1.131Q20 12.602 20 12t-.091-1.215t-.255-1.131h-4.035q.114.615.16 1.199q.048.584.048 1.147t-.047 1.147t-.16 1.2m-.208-5.693h3.834q-.879-1.904-2.408-3.06t-3.565-1.471q.7.921 1.259 2.107q.559 1.185.88 2.424m-5.793 0h4.762q-.396-1.408-.977-2.546T12 3.992q-.823.977-1.404 2.116T9.62 8.654m-4.865 0h3.834q.321-1.238.88-2.424t1.259-2.107q-2.054.316-3.574 1.48q-1.52 1.166-2.4 3.05"/></symbol>
+      <symbol id="i-bar-chart" viewBox="0 0 24 24"><path d="M4 20V11h4v9M10 20V5h4v15M16 20v-6h4v6M3 20h18"/></symbol>
+      <symbol id="i-line-chart" viewBox="0 0 24 24"><path d="M3 20h18M4 16l5-5 4 3 7-8"/><circle cx="4" cy="16" r="1"/><circle cx="9" cy="11" r="1"/><circle cx="13" cy="14" r="1"/><circle cx="20" cy="6" r="1"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.1"/></symbol>
     </svg>
 
     <header class="help-site-header">
-      <button class="icon-button help-menu-button" id="help-menu-button" type="button" aria-controls="help-sidebar" aria-expanded="false">
-        <svg class="icon"><use href="#i-menu"/></svg>
-      </button>
-      <a class="help-brand" id="help-home-link" href="help.html">
-        <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
-        <span>Z00Z</span>
-        <small id="help-product-label">Help</small>
-      </a>
+      <div class="help-navigation-leading">
+        <button class="icon-button mobile-menu-button help-menu-button" id="help-menu-button" type="button" aria-controls="help-sidebar" aria-expanded="false">
+          <svg class="icon"><use href="#i-menu"/></svg>
+        </button>
+        <a class="help-brand brand" id="help-home-link" href="help.html">
+          <img class="brand-mark" src="assets/logo/z00z-logo-gold-circle.png" alt="">
+          <span>Z00Z</span>
+        </a>
+      </div>
+      <strong class="help-header-title" id="help-product-label">Help</strong>
+      <div class="help-header-language" id="help-language-picker"></div>
+      <div class="mobile-topbar-context help-mobile-topbar-context" id="help-mobile-topbar-context" aria-label="Current section" hidden></div>
     </header>
 
-    <button class="help-sidebar-backdrop" id="help-sidebar-backdrop" type="button" tabindex="-1" hidden></button>
+    <button class="mobile-menu-backdrop help-sidebar-backdrop" id="help-sidebar-backdrop" type="button" tabindex="-1" hidden></button>
     <div class="help-page-shell">
-      <aside class="help-sidebar" id="help-sidebar">
-        <div class="help-sidebar-header">
-          <div>
+      <aside class="mobile-popup-menu help-sidebar" id="help-sidebar" role="dialog" data-popup-type="menu" hidden>
+        <header class="mobile-popup-header mobile-drawer-header help-sidebar-header">
+          <div class="help-sidebar-heading">
             <span class="eyebrow" id="help-contents-eyebrow">Help</span>
             <strong id="help-contents-title">Contents</strong>
           </div>
-          <button class="icon-button help-sidebar-close" id="help-sidebar-close" type="button">
+          <strong class="help-mobile-menu-title" id="help-mobile-menu-title">Menu</strong>
+          <button class="mobile-popup-icon help-sidebar-close" id="help-sidebar-close" type="button" data-mobile-popup-close>
             <svg class="icon"><use href="#i-close"/></svg>
           </button>
-        </div>
+        </header>
         <div class="help-search">
           <label class="visually-hidden" id="help-search-label" for="help-search">Search</label>
           <span aria-hidden="true"><svg class="icon"><use href="#i-search"/></svg></span>
@@ -61,7 +97,10 @@
         </div>
         <p class="visually-hidden" id="help-search-status" role="status"></p>
         <div class="help-search-results" id="help-search-results" hidden></div>
-        <nav class="help-tree" id="help-tree" aria-label="Help contents"></nav>
+        <div class="mobile-navigation-scroll-region help-navigation-scroll-region">
+          <nav class="mobile-navigation-tree help-tree app-navigation-tree" id="help-tree" aria-label="Help contents"></nav>
+          <nav class="mobile-navigation-terminal help-navigation-terminal app-navigation-terminal" id="help-navigation-terminal" aria-label="Application settings"></nav>
+        </div>
       </aside>
 
       <main class="help-main" id="help-main" tabindex="-1">
@@ -72,12 +111,22 @@
     <script src="scripts/port/locale-registry.js"></script>
     <script src="i18n.js"></script>
     <script src="locales/en.js"></script>
+    <script src="locales/ru.js"></script>
+    <script src="locales/fr.js"></script>
+    <script src="locales/de.js"></script>
+    <script src="locales/es.js"></script>
+    <script src="locales/pt.js"></script>
+    <script src="locales/ko.js"></script>
+    <script src="locales/tr.js"></script>
+    <script src="locales/ja.js"></script>
+    <script src="locales/zh-Hans.js"></script>
     <script src="locales/navigation.js"></script>
     <script src="scripts/port/contracts.js"></script>
     <script src="scripts/port/navigation-model.js"></script>
     <script src="scripts/generated/help-catalog.js"></script>
     <script src="scripts/port/help-registry.js"></script>
     <script src="scripts/vendor/markdown/mermaid.min.js"></script>
+    <script src="scripts/vendor/markdown/panzoom.min.js"></script>
     <script src="scripts/help-markdown-enhancer.js"></script>
     <script src="scripts/help-app.js"></script>
   </body>

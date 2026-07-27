@@ -1,17 +1,17 @@
 ---
 id: wallet.send
-title: Wallet Send
+title: Wallet: Send
 route: wallet.send
 scope: context
 ---
 
-# Wallet Send
+# Wallet: Send
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Send application view](help/assets/en/wallet-send.png)
+![Wallet: Send application view](help/assets/en/wallet-send.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.overview
-title: Telemetry Reticulum Overview
+title: Telemetry Reticulum: Overview
 route: telemetry.reticulum.overview
 scope: context
 ---
 
-# Telemetry Reticulum Overview
+# Telemetry Reticulum: Overview
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Overview application view](help/assets/en/telemetry-reticulum-overview.png)
+![Telemetry Reticulum: Overview application view](help/assets/en/telemetry-reticulum-overview.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

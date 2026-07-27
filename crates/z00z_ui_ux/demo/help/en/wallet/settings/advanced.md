@@ -1,17 +1,17 @@
 ---
 id: wallet.settings.advanced
-title: Wallet Settings Advanced
+title: Wallet Settings: Advanced
 route: wallet.settings.advanced
 scope: context
 ---
 
-# Wallet Settings Advanced
+# Wallet Settings: Advanced
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Settings Advanced application view](help/assets/en/wallet-settings-advanced.png)
+![Wallet Settings: Advanced application view](help/assets/en/wallet-settings-advanced.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

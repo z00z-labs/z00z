@@ -1,17 +1,17 @@
 ---
 id: telemetry.aggregators.recovery
-title: Telemetry Aggregators Recovery
+title: Telemetry Aggregators: Recovery
 route: telemetry.aggregators.recovery
 scope: context
 ---
 
-# Telemetry Aggregators Recovery
+# Telemetry Aggregators: Recovery
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Aggregators Recovery application view](help/assets/en/telemetry-aggregators-recovery.png)
+![Telemetry Aggregators: Recovery application view](help/assets/en/telemetry-aggregators-recovery.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

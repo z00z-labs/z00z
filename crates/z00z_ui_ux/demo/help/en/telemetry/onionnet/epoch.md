@@ -1,17 +1,17 @@
 ---
 id: telemetry.onionnet.epoch
-title: Telemetry Onionnet Epoch
+title: Telemetry OnionNet: Epoch
 route: telemetry.onionnet.epoch
 scope: context
 ---
 
-# Telemetry Onionnet Epoch
+# Telemetry OnionNet: Epoch
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Onionnet Epoch application view](help/assets/en/telemetry-onionnet-epoch.png)
+![Telemetry OnionNet: Epoch application view](help/assets/en/telemetry-onionnet-epoch.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

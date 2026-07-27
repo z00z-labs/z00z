@@ -1,17 +1,17 @@
 ---
 id: wallet.quarantine
-title: Wallet Quarantine
+title: Wallet: Quarantine
 route: wallet.quarantine
 scope: context
 ---
 
-# Wallet Quarantine
+# Wallet: Quarantine
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Quarantine application view](help/assets/en/wallet-quarantine.png)
+![Wallet: Quarantine application view](help/assets/en/wallet-quarantine.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

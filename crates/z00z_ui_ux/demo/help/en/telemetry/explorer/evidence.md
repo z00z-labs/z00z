@@ -1,17 +1,17 @@
 ---
 id: telemetry.explorer.evidence
-title: Telemetry Explorer Evidence
+title: Telemetry Explorer: Evidence
 route: telemetry.explorer.evidence
 scope: context
 ---
 
-# Telemetry Explorer Evidence
+# Telemetry Explorer: Evidence
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Explorer Evidence application view](help/assets/en/telemetry-explorer-evidence.png)
+![Telemetry Explorer: Evidence application view](help/assets/en/telemetry-explorer-evidence.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

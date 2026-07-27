@@ -1,17 +1,17 @@
 ---
 id: data-storage.network-usage
-title: Data Storage Network Usage
+title: Data & Storage: Network Usage
 route: data-storage.network-usage
 scope: context
 ---
 
-# Data Storage Network Usage
+# Data & Storage: Network Usage
 
 [TOC]
 
 ## App View {#current-view}
 
-![Data Storage Network Usage application view](help/assets/en/data-storage-network-usage.png)
+![Data & Storage: Network Usage application view](help/assets/en/data-storage-network-usage.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

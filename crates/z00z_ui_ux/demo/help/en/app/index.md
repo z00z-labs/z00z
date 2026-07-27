@@ -1,17 +1,17 @@
 ---
 id: app
-title: App
+title: App: Help
 route: none
 scope: global
 ---
 
-# App
+# App: Help
 
 [TOC]
 
 ## App View {#current-view}
 
-![App application view](help/assets/en/app.png)
+![App: Help application view](help/assets/en/app.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

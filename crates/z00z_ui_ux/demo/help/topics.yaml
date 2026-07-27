@@ -2,366 +2,439 @@ version: 2
 source_locale: en
 topics:
   - id: app
+    title: App: Help
     file: app/index.md
     label_key: help.title
     route: none
     scope: global
   - id: wallet.assets
+    title: Wallet: Assets
     file: wallet/assets-rights/index.md
     label_key: navigation.assets
     route: wallet.assets
     scope: context
   - id: wallet.vouchers
+    title: Wallet: Vouchers
     file: wallet/assets-rights/vouchers.md
     label_key: navigation.vouchers
     route: wallet.vouchers
     scope: context
   - id: wallet.permissions
+    title: Wallet: Permissions
     file: wallet/assets-rights/permissions.md
     label_key: navigation.permissions
     route: wallet.permissions
     scope: context
   - id: wallet.quarantine
+    title: Wallet: Quarantine
     file: wallet/assets-rights/quarantine.md
     label_key: navigation.quarantine
     route: wallet.quarantine
     scope: context
   - id: wallet.send
+    title: Wallet: Send
     file: wallet/send.md
     label_key: navigation.send
     route: wallet.send
     scope: context
   - id: wallet.receive
+    title: Wallet: Receive
     file: wallet/receive.md
     label_key: navigation.receive
     route: wallet.receive
     scope: context
   - id: wallet.history
+    title: Wallet: History
     file: wallet/history.md
     label_key: navigation.history
     route: wallet.history
     scope: context
   - id: wallet.swap
+    title: Wallet: Swap
     file: dapps/swap.md
     label_key: navigation.swap
     route: wallet.swap
     scope: context
   - id: wallet.exchange
+    title: Wallet: Exchange
     file: dapps/exchange.md
     label_key: navigation.exchange
     route: wallet.exchange
     scope: context
   - id: wallet.staking.stake
+    title: Wallet Staking: Stake
     file: wallet/staking/index.md
     label_key: navigation.staking
     route: wallet.staking.stake
     scope: context
   - id: wallet.staking.unstake
+    title: Wallet Staking: Unstake
     file: wallet/staking/unstake.md
     label_key: navigation.unstake
     route: wallet.staking.unstake
     scope: context
   - id: wallet.backup
+    title: Wallet: Backup
     file: wallet/backup.md
     label_key: navigation.backup
     route: wallet.backup
     scope: context
   - id: wallet.settings.general
+    title: Wallet Settings: General
     file: wallet/settings/index.md
     label_key: navigation.walletSettings
     route: wallet.settings.general
     scope: context
   - id: wallet.settings.security
+    title: Wallet Settings: Security
     file: wallet/settings/security.md
     label_key: navigation.security
     route: wallet.settings.security
     scope: context
   - id: wallet.settings.backup
+    title: Wallet Settings: Backup
     file: wallet/settings/backup.md
     label_key: navigation.backup
     route: wallet.settings.backup
     scope: context
   - id: wallet.settings.policies
+    title: Wallet Settings: Policies
     file: wallet/settings/policies.md
     label_key: navigation.policies
     route: wallet.settings.policies
     scope: context
   - id: wallet.settings.advanced
+    title: Wallet Settings: Advanced
     file: wallet/settings/advanced.md
     label_key: navigation.advanced
     route: wallet.settings.advanced
     scope: context
   - id: telemetry.reticulum.overview
+    title: Telemetry Reticulum: Overview
     file: telemetry/reticulum/index.md
     label_key: navigation.reticulum
     route: telemetry.reticulum.overview
     scope: context
   - id: telemetry.reticulum.node
+    title: Telemetry Reticulum: Node
     file: telemetry/reticulum/node.md
     label_key: navigation.node
     route: telemetry.reticulum.node
     scope: context
   - id: telemetry.reticulum.interfaces
+    title: Telemetry Reticulum: Interfaces
     file: telemetry/reticulum/interfaces.md
     label_key: navigation.interfaces
     route: telemetry.reticulum.interfaces
     scope: context
   - id: telemetry.reticulum.radio
+    title: Telemetry Reticulum: Radio
     file: telemetry/reticulum/radio.md
     label_key: navigation.radio
     route: telemetry.reticulum.radio
     scope: context
   - id: telemetry.reticulum.entrypoints
+    title: Telemetry Reticulum: Entrypoints
     file: telemetry/reticulum/entrypoints.md
     label_key: navigation.entrypoints
     route: telemetry.reticulum.entrypoints
     scope: context
   - id: telemetry.reticulum.paths
+    title: Telemetry Reticulum: Paths
     file: telemetry/reticulum/paths.md
     label_key: navigation.paths
     route: telemetry.reticulum.paths
     scope: context
   - id: telemetry.reticulum.probes
+    title: Telemetry Reticulum: Probes
     file: telemetry/reticulum/probes.md
     label_key: navigation.probes
     route: telemetry.reticulum.probes
     scope: context
   - id: telemetry.reticulum.links
+    title: Telemetry Reticulum: Links
     file: telemetry/reticulum/links.md
     label_key: navigation.links
     route: telemetry.reticulum.links
     scope: context
   - id: telemetry.onionnet.overview
+    title: Telemetry OnionNet: Overview
     file: telemetry/onionnet/index.md
     label_key: navigation.onionnet
     route: telemetry.onionnet.overview
     scope: context
   - id: telemetry.onionnet.epoch
+    title: Telemetry OnionNet: Epoch
     file: telemetry/onionnet/epoch.md
     label_key: navigation.epoch
     route: telemetry.onionnet.epoch
     scope: context
   - id: telemetry.onionnet.privacy
+    title: Telemetry OnionNet: Privacy
     file: telemetry/onionnet/privacy.md
     label_key: navigation.privacy
     route: telemetry.onionnet.privacy
     scope: context
   - id: telemetry.onionnet.transport
+    title: Telemetry OnionNet: Transport
     file: telemetry/onionnet/transport.md
     label_key: navigation.transport
     route: telemetry.onionnet.transport
     scope: context
   - id: telemetry.onionnet.queues
+    title: Telemetry OnionNet: Queues
     file: telemetry/onionnet/queues.md
     label_key: navigation.queues
     route: telemetry.onionnet.queues
     scope: context
   - id: telemetry.onionnet.probation
+    title: Telemetry OnionNet: Probation
     file: telemetry/onionnet/probation.md
     label_key: navigation.probation
     route: telemetry.onionnet.probation
     scope: context
   - id: telemetry.onionnet.ingress
+    title: Telemetry OnionNet: Ingress
     file: telemetry/onionnet/ingress.md
     label_key: navigation.ingress
     route: telemetry.onionnet.ingress
     scope: context
   - id: telemetry.aggregators.overview
+    title: Telemetry Aggregators: Overview
     file: telemetry/aggregators/index.md
     label_key: navigation.aggregators
     route: telemetry.aggregators.overview
     scope: context
   - id: telemetry.aggregators.ingress
+    title: Telemetry Aggregators: Ingress
     file: telemetry/aggregators/ingress.md
     label_key: navigation.ingress
     route: telemetry.aggregators.ingress
     scope: context
   - id: telemetry.aggregators.planning
+    title: Telemetry Aggregators: Planning
     file: telemetry/aggregators/planning.md
     label_key: navigation.planning
     route: telemetry.aggregators.planning
     scope: context
   - id: telemetry.aggregators.placement
+    title: Telemetry Aggregators: Placement
     file: telemetry/aggregators/placement.md
     label_key: navigation.placement
     route: telemetry.aggregators.placement
     scope: context
   - id: telemetry.aggregators.publication
+    title: Telemetry Aggregators: Publication
     file: telemetry/aggregators/publication.md
     label_key: navigation.publication
     route: telemetry.aggregators.publication
     scope: context
   - id: telemetry.aggregators.recovery
+    title: Telemetry Aggregators: Recovery
     file: telemetry/aggregators/recovery.md
     label_key: navigation.recovery
     route: telemetry.aggregators.recovery
     scope: context
   - id: telemetry.watchers.overview
+    title: Telemetry Watchers: Overview
     file: telemetry/watchers/index.md
     label_key: navigation.watchers
     route: telemetry.watchers.overview
     scope: context
   - id: telemetry.watchers.alerts
+    title: Telemetry Watchers: Alerts
     file: telemetry/watchers/alerts.md
     label_key: navigation.alerts
     route: telemetry.watchers.alerts
     scope: context
   - id: telemetry.watchers.publication
+    title: Telemetry Watchers: Publication
     file: telemetry/watchers/publication.md
     label_key: navigation.publicationChecks
     route: telemetry.watchers.publication
     scope: context
   - id: telemetry.watchers.providers
+    title: Telemetry Watchers: Providers
     file: telemetry/watchers/providers.md
     label_key: navigation.daProviders
     route: telemetry.watchers.providers
     scope: context
   - id: telemetry.watchers.censorship
+    title: Telemetry Watchers: Censorship
     file: telemetry/watchers/censorship.md
     label_key: navigation.censorship
     route: telemetry.watchers.censorship
     scope: context
   - id: telemetry.watchers.evidence
+    title: Telemetry Watchers: Evidence
     file: telemetry/watchers/evidence.md
     label_key: navigation.evidenceExport
     route: telemetry.watchers.evidence
     scope: context
   - id: telemetry.explorer.overview
+    title: Telemetry Explorer: Overview
     file: telemetry/explorer/index.md
     label_key: navigation.explorer
     route: telemetry.explorer.overview
     scope: context
   - id: telemetry.explorer.search
+    title: Telemetry Explorer: Search
     file: telemetry/explorer/search.md
     label_key: navigation.search
     route: telemetry.explorer.search
     scope: context
   - id: telemetry.explorer.checkpoints
+    title: Telemetry Explorer: Checkpoints
     file: telemetry/explorer/checkpoints.md
     label_key: navigation.checkpoints
     route: telemetry.explorer.checkpoints
     scope: context
   - id: telemetry.explorer.batches
+    title: Telemetry Explorer: Batches
     file: telemetry/explorer/batches.md
     label_key: navigation.batches
     route: telemetry.explorer.batches
     scope: context
   - id: telemetry.explorer.evidence
+    title: Telemetry Explorer: Evidence
     file: telemetry/explorer/evidence.md
     label_key: navigation.publicEvidence
     route: telemetry.explorer.evidence
     scope: context
   - id: dapps.discover
+    title: dApps: Discover
     file: dapps/discover.md
     label_key: navigation.discover
     route: dapps.discover
     scope: context
   - id: dapps.installed
+    title: dApps: Installed
     file: dapps/installed.md
     label_key: navigation.installed
     route: dapps.installed
     scope: context
   - id: dapps.connections
+    title: dApps: Connections
     file: dapps/connections.md
     label_key: navigation.connections
     route: dapps.connections
     scope: context
   - id: dapps.permissions
+    title: dApps: Permissions
     file: dapps/permissions.md
     label_key: navigation.permissions
     route: dapps.permissions
     scope: context
   - id: messenger.inbox
+    title: Messenger: Inbox
     file: messenger/inbox.md
     label_key: navigation.inbox
     route: messenger.inbox
     scope: context
   - id: messenger.sent
+    title: Messenger: Sent
     file: messenger/sent.md
     label_key: navigation.sent
     route: messenger.sent
     scope: context
   - id: messenger.conversations
+    title: Messenger: Conversations
     file: messenger/conversations.md
     label_key: navigation.conversations
     route: messenger.conversations
     scope: context
   - id: data-storage.disk-usage
+    title: Data & Storage: Disk Usage
     file: data-storage/disk-usage.md
     label_key: navigation.diskUsage
     route: data-storage.disk-usage
     scope: context
   - id: data-storage.network-usage
+    title: Data & Storage: Network Usage
     file: data-storage/network-usage.md
     label_key: navigation.networkUsage
     route: data-storage.network-usage
     scope: context
   - id: contacts.list
+    title: Contacts: List
     file: contacts/list.md
     label_key: navigation.contacts
     route: contacts.list
     scope: context
   - id: settings.general
+    title: Settings: General
     file: settings/general.md
     label_key: navigation.general
     route: settings.general
     scope: context
   - id: settings.notifications
+    title: Settings: Notifications
     file: settings/notifications.md
     label_key: navigation.notifications
     route: settings.notifications
     scope: context
   - id: settings.appearance
+    title: Settings: Appearance
     file: settings/appearance.md
     label_key: navigation.appearance
     route: settings.appearance
     scope: context
   - id: about
+    title: App: About
     file: about/index.md
     label_key: navigation.about
     route: about
     scope: context
   - id: asset.details
+    title: Asset: Details
     file: wallet/assets-rights/asset-details.md
     label_key: help.title
     route: none
     scope: dialog
   - id: dapps.detail
+    title: dApps: Detail
     file: dapps/detail.md
     label_key: help.title
     route: none
     scope: dialog
   - id: dapps.permission-review
+    title: dApps: Permission Review
     file: dapps/permission-review.md
     label_key: help.title
     route: none
     scope: dialog
   - id: messenger.detail
+    title: Messenger: Detail
     file: messenger/detail.md
     label_key: help.title
     route: none
     scope: dialog
   - id: messenger.request-review
+    title: Messenger: Request Review
     file: messenger/request-review.md
     label_key: help.title
     route: none
     scope: dialog
   - id: contacts.detail
+    title: Contacts: Detail
     file: contacts/detail.md
     label_key: help.title
     route: none
     scope: dialog
   - id: contacts.identity-review
+    title: Contacts: Identity Review
     file: contacts/identity-review.md
     label_key: help.title
     route: none
     scope: dialog
   - id: telemetry.watchers.alert-detail
+    title: Telemetry Watchers: Alert Detail
     file: telemetry/watchers/alert-detail.md
     label_key: help.title
     route: none
     scope: dialog
   - id: telemetry.explorer.detail
+    title: Telemetry Explorer: Detail
     file: telemetry/explorer/detail.md
     label_key: help.title
     route: none

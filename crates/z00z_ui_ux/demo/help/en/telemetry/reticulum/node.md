@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.node
-title: Telemetry Reticulum Node
+title: Telemetry Reticulum: Node
 route: telemetry.reticulum.node
 scope: context
 ---
 
-# Telemetry Reticulum Node
+# Telemetry Reticulum: Node
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Node application view](help/assets/en/telemetry-reticulum-node.png)
+![Telemetry Reticulum: Node application view](help/assets/en/telemetry-reticulum-node.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: wallet.swap
-title: Wallet Swap
+title: Wallet: Swap
 route: wallet.swap
 scope: context
 ---
 
-# Wallet Swap
+# Wallet: Swap
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Swap application view](help/assets/en/wallet-swap.png)
+![Wallet: Swap application view](help/assets/en/wallet-swap.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

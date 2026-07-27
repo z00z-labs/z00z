@@ -1,17 +1,17 @@
 ---
 id: wallet.settings.policies
-title: Wallet Settings Policies
+title: Wallet Settings: Policies
 route: wallet.settings.policies
 scope: context
 ---
 
-# Wallet Settings Policies
+# Wallet Settings: Policies
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Settings Policies application view](help/assets/en/wallet-settings-policies.png)
+![Wallet Settings: Policies application view](help/assets/en/wallet-settings-policies.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

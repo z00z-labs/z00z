@@ -1,17 +1,17 @@
 ---
 id: wallet.backup
-title: Wallet Backup
+title: Wallet: Backup
 route: wallet.backup
 scope: context
 ---
 
-# Wallet Backup
+# Wallet: Backup
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Backup application view](help/assets/en/wallet-backup.png)
+![Wallet: Backup application view](help/assets/en/wallet-backup.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

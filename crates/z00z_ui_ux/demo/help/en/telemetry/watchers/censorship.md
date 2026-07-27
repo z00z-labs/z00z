@@ -1,17 +1,17 @@
 ---
 id: telemetry.watchers.censorship
-title: Telemetry Watchers Censorship
+title: Telemetry Watchers: Censorship
 route: telemetry.watchers.censorship
 scope: context
 ---
 
-# Telemetry Watchers Censorship
+# Telemetry Watchers: Censorship
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Watchers Censorship application view](help/assets/en/telemetry-watchers-censorship.png)
+![Telemetry Watchers: Censorship application view](help/assets/en/telemetry-watchers-censorship.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

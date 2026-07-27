@@ -19,8 +19,31 @@ const DIALOG_PATHS = Object.freeze({
   "telemetry.explorer.detail": { dialog: "explorer-detail", path: ["telemetry", "explorer", "detail"] },
 });
 
+const TITLE_SEGMENTS = Object.freeze({
+  dapps: "dApps",
+  "data-storage": "Data & Storage",
+  onionnet: "OnionNet",
+});
+
 function segment(value) {
   return value.split(".").at(-1);
+}
+
+function titleSegment(value) {
+  if (TITLE_SEGMENTS[value]) return TITLE_SEGMENTS[value];
+  return value
+    .split("-")
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+export function helpTitle(topicId) {
+  if (topicId === "app") return "App: Help";
+  if (topicId === "about") return "App: About";
+
+  const segments = topicId.split(".");
+  if (segments.length < 2) throw new Error(`Help topic ${topicId} has no title namespace.`);
+  return `${segments.slice(0, -1).map(titleSegment).join(" ")}: ${titleSegment(segments.at(-1))}`;
 }
 
 function nodeChain(node) {

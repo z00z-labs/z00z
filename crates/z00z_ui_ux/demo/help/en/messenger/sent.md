@@ -1,17 +1,17 @@
 ---
 id: messenger.sent
-title: Messenger Sent
+title: Messenger: Sent
 route: messenger.sent
 scope: context
 ---
 
-# Messenger Sent
+# Messenger: Sent
 
 [TOC]
 
 ## App View {#current-view}
 
-![Messenger Sent application view](help/assets/en/messenger-sent.png)
+![Messenger: Sent application view](help/assets/en/messenger-sent.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

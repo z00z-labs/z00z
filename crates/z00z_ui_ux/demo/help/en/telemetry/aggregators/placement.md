@@ -1,17 +1,17 @@
 ---
 id: telemetry.aggregators.placement
-title: Telemetry Aggregators Placement
+title: Telemetry Aggregators: Placement
 route: telemetry.aggregators.placement
 scope: context
 ---
 
-# Telemetry Aggregators Placement
+# Telemetry Aggregators: Placement
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Aggregators Placement application view](help/assets/en/telemetry-aggregators-placement.png)
+![Telemetry Aggregators: Placement application view](help/assets/en/telemetry-aggregators-placement.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

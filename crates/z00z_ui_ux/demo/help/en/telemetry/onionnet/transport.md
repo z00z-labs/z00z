@@ -1,17 +1,17 @@
 ---
 id: telemetry.onionnet.transport
-title: Telemetry Onionnet Transport
+title: Telemetry OnionNet: Transport
 route: telemetry.onionnet.transport
 scope: context
 ---
 
-# Telemetry Onionnet Transport
+# Telemetry OnionNet: Transport
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Onionnet Transport application view](help/assets/en/telemetry-onionnet-transport.png)
+![Telemetry OnionNet: Transport application view](help/assets/en/telemetry-onionnet-transport.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

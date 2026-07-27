@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   RELEASE_CSS_FILES,
   RELEASE_HTML_FILES,
@@ -12,10 +13,16 @@ import {
 } from "./build-pages-release.mjs";
 
 const sha = "a".repeat(40);
+const pagesWorkflow = await readFile(
+  new URL("../../../../.github/workflows/wallet-demo-pages.yml", import.meta.url),
+  "utf8",
+);
 
 assert.deepEqual(RELEASE_HTML_FILES, ["index.html", "help.html"]);
 assert.ok(RELEASE_CSS_FILES.includes("styles/help.css"));
 assert.ok(RELEASE_MARKDOWN_RUNTIME_FILES.includes("scripts/vendor/markdown/mermaid.min.js"));
+assert.ok(RELEASE_MARKDOWN_RUNTIME_FILES.includes("scripts/vendor/markdown/panzoom.min.js"));
+assert.match(pagesWorkflow, /--exclude=help\/en\/\.temp/);
 assert.equal(versionLocalUrl("app.js", sha), `app.js?v=${sha}`);
 assert.equal(versionLocalUrl("manifest.webmanifest?v=2", sha), `manifest.webmanifest?v=${sha}`);
 assert.equal(versionLocalUrl("#i-wallet", sha), "#i-wallet");

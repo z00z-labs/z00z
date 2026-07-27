@@ -1,17 +1,17 @@
 ---
 id: wallet.settings.security
-title: Wallet Settings Security
+title: Wallet Settings: Security
 route: wallet.settings.security
 scope: context
 ---
 
-# Wallet Settings Security
+# Wallet Settings: Security
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Settings Security application view](help/assets/en/wallet-settings-security.png)
+![Wallet Settings: Security application view](help/assets/en/wallet-settings-security.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

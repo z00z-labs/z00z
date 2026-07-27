@@ -1,17 +1,17 @@
 ---
 id: telemetry.onionnet.overview
-title: Telemetry Onionnet Overview
+title: Telemetry OnionNet: Overview
 route: telemetry.onionnet.overview
 scope: context
 ---
 
-# Telemetry Onionnet Overview
+# Telemetry OnionNet: Overview
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Onionnet Overview application view](help/assets/en/telemetry-onionnet-overview.png)
+![Telemetry OnionNet: Overview application view](help/assets/en/telemetry-onionnet-overview.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

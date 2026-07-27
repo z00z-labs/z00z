@@ -1,17 +1,17 @@
 ---
 id: messenger.conversations
-title: Messenger Conversations
+title: Messenger: Conversations
 route: messenger.conversations
 scope: context
 ---
 
-# Messenger Conversations
+# Messenger: Conversations
 
 [TOC]
 
 ## App View {#current-view}
 
-![Messenger Conversations application view](help/assets/en/messenger-conversations.png)
+![Messenger: Conversations application view](help/assets/en/messenger-conversations.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

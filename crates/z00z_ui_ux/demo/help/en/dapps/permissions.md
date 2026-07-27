@@ -1,17 +1,17 @@
 ---
 id: dapps.permissions
-title: Dapps Permissions
+title: dApps: Permissions
 route: dapps.permissions
 scope: context
 ---
 
-# Dapps Permissions
+# dApps: Permissions
 
 [TOC]
 
 ## App View {#current-view}
 
-![Dapps Permissions application view](help/assets/en/dapps-permissions.png)
+![dApps: Permissions application view](help/assets/en/dapps-permissions.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

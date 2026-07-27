@@ -1,17 +1,17 @@
 ---
 id: dapps.permission-review
-title: Dapps Permission Review
+title: dApps: Permission Review
 route: none
 scope: dialog
 ---
 
-# Dapps Permission Review
+# dApps: Permission Review
 
 [TOC]
 
 ## App View {#current-view}
 
-![Dapps Permission Review application view](help/assets/en/dapps-permission-review.png)
+![dApps: Permission Review application view](help/assets/en/dapps-permission-review.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

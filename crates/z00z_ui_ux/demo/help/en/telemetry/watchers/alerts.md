@@ -1,17 +1,17 @@
 ---
 id: telemetry.watchers.alerts
-title: Telemetry Watchers Alerts
+title: Telemetry Watchers: Alerts
 route: telemetry.watchers.alerts
 scope: context
 ---
 
-# Telemetry Watchers Alerts
+# Telemetry Watchers: Alerts
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Watchers Alerts application view](help/assets/en/telemetry-watchers-alerts.png)
+![Telemetry Watchers: Alerts application view](help/assets/en/telemetry-watchers-alerts.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

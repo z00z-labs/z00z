@@ -1,17 +1,17 @@
 ---
 id: wallet.vouchers
-title: Wallet Vouchers
+title: Wallet: Vouchers
 route: wallet.vouchers
 scope: context
 ---
 
-# Wallet Vouchers
+# Wallet: Vouchers
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Vouchers application view](help/assets/en/wallet-vouchers.png)
+![Wallet: Vouchers application view](help/assets/en/wallet-vouchers.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

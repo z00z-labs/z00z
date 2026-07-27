@@ -14,6 +14,7 @@ export const RELEASE_CSS_FILES = Object.freeze([
 export const RELEASE_HTML_FILES = Object.freeze(["index.html", "help.html"]);
 export const RELEASE_MARKDOWN_RUNTIME_FILES = Object.freeze([
   "scripts/vendor/markdown/mermaid.min.js",
+  "scripts/vendor/markdown/panzoom.min.js",
   "scripts/vendor/markdown/katex.min.css",
   "scripts/vendor/markdown/fonts/KaTeX_Main-Regular.woff2"
 ]);

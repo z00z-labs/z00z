@@ -1,17 +1,17 @@
 ---
 id: settings.general
-title: Settings General
+title: Settings: General
 route: settings.general
 scope: context
 ---
 
-# Settings General
+# Settings: General
 
 [TOC]
 
 ## App View {#current-view}
 
-![Settings General application view](help/assets/en/settings-general.png)
+![Settings: General application view](help/assets/en/settings-general.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

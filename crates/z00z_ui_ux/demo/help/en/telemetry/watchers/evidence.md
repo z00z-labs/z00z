@@ -1,17 +1,17 @@
 ---
 id: telemetry.watchers.evidence
-title: Telemetry Watchers Evidence
+title: Telemetry Watchers: Evidence
 route: telemetry.watchers.evidence
 scope: context
 ---
 
-# Telemetry Watchers Evidence
+# Telemetry Watchers: Evidence
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Watchers Evidence application view](help/assets/en/telemetry-watchers-evidence.png)
+![Telemetry Watchers: Evidence application view](help/assets/en/telemetry-watchers-evidence.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

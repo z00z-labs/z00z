@@ -1,17 +1,17 @@
 ---
 id: dapps.installed
-title: Dapps Installed
+title: dApps: Installed
 route: dapps.installed
 scope: context
 ---
 
-# Dapps Installed
+# dApps: Installed
 
 [TOC]
 
 ## App View {#current-view}
 
-![Dapps Installed application view](help/assets/en/dapps-installed.png)
+![dApps: Installed application view](help/assets/en/dapps-installed.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: contacts.list
-title: Contacts List
+title: Contacts: List
 route: contacts.list
 scope: context
 ---
 
-# Contacts List
+# Contacts: List
 
 [TOC]
 
 ## App View {#current-view}
 
-![Contacts List application view](help/assets/en/contacts-list.png)
+![Contacts: List application view](help/assets/en/contacts-list.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

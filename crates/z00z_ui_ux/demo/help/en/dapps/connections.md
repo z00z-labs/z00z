@@ -1,17 +1,17 @@
 ---
 id: dapps.connections
-title: Dapps Connections
+title: dApps: Connections
 route: dapps.connections
 scope: context
 ---
 
-# Dapps Connections
+# dApps: Connections
 
 [TOC]
 
 ## App View {#current-view}
 
-![Dapps Connections application view](help/assets/en/dapps-connections.png)
+![dApps: Connections application view](help/assets/en/dapps-connections.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

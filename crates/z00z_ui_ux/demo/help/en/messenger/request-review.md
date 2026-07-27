@@ -1,17 +1,17 @@
 ---
 id: messenger.request-review
-title: Messenger Request Review
+title: Messenger: Request Review
 route: none
 scope: dialog
 ---
 
-# Messenger Request Review
+# Messenger: Request Review
 
 [TOC]
 
 ## App View {#current-view}
 
-![Messenger Request Review application view](help/assets/en/messenger-request-review.png)
+![Messenger: Request Review application view](help/assets/en/messenger-request-review.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: telemetry.aggregators.publication
-title: Telemetry Aggregators Publication
+title: Telemetry Aggregators: Publication
 route: telemetry.aggregators.publication
 scope: context
 ---
 
-# Telemetry Aggregators Publication
+# Telemetry Aggregators: Publication
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Aggregators Publication application view](help/assets/en/telemetry-aggregators-publication.png)
+![Telemetry Aggregators: Publication application view](help/assets/en/telemetry-aggregators-publication.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

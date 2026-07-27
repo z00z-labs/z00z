@@ -133,14 +133,14 @@
     node({ id: "wallet.swap", parentId: "dapps", order: 50, labelKey: "navigation.swap", iconId: "swap", target: routeTarget("wallet.swap"), capabilityId: "wallet.swap", helpTopicId: "wallet.swap" }),
     node({ id: "wallet.exchange", parentId: "dapps", order: 60, labelKey: "navigation.exchange", iconId: "exchange", target: routeTarget("wallet.exchange"), capabilityId: "wallet.exchange", helpTopicId: "wallet.exchange" }),
     node({ id: "messenger", order: 40, labelKey: "navigation.messenger", iconId: "message", target: branchTarget(), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.inbox" }),
-    node({ id: "messenger.inbox", parentId: "messenger", order: 10, labelKey: "navigation.inbox", iconId: "receive", target: routeTarget("messenger.inbox"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.inbox" }),
-    node({ id: "messenger.sent", parentId: "messenger", order: 20, labelKey: "navigation.sent", iconId: "send", target: routeTarget("messenger.sent"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.sent" }),
+    node({ id: "messenger.inbox", parentId: "messenger", order: 10, labelKey: "navigation.inbox", iconId: "inbox", target: routeTarget("messenger.inbox"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.inbox" }),
+    node({ id: "messenger.sent", parentId: "messenger", order: 20, labelKey: "navigation.sent", iconId: "sent", target: routeTarget("messenger.sent"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.sent" }),
     node({ id: "messenger.conversations", parentId: "messenger", order: 30, labelKey: "navigation.conversations", iconId: "message", target: routeTarget("messenger.conversations"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.conversations" }),
     node({ id: "contacts.list", order: 55, labelKey: "navigation.contacts", iconId: "user", target: routeTarget("contacts.list"), capabilityId: "contacts", helpTopicId: "contacts.list" }),
 
     node({ id: "data-storage", order: 50, labelKey: "navigation.dataStorage", iconId: "storage", target: branchTarget(), helpTopicId: "data-storage.disk-usage" }),
-    node({ id: "data-storage.disk-usage", parentId: "data-storage", order: 10, labelKey: "navigation.diskUsage", iconId: "backup", target: routeTarget("data-storage.disk-usage"), helpTopicId: "data-storage.disk-usage" }),
-    node({ id: "data-storage.network-usage", parentId: "data-storage", order: 20, labelKey: "navigation.networkUsage", iconId: "activity", target: routeTarget("data-storage.network-usage"), helpTopicId: "data-storage.network-usage" }),
+    node({ id: "data-storage.disk-usage", parentId: "data-storage", order: 10, labelKey: "navigation.diskUsage", iconId: "bar-chart", target: routeTarget("data-storage.disk-usage"), helpTopicId: "data-storage.disk-usage" }),
+    node({ id: "data-storage.network-usage", parentId: "data-storage", order: 20, labelKey: "navigation.networkUsage", iconId: "line-chart", target: routeTarget("data-storage.network-usage"), helpTopicId: "data-storage.network-usage" }),
 
     node({ id: "settings", order: 60, labelKey: "navigation.settings", iconId: "settings", target: branchTarget(), helpTopicId: "settings.general" }),
     node({ id: "settings.general", parentId: "settings", order: 10, labelKey: "navigation.general", iconId: "overview", target: routeTarget("settings.general"), helpTopicId: "settings.general" }),

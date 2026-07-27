@@ -1,9 +1,0 @@
-title: "Messenger"
-icon: message
-order:
-  - index
-  - inbox
-  - sent
-  - conversations
-  - detail
-  - request-review

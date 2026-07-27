@@ -1,17 +1,17 @@
 ---
 id: wallet.history
-title: Wallet History
+title: Wallet: History
 route: wallet.history
 scope: context
 ---
 
-# Wallet History
+# Wallet: History
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet History application view](help/assets/en/wallet-history.png)
+![Wallet: History application view](help/assets/en/wallet-history.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

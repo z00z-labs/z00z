@@ -47,8 +47,34 @@ async function selectCanonicalRoute(page, routeId, { mobile = false } = {}) {
   await route.click();
 }
 
-async function mobileSwipe(page, { from, to }) {
-  await page.evaluate(({ from, to }) => {
+async function mobileSwipe(page, { from, to, source = "pointer" }) {
+  await page.evaluate(({ from, to, source }) => {
+    const targetAt = (point) => document.elementFromPoint(point.x, point.y) || document.body;
+    if (source === "touch") {
+      const makeTouch = (point, target) => new Touch({
+        identifier: 71,
+        target,
+        clientX: point.x,
+        clientY: point.y,
+      });
+      const dispatchTouch = (type, point, active) => {
+        const target = targetAt(point);
+        const changedTouch = makeTouch(point, target);
+        const activeTouches = active ? [changedTouch] : [];
+        target.dispatchEvent(new TouchEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          touches: activeTouches,
+          targetTouches: activeTouches,
+          changedTouches: [changedTouch],
+        }));
+      };
+      dispatchTouch("touchstart", from, true);
+      dispatchTouch("touchend", to, false);
+      return;
+    }
+
     const eventInit = (point, buttons) => ({
       bubbles: true,
       cancelable: true,
@@ -61,10 +87,9 @@ async function mobileSwipe(page, { from, to }) {
       clientX: point.x,
       clientY: point.y,
     });
-    const targetAt = (point) => document.elementFromPoint(point.x, point.y) || document.body;
     targetAt(from).dispatchEvent(new PointerEvent("pointerdown", eventInit(from, 1)));
     targetAt(to).dispatchEvent(new PointerEvent("pointerup", eventInit(to, 0)));
-  }, { from, to });
+  }, { from, to, source });
 }
 
 async function expectNoViewportOverflow(page, label = "responsive geometry") {
@@ -237,21 +262,40 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   await page.goto(`${demoUrl}?route=wallet.assets`);
   const desktopSidebarScroll = await page.evaluate(() => {
     const sidebar = document.querySelector(".app-body > .sidebar");
+    const walletViewport = document.querySelector(".wallet-nav-viewport");
+    const walletActions = document.querySelector("#wallet-nav-actions");
+    const scrollRegion = document.querySelector(".sidebar-navigation-scroll-region");
     const terminal = document.querySelector("#app-navigation-terminal");
     const tree = document.querySelector("#app-navigation-tree");
+    const walletTopBefore = walletViewport.getBoundingClientRect().top;
     const terminalTopBefore = terminal.getBoundingClientRect().top;
-    sidebar.scrollTop = sidebar.scrollHeight;
+    scrollRegion.scrollTop = scrollRegion.scrollHeight;
     return {
       sidebarOverflow: getComputedStyle(sidebar).overflowY,
+      walletOverflow: getComputedStyle(walletViewport).overflowY,
+      scrollRegionOverflow: getComputedStyle(scrollRegion).overflowY,
       treeOverflow: getComputedStyle(tree).overflowY,
-      sidebarScrollTop: sidebar.scrollTop,
+      walletIsOutsideScrollRegion: walletViewport.parentElement === sidebar,
+      actionsAreInsideWalletPlaceholder: walletActions.parentElement === walletViewport.firstElementChild,
+      treeIsInsideScrollRegion: tree.parentElement === scrollRegion,
+      terminalIsInsideScrollRegion: terminal.parentElement === scrollRegion,
+      scrollRegionScrollTop: scrollRegion.scrollTop,
+      walletTopBefore,
+      walletTopAfter: walletViewport.getBoundingClientRect().top,
       terminalTopBefore,
       terminalTopAfter: terminal.getBoundingClientRect().top,
     };
   });
-  expect(desktopSidebarScroll.sidebarOverflow).toBe("auto");
+  expect(desktopSidebarScroll.sidebarOverflow).toBe("hidden");
+  expect(desktopSidebarScroll.walletOverflow).toBe("scroll");
+  expect(desktopSidebarScroll.scrollRegionOverflow).toBe("auto");
   expect(desktopSidebarScroll.treeOverflow).toBe("visible");
-  expect(desktopSidebarScroll.sidebarScrollTop).toBeGreaterThan(0);
+  expect(desktopSidebarScroll.walletIsOutsideScrollRegion).toBe(true);
+  expect(desktopSidebarScroll.actionsAreInsideWalletPlaceholder).toBe(true);
+  expect(desktopSidebarScroll.treeIsInsideScrollRegion).toBe(true);
+  expect(desktopSidebarScroll.terminalIsInsideScrollRegion).toBe(true);
+  expect(desktopSidebarScroll.scrollRegionScrollTop).toBeGreaterThan(0);
+  expect(desktopSidebarScroll.walletTopAfter).toBeCloseTo(desktopSidebarScroll.walletTopBefore, 0);
   expect(desktopSidebarScroll.terminalTopAfter).toBeLessThan(desktopSidebarScroll.terminalTopBefore);
 });
 
@@ -303,7 +347,7 @@ test("wallet selectors derive their marker colours from the wallet chain", async
   expect(new Set(desktop.map(({ colour }) => colour)).size).toBe(3);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator("[data-mobile-wallet-picker]").click();
+  await page.locator("#mobile-menu-button").click();
   const mobile = await readMarkers("#mobile-popup-menu .mobile-wallet-choice");
   expect(mobile.map(({ wallet, chain, tone }) => ({ wallet, chain, tone }))).toEqual(expected);
   expect(mobile.map(({ colour }) => colour)).toEqual(desktop.map(({ colour }) => colour));
@@ -312,6 +356,90 @@ test("wallet selectors derive their marker colours from the wallet chain", async
   expect(componentsCss).toMatch(/\.wallet-nav-state\.is-main\s*\{[^}]*--network-mainnet/s);
   expect(componentsCss).toMatch(/\.wallet-nav-state\.is-test\s*\{[^}]*--network-testnet/s);
   expect(componentsCss).toMatch(/\.wallet-nav-state\.is-dev\s*\{[^}]*--network-devnet/s);
+});
+
+test("desktop Wallets keeps its width while its own placeholder scrolls", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const viewport = page.locator(".wallet-nav-viewport");
+  const scrollRegion = page.locator(".sidebar-navigation-scroll-region");
+
+  const snapshot = () => viewport.evaluate((element) => {
+    const card = element.querySelector(".wallet-nav-item");
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    return {
+      viewportWidth: rect.width,
+      clientWidth: element.clientWidth,
+      cardWidth: cardRect.width,
+      cardRight: cardRect.right,
+      viewportRight: rect.right,
+      borderRadius: style.borderRadius,
+      clipPath: style.clipPath,
+      overflowY: style.overflowY,
+      scrollbarGutter: style.scrollbarGutter,
+      scrollWidth: element.scrollWidth,
+      scrollTop: element.scrollTop,
+    };
+  });
+
+  const before = await snapshot();
+  await viewport.hover();
+  const onHover = await snapshot();
+  const walletScrollContract = await viewport.evaluate((element) => {
+    const actions = element.querySelector("#wallet-nav-actions");
+    const viewportRect = element.getBoundingClientRect();
+    element.scrollTop = element.scrollHeight;
+    const actionsRect = actions.getBoundingClientRect();
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+      actionsFullyReachable: actionsRect.top >= viewportRect.top - 1
+        && actionsRect.bottom <= viewportRect.bottom + 1,
+    };
+  });
+  const afterWalletScroll = await snapshot();
+  const scrollContract = await scrollRegion.evaluate((region) => {
+    const before = region.scrollTop;
+    region.scrollTop = region.scrollHeight;
+    return {
+      before,
+      after: region.scrollTop,
+      clientHeight: region.clientHeight,
+      scrollHeight: region.scrollHeight,
+    };
+  });
+  const after = await snapshot();
+
+  expect(before.clipPath).toBe("none");
+  expect(before.borderRadius).toBe("14px");
+  expect(before.overflowY).toBe("scroll");
+  expect(before.scrollbarGutter).toBe("stable");
+  expect(before.scrollWidth).toBeLessThanOrEqual(before.clientWidth);
+  expect(before.scrollTop).toBe(0);
+  expect(onHover).toMatchObject(before);
+  expect(onHover.cardRight).toBeLessThan(onHover.viewportRight);
+  expect(walletScrollContract.scrollHeight).toBeGreaterThan(walletScrollContract.clientHeight);
+  expect(walletScrollContract.scrollTop).toBeGreaterThan(0);
+  expect(walletScrollContract.actionsFullyReachable).toBe(true);
+  expect(afterWalletScroll).toMatchObject({
+    viewportWidth: before.viewportWidth,
+    clientWidth: before.clientWidth,
+    cardWidth: before.cardWidth,
+    cardRight: before.cardRight,
+    viewportRight: before.viewportRight,
+    borderRadius: before.borderRadius,
+    clipPath: before.clipPath,
+    overflowY: before.overflowY,
+    scrollbarGutter: before.scrollbarGutter,
+    scrollWidth: before.scrollWidth,
+  });
+  expect(scrollContract.scrollHeight).toBeGreaterThan(scrollContract.clientHeight);
+  expect(scrollContract.after).toBeGreaterThan(scrollContract.before);
+  expect(afterWalletScroll.cardRight).toBeLessThan(afterWalletScroll.viewportRight);
+  expect(after).toMatchObject(afterWalletScroll);
 });
 
 test("desktop tree keeps root accordions independent and opens sublevels inside the workspace", async ({ page }) => {
@@ -750,6 +878,8 @@ test("Messenger keeps advisory actions local and revalidates payment inside Wall
     if (viewport.mobile) await page.locator("#mobile-menu-button").click();
     await expect(navigation.locator('[data-navigation-branch="messenger"] + .navigation-tree-children > [data-navigation-route^="messenger."]')).toHaveCount(3);
     await expect(navigation.locator('[data-navigation-branch="messenger"] + .navigation-tree-children > [data-navigation-route^="messenger."] .navigation-tree-label')).toHaveText(["Inbox", "Sent", "Conversations"]);
+    await expect(navigation.locator('[data-navigation-route="messenger.inbox"] use')).toHaveAttribute("href", "#i-inbox");
+    await expect(navigation.locator('[data-navigation-route="messenger.sent"] use')).toHaveAttribute("href", "#i-sent");
     await expect(navigation.locator('[data-navigation-branch="messenger"] + .navigation-tree-children [data-navigation-branch]')).toHaveCount(0);
     if (viewport.mobile) await page.keyboard.press("Escape");
 
@@ -974,6 +1104,11 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
     await page.goto(`${demoUrl}?route=data-storage.disk-usage`);
     await expect(page.locator(".data-storage-view")).toContainText("Disk Usage");
     if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    const navigationScope = viewport.mobile
+      ? page.locator('#mobile-popup-menu[data-popup-type="menu"] .mobile-navigation-tree')
+      : page.locator("#app-navigation-tree");
+    await expect(navigationScope.locator('[data-navigation-route="data-storage.disk-usage"] use')).toHaveAttribute("href", "#i-bar-chart");
+    await expect(navigationScope.locator('[data-navigation-route="data-storage.network-usage"] use')).toHaveAttribute("href", "#i-line-chart");
     await selectCanonicalRoute(page, "data-storage.network-usage", { mobile: viewport.mobile });
     await expect(page.locator(".data-storage-view")).toContainText("Network Usage");
 
@@ -993,32 +1128,243 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
   }
 });
 
-test("English Help mirrors the Demo navigation and renders its Markdown App View", async ({ page }) => {
+test("English Help mirrors the Demo navigation and workspace menu", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${demoUrl}?route=wallet.assets`);
   const helpPage = await openStandaloneHelp(page, page.locator("#app-navigation-terminal [data-help-topic]"));
 
-  await expect(helpPage.locator("#help-tree > .help-tree-node")).toHaveCount(9);
+  const appChrome = await page.evaluate(() => ({
+    brandWidth: Math.round(document.querySelector(".desktop-topbar-brand").getBoundingClientRect().width),
+    headerHeight: Math.round(document.querySelector("#primary-topbar").getBoundingClientRect().height),
+  }));
+  const helpChrome = await helpPage.evaluate(() => ({
+    brandWidth: Math.round(document.querySelector(".help-brand").getBoundingClientRect().width),
+    brandRight: Math.round(document.querySelector(".help-brand").getBoundingClientRect().right),
+    headerHeight: Math.round(document.querySelector(".help-site-header").getBoundingClientRect().height),
+    titleLeft: Math.round(document.querySelector("#help-product-label").getBoundingClientRect().left),
+    titleText: document.querySelector("#help-product-label").textContent.trim(),
+  }));
+  expect(helpChrome.headerHeight).toBe(appChrome.headerHeight);
+  expect(helpChrome.brandWidth).toBe(appChrome.brandWidth);
+  expect(helpChrome.titleLeft).toBe(helpChrome.brandRight);
+  expect(helpChrome.titleText).toBe("Help");
+
+  await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
+  await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
   await expect(helpPage.locator(".help-wallet-link")).toHaveCount(0);
-  await expect(helpPage.locator("#help-tree")).not.toContainText("Log out");
-  const wallet = helpPage.locator('[data-help-tree-toggle="wallet"]');
-  await wallet.click();
-  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+  await expect(helpPage.locator("#help-tree")).not.toContainText(/Help|About|Log out/);
+  await expect(helpPage.locator("#help-navigation-terminal")).not.toContainText(/Help|About|Log out/);
+  const navigationParity = await helpPage.evaluate(() => {
+    const excluded = new Set(["help", "about", "logout"]);
+    const terminal = new Set(["settings", "help", "about", "logout"]);
+    const nodes = window.Z00ZDemo.navigationChildren().filter((node) => !excluded.has(node.id));
+    const nodeSnapshot = (node) => ({
+      id: node.dataset.helpNavigationNode,
+      iconId: node.querySelector(":scope > .navigation-tree-item [data-help-navigation-icon], :scope > [data-help-navigation-icon]")
+        ?.querySelector("use")?.getAttribute("href")?.replace("#i-", "") || "",
+      children: [...node.querySelectorAll(":scope > .navigation-tree-children > [data-help-navigation-node]")]
+        .map((child) => child.dataset.helpNavigationNode),
+    });
+    return {
+      actualMain: [...document.querySelectorAll("#help-tree > [data-help-navigation-node]")].map(nodeSnapshot),
+      expectedMain: nodes.filter((node) => !terminal.has(node.id)).map((node) => ({
+        id: node.id,
+        iconId: node.iconId,
+        children: node.target.kind === "branch"
+          ? window.Z00ZDemo.navigationChildren(node.id).map((child) => child.id)
+          : [],
+      })),
+      actualTerminal: [...document.querySelectorAll("#help-navigation-terminal > [data-help-navigation-node]")].map(nodeSnapshot),
+      expectedTerminal: nodes.filter((node) => terminal.has(node.id)).map((node) => ({
+        id: node.id,
+        iconId: node.iconId,
+        children: window.Z00ZDemo.navigationChildren(node.id).map((child) => child.id),
+      })),
+    };
+  });
+  expect(navigationParity.actualMain).toEqual(navigationParity.expectedMain);
+  expect(navigationParity.actualTerminal).toEqual(navigationParity.expectedTerminal);
+  await expect(helpPage.locator('[data-help-navigation-branch="wallet"] use').first()).toHaveAttribute("href", "#i-wallet");
+  await expect(helpPage.locator('[data-help-topic-link="wallet.assets"] use')).toHaveAttribute("href", "#i-assets");
+  await expect(helpPage.locator('[data-help-topic-link="messenger.inbox"] use')).toHaveAttribute("href", "#i-inbox");
+  await expect(helpPage.locator('[data-help-topic-link="messenger.sent"] use')).toHaveAttribute("href", "#i-sent");
+  await expect(helpPage.locator('[data-help-topic-link="data-storage.disk-usage"] use')).toHaveAttribute("href", "#i-bar-chart");
+  await expect(helpPage.locator('[data-help-topic-link="data-storage.network-usage"] use')).toHaveAttribute("href", "#i-line-chart");
+  await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+  await helpPage.locator('[data-help-navigation-branch="telemetry"]').click();
+  await expect(helpPage.locator('[data-help-navigation-branch="telemetry"]')).toHaveAttribute("aria-expanded", "true");
+  await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+  await helpPage.locator('[data-help-navigation-branch="wallet"]').click();
+  await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "false");
+  await expect(helpPage.locator('[data-help-topic-link="wallet.assets"]')).toBeHidden();
+  await expect(helpPage.locator('[data-help-navigation-branch="telemetry"]')).toHaveAttribute("aria-expanded", "true");
+  await helpPage.locator('[data-help-navigation-branch="wallet"]').click();
+  await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
   await helpPage.locator('[data-help-topic-link="wallet.assets"]').click();
-  await expect(helpPage.locator("#help-title")).toHaveText("Wallet Assets");
+  await expect(helpPage.locator("#help-title")).toHaveText("Wallet: Assets");
+  const navigationRowStyle = async (target) => target.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return [
+      styles.display,
+      styles.minHeight,
+      styles.padding,
+      styles.borderRadius,
+      styles.color,
+      styles.backgroundColor,
+      styles.fontFamily,
+      styles.fontSize,
+      styles.fontWeight,
+      styles.textDecorationLine,
+    ];
+  });
+  expect(await navigationRowStyle(helpPage.locator('[data-help-topic-link="wallet.assets"]')))
+    .toEqual(await navigationRowStyle(page.locator('[data-navigation-workspace="wallet.assets-rights"]')));
+  const appWorkspaceMenu = await page.evaluate(() => {
+    const rail = document.querySelector(".wallet-assets-layout > .context-rail");
+    const nav = rail.querySelector(":scope > .context-nav");
+    const styles = getComputedStyle(rail);
+    return {
+      rail: [styles.position, styles.top, styles.padding, styles.borderRadius, styles.backgroundColor, styles.borderTopColor],
+      navClasses: nav.className,
+      items: [...nav.querySelectorAll(":scope > .context-nav-item")].map((item) => ({
+        className: item.className,
+        icon: item.querySelector("use")?.getAttribute("href"),
+        label: item.querySelector("span > strong")?.textContent,
+        hasAppStructure: Boolean(item.querySelector(":scope > .icon + span > strong")),
+      })),
+    };
+  });
+  const helpWorkspaceMenu = await helpPage.evaluate(() => {
+    const rail = document.querySelector(".wallet-assets-layout > .context-rail");
+    const nav = rail.querySelector(":scope > .context-nav");
+    const styles = getComputedStyle(rail);
+    return {
+      rail: [styles.position, styles.top, styles.padding, styles.borderRadius, styles.backgroundColor, styles.borderTopColor],
+      navClasses: nav.className,
+      items: [...nav.querySelectorAll(":scope > .context-nav-item")].map((item) => ({
+        className: item.className,
+        icon: item.querySelector("use")?.getAttribute("href"),
+        label: item.querySelector("span > strong")?.textContent,
+        hasAppStructure: Boolean(item.querySelector(":scope > .icon + span > strong")),
+      })),
+    };
+  });
+  expect(helpWorkspaceMenu).toEqual(appWorkspaceMenu);
+  await expect(helpPage.locator(".wallet-assets-layout [data-wallet-section]")).toHaveCount(3);
+  await expect(helpPage.locator(".wallet-assets-layout [role=tablist]")).toHaveCount(1);
+  await expect(helpPage.locator(".wallet-assets-layout [role=tab][aria-selected=true]")).toHaveCount(1);
+  await expect(helpPage.locator('[data-wallet-section="assets"] use')).toHaveAttribute("href", "#i-assets");
+  await expect(helpPage.locator('[data-wallet-section="vouchers"] use')).toHaveAttribute("href", "#i-voucher");
+  await expect(helpPage.locator('[data-help-context-topic="wallet.send"]')).toHaveCount(0);
+  await helpPage.locator('[data-help-context-topic="wallet.vouchers"]').click();
+  await expect(helpPage.locator("#help-title")).toHaveText("Wallet: Vouchers");
+  await expect(helpPage.locator(".wallet-assets-layout [role=tab][aria-selected=true]")).toHaveCount(1);
+  await expect(helpPage.locator('[data-wallet-section="vouchers"]')).toHaveAttribute("aria-selected", "true");
+  await helpPage.locator('[data-help-context-topic="wallet.assets"]').click();
+  await expect(helpPage.locator("#help-title")).toHaveText("Wallet: Assets");
   await expect(helpPage.locator('#help-document #current-view')).toHaveText("App View");
   await expect(helpPage.locator('#help-document img[src="help/assets/en/wallet-assets.png"]')).toBeVisible();
-  await expect(helpPage.locator("[data-help-language-picker], #help-language")).toHaveCount(0);
-  await expect(helpPage.locator("#help-title")).toHaveText("Wallet Assets");
-  await helpPage.locator("#help-search").fill("Wallet Send");
+  await expect(helpPage.locator("[data-help-language-picker]")).toHaveCount(1);
+  await expect(helpPage.locator("[data-help-language-trigger]")).toContainText("English");
+  await helpPage.locator("[data-help-language-trigger]").click();
+  await helpPage.locator('[data-help-language-option="ru"]').click();
+  await expect(helpPage.locator("html")).toHaveAttribute("lang", "ru");
+  await expect(helpPage.locator("[data-help-language-trigger]")).toContainText("Русский");
+  await expect(helpPage.locator("#help-title")).toHaveText("Активы");
+  await expect(helpPage.locator(".table-of-contents")).toHaveAttribute("aria-label", "Содержание");
+  await expect(helpPage.locator(".table-of-contents")).toHaveAttribute("data-title", "Содержание");
+  await helpPage.locator("#help-search").fill("Отправка");
   await expect(helpPage.locator('[data-help-search-topic="wallet.send"]')).toBeVisible();
 
   await helpPage.setViewportSize({ width: 390, height: 844 });
+  await expect(helpPage.locator("#help-mobile-topbar-context")).toBeVisible();
+  await expect(helpPage.locator("#help-mobile-topbar-context [data-wallet-section]")).toHaveCount(3);
+  await expect(helpPage.locator("#help-mobile-topbar-context [role=tab][aria-selected=true]")).toHaveCount(1);
+  await expect(helpPage.locator(".wallet-assets-layout > .context-rail")).toBeHidden();
   await helpPage.locator("#help-menu-button").click();
-  await helpPage.locator("#help-search").fill("Safety and limits");
-  await expect(helpPage.locator(".help-search-result").first()).toBeVisible();
+  await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+  await expect(helpPage.locator('[data-help-navigation-branch="telemetry"]')).toHaveAttribute("aria-expanded", "true");
+  await helpPage.locator('[data-help-navigation-branch="dapps"]').click();
+  await expect(helpPage.locator('[data-help-navigation-branch="dapps"]')).toHaveAttribute("aria-expanded", "true");
+  await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+  await expect(helpPage.locator("#help-search")).toBeHidden();
+  await expect(helpPage.locator(".help-search-results")).toBeHidden();
   await expectNoViewportOverflow(helpPage);
   await helpPage.close();
+});
+
+test("English Help uses the Demo Reticulum workspace menu without duplicates", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=telemetry.reticulum.overview`);
+  const helpPage = await openStandaloneHelp(page, page.getByRole("button", { name: "Help for this view" }));
+
+  const menuSnapshot = async (target) => target.evaluate(() => {
+    const rail = document.querySelector('[data-workspace-id="telemetry.reticulum"] > .context-rail');
+    const nav = rail.querySelector(":scope > .context-nav");
+    const styles = getComputedStyle(rail);
+    return {
+      rail: [styles.position, styles.top, styles.padding, styles.borderRadius, styles.backgroundColor, styles.borderTopColor],
+      navClasses: nav.className,
+      items: [...nav.querySelectorAll(":scope > .context-nav-item")].map((item) => ({
+        className: item.className,
+        icon: item.querySelector("use")?.getAttribute("href"),
+        label: item.querySelector("span > strong")?.textContent,
+        hasAppStructure: Boolean(item.querySelector(":scope > .icon + span > strong")),
+      })),
+    };
+  });
+  expect(await menuSnapshot(helpPage)).toEqual(await menuSnapshot(page));
+  await expect(helpPage.locator('[data-workspace-id="telemetry.reticulum"] .context-nav')).toHaveCount(1);
+  await expect(helpPage.locator('[data-workspace-id="telemetry.reticulum"] [data-workspace-route]')).toHaveCount(8);
+  await helpPage.locator('[data-help-context-topic="telemetry.reticulum.node"]').click();
+  await expect(helpPage.locator("#help-title")).toHaveText("Telemetry Reticulum: Node");
+
+  await helpPage.setViewportSize({ width: 390, height: 844 });
+  await expect(helpPage.locator("#help-mobile-topbar-context")).toBeVisible();
+  await expect(helpPage.locator("#help-mobile-topbar-context [data-workspace-route]")).toHaveCount(8);
+  await expect(helpPage.locator('[data-workspace-id="telemetry.reticulum"] > .context-rail')).toBeHidden();
+  await expectNoViewportOverflow(helpPage);
+  await helpPage.close();
+});
+
+test("English Help uses the Demo wallet settings menu in its main view", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.settings.general`);
+  const helpPage = await openStandaloneHelp(page, page.getByRole("button", { name: "Help for this view" }));
+
+  const menuSnapshot = async (target) => target.evaluate(() => {
+    const rail = document.querySelector(".wallet-settings-view .settings-layout > .context-rail");
+    const nav = rail.querySelector(":scope > .context-nav");
+    const styles = getComputedStyle(rail);
+    return {
+      rail: [styles.position, styles.top, styles.padding, styles.borderRadius, styles.backgroundColor, styles.borderTopColor],
+      navClasses: nav.className,
+      items: [...nav.querySelectorAll(":scope > .context-nav-item")].map((item) => ({
+        className: item.className,
+        icon: item.querySelector("use")?.getAttribute("href"),
+        label: item.querySelector("span > strong")?.textContent,
+        hasAppStructure: Boolean(item.querySelector(":scope > .icon + span > strong")),
+      })),
+    };
+  });
+  expect(await menuSnapshot(helpPage)).toEqual(await menuSnapshot(page));
+  await expect(helpPage.locator(".wallet-settings-view .settings-layout [data-wallet-settings-section]")).toHaveCount(5);
+  await helpPage.locator('[data-help-context-topic="wallet.settings.security"]').click();
+  await expect(helpPage.locator("#help-title")).toHaveText("Wallet Settings: Security");
+  await helpPage.close();
+});
+
+test("Help follows the App language and resolves the matching localized catalogue", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(new URL("help.html?lang=ru&topic=wallet.send", demoUrl).toString());
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  await expect(page.locator("#help-title")).toHaveText("Отправка");
+  await expect(page.locator("[data-help-language-trigger]")).toContainText("Русский");
+  await expect(page.locator('[data-help-navigation-branch="wallet"]')).toContainText("Кошелёк");
+  await expect(page.locator('[data-help-topic-link="wallet.assets"]')).toContainText("Активы");
+  await expect(page.locator('#help-document #current-view')).toHaveText("Экран приложения");
+  await expect(page.locator('#help-document img[src="help/assets/en/wallet-send.png"]')).toBeVisible();
 });
 
 test("Help renders Website Markdown enhancements without a network dependency", async ({ page }) => {
@@ -1075,6 +1421,23 @@ test("Help renders Website Markdown enhancements without a network dependency", 
   await expect(page).toHaveURL(/#fixture-heading$/);
   await expect(fixture.locator(".mermaid svg")).toHaveCount(1);
   await expect(fixture.locator(".mermaid")).toHaveAttribute("data-mermaid-rendered", "true");
+  const frame = fixture.locator(".mermaid-panzoom-frame");
+  const diagram = frame.locator("svg");
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveAttribute("role", "region");
+  await expect(frame).toHaveAttribute("tabindex", "0");
+  await expect(frame).toHaveAttribute("aria-keyshortcuts", /ArrowLeft/);
+  await frame.focus();
+  const initialTransform = await diagram.evaluate((element) => element.style.transform);
+  await page.keyboard.press("Equal");
+  await expect.poll(() => diagram.evaluate((element) => element.style.transform)).not.toBe(initialTransform);
+  const zoomedTransform = await diagram.evaluate((element) => element.style.transform);
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => diagram.evaluate((element) => element.style.transform)).not.toBe(zoomedTransform);
+  await page.keyboard.press("Minus");
+  await expect.poll(() => diagram.evaluate((element) => element.style.transform)).not.toBe(zoomedTransform);
+  await page.keyboard.press("0");
+  await expect.poll(() => diagram.evaluate((element) => element.style.transform)).toBe(initialTransform);
 });
 
 test("all popup menus use the main canvas surface on desktop and mobile", async ({ page }) => {
@@ -1122,11 +1485,8 @@ test("all popup menus use the main canvas surface on desktop and mobile", async 
   await page.locator("#mobile-menu-button").click();
   const mobileDrawerColors = await popupColors("#mobile-popup-menu");
   expect(mobileDrawerColors.popup).toBe(mobileDrawerColors.canvas);
-  await page.locator("#mobile-menu-button").click();
-
-  await page.locator("[data-mobile-wallet-picker]").click();
-  const mobileWalletPickerColors = await popupColors('#mobile-popup-menu[data-popup-type="wallets"]');
-  expect(mobileWalletPickerColors.popup).toBe(mobileWalletPickerColors.canvas);
+  const mobileWalletSelectorColors = await popupColors("#mobile-popup-menu .mobile-wallet-selector");
+  expect(mobileWalletSelectorColors.popup).toBe(mobileWalletSelectorColors.canvas);
   await page.keyboard.press("Escape");
 
   await page.goto(new URL("help.html", demoUrl).toString());
@@ -1136,15 +1496,17 @@ test("all popup menus use the main canvas surface on desktop and mobile", async 
   await expectNoViewportOverflow(page);
 });
 
-test("mobile active wallet shows its bound chain beside the address", async ({ page }) => {
+test("mobile active wallet keeps Copy above its bound chain and does not open a picker", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${demoUrl}?route=wallet.assets`);
 
-  await expect(page.locator(".mobile-active-wallet-address-row .environment-tag.is-main")).toHaveText("Mainnet");
-  await expect(page.locator(".mobile-active-wallet-address-row .environment-tag")).toBeVisible();
+  const mobileWallet = page.locator("#mobile-active-wallet");
+  await expect(mobileWallet.locator(".mobile-active-wallet-copy")).toBeVisible();
+  await expect(mobileWallet.locator(".mobile-active-wallet-actions .environment-tag.is-main")).toHaveText("Mainnet");
+  await expect(mobileWallet.locator("[data-mobile-wallet-picker]")).toHaveCount(0);
 });
 
-test("Help tree preserves the Demo's nested navigation on mobile", async ({ page }) => {
+test("Help does not invent a workspace menu for the Demo's DApp view on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${demoUrl}?route=dapps.discover`);
   const helpPage = await openStandaloneHelp(page, page.getByRole("button", { name: "Help for this view" }));
@@ -1152,13 +1514,13 @@ test("Help tree preserves the Demo's nested navigation on mobile", async ({ page
 
   await expect(helpPage.locator("#help-sidebar")).not.toHaveClass(/is-open/);
   await helpPage.locator("#help-menu-button").click();
-  const dapps = helpPage.locator('[data-help-tree-toggle="dapps"]');
-  await expect(dapps).toHaveAttribute("aria-expanded", "true");
+  await expect(helpPage.locator('[data-help-navigation-branch="dapps"]')).toHaveAttribute("aria-expanded", "true");
   await expect(helpPage.locator('[data-help-topic-link="dapps.discover"]')).toBeVisible();
-  await expect(helpPage.locator('[data-help-topic-link="wallet.swap"]')).toHaveCount(1);
-  await dapps.click();
-  await expect(dapps).toHaveAttribute("aria-expanded", "false");
-  await helpPage.locator("#help-sidebar-close").click();
+  await helpPage.locator('[data-help-topic-link="dapps.installed"]').click();
+  await expect(helpPage.locator("#help-title")).toHaveText("dApps: Installed");
+  await expect(helpPage.locator("#help-sidebar")).not.toHaveClass(/is-open/);
+  await expect(helpPage.locator(".workspace-layout > .context-rail")).toHaveCount(0);
+  await expect(helpPage.locator("#help-mobile-topbar-context")).toBeHidden();
   await expectNoViewportOverflow(helpPage);
   await helpPage.close();
 });
@@ -1185,6 +1547,8 @@ test("context navigation stays vertical on desktop and uses a second mobile topb
   await expect(mobileRail).toBeHidden();
   await expect(mobileTopbarContext).toBeVisible();
   await expect(mobileTabs).toHaveCount(3);
+  await expect(mobileTopbarContext.locator("[role=tablist]")).toHaveCount(1);
+  await expect(mobileTopbarContext.locator("[role=tab][aria-selected=true]")).toHaveCount(1);
   await expect(mobileWalletIdentity).toBeVisible();
   await expect(mobileWalletIdentity).toContainText("ZxChpo…2Mj8Pt");
   await expect(mobileWalletIdentity).toContainText("Everyday wallet");
@@ -1216,9 +1580,15 @@ test("context navigation stays vertical on desktop and uses a second mobile topb
     expect(tab.bottom).toBeLessThanOrEqual(mobileGeometry.topbarBottom);
   }
 
+  const longPressIsSuppressed = await mobileTabs.filter({ hasText: "Permissions" }).evaluate((tab) => !tab.dispatchEvent(
+    new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+  ));
+  expect(longPressIsSuppressed).toBe(true);
   await mobileTabs.filter({ hasText: "Vouchers" }).click();
   await expect(page.locator(".claim-row")).toHaveCount(8);
   await expect(mobileTopbarContext.locator('[data-wallet-section="vouchers"]')).toHaveAttribute("aria-current", "page");
+  await expect(mobileTopbarContext.locator('[role=tab][aria-selected=true]')).toHaveCount(1);
+  await expect(mobileTopbarContext.locator('[data-wallet-section="vouchers"]')).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('#app-navigation-tree [data-navigation-route="wallet.vouchers"]')).toHaveCount(0);
   await expectNoViewportOverflow(page);
 
@@ -1250,8 +1620,8 @@ test("context navigation stays vertical on desktop and uses a second mobile topb
   expect(compactTopbar.topbarHeight).toBeLessThanOrEqual(59);
   expect(compactTopbar.walletTop).toBe(0);
   expect(compactTopbar.walletHeight).toBe(58);
-  await mobileWalletIdentity.locator("[data-mobile-wallet-picker]").click();
-  await page.locator('#mobile-popup-menu[data-popup-type="wallets"] [data-mobile-wallet-id="savings"]').click();
+  await page.locator("#mobile-menu-button").click();
+  await page.locator('#mobile-popup-menu[data-popup-type="menu"] [data-mobile-wallet-id="savings"]').click();
   await expect(mobileWalletIdentity).toContainText("ZxR5vK…8Ee1Qm");
   await expect(mobileWalletIdentity).toContainText("Savings wallet");
 
@@ -1703,7 +2073,11 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
   await expect(drawer).toBeVisible();
   await expect(drawer.locator(".mobile-navigation-scroll-region")).toBeVisible();
-  await expect(drawer.locator(".mobile-wallet-picker")).toHaveCount(0);
+  const walletSelector = drawer.locator(".mobile-wallet-selector");
+  await expect(walletSelector).toBeVisible();
+  await expect(walletSelector.locator('[data-mobile-wallet-action="add-wallet"]')).toBeVisible();
+  await expect(walletSelector.locator('[data-mobile-wallet-action="remove-wallet"]')).toBeVisible();
+  await expect(walletSelector.locator(".mobile-wallet-choice.is-active")).toBeVisible();
   await expect(drawer.locator('[data-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
   const telemetry = drawer.locator('[data-navigation-branch="telemetry"]');
   await expect(telemetry).toHaveAttribute("aria-expanded", "false");
@@ -1728,15 +2102,28 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   if (await dapps.getAttribute("aria-expanded") === "false") await dapps.click();
   const terminal = drawer.locator(".mobile-navigation-terminal");
   const mobileScrollContract = await drawer.evaluate((drawerElement) => {
+    const walletSelector = drawerElement.querySelector(".mobile-wallet-selector");
+    const walletList = drawerElement.querySelector(".mobile-wallet-list");
     const region = drawerElement.querySelector(".mobile-navigation-scroll-region");
     const tree = drawerElement.querySelector(".mobile-navigation-tree");
     const terminal = region.querySelector(".mobile-navigation-terminal");
     const regionRect = region.getBoundingClientRect();
+    const selectorRect = walletSelector?.getBoundingClientRect();
+    const activeWalletRect = walletSelector?.querySelector(".mobile-wallet-choice.is-active")?.getBoundingClientRect();
     region.scrollTop = region.scrollHeight;
     const terminalRect = terminal?.getBoundingClientRect();
+    const selectorAfterScroll = walletSelector?.getBoundingClientRect();
     return {
       terminalIsInsideScrollRegion: terminal?.parentElement === region,
       treeIsInsideScrollRegion: tree?.parentElement === region,
+      walletIsFixedOutsideScrollRegion: walletSelector?.parentElement === drawerElement,
+      walletListOverflow: getComputedStyle(walletList).overflowY,
+      walletListDoesNotOverflow: walletList.scrollHeight <= walletList.clientHeight + 1,
+      activeWalletFullyVisible: Boolean(selectorRect && activeWalletRect
+        && activeWalletRect.top >= selectorRect.top - 1
+        && activeWalletRect.bottom <= selectorRect.bottom + 1),
+      walletStayedFixed: Boolean(selectorRect && selectorAfterScroll
+        && Math.abs(selectorRect.top - selectorAfterScroll.top) <= 1),
       clientHeight: region.clientHeight,
       scrollHeight: region.scrollHeight,
       scrollTop: region.scrollTop,
@@ -1747,6 +2134,11 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   });
   expect(mobileScrollContract.terminalIsInsideScrollRegion).toBe(true);
   expect(mobileScrollContract.treeIsInsideScrollRegion).toBe(true);
+  expect(mobileScrollContract.walletIsFixedOutsideScrollRegion).toBe(true);
+  expect(mobileScrollContract.walletListOverflow).toBe("visible");
+  expect(mobileScrollContract.walletListDoesNotOverflow).toBe(true);
+  expect(mobileScrollContract.activeWalletFullyVisible).toBe(true);
+  expect(mobileScrollContract.walletStayedFixed).toBe(true);
   expect(mobileScrollContract.scrollHeight).toBeGreaterThan(mobileScrollContract.clientHeight);
   expect(mobileScrollContract.scrollTop).toBeGreaterThan(0);
   expect(mobileScrollContract.terminalFullyReachable).toBe(true);
@@ -1774,35 +2166,29 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
 
-  const walletPickerTrigger = page.locator("[data-mobile-wallet-picker]");
-  await walletPickerTrigger.click();
-  const walletPicker = page.locator('#mobile-popup-menu[data-popup-type="wallets"]');
-  await expect(walletPicker).toBeVisible();
-  await expect(walletPicker.locator(".mobile-wallet-list")).toBeVisible();
-  await expect(walletPicker.locator('[data-mobile-wallet-action="add-wallet"]')).toBeVisible();
-  await expect(walletPicker.locator('[data-mobile-wallet-action="remove-wallet"]')).toBeVisible();
-  await expect(walletPicker.locator(".mobile-wallet-choice.is-active")).toBeVisible();
-  const walletPopupContract = await walletPicker.evaluate((popup) => {
-    const list = popup.querySelector(".mobile-wallet-list");
-    const actions = popup.querySelector(".mobile-wallet-actions");
-    const popupRect = popup.getBoundingClientRect();
+  await page.locator("#mobile-menu-button").click();
+  await expect(walletSelector).toBeVisible();
+  const walletSelectorContract = await walletSelector.evaluate((selector) => {
+    const list = selector.querySelector(".mobile-wallet-list");
+    const actions = selector.querySelector(".mobile-wallet-actions");
+    const drawer = selector.parentElement;
     const listRect = list.getBoundingClientRect();
     const actionRect = actions.getBoundingClientRect();
     return {
-      isSeparatePopup: popup.dataset.popupType === "wallets",
-      listOwnsScroll: getComputedStyle(list).overflowY,
+      isInsideMenu: drawer?.dataset.popupType === "menu",
+      listOverflow: getComputedStyle(list).overflowY,
+      listDoesNotOverflow: list.scrollHeight <= list.clientHeight + 1,
       actionsFollowList: actionRect.top >= listRect.bottom - 1,
-      popupFitsViewport: popupRect.left >= 0 && popupRect.right <= innerWidth,
     };
   });
-  expect(walletPopupContract).toEqual({
-    isSeparatePopup: true,
-    listOwnsScroll: "auto",
+  expect(walletSelectorContract).toEqual({
+    isInsideMenu: true,
+    listOverflow: "visible",
+    listDoesNotOverflow: true,
     actionsFollowList: true,
-    popupFitsViewport: true,
   });
-  await walletPicker.locator('[data-mobile-wallet-action="add-wallet"]').click();
-  await expect(walletPicker).toBeHidden();
+  await walletSelector.locator('[data-mobile-wallet-action="add-wallet"]').click();
+  await expect(drawer).toBeHidden();
   await expect(page.locator("#flow-dialog")).toBeVisible();
   await page.locator("#flow-dialog [data-dialog-close]").first().click();
   await expect(page.locator("#flow-dialog")).toBeHidden();
@@ -1817,21 +2203,19 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
 test("mobile profile selection, Help, and drawer focus are independent of desktop navigation", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${demoUrl}?route=wallet.assets`);
-  await page.locator("[data-mobile-wallet-picker]").click();
-  const walletPicker = page.locator('#mobile-popup-menu[data-popup-type="wallets"]');
-  await walletPicker.locator('[data-mobile-wallet-id="travel"]').click();
-  await expect(walletPicker).toBeHidden();
-  await expect(page.locator("#wallet-identity")).toContainText("Travel");
-
-  const walletPickerTrigger = page.locator("[data-mobile-wallet-picker]");
-  await walletPickerTrigger.click();
-  await expect(walletPicker.locator("[data-mobile-popup-close]")).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(walletPicker).toBeHidden();
-  await expect(walletPickerTrigger).toBeFocused();
-
   await page.locator("#mobile-menu-button").click();
   const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+  await drawer.locator('[data-mobile-wallet-id="travel"]').click();
+  await expect(drawer).toBeHidden();
+  await expect(page.locator("#wallet-identity")).toContainText("Travel");
+
+  await page.locator("#mobile-menu-button").click();
+  await expect(drawer.locator("[data-mobile-popup-close]")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+  await expect(page.locator("#mobile-menu-button")).toBeFocused();
+
+  await page.locator("#mobile-menu-button").click();
   await expect(page.locator("#app-body")).toHaveJSProperty("inert", true);
   await expect(drawer.locator("[data-mobile-popup-close]")).toBeFocused();
   await page.keyboard.press("Shift+Tab");
@@ -1852,10 +2236,170 @@ test("mobile profile selection, Help, and drawer focus are independent of deskto
   const helpPage = await openStandaloneHelp(page, drawer.getByRole("button", { name: "Help", exact: true }));
   await helpPage.setViewportSize({ width: 390, height: 844 });
   await expect(helpPage.locator("#help-document")).toBeVisible();
-  await expect(helpPage.locator("#help-tree > .help-tree-node")).toHaveCount(9);
+  await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
+  await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
   await expect(helpPage.locator(".help-wallet-link")).toHaveCount(0);
   await helpPage.close();
   await expect(drawer).toBeHidden();
+  await expectNoViewportOverflow(page);
+});
+
+test("mobile Help reuses the App drawer shell, topbar positions, and interaction contract", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+
+  const mobileShellSnapshot = (selectors) => {
+    const rectangle = (element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    };
+    const drawer = document.querySelector(selectors.drawer);
+    const drawerHeader = drawer.querySelector(selectors.drawerHeader);
+    const navigation = drawer.querySelector(selectors.navigation);
+    const terminal = drawer.querySelector(selectors.terminal);
+    const context = document.querySelector(selectors.context);
+    const itemSnapshot = (item) => ({
+      label: item.textContent.trim(),
+      rect: rectangle(item),
+    });
+    return {
+      leading: rectangle(document.querySelector(selectors.leading)),
+      identity: rectangle(document.querySelector(selectors.identity)),
+      context: rectangle(context),
+      contextItems: [...context.querySelectorAll(":scope > .context-nav > .context-nav-item")].map(itemSnapshot),
+      drawer: rectangle(drawer),
+      drawerHeader: rectangle(drawerHeader),
+      drawerHeaderPadding: getComputedStyle(drawerHeader).padding,
+      drawerBackground: getComputedStyle(drawer).backgroundColor,
+      navigationLabels: [...navigation.children].map((node) => node.querySelector(".navigation-tree-label")?.textContent.trim()),
+      terminalLabels: [...terminal.querySelectorAll(":scope > .navigation-tree-branch > .navigation-tree-item, :scope > .navigation-tree-item")]
+        .map((node) => node.textContent.trim()),
+    };
+  };
+
+  await page.locator("#mobile-menu-button").click();
+  await expect(page.locator("#mobile-popup-menu [data-mobile-popup-close]")).toBeFocused();
+  await page.waitForTimeout(250);
+  const appShell = await page.evaluate(mobileShellSnapshot, {
+    leading: ".mobile-navigation-leading",
+    identity: "#mobile-active-wallet",
+    context: "#mobile-topbar-context",
+    drawer: '#mobile-popup-menu[data-popup-type="menu"]',
+    drawerHeader: ".mobile-drawer-header",
+    navigation: ".mobile-navigation-tree",
+    terminal: ".mobile-navigation-terminal",
+  });
+
+  await page.goto(new URL("help.html?topic=wallet.assets&lang=en", demoUrl).toString());
+  await expect(page.locator("#help-sidebar")).toBeHidden();
+  await expect(page.locator("#help-product-label")).toBeHidden();
+  await expect(page.locator("#help-mobile-topbar-context")).toBeVisible();
+  await expect(page.locator("#help-search")).toBeHidden();
+
+  const helpTopbar = await page.evaluate((selectors) => {
+    const rectangle = (element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    };
+    return {
+      leading: rectangle(document.querySelector(selectors.leading)),
+      identity: rectangle(document.querySelector(selectors.identity)),
+      context: rectangle(document.querySelector(selectors.context)),
+      contextItems: [...document.querySelectorAll(`${selectors.context} > .context-nav > .context-nav-item`)].map((item) => ({
+        label: item.textContent.trim(),
+        rect: rectangle(item),
+      })),
+    };
+  }, {
+    leading: ".help-navigation-leading",
+    identity: ".help-header-language",
+    context: "#help-mobile-topbar-context",
+  });
+  expect(helpTopbar).toEqual({
+    leading: appShell.leading,
+    identity: appShell.identity,
+    context: appShell.context,
+    contextItems: appShell.contextItems,
+  });
+
+  await page.locator('[data-help-context-topic="wallet.vouchers"]').click();
+  await expect(page.locator("#help-title")).toHaveText("Wallet: Vouchers");
+  await expect(page.locator('#help-mobile-topbar-context [data-wallet-section="vouchers"]')).toHaveAttribute("aria-current", "page");
+
+  await page.locator("#help-menu-button").click();
+  const helpDrawer = page.locator('#help-sidebar[data-popup-type="menu"]');
+  await expect(helpDrawer).toBeVisible();
+  await expect(helpDrawer.locator("[data-mobile-popup-close]")).toBeFocused();
+  await expect(page.locator("#help-main")).toHaveJSProperty("inert", true);
+  await expect(helpDrawer.locator(".mobile-wallet-selector")).toHaveCount(0);
+  await expect(helpDrawer.locator(".help-search")).toBeHidden();
+  await expect(helpDrawer.locator(".mobile-navigation-scroll-region")).toBeVisible();
+  await expect(helpDrawer.locator(".mobile-navigation-terminal")).toContainText("Settings");
+  await expect(helpDrawer.locator(".mobile-navigation-terminal")).toContainText("Version 0.1.0");
+  await expect(helpDrawer.locator(".help-navigation-scroll-region")).not.toContainText(/Help|About|Log out/);
+  await page.waitForTimeout(250);
+
+  const helpShell = await page.evaluate(mobileShellSnapshot, {
+    leading: ".help-navigation-leading",
+    identity: ".help-header-language",
+    context: "#help-mobile-topbar-context",
+    drawer: '#help-sidebar[data-popup-type="menu"]',
+    drawerHeader: ".mobile-drawer-header",
+    navigation: ".mobile-navigation-tree",
+    terminal: ".mobile-navigation-terminal",
+  });
+  expect(helpShell.drawer).toEqual(appShell.drawer);
+  expect(helpShell.drawerHeader).toEqual(appShell.drawerHeader);
+  expect(helpShell.drawerHeaderPadding).toBe(appShell.drawerHeaderPadding);
+  expect(helpShell.drawerBackground).toBe(appShell.drawerBackground);
+  expect(helpShell.navigationLabels).toEqual(appShell.navigationLabels);
+  expect(helpShell.terminalLabels).toEqual(["Settings"]);
+  await expect(helpDrawer.locator(".help-mobile-menu-title")).toHaveText("Menu");
+
+  const wallet = helpDrawer.locator('[data-help-navigation-branch="wallet"]');
+  const telemetry = helpDrawer.locator('[data-help-navigation-branch="telemetry"]');
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+  await telemetry.click();
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+  await wallet.click();
+  await expect(wallet).toHaveAttribute("aria-expanded", "false");
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await wallet.click();
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await helpDrawer.locator("[data-mobile-popup-close]").focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(helpDrawer.locator('[data-help-navigation-branch="settings"]')).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(helpDrawer.locator("[data-mobile-popup-close]")).toBeFocused();
+  await page.locator("#help-sidebar-backdrop").click({ position: { x: 380, y: 400 } });
+  await expect(helpDrawer).toBeHidden();
+  await expect(page.locator("#help-main")).toHaveJSProperty("inert", false);
+  await expect(page.locator("#help-menu-button")).toBeFocused();
+
+  await mobileSwipe(page, { from: { x: 28, y: 280 }, to: { x: 112, y: 280 }, source: "touch" });
+  await expect(helpDrawer).toBeVisible();
+  await page.waitForTimeout(250);
+  await mobileSwipe(page, { from: { x: 260, y: 340 }, to: { x: 126, y: 340 }, source: "touch" });
+  await expect(helpDrawer).toBeHidden();
+
+  await page.locator("#help-menu-button").click();
+  await helpDrawer.locator('[data-help-topic-link="wallet.assets"]').click();
+  await expect(helpDrawer).toBeHidden();
+  await expect(page.locator("#help-title")).toHaveText("Wallet: Assets");
+  await expect(page).toHaveURL(/topic=wallet\.assets/);
   await expectNoViewportOverflow(page);
 });
 
@@ -1865,15 +2409,15 @@ test("mobile edge swipe supplements the Menu button without hijacking vertical s
   const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
   const menuButton = page.locator("#mobile-menu-button");
 
-  await mobileSwipe(page, { from: { x: 6, y: 280 }, to: { x: 22, y: 430 } });
+  await mobileSwipe(page, { from: { x: 28, y: 280 }, to: { x: 44, y: 430 }, source: "touch" });
   await expect(drawer).toBeHidden();
 
-  await mobileSwipe(page, { from: { x: 6, y: 280 }, to: { x: 112, y: 280 } });
+  await mobileSwipe(page, { from: { x: 28, y: 280 }, to: { x: 112, y: 280 }, source: "touch" });
   await expect(drawer).toBeVisible();
   await expect(menuButton).toHaveAttribute("aria-expanded", "true");
   await page.waitForTimeout(250);
 
-  await mobileSwipe(page, { from: { x: 260, y: 340 }, to: { x: 126, y: 340 } });
+  await mobileSwipe(page, { from: { x: 260, y: 340 }, to: { x: 126, y: 340 }, source: "touch" });
   await expect(drawer).toBeHidden();
   await expect(menuButton).toHaveAttribute("aria-expanded", "false");
 
@@ -1892,7 +2436,7 @@ test("mobile contextual Help opens the matching Markdown page without a second H
   await helpPage.setViewportSize({ width: 390, height: 844 });
 
   await expect(helpPage).toHaveURL(/topic=wallet\.assets/);
-  await expect(helpPage.locator("#help-title")).toHaveText("Wallet Assets");
+  await expect(helpPage.locator("#help-title")).toHaveText("Wallet: Assets");
   await expect(helpPage.locator('#help-document img[src="help/assets/en/wallet-assets.png"]')).toBeVisible();
   await expect(helpPage.locator("#help-sidebar")).not.toHaveClass(/is-open/);
   await expect(helpPage.locator("#help-menu-button")).toHaveAttribute("aria-expanded", "false");
@@ -1900,7 +2444,7 @@ test("mobile contextual Help opens the matching Markdown page without a second H
   await helpPage.close();
 });
 
-test("standalone Help tree keeps Demo root branches independently open", async ({ page }) => {
+test("standalone Help keeps the Demo branch structure without fabricating workspace navigation", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${demoUrl}?route=dapps.discover`);
   const helpPage = await openStandaloneHelp(
@@ -1909,16 +2453,11 @@ test("standalone Help tree keeps Demo root branches independently open", async (
   );
   await helpPage.setViewportSize({ width: 1280, height: 800 });
 
-  const wallet = helpPage.locator('[data-help-tree-toggle="wallet"]');
-  const telemetry = helpPage.locator('[data-help-tree-toggle="telemetry"]');
-  await wallet.click();
-  await telemetry.click();
-  await expect(wallet).toHaveAttribute("aria-expanded", "true");
-  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
-  await wallet.click();
-  await expect(wallet).toHaveAttribute("aria-expanded", "false");
-  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
+  await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
+  await expect(helpPage.locator('[data-help-navigation-branch="dapps"]')).toHaveAttribute("aria-expanded", "true");
   await expect(helpPage.locator('[data-help-topic-link="dapps.discover"]')).toBeVisible();
+  await expect(helpPage.locator(".workspace-layout > .context-rail")).toHaveCount(0);
   await helpPage.close();
 });
 

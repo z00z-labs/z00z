@@ -1,17 +1,17 @@
 ---
 id: telemetry.aggregators.ingress
-title: Telemetry Aggregators Ingress
+title: Telemetry Aggregators: Ingress
 route: telemetry.aggregators.ingress
 scope: context
 ---
 
-# Telemetry Aggregators Ingress
+# Telemetry Aggregators: Ingress
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Aggregators Ingress application view](help/assets/en/telemetry-aggregators-ingress.png)
+![Telemetry Aggregators: Ingress application view](help/assets/en/telemetry-aggregators-ingress.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

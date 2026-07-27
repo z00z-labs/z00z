@@ -1,17 +1,17 @@
 ---
 id: messenger.inbox
-title: Messenger Inbox
+title: Messenger: Inbox
 route: messenger.inbox
 scope: context
 ---
 
-# Messenger Inbox
+# Messenger: Inbox
 
 [TOC]
 
 ## App View {#current-view}
 
-![Messenger Inbox application view](help/assets/en/messenger-inbox.png)
+![Messenger: Inbox application view](help/assets/en/messenger-inbox.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,8 +13,13 @@ import { WEBSITE_MARKDOWN_PIPELINE } from "./help/website-markdown-pipeline.mjs"
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const rendererPath = resolve(scriptDirectory, "help/website-markdown.ts");
 const pipelineSnapshotPath = resolve(scriptDirectory, "help/website-markdown-pipeline.mjs");
-const upstreamPath = resolve(scriptDirectory, "../../../../../../z00z-website/src/lib/content/markdown.ts");
-const upstreamPipelinePath = resolve(scriptDirectory, "../../../../../../z00z-website/config/content-pipeline.yaml");
+const upstreamPath = resolve(scriptDirectory, "../../../../../z00z-website/src/lib/content/markdown.ts");
+const upstreamPipelinePath = resolve(scriptDirectory, "../../../../../z00z-website/config/content-pipeline.yaml");
+const upstreamRoot = resolve(scriptDirectory, "../../../../../z00z-website");
+const upstreamContentRoot = resolve(upstreamRoot, "content");
+const upstreamCorpusWorker = resolve(scriptDirectory, "help/upstream-markdown-corpus-worker.mjs");
+const demoPackageLockPath = resolve(scriptDirectory, "../package-lock.json");
+const upstreamPackageLockPath = resolve(upstreamRoot, "package-lock.json");
 const fixturePath = "help/en/app/index.md";
 const rendererSource = await readFile(rendererPath, "utf8");
 const pipelineSnapshot = await readFile(pipelineSnapshotPath, "utf8");
@@ -52,6 +58,53 @@ for (const [name, enabled] of Object.entries(MARKDOWN_PIPELINE.markdown)) {
 assert.deepEqual(MARKDOWN_PIPELINE.markdown, WEBSITE_MARKDOWN_PIPELINE);
 assert.equal(MARKDOWN_PIPELINE.markdown.include, false);
 assert.equal(MARKDOWN_PIPELINE.markdown.snippet, false);
+
+if (existsSync(upstreamPackageLockPath)) {
+  const demoPackageLock = JSON.parse(await readFile(demoPackageLockPath, "utf8"));
+  const upstreamPackageLock = JSON.parse(await readFile(upstreamPackageLockPath, "utf8"));
+  const runtimePackages = [
+    "@mdit-vue/plugin-toc",
+    "@mdit/plugin-abbr",
+    "@mdit/plugin-alert",
+    "@mdit/plugin-align",
+    "@mdit/plugin-anchor",
+    "@mdit/plugin-attrs",
+    "@mdit/plugin-container",
+    "@mdit/plugin-dl",
+    "@mdit/plugin-embed",
+    "@mdit/plugin-figure",
+    "@mdit/plugin-footnote",
+    "@mdit/plugin-img-lazyload",
+    "@mdit/plugin-img-size",
+    "@mdit/plugin-include",
+    "@mdit/plugin-ins",
+    "@mdit/plugin-katex",
+    "@mdit/plugin-mark",
+    "@mdit/plugin-snippet",
+    "@mdit/plugin-spoiler",
+    "@mdit/plugin-stylize",
+    "@mdit/plugin-sub",
+    "@mdit/plugin-sup",
+    "@mdit/plugin-tab",
+    "@mdit/plugin-tasklist",
+    "@mdit/plugin-uml",
+    "@panzoom/panzoom",
+    "cheerio",
+    "highlight.js",
+    "katex",
+    "markdown-it",
+    "markdown-it-collapsible",
+    "mermaid",
+  ];
+  for (const packageName of runtimePackages) {
+    const lockKey = `node_modules/${packageName}`;
+    assert.equal(
+      demoPackageLock.packages[lockKey]?.version,
+      upstreamPackageLock.packages[lockKey]?.version,
+      `${packageName} must use the same installed version as z00z-website.`,
+    );
+  }
+}
 
 const rendered = renderHelpMarkdown(`
 # Extension matrix
@@ -149,5 +202,50 @@ assert.match(rendered, /<code class="hljs language-js">/u);
 assert.match(rendered, /href="https:\/\/z00z\.io" target="_blank" rel="noopener noreferrer"/u);
 assert.match(rendered, /href="\.\/send\.md"/u);
 assert.doesNotMatch(rendered, /<script>|javascript:/iu);
+
+async function listMarkdownFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) return listMarkdownFiles(path);
+    return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
+  }));
+  return nested.flat().sort();
+}
+
+function withoutFrontmatter(source) {
+  return source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, "");
+}
+
+if (existsSync(upstreamContentRoot)) {
+  const localCorpusHashes = {};
+  for (const filePath of await listMarkdownFiles(upstreamContentRoot)) {
+    const source = withoutFrontmatter(await readFile(filePath, "utf8"));
+    const html = renderHelpMarkdown(source, filePath);
+    assert.doesNotMatch(html, /<script\b|javascript:/iu, `Unsafe output in ${filePath}`);
+    localCorpusHashes[filePath.slice(upstreamRoot.length + 1)] = createHash("sha256").update(html).digest("hex");
+  }
+
+  const upstreamRun = spawnSync(
+    process.execPath,
+    [
+      "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+      "--experimental-strip-types",
+      "--import",
+      resolve(upstreamRoot, "scripts/test-module-alias-loader-register.mjs"),
+      upstreamCorpusWorker,
+    ],
+    {
+      cwd: upstreamRoot,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
+  assert.equal(upstreamRun.status, 0, upstreamRun.stderr || "Website corpus renderer failed.");
+  const upstreamCorpusHashes = JSON.parse(upstreamRun.stdout);
+  assert.deepEqual(localCorpusHashes, upstreamCorpusHashes);
+  assert.ok(Object.keys(localCorpusHashes).length >= 100, "Expected the full Website Markdown corpus.");
+  console.log(`Website Markdown corpus parity passed for ${Object.keys(localCorpusHashes).length} files.`);
+}
 
 console.log("Website Markdown parser and extension parity contract passed.");

@@ -15,8 +15,11 @@
     return "";
   }
 
-  function resolveDocument(_language, topicId) {
-    return catalogue.catalogues.en[topicId] || null;
+  function resolveDocument(language, topicId) {
+    const resolvedLanguage = root.Z00ZI18n?.resolveLanguage(language) || "en";
+    return catalogue.catalogues[resolvedLanguage]?.[topicId]
+      || catalogue.catalogues.en[topicId]
+      || null;
   }
 
   root.Z00ZHelpRegistry = Object.freeze({

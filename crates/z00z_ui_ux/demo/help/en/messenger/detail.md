@@ -1,17 +1,17 @@
 ---
 id: messenger.detail
-title: Messenger Detail
+title: Messenger: Detail
 route: none
 scope: dialog
 ---
 
-# Messenger Detail
+# Messenger: Detail
 
 [TOC]
 
 ## App View {#current-view}
 
-![Messenger Detail application view](help/assets/en/messenger-detail.png)
+![Messenger: Detail application view](help/assets/en/messenger-detail.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -53,7 +53,7 @@ assert.deepEqual(
   [
     "scripts/port/locale-registry.js",
     "i18n.js",
-    "locales/en.js",
+    ...localeRegistry.map(({ catalogue }) => catalogue),
     "locales/navigation.js",
     "scripts/port/contracts.js",
     "scripts/port/navigation-model.js",

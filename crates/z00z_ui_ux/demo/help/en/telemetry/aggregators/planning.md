@@ -1,17 +1,17 @@
 ---
 id: telemetry.aggregators.planning
-title: Telemetry Aggregators Planning
+title: Telemetry Aggregators: Planning
 route: telemetry.aggregators.planning
 scope: context
 ---
 
-# Telemetry Aggregators Planning
+# Telemetry Aggregators: Planning
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Aggregators Planning application view](help/assets/en/telemetry-aggregators-planning.png)
+![Telemetry Aggregators: Planning application view](help/assets/en/telemetry-aggregators-planning.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -1,17 +1,17 @@
 ---
 id: wallet.assets
-title: Wallet Assets
+title: Wallet: Assets
 route: wallet.assets
 scope: context
 ---
 
-# Wallet Assets
+# Wallet: Assets
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Assets application view](help/assets/en/wallet-assets.png)
+![Wallet: Assets application view](help/assets/en/wallet-assets.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

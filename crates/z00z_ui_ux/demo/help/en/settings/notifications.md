@@ -1,17 +1,17 @@
 ---
 id: settings.notifications
-title: Settings Notifications
+title: Settings: Notifications
 route: settings.notifications
 scope: context
 ---
 
-# Settings Notifications
+# Settings: Notifications
 
 [TOC]
 
 ## App View {#current-view}
 
-![Settings Notifications application view](help/assets/en/settings-notifications.png)
+![Settings: Notifications application view](help/assets/en/settings-notifications.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

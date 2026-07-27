@@ -1,9 +1,0 @@
-title: "Telemetry"
-icon: network
-order:
-  - index
-  - reticulum
-  - onionnet
-  - aggregators
-  - watchers
-  - explorer

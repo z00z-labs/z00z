@@ -1,17 +1,17 @@
 ---
 id: telemetry.onionnet.ingress
-title: Telemetry Onionnet Ingress
+title: Telemetry OnionNet: Ingress
 route: telemetry.onionnet.ingress
 scope: context
 ---
 
-# Telemetry Onionnet Ingress
+# Telemetry OnionNet: Ingress
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Onionnet Ingress application view](help/assets/en/telemetry-onionnet-ingress.png)
+![Telemetry OnionNet: Ingress application view](help/assets/en/telemetry-onionnet-ingress.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { helpRecords, pageFile } from "./navigation-contract.mjs";
+import { helpRecords, helpTitle, pageFile } from "./navigation-contract.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "../..");
@@ -11,6 +11,7 @@ const manifestPath = resolve(demoRoot, "help/topics.yaml");
 function serializeRecord(record) {
   return [
     `  - id: ${record.id}`,
+    `    title: ${helpTitle(record.id)}`,
     `    file: ${pageFile(record)}`,
     `    label_key: ${record.labelKey}`,
     `    route: ${record.routeId || "none"}`,

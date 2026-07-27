@@ -1,17 +1,17 @@
 ---
 id: telemetry.reticulum.links
-title: Telemetry Reticulum Links
+title: Telemetry Reticulum: Links
 route: telemetry.reticulum.links
 scope: context
 ---
 
-# Telemetry Reticulum Links
+# Telemetry Reticulum: Links
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Reticulum Links application view](help/assets/en/telemetry-reticulum-links.png)
+![Telemetry Reticulum: Links application view](help/assets/en/telemetry-reticulum-links.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

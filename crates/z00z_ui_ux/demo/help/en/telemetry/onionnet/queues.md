@@ -1,17 +1,17 @@
 ---
 id: telemetry.onionnet.queues
-title: Telemetry Onionnet Queues
+title: Telemetry OnionNet: Queues
 route: telemetry.onionnet.queues
 scope: context
 ---
 
-# Telemetry Onionnet Queues
+# Telemetry OnionNet: Queues
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Onionnet Queues application view](help/assets/en/telemetry-onionnet-queues.png)
+![Telemetry OnionNet: Queues application view](help/assets/en/telemetry-onionnet-queues.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

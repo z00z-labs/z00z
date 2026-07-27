@@ -1,17 +1,17 @@
 ---
 id: telemetry.watchers.publication
-title: Telemetry Watchers Publication
+title: Telemetry Watchers: Publication
 route: telemetry.watchers.publication
 scope: context
 ---
 
-# Telemetry Watchers Publication
+# Telemetry Watchers: Publication
 
 [TOC]
 
 ## App View {#current-view}
 
-![Telemetry Watchers Publication application view](help/assets/en/telemetry-watchers-publication.png)
+![Telemetry Watchers: Publication application view](help/assets/en/telemetry-watchers-publication.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

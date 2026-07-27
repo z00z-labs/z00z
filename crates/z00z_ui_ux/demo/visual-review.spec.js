@@ -77,11 +77,6 @@ async function selectAppLanguage(page, languageId) {
   await page.locator(`[data-language-picker-option="${languageId}"]`).click();
 }
 
-async function selectHelpLanguage(page, languageId) {
-  await page.locator("#help-language").click();
-  await page.locator(`[data-help-language-option="${languageId}"]`).click();
-}
-
 async function settleMainAnimations(page) {
   await page.locator("#main-content").evaluate((main) => (
     Promise.all(main.getAnimations({ subtree: true })
@@ -190,7 +185,7 @@ async function auditResponsiveGeometry(page, viewport, route) {
   }, { viewportName: viewport.name, routeName: route.name });
 }
 
-test("capture multilingual Help and compact-layout review matrix", async ({ page }) => {
+test("capture Demo layouts and English Help review matrix", async ({ page }) => {
   await mkdir(reviewRoot, { recursive: true });
   const reviewRoutes = allReviewRoutes(await loadPortContract());
   const layoutAudit = [];
@@ -458,12 +453,6 @@ test("capture multilingual Help and compact-layout review matrix", async ({ page
         await page.goto(`${demoUrl}?view=settings&settings=general`);
         await selectAppLanguage(page, locale);
         await capture(page, `${viewport.name}-locale-${locale}`);
-        await captureHelp(
-          page,
-          page.locator(".context-help-button"),
-          viewport,
-          `${viewport.name}-locale-${locale}-context-help`,
-        );
       }
     }
 
@@ -688,26 +677,35 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
         .map((animation) => animation.finished)
     ));
     const result = await helpPage.evaluate(({ viewportName, stateName }) => {
-      const rootGroups = [...document.querySelectorAll("[data-help-group]")];
-      const tabs = document.querySelector("#help-context-tabs");
-      const tabRows = tabs && !tabs.hidden
-        ? [...tabs.querySelectorAll("[data-help-context-topic]")].map((tab) => Math.round(tab.getBoundingClientRect().top))
-        : [];
+      const rootNodes = [...document.querySelectorAll("#help-tree > [data-help-navigation-node]")];
+      const terminalNodes = [...document.querySelectorAll("#help-navigation-terminal > [data-help-navigation-node]")];
+      const activeLinks = [...document.querySelectorAll('#help-tree [data-help-topic-link][aria-current="page"]')];
+      const articleImages = [...document.querySelectorAll("#help-document img")]
+        .filter((image) => image.getBoundingClientRect().width > 0);
+      const languageControlCount = document.querySelectorAll("[data-help-language-picker]").length;
+      const treeText = `${document.querySelector("#help-tree")?.textContent || ""} ${document.querySelector("#help-navigation-terminal")?.textContent || ""}`;
       return {
         viewport: viewportName,
         state: stateName,
         documentWidth: document.documentElement.scrollWidth,
         viewportWidth: window.innerWidth,
         logoVisible: document.querySelector(".help-brand img")?.getBoundingClientRect().width > 0,
-        rootGroupCount: rootGroups.length,
-        nestedGroupCount: document.querySelectorAll(".help-tree-items [data-help-group]").length,
-        tabRowCount: new Set(tabRows).size,
+        rootNodeCount: rootNodes.length,
+        terminalNodeCount: terminalNodes.length,
+        nestedBranchCount: document.querySelectorAll("#help-tree .navigation-tree-children").length,
+        activeLinkCount: activeLinks.length,
+        articleImageCount: articleImages.length,
+        languageControlCount,
         issues: [
           ...(document.documentElement.scrollWidth > window.innerWidth + 1 ? ["viewport-overflow"] : []),
-          ...(rootGroups.length !== 8 ? ["root-group-count"] : []),
-          ...(document.querySelectorAll(".help-tree-items [data-help-group]").length ? ["nested-accordion"] : []),
+          ...(rootNodes.length !== 6 ? ["root-node-count"] : []),
+          ...(terminalNodes.length !== 1 ? ["terminal-node-count"] : []),
+          ...(document.querySelectorAll("#help-tree .navigation-tree-children").length !== 5 ? ["branch-tree-count"] : []),
+          ...(activeLinks.length > 1 ? ["multiple-active-links"] : []),
+          ...(articleImages.length !== 1 ? ["app-view-image-count"] : []),
+          ...(languageControlCount !== 1 ? ["language-control-missing"] : []),
+          ...(/\b(?:Help|About|Log out)\b/.test(treeText) ? ["excluded-navigation-present"] : []),
           ...(!document.querySelector(".help-brand img")?.getBoundingClientRect().width ? ["logo-hidden"] : []),
-          ...(window.innerWidth <= 1023 && tabRows.length > 1 && new Set(tabRows).size !== 1 ? ["tabs-not-horizontal"] : []),
         ],
       };
     }, { viewportName: viewport.name, stateName: name });
@@ -722,61 +720,57 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto(`${demoUrl}?route=dapps.discover`);
     const helpPage = await openHelp(page.locator(".context-help-button"), viewport);
-    await expect(helpPage.locator(".help-language-icon")).toBeVisible();
-    await expect(helpPage.locator(".help-language-icon use")).toHaveAttribute("href", "#i-language");
-    await expect(helpPage.locator("#help-language-label")).toHaveClass(/visually-hidden/);
+    await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
+    await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
+    await expect(helpPage.locator("[data-help-language-picker]")).toHaveCount(1);
+    await expect(helpPage.locator("#help-tree")).not.toContainText(/Help|About|Log out/);
+    await expect(helpPage.locator("#help-navigation-terminal")).not.toContainText(/Help|About|Log out/);
     await reviewHelp(helpPage, viewport, "dapps-local-navigation");
 
     if (viewport.width <= 768) await helpPage.locator("#help-menu-button").click();
-    const appGroup = helpPage.locator('[data-help-group="app"]');
-    if (await appGroup.getAttribute("aria-expanded") !== "true") await appGroup.click();
-    await expect(helpPage.locator('[data-help-topic-link="about"]')).toBeVisible();
-    await expect(helpPage.locator('[data-help-topic-link^="help."]')).toHaveCount(5);
-    await reviewHelp(helpPage, viewport, "root-articles-tree");
-    await helpPage.locator('[data-help-topic-link="help.how-to"]').click();
-    await expect(helpPage.locator("#help-title")).toHaveText("How to use the demo");
-    await reviewHelp(helpPage, viewport, "root-article-how-to");
+    for (const branchId of ["wallet", "telemetry", "dapps"]) {
+      const branch = helpPage.locator(`[data-help-navigation-branch="${branchId}"]`);
+      if (await branch.getAttribute("aria-expanded") !== "true") await branch.click();
+    }
+    await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+    await expect(helpPage.locator('[data-help-navigation-branch="telemetry"]')).toHaveAttribute("aria-expanded", "true");
+    await expect(helpPage.locator('[data-help-navigation-branch="dapps"]')).toHaveAttribute("aria-expanded", "true");
+    await reviewHelp(helpPage, viewport, "tree-multi-open");
+    await helpPage.locator('[data-help-navigation-branch="telemetry"]').click();
+    await expect(helpPage.locator('[data-help-navigation-branch="telemetry"]')).toHaveAttribute("aria-expanded", "false");
+    await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+    await reviewHelp(helpPage, viewport, "tree-one-of-two-closed");
+    await helpPage.locator('[data-help-topic-link="wallet.assets"]').click();
+    await expect(helpPage.locator("#help-title")).toHaveText("Wallet: Assets");
+    await expect(helpPage.locator("#current-view")).toHaveText("App View");
+    await expect(helpPage.locator('img[src="help/assets/en/wallet-assets.png"]')).toBeVisible();
+    await expect(helpPage.locator('[data-help-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+    const contextualMenu = viewport.width <= 768
+      ? helpPage.locator("#help-mobile-topbar-context")
+      : helpPage.locator(".wallet-assets-layout > .context-rail");
+    await expect(contextualMenu.locator('[data-wallet-section="assets"]')).toBeVisible();
+    await expect(contextualMenu.locator('[data-wallet-section="vouchers"]')).toBeVisible();
+    await expect(contextualMenu.locator('[data-help-context-topic="wallet.send"]')).toHaveCount(0);
+    await reviewHelp(helpPage, viewport, "wallet-assets");
 
     if (viewport.width <= 768) {
       await helpPage.locator("#help-menu-button").click();
-      const wallet = helpPage.locator('[data-help-group="wallets"]');
-      const telemetry = helpPage.locator('[data-help-group="telemetry"]');
-      await wallet.click();
-      await telemetry.click();
-      await wallet.click();
-      await expect(wallet).toHaveAttribute("aria-expanded", "false");
-      await expect(telemetry).toHaveAttribute("aria-expanded", "true");
-      await reviewHelp(helpPage, viewport, "drawer-one-of-two-closed");
+      await expect(helpPage.locator("#help-search")).toBeHidden();
+      await expect(helpPage.locator(".help-mobile-menu-title")).toHaveText("Menu");
+      await expect(helpPage.locator(".mobile-wallet-selector")).toHaveCount(0);
+      await reviewHelp(helpPage, viewport, "app-menu-parity");
     } else {
-      const wallet = helpPage.locator('[data-help-group="wallets"]');
-      const telemetry = helpPage.locator('[data-help-group="telemetry"]');
-      await wallet.click();
-      await telemetry.click();
-      await expect(wallet).toHaveAttribute("aria-expanded", "true");
-      await expect(telemetry).toHaveAttribute("aria-expanded", "true");
-      await reviewHelp(helpPage, viewport, "tree-multi-open");
-    }
-
-    await helpPage.locator("#help-search").fill("public evidence");
-    await expect(helpPage.locator(".help-search-result").first()).toBeVisible();
-    await reviewHelp(helpPage, viewport, "search-results");
-    await helpPage.locator("#help-search-clear").click();
-
-    if (viewport.width === 320) {
-      if (await helpPage.locator("#help-sidebar").evaluate((sidebar) => sidebar.classList.contains("is-open"))) {
-        await helpPage.locator("#help-sidebar-close").click();
-      }
-      for (const locale of ["ru", "fr", "de", "es", "pt", "ko", "tr", "ja", "zh-Hans"]) {
-        await selectHelpLanguage(helpPage, locale);
-        await reviewHelp(helpPage, viewport, `locale-${locale}`);
-      }
+      await helpPage.locator("#help-search").fill("Safety and limits");
+      await expect(helpPage.locator(".help-search-result").first()).toBeVisible();
+      await reviewHelp(helpPage, viewport, "search-results");
+      await helpPage.locator("#help-search-clear").click();
     }
     await helpPage.close();
 
     await page.goto(`${demoUrl}?route=telemetry.watchers.alerts`);
     await page.locator("[data-watcher-alert]").first().click();
     const watcherHelp = await openHelp(page.locator(".context-help-button"), viewport);
-    await expect(watcherHelp.locator("#help-title")).toContainText(viewport.width <= 768 ? /Watchers|Наблюд|Observ/ : "Watchers");
+    await expect(watcherHelp.locator("#help-title")).toHaveText("Telemetry Watchers: Alert Detail");
     await reviewHelp(watcherHelp, viewport, "watcher-alert-detail");
     await watcherHelp.close();
 
@@ -784,6 +778,7 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
     await page.locator('[data-contact="contact_ops"] [data-contact-action="open"]').click();
     await page.locator('[data-contact-action="identity-review"]').click();
     const contactHelp = await openHelp(page.locator(".context-help-button"), viewport);
+    await expect(contactHelp.locator("#help-title")).toHaveText("Contacts: Identity Review");
     await reviewHelp(contactHelp, viewport, "contact-identity-review");
     await contactHelp.close();
   }

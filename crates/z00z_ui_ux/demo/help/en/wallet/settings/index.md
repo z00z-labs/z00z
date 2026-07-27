@@ -1,17 +1,17 @@
 ---
 id: wallet.settings.general
-title: Wallet Settings General
+title: Wallet Settings: General
 route: wallet.settings.general
 scope: context
 ---
 
-# Wallet Settings General
+# Wallet Settings: General
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Settings General application view](help/assets/en/wallet-settings-general.png)
+![Wallet Settings: General application view](help/assets/en/wallet-settings-general.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 
