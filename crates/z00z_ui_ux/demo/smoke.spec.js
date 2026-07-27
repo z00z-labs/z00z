@@ -299,6 +299,59 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   expect(desktopSidebarScroll.terminalTopAfter).toBeLessThan(desktopSidebarScroll.terminalTopBefore);
 });
 
+test("wallet picker comparison keeps Variant 1 intact and exposes Variant 2 on desktop and mobile", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 390, height: 844, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+
+    if (viewport.mobile) {
+      await page.locator("#mobile-menu-button").click();
+      await expect(page.locator("#mobile-popup-menu .mobile-wallet-selector")).toBeVisible();
+      await expect(page.locator("#mobile-popup-menu .mobile-wallet-choice")).toHaveCount(3);
+      await page.locator("#mobile-menu-backdrop").click();
+    } else {
+      await expect(page.locator(".sidebar-label")).toBeVisible();
+      await expect(page.locator(".wallet-nav-viewport")).toBeVisible();
+      await expect(page.locator("#wallet-nav [data-wallet-id]")).toHaveCount(3);
+    }
+
+    await page.goto(`${demoUrl}?route=wallet.assets&walletPicker=popup`);
+    if (viewport.mobile) {
+      await page.locator("#mobile-menu-button").click();
+      await expect(page.locator("#mobile-popup-menu .mobile-wallet-selector")).toHaveCount(0);
+      await page.locator("#mobile-menu-backdrop").click();
+      await page.locator("#mobile-active-wallet [data-wallet-picker-trigger]").click();
+      await expect(page.locator('#mobile-popup-menu[data-popup-type="wallet-picker"]')).toBeVisible();
+      await expect(page.locator("#mobile-popup-menu .wallet-picker-choice")).toHaveCount(3);
+      await expect(page.locator("#mobile-popup-menu .wallet-picker-actions [data-wallet-picker-action]")).toHaveCount(2);
+      await page.locator('#mobile-popup-menu [data-wallet-picker-id="savings"]').click();
+      await expect(page.locator("#mobile-active-wallet")).toContainText("Savings wallet");
+      await expect(page.locator("#mobile-popup-menu")).toBeHidden();
+      await page.locator("#mobile-active-wallet [data-wallet-picker-trigger]").click();
+      await page.locator('#mobile-popup-menu [data-wallet-picker-action="remove-wallet"]').click();
+      await expect(page.locator("#dialog-title")).toHaveText("Remove wallet profiles");
+      await page.keyboard.press("Escape");
+    } else {
+      await expect(page.locator(".sidebar-label")).toBeHidden();
+      await expect(page.locator(".wallet-nav-viewport")).toBeHidden();
+      await page.locator("#wallet-identity [data-wallet-picker-trigger]").click();
+      await expect(page.locator("#wallet-picker-popup")).toBeVisible();
+      await expect(page.locator("#wallet-picker-popup .wallet-picker-choice")).toHaveCount(3);
+      await expect(page.locator("#wallet-picker-popup .wallet-picker-actions [data-wallet-picker-action]")).toHaveCount(2);
+      await page.locator('#wallet-picker-popup [data-wallet-picker-id="savings"]').click();
+      await expect(page.locator("#wallet-identity")).toContainText("Savings wallet");
+      await expect(page.locator("#wallet-picker-popup")).toBeHidden();
+      await page.locator("#wallet-identity [data-wallet-picker-trigger]").click();
+      await page.locator('#wallet-picker-popup [data-wallet-picker-action="add-wallet"]').click();
+      await expect(page.locator("#dialog-title")).toHaveText("Add wallet");
+      await page.keyboard.press("Escape");
+    }
+  }
+});
+
 test("wallet selectors derive their marker colours from the wallet chain", async ({ page }) => {
   const expectedDefaults = [
     { wallet: "everyday", chain: "mainnet", tone: "is-main" },

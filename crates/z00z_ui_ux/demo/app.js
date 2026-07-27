@@ -8,6 +8,8 @@ const mobileTopbarContext = document.querySelector("#mobile-topbar-context");
 const mobileActiveWallet = document.querySelector("#mobile-active-wallet");
 const routeBreadcrumb = document.querySelector("#route-breadcrumb");
 const walletNav = document.querySelector("#wallet-nav");
+const walletNavViewport = document.querySelector(".wallet-nav-viewport");
+const sidebarWalletsLabel = document.querySelector(".sidebar-label");
 const navigationTree = document.querySelector("#app-navigation-tree");
 const navigationTerminal = document.querySelector("#app-navigation-terminal");
 const walletIdentity = document.querySelector("#wallet-identity");
@@ -16,9 +18,12 @@ const lockWalletLabel = document.querySelector("#lock-wallet-label");
 const mobileMenuButton = document.querySelector("#mobile-menu-button");
 const mobileMenuBackdrop = document.querySelector("#mobile-menu-backdrop");
 const mobilePopupMenu = document.querySelector("#mobile-popup-menu");
+const walletPickerPopup = document.querySelector("#wallet-picker-popup");
 const appBody = document.querySelector("#app-body");
+const walletPickerVariant = new URLSearchParams(window.location.search).get("walletPicker") === "popup" ? "popup" : "inline";
 let mobilePopupType = "";
 let mobilePopupTrigger = null;
+let desktopWalletPickerTrigger = null;
 let mobileNavigationLayout = window.matchMedia("(max-width: 768px)").matches;
 const mobileDrawerSwipe = {
   pointerId: null,
@@ -809,17 +814,45 @@ function renderNavigationTree() {
     + `<p class="app-version">Version ${escapeHtml(demoRuntime.APP_VERSION)}</p>`;
 }
 
+function usesWalletPickerPopup() {
+  return walletPickerVariant === "popup";
+}
+
+function walletPickerListMarkup() {
+  return `<div class="wallet-picker-list">${state.wallets.map((wallet) => {
+    const chain = walletChain(wallet.chainId);
+    return `<button class="wallet-picker-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-wallet-picker-id="${escapeHtml(wallet.id)}" data-wallet-chain="${escapeHtml(chain.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}>
+      <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span>
+      <span class="wallet-picker-copy"><strong>${escapeHtml(wallet.name)}</strong><small>${t("walletShell.balanceAvailable", { value: `<span class="mono">${sensitive(`${wallet.summary.available} Z00Z`)}</span>` })}</small></span>
+      <span class="wallet-nav-state is-${escapeHtml(chain.tone)}" role="img" aria-label="${escapeHtml(chain.label)}"></span>
+    </button>`;
+  }).join("")}</div>`;
+}
+
+function walletPickerPopupMarkup() {
+  return `<header class="wallet-picker-header">
+    <strong>${escapeHtml(t("app.wallets"))}</strong>
+    <button class="mobile-popup-icon" type="button" data-wallet-picker-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button>
+  </header>
+  ${walletPickerListMarkup()}
+  <div class="wallet-picker-actions">
+    <button class="wallet-picker-action nav-item nav-item-primary" type="button" data-wallet-picker-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
+    <button class="wallet-picker-action nav-item nav-item-danger" type="button" data-wallet-picker-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
+  </div>`;
+}
+
 function mobileNavigationDrawerMarkup() {
   const rootNodes = demoRuntime.navigationChildren();
-  return `<header class="mobile-popup-header mobile-drawer-header"><strong>${escapeHtml(t("app.menu"))}</strong><button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button></header>
-    <section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
+  const walletSelector = usesWalletPickerPopup() ? "" : `<section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
       <p>${escapeHtml(t("app.wallets"))}</p>
       ${mobileWalletListMarkup()}
       <div class="mobile-wallet-actions">
         <button class="mobile-wallet-action nav-item nav-item-primary" type="button" data-mobile-wallet-action="add-wallet">${icon("plus")}<span>${escapeHtml(t("app.addWallet"))}</span></button>
         <button class="mobile-wallet-action nav-item nav-item-danger" type="button" data-mobile-wallet-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${escapeHtml(t("app.removeWallet"))}</span></button>
       </div>
-    </section>
+    </section>`;
+  return `<header class="mobile-popup-header mobile-drawer-header"><strong>${escapeHtml(t("app.menu"))}</strong><button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button></header>
+    ${walletSelector}
     <div class="mobile-navigation-scroll-region">
       <nav class="mobile-navigation-tree" aria-label="${escapeHtml(t("app.menu"))}">
       ${rootNodes.filter((node) => !["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-navigation" })).join("")}
@@ -841,6 +874,10 @@ function mobileWalletListMarkup() {
 function renderWalletShell() {
   const wallet = activeWallet();
   const summary = wallet.summary;
+  const popupPicker = usesWalletPickerPopup();
+  appShell.dataset.walletPickerVariant = walletPickerVariant;
+  sidebarWalletsLabel.hidden = popupPicker;
+  walletNavViewport.hidden = popupPicker;
   walletNav.innerHTML = `${state.wallets.map((entry) => {
     const chain = walletChain(entry.chainId);
     return `
@@ -856,18 +893,16 @@ function renderWalletShell() {
     </div>`;
   const walletName = wallet.name;
   const copyLabel = t("walletShell.copyAddress", { wallet: walletName });
-  walletIdentity.innerHTML = `
-    <div class="wallet-identity-heading">
-      <div class="wallet-identity-address-row">
-        <strong class="wallet-identity-address" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</strong>
-        <button class="icon-button wallet-identity-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button>
-      </div>
-      <div class="wallet-identity-meta">
-        <p class="wallet-identity-name">${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))}</p>
-        ${walletChainBadgeMarkup(wallet.chainId)}
-      </div>
+  const walletIdentityDetails = `<div class="wallet-identity-address-row">
+      <strong class="wallet-identity-address" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</strong>
     </div>
-  `;
+    <div class="wallet-identity-meta">
+      <p class="wallet-identity-name">${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))}</p>
+      ${walletChainBadgeMarkup(wallet.chainId)}
+    </div>`;
+  walletIdentity.innerHTML = popupPicker
+    ? `<div class="wallet-identity-heading"><button class="wallet-picker-trigger wallet-identity-select" type="button" data-wallet-picker-trigger aria-haspopup="dialog" aria-expanded="false" aria-controls="wallet-picker-popup">${walletIdentityDetails}</button><button class="icon-button wallet-identity-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button></div>`
+    : `<div class="wallet-identity-heading">${walletIdentityDetails}<button class="icon-button wallet-identity-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button></div>`;
   walletIdentity.setAttribute("aria-label", t("walletShell.identityAria", { wallet: walletName }));
   lockWalletLabel.innerHTML = `${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))} <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
   renderNavigationTree();
@@ -888,12 +923,14 @@ function renderMobileActiveWallet(wallet) {
     return;
   }
   const copyLabel = t("walletShell.copyAddress", { wallet: wallet.name });
+  const mobileWalletDetails = `<div class="mobile-active-wallet-address-row">
+      <span class="mobile-active-wallet-address mono" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</span>
+    </div>
+    <span class="mobile-active-wallet-name">${escapeHtml(t("walletShell.lockLabel", { wallet: wallet.name }))}</span>`;
   mobileActiveWallet.innerHTML = `
-    <div class="mobile-active-wallet-details">
-      <div class="mobile-active-wallet-address-row">
-        <span class="mobile-active-wallet-address mono" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</span>
-      </div>
-      <span class="mobile-active-wallet-name">${escapeHtml(t("walletShell.lockLabel", { wallet: wallet.name }))}</span>
+    <div class="mobile-active-wallet-details">${usesWalletPickerPopup()
+      ? `<button class="wallet-picker-trigger mobile-active-wallet-select" type="button" data-wallet-picker-trigger aria-haspopup="dialog" aria-expanded="false" aria-controls="mobile-popup-menu">${mobileWalletDetails}</button>`
+      : mobileWalletDetails}
     </div>
     <div class="mobile-active-wallet-actions">
       <button class="icon-button mobile-active-wallet-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button>
@@ -1684,6 +1721,17 @@ function isMobileNavigation() {
   return window.matchMedia("(max-width: 768px)").matches;
 }
 
+function closeDesktopWalletPicker({ restoreFocus = false } = {}) {
+  if (!walletPickerPopup || walletPickerPopup.hidden) return;
+  const trigger = desktopWalletPickerTrigger;
+  walletPickerPopup.hidden = true;
+  walletPickerPopup.replaceChildren();
+  walletPickerPopup.removeAttribute("style");
+  desktopWalletPickerTrigger = null;
+  trigger?.setAttribute("aria-expanded", "false");
+  if (restoreFocus && trigger?.isConnected) trigger.focus();
+}
+
 function closeMobilePopup({ restoreFocus = false } = {}) {
   if (!mobilePopupMenu || mobilePopupMenu.hidden) return;
   const trigger = mobilePopupTrigger;
@@ -1703,6 +1751,86 @@ function closeMobilePopup({ restoreFocus = false } = {}) {
   if (restoreFocus && trigger?.isConnected) trigger.focus();
 }
 
+function openDesktopWalletPicker(trigger) {
+  if (!usesWalletPickerPopup()) return;
+  if (!walletPickerPopup.hidden && desktopWalletPickerTrigger === trigger) {
+    closeDesktopWalletPicker({ restoreFocus: true });
+    return;
+  }
+  closeDesktopWalletPicker();
+  closeMobilePopup();
+  desktopWalletPickerTrigger = trigger;
+  walletPickerPopup.innerHTML = walletPickerPopupMarkup();
+  walletPickerPopup.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => {
+    const triggerRect = trigger.getBoundingClientRect();
+    const anchorRect = trigger.closest("#wallet-identity")?.getBoundingClientRect() || triggerRect;
+    const viewportPadding = 12;
+    const width = Math.min(Math.max(anchorRect.width, 262), 360, window.innerWidth - viewportPadding * 2);
+    const left = Math.max(viewportPadding, Math.min(anchorRect.left, window.innerWidth - width - viewportPadding));
+    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+    const spaceAbove = triggerRect.top - viewportPadding;
+    const popupHeight = Math.min(walletPickerPopup.scrollHeight, 420);
+    const opensUpward = spaceBelow < Math.min(popupHeight, 240) && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(168, opensUpward ? spaceAbove : spaceBelow);
+    walletPickerPopup.style.left = `${Math.round(left)}px`;
+    walletPickerPopup.style.width = `${Math.round(width)}px`;
+    walletPickerPopup.style.maxHeight = `${Math.floor(availableHeight)}px`;
+    if (opensUpward) {
+      walletPickerPopup.style.top = "auto";
+      walletPickerPopup.style.bottom = `${Math.max(viewportPadding, Math.round(window.innerHeight - triggerRect.top + 8))}px`;
+    } else {
+      walletPickerPopup.style.top = `${Math.round(triggerRect.bottom + 8)}px`;
+      walletPickerPopup.style.bottom = "auto";
+    }
+    walletPickerPopup.querySelector(".wallet-picker-choice.is-active")?.focus();
+  });
+}
+
+function openMobileWalletPicker(trigger) {
+  if (!isMobileNavigation() || !usesWalletPickerPopup()) return;
+  if (!mobilePopupMenu.hidden && mobilePopupType === "wallet-picker" && mobilePopupTrigger === trigger) {
+    closeMobilePopup({ restoreFocus: true });
+    return;
+  }
+  if (!mobilePopupMenu.hidden) closeMobilePopup();
+  closeDesktopWalletPicker();
+  mobilePopupType = "wallet-picker";
+  mobilePopupTrigger = trigger;
+  mobilePopupMenu.innerHTML = walletPickerPopupMarkup();
+  mobilePopupMenu.dataset.popupType = "wallet-picker";
+  mobilePopupMenu.setAttribute("role", "dialog");
+  mobilePopupMenu.setAttribute("aria-modal", "true");
+  mobileMenuBackdrop.hidden = false;
+  document.body.classList.add("has-mobile-drawer");
+  appBody.inert = true;
+  mobilePopupMenu.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => {
+    mobilePopupMenu.querySelector(".wallet-picker-choice.is-active")?.focus();
+  });
+}
+
+function openWalletPicker(trigger) {
+  if (!usesWalletPickerPopup()) return;
+  closeLanguagePickers();
+  closeSelectPickers();
+  if (isMobileNavigation()) openMobileWalletPicker(trigger);
+  else openDesktopWalletPicker(trigger);
+}
+
+function selectWalletFromPicker(walletId) {
+  const walletRouteCompatible = demoRuntime.isWalletRoute(state.activeRoute);
+  clearExternalReviewHandoffs();
+  state.selectedWalletId = walletId;
+  mergeShellState({ type: "switch_wallet", walletId, walletRouteCompatible });
+  Object.assign(state, legacyStateForRoute(state.activeRoute));
+  closeDesktopWalletPicker();
+  closeMobilePopup();
+  render({ focusMain: true });
+}
+
 function openMobilePopup(trigger = mobileMenuButton) {
   if (!isMobileNavigation()) return;
   if (!mobilePopupMenu.hidden && mobilePopupType === "menu" && mobilePopupTrigger === trigger) {
@@ -1710,6 +1838,7 @@ function openMobilePopup(trigger = mobileMenuButton) {
     return;
   }
   if (!mobilePopupMenu.hidden) closeMobilePopup();
+  closeDesktopWalletPicker();
   mobilePopupType = "menu";
   mobilePopupTrigger = trigger;
   mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
@@ -3577,6 +3706,11 @@ function render(options = {}) {
   if (!mobilePopupMenu.hidden && mobilePopupType === "menu") {
     mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
     enhanceNativeSelects(mobilePopupMenu);
+  } else if (!mobilePopupMenu.hidden && mobilePopupType === "wallet-picker") {
+    mobilePopupMenu.innerHTML = walletPickerPopupMarkup();
+  }
+  if (!walletPickerPopup.hidden) {
+    walletPickerPopup.innerHTML = walletPickerPopupMarkup();
   }
   requestAnimationFrame(() => {
     const activeContext = isMobileNavigation()
@@ -4942,7 +5076,10 @@ function handleDemoAction(action, button) {
   }
 }
 
-document.addEventListener("z00z:help-opening", () => closeMobilePopup());
+document.addEventListener("z00z:help-opening", () => {
+  closeMobilePopup();
+  closeDesktopWalletPicker();
+});
 
 function resetMobileDrawerSwipe() {
   mobileDrawerSwipe.pointerId = null;
@@ -5054,6 +5191,34 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const walletPickerTrigger = event.target.closest("[data-wallet-picker-trigger]");
+  if (walletPickerTrigger) {
+    openWalletPicker(walletPickerTrigger);
+    return;
+  }
+
+  const walletPickerClose = event.target.closest("[data-wallet-picker-close]");
+  if (walletPickerClose) {
+    if (mobilePopupType === "wallet-picker") closeMobilePopup({ restoreFocus: true });
+    else closeDesktopWalletPicker({ restoreFocus: true });
+    return;
+  }
+
+  const walletPickerAction = event.target.closest("[data-wallet-picker-action]");
+  if (walletPickerAction) {
+    const trigger = mobilePopupType === "wallet-picker" ? mobilePopupTrigger : desktopWalletPickerTrigger;
+    closeDesktopWalletPicker();
+    closeMobilePopup();
+    handleDemoAction(walletPickerAction.dataset.walletPickerAction, trigger || walletPickerAction);
+    return;
+  }
+
+  const walletPickerChoice = event.target.closest("[data-wallet-picker-id]");
+  if (walletPickerChoice) {
+    selectWalletFromPicker(walletPickerChoice.dataset.walletPickerId);
+    return;
+  }
+
   const mobileMenuToggle = event.target.closest("#mobile-menu-button");
   if (mobileMenuToggle) {
     openMobilePopup(mobileMenuToggle);
@@ -5107,8 +5272,15 @@ document.addEventListener("click", (event) => {
 
   if (!mobilePopupMenu.hidden
     && !event.target.closest("#mobile-popup-menu")
-    && !event.target.closest("#mobile-menu-button")) {
+    && !event.target.closest("#mobile-menu-button")
+    && !event.target.closest("[data-wallet-picker-trigger]")) {
     closeMobilePopup();
+  }
+
+  if (!walletPickerPopup.hidden
+    && !event.target.closest("#wallet-picker-popup")
+    && !event.target.closest("[data-wallet-picker-trigger]")) {
+    closeDesktopWalletPicker();
   }
 
   const viewButton = event.target.closest("[data-view]");
@@ -5810,6 +5982,11 @@ document.addEventListener("keydown", (event) => {
     closeLanguagePickers({ restoreFocus: true });
     return;
   }
+  if (event.key === "Escape" && !walletPickerPopup.hidden) {
+    event.preventDefault();
+    closeDesktopWalletPicker({ restoreFocus: true });
+    return;
+  }
   if (event.key === "Escape" && !mobilePopupMenu.hidden) {
     event.preventDefault();
     closeMobilePopup({ restoreFocus: true });
@@ -5833,6 +6010,7 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("resize", () => {
   closeLanguagePickers();
   closeSelectPickers();
+  closeDesktopWalletPicker();
   const mobileNavigation = isMobileNavigation();
   if (!mobileNavigation) {
     closeMobilePopup();
