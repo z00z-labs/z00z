@@ -47,6 +47,26 @@ async function selectCanonicalRoute(page, routeId, { mobile = false } = {}) {
   await route.click();
 }
 
+async function mobileSwipe(page, { from, to }) {
+  await page.evaluate(({ from, to }) => {
+    const eventInit = (point, buttons) => ({
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId: 71,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      buttons,
+      clientX: point.x,
+      clientY: point.y,
+    });
+    const targetAt = (point) => document.elementFromPoint(point.x, point.y) || document.body;
+    targetAt(from).dispatchEvent(new PointerEvent("pointerdown", eventInit(from, 1)));
+    targetAt(to).dispatchEvent(new PointerEvent("pointerup", eventInit(to, 0)));
+  }, { from, to });
+}
+
 async function expectNoViewportOverflow(page, label = "responsive geometry") {
   const geometry = await page.evaluate(() => ({
     viewport: window.innerWidth,
@@ -283,7 +303,7 @@ test("wallet selectors derive their marker colours from the wallet chain", async
   expect(new Set(desktop.map(({ colour }) => colour)).size).toBe(3);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator("#mobile-menu-button").click();
+  await page.locator("[data-mobile-wallet-picker]").click();
   const mobile = await readMarkers("#mobile-popup-menu .mobile-wallet-choice");
   expect(mobile.map(({ wallet, chain, tone }) => ({ wallet, chain, tone }))).toEqual(expected);
   expect(mobile.map(({ colour }) => colour)).toEqual(desktop.map(({ colour }) => colour));
@@ -940,12 +960,11 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
     await expect(about.locator("a")).toHaveText([
       "Privacy Policy",
       "Terms of Use",
-      "Visit Z00Z Website",
       "Visit Z00Z GitHub repository",
     ]);
+    await expect(about.locator('a[href="https://z00z.io/"]')).toHaveCount(0);
     await expect(about.locator('a[href="https://z00z.io/docs/legal/privacy"]')).toHaveAttribute("target", "_blank");
     await expect(about.locator('a[href="https://z00z.io/docs/legal/terms"]')).toHaveAttribute("rel", "noopener noreferrer");
-    await expect(about.locator('a[href="https://z00z.io/"]')).toBeVisible();
     await expect(about.locator('a[href="https://github.com/z00z-labs/z00z"]')).toBeVisible();
     await expect(about.locator(":scope > :last-child")).toHaveAttribute("data-demo-action", "check-for-updates");
     await expect(page.locator(".about-card, .about-metadata")).toHaveCount(0);
@@ -1105,11 +1124,24 @@ test("all popup menus use the main canvas surface on desktop and mobile", async 
   expect(mobileDrawerColors.popup).toBe(mobileDrawerColors.canvas);
   await page.locator("#mobile-menu-button").click();
 
+  await page.locator("[data-mobile-wallet-picker]").click();
+  const mobileWalletPickerColors = await popupColors('#mobile-popup-menu[data-popup-type="wallets"]');
+  expect(mobileWalletPickerColors.popup).toBe(mobileWalletPickerColors.canvas);
+  await page.keyboard.press("Escape");
+
   await page.goto(new URL("help.html", demoUrl).toString());
   await page.locator("#help-menu-button").click();
   const helpDrawerColors = await popupColors("#help-sidebar");
   expect(helpDrawerColors.popup).toBe(helpDrawerColors.canvas);
   await expectNoViewportOverflow(page);
+});
+
+test("mobile active wallet shows its bound chain beside the address", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+
+  await expect(page.locator(".mobile-active-wallet-address-row .environment-tag.is-main")).toHaveText("Mainnet");
+  await expect(page.locator(".mobile-active-wallet-address-row .environment-tag")).toBeVisible();
 });
 
 test("Help tree preserves the Demo's nested navigation on mobile", async ({ page }) => {
@@ -1218,8 +1250,8 @@ test("context navigation stays vertical on desktop and uses a second mobile topb
   expect(compactTopbar.topbarHeight).toBeLessThanOrEqual(59);
   expect(compactTopbar.walletTop).toBe(0);
   expect(compactTopbar.walletHeight).toBe(58);
-  await page.locator("#mobile-menu-button").click();
-  await page.locator('[data-mobile-wallet-id="savings"]').click();
+  await mobileWalletIdentity.locator("[data-mobile-wallet-picker]").click();
+  await page.locator('#mobile-popup-menu[data-popup-type="wallets"] [data-mobile-wallet-id="savings"]').click();
   await expect(mobileWalletIdentity).toContainText("ZxR5vK…8Ee1Qm");
   await expect(mobileWalletIdentity).toContainText("Savings wallet");
 
@@ -1671,11 +1703,7 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
   await expect(drawer).toBeVisible();
   await expect(drawer.locator(".mobile-navigation-scroll-region")).toBeVisible();
-  const walletSelector = drawer.locator(".mobile-wallet-selector");
-  await expect(walletSelector).toBeVisible();
-  await expect(walletSelector.locator('[data-mobile-wallet-action="add-wallet"]')).toBeVisible();
-  await expect(walletSelector.locator('[data-mobile-wallet-action="remove-wallet"]')).toBeVisible();
-  await expect(walletSelector.locator(".mobile-wallet-choice.is-active")).toBeVisible();
+  await expect(drawer.locator(".mobile-wallet-picker")).toHaveCount(0);
   await expect(drawer.locator('[data-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
   const telemetry = drawer.locator('[data-navigation-branch="telemetry"]');
   await expect(telemetry).toHaveAttribute("aria-expanded", "false");
@@ -1700,27 +1728,15 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   if (await dapps.getAttribute("aria-expanded") === "false") await dapps.click();
   const terminal = drawer.locator(".mobile-navigation-terminal");
   const mobileScrollContract = await drawer.evaluate((drawerElement) => {
-    const walletSelector = drawerElement.querySelector(".mobile-wallet-selector");
-    const walletList = drawerElement.querySelector(".mobile-wallet-list");
     const region = drawerElement.querySelector(".mobile-navigation-scroll-region");
     const tree = drawerElement.querySelector(".mobile-navigation-tree");
     const terminal = region.querySelector(".mobile-navigation-terminal");
     const regionRect = region.getBoundingClientRect();
-    const selectorRect = walletSelector?.getBoundingClientRect();
-    const activeWalletRect = walletSelector?.querySelector(".mobile-wallet-choice.is-active")?.getBoundingClientRect();
     region.scrollTop = region.scrollHeight;
     const terminalRect = terminal?.getBoundingClientRect();
-    const selectorAfterScroll = walletSelector?.getBoundingClientRect();
     return {
       terminalIsInsideScrollRegion: terminal?.parentElement === region,
       treeIsInsideScrollRegion: tree?.parentElement === region,
-      walletIsFixedOutsideScrollRegion: walletSelector?.parentElement === drawerElement,
-      walletListOwnsScroll: getComputedStyle(walletList).overflowY,
-      activeWalletFullyVisible: Boolean(selectorRect && activeWalletRect
-        && activeWalletRect.top >= selectorRect.top - 1
-        && activeWalletRect.bottom <= selectorRect.bottom + 1),
-      walletStayedFixed: Boolean(selectorRect && selectorAfterScroll
-        && Math.abs(selectorRect.top - selectorAfterScroll.top) <= 1),
       clientHeight: region.clientHeight,
       scrollHeight: region.scrollHeight,
       scrollTop: region.scrollTop,
@@ -1731,10 +1747,6 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   });
   expect(mobileScrollContract.terminalIsInsideScrollRegion).toBe(true);
   expect(mobileScrollContract.treeIsInsideScrollRegion).toBe(true);
-  expect(mobileScrollContract.walletIsFixedOutsideScrollRegion).toBe(true);
-  expect(mobileScrollContract.walletListOwnsScroll).toBe("auto");
-  expect(mobileScrollContract.activeWalletFullyVisible).toBe(true);
-  expect(mobileScrollContract.walletStayedFixed).toBe(true);
   expect(mobileScrollContract.scrollHeight).toBeGreaterThan(mobileScrollContract.clientHeight);
   expect(mobileScrollContract.scrollTop).toBeGreaterThan(0);
   expect(mobileScrollContract.terminalFullyReachable).toBe(true);
@@ -1759,8 +1771,38 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   await telemetry.click();
   await expect(telemetry).toHaveAttribute("aria-expanded", "false");
   await expect(drawer.locator('[data-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
-  await walletSelector.locator('[data-mobile-wallet-action="add-wallet"]').click();
+  await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
+
+  const walletPickerTrigger = page.locator("[data-mobile-wallet-picker]");
+  await walletPickerTrigger.click();
+  const walletPicker = page.locator('#mobile-popup-menu[data-popup-type="wallets"]');
+  await expect(walletPicker).toBeVisible();
+  await expect(walletPicker.locator(".mobile-wallet-list")).toBeVisible();
+  await expect(walletPicker.locator('[data-mobile-wallet-action="add-wallet"]')).toBeVisible();
+  await expect(walletPicker.locator('[data-mobile-wallet-action="remove-wallet"]')).toBeVisible();
+  await expect(walletPicker.locator(".mobile-wallet-choice.is-active")).toBeVisible();
+  const walletPopupContract = await walletPicker.evaluate((popup) => {
+    const list = popup.querySelector(".mobile-wallet-list");
+    const actions = popup.querySelector(".mobile-wallet-actions");
+    const popupRect = popup.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    const actionRect = actions.getBoundingClientRect();
+    return {
+      isSeparatePopup: popup.dataset.popupType === "wallets",
+      listOwnsScroll: getComputedStyle(list).overflowY,
+      actionsFollowList: actionRect.top >= listRect.bottom - 1,
+      popupFitsViewport: popupRect.left >= 0 && popupRect.right <= innerWidth,
+    };
+  });
+  expect(walletPopupContract).toEqual({
+    isSeparatePopup: true,
+    listOwnsScroll: "auto",
+    actionsFollowList: true,
+    popupFitsViewport: true,
+  });
+  await walletPicker.locator('[data-mobile-wallet-action="add-wallet"]').click();
+  await expect(walletPicker).toBeHidden();
   await expect(page.locator("#flow-dialog")).toBeVisible();
   await page.locator("#flow-dialog [data-dialog-close]").first().click();
   await expect(page.locator("#flow-dialog")).toBeHidden();
@@ -1775,13 +1817,21 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
 test("mobile profile selection, Help, and drawer focus are independent of desktop navigation", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${demoUrl}?route=wallet.assets`);
-  await page.locator("#mobile-menu-button").click();
-  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
-  await drawer.locator('[data-mobile-wallet-id="travel"]').click();
-  await expect(drawer).toBeHidden();
+  await page.locator("[data-mobile-wallet-picker]").click();
+  const walletPicker = page.locator('#mobile-popup-menu[data-popup-type="wallets"]');
+  await walletPicker.locator('[data-mobile-wallet-id="travel"]').click();
+  await expect(walletPicker).toBeHidden();
   await expect(page.locator("#wallet-identity")).toContainText("Travel");
 
+  const walletPickerTrigger = page.locator("[data-mobile-wallet-picker]");
+  await walletPickerTrigger.click();
+  await expect(walletPicker.locator("[data-mobile-popup-close]")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(walletPicker).toBeHidden();
+  await expect(walletPickerTrigger).toBeFocused();
+
   await page.locator("#mobile-menu-button").click();
+  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
   await expect(page.locator("#app-body")).toHaveJSProperty("inert", true);
   await expect(drawer.locator("[data-mobile-popup-close]")).toBeFocused();
   await page.keyboard.press("Shift+Tab");
@@ -1807,6 +1857,29 @@ test("mobile profile selection, Help, and drawer focus are independent of deskto
   await helpPage.close();
   await expect(drawer).toBeHidden();
   await expectNoViewportOverflow(page);
+});
+
+test("mobile edge swipe supplements the Menu button without hijacking vertical scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+  const menuButton = page.locator("#mobile-menu-button");
+
+  await mobileSwipe(page, { from: { x: 6, y: 280 }, to: { x: 22, y: 430 } });
+  await expect(drawer).toBeHidden();
+
+  await mobileSwipe(page, { from: { x: 6, y: 280 }, to: { x: 112, y: 280 } });
+  await expect(drawer).toBeVisible();
+  await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+  await page.waitForTimeout(250);
+
+  await mobileSwipe(page, { from: { x: 260, y: 340 }, to: { x: 126, y: 340 } });
+  await expect(drawer).toBeHidden();
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+
+  await menuButton.click();
+  await expect(drawer).toBeVisible();
+  await page.keyboard.press("Escape");
 });
 
 test("mobile contextual Help opens the matching Markdown page without a second Help surface", async ({ page, context }) => {
