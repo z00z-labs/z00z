@@ -166,12 +166,23 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
     const logo = document.querySelector(".desktop-topbar-brand .brand-mark").getBoundingClientRect();
     const wallet = document.querySelector("#wallet-identity").getBoundingClientRect();
     const heading = document.querySelector(".topbar-address-group").getBoundingClientRect();
+    const address = document.querySelector(".wallet-identity-address");
+    const copy = document.querySelector(".wallet-identity-copy").getBoundingClientRect();
     const topbarStyle = getComputedStyle(document.querySelector(".topbar"));
+    const addressStyle = getComputedStyle(address);
     return {
       brand: { left: brand.left, right: brand.right, center: brand.left + brand.width / 2 },
       logo: { left: logo.left, width: logo.width, height: logo.height, centerY: logo.top + logo.height / 2 },
       wallet: { left: wallet.left, right: wallet.right },
       heading: { left: heading.left },
+      walletIdentityWidth: wallet.width,
+      walletAddress: {
+        fontFamily: addressStyle.fontFamily,
+        fontSize: addressStyle.fontSize,
+        fontWeight: addressStyle.fontWeight,
+        lineHeight: addressStyle.lineHeight,
+      },
+      copy: { width: copy.width, height: copy.height },
       topbar: { centerY: brand.top + brand.height / 2, borderBottomWidth: topbarStyle.borderBottomWidth },
     };
   });
@@ -180,6 +191,11 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   expect(desktopTopbarOrder.logo).toMatchObject({ width: 52, height: 52 });
   expect(desktopTopbarOrder.logo.left - desktopTopbarOrder.brand.left).toBe(18);
   expect(desktopTopbarOrder.logo.centerY).toBeCloseTo(desktopTopbarOrder.topbar.centerY, 0);
+  expect(desktopTopbarOrder.walletIdentityWidth).toBe(262);
+  expect(desktopTopbarOrder.walletAddress.fontFamily).toContain("Geist");
+  expect(desktopTopbarOrder.walletAddress.fontFamily).not.toContain("Geist Mono");
+  expect(desktopTopbarOrder.walletAddress).toMatchObject({ fontSize: "21px", fontWeight: "400", lineHeight: "21.84px" });
+  expect(desktopTopbarOrder.copy).toMatchObject({ width: 26, height: 26 });
   expect(desktopTopbarOrder.topbar.borderBottomWidth).toBe("0px");
 });
 

@@ -654,11 +654,14 @@ function renderWalletShell() {
   const walletName = wallet.name;
   const copyLabel = t("walletShell.copyAddress", { wallet: walletName });
   walletIdentity.innerHTML = `
-    <div class="wallet-identity-address-row">
-      <strong class="wallet-identity-address mono" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</strong>
-      <button class="icon-button wallet-identity-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button>
+    <div class="wallet-identity-heading">
+      <div class="wallet-identity-address-row">
+        <strong class="wallet-identity-address" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${escapeHtml(wallet.address)}</strong>
+        <button class="icon-button wallet-identity-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(wallet.fullAddress || wallet.address)}">${icon("copy")}</button>
+      </div>
+      <p class="wallet-identity-name">${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))}</p>
     </div>
-    <p class="wallet-identity-name">${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))}</p>`;
+  `;
   walletIdentity.setAttribute("aria-label", t("walletShell.identityAria", { wallet: walletName }));
   lockWalletLabel.innerHTML = `${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))} <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
   renderNavigationTree();

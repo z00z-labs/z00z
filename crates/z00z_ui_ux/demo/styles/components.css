@@ -6398,15 +6398,14 @@ button.connection-option:hover,
   }
 
   .topbar > .wallet-identity {
-    display: grid;
+    display: flex;
     width: min(25vw, 262px);
     min-width: 0;
     height: var(--topbar-height);
     min-height: var(--topbar-height);
     flex: 0 0 min(25vw, 262px);
-    align-content: center;
-    gap: 2px;
-    padding: 0 var(--topbar-inline-pad);
+    align-items: center;
+    padding: 0 0 0 var(--topbar-inline-pad);
     border: 0;
     border-right: 1px solid var(--border);
     border-radius: 0;
@@ -6425,10 +6424,20 @@ button.connection-option:hover,
   }
 
   .wallet-identity-address-row {
-    display: flex;
+    position: relative;
+    display: block;
     min-width: 0;
-    align-items: center;
-    gap: 7px;
+  }
+
+  .wallet-identity-heading {
+    position: relative;
+    display: flex;
+    width: min(100%, var(--wallet-heading-inline-size));
+    min-width: 0;
+    min-height: 44px;
+    flex: 0 1 var(--wallet-heading-inline-size);
+    flex-direction: column;
+    justify-content: center;
   }
 
   .wallet-identity-address,
@@ -6436,28 +6445,37 @@ button.connection-option:hover,
     margin: 0;
   }
 
-  .wallet-identity-address {
+  strong.wallet-identity-address {
+    display: block;
+    width: 100%;
     min-width: 0;
     overflow: hidden;
     color: var(--text-primary);
+    font-family: var(--font-logo);
     font-size: var(--type-address);
-    font-weight: 500;
+    font-weight: 400;
     letter-spacing: 0.025em;
-    line-height: 1.14;
+    line-height: 1.04;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .wallet-identity-name {
+    margin-top: 2px;
+    padding-right: calc(var(--wallet-address-copy-size) + 5px);
     color: var(--text-secondary);
     font-size: var(--type-label);
-    line-height: 1.3;
+    line-height: 1.23;
   }
 
   .wallet-identity-copy.icon-button {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
+    position: absolute;
+    right: 0;
+    bottom: -3px;
+    width: var(--wallet-address-copy-size);
+    min-width: var(--wallet-address-copy-size);
+    height: var(--wallet-address-copy-size);
+    border-radius: 7px;
     color: var(--text-secondary);
   }
 
