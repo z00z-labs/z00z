@@ -604,6 +604,7 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
     const terminal = viewport.width <= 768
       ? page.locator(".mobile-navigation-terminal")
       : page.locator("#app-navigation-terminal");
+    if (viewport.width <= 768) await terminal.scrollIntoViewIfNeeded();
     await expect(terminal.locator('[data-navigation-branch="settings"]')).toHaveAttribute("aria-expanded", "true");
     await expect(terminal.locator(":scope > .navigation-tree-terminal")).toHaveText(["Help", "About", "Log out"]);
     await expect(terminal.locator('[data-navigation-route="about"]')).toBeVisible();

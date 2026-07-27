@@ -6845,7 +6845,7 @@ button.connection-option:hover,
     width: min(22rem, calc(100vw - 14px));
     max-height: calc(100dvh - var(--topbar-height));
     overflow: hidden;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .mobile-menu-backdrop {
@@ -6921,7 +6921,9 @@ button.connection-option:hover,
 
   .mobile-navigation-terminal {
     display: grid;
+    flex: 0 0 auto;
     gap: 4px;
+    margin-top: 10px;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
     background: var(--bg-sidebar);

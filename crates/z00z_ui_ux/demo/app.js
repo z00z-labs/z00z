@@ -629,11 +629,11 @@ function mobileNavigationDrawerMarkup() {
       <nav class="mobile-navigation-tree" aria-label="${escapeHtml(t("app.menu"))}">
       ${rootNodes.filter((node) => !["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-navigation" })).join("")}
       </nav>
-    </div>
-    <nav class="mobile-navigation-terminal" aria-label="${escapeHtml(t("app.settings"))}">
-      ${rootNodes.filter((node) => ["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-terminal", terminal: true })).join("")}
-      <p class="app-version">Version ${escapeHtml(demoRuntime.APP_VERSION)}</p>
-    </nav>`;
+      <nav class="mobile-navigation-terminal" aria-label="${escapeHtml(t("app.settings"))}">
+        ${rootNodes.filter((node) => ["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-terminal", terminal: true })).join("")}
+        <p class="app-version">Version ${escapeHtml(demoRuntime.APP_VERSION)}</p>
+      </nav>
+    </div>`;
 }
 
 function renderWalletShell() {

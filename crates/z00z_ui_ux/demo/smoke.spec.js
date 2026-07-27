@@ -762,6 +762,7 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
     const terminal = viewport.mobile
       ? page.locator(".mobile-navigation-terminal")
       : page.locator("#app-navigation-terminal");
+    if (viewport.mobile) await terminal.scrollIntoViewIfNeeded();
     const logout = terminal.locator('[data-demo-action="logout"]');
     const terminalSettings = terminal.locator(':scope > .navigation-tree-branch [data-navigation-branch="settings"]');
     await expect(terminalSettings).toContainText("Settings");
@@ -875,6 +876,7 @@ test("all root Help articles are selectable on desktop and mobile", async ({ pag
     const trigger = viewport.mobile
       ? page.locator(".mobile-navigation-terminal [data-help-topic]")
       : page.locator("#app-navigation-terminal [data-help-topic]");
+    if (viewport.mobile) await trigger.scrollIntoViewIfNeeded();
     const helpPage = await openStandaloneHelp(page, trigger);
     await helpPage.setViewportSize(viewport);
 
@@ -1393,6 +1395,31 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   await expect(drawer.locator('[data-navigation-workspace="telemetry.onionnet"]')).toBeVisible();
   await expect(drawer.locator('[data-navigation-workspace="telemetry.aggregators"]')).toBeVisible();
   await expect(drawer.locator('[data-navigation-route="telemetry.reticulum.node"]')).toHaveCount(0);
+  const dapps = drawer.locator('[data-navigation-branch="dapps"]');
+  if (await dapps.getAttribute("aria-expanded") === "false") await dapps.click();
+  const terminal = drawer.locator(".mobile-navigation-terminal");
+  const mobileScrollContract = await drawer.locator(".mobile-navigation-scroll-region").evaluate((region) => {
+    const terminal = region.querySelector(".mobile-navigation-terminal");
+    const regionRect = region.getBoundingClientRect();
+    region.scrollTop = region.scrollHeight;
+    const terminalRect = terminal?.getBoundingClientRect();
+    return {
+      terminalIsInsideScrollRegion: terminal?.parentElement === region,
+      clientHeight: region.clientHeight,
+      scrollHeight: region.scrollHeight,
+      scrollTop: region.scrollTop,
+      terminalFullyReachable: Boolean(terminalRect
+        && terminalRect.top >= regionRect.top - 1
+        && terminalRect.bottom <= regionRect.bottom + 1),
+    };
+  });
+  expect(mobileScrollContract.terminalIsInsideScrollRegion).toBe(true);
+  expect(mobileScrollContract.scrollHeight).toBeGreaterThan(mobileScrollContract.clientHeight);
+  expect(mobileScrollContract.scrollTop).toBeGreaterThan(0);
+  expect(mobileScrollContract.terminalFullyReachable).toBe(true);
+  await expect(terminal.getByRole("button", { name: "Settings", exact: true })).toBeVisible();
+  await expect(terminal.getByRole("button", { name: "Help", exact: true })).toBeVisible();
+  await expect(terminal.getByRole("button", { name: "About", exact: true })).toBeVisible();
   const mobileTypography = await drawer.locator('[data-navigation-branch="telemetry"]').evaluate((element) => {
     const style = getComputedStyle(element);
     return {
