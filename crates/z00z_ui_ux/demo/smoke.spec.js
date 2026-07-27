@@ -981,6 +981,10 @@ test("context navigation stays vertical on desktop and moves into the mobile top
   await expect(mobileWalletIdentity).toBeVisible();
   await expect(mobileWalletIdentity).toContainText("ZxChpo…2Mj8Pt");
   await expect(mobileWalletIdentity).toContainText("Everyday wallet");
+  const mobileAssetLogo = page.locator(".asset-logo").first();
+  await expect(mobileAssetLogo).toBeVisible();
+  await expect(mobileAssetLogo).toHaveCSS("width", "42px");
+  await expect(mobileAssetLogo).toHaveCSS("height", "42px");
   const mobileGeometry = await page.evaluate(() => {
     const topbar = document.querySelector(".topbar").getBoundingClientRect();
     const walletIdentity = document.querySelector("#mobile-active-wallet").getBoundingClientRect();
