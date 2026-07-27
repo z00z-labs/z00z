@@ -60,6 +60,7 @@ assert.deepEqual(
     "scripts/generated/help-catalog.js",
     "scripts/port/help-registry.js",
     "scripts/vendor/markdown/mermaid.min.js",
+    "scripts/vendor/markdown/panzoom.min.js",
     "scripts/help-markdown-enhancer.js",
     "scripts/help-app.js"
   ],
