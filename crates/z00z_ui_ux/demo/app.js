@@ -20,7 +20,7 @@ const mobileMenuBackdrop = document.querySelector("#mobile-menu-backdrop");
 const mobilePopupMenu = document.querySelector("#mobile-popup-menu");
 const walletPickerPopup = document.querySelector("#wallet-picker-popup");
 const appBody = document.querySelector("#app-body");
-const walletPickerVariant = new URLSearchParams(window.location.search).get("walletPicker") === "popup" ? "popup" : "inline";
+const walletPickerVariant = new URLSearchParams(window.location.search).get("walletPicker") === "inline" ? "inline" : "popup";
 let mobilePopupType = "";
 let mobilePopupTrigger = null;
 let desktopWalletPickerTrigger = null;

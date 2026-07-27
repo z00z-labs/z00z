@@ -299,13 +299,13 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   expect(desktopSidebarScroll.terminalTopAfter).toBeLessThan(desktopSidebarScroll.terminalTopBefore);
 });
 
-test("wallet picker comparison keeps Variant 1 intact and exposes Variant 2 on desktop and mobile", async ({ page }) => {
+test("default wallet picker is an anchored menu while the inline comparison remains available", async ({ page }) => {
   for (const viewport of [
     { width: 1280, height: 800, mobile: false },
     { width: 390, height: 844, mobile: true },
   ]) {
     await page.setViewportSize(viewport);
-    await page.goto(`${demoUrl}?route=wallet.assets`);
+    await page.goto(`${demoUrl}?route=wallet.assets&walletPicker=inline`);
     let desktopTopbarBefore = null;
 
     if (viewport.mobile) {
@@ -333,7 +333,7 @@ test("wallet picker comparison keeps Variant 1 intact and exposes Variant 2 on d
       });
     }
 
-    await page.goto(`${demoUrl}?route=wallet.assets&walletPicker=popup`);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
     if (viewport.mobile) {
       await expect(page.locator("#mobile-active-wallet [data-wallet-picker-trigger]")).toHaveCount(0);
       await page.locator("#mobile-menu-button").click();

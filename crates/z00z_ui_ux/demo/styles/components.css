@@ -8467,8 +8467,8 @@ button.connection-option:hover,
   }
 }
 
-/* Wallet-picker comparison prototype. The default remains the inline sidebar
-   selector; `?walletPicker=popup` reuses these rows in a single anchored menu. */
+/* The normal wallet selector is one anchored menu. The old inline selector is
+   retained only for comparison at `?walletPicker=inline`. */
 .wallet-picker-popup {
   position: fixed;
   z-index: 90;
