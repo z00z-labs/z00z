@@ -1,0 +1,11 @@
+title: "İzleyiciler"
+icon: eye
+order:
+  - index
+  - overview
+  - alerts
+  - publication
+  - providers
+  - censorship
+  - evidence
+  - alert-detail

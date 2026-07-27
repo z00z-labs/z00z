@@ -26,14 +26,24 @@ const expectedScripts = [
   "i18n.js",
   ...localeRegistry.map(({ catalogue }) => catalogue),
   "locales/send-exchange.js",
+  "locales/navigation.js",
+  "locales/demo-plan-2.js",
   "scripts/generated/help-catalog.js",
   "scripts/port/help-registry.js",
   "scripts/help-controller.js",
   "scripts/port/contracts.js",
+  "scripts/port/navigation-model.js",
   "scripts/port/exchange-catalog.js",
+  "scripts/port/dapp-catalog.js",
+  "scripts/port/messenger-catalog.js",
+  "scripts/port/contacts-catalog.js",
   "scripts/port/fixtures.js",
   "scripts/port/presentation-state.js",
   "scripts/port/mock-wallet-gateway.js",
+  "scripts/port/mock-telemetry-gateway.js",
+  "scripts/port/mock-dapp-gateway.js",
+  "scripts/port/mock-messenger-gateway.js",
+  "scripts/port/mock-contacts-gateway.js",
   "scripts/port/icon-registry.js",
   "app.js"
 ];
@@ -44,6 +54,7 @@ assert.deepEqual(
     "scripts/port/locale-registry.js",
     "i18n.js",
     ...localeRegistry.map(({ catalogue }) => catalogue),
+    "locales/navigation.js",
     "scripts/generated/help-catalog.js",
     "scripts/port/help-registry.js",
     "scripts/help-app.js"
@@ -137,10 +148,18 @@ const runtimeFiles = [
   "app.js",
   "i18n.js",
   "scripts/port/contracts.js",
+  "scripts/port/navigation-model.js",
   "scripts/port/exchange-catalog.js",
+  "scripts/port/dapp-catalog.js",
+  "scripts/port/messenger-catalog.js",
+  "scripts/port/contacts-catalog.js",
   "scripts/port/fixtures.js",
   "scripts/port/presentation-state.js",
   "scripts/port/mock-wallet-gateway.js",
+  "scripts/port/mock-telemetry-gateway.js",
+  "scripts/port/mock-dapp-gateway.js",
+  "scripts/port/mock-messenger-gateway.js",
+  "scripts/port/mock-contacts-gateway.js",
   "scripts/port/icon-registry.js",
   "scripts/port/locale-registry.js",
   "scripts/generated/help-catalog.js",
@@ -148,6 +167,8 @@ const runtimeFiles = [
   "scripts/help-controller.js",
   "scripts/help-app.js",
   "locales/send-exchange.js",
+  "locales/navigation.js",
+  "locales/demo-plan-2.js",
   ...localeRegistry.map(({ catalogue }) => catalogue)
 ];
 const forbiddenRuntimePatterns = [
@@ -195,6 +216,15 @@ const colorSource = await read("styles/colors.css");
 assert.equal(/@import\s+url\(["']?https?:\/\//i.test(colorSource), false, "styles/colors.css must not import remote CSS");
 assert.equal(/url\(["']?https?:\/\//i.test(colorSource), false, "styles/colors.css must not load remote assets");
 assert.ok(colorSource.includes("--lut-z00z-dark-brand"), "styles/colors.css must expose the canonical colour LUT");
+assert.ok(colorSource.includes("--lut-z00z-corporate-primary"), "styles/colors.css must expose the local Corporate source mapping");
+assert.deepEqual(
+  [...colorSource.matchAll(/html\[data-palette="([^"]+)"\]/g)].map((match) => match[1]),
+  ["z00z-corporate"],
+  "colors.css must map only the Corporate palette beyond the Default root mapping"
+);
+assert.doesNotMatch(colorSource, /data-theme/, "colors.css must derive colour scheme from PaletteId");
+assert.doesNotMatch(index, /data-theme=/, "the app shell must derive colour scheme from PaletteId");
+assert.doesNotMatch(helpPage, /data-theme=/, "Help must derive colour scheme from PaletteId");
 
 for (const fontFile of [
   "assets/fonts/geist/Geist-Variable.woff2",

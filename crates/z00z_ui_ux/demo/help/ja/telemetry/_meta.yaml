@@ -1,0 +1,9 @@
+title: "テレメトリー"
+icon: network
+order:
+  - index
+  - reticulum
+  - onionnet
+  - aggregators
+  - watchers
+  - explorer

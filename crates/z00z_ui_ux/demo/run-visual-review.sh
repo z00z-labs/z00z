@@ -3,11 +3,12 @@ set -euo pipefail
 
 demo_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(git -C "$demo_dir" rev-parse --show-toplevel)"
-output_dir="$repo_root/crates/z00z_storage/outputs/checkpoint/phase-110/ui-help-review"
+output_dir="${Z00Z_VISUAL_REVIEW_DIR:-$repo_root/crates/z00z_storage/outputs/checkpoint/phase-110/ui-help-review}"
 
 cd "$demo_dir"
 node scripts/check-locales.mjs
 node scripts/check-help.mjs
+node scripts/test-palette-contrast.mjs
 mkdir -p "$output_dir"
 find "$output_dir" -maxdepth 1 -type f -name '*.png' -delete
 
@@ -22,6 +23,11 @@ PY
 python3 -m http.server "$server_port" --bind 127.0.0.1 --directory "$demo_dir" >"$output_dir/http-server.log" 2>&1 &
 server_pid="$!"
 
+playwright_executable="${Z00Z_PLAYWRIGHT_EXECUTABLE_PATH:-}"
+if [[ -z "$playwright_executable" ]] && command -v chromium >/dev/null 2>&1; then
+  playwright_executable="$(command -v chromium)"
+fi
+
 cleanup() {
   kill "$server_pid" 2>/dev/null || true
 }
@@ -29,9 +35,11 @@ trap cleanup EXIT INT TERM
 
 for _ in {1..50}; do
   if curl --fail --silent "http://127.0.0.1:$server_port/index.html" >/dev/null 2>&1; then
-    Z00Z_WALLET_DEMO_URL="http://127.0.0.1:$server_port/index.html" \
+    Z00Z_PLAYWRIGHT_EXECUTABLE_PATH="$playwright_executable" \
+      Z00Z_WALLET_DEMO_URL="http://127.0.0.1:$server_port/index.html" \
       npx --yes --package @playwright/test \
       -c 'export NODE_PATH="$(dirname "$(dirname "$(command -v playwright)")")"; playwright test visual-review.spec.js --workers=1 --reporter=line'
+    node scripts/check-phase-9-regressions.mjs "$output_dir"
     exit 0
   fi
   sleep 0.1

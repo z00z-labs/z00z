@@ -1,10 +1,33 @@
 # Production port map
 
+<!-- markdownlint-disable MD013 MD060 -->
+
 The demo is an executable UX specification for the packaged Z00Z Wallet. Its
 JavaScript, fabricated data, and mock gateway must never be imported by production.
 Production translates the stable contracts below into Rust and Leptos types.
 
-## Runtime decision
+## DEMO-PLAN-2 implementation authority
+
+For the navigation, Help, and Appearance migration,
+`crates/z00z_ui_ux/DEMO-PLAN-2.md` supersedes older demo-port assumptions:
+
+- one canonical multi-open navigation tree renders in the desktop left sidebar
+  and mobile left drawer; global topbar route tabs and separate mobile route
+  popups are historical baseline only;
+- accordion controls exist only at the global root. A root exposes first-level
+  workspace/action leaves; every deeper route is projected from the same typed
+  registry as a desktop internal rail or mobile sticky horizontal tab list;
+- Help is one standalone, independently switchable application/window; neither
+  the browser demo nor the Tauri port creates an in-app or modal Help surface;
+- the application exposes exactly `z00z-default` (dark) and
+  `z00z-corporate` (light), with no independent application theme mode. Code
+  syntax themes remain independent and code-only.
+
+## Proposed future runtime decision
+
+This section documents a later Rust/Tauri port. It does not authorize creating
+Rust crates or adding Tauri/Leptos dependencies while implementing the pure-JS
+demo.
 
 The application uses Leptos CSR/WASM inside the Tauri 2 WebView. It is not a browser product:
 Trunk produces bundled static assets that Tauri packages with the application.
@@ -47,7 +70,7 @@ authenticated IPC  typed in-process adapter
 | `scripts/port/locale-registry.js` | locale enum, metadata registry, and catalogue builder | Generate every catalogue from one ordered Rust/build-time registry. |
 | `scripts/port/icon-registry.js` | `IconName` enum and one inline SVG Leptos component | Preserve semantic object-type lookup; bundle paths locally and normalize to 24x24. |
 | `help/topics.yaml` | build-time `HelpTopicId`/route matcher and Help-tree group source | Generate an exhaustive Rust enum and fail the build when a routed view has no topic or Help group. |
-| `help/<locale>/{app,wallets,network,settings}/*.md` | bundled localized Help source | Compile at build time into a constrained plain-text AST; never parse or fetch Markdown at runtime. |
+| `help/<locale>/{app,wallets,telemetry,dapps,messenger,contacts,settings}/*.md` | bundled localized Help source | Compile at build time into a constrained plain-text AST; never parse or fetch Markdown at runtime. |
 | `scripts/port/help-registry.js` | pure Help topic resolver | Port as an exhaustive state-to-topic match independent from Leptos view components. |
 | `scripts/help-controller.js` | standalone Help-window launcher and `ContextHelpButton` component | Preserve named-window reuse, language/topic deep links, application state isolation, and mobile-menu close behavior. |
 | `help.html`, `scripts/help-app.js` | independent Help application/window | Port the multi-open accordion tree, localized article routing, mobile drawer, and explicit Wallet switch target as a parallel Tauri webview/window. |
@@ -98,10 +121,12 @@ HTML, script URLs, selectors, secrets, wallet labels, addresses, or other
 user-authored values. English is an explicit fallback only for an unavailable
 packaged catalogue; release builds fail locale-parity checks before packaging.
 
-When Help is opened from a native sheet/dialog, the production `HelpPanel`
-belongs to the same overlay stack, temporarily inerts the underlying sheet,
-contains focus, handles Escape/backdrop closure, and restores the invoking
-control. Do not render contextual Help behind a native top-layer dialog.
+When Help is opened from a native sheet/dialog, the contextual action sends only
+the bounded `topicId`, `locale`, `palette`, and optional `section` fields to
+`open_or_focus_help`. The host launches or reuses the fixed `help` window label
+at the dialog's stable topic; the renderer has no generic create-window command.
+The parent dialog remains open and is not inerted by Help. Closing either
+surface leaves the other usable and preserves the invoking application state.
 
 The shared compact-row contract ports as three semantic slots—label, value, and
 action/status. Long values truncate without losing their accessible full value.
@@ -128,11 +153,10 @@ per-view width overrides.
    a time. Delete the corresponding demo-only renderer implementation after each
    production acceptance gate passes.
 
-## Deferred production spike
+## Future production port status
 
-This refactor intentionally does not add or pin Tauri, Leptos, Trunk,
-`wasm-bindgen`, platform plugins, or IPC protocol versions. The production spike
-must prove Windows/Linux packaging and authenticated IPC, iOS lifecycle and native
-adapter behaviour, CSP without remote assets, local font loading, accessibility,
-secure storage, update/signing policy, and recovery after process interruption
-before versions are selected.
+Not started and intentionally outside this pure-JS demo. The proposed
+`z00z_wallet_ui_contract`, `z00z_wallet_ui`, and `z00z_wallet_ui_tauri` names
+above are architectural destinations only; those crates do not exist in the
+demo implementation. Native packaging, IPC, CSP, lifecycle, updater/signing,
+and real-device evidence require a separately authorized production-port phase.

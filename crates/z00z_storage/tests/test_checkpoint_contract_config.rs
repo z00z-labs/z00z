@@ -116,12 +116,14 @@ fn test_archive_retention_and_caps_match_the_authority() {
     assert_eq!(cfg.archive_retention.erasure_coding_profile, "rs_10_16_v1");
     assert!(!cfg.archive_retention.is_full_replica_fallback_allowed);
 
-    assert_eq!(cfg.limits.max_recursive_proof_envelope_bytes, 17_825_792);
+    assert_eq!(cfg.limits.max_recursive_proof_envelope_bytes, 16_777_216);
     assert_eq!(cfg.limits.max_recursive_sidecar_bytes, 25_165_824);
     assert_eq!(cfg.limits.max_nova_block_proof_bytes, 131_072);
     assert_eq!(cfg.limits.max_nova_retained_proof_bodies, 16);
     assert_eq!(cfg.limits.max_nova_retained_body_bytes, 2_097_152);
     assert_eq!(cfg.limits.max_nova_hot_recovery_bytes, 1_698_758_656);
+    assert_eq!(cfg.limits.target_plonky3_epoch_proof_bytes, 2_097_152);
+    assert_eq!(cfg.limits.max_plonky3_epoch_proof_bytes, 4_194_304);
     assert_eq!(cfg.limits.max_pq_anchor_bytes, 4_096);
     assert_eq!(cfg.limits.max_epoch_anchor_bytes, 4_096);
     assert_eq!(cfg.limits.max_epoch_close_certificate_bytes, 4_096);
@@ -275,7 +277,7 @@ fn test_unknown_and_missing_yaml_fields_reject() {
         "    has_security_budget_manifest: true\n",
         "  canonical_admission_forbidden_when_present:\n",
         "  reconstruction_threshold: 10\n",
-        "  max_recursive_proof_envelope_bytes: 17825792\n",
+        "  max_recursive_proof_envelope_bytes: 16777216\n",
         "  has_retention_ledger_cas: true\n",
     ] {
         let changed = yaml.replacen(field, "", 1);
@@ -302,10 +304,10 @@ fn test_every_pinned_identity_axis_rejects_drift() {
             "  manifest_digest: a58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b\n",
         ),
         (
-            "  registry_digest: 7e9508738815c670955724144f72d2acee6066f2b88a2f2fb1de55f2cf72fb9b\n",
-            "  registry_digest: ae9508738815c670955724144f72d2acee6066f2b88a2f2fb1de55f2cf72fb9b\n",
+            "  registry_digest: 3f463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0\n",
+            "  registry_digest: af463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0\n",
         ),
-        ("  parameter_generation: 2\n", "  parameter_generation: 3\n"),
+        ("  parameter_generation: 3\n", "  parameter_generation: 4\n"),
     ] {
         let changed = yaml.replacen(from, to, 1);
         assert_ne!(changed, yaml, "fixture must contain {from:?}");

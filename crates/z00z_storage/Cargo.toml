@@ -22,16 +22,20 @@ ff = "0.13"
 fs2 = "0.4"
 jmt = "0.12.0"
 nova-snark = { workspace = true }
+p3-air = { workspace = true }
 p3-batch-stark = { workspace = true }
 p3-challenger = { workspace = true }
 p3-circuit = { workspace = true }
 p3-circuit-prover = { workspace = true }
 p3-poseidon2-circuit-air = { workspace = true }
+p3-recursion = { workspace = true }
 p3-commit = { workspace = true }
 p3-dft = { workspace = true }
 p3-field = { workspace = true }
 p3-fri = { workspace = true }
 p3-koala-bear = { workspace = true }
+p3-lookup = { workspace = true }
+p3-matrix = { workspace = true }
 p3-maybe-rayon = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-symmetric = { workspace = true }
@@ -54,6 +58,7 @@ criterion = "0.5"
 proptest = "1.5"
 serde_json = "1.0"
 stats_alloc = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 z00z_core = { path = "../z00z_core", features = ["deterministic-rng"] }
 z00z_wallets = { path = "../z00z_wallets", features = [
   "ownership_policy_keyring",

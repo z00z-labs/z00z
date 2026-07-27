@@ -8,6 +8,7 @@ import {
   loadHelpSource,
   parseHelpMarkdown
 } from "./help-source.mjs";
+import { HELP_GROUP_DEFINITIONS } from "./help-topics.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
@@ -29,7 +30,13 @@ export async function compileHelp(root = demoRoot) {
     }
   }
 
-  const payload = { version: lut.version, locales: localeIds, topics: lut.topics, catalogues };
+  const payload = {
+    version: lut.version,
+    locales: localeIds,
+    groups: HELP_GROUP_DEFINITIONS,
+    topics: lut.topics,
+    catalogues
+  };
   return `"use strict";\n((root) => {\n  const deepFreeze = (value) => {\n    if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;\n    Object.values(value).forEach(deepFreeze);\n    return Object.freeze(value);\n  };\n  root.Z00ZHelpCatalog = deepFreeze(${JSON.stringify(payload, null, 2)});\n})(typeof window === "undefined" ? globalThis : window);\n`;
 }
 

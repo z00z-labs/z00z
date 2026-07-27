@@ -2,7 +2,7 @@
 
 ((root) => {
   const catalogue = root.Z00ZHelpCatalog;
-  if (!catalogue?.topics || !catalogue?.catalogues) {
+  if (!catalogue?.groups || !catalogue?.topics || !catalogue?.catalogues) {
     throw new Error("Z00Z Help catalogue must load before the Help registry.");
   }
 
@@ -31,6 +31,7 @@
 
   root.Z00ZHelpRegistry = Object.freeze({
     globalTopic,
+    groups: () => [...catalogue.groups],
     resolveTopicId,
     resolveDocument,
     topic: (topicId) => topicsById.get(topicId) || null,

@@ -3050,15 +3050,19 @@ activated the real private Plonky3 base-STARK work later stopped fail-closed by
 the Plan-07 blocker below; all future/target Phase-069 terms remain mandatory
 live authority and `CheckpointProofSystem::VERIFIED` stays disabled.
 
-**069-07 fail-closed stop/split (2026-07-24):** Plan 07 is not complete. The
-real pinned Plonky3 engine and its bounded private facade are integrated, but
-the current AIR proves only canonical-vector/Poseidon2 binding rather than the
-full frozen transition relation. `Plonky3BaseAdapterV2::{prove,verify}` now
-reject before proof or receipt creation with
-`Plonky3CanonicalRangeMissing`. Mandatory bootstrap passes and the exact
-Plan-07 acceptance target records the expected blocker. The required
-domain-specific KoalaBear AIR or sound foreign-field R1CS translation is
-specified in `069-07-STOP-SPLIT.md`; Plans 08–13 remain dependency-locked.
+**069-07 resource-timeout stop/split (2026-07-26):** Plan 07 is not complete.
+The live binary recursion profile and dynamic complete-update JMT schedule
+supersede the former W32 and fixed-role semantic blockers. The latest isolated
+release `predicate_differential` worker completed all eleven transition phases
+and stayed below the memory target (`8,914,336 KiB` process RSS,
+`9,283,543,040 B` cgroup peak, zero swap/events), but timed out after
+`7,200,250 ms` during the next replica's structural materialization. It did not
+reach aggregation, proof sizing, mutation acceptance, or actual root
+verification. Typed evidence is under the sole Phase-069 output root; command
+`6280c145e246…` cannot be rerun unchanged. The size policy remains target
+`2 MiB`, publication cap `4 MiB`, ingress cap `16 MiB`.
+`069-07-STOP-SPLIT.md` is authoritative; no summary exists and Plans 08–13
+remain dependency-locked until a materially optimized real proof passes.
 
 **069-051 closure / 069-06 activation (2026-07-22):** Plan 051 is complete on
 proof-source digest

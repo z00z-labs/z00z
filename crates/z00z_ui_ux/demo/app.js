@@ -5,21 +5,24 @@ const pageTitle = document.querySelector("#page-title");
 const pageContext = document.querySelector("#page-context");
 const copyWalletAddress = document.querySelector("#copy-wallet-address");
 const topbarAddressGroup = document.querySelector(".topbar-address-group");
+const routeBreadcrumb = document.querySelector("#route-breadcrumb");
 const walletNav = document.querySelector("#wallet-nav");
-const networkNav = document.querySelector("#network-nav");
-const walletTabs = document.querySelector("#wallet-tabs");
+const navigationTree = document.querySelector("#app-navigation-tree");
+const navigationTerminal = document.querySelector("#app-navigation-terminal");
 const walletIdentity = document.querySelector("#wallet-identity");
 const walletStatusbar = document.querySelector("#wallet-statusbar");
 const lockWalletLabel = document.querySelector("#lock-wallet-label");
 const mobileMenuButton = document.querySelector("#mobile-menu-button");
 const mobileMenuBackdrop = document.querySelector("#mobile-menu-backdrop");
 const mobilePopupMenu = document.querySelector("#mobile-popup-menu");
+const appBody = document.querySelector("#app-body");
 let mobilePopupType = "";
 let mobilePopupTrigger = null;
-const mobileMenuExpandedGroups = new Set();
 
 const dialog = document.querySelector("#flow-dialog");
 const dialogContent = document.querySelector("#dialog-content");
+let dialogHistoryActive = false;
+let dialogHistoryClosing = false;
 const appShell = document.querySelector("#app-shell");
 const lockScreen = document.querySelector("#lock-screen");
 const i18n = window.Z00ZI18n;
@@ -27,7 +30,7 @@ if (!i18n) throw new Error("Z00Z i18n must load before the wallet demo.");
 const help = window.Z00ZHelp;
 if (!help) throw new Error("Z00Z Help must load before the wallet demo.");
 const demoRuntime = window.Z00ZDemo;
-if (!demoRuntime?.PORT_CONTRACT || !demoRuntime.WALLET_CHAIN_OPTIONS || !demoRuntime.ASSET_CATALOG || !demoRuntime.createInitialState || !demoRuntime.createMockWalletGateway) {
+if (!demoRuntime?.APP_VERSION || !demoRuntime.PORT_CONTRACT || !demoRuntime.WALLET_CHAIN_OPTIONS || !demoRuntime.ASSET_CATALOG || !demoRuntime.DAPP_CATALOG || !demoRuntime.MESSENGER_MESSAGES || !demoRuntime.CONTACT_FIXTURES || !demoRuntime.createInitialState || !demoRuntime.createMockWalletGateway || !demoRuntime.createMockTelemetryGateway || !demoRuntime.createMockDappGateway || !demoRuntime.createMockMessengerGateway || !demoRuntime.createMockContactsGateway) {
   throw new Error("Z00Z production-port modules must load before the wallet demo.");
 }
 const uiLanguages = i18n.languages();
@@ -38,6 +41,17 @@ const state = demoRuntime.createInitialState({
   search: window.location.search
 });
 const walletGateway = demoRuntime.createMockWalletGateway(state);
+const telemetryGateway = demoRuntime.createMockTelemetryGateway();
+const dappGateway = demoRuntime.createMockDappGateway();
+const messengerGateway = demoRuntime.createMockMessengerGateway();
+const contactsGateway = demoRuntime.createMockContactsGateway(state);
+
+function clearExternalReviewHandoffs() {
+  state.dappWalletReviewHandoff = null;
+  state.messengerWalletReviewHandoff = null;
+  state.contactActionHandoff = null;
+}
+
 const passwordManagerIgnoreAttributeMap = Object.freeze({
   "data-form-type": "other",
   "data-1p-ignore": "true",
@@ -85,7 +99,6 @@ function suppressPasswordManagerUI(root = document) {
 }
 
 const headings = {
-  home: ["app.home", "app.homeContext"],
   wallet: ["Wallet", "Assets, vouchers, and permissions stay distinct"],
   "wallet-send": ["assets.send", "Assets, vouchers, and permissions stay distinct"],
   "wallet-receive": ["assets.receive", "Assets, vouchers, and permissions stay distinct"],
@@ -96,7 +109,9 @@ const headings = {
   "wallet-backup": ["Backup", "Protect the selected wallet with a verified local backup"],
   "wallet-settings": ["Wallet settings", "Configure this wallet without changing other local profiles"],
   settings: ["app.settings", "app.settingsContext"],
-  telemetry: ["Telemetry", "Read-only local route and publication evidence"]
+  telemetry: ["Telemetry", "navigation.telemetryContext"],
+  "data-storage": ["navigation.dataStorage", "Local concept usage without wallet secrets"],
+  about: ["navigation.about", "plan2.about.context"]
 };
 
 const telemetryTopbar = {
@@ -129,7 +144,7 @@ function walletChainBadgeMarkup(chainId) {
 }
 
 function languageOptionsMarkup() {
-  return uiLanguages.map(({ id, nativeName }) => `<option value="${id}"${state.language === id ? " selected" : ""}>${nativeName}</option>`).join("");
+  return uiLanguages.map(({ id, nativeName, flag }) => `<option value="${id}"${state.language === id ? " selected" : ""}>${flag} ${nativeName}</option>`).join("");
 }
 
 function regionalLocaleOptionsMarkup() {
@@ -187,7 +202,6 @@ function effectiveDemoConfigYaml() {
     `    network_units: ${state.networkUnits}`,
     `    notifications: ${state.notifications}`,
     "  appearance:",
-    `    theme: ${state.theme}`,
     `    palette: ${state.palette}`,
     `    text_scale: ${state.textScale}`,
     `    reduced_motion: ${state.reducedMotion}`,
@@ -230,10 +244,28 @@ function syncConfigDraftFromState() {
   state.configStatus = "Local draft is in sync with the visible controls.";
 }
 
+function paletteForId(paletteId) {
+  return demoRuntime.paletteOption(paletteId);
+}
+
+function paletteName(palette) {
+  return t(palette.id === "z00z-corporate"
+    ? "plan2.palette.corporateName"
+    : "plan2.palette.defaultName");
+}
+
+function applyPalette(paletteId) {
+  const palette = paletteForId(paletteId);
+  state.palette = palette.id;
+  mergeShellState({ type: "set_palette", palette: palette.id });
+  return palette;
+}
+
 function applyAppearancePreferences() {
   const root = document.documentElement;
-  root.dataset.theme = state.theme;
-  root.dataset.palette = state.palette;
+  const palette = paletteForId(state.palette);
+  root.dataset.palette = palette.id;
+  delete root.dataset.theme;
   root.dataset.codeTheme = state.codeTheme;
   root.dataset.textScale = state.textScale;
   root.dataset.reducedMotion = String(state.reducedMotion);
@@ -269,8 +301,6 @@ function validateAndApplyDemoConfig(source, apply = false) {
   const hideSensitive = readYamlScalar(source, "hide_sensitive_amounts");
   const expertDetails = readYamlScalar(source, "expert_details");
 
-  if (theme && !["dark", "light"].includes(theme)) return { valid: false, message: "Theme must be dark or light." };
-  if (palette && !paletteOptions.some((entry) => entry.id === palette)) return { valid: false, message: "Palette must use one of the listed preset IDs." };
   if (language && !uiLanguages.some((entry) => entry.id === language)) return { valid: false, message: "language must be a supported UI language code." };
   if (regionalLocale && !uiLanguages.some((entry) => entry.locale === regionalLocale)) return { valid: false, message: "regional_locale must use a supported locale." };
   if (timeZone && !["UTC", "Asia/Jerusalem", "Europe/Berlin", "America/New_York", "Asia/Tokyo", "Asia/Shanghai"].includes(timeZone)) return { valid: false, message: "time_zone must use a supported IANA identifier." };
@@ -286,8 +316,7 @@ function validateAndApplyDemoConfig(source, apply = false) {
   if (appLockAfter && !["5", "15", "30", "never"].includes(appLockAfter.toLowerCase())) return { valid: false, message: "lock_after_minutes must be 5, 15, 30, or never." };
 
   if (apply) {
-    if (theme) state.theme = theme;
-    if (palette) state.palette = palette;
+    if (theme || palette) applyPalette(demoRuntime.resolvePalettePreference({ palette, theme }));
     if (language) state.language = language;
     if (regionalLocale) state.regionalLocale = regionalLocale;
     if (timeZone) state.timeZone = timeZone;
@@ -310,7 +339,7 @@ function paletteCard(palette) {
   const isActive = state.palette === palette.id;
   return `<button class="palette-card${isActive ? " is-active" : ""}" type="button" data-palette="${palette.id}" aria-pressed="${isActive}">
     <span class="palette-swatches" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-    <span><strong>${palette.label}</strong></span>
+    <span class="palette-card-copy"><span class="palette-card-heading"><strong>${escapeHtml(paletteName(palette))}</strong>${isActive ? "<em>Active</em>" : ""}</span></span>
   </button>`;
 }
 
@@ -384,7 +413,7 @@ function advancedConfigContent() {
       <label><span>${t("app.language")}</span><select data-config-control="language">${languageOptionsMarkup()}</select></label>
       <label><span>${t("app.regionalFormat")}</span><select data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select></label>
       <label><span>${t("app.timeZone")}</span><select data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select></label>
-      <label><span>Palette</span><select data-config-control="palette">${paletteOptions.map((palette) => `<option value="${palette.id}"${state.palette === palette.id ? " selected" : ""}>${palette.label}</option>`).join("")}</select></label>
+      <label><span>${escapeHtml(t("plan2.palette.label"))}</span><select data-config-control="palette">${paletteOptions.map((palette) => `<option value="${palette.id}"${state.palette === palette.id ? " selected" : ""}>${escapeHtml(paletteName(palette))}</option>`).join("")}</select></label>
       <label><span>Text scale</span><select data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select></label>
       <label><span>Code highlighting</span><select data-config-control="code-theme">${codeThemeOptions.map((theme) => `<option value="${theme.id}"${state.codeTheme === theme.id ? " selected" : ""}>${theme.label}</option>`).join("")}</select></label>
       <label><span>Default fee</span><input data-config-control="default-fee" inputmode="decimal" value="${escapeHtml(walletPreferences.defaultFee)}" aria-label="Default fee"></label>
@@ -415,7 +444,8 @@ function isWalletView() {
 }
 
 function hasSelectedWalletContext() {
-  return Boolean(state.selectedWalletId) && !["settings", "telemetry"].includes(state.view);
+  return Boolean(state.selectedWalletId)
+    && !["settings", "telemetry", "dapps", "messenger", "contacts", "data-storage", "about"].includes(state.view);
 }
 
 function addWalletProfile(name, chainId = "mainnet", scan = "Scanning") {
@@ -424,27 +454,193 @@ function addWalletProfile(name, chainId = "mainnet", scan = "Scanning") {
   return result.data.wallet;
 }
 
-function sidebarActiveTarget() {
-  if (state.view === "telemetry") return { group: "network", id: state.telemetrySource };
+function mergeShellState(action) {
+  Object.assign(state, demoRuntime.reduceShellState(state, action));
+  if (state.activeWalletId) state.selectedWalletId = state.activeWalletId;
+}
 
-  if (state.view === "settings") {
-    if (["reticulum", "onionnet"].includes(state.settingsSection)) {
-      return { group: "network", id: state.settingsSection };
-    }
-    return { group: "settings", id: "settings" };
+function routeFromCurrentLegacyState() {
+  if (["dapps", "messenger", "contacts", "data-storage", "about"].includes(state.view)
+    && state.activeRoute?.startsWith(`${state.view}.`)) {
+    return state.activeRoute;
   }
+  if (state.view === "staking" && state.activeRoute?.startsWith("wallet.staking.")) {
+    return state.activeRoute;
+  }
+  if (state.view === "about" && state.activeRoute === "about") return "about";
+  return state.view === "route-preview" && demoRuntime.PORT_CONTRACT.routes.includes(state.previewRoute)
+    ? state.previewRoute
+    : demoRuntime.canonicalRouteFromLegacyNavigation(state);
+}
 
-  return state.selectedWalletId
-    ? { group: "wallet", id: state.selectedWalletId }
-    : { group: null, id: null };
+function synchronizeShellRoute() {
+  const routeId = routeFromCurrentLegacyState();
+  if (state.activeRoute !== routeId) mergeShellState({ type: "restore_route", routeId });
+  if (state.activeWalletId !== state.selectedWalletId && state.selectedWalletId) {
+    mergeShellState({ type: "switch_wallet", walletId: state.selectedWalletId, walletRouteCompatible: true });
+  }
+}
+
+function legacyStateForRoute(routeId) {
+  if (["wallet.assets", "wallet.vouchers", "wallet.permissions"].includes(routeId)) {
+    return { view: "wallet", walletSection: routeId.split(".").at(-1) };
+  }
+  if (routeId === "wallet.quarantine") return { view: "wallet", walletSection: "permissions" };
+  if (routeId === "wallet.send") return { view: "wallet-send" };
+  if (routeId === "wallet.receive") return { view: "wallet-receive" };
+  if (routeId === "wallet.history") return { view: "activity" };
+  if (["wallet.swap", "wallet.exchange"].includes(routeId)) return { view: routeId.slice("wallet.".length) };
+  if (routeId.startsWith("wallet.staking.")) return { view: "staking" };
+  if (routeId === "wallet.backup") return { view: "wallet-backup" };
+  if (routeId.startsWith("wallet.settings.")) return { view: "wallet-settings", walletSettingsSection: routeId.split(".").at(-1) };
+  if (routeId.startsWith("telemetry.reticulum.") || routeId.startsWith("telemetry.onionnet.") || routeId.startsWith("telemetry.aggregators.") || routeId.startsWith("telemetry.watchers.") || routeId.startsWith("telemetry.explorer.")) {
+    const [, source, tab] = routeId.split(".");
+    return { view: "telemetry", telemetrySource: source, [`${source}TelemetryTab`]: tab };
+  }
+  if (routeId.startsWith("dapps.")) {
+    return {
+      view: "dapps",
+      dappSection: routeId.split(".").at(-1),
+      dappScreen: "list",
+      dappSelectedId: null,
+      dappReviewConnectionId: null,
+      dappReviewValidationError: null,
+      dappReviewAcknowledgements: {
+        scopeConfirmed: false,
+        reauthAcknowledged: false
+      }
+    };
+  }
+  if (routeId.startsWith("messenger.")) {
+    return {
+      view: "messenger",
+      messengerSection: routeId.split(".").at(-1),
+      messengerScreen: "list",
+      messengerSelectedMessageId: null
+    };
+  }
+  if (routeId === "contacts.list") {
+    return {
+      view: "contacts",
+      contactsScreen: "list",
+      contactsSelectedId: null
+    };
+  }
+  if (routeId.startsWith("data-storage.")) {
+    return { view: "data-storage", dataStorageSection: routeId.split(".").at(-1) };
+  }
+  if (["settings.general", "settings.notifications", "settings.appearance"].includes(routeId)) {
+    return { view: "settings", settingsSection: routeId.split(".").at(-1) };
+  }
+  if (routeId === "about") return { view: "about" };
+  return { view: "route-preview", previewRoute: routeId };
+}
+
+function selectCanonicalRoute(routeId, { pushHistory = true } = {}) {
+  const node = demoRuntime.navigationNodeForRoute(routeId);
+  if (!node) return;
+  mergeShellState({ type: "select_leaf", nodeId: node.id });
+  Object.assign(state, legacyStateForRoute(routeId));
+  if (pushHistory) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("route", routeId);
+    window.history.pushState({ z00zRoute: routeId }, "", url);
+  }
+}
+
+function navigationLabel(node) {
+  return t(node.labelKey);
+}
+
+function navigationNodeMarkup(node, { prefix, depth = 0, terminal = false } = {}) {
+  const nodeLabel = escapeHtml(navigationLabel(node));
+  const selectedRouteNode = demoRuntime.navigationNodeForRoute(state.activeRoute);
+  const activeRouteNode = ["route", "workspace"].includes(node.target.kind) && (
+    node.target.routeId === state.activeRoute
+    || (node.target.kind === "workspace"
+      && demoRuntime.ancestorContainerIdsForNode(selectedRouteNode?.id || "").includes(node.id))
+  );
+  const activeBranch = ["branch", "group"].includes(node.target.kind)
+    && demoRuntime.ancestorContainerIdsForNode(selectedRouteNode?.id || "").includes(node.id);
+  const depthClass = `is-depth-${depth}`;
+  if (node.target.kind === "branch") {
+    const expanded = state.expandedBranchIds.includes(node.id);
+    const controlId = `${prefix}-${node.id.replaceAll(".", "-")}-toggle`;
+    const panelId = `${prefix}-${node.id.replaceAll(".", "-")}-children`;
+    return `<section class="navigation-tree-branch ${depthClass}${expanded ? " is-expanded" : ""}${activeBranch ? " has-active-descendant" : ""}">
+      <button id="${controlId}" class="navigation-tree-item navigation-tree-branch-toggle" type="button" data-navigation-branch="${escapeHtml(node.id)}" aria-expanded="${expanded}" aria-controls="${panelId}">
+        ${icon(node.iconId, "navigation-tree-icon")}
+        <span class="navigation-tree-label">${nodeLabel}</span>
+        ${icon("chevron", "navigation-tree-chevron")}
+      </button>
+      <div id="${panelId}" class="navigation-tree-children" role="group" aria-labelledby="${controlId}"${expanded ? "" : " hidden"}>
+        ${demoRuntime.navigationChildren(node.id).map((child) => navigationNodeMarkup(child, { prefix, depth: depth + 1 })).join("")}
+      </div>
+    </section>`;
+  }
+  if (node.target.kind === "group") {
+    const groupId = `${prefix}-${node.id.replaceAll(".", "-")}-group`;
+    return `<section class="navigation-tree-group ${depthClass}${activeBranch ? " has-active-descendant" : ""}" data-navigation-group="${escapeHtml(node.id)}" aria-labelledby="${groupId}">
+      <p id="${groupId}" class="navigation-tree-group-label">
+        ${icon(node.iconId, "navigation-tree-icon")}
+        <span class="navigation-tree-label">${nodeLabel}</span>
+      </p>
+      <div class="navigation-tree-group-children" role="group" aria-labelledby="${groupId}">
+        ${demoRuntime.navigationChildren(node.id).map((child) => navigationNodeMarkup(child, { prefix, depth: depth + 1 })).join("")}
+      </div>
+    </section>`;
+  }
+  if (["route", "workspace"].includes(node.target.kind)) {
+    return `<button class="navigation-tree-item navigation-tree-leaf${terminal ? " navigation-tree-terminal" : ""} ${depthClass}${activeRouteNode ? " is-active" : ""}" type="button" data-navigation-route="${escapeHtml(node.target.routeId)}"${node.target.kind === "workspace" ? ` data-navigation-workspace="${escapeHtml(node.id)}"` : ""}${activeRouteNode ? ' aria-current="page"' : ""}>
+      ${icon(node.iconId, "navigation-tree-icon")}
+      <span class="navigation-tree-label">${nodeLabel}</span>
+    </button>`;
+  }
+  const attributes = node.target.kind === "help"
+    ? `data-help-topic="${escapeHtml(node.helpTopicId)}"`
+    : `data-demo-action="${escapeHtml(node.target.actionId)}"`;
+  return `<button class="navigation-tree-item navigation-tree-terminal ${depthClass}" type="button" ${attributes}>
+    ${icon(node.iconId, "navigation-tree-icon")}
+    <span class="navigation-tree-label">${nodeLabel}</span>
+  </button>`;
+}
+
+function renderNavigationTree() {
+  const rootNodes = demoRuntime.navigationChildren();
+  navigationTree.innerHTML = rootNodes
+    .filter((node) => !["settings", "help", "about", "logout"].includes(node.id))
+    .map((node) => navigationNodeMarkup(node, { prefix: "desktop-navigation" }))
+    .join("");
+  navigationTerminal.innerHTML = rootNodes
+    .filter((node) => ["settings", "help", "about", "logout"].includes(node.id))
+    .map((node) => navigationNodeMarkup(node, { prefix: "desktop-terminal", terminal: true }))
+    .join("")
+    + `<p class="app-version">Version ${escapeHtml(demoRuntime.APP_VERSION)}</p>`;
+}
+
+function mobileNavigationDrawerMarkup() {
+  const rootNodes = demoRuntime.navigationChildren();
+  return `<header class="mobile-popup-header mobile-drawer-header"><strong>${escapeHtml(t("app.menu"))}</strong><button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button></header>
+    <div class="mobile-navigation-scroll-region">
+      <section class="mobile-wallet-selector" aria-label="${escapeHtml(t("app.wallets"))}">
+        <p>${escapeHtml(t("app.wallets"))}</p>
+        <div>${state.wallets.map((wallet) => `<button class="mobile-wallet-choice${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button" data-mobile-wallet-id="${escapeHtml(wallet.id)}"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""}><span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span>${escapeHtml(wallet.name)}</span></button>`).join("")}</div>
+      </section>
+      <nav class="mobile-navigation-tree" aria-label="${escapeHtml(t("app.menu"))}">
+      ${rootNodes.filter((node) => !["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-navigation" })).join("")}
+      </nav>
+    </div>
+    <nav class="mobile-navigation-terminal" aria-label="${escapeHtml(t("app.settings"))}">
+      ${rootNodes.filter((node) => ["settings", "help", "about", "logout"].includes(node.id)).map((node) => navigationNodeMarkup(node, { prefix: "mobile-terminal", terminal: true })).join("")}
+      <p class="app-version">Version ${escapeHtml(demoRuntime.APP_VERSION)}</p>
+    </nav>`;
 }
 
 function renderWalletShell() {
   const wallet = activeWallet();
   const summary = wallet.summary;
-  const sidebarTarget = sidebarActiveTarget();
   walletNav.innerHTML = `${state.wallets.map((entry) => `
-    <button class="wallet-nav-item${sidebarTarget.group === "wallet" && entry.id === sidebarTarget.id ? " is-active" : ""}" type="button" ${sidebarTarget.group === "wallet" && entry.id === sidebarTarget.id ? 'aria-current="page"' : ""} data-wallet-id="${escapeHtml(entry.id)}">
+    <button class="wallet-nav-item${entry.id === state.selectedWalletId ? " is-active" : ""}" type="button" ${entry.id === state.selectedWalletId ? 'aria-current="page"' : ""} data-wallet-id="${escapeHtml(entry.id)}">
       <span class="wallet-avatar" aria-hidden="true">${escapeHtml(entry.initials)}</span>
       <span class="wallet-nav-copy"><strong>${escapeHtml(entry.name)}</strong><small>${t("walletShell.balanceAvailable", { value: `<span class="mono">${sensitive(`${entry.summary.available} Z00Z`)}</span>` })}</small></span>
       <span class="wallet-nav-state${entry.summary.scan === "Scanning" ? " is-scanning" : ""}" aria-label="${escapeHtml(walletScanLabel(entry.summary.scan))}"></span>
@@ -453,70 +649,19 @@ function renderWalletShell() {
       <button class="nav-item nav-item-primary" type="button" data-demo-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
       <button class="nav-item nav-item-danger" type="button" data-demo-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
     </div>`;
-  networkNav.innerHTML = networkEntries.map((entry) => {
-    const isActive = sidebarTarget.group === "network" && sidebarTarget.id === entry.key;
-    return `<button class="network-nav-item${isActive ? " is-active" : ""}" type="button" ${isActive ? 'aria-current="page"' : ""} data-network-section="${entry.key}" title="${t(entry.helperKey)}">
-      <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
-      <span class="network-nav-copy"><strong>${entry.label}</strong></span>
-      <span class="network-nav-state" aria-hidden="true"></span>
-    </button>`;
-  }).join("");
   const walletName = wallet.name;
   walletIdentity.innerHTML = `<span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span><span><strong>${escapeHtml(walletName)}</strong><small class="mono">${escapeHtml(wallet.address)}</small></span>`;
   walletIdentity.setAttribute("aria-label", t("walletShell.identityAria", { wallet: walletName }));
   lockWalletLabel.innerHTML = `${escapeHtml(t("walletShell.lockLabel", { wallet: walletName }))} <span aria-hidden="true">·</span> <span class="mono">${escapeHtml(wallet.address)}</span>`;
   copyWalletAddress.setAttribute("aria-label", t("walletShell.copyAddress", { wallet: walletName }));
   copyWalletAddress.setAttribute("title", wallet.fullAddress);
-  const globalHelpButton = document.querySelector(".help-button");
-  globalHelpButton?.setAttribute("aria-label", t("help.openGlobal"));
-  globalHelpButton?.setAttribute("title", t("help.title"));
-  const telemetryTabSource = state.view === "telemetry" ? {
-    reticulum: { label: "Reticulum", tabs: reticulumTelemetryTabs, selectedTab: state.reticulumTelemetryTab, actionName: "reticulum-telemetry-tab" },
-    onionnet: { label: "OnionNet", tabs: onionnetTelemetryTabs, selectedTab: state.onionnetTelemetryTab, actionName: "onionnet-telemetry-tab" },
-    aggregators: { label: "Aggregators", tabs: aggregatorsTelemetryTabs, selectedTab: state.aggregatorsTelemetryTab, actionName: "aggregators-telemetry-tab" }
-  }[state.telemetrySource] : null;
-  const settingsTabs = [
-    { id: "general", labelKey: "settings.general", iconName: "settings" },
-    { id: "reticulum", label: "Reticulum", iconName: "network" },
-    { id: "onionnet", label: "OnionNet", iconName: "shield" },
-    { id: "appearance", labelKey: "settings.appearance", iconName: "sun" }
-  ];
-  walletTabs.classList.toggle("is-settings-tabs", state.view === "settings");
-  if (telemetryTabSource) {
-    const { label, tabs, selectedTab, actionName } = telemetryTabSource;
-    walletTabs.setAttribute("aria-label", `${label} telemetry parameters`);
-    walletTabs.setAttribute("role", "tablist");
-    walletTabs.innerHTML = tabs.map((tab) => `<button id="${state.telemetrySource}-tab-${tab.id}" class="wallet-tab${selectedTab === tab.id ? " is-active" : ""}" type="button" role="tab" aria-selected="${selectedTab === tab.id}" aria-controls="${state.telemetrySource}-panel-${tab.id}"${selectedTab === tab.id ? ' aria-current="page"' : ""} data-${actionName}="${tab.id}">${icon(tab.iconName)}<span>${t(tab.labelKey)}</span></button>`).join("");
-  } else if (state.view === "settings") {
-    walletTabs.setAttribute("aria-label", t("settings.sections"));
-    walletTabs.setAttribute("role", "tablist");
-    walletTabs.innerHTML = settingsTabs.map((tab) => {
-      const isActive = state.settingsSection === tab.id;
-      const label = tab.labelKey ? t(tab.labelKey) : tab.label;
-      return `<button id="settings-tab-${tab.id}" class="wallet-tab${isActive ? " is-active" : ""}" type="button" role="tab" aria-selected="${isActive}"${isActive ? ' aria-current="page"' : ""} data-settings-section="${tab.id}">${icon(tab.iconName)}<span>${label}</span></button>`;
-    }).join("");
-  } else {
-    walletTabs.setAttribute("aria-label", "Selected wallet");
-    walletTabs.removeAttribute("role");
-    walletTabs.innerHTML = [
-      { view: "wallet", labelKey: "nav.assets", iconName: "wallet", mobilePopup: "assets" },
-      { view: "wallet-send", labelKey: "assets.send", iconName: "send" },
-      { view: "wallet-receive", labelKey: "assets.receive", iconName: "receive" },
-      { view: "swap", labelKey: "nav.swap", iconName: "swap", title: "Compatibility preview — no canonical execution route" },
-      { view: "exchange", labelKey: "nav.exchange", iconName: "exchange", title: "Spot venue or cross-chain intent preview", mobilePopup: "exchange" },
-      { view: "staking", labelKey: "nav.staking", iconName: "staking", title: "Compatibility preview — validator and lock terms required" },
-      { view: "wallet-backup", labelKey: "nav.backup", iconName: "backup" },
-      { view: "activity", labelKey: "nav.history", iconName: "activity" },
-      { view: "wallet-settings", labelKey: "nav.settings", iconName: "settings", mobilePopup: "wallet-settings" }
-    ].map(({ view, labelKey, iconName, title = "", disabled = false, mobilePopup = "" }) => `<button class="wallet-tab${state.view === view ? " is-active" : ""}${disabled ? " is-unavailable" : ""}" type="button" ${state.view === view ? 'aria-current="page"' : ""}${disabled ? " disabled" : ""}${title ? ` title="${escapeHtml(title)}"` : ""}${mobilePopup ? ` data-mobile-popup="${mobilePopup}" aria-haspopup="menu"` : ""} data-view="${view}">${icon(iconName)}<span>${t(labelKey)}</span>${mobilePopup ? icon("chevron", "mobile-tab-disclosure") : ""}${disabled ? '<span class="sr-only">Unavailable</span>' : ""}</button>`).join("");
-  }
+  renderNavigationTree();
   walletStatusbar.innerHTML = `
     <span><small>${t("walletShell.available")}</small><strong>${sensitive(`${summary.available} Z00Z`)}</strong></span>
     <span><small>${t("walletShell.locked")}</small><strong>${sensitive(`${summary.locked} Z00Z`)}</strong></span>
     <span><small>${t("walletShell.pendingIn")}</small><strong>${sensitive(`${summary.pendingIn} Z00Z`)}</strong></span>
     <span><small>${t("walletShell.pendingOut")}</small><strong>${sensitive(`${summary.pendingOut} Z00Z`)}</strong></span>
     <span class="statusbar-telemetry"><small>${t("walletShell.routeTelemetry")}</small><strong><span class="statusbar-state-dot" aria-hidden="true"></span>${t("common.unavailable")}</strong></span>`;
-  walletTabs.hidden = !isWalletView() && !telemetryTabSource && state.view !== "settings";
   walletStatusbar.hidden = !hasSelectedWalletContext();
 }
 
@@ -648,7 +793,13 @@ function defaultSendDraft() {
     amount: "",
     memo: "",
     itemKey: "z00z",
-    completed: null
+    reviewedItem: null,
+    completed: null,
+    idempotencyKey: "",
+    operationId: null,
+    operationStatus: null,
+    operationError: null,
+    requestGeneration: 0
   };
 }
 
@@ -659,7 +810,7 @@ function activeSendDraft() {
   const draft = state.sendDrafts[wallet.id];
   if (!sendFamilies.some(({ id }) => id === draft.family)) draft.family = "asset";
   const options = sendOptionEntries(draft.family);
-  if (!options.some((entry) => entry.key === draft.itemKey)) {
+  if (draft.step === 0 && !options.some((entry) => entry.key === draft.itemKey)) {
     draft.itemKey = options[0]?.key || "";
   }
   return draft;
@@ -672,7 +823,8 @@ function resetActiveSendDraft() {
 
 function selectedSendOption(draft = activeSendDraft()) {
   const options = sendOptionEntries(draft.family);
-  return options.find((entry) => entry.key === draft.itemKey) || options[0];
+  return options.find((entry) => entry.key === draft.itemKey)
+    || (draft.step === 0 ? options[0] : draft.reviewedItem);
 }
 
 function sendOptionsMarkup(family, selectedKey) {
@@ -681,96 +833,6 @@ function sendOptionsMarkup(family, selectedKey) {
 
 function assetOptions(selectedKey = "z00z") {
   return walletAssetEntries().map((asset) => `<option value="${escapeHtml(asset.key)}"${asset.key === selectedKey ? " selected" : ""}>${escapeHtml(asset.label)} · ${t(asset.kindKey)}</option>`).join("");
-}
-
-function quickAction(target, label, helper, iconName, behavior = "flow") {
-  const targetAttribute = behavior === "view" ? `data-view="${target}"` : `data-open-flow="${target}"`;
-  const iconMarkup = iconName === "permission" ? objectFamilyIcon("right") : icon(iconName);
-  return `
-    <button class="quick-action" type="button" ${targetAttribute}>
-      <span class="quick-action-icon">${iconMarkup}</span>
-      <span><strong>${label}</strong><small>${helper}</small></span>
-    </button>`;
-}
-
-function homeView() {
-  const wallet = activeWallet();
-  const summary = wallet.summary;
-  return `
-    <div class="view-enter">
-      <section class="dashboard-grid" aria-label="Wallet overview">
-        <article class="card balance-card">
-          <div class="balance-card-top">
-            <span class="balance-label">${icon("shield")} Available privately</span>
-            <span class="asset-chip">Z00Z</span>
-          </div>
-          <p class="balance-amount">${sensitive(summary.available)} <span class="mono">Z00Z</span></p>
-          <p class="balance-pending"><strong>${sensitive(`+ ${summary.pendingIn}`)}</strong> receiving · <strong>${sensitive(`− ${summary.pendingOut}`)}</strong> sending</p>
-        </article>
-
-        <article class="card privacy-card">
-          <div class="privacy-card-header">
-            <span class="shield-mark">${icon("shield")}</span>
-            <span class="status-badge is-ready">Target simulation</span>
-          </div>
-          <h2>Private route model</h2>
-          <p>Target layering is shown without pretending current RPC telemetry exists.</p>
-          <div class="privacy-lines">
-            <div class="privacy-line"><span>Privacy overlay</span><strong>OnionNet · target</strong></div>
-            <div class="privacy-line"><span>Primary carrier</span><strong>Reticulum · target</strong></div>
-            <div class="privacy-line"><span>Wallet scan</span><strong>${escapeHtml(summary.scan)}</strong></div>
-            <div class="privacy-line"><span>Live route telemetry</span><strong>Unavailable</strong></div>
-          </div>
-        </article>
-      </section>
-
-      <section class="quick-section" aria-labelledby="quick-title">
-        <div class="section-heading">
-          <div><h2 id="quick-title">What would you like to do?</h2><p>Private actions with safe defaults</p></div>
-        </div>
-        <div class="quick-pairs">
-          <div class="quick-pair">
-            ${quickAction("wallet-send", "Send", "Send any supported asset", "send", "view")}
-            ${quickAction("wallet-receive", "Receive", "Show this wallet's receiver card", "receive", "view")}
-          </div>
-          <div class="quick-pair">
-            ${quickAction("asset-claim", "Claim", "Claim an asset allocation", "claim")}
-            ${quickAction("permission", "Give permission", "Delegate a bounded right", "permission")}
-          </div>
-        </div>
-      </section>
-
-      <section class="home-lower">
-        <article class="card panel" aria-labelledby="attention-title">
-          <div class="section-heading">
-            <div><h2 id="attention-title">Needs your attention</h2><p>Two items</p></div>
-            <button class="section-link" type="button" data-view="activity">Review history ${icon("chevron")}</button>
-          </div>
-          <div class="attention-list">
-            <button class="attention-item" type="button" data-open-flow="voucher-review">
-              <span class="list-icon is-voucher">${objectFamilyIcon("voucher")}</span>
-              <span class="list-copy"><strong>Travel refund voucher</strong><small>Offered by Northwind Travel · review required</small></span>
-              <span class="list-meta"><strong>86.00 Z00Z</strong><small>Ends in 2 days</small></span>
-            </button>
-            <button class="attention-item" type="button" data-open-flow="permission-detail">
-              <span class="list-icon is-right">${objectFamilyIcon("right")}</span>
-              <span class="list-copy"><strong>Delivery receipt access</strong><small>Data access · cannot delegate</small></span>
-              <span class="list-meta"><strong>2 of 5 uses</strong><small>Ends 31 Jul</small></span>
-            </button>
-          </div>
-        </article>
-
-        <article class="card panel" aria-labelledby="recent-title">
-          <div class="section-heading">
-            <div><h2 id="recent-title">Recent history</h2><p>Latest wallet events</p></div>
-            <button class="section-link" type="button" data-view="activity">View history ${icon("chevron")}</button>
-          </div>
-          <div class="activity-list">
-            ${activityRows(wallet.activities.slice(0, 3), true)}
-          </div>
-        </article>
-      </section>
-    </div>`;
 }
 
 function moneyView() {
@@ -871,11 +933,30 @@ function sendEmptyPanel(draft) {
   });
 }
 
+function dappWalletReviewNotice() {
+  const handoff = state.dappWalletReviewHandoff;
+  if (!handoff || handoff.target.routeId !== state.activeRoute) return "";
+  const descriptor = demoRuntime.dappDescriptor(handoff.source.descriptorId);
+  return `<div class="capability-note dapp-wallet-handoff" data-dapp-wallet-handoff="${escapeHtml(handoff.handoffId)}">${icon("shield")}<span><strong>Prepared from ${escapeHtml(descriptor?.label || "bounded dApp intent")}</strong><small>Only a typed, immutable prefill crossed into Wallet. Confirm the recipient, amount, item, and fee here; no wallet object changed during handoff.</small></span></div>`;
+}
+
+function messengerWalletReviewNotice() {
+  const handoff = state.messengerWalletReviewHandoff;
+  if (!handoff || handoff.target.routeId !== state.activeRoute) return "";
+  return `<div class="capability-note messenger-wallet-handoff" data-messenger-wallet-handoff="${escapeHtml(handoff.handoffId)}">${icon("shield")}<span><strong>Revalidated Messenger payment request</strong><small>Wallet accepted only the typed amount and asset prefill. The recipient remains blank and must be confirmed here; message state has no settlement authority.</small></span></div>`;
+}
+
+function contactWalletReviewNotice() {
+  const handoff = state.contactActionHandoff;
+  if (!handoff || handoff.action !== "pay" || handoff.target.routeId !== state.activeRoute) return "";
+  return `<div class="capability-note contact-wallet-handoff" data-contact-wallet-handoff="${escapeHtml(handoff.handoffId)}">${icon("shield")}<span><strong>Revalidated Pay action for ${escapeHtml(handoff.label)}</strong><small>The Contact supplied a typed Wallet-recipient reference, not a browser address. Confirm the recipient and every value field inside Wallet.</small></span></div>`;
+}
+
 function walletSendView() {
   const wallet = activeWallet();
   const draft = activeSendDraft();
   const item = selectedSendOption(draft);
-  const frame = !item && draft.step !== 2
+  const frame = !item && ![2, 3].includes(draft.step)
     ? sendEmptyPanel(draft)
     : draft.step === 0
       ? (() => {
@@ -916,18 +997,50 @@ function walletSendView() {
             footer: `<button class="button" type="button" data-send-action="back">${t("common.back")}</button><button class="button button-primary" type="button" data-send-action="submit">${t(`send.submit.${item.family}`)}</button>`
           });
         })()
-        : (() => {
+        : draft.step === 2
+          ? (() => {
+            if (draft.operationError) {
+              const operationId = draft.operationId || t("common.unavailable");
+              return sendPanelFrame({
+                title: "Submission outcome unknown",
+                subtitle: "Reconcile before any retry",
+                step: 2,
+                body: `<div class="operation-error-state" role="alert">${icon("alert")}<div><h3>${escapeHtml(draft.operationError.message)}</h3><p>The native boundary may already have accepted this intent. Re-submitting without reconciliation could duplicate the operation.</p></div></div>
+                  <div class="review-card"><div class="summary-row"><span>Operation</span><strong class="mono">${escapeHtml(operationId)}</strong></div><div class="summary-row"><span>Error class</span><strong>${escapeHtml(draft.operationError.code)}</strong></div><div class="summary-row"><span>Draft</span><strong>Preserved for this wallet</strong></div></div>
+                  <details class="technical"><summary>Recovery details</summary><div class="technical-content"><span>Reconcile by operation identity through the native gateway.</span><span>Do not infer failure from a timeout and do not generate a new idempotency key.</span></div></details>`,
+                footer: `<button class="button" type="button" data-send-action="back">${t("common.back")}</button><button class="button button-primary" type="button" data-send-action="reconcile">Reconcile status</button>`
+              });
+            }
+            const reconciling = draft.operationStatus === "reconciling";
+            return sendPanelFrame({
+              title: reconciling ? "Reconciling operation" : "Submitting payment",
+              subtitle: reconciling ? "Checking the native operation journal" : "One idempotent native intent",
+              step: 2,
+              body: `<div class="operation-progress-state" role="status" aria-live="polite">
+                <div class="result-icon is-settling">${icon("activity")}</div>
+                <h3>${reconciling ? "Resolving the recorded outcome…" : "Processing the reviewed intent…"}</h3>
+                <ol class="operation-progress-list">
+                  <li class="is-done">${icon("check")}<span>Revalidate wallet, item, and authority</span></li>
+                  <li class="${reconciling ? "is-done" : "is-active"}">${icon(reconciling ? "check" : "activity")}<span>Submit once with an idempotency key</span></li>
+                  <li class="${reconciling ? "is-active" : ""}">${icon("activity")}<span>Record and reconcile the operation identity</span></li>
+                </ol>
+                <div class="progress-track" aria-hidden="true"><div class="progress-bar" style="width:${reconciling ? "82" : "58"}%"></div></div>
+              </div>`,
+              footer: `<span class="send-operation-note">${reconciling ? "Safe to leave; the operation journal remains authoritative." : "Closing this view does not imply cancellation."}</span>`
+            });
+          })()
+          : (() => {
           const completed = draft.completed || { family: item.family, label: item.label, amountLabel: item.meta, recipientLabel: draft.recipientLabel };
           return sendPanelFrame({
             title: t(`send.sent.${completed.family}`),
             subtitle: t("send.settlementPending"),
             step: 2,
-            body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>${t("send.settling")}</h3><p>${escapeHtml(completed.label)} · ${escapeHtml(completed.recipientLabel)}</p><div class="receipt-ref">TX-8A42</div></div><div class="review-card"><div class="summary-row"><span>${t("send.value")}</span><strong>${escapeHtml(completed.amountLabel)}</strong></div><div class="summary-row"><span>${t("send.nextUpdate")}</span><strong>${t("send.automatic")}</strong></div></div>`,
+            body: `<div class="result-state"><span class="result-icon is-settling">${icon("activity")}</span><h3>${t("send.settling")}</h3><p>${escapeHtml(completed.label)} · ${escapeHtml(completed.recipientLabel)}</p><div class="receipt-ref mono">${escapeHtml(draft.operationId || "Operation unavailable")}</div></div><div class="review-card"><div class="summary-row"><span>${t("send.value")}</span><strong>${escapeHtml(completed.amountLabel)}</strong></div><div class="summary-row"><span>Native outcome</span><strong>Submitted · pending confirmation</strong></div><div class="summary-row"><span>${t("send.nextUpdate")}</span><strong>${t("send.automatic")}</strong></div></div>`,
             footer: `<button class="button" type="button" data-send-action="history">${t("send.viewHistory")}</button><button class="button button-primary" type="button" data-send-action="done">${t("history.done")}</button>`
           });
         })();
 
-  return `<div class="view-enter workspace-layout send-workspace-layout"><aside class="context-rail">${sendFamilyContextNav(draft.family)}</aside><div class="workspace-panel send-view">${frame}</div></div>`;
+  return `<div class="view-enter workspace-layout send-workspace-layout"><aside class="context-rail">${sendFamilyContextNav(draft.family)}</aside><div class="workspace-panel send-view">${dappWalletReviewNotice()}${messengerWalletReviewNotice()}${contactWalletReviewNotice()}${frame}</div></div>`;
 }
 
 function walletReceiveView() {
@@ -1032,7 +1145,7 @@ function permissionsPanel() {
 
 function walletView() {
   const panel = state.walletSection === "assets" ? moneyView() : state.walletSection === "vouchers" ? vouchersPanel() : permissionsPanel();
-  return `<div class="view-enter workspace-layout wallet-assets-layout"><aside class="context-rail">${walletContextNav()}</aside><div class="workspace-panel">${panel}</div></div>`;
+  return `<div class="view-enter workspace-layout wallet-assets-layout"><aside class="context-rail">${walletContextNav()}</aside><div class="workspace-panel">${dappWalletReviewNotice()}${panel}</div></div>`;
 }
 
 function statusText(status) {
@@ -1110,7 +1223,7 @@ function swapView() {
             <div class="field-group"><label class="field-label" for="swap-from">From</label><select id="swap-from">${assetOptions("z00z")}</select><p class="field-hint">Available: ${sensitive(`${asset.balance} ${asset.unit}`)}</p></div>
             <div class="field-group"><label class="field-label" for="swap-amount">Amount</label><div class="input-with-affix"><input id="swap-amount" type="number" min="0.01" max="${escapeHtml(asset.balance.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div></div>
             <div class="field-group"><label class="field-label" for="swap-to">To</label><select id="swap-to">${assetOptions("dai")}</select></div>
-            <button class="button button-primary" type="button" data-demo-action="preview-swap">${icon("swap")} Preview swap</button>
+            <button class="button button-primary" type="button" data-demo-action="preview-swap">${icon("swap")} Preview experimental recipe</button>
           </div>
         </article>
       </section>
@@ -1232,28 +1345,47 @@ function exchangeView() {
             <div class="field-group"><label class="field-label" for="exchange-destination">${t("exchange.destinationAsset")}</label><select id="exchange-destination" name="destinationId">${exchangeDestinationOptions(draft)}</select></div>
             ${exchangeProviderFields(draft)}
             <p class="field-error" id="exchange-error" role="alert"></p>
-            <button class="button button-primary" type="submit">${icon("exchange")} ${t("exchange.review")}</button>
+            <button class="button button-primary" type="submit">${icon("exchange")} Review target request</button>
           </form>
         </article>
       </section>`;
   return `<div class="view-enter workspace-layout exchange-workspace-layout">
     <aside class="context-rail">${exchangeProviderContextNav(draft)}</aside>
-    <div class="workspace-panel wallet-tool-view">${panel}</div>
+    <div class="workspace-panel wallet-tool-view">
+      ${panel}
+    </div>
   </div>`;
 }
 
 function stakingView() {
   const wallet = activeWallet();
   const summary = wallet.summary;
-  return `
-    <div class="view-enter wallet-tool-view">
+  const isUnstake = state.activeRoute === "wallet.staking.unstake";
+  const panel = isUnstake
+    ? `
+      <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
+        <article class="card wallet-tool-card staking-card">
+          <div class="tool-card-heading"><span class="list-icon">${icon("restore")}</span><div><h2>${t("navigation.unstake")}</h2></div></div>
+          <div class="staking-summary" aria-label="${t("staking.totals")}">
+            <div class="staking-metric"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong></div>
+            <div class="staking-metric"><span>${t("staking.staked")}</span><strong>${t("common.unavailable")}</strong></div>
+            <div class="staking-metric"><span>${t("staking.rewards")}</span><strong>${t("common.unavailable")}</strong></div>
+          </div>
+          <div class="form-grid">
+            <div class="field-group"><label class="field-label" for="unstake-position">${t("staking.staked")}</label><select id="unstake-position"><option>${t("staking.nothingDelegated")}</option></select></div>
+            <div class="field-group"><label class="field-label" for="unstake-amount">${t("staking.amount")}</label><div class="input-with-affix"><input id="unstake-amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div><p class="field-hint">${t("staking.notice")}</p></div>
+            <button class="button button-primary" type="button" data-demo-action="prepare-unstake">${icon("restore")} ${t("navigation.unstake")}</button>
+          </div>
+        </article>
+      </section>`
+    : `
       <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
         <article class="card wallet-tool-card staking-card">
           <div class="tool-card-heading"><span class="list-icon">${icon("staking")}</span><div><h2>${t("staking.prepare")}</h2></div></div>
           <div class="staking-summary" aria-label="${t("staking.totals")}">
             <div class="staking-metric"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong></div>
-            <div class="staking-metric"><span>${t("staking.staked")}</span><strong>0.00 Z00Z</strong></div>
-            <div class="staking-metric"><span>${t("staking.rewards")}</span><strong>0.00 Z00Z</strong></div>
+            <div class="staking-metric"><span>${t("staking.staked")}</span><strong>${t("common.unavailable")}</strong></div>
+            <div class="staking-metric"><span>${t("staking.rewards")}</span><strong>${t("common.unavailable")}</strong></div>
           </div>
           <div class="form-grid">
             <div class="field-group"><label class="field-label" for="stake-amount">${t("staking.amount")}</label><div class="input-with-affix"><input id="stake-amount" type="number" min="0.01" max="${escapeHtml(summary.available.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div><p class="field-hint">${t("staking.availableBalance", { value: sensitive(`${summary.available} Z00Z`) })}</p></div>
@@ -1261,8 +1393,10 @@ function stakingView() {
             <button class="button button-primary" type="button" data-demo-action="prepare-stake">${icon("staking")} ${t("staking.review")}</button>
           </div>
         </article>
-      </section>
-    </div>`;
+      </section>`;
+  return workspaceFrame("wallet.staking", `<div class="wallet-tool-view">
+    ${panel}
+  </div>`);
 }
 
 function walletBackupView() {
@@ -1290,141 +1424,7 @@ const walletSettingsMeta = {
 };
 
 function isMobileNavigation() {
-  return window.matchMedia("(max-width: 767px)").matches;
-}
-
-function isMobileDrawer(type) {
-  return type === "menu";
-}
-
-function mobilePopupHeader(label, branded = false) {
-  return `<header class="mobile-popup-header${branded ? " is-branded" : ""}">
-    <span class="mobile-popup-icon-spacer"></span>
-    ${branded
-      ? `<span class="mobile-drawer-brand"><img src="assets/logo/z00z-logo-gold-circle.png" alt=""><strong>Z00Z</strong></span>`
-      : `<strong>${escapeHtml(label)}</strong>`}
-    <button class="mobile-popup-icon" type="button" data-mobile-popup-close aria-label="${escapeHtml(t("common.close"))}">${icon("close")}</button>
-  </header>`;
-}
-
-function mobilePopupItem({ label, iconName = "", active = false, attributes = "", trailing = "" }) {
-  return `<button class="mobile-popup-item${active ? " is-active" : ""}" type="button"${active ? ' aria-current="page"' : ""} ${attributes}>
-    ${iconName ? icon(iconName) : ""}
-    <span>${escapeHtml(label)}</span>
-    ${trailing}
-  </button>`;
-}
-
-function mobileMenuAccordionMarkup({ group, label, iconName, content }) {
-  const expanded = mobileMenuExpandedGroups.has(group);
-  const buttonId = `mobile-menu-${group}-toggle`;
-  const panelId = `mobile-menu-${group}`;
-  return `<section class="mobile-menu-accordion">
-    <button id="${buttonId}" class="mobile-popup-item mobile-menu-accordion-toggle" type="button" data-mobile-menu-group="${group}" aria-expanded="${expanded}" aria-controls="${panelId}">
-      ${icon(iconName)}
-      <span>${escapeHtml(label)}</span>
-      ${icon("chevron", "mobile-menu-accordion-chevron")}
-    </button>
-    <div id="${panelId}" class="mobile-menu-accordion-panel" data-mobile-menu-panel="${group}" role="region" aria-labelledby="${buttonId}"${expanded ? "" : " hidden"}>
-      ${content}
-    </div>
-  </section>`;
-}
-
-function mobileWalletAccordionContent() {
-  return `<div class="mobile-menu-accordion-items">
-    ${state.wallets.map((wallet) => `<button class="mobile-popup-item${wallet.id === state.selectedWalletId ? " is-active" : ""}" type="button"${wallet.id === state.selectedWalletId ? ' aria-current="page"' : ""} data-mobile-select-wallet="${escapeHtml(wallet.id)}">
-      <span class="wallet-avatar" aria-hidden="true">${escapeHtml(wallet.initials)}</span>
-      <span>${escapeHtml(wallet.name)}</span>
-      ${wallet.id === state.selectedWalletId ? icon("check") : ""}
-    </button>`).join("")}
-  </div>
-  <div class="mobile-wallet-actions">
-    <button class="mobile-popup-item mobile-wallet-action is-add" type="button" data-mobile-popup-action="add-wallet">${icon("plus")}<span>${t("app.addWallet")}</span></button>
-    <button class="mobile-popup-item mobile-wallet-action is-remove" type="button" data-mobile-popup-action="remove-wallet"${state.wallets.length === 0 ? " disabled" : ""}>${icon("remove")}<span>${t("app.removeWallet")}</span></button>
-  </div>`;
-}
-
-function mobileNetworkAccordionContent() {
-  return `<div class="mobile-menu-accordion-items">
-    ${networkEntries.map((entry) => `<button class="mobile-popup-item${state.view === "telemetry" && state.telemetrySource === entry.key ? " is-active" : ""}" type="button"${state.view === "telemetry" && state.telemetrySource === entry.key ? ' aria-current="page"' : ""} data-mobile-select-network="${entry.key}">
-      <span class="network-avatar" aria-hidden="true">${entry.initials}</span>
-      <span>${escapeHtml(entry.label)}</span>
-      ${state.view === "telemetry" && state.telemetrySource === entry.key ? icon("check") : ""}
-    </button>`).join("")}
-  </div>`;
-}
-
-function mobilePopupMarkup(type) {
-  if (type === "assets") {
-    return `${mobilePopupHeader(t("assets.sections"))}
-      <div class="mobile-popup-list">
-        ${walletSections.map(({ key, labelKey, iconName }) => mobilePopupItem({
-          label: t(labelKey),
-          iconName,
-          active: state.view === "wallet" && state.walletSection === key,
-          attributes: `data-mobile-wallet-section="${key}"`
-        })).join("")}
-      </div>`;
-  }
-  if (type === "wallet-settings") {
-    return `${mobilePopupHeader(t("nav.settings"))}
-      <div class="mobile-popup-list">
-        ${Object.entries(walletSettingsMeta).map(([key, [label, iconName]]) => mobilePopupItem({
-          label,
-          iconName,
-          active: state.view === "wallet-settings" && state.walletSettingsSection === key,
-          attributes: `data-mobile-wallet-settings-section="${key}"`
-        })).join("")}
-      </div>`;
-  }
-  if (type === "exchange") {
-    const draft = activeExchangeDraft();
-    return `${mobilePopupHeader(t("exchange.executionModel"))}
-      <div class="mobile-popup-list">
-        ${Object.values(demoRuntime.EXCHANGE_PROVIDER_LUT).map((provider) => mobilePopupItem({
-          label: t(provider.labelKey),
-          iconName: provider.iconName,
-          active: draft.providerId === provider.id,
-          attributes: `data-mobile-exchange-provider="${provider.id}"`
-        })).join("")}
-      </div>`;
-  }
-  return `${mobilePopupHeader(t("app.menu"), true)}
-    <div class="mobile-popup-list">
-      ${mobileMenuAccordionMarkup({
-        group: "wallets",
-        label: t("app.wallets"),
-        iconName: "wallet",
-        content: mobileWalletAccordionContent()
-      })}
-      ${mobileMenuAccordionMarkup({
-        group: "network",
-        label: t("app.network"),
-        iconName: "network",
-        content: mobileNetworkAccordionContent()
-      })}
-      ${mobilePopupItem({ label: t("app.settings"), iconName: "settings", active: state.view === "settings", attributes: 'data-mobile-app-view="settings"' })}
-      ${mobilePopupItem({ label: t("help.title"), iconName: "question", attributes: 'data-help-topic="app"' })}
-      ${mobilePopupItem({ label: t("app.logOut"), iconName: "logout", attributes: 'data-mobile-popup-action="logout"' })}
-    </div>`;
-}
-
-function positionMobilePopup(trigger) {
-  if (isMobileDrawer(mobilePopupType)) {
-    mobilePopupMenu.style.removeProperty("--mobile-popup-left");
-    mobilePopupMenu.style.removeProperty("--mobile-popup-top");
-    mobilePopupMenu.style.removeProperty("--mobile-popup-width");
-    return;
-  }
-  const navigationBounds = document.querySelector("#primary-topbar").getBoundingClientRect();
-  const triggerBounds = trigger?.getBoundingClientRect();
-  const popupWidth = Math.min(300, window.innerWidth - 16);
-  const preferredLeft = triggerBounds ? triggerBounds.left : 8;
-  const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - popupWidth - 8));
-  mobilePopupMenu.style.setProperty("--mobile-popup-left", `${left}px`);
-  mobilePopupMenu.style.setProperty("--mobile-popup-top", `${navigationBounds.bottom + 7}px`);
-  mobilePopupMenu.style.setProperty("--mobile-popup-width", `${popupWidth}px`);
+  return window.matchMedia("(max-width: 768px)").matches;
 }
 
 function closeMobilePopup({ restoreFocus = false } = {}) {
@@ -1433,18 +1433,19 @@ function closeMobilePopup({ restoreFocus = false } = {}) {
   mobilePopupMenu.hidden = true;
   mobilePopupMenu.innerHTML = "";
   mobilePopupMenu.removeAttribute("data-popup-type");
-  mobilePopupMenu.setAttribute("role", "menu");
+  mobilePopupMenu.setAttribute("role", "dialog");
   mobilePopupMenu.removeAttribute("aria-modal");
   mobileMenuBackdrop.hidden = true;
   document.body.classList.remove("has-mobile-drawer");
+  appBody.inert = false;
+  mergeShellState({ type: "set_drawer", open: false });
   mobilePopupType = "";
   mobilePopupTrigger = null;
   mobileMenuButton.setAttribute("aria-expanded", "false");
-  document.querySelectorAll("[data-mobile-popup]").forEach((button) => button.setAttribute("aria-expanded", "false"));
   if (restoreFocus && trigger?.isConnected) trigger.focus();
 }
 
-function openMobilePopup(type, trigger = mobileMenuButton) {
+function openMobilePopup(type = "menu", trigger = mobileMenuButton) {
   if (!isMobileNavigation()) return;
   if (!mobilePopupMenu.hidden && mobilePopupType === type && mobilePopupTrigger === trigger) {
     closeMobilePopup({ restoreFocus: true });
@@ -1452,22 +1453,16 @@ function openMobilePopup(type, trigger = mobileMenuButton) {
   }
   mobilePopupType = type;
   mobilePopupTrigger = trigger;
-  mobilePopupMenu.innerHTML = mobilePopupMarkup(type);
-  mobilePopupMenu.dataset.popupType = type;
-  mobilePopupMenu.setAttribute("role", isMobileDrawer(type) ? "dialog" : "menu");
-  if (isMobileDrawer(type)) {
-    mobilePopupMenu.setAttribute("aria-modal", "true");
-    mobileMenuBackdrop.hidden = false;
-    document.body.classList.add("has-mobile-drawer");
-  } else {
-    mobilePopupMenu.removeAttribute("aria-modal");
-    mobileMenuBackdrop.hidden = true;
-    document.body.classList.remove("has-mobile-drawer");
-  }
+  mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
+  mobilePopupMenu.dataset.popupType = "menu";
+  mobilePopupMenu.setAttribute("role", "dialog");
+  mobilePopupMenu.setAttribute("aria-modal", "true");
+  mobileMenuBackdrop.hidden = false;
+  document.body.classList.add("has-mobile-drawer");
+  appBody.inert = true;
+  mergeShellState({ type: "set_drawer", open: true });
   mobilePopupMenu.hidden = false;
-  mobileMenuButton.setAttribute("aria-expanded", String(trigger === mobileMenuButton));
-  document.querySelectorAll("[data-mobile-popup]").forEach((button) => button.setAttribute("aria-expanded", String(button === trigger)));
-  positionMobilePopup(trigger);
+  mobileMenuButton.setAttribute("aria-expanded", "true");
   requestAnimationFrame(() => mobilePopupMenu.querySelector("button")?.focus());
 }
 
@@ -1611,8 +1606,18 @@ function settingsDetail() {
         <div class="setting-line compact-row app-select-setting" data-help-anchor="language"><strong class="compact-row-label">${t("app.language")}</strong><select class="compact-value" aria-label="${t("app.language")}" data-config-control="language">${languageOptionsMarkup()}</select><span class="compact-action"></span></div>
         <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.regionalFormat")}</strong><select class="compact-value" aria-label="${t("app.regionalFormat")}" data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select><span class="compact-action"></span></div>
         <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.timeZone")}</strong><select class="compact-value" aria-label="${t("app.timeZone")}" data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select><span class="compact-action"></span></div>
-        <div class="setting-line compact-row"><strong class="compact-row-label">${t("app.notifications")}</strong><span class="compact-value"></span><button class="toggle compact-action" type="button" data-demo-action="general-notifications" aria-pressed="${state.notifications}" aria-label="${t("app.notifications")} ${state.notifications ? t("common.on") : t("common.off")}"></button></div>
       </div>`;
+  }
+
+  if (state.settingsSection === "notifications") {
+    return `
+      <div class="settings-heading"><div><p class="eyebrow">${escapeHtml(t("navigation.notifications"))}</p><h2>${escapeHtml(t("navigation.notifications"))}</h2><p>Choose how this device announces messages and important wallet events.</p></div></div>
+      <div class="setting-group settings-first-group">
+        <div class="setting-line compact-row notification-master-setting"><span class="setting-line-copy compact-row-label"><strong>${escapeHtml(t("app.notifications"))}</strong><small>Master notification control for this device</small></span><span class="compact-value"></span><button class="toggle compact-action" type="button" data-demo-action="general-notifications" aria-pressed="${state.notifications}" aria-label="${escapeHtml(t("app.notifications"))} ${state.notifications ? escapeHtml(t("common.on")) : escapeHtml(t("common.off"))}"></button></div>
+        <div class="setting-line compact-row app-select-setting notification-choice-setting"><span class="setting-line-copy compact-row-label"><strong>Vibrate</strong><small>Haptic feedback policy</small></span><select class="compact-value" aria-label="Vibrate" data-config-control="vibrate"${state.notifications ? "" : " disabled"}><option value="messages-and-alerts"${state.vibrate === "messages-and-alerts" ? " selected" : ""}>Messages and alerts</option><option value="alerts-only"${state.vibrate === "alerts-only" ? " selected" : ""}>Important alerts only</option><option value="never"${state.vibrate === "never" ? " selected" : ""}>Never</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting notification-choice-setting"><span class="setting-line-copy compact-row-label"><strong>Ringtone</strong><small>Sound used for new messages</small></span><select class="compact-value" aria-label="Ringtone" data-config-control="ringtone"${state.notifications ? "" : " disabled"}><option value="z00z-pulse"${state.ringtone === "z00z-pulse" ? " selected" : ""}>Z00Z Pulse</option><option value="soft-chime"${state.ringtone === "soft-chime" ? " selected" : ""}>Soft Chime</option><option value="none"${state.ringtone === "none" ? " selected" : ""}>None</option></select><span class="compact-action"></span></div>
+      </div>
+      <div class="notice">${icon("bell")} These choices are local demo preferences. A packaged app must request the operating-system permissions before using sound or vibration.</div>`;
   }
 
   if (state.settingsSection === "security") {
@@ -1666,8 +1671,12 @@ function settingsDetail() {
   if (state.settingsSection === "appearance") {
     return `
       <div class="setting-group settings-first-group">
-        <div class="setting-line compact-row" data-help-anchor="theme"><strong class="compact-row-label">Theme</strong><span class="compact-value"></span><button type="button" class="theme-toggle compact-action" data-theme-toggle aria-label="Switch to ${state.theme === "dark" ? "light" : "dark"} mode" title="Switch to ${state.theme === "dark" ? "light" : "dark"} mode">${icon(state.theme === "dark" ? "moon" : "sun")} ${state.theme === "dark" ? "Dark" : "Light"}</button></div>
-        <div class="setting-line palette-setting"><span class="setting-line-copy"><strong>Palette</strong></span><div class="palette-grid" aria-label="Palette presets">${paletteOptions.map(paletteCard).join("")}</div></div>
+        <div class="setting-line palette-setting" data-help-anchor="appearance">
+          <span class="setting-line-copy"><strong>${escapeHtml(t("plan2.palette.label"))}</strong><small>${escapeHtml(t("plan2.palette.help"))}</small></span>
+          <div class="palette-choice">
+            <div class="palette-grid" aria-label="${escapeHtml(t("plan2.palette.previews"))}">${paletteOptions.map(paletteCard).join("")}</div>
+          </div>
+        </div>
         <div class="setting-line palette-setting code-theme-setting"><span class="setting-line-copy"><strong>Code highlighting</strong></span><div class="code-theme-sections" aria-label="YAML code highlighting theme"><section><p class="code-theme-group-label">Light</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "light").map(codeThemeCard).join("")}</div></section><section><p class="code-theme-group-label">Dark</p><div class="code-theme-grid">${codeThemeOptions.filter((theme) => theme.mode === "dark").map(codeThemeCard).join("")}</div></section></div></div>
         <div class="setting-line compact-row"><strong class="compact-row-label">Text scale</strong><select class="compact-value" aria-label="Text scale" data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select><span class="compact-action"></span></div>
         <div class="setting-line compact-row"><strong class="compact-row-label">Reduced motion</strong><span class="compact-value"></span><button class="toggle compact-action" type="button" aria-pressed="${state.reducedMotion}" aria-label="Use reduced motion" data-demo-action="motion"></button></div>
@@ -1684,6 +1693,68 @@ function settingsView() {
         <article class="card settings-detail">${settingsDetail()}</article>
       </div>
     </div>`;
+}
+
+function usageMeter(label, value, total, detail) {
+  const percent = Math.min(100, Math.max(0, Math.round((value / total) * 100)));
+  return `<article class="usage-meter">
+    <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(detail)}</strong></div>
+    <div class="progress-track" aria-label="${escapeHtml(label)}: ${percent}%"><div class="progress-bar" style="width:${percent}%"></div></div>
+  </article>`;
+}
+
+function dataStorageView() {
+  if (state.dataStorageSection === "network-usage") {
+    return `<section class="view-enter data-storage-view">
+      <div class="settings-layout settings-layout--full">
+        <article class="card settings-detail">
+          <div class="settings-heading"><div><p class="eyebrow">${escapeHtml(t("navigation.dataStorage"))}</p><h2>${escapeHtml(t("navigation.networkUsage"))}</h2><p>Local demonstration counters. No wallet address, contact, message, or route detail is exported.</p></div></div>
+          <div class="network-summary-grid">
+            <article><span>Received today</span><strong>184 MB</strong><small>Local fixture</small></article>
+            <article><span>Sent today</span><strong>42 MB</strong><small>Local fixture</small></article>
+            <article><span>Reticulum</span><strong>138 MB</strong><small>Transport total</small></article>
+            <article><span>OnionNet</span><strong>88 MB</strong><small>Private overlay total</small></article>
+          </div>
+          <div class="notice">${icon("shield")} Production counters must remain aggregate and must not expose contacts, destinations, message content, or wallet activity.</div>
+        </article>
+      </div>
+    </section>`;
+  }
+  return `<section class="view-enter data-storage-view">
+    <div class="settings-layout settings-layout--full">
+      <article class="card settings-detail">
+        <div class="settings-heading"><div><p class="eyebrow">${escapeHtml(t("navigation.dataStorage"))}</p><h2>${escapeHtml(t("navigation.diskUsage"))}</h2><p>Understand local space without exposing private wallet material.</p></div><strong class="usage-total">286 MB</strong></div>
+        <div class="usage-meter-list">
+          ${usageMeter("Wallet indexes", 164, 512, "164 MB")}
+          ${usageMeter("Network cache", 78, 512, "78 MB")}
+          ${usageMeter("Help content", 31, 512, "31 MB")}
+          ${usageMeter("Sanitized logs", 13, 512, "13 MB")}
+        </div>
+        <div class="notice">${icon("storage")} Values are deterministic demo fixtures. Seed phrases, keys, passwords, and arbitrary file paths are never shown.</div>
+      </article>
+    </div>
+  </section>`;
+}
+
+function aboutView() {
+  const checked = state.updateCheckStatus === "current";
+  return `<section class="view-enter about-view">
+    <div class="about-surface">
+      <div class="about-identity">
+        <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
+        <h2>${escapeHtml(t("plan2.about.productVersion", { version: demoRuntime.APP_VERSION }))}</h2>
+        <p>${escapeHtml(t("plan2.about.summary"))}</p>
+      </div>
+      <nav class="about-links" aria-label="${escapeHtml(t("plan2.about.linksLabel"))}">
+        <a href="https://z00z.io/docs/legal/privacy" target="_blank" rel="noopener noreferrer">${escapeHtml(t("plan2.about.privacyPolicy"))}</a>
+        <a href="https://z00z.io/docs/legal/terms" target="_blank" rel="noopener noreferrer">${escapeHtml(t("plan2.about.termsOfUse"))}</a>
+        <a href="https://z00z.io/" target="_blank" rel="noopener noreferrer">${escapeHtml(t("plan2.about.visitWebsite"))}</a>
+        <a href="https://github.com/z00z-labs/z00z" target="_blank" rel="noopener noreferrer">${escapeHtml(t("plan2.about.visitGitHub"))}</a>
+      </nav>
+      <p class="update-check-status" role="status"${checked ? "" : " hidden"}>${checked ? escapeHtml(t("plan2.about.currentVersion", { version: demoRuntime.APP_VERSION })) : ""}</p>
+      <button class="button button-primary about-update-button" type="button" data-demo-action="check-for-updates">${icon("activity")} ${escapeHtml(t("plan2.about.checkForUpdates"))}</button>
+    </div>
+  </section>`;
 }
 
 function telemetryValue(label, value, helper) {
@@ -1808,14 +1879,175 @@ const aggregatorsTelemetryTabs = [
     id: "overview",
     labelKey: "aggregators.tabs.overview",
     iconName: "overview",
+    summary: "The runtime composes admission, deterministic ordering, publication, and recovery boundaries; this renderer observes none of them directly.",
+    authority: "AggregatorService: AggregatorIngress + AggregatorOrdering + AggregatorRecovery",
     metrics: [
       ["Service bindings", "Unavailable", "No wallet-to-node status bridge"],
       ["Publication", "Unavailable", "No latest publication record"],
       ["Placement", "Unavailable", "No batch placement observation"],
       ["Verdict", "Unavailable", "No validation or lifecycle evidence"]
+    ],
+    fields: [
+      ["Admission", "WorkPayload → WorkItem | RejectRecord"],
+      ["Ordering", "&[WorkItem] → OrderedBatch | RejectRecord"],
+      ["Publication", "PublicationRequest → PublishedBatch"],
+      ["Recovery", "ShardRecoveryRecord → ShardExecTicket"]
+    ],
+    guards: [
+      "No wallet-to-node bridge is registered in this demo.",
+      "Storage owns settlement roots, proofs, lifecycle evidence, and recovery truth.",
+      "Wallet-private identifiers never enter this workspace."
+    ]
+  },
+  {
+    id: "ingress",
+    labelKey: "navigation.ingress",
+    iconName: "entry",
+    summary: "Admission normalizes a transaction or claim payload and returns a digest-bound WorkItem or a typed rejection.",
+    authority: "AggregatorIngress::admit(WorkPayload) → Result<WorkItem, RejectRecord>",
+    metrics: [
+      ["Payload class", "Unavailable", "Contract permits Tx or Claim"],
+      ["Intake identity", "Unavailable", "Derived from the admission digest"],
+      ["Object binding", "Unavailable", "Optional runtime object package binding"],
+      ["Admission outcome", "Unavailable", "No WorkItem or RejectRecord snapshot"]
+    ],
+    fields: [
+      ["Input", "WorkPayload::Tx | WorkPayload::Claim"],
+      ["Accepted", "WorkItem { intake_id, payload, object_package }"],
+      ["Rejected", "RejectRecord { intake_id?, class, detail }"],
+      ["Reject classes", "parse · auth · shape · replay · policy · deferred"]
+    ],
+    guards: [
+      "A bound object package changes the admission digest and intake identity.",
+      "No raw payload, receiver, memo, or wallet-local route is exposed.",
+      "Unavailable is not interpreted as admitted or rejected."
+    ]
+  },
+  {
+    id: "planning",
+    labelKey: "navigation.planning",
+    iconName: "advanced",
+    summary: "Planning binds admitted work to one shard route and produces a deterministic batch plan without settlement authority.",
+    authority: "BatchPlanner + PlannerAuthority → BatchPlanned",
+    metrics: [
+      ["Planner mode", "Unavailable", "Runtime supports central or per_agg"],
+      ["Batch route", "Unavailable", "Shard ID plus routing generation"],
+      ["Work binding", "Unavailable", "Intake IDs and operation count"],
+      ["Plan evidence", "Unavailable", "Route-table and plan digests"]
+    ],
+    fields: [
+      ["Authority", "mode · routing_generation · route_table_digest"],
+      ["Route", "BatchRoute { shard_id, routing_generation }"],
+      ["Plan", "BatchPlanned { batch_id, intake_ids, op_count }"],
+      ["Digests", "planner config · route table · deterministic plan"]
+    ],
+    guards: [
+      "Planner mode, configuration, generation, and route-table digest must match.",
+      "A claimed plan is accepted only after deterministic local recomputation.",
+      "Planning does not finalize settlement or publication."
+    ]
+  },
+  {
+    id: "placement",
+    labelKey: "navigation.placement",
+    iconName: "reticulum-interface",
+    summary: "Placement is an operational view of which aggregator owns a planned shard generation and which secondaries are ready.",
+    authority: "ShardPlacementTable::view(BatchPlanned) → ShardPlacementView",
+    metrics: [
+      ["Shard route", "Unavailable", "No observed shard or generation"],
+      ["Primary owner", "Unavailable", "No AggregatorId snapshot"],
+      ["Secondaries", "Unavailable", "No bounded readiness set"],
+      ["Journal lineage", "Unavailable", "No expected lineage digest"]
+    ],
+    fields: [
+      ["Route", "BatchRoute { shard_id, routing_generation }"],
+      ["Primary", "AggregatorId"],
+      ["Secondaries", "SecondaryState { aggregator_id, is_ready }"],
+      ["Continuity", "expected_journal_lineage"]
+    ],
+    guards: [
+      "The placement table must own the exact shard and routing generation.",
+      "Primary and secondary IDs are operational runtime data, not wallet identities.",
+      "This concept never invents endpoints, topology, or global network health."
+    ]
+  },
+  {
+    id: "publication",
+    labelKey: "navigation.publication",
+    iconName: "send",
+    summary: "Publication binds one ordered batch to checkpoint, quorum, data-availability, and lifecycle evidence.",
+    authority: "PublicationRequest → PublishedBatch → PublicationRecord",
+    metrics: [
+      ["Publication state", "Unavailable", "No current lifecycle snapshot"],
+      ["Operation identity", "Unavailable", "No idempotency key or batch ID"],
+      ["Checkpoint binding", "Unavailable", "No root or delta evidence"],
+      ["DA evidence", "Unavailable", "No provider reference or evidence bundle"]
+    ],
+    fields: [
+      ["Request", "batch · route · subject · certificate · idempotency_key"],
+      ["Published", "checkpoint · provider · blob_ref · quorum digests"],
+      ["Record", "state · DA reference · publication evidence · lifecycle"],
+      ["Binding", "route table · roots · spent/created counts · pub_in digest"]
+    ],
+    guards: [
+      "Partial evidence bundles fail readiness validation.",
+      "Provider, height, manifest, payload, statement, and evidence roots must agree.",
+      "Storage remains authoritative for checkpoint roots, proofs, and lifecycle."
+    ]
+  },
+  {
+    id: "recovery",
+    labelKey: "navigation.recovery",
+    iconName: "restore",
+    summary: "Recovery resumes a committed shard execution only when route ownership, generation, primary, and journal lineage still agree.",
+    authority: "RecoveryBoundary::capture / resume → ShardRecoveryRecord | ShardExecTicket",
+    metrics: [
+      ["Recovery intent", "Unavailable", "RestartPrimary or TakeoverSecondary"],
+      ["Committed record", "Unavailable", "No checkpoint or publication state"],
+      ["Durable lineage", "Unavailable", "No storage recovery snapshot"],
+      ["Execution ticket", "Unavailable", "No routed or recovery-pending state"]
+    ],
+    fields: [
+      ["Record", "batch · placement · checkpoint? · publication_state"],
+      ["Durable state", "version · state_root · generation · lineage · route"],
+      ["Intent", "restart_primary | takeover_secondary"],
+      ["Ticket", "batch_id · placement · ShardExecState"]
+    ],
+    guards: [
+      "Wrong generation, primary, shard, batch, or journal lineage fails closed.",
+      "A secondary takeover requires a ready secondary and committed recovery state.",
+      "The renderer cannot initiate failover or mutate storage recovery truth."
     ]
   }
 ];
+
+function aggregatorContractFields(screen) {
+  return screen.fields.map(([label, contract]) => `<div><dt>${escapeHtml(label)}</dt><dd><code>${escapeHtml(contract)}</code></dd></div>`).join("");
+}
+
+function aggregatorGuardList(screen) {
+  return screen.guards.map((guard) => `<li>${icon("shield")}<span>${escapeHtml(guard)}</span></li>`).join("");
+}
+
+function aggregatorTelemetryPanel(screen) {
+  const label = t(screen.labelKey);
+  return `<section class="telemetry-view aggregator-concept" data-aggregator-screen="${escapeHtml(screen.id)}" aria-labelledby="aggregator-screen-title">
+    <section class="telemetry-tab-detail" aria-label="${escapeHtml(label)} runtime contract">
+      <div class="telemetry-tab-heading"><div><h3 id="aggregator-screen-title">${escapeHtml(label)}</h3><p>${escapeHtml(screen.summary)}</p></div><span class="status-badge">${t("common.unavailable")}</span></div>
+      <section class="network-summary-grid telemetry-summary" aria-label="${escapeHtml(label)} observation status">${screen.metrics.map(([metric, value, helper]) => telemetryValue(escapeHtml(metric), escapeHtml(value), escapeHtml(helper))).join("")}</section>
+      <div class="aggregator-contract-grid">
+        <section class="aggregator-contract-card" aria-labelledby="aggregator-fields-title">
+          <div class="aggregator-contract-heading">${icon("advanced")}<h4 id="aggregator-fields-title">Runtime contract fields</h4></div>
+          <dl>${aggregatorContractFields(screen)}</dl>
+        </section>
+        <section class="aggregator-contract-card" aria-labelledby="aggregator-guards-title">
+          <div class="aggregator-contract-heading">${icon("shield")}<h4 id="aggregator-guards-title">Fail-closed boundaries</h4></div>
+          <ul>${aggregatorGuardList(screen)}</ul>
+        </section>
+      </div>
+    </section>
+  </section>`;
+}
 
 const onionnetTelemetryTabs = [
   {
@@ -1897,10 +2129,27 @@ const onionnetTelemetryTabs = [
   }
 ];
 
+function workspaceContextNav(workspaceId) {
+  const workspace = demoRuntime.navigationNode(workspaceId);
+  return `<nav class="context-nav context-tab-list workspace-local-context${workspaceId.startsWith("telemetry.") ? " telemetry-workspace-context" : ""}" aria-label="${escapeHtml(navigationLabel(workspace))}">${demoRuntime.workspaceLocalDestinations(workspaceId).map(({ routeId, labelKey, iconId }) => {
+    const active = state.activeRoute === routeId;
+    return `<button class="context-nav-item${active ? " is-active" : ""}" type="button" ${active ? 'aria-current="page"' : ""} data-workspace-route="${escapeHtml(routeId)}">
+      ${icon(iconId)}<span><strong>${t(labelKey)}</strong></span>
+    </button>`;
+  }).join("")}</nav>`;
+}
+
+function workspaceFrame(workspaceId, panel, helpTopicOverride = "") {
+  return `<div class="view-enter workspace-layout workspace-local-layout${workspaceId.startsWith("telemetry.") ? " telemetry-workspace-layout" : ""}" data-workspace-id="${escapeHtml(workspaceId)}"${helpTopicOverride ? ` data-help-topic-override="${escapeHtml(helpTopicOverride)}"` : ""}>
+    <aside class="context-rail">${workspaceContextNav(workspaceId)}</aside>
+    <div class="workspace-panel">${panel}</div>
+  </div>`;
+}
+
 function telemetryTabbedView({ source, tabs, selectedTabId, titleKey, localCapabilityKey }) {
   const activeTab = tabs.find((tab) => tab.id === selectedTabId) || tabs[0];
   const tabLabel = t(activeTab.labelKey);
-  return `<section class="view-enter telemetry-view ${source}-telemetry-view" aria-labelledby="telemetry-heading">
+  const panel = `<section class="telemetry-view ${source}-telemetry-view" aria-labelledby="telemetry-heading">
     <h2 class="sr-only" id="telemetry-heading">${t(titleKey)}</h2>
     <div class="capability-note capability-note-compact">${icon("alert")}<span><strong>${t(localCapabilityKey)}</strong></span><span class="status-badge">${t("common.readOnly")}</span></div>
     <section id="${source}-panel-${activeTab.id}" class="telemetry-tab-detail" role="tabpanel" aria-label="${tabLabel}" aria-labelledby="${source}-tab-${activeTab.id}">
@@ -1908,6 +2157,7 @@ function telemetryTabbedView({ source, tabs, selectedTabId, titleKey, localCapab
       <section class="network-summary-grid telemetry-summary" aria-label="${tabLabel} parameters">${activeTab.metrics.map(([label, value, helper]) => telemetryValue(label, value, helper)).join("")}</section>
     </section>
   </section>`;
+  return workspaceFrame(`telemetry.${source}`, panel);
 }
 
 function reticulumTelemetryView() {
@@ -1931,60 +2181,1105 @@ function onionnetTelemetryView() {
 }
 
 function aggregatorsTelemetryView() {
-  return telemetryTabbedView({
-    source: "aggregators",
-    tabs: aggregatorsTelemetryTabs,
-    selectedTabId: state.aggregatorsTelemetryTab,
-    titleKey: "aggregators.title",
-    localCapabilityKey: "aggregators.localCapability"
+  const screen = aggregatorsTelemetryTabs.find(({ id }) => id === state.aggregatorsTelemetryTab)
+    || aggregatorsTelemetryTabs[0];
+  return workspaceFrame("telemetry.aggregators", aggregatorTelemetryPanel(screen));
+}
+
+const watcherScenarioLabels = Object.freeze({
+  loading: "Loading",
+  success: "Useful fixture",
+  degraded: "Degraded",
+  unavailable: "Unavailable",
+  empty: "Empty",
+  malformed: "Malformed",
+  error: "Error"
+});
+
+const watcherKindOptions = Object.freeze([
+  ["all", "All kinds"],
+  ["PublicationLag", "Publication lag"],
+  ["MissingBlob", "Missing blob"],
+  ["RouteRollout", "Route rollout"]
+]);
+
+function watcherObservation() {
+  const routeId = state.activeRoute.startsWith("telemetry.watchers.")
+    ? state.activeRoute
+    : "telemetry.watchers.overview";
+  return telemetryGateway.readWatcherView({
+    routeId,
+    scenario: state.watcherScenario,
+    sourceId: state.watcherSourceId,
+    generation: Number(state.requestGenerations[`telemetry:${routeId}`] || 0),
+    filters: {
+      severity: state.watcherSeverityFilter,
+      kind: state.watcherKindFilter
+    }
   });
+}
+
+function watcherControls() {
+  const showFilters = ["alerts", "evidence"].includes(state.watchersTelemetryTab);
+  return `<section class="watcher-toolbar" aria-label="${escapeHtml(t("plan2.aria.watcherControls"))}">
+    <label><span>Observation source</span><select data-watcher-control="source" aria-label="Watchers observation source">${telemetryGateway.watcherSources.map((source) => `<option value="${escapeHtml(source.id)}"${source.id === state.watcherSourceId ? " selected" : ""}>${escapeHtml(source.label)}</option>`).join("")}</select></label>
+    <label><span>Scenario</span><select data-watcher-control="scenario" aria-label="Watchers scenario">${telemetryGateway.scenarioIds.map((scenario) => `<option value="${escapeHtml(scenario)}"${scenario === state.watcherScenario ? " selected" : ""}>${escapeHtml(watcherScenarioLabels[scenario])}</option>`).join("")}</select></label>
+    ${showFilters ? `<label><span>Severity</span><select data-watcher-control="severity" aria-label="Filter Watchers by severity">${[
+      ["all", "All severities"],
+      ["info", "Info"],
+      ["warn", "Warning"],
+      ["critical", "Critical"]
+    ].map(([id, label]) => `<option value="${id}"${id === state.watcherSeverityFilter ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+    <label><span>Kind</span><select data-watcher-control="kind" aria-label="Filter Watchers by kind">${watcherKindOptions.map(([id, label]) => `<option value="${id}"${id === state.watcherKindFilter ? " selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}
+  </section>`;
+}
+
+function watcherStateNotice(observation) {
+  if (observation.status === "success" && observation.data?.total > 0) return "";
+  if (observation.status === "degraded" && observation.data?.total > 0) {
+    return `<div class="watcher-state-notice is-warning" role="status">${icon("alert")}<span><strong>Degraded fixture observation</strong><small>${escapeHtml(observation.issue.message)} ${escapeHtml(observation.issue.recoveryAction)}</small></span><button class="button" type="button" data-watcher-action="recover">Refresh fixture</button></div>`;
+  }
+  if (observation.status === "loading") {
+    return `<div class="watcher-state-panel" data-watcher-state="loading" role="status" aria-live="polite"><div class="watcher-loading-copy"><span class="watcher-loading-indicator" aria-hidden="true"></span><span><strong>Loading sanitized observation</strong><p>No previous route result is promoted while this deterministic request is pending.</p></span></div><button class="button" type="button" data-watcher-action="recover">Complete fixture request</button></div>`;
+  }
+  const filteredEmpty = observation.status === "success" && observation.data?.total === 0;
+  const title = filteredEmpty ? "No matching observations" : {
+    unavailable: "Telemetry source unavailable",
+    empty: "No observations in this fixture",
+    malformed: "Malformed source payload rejected",
+    error: "Telemetry query failed"
+  }[observation.status] || "No observation";
+  const message = filteredEmpty
+    ? "The selected filters exclude every sanitized record."
+    : observation.issue?.message || "No authoritative observation is available.";
+  const action = filteredEmpty || observation.status === "empty"
+    ? `<button class="button" type="button" data-watcher-action="clear-filters">Clear filters</button>`
+    : `<button class="button button-primary" type="button" data-watcher-action="recover">Retry with fixture</button>`;
+  return `<div class="watcher-state-panel${["malformed", "error"].includes(observation.status) ? " is-danger" : ""}" data-watcher-state="${escapeHtml(filteredEmpty ? "empty" : observation.status)}" role="status"><div>${icon(["malformed", "error"].includes(observation.status) ? "alert" : "eye-off")}<strong>${escapeHtml(title)}</strong><p>${escapeHtml(message)}</p>${observation.issue?.recoveryAction ? `<small>${escapeHtml(observation.issue.recoveryAction)}</small>` : ""}</div>${action}</div>`;
+}
+
+function watcherOverview(records) {
+  const snapshot = records[0];
+  if (!snapshot) return "";
+  return `<section class="network-summary-grid telemetry-summary watcher-summary" aria-label="Watcher observation summary">
+    ${telemetryValue("Publication state", snapshot.publicationState, "PublicationRecord state from the deterministic witness")}
+    ${telemetryValue("Provider outcome", snapshot.providerOutcome, `${snapshot.providerStage} stage · ProviderSignal`)}
+    ${telemetryValue("Alert counts", `${snapshot.alertCounts.critical} critical · ${snapshot.alertCounts.warn} warning`, `${snapshot.alertCounts.info} informational fixture alert`)}
+    ${telemetryValue("Runtime authority", snapshot.runtimeTruth ? "Authoritative" : "Observational only", "Watcher runtime notes do not become protocol truth")}
+  </section>
+  <section class="watcher-mapping-card"><div>${icon("advanced")}<span><strong>Current Rust mapping</strong><small><code>WatcherBoundary::project_snapshot</code><span>produces</span><code>ObservationSnapshot</code></small></span></div><p>Snapshot fields bind batch, publication state, placement, execution, verdict, provider stage/outcome, runtime notes, and alert counts. Storage and validators remain authoritative.</p></section>`;
+}
+
+function watcherSeverityLabel(severity) {
+  return severity === "critical" ? "Critical" : severity === "warn" ? "Warning" : "Info";
+}
+
+function watcherAlertCard(alert) {
+  const selected = state.watcherSelectedAlertId === alert.id;
+  return `<button class="watcher-alert-card severity-${escapeHtml(alert.severity)}${selected ? " is-selected" : ""}" type="button" data-watcher-alert="${escapeHtml(alert.id)}"${selected ? ' aria-current="true"' : ""}>
+    <span class="watcher-alert-icon">${icon(alert.severity === "critical" ? "alert" : "eye")}</span>
+    <span class="watcher-alert-copy"><span><strong>${escapeHtml(alert.kind)}</strong><em>${escapeHtml(watcherSeverityLabel(alert.severity))}</em></span><small>${escapeHtml(alert.summary)}</small><code>${escapeHtml(alert.subject.publicId)}</code></span>
+  </button>`;
+}
+
+function watcherAlertDetail(alert) {
+  if (!alert) return `<section class="watcher-detail-empty"><strong>Select a typed alert</strong><p>Open an alert to inspect kind, severity, public subject, observation time, provenance, affected public IDs, and its safe next action.</p></section>`;
+  return `<section class="watcher-alert-detail" aria-labelledby="watcher-alert-detail-title">
+    <div class="watcher-detail-heading"><div><p class="eyebrow">Typed WatcherAlert</p><h4 id="watcher-alert-detail-title">${escapeHtml(alert.kind)}</h4></div><span class="status-badge">${escapeHtml(watcherSeverityLabel(alert.severity))}</span></div>
+    <p>${escapeHtml(alert.summary)}</p>
+    <dl>
+      <div><dt>Subject</dt><dd><code>${escapeHtml(alert.subject.kind)} · ${escapeHtml(alert.subject.publicId)}</code></dd></div>
+      <div><dt>Observed</dt><dd>${escapeHtml(alert.observedAt)}</dd></div>
+      <div><dt>Provenance</dt><dd><code>${escapeHtml(alert.provenance.module)}</code> · ${escapeHtml(alert.provenance.evidence)}</dd></div>
+      <div><dt>Affected public IDs</dt><dd>${alert.affectedPublicIds.map((id) => `<code>${escapeHtml(id)}</code>`).join(" ")}</dd></div>
+    </dl>
+    <div class="watcher-detail-actions">
+      <button class="button button-primary" type="button" data-watcher-action="inspect-evidence" data-alert-id="${escapeHtml(alert.id)}">${icon("search")} ${escapeHtml(alert.nextAction.label)}</button>
+      <button class="button button-quiet" type="button" data-watcher-action="open-explorer" data-public-id="${escapeHtml(alert.explorerAction.publicId)}">${icon("copy")} ${escapeHtml(alert.explorerAction.label)}</button>
+    </div>
+  </section>`;
+}
+
+function watcherAlerts(records) {
+  const selected = records.find(({ id }) => id === state.watcherSelectedAlertId);
+  return `<div class="watcher-split-layout">
+    <section class="watcher-alert-list" aria-label="Typed Watcher alerts">${records.map(watcherAlertCard).join("")}</section>
+    ${watcherAlertDetail(selected)}
+  </div>`;
+}
+
+function watcherPublication(records) {
+  return `<section class="watcher-record-grid" aria-label="Publication checks">${records.map((record) => `<article class="watcher-record-card"><div>${icon(record.status === "matched" ? "check" : "alert")}<span><strong>${escapeHtml(record.check)}</strong><small>${escapeHtml(record.status.replaceAll("_", " "))}</small></span></div><p>${escapeHtml(record.detail)}</p><code>${escapeHtml(record.mapping)}</code></article>`).join("")}</section>
+    <p class="watcher-boundary-note">${icon("shield")} A matched Watcher check is local evidence only. It cannot finalize a checkpoint or override storage readiness.</p>`;
+}
+
+function watcherProviders(records) {
+  return `<section class="watcher-record-grid" aria-label="DA provider signals">${records.map((record) => `<article class="watcher-record-card"><div>${icon("network")}<span><strong>${escapeHtml(record.providerName)}</strong><small>${escapeHtml(record.stage)} · ${escapeHtml(record.outcome)}</small></span></div><dl><div><dt>Batch</dt><dd><code>${escapeHtml(record.batchId)}</code></dd></div><div><dt>Opaque DA ref</dt><dd><code>${escapeHtml(record.blobRef)}</code></dd></div></dl><code>${escapeHtml(record.mapping)}</code></article>`).join("")}</section>
+    <p class="watcher-boundary-note">${icon("alert")} <code>ProviderCompare</code> is currently a marker type; this preview compares typed fixture rows without inventing a provider ranking or semantic verdict.</p>`;
+}
+
+function watcherCensorship(records) {
+  return `<section class="watcher-record-grid" aria-label="Censorship signals">${records.map((record) => `<article class="watcher-record-card watcher-censorship-card"><div>${icon("eye-off")}<span><strong>${escapeHtml(record.signalKind)}</strong><small>${escapeHtml(record.status.replaceAll("_", " "))}</small></span></div><p>${escapeHtml(record.detail)}</p><dl><div><dt>Fixture window</dt><dd>${escapeHtml(record.observationWindow)}</dd></div></dl><code>${escapeHtml(record.mapping)}</code></article>`).join("")}</section>
+    <p class="watcher-boundary-note">${icon("alert")} No global censorship score is inferred from a local or deterministic observation window.</p>`;
+}
+
+function watcherEvidence(records) {
+  return `<section class="watcher-evidence-list" aria-label="Sanitized Watcher evidence">${records.map((record) => `<article class="watcher-evidence-card${record.alertId === state.watcherSelectedAlertId ? " is-selected" : ""}">
+    <div class="watcher-detail-heading"><div><p class="eyebrow">EvidenceKey · sequence ${record.sequence}</p><h4>${escapeHtml(record.alertKind)}</h4></div><span class="status-badge">${escapeHtml(watcherSeverityLabel(record.severity))}</span></div>
+    <dl><div><dt>Batch</dt><dd><code>${escapeHtml(record.batchId)}</code></dd></div><div><dt>Checkpoint</dt><dd><code>${escapeHtml(record.checkpointId)}</code></dd></div><div><dt>DA reference</dt><dd><code>${escapeHtml(record.providerRef || "None")}</code></dd></div><div><dt>Bindings</dt><dd>${record.bindings.map((binding) => `<code>${escapeHtml(binding)}</code>`).join(" ")}</dd></div></dl>
+    <button class="button button-primary" type="button" data-watcher-action="export-evidence" data-alert-id="${escapeHtml(record.alertId)}">${icon("backup")} Prepare sanitized export</button>
+  </article>`).join("")}</section>
+  ${state.watcherExportEnvelope ? `<section class="watcher-export-result" aria-labelledby="watcher-export-title"><div><span>${icon("check")}</span><span><strong id="watcher-export-title">Sanitized fixture envelope prepared</strong><small>No wallet-private or secret field is present. Production save/share remains a native boundary.</small></span></div><pre>${escapeHtml(JSON.stringify(state.watcherExportEnvelope, null, 2))}</pre></section>` : ""}`;
+}
+
+function watcherContent(tabId, records) {
+  if (tabId === "overview") return watcherOverview(records);
+  if (tabId === "alerts") return watcherAlerts(records);
+  if (tabId === "publication") return watcherPublication(records);
+  if (tabId === "providers") return watcherProviders(records);
+  if (tabId === "censorship") return watcherCensorship(records);
+  return watcherEvidence(records);
+}
+
+function watchersTelemetryView() {
+  const observation = watcherObservation();
+  const routeNode = demoRuntime.navigationNodeForRoute(state.activeRoute);
+  const tabLabel = routeNode ? navigationLabel(routeNode) : "Overview";
+  const records = observation.data?.records || [];
+  const stateNotice = watcherStateNotice(observation);
+  const content = ["success", "degraded"].includes(observation.status) && records.length
+    ? watcherContent(state.watchersTelemetryTab, records)
+    : "";
+  const panel = `<section class="telemetry-view watcher-roadmap" data-watcher-screen="${escapeHtml(state.watchersTelemetryTab)}" data-watcher-result="${escapeHtml(observation.status)}" aria-labelledby="watcher-screen-title">
+    ${watcherControls()}
+    <section class="telemetry-tab-detail watcher-tab-detail">
+      <div class="telemetry-tab-heading"><div><h3 id="watcher-screen-title">${escapeHtml(tabLabel)}</h3><p>Deterministic, privacy-safe observation and evidence workflow.</p></div><span class="status-badge">${escapeHtml(watcherScenarioLabels[observation.status])}</span></div>
+      ${stateNotice}
+      ${content}
+    </section>
+  </section>`;
+  const helpTopicOverride = state.watchersTelemetryTab === "alerts" && state.watcherSelectedAlertId
+    ? "telemetry.watchers.alert-detail"
+    : "";
+  return workspaceFrame("telemetry.watchers", panel, helpTopicOverride);
+}
+
+const explorerEvidenceKinds = Object.freeze([
+  ["all", "All public evidence"],
+  ["publication", "Publications"],
+  ["proof", "Proof envelopes"],
+  ["da_reference", "Opaque DA references"]
+]);
+
+function explorerObservation() {
+  const routeId = state.activeRoute.startsWith("telemetry.explorer.")
+    ? state.activeRoute
+    : "telemetry.explorer.overview";
+  return telemetryGateway.readExplorerView({
+    routeId,
+    scenario: state.explorerScenario,
+    generation: Number(state.requestGenerations[`telemetry:${routeId}`] || 0),
+    filters: { kind: state.explorerEvidenceKindFilter }
+  });
+}
+
+function explorerControls() {
+  const showEvidenceFilter = state.explorerTelemetryTab === "evidence";
+  return `<section class="watcher-toolbar explorer-toolbar" aria-label="${escapeHtml(t("plan2.aria.explorerControls"))}">
+    <label><span>Scenario</span><select data-explorer-control="scenario" aria-label="Explorer scenario">${telemetryGateway.scenarioIds.map((scenario) => `<option value="${escapeHtml(scenario)}"${scenario === state.explorerScenario ? " selected" : ""}>${escapeHtml(watcherScenarioLabels[scenario])}</option>`).join("")}</select></label>
+    ${showEvidenceFilter ? `<label><span>Evidence kind</span><select data-explorer-control="kind" aria-label="Filter public evidence">${explorerEvidenceKinds.map(([id, label]) => `<option value="${id}"${id === state.explorerEvidenceKindFilter ? " selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}
+  </section>`;
+}
+
+function explorerStateNotice(observation) {
+  const isSearch = state.explorerTelemetryTab === "search";
+  if (observation.status === "success" && (isSearch || observation.data?.total > 0)) return "";
+  if (observation.status === "degraded" && observation.data?.total > 0) {
+    return `<div class="watcher-state-notice is-warning" role="status">${icon("alert")}<span><strong>Stale public fixture withheld from search</strong><small>${escapeHtml(observation.issue.message)} Current visible rows are partial context only.</small></span><button class="button" type="button" data-explorer-action="recover">Refresh fixture</button></div>`;
+  }
+  if (observation.status === "loading") {
+    return `<div class="watcher-state-panel" data-explorer-state="loading" role="status" aria-live="polite"><div class="watcher-loading-copy"><span class="watcher-loading-indicator" aria-hidden="true"></span><span><strong>Loading public evidence</strong><p>No cached or private fallback is promoted while the fixture request is pending.</p></span></div><button class="button" type="button" data-explorer-action="recover">Complete fixture request</button></div>`;
+  }
+  const filteredEmpty = observation.status === "success" && observation.data?.total === 0;
+  const title = filteredEmpty ? "No matching public evidence" : {
+    unavailable: "Public evidence source unavailable",
+    empty: "No public evidence in this fixture",
+    malformed: "Malformed evidence payload rejected",
+    error: "Public evidence query failed",
+    degraded: "Current public evidence withheld"
+  }[observation.status] || "No public evidence";
+  const message = filteredEmpty
+    ? "The selected evidence-kind filter excludes every public fixture record."
+    : observation.issue?.message || "No validated public observation is available.";
+  const action = filteredEmpty || observation.status === "empty"
+    ? `<button class="button" type="button" data-explorer-action="clear-filter">Clear filter</button>`
+    : `<button class="button button-primary" type="button" data-explorer-action="recover">Retry with fixture</button>`;
+  return `<div class="watcher-state-panel${["malformed", "error"].includes(observation.status) ? " is-danger" : ""}" data-explorer-state="${escapeHtml(filteredEmpty ? "empty" : observation.status)}" role="status"><div>${icon(["malformed", "error"].includes(observation.status) ? "alert" : "eye-off")}<strong>${escapeHtml(title)}</strong><p>${escapeHtml(message)}</p>${observation.issue?.recoveryAction ? `<small>${escapeHtml(observation.issue.recoveryAction)}</small>` : ""}</div>${action}</div>`;
+}
+
+function explorerOverview(records) {
+  const summary = records[0];
+  if (!summary) return "";
+  return `<section class="network-summary-grid telemetry-summary explorer-summary" aria-label="Explorer public scope">
+    ${telemetryValue("Public checkpoints", String(summary.checkpointCount), "Lifecycle and publication evidence only")}
+    ${telemetryValue("Published batches", String(summary.batchCount), "Public batch/checkpoint relationships")}
+    ${telemetryValue("Evidence records", String(summary.evidenceCount), "Proof, publication, route, and opaque DA references")}
+    ${telemetryValue("Wallet-local fields", "Never accepted", "No labels, balances, messages, paths, receivers, or memos")}
+  </section>
+  <section class="watcher-mapping-card explorer-scope-card"><div>${icon("shield")}<span><strong>Narrow public scope</strong><small><code>check_public_checkpoint_v1</code><span>and</span><code>check_publication_route_v1</code></small></span></div><p>Search is allowlisted by typed public-ID family. Unknown, private-looking, malformed, unsupported, and stale identifiers fail closed without echoing the rejected input.</p></section>`;
+}
+
+function explorerRecordLabel(record) {
+  if (record.recordType === "checkpoint") return `Checkpoint · ${record.lifecycleStatus.replaceAll("_", " ")}`;
+  if (record.recordType === "batch") return `Batch · checkpoint ${record.publicationCheckpoint}`;
+  if (record.recordType === "publication") return `Publication · ${record.state.replaceAll("_", " ")}`;
+  if (record.recordType === "proof") return `Proof envelope · ${record.proofFamily}`;
+  return `Opaque DA reference · ${record.providerFamily}`;
+}
+
+function explorerRecordCard(record) {
+  const selected = state.explorerSelectedPublicId === record.publicId;
+  const helper = record.recordType === "checkpoint"
+    ? `${record.batchIds.length} public batch relationship`
+    : record.recordType === "batch"
+      ? `${record.checkpointId} · ${record.relationship}`
+      : record.mapping;
+  return `<button class="explorer-record-card${selected ? " is-selected" : ""}" type="button" data-explorer-record="${escapeHtml(record.publicId)}"${selected ? ' aria-current="true"' : ""}>
+    <span class="explorer-record-icon">${icon(record.recordType === "proof" ? "shield" : record.recordType === "da_reference" ? "network" : "copy")}</span>
+    <span><strong>${escapeHtml(explorerRecordLabel(record))}</strong><code>${escapeHtml(record.publicId)}</code><small>${escapeHtml(helper)}</small></span>
+  </button>`;
+}
+
+function explorerRelatedIds(record) {
+  return [...new Set([
+    ...(record.batchIds || []),
+    ...(record.publicEvidenceIds || []),
+    ...(record.checkpointIds || []),
+    record.checkpointId,
+    record.batchId,
+    record.publicationId,
+    record.proofId,
+    record.daReferenceId
+  ].filter((id) => id && id !== record.publicId))];
+}
+
+function explorerTechnicalDto(record) {
+  if (record.recordType === "checkpoint") return {
+    publicId: record.publicId,
+    lifecycleStatus: record.lifecycleStatus,
+    publicRoot: record.publicRoot,
+    priorPublicRoot: record.priorPublicRoot,
+    publicationEvidenceRoot: record.publicationEvidenceRoot,
+    publicationHeight: record.publicationHeight,
+    challengeWindowStartHeight: record.challengeWindowStartHeight,
+    mapping: record.mapping
+  };
+  if (record.recordType === "batch") return {
+    publicId: record.publicId,
+    checkpointId: record.checkpointId,
+    publicationId: record.publicationId,
+    proofId: record.proofId,
+    daReferenceId: record.daReferenceId,
+    publicationCheckpoint: record.publicationCheckpoint,
+    routeGeneration: record.routeGeneration,
+    shardIds: record.shardIds,
+    mapping: record.mapping
+  };
+  if (record.recordType === "publication") return {
+    publicId: record.publicId,
+    checkpointId: record.checkpointId,
+    batchId: record.batchId,
+    state: record.state,
+    publicRoot: record.publicRoot,
+    routeSnapshot: record.routeSnapshot,
+    daReferenceId: record.daReferenceId,
+    mapping: record.mapping
+  };
+  if (record.recordType === "proof") return {
+    publicId: record.publicId,
+    checkpointId: record.checkpointId,
+    publicationId: record.publicationId,
+    publicRoot: record.publicRoot,
+    rootGeneration: record.rootGeneration,
+    proofFamily: record.proofFamily,
+    shardLeafIndex: record.shardLeafIndex,
+    verificationBoundary: record.verificationBoundary,
+    mapping: record.mapping
+  };
+  return {
+    publicId: record.publicId,
+    checkpointIds: record.checkpointIds,
+    providerFamily: record.providerFamily,
+    locatorKind: record.locatorKind,
+    opaqueProviderRef: record.opaqueProviderRef,
+    publishedHeight: record.publishedHeight,
+    payloadCommitment: record.payloadCommitment,
+    archiveManifestRoot: record.archiveManifestRoot,
+    mapping: record.mapping
+  };
+}
+
+function explorerRecordDetail(record) {
+  if (!record) return `<section class="watcher-detail-empty explorer-detail-empty"><strong>Select public evidence</strong><p>Choose a record to inspect only its allowlisted public summary and technical DTO.</p></section>`;
+  const related = explorerRelatedIds(record);
+  const summaryRows = record.recordType === "checkpoint"
+    ? [
+        ["Lifecycle", record.lifecycleStatus.replaceAll("_", " ")],
+        ["Public root", record.publicRoot],
+        ["Publication evidence", record.publicationState.replaceAll("_", " ")],
+        ["Observed", record.observedAt]
+      ]
+    : record.recordType === "batch"
+      ? [
+          ["Checkpoint", record.checkpointId],
+          ["Publication checkpoint", String(record.publicationCheckpoint)],
+          ["Route generation", String(record.routeGeneration)],
+          ["Relationship", record.relationship]
+        ]
+      : record.recordType === "publication"
+        ? [
+            ["Checkpoint", record.checkpointId],
+            ["Public root", record.publicRoot],
+            ["Route generation", String(record.routeSnapshot.routingGeneration)],
+            ["Shard IDs", record.routeSnapshot.shardIds.join(", ")]
+          ]
+        : record.recordType === "proof"
+          ? [
+              ["Checkpoint", record.checkpointId],
+              ["Public root", record.publicRoot],
+              ["Proof family", record.proofFamily],
+              ["Verification", record.verificationBoundary]
+            ]
+          : [
+              ["Provider family", record.providerFamily],
+              ["Locator kind", record.locatorKind],
+              ["Opaque provider ref", record.opaqueProviderRef],
+              ["Published height", String(record.publishedHeight)]
+            ];
+  return `<section class="watcher-alert-detail explorer-record-detail" data-explorer-detail="${escapeHtml(record.publicId)}" aria-labelledby="explorer-record-detail-title">
+    <div class="watcher-detail-heading"><div><p class="eyebrow">Public ${escapeHtml(record.recordType.replaceAll("_", " "))}</p><h4 id="explorer-record-detail-title"><code>${escapeHtml(record.publicId)}</code></h4></div><span class="status-badge">Fixture</span></div>
+    <div class="explorer-detail-toggle" role="group" aria-label="${escapeHtml(t("plan2.aria.explorerDetail"))}">
+      <button class="button${state.explorerDetailMode === "summary" ? " is-selected" : ""}" type="button" data-explorer-action="summary" aria-pressed="${state.explorerDetailMode === "summary"}">Summary</button>
+      <button class="button${state.explorerDetailMode === "technical" ? " is-selected" : ""}" type="button" data-explorer-action="technical" aria-pressed="${state.explorerDetailMode === "technical"}">Technical details</button>
+    </div>
+    ${state.explorerDetailMode === "technical"
+      ? `<pre class="explorer-technical-json">${escapeHtml(JSON.stringify(explorerTechnicalDto(record), null, 2))}</pre>`
+      : `<dl>${summaryRows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${String(value).includes("_") || String(value).includes("root") || String(value).startsWith("check_") ? `<code>${escapeHtml(value)}</code>` : escapeHtml(value)}</dd></div>`).join("")}</dl>`}
+    ${related.length ? `<div class="explorer-related"><strong>Related public IDs</strong><div>${related.map((id) => `<button class="button button-quiet" type="button" data-explorer-open-id="${escapeHtml(id)}"><code>${escapeHtml(id)}</code></button>`).join("")}</div></div>` : ""}
+    <p class="watcher-boundary-note">${icon("shield")} This detail is built from an explicit public DTO; wallet state is not an input.</p>
+  </section>`;
+}
+
+function explorerRecordBrowser(records, label) {
+  const selected = records.find(({ publicId }) => publicId === state.explorerSelectedPublicId);
+  return `<div class="watcher-split-layout explorer-split-layout">
+    <section class="explorer-record-list" aria-label="${escapeHtml(label)}">${records.map(explorerRecordCard).join("")}</section>
+    ${explorerRecordDetail(selected)}
+  </div>`;
+}
+
+function explorerSearchResult() {
+  const result = state.explorerSearchResult;
+  if (!result) return `<section class="watcher-detail-empty explorer-search-empty"><strong>Search the public proof surface</strong><p>The input is validated locally before any deterministic lookup. Rejected private-looking input is neither queried nor echoed.</p></section>`;
+  if (result.status === "found") return explorerRecordDetail(result.record);
+  const title = {
+    private: "Private identifier rejected",
+    malformed: "Malformed public identifier",
+    unsupported: "Unsupported identifier family",
+    unknown: "Public identifier not found",
+    stale: "Stale public evidence withheld",
+    degraded: "Public source degraded",
+    unavailable: "Public source unavailable",
+    loading: "Public source is loading",
+    error: "Public search failed"
+  }[result.status] || "Public search rejected";
+  return `<section class="watcher-state-panel${["private", "malformed", "error"].includes(result.status) ? " is-danger" : ""}" data-explorer-search-status="${escapeHtml(result.status)}" role="status"><div>${icon(["private", "malformed", "error"].includes(result.status) ? "alert" : "eye-off")}<strong>${escapeHtml(title)}</strong><p>${escapeHtml(result.issue?.message || "No public result is available.")}</p><small>${escapeHtml(result.issue?.recoveryAction || "Use a supported public identifier.")}</small></div><button class="button" type="button" data-explorer-action="clear-search">Clear search</button></section>`;
+}
+
+function explorerSearch() {
+  const examples = ["checkpoint_000184", "batch_4f91c7a0", "publication_6f840184", "proof_92840184", "da_ref_72be91"];
+  return `<section class="explorer-search-workflow" aria-labelledby="explorer-search-heading">
+    <form class="explorer-search-form" id="explorer-public-search" autocomplete="off" novalidate>
+      <div class="field-group"><label class="field-label" for="explorer-public-id">Supported public ID</label><div class="explorer-search-row"><input id="explorer-public-id" name="publicId" value="${escapeHtml(state.explorerQuery)}" maxlength="80" autocapitalize="none" spellcheck="false" placeholder="checkpoint_000184" aria-describedby="explorer-search-hint"><button class="button button-primary" type="submit">${icon("search")} Search</button></div><p class="field-hint" id="explorer-search-hint">Checkpoint, batch, publication, proof, or opaque DA-reference IDs only.</p></div>
+      <div class="explorer-search-examples" aria-label="Public ID examples">${examples.map((id) => `<button class="button button-quiet" type="button" data-explorer-example-id="${id}"><code>${id}</code></button>`).join("")}</div>
+    </form>
+    ${explorerSearchResult()}
+  </section>`;
+}
+
+function explorerContent(tabId, records) {
+  if (tabId === "overview") return explorerOverview(records);
+  if (tabId === "search") return explorerSearch();
+  if (tabId === "checkpoints") return explorerRecordBrowser(records, "Public checkpoints");
+  if (tabId === "batches") return explorerRecordBrowser(records, "Published batches");
+  return explorerRecordBrowser(records, "Public proof and publication evidence");
+}
+
+function explorerTelemetryView() {
+  const observation = explorerObservation();
+  const routeNode = demoRuntime.navigationNodeForRoute(state.activeRoute);
+  const tabLabel = routeNode ? navigationLabel(routeNode) : "Overview";
+  const records = observation.data?.records || [];
+  const stateNotice = explorerStateNotice(observation);
+  const canRenderContent = observation.status === "success"
+    || (observation.status === "degraded" && records.length > 0 && state.explorerTelemetryTab !== "search");
+  const panel = `<section class="telemetry-view explorer-roadmap" data-explorer-screen="${escapeHtml(state.explorerTelemetryTab)}" data-explorer-result="${escapeHtml(observation.status)}" aria-labelledby="explorer-screen-title">
+    ${explorerControls()}
+    <section class="telemetry-tab-detail watcher-tab-detail explorer-tab-detail">
+      <div class="telemetry-tab-heading"><div><h3 id="explorer-screen-title">${escapeHtml(tabLabel)}</h3><p>Deterministic, privacy-restricted public evidence workflow.</p></div><span class="status-badge">${escapeHtml(watcherScenarioLabels[observation.status])}</span></div>
+      ${stateNotice}
+      ${canRenderContent ? explorerContent(state.explorerTelemetryTab, records) : ""}
+    </section>
+  </section>`;
+  return workspaceFrame(
+    "telemetry.explorer",
+    panel,
+    state.explorerSelectedPublicId ? "telemetry.explorer.detail" : ""
+  );
 }
 
 function telemetryView() {
   const source = state.telemetrySource;
   if (source === "reticulum") return reticulumTelemetryView();
   if (source === "onionnet") return onionnetTelemetryView();
-  return aggregatorsTelemetryView();
+  if (source === "aggregators") return aggregatorsTelemetryView();
+  if (source === "watchers") return watchersTelemetryView();
+  return explorerTelemetryView();
+}
+
+function dappTitleCase(value) {
+  return String(value || "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function dappDateTime(value) {
+  return formatLocalizedDateTime(new Date(value), { dateStyle: "medium", timeStyle: "short" });
+}
+
+function dappStatusBadge(status) {
+  const className = {
+    active: "is-ready",
+    approved: "is-ready",
+    accepted: "is-ready",
+    expiring: "is-warning",
+    pending: "is-warning",
+    expired: "",
+    rejected: "is-error",
+    revoked: "is-error"
+  }[status] || "";
+  const stateKeys = new Set([
+    "active",
+    "approved",
+    "accepted",
+    "expiring",
+    "pending",
+    "expired",
+    "rejected",
+    "revoked"
+  ]);
+  const label = stateKeys.has(status) ? t(`plan2.states.${status}`) : dappTitleCase(status);
+  return `<span class="status-badge ${className}">${escapeHtml(label)}</span>`;
+}
+
+function dappObjectFamilyChips(families) {
+  return `<div class="dapp-chip-list">${families.map((family) => `<span class="dapp-chip">${escapeHtml(dappTitleCase(family))}</span>`).join("")}</div>`;
+}
+
+function dappCard(entry, { installed = false } = {}) {
+  return `<article class="dapp-card" data-dapp-card="${escapeHtml(entry.id)}">
+    <div class="dapp-card-heading">
+      <span class="dapp-card-icon" aria-hidden="true">${icon(entry.iconName)}</span>
+      <div><p class="eyebrow">${escapeHtml(dappTitleCase(entry.useCaseFamily))}</p><h3>${escapeHtml(entry.label)}</h3></div>
+      ${installed ? dappStatusBadge("approved") : ""}
+    </div>
+    <p>${escapeHtml(entry.summary)}</p>
+    <dl class="dapp-card-metadata">
+      <div><dt>Maturity</dt><dd>${escapeHtml(dappTitleCase(entry.maturity))}</dd></div>
+      <div><dt>Availability</dt><dd>${escapeHtml(dappTitleCase(entry.availability))}</dd></div>
+      <div><dt>Publisher</dt><dd>${escapeHtml(entry.publisher.label)} · Unverified</dd></div>
+    </dl>
+    <div class="dapp-card-section"><strong>Requested objects</strong>${dappObjectFamilyChips(entry.requestedObjectFamilies)}</div>
+    <div class="dapp-card-section"><strong>Offline behavior</strong><p>${escapeHtml(entry.offlineBehavior.summary)}</p></div>
+    <div class="dapp-card-section"><strong>Data disclosed</strong><p>${escapeHtml(entry.disclosures.map(dappTitleCase).join(" · "))}</p></div>
+    <div class="dapp-card-actions">
+      <button class="button button-primary" type="button" data-dapp-action="open" data-dapp-id="${escapeHtml(entry.id)}">${escapeHtml(t("plan2.actions.openDetails"))}</button>
+      <button class="button button-quiet" type="button" data-help-topic="${escapeHtml(entry.helpTopicId)}">Help ↗</button>
+    </div>
+  </article>`;
+}
+
+function dappScreenHeading(title, copy, meta = "") {
+  return `<header class="dapp-screen-heading"><div><p class="eyebrow">Local fixture workflow</p><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p></div>${meta}</header>`;
+}
+
+function dappDiscoverScreen() {
+  return `${dappScreenHeading("Discover", "Six curated Z00Z use cases. Every card is a bundled descriptor, never remotely executed application code.", `<span class="status-badge">${demoRuntime.DAPP_CATALOG.length} descriptors</span>`)}
+    <section class="dapp-catalog-grid" aria-label="${escapeHtml(t("plan2.aria.dappCatalogue"))}">${demoRuntime.DAPP_CATALOG.map((entry) => dappCard(entry)).join("")}</section>`;
+}
+
+function dappInstalledScreen() {
+  const installed = demoRuntime.DAPP_CATALOG.filter(({ catalogueState }) => catalogueState === "approved");
+  return `${dappScreenHeading("Installed", "Locally approved descriptors remain unavailable as protocol capabilities; approval only makes their typed review fixtures accessible.", `<span class="status-badge">${installed.length} local approvals</span>`)}
+    <div class="notice">${icon("alert")} “Installed” means a bundled descriptor was approved locally. No third-party executable or remote service was loaded.</div>
+    <section class="dapp-catalog-grid" aria-label="${escapeHtml(t("plan2.aria.dappCatalogue"))}">${installed.map((entry) => dappCard(entry, { installed: true })).join("")}</section>`;
+}
+
+function dappConnectionStatus(connection) {
+  if (state.dappReviewDecision?.connectionId !== connection.id) return connection.status;
+  return state.dappReviewDecision.decision === "accepted" ? "active" : "rejected";
+}
+
+function dappConnectionsScreen() {
+  const cards = demoRuntime.DAPP_CONNECTION_FIXTURES.map((connection) => {
+    const descriptor = demoRuntime.dappDescriptor(connection.descriptorId);
+    const status = dappConnectionStatus(connection);
+    const reviewLabel = status === "pending" ? "Review request" : status === "rejected" ? "Review again" : "Inspect scope";
+    return `<article class="dapp-record-card" data-dapp-connection="${escapeHtml(connection.id)}">
+      <div class="dapp-record-heading"><span class="dapp-card-icon">${icon(descriptor.iconName)}</span><div><h3>${escapeHtml(descriptor.label)}</h3><p>${escapeHtml(connection.humanIntent)}</p></div>${dappStatusBadge(status)}</div>
+      <dl class="dapp-record-metadata">
+        <div><dt>Action</dt><dd>${escapeHtml(connection.action)}</dd></div>
+        <div><dt>Scope</dt><dd>${escapeHtml(connection.exactScope)}</dd></div>
+        <div><dt>Uses</dt><dd>${escapeHtml(connection.uses)}</dd></div>
+        <div><dt>Expiry</dt><dd>${escapeHtml(dappDateTime(connection.expiry))}</dd></div>
+      </dl>
+      <div class="dapp-card-actions"><button class="button ${status === "pending" || status === "rejected" ? "button-primary" : ""}" type="button" data-dapp-action="review" data-connection-id="${escapeHtml(connection.id)}">${reviewLabel}</button><button class="button button-quiet" type="button" data-dapp-action="open" data-dapp-id="${escapeHtml(descriptor.id)}">App details</button></div>
+    </article>`;
+  }).join("");
+  return `${dappScreenHeading("Connections", "Pending, active, rejected, and expired intent-level relationships from deterministic local fixtures.")}
+    <section class="dapp-record-list" aria-label="${escapeHtml(t("plan2.aria.dappConnections"))}">${cards}</section>`;
+}
+
+function dappPermissionStatus(permission) {
+  return state.dappRevokedPermissionIds.includes(permission.id) ? "revoked" : permission.status;
+}
+
+function dappPermissionsScreen() {
+  const cards = demoRuntime.DAPP_PERMISSION_FIXTURES.map((permission) => {
+    const descriptor = demoRuntime.dappDescriptor(permission.descriptorId);
+    const status = dappPermissionStatus(permission);
+    const canRevoke = ["active", "expiring"].includes(status);
+    return `<article class="dapp-record-card" data-dapp-permission="${escapeHtml(permission.id)}">
+      <div class="dapp-record-heading"><span class="dapp-card-icon">${icon("permission")}</span><div><h3>${escapeHtml(descriptor.label)}</h3><p>${escapeHtml(permission.scope)}</p></div>${dappStatusBadge(status)}</div>
+      <dl class="dapp-record-metadata">
+        <div><dt>Uses</dt><dd>${escapeHtml(permission.uses)}</dd></div>
+        <div><dt>Expires</dt><dd>${escapeHtml(dappDateTime(permission.expiresAt))}</dd></div>
+        <div><dt>Delegation</dt><dd>${escapeHtml(permission.delegation)}</dd></div>
+        <div><dt>On revoke</dt><dd>${escapeHtml(permission.revokeBehavior)}</dd></div>
+      </dl>
+      <div class="dapp-card-actions">${canRevoke ? `<button class="button button-danger" type="button" data-dapp-action="revoke" data-permission-id="${escapeHtml(permission.id)}">Revoke permission</button>` : `<span class="dapp-static-outcome">${status === "expired" ? "Expiry enforced locally" : "No usable authority remains"}</span>`}<button class="button button-quiet" type="button" data-dapp-action="open" data-dapp-id="${escapeHtml(descriptor.id)}">App details</button></div>
+    </article>`;
+  }).join("");
+  return `${dappScreenHeading("Permissions", "Displayed grants are bounded local fixtures. Revocation blocks future app proposals and never rewrites a prior wallet outcome.")}
+    <section class="dapp-record-list" aria-label="${escapeHtml(t("plan2.aria.dappPermissions"))}">${cards}</section>`;
+}
+
+function dappDetailScreen() {
+  const entry = demoRuntime.dappDescriptor(state.dappSelectedId);
+  if (!entry) {
+    state.dappScreen = "list";
+    return dappDiscoverScreen();
+  }
+  const reviewableConnection = demoRuntime.DAPP_CONNECTION_FIXTURES.find(({ descriptorId, status }) => descriptorId === entry.id && status === "pending");
+  return `<section class="dapp-detail" data-dapp-detail="${escapeHtml(entry.id)}">
+    <button class="button button-quiet dapp-back-button" type="button" data-dapp-action="back">← Back to ${escapeHtml(dappTitleCase(state.dappSection))}</button>
+    <div class="dapp-detail-heading"><span class="dapp-card-icon is-large">${icon(entry.iconName)}</span><div><p class="eyebrow">${escapeHtml(dappTitleCase(entry.useCaseFamily))}</p><h2>${escapeHtml(entry.label)}</h2><p>${escapeHtml(entry.summary)}</p></div></div>
+    <div class="capability-note">${icon("alert")}<span><strong>${escapeHtml(dappTitleCase(entry.maturity))} · ${escapeHtml(dappTitleCase(entry.availability))}</strong><small>${escapeHtml(entry.reviewBoundary)}</small></span></div>
+    <div class="dapp-detail-grid">
+      <section class="dapp-detail-panel"><h3>Trust and execution</h3><dl class="dapp-detail-list"><div><dt>Publisher</dt><dd>${escapeHtml(entry.publisher.label)}</dd></div><div><dt>Provenance</dt><dd>${escapeHtml(dappTitleCase(entry.publisher.provenance))}</dd></div><div><dt>Verified</dt><dd>No</dd></div><div><dt>Execution</dt><dd>Typed intent only · no wallet bridge</dd></div></dl></section>
+      <section class="dapp-detail-panel"><h3>Requested capability</h3><dl class="dapp-detail-list"><div><dt>Intent</dt><dd><code>${escapeHtml(entry.intentType)}</code></dd></div><div><dt>Objects</dt><dd>${escapeHtml(entry.requestedObjectFamilies.map(dappTitleCase).join(", "))}</dd></div><div><dt>Value path</dt><dd>${escapeHtml(dappTitleCase(entry.valuePath))}</dd></div><div><dt>Fee path</dt><dd>${escapeHtml(dappTitleCase(entry.feePath))}</dd></div></dl></section>
+      <section class="dapp-detail-panel"><h3>Offline behavior</h3><p>${escapeHtml(entry.offlineBehavior.summary)}</p><p class="dapp-detail-key">${escapeHtml(dappTitleCase(entry.offlineBehavior.mode))}</p></section>
+      <section class="dapp-detail-panel"><h3>Data disclosed</h3>${dappObjectFamilyChips(entry.disclosures)}<p>No raw wallet object, seed, key, session, or arbitrary local path is shared.</p></section>
+    </div>
+    <div class="dapp-card-actions">${reviewableConnection ? `<button class="button button-primary" type="button" data-dapp-action="review" data-connection-id="${escapeHtml(reviewableConnection.id)}">Review pending connection</button>` : ""}<button class="button button-quiet" type="button" data-help-topic="${escapeHtml(entry.helpTopicId)}">Help ↗</button></div>
+  </section>`;
+}
+
+function dappReviewScreen() {
+  const result = dappGateway.readPermissionReview({ connectionId: state.dappReviewConnectionId });
+  const review = result.ok ? result.data : null;
+  const descriptor = review ? demoRuntime.dappDescriptor(review.descriptorId) : null;
+  if (!review || !descriptor) {
+    state.dappScreen = "list";
+    return dappConnectionsScreen();
+  }
+  const acknowledgements = state.dappReviewAcknowledgements || {
+    scopeConfirmed: false,
+    reauthAcknowledged: false
+  };
+  return `<section class="dapp-review" data-dapp-review="${escapeHtml(review.connectionId)}" data-dapp-review-id="${escapeHtml(review.reviewId)}">
+    <button class="button button-quiet dapp-back-button" type="button" data-dapp-action="back">← Back</button>
+    <header class="dapp-detail-heading"><span class="dapp-card-icon is-large">${icon(descriptor.iconName)}</span><div><p class="eyebrow">Permission review</p><h2>${escapeHtml(review.appIdentity.label)}</h2><p>${escapeHtml(review.intent.humanReadable)}</p></div></header>
+    <div class="confirmation-note">${icon("shield")} Accepting this fixture creates only an app-level decision. It cannot sign, settle, transfer ownership, or mutate a Wallet object.</div>
+    <form id="dapp-permission-review-form" class="dapp-review-form" autocomplete="off" novalidate>
+      <dl class="dapp-review-grid">
+        <div><dt>${escapeHtml(t("plan2.permission.appIdentity"))}</dt><dd>${escapeHtml(review.appIdentity.label)} · ${escapeHtml(review.appIdentity.publisher)} · unverified</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.action"))}</dt><dd>${escapeHtml(review.intent.action)}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.objectFamily"))}</dt><dd>${escapeHtml(dappTitleCase(review.permission.objectFamily))}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.exactScope"))}</dt><dd>${escapeHtml(review.permission.exactScope)}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.uses"))}</dt><dd>${escapeHtml(review.permission.uses)}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.expiry"))}</dt><dd>${escapeHtml(dappDateTime(review.permission.expiry))}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.delegation"))}</dt><dd>${escapeHtml(review.permission.delegation)}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.value"))}</dt><dd>${escapeHtml(review.value.display)}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.feePath"))}</dt><dd>${escapeHtml(review.fee.display)} · ${escapeHtml(review.fee.path)}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.dataDisclosed"))}</dt><dd>${escapeHtml(review.disclosures.join(", "))}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.revokeBehavior"))}</dt><dd>${escapeHtml(review.revoke.behavior)}</dd></div>
+        <div><dt>${escapeHtml(t("plan2.permission.reauth"))}</dt><dd>${escapeHtml(review.reauth.behavior)}</dd></div>
+      </dl>
+      <section class="dapp-review-confirmations" aria-label="${escapeHtml(t("plan2.permission.confirmations"))}">
+        <label class="checkbox-line"><input name="scopeConfirmed" type="checkbox"${acknowledgements.scopeConfirmed ? " checked" : ""}><span><strong>${escapeHtml(t("plan2.permission.confirmScope"))}</strong><small>The app cannot broaden objects, value, uses, delegation, or expiry after this review.</small></span></label>
+        <label class="checkbox-line"><input name="reauthAcknowledged" type="checkbox"${acknowledgements.reauthAcknowledged ? " checked" : ""}><span><strong>${escapeHtml(t("plan2.permission.acknowledgeReauth"))}</strong><small>${review.reauth.required ? "A later value or fee path requires fresh authentication inside Wallet review." : "This intent has no value-bearing Wallet re-auth path."} dApps never collects the Wallet credential.</small></span></label>
+      </section>
+      <p class="field-error dapp-review-error" id="dapp-review-error" role="alert">${escapeHtml(state.dappReviewValidationError || "")}</p>
+      <div class="dapp-review-actions"><button class="button button-quiet" type="button" data-dapp-action="decide" data-decision="rejected">${escapeHtml(t("plan2.actions.reject"))}</button><button class="button button-primary" type="submit">${escapeHtml(t("plan2.permission.acceptIntent"))}</button></div>
+    </form>
+  </section>`;
+}
+
+function dappOutcomeScreen() {
+  const outcome = state.dappLastOutcome;
+  if (!outcome) {
+    state.dappScreen = "list";
+    return dappConnectionsScreen();
+  }
+  const accepted = outcome.kind === "intent_accepted";
+  const iconName = accepted ? "check" : outcome.kind === "permission_revoked" ? "remove" : "close";
+  const walletReviewAction = accepted && state.dappReviewDecision?.decision === "accepted"
+    ? `<button class="button button-primary" type="button" data-dapp-action="wallet-review">Continue in Wallet review</button>`
+    : "";
+  return `<section class="dapp-outcome ${accepted ? "is-positive" : "is-negative"}" data-dapp-outcome-route="${escapeHtml(outcome.kind)}">
+    <span class="result-icon">${icon(iconName)}</span>
+    <p class="eyebrow">Deterministic local outcome</p>
+    <h2>${escapeHtml(outcome.label)}</h2>
+    <p>${escapeHtml(outcome.summary)}</p>
+    <div class="capability-note">${icon("shield")}<span><strong>Wallet state unchanged</strong><small>This outcome stores presentation state only. An accepted typed intent can continue into a separate Wallet review without granting the dApp mutation authority.</small></span></div>
+    <div class="dapp-card-actions">${walletReviewAction}<button class="button ${accepted ? "" : "button-primary"}" type="button" data-dapp-action="outcome-back" data-return-route="${escapeHtml(outcome.returnRoute)}">Back to ${escapeHtml(dappTitleCase(outcome.returnRoute.split(".").at(-1)))}</button></div>
+  </section>`;
+}
+
+function dappsView() {
+  const routeSection = state.activeRoute.startsWith("dapps.") ? state.activeRoute.split(".").at(-1) : state.dappSection;
+  state.dappSection = routeSection;
+  let content;
+  if (state.dappScreen === "detail") content = dappDetailScreen();
+  else if (state.dappScreen === "review") content = dappReviewScreen();
+  else if (state.dappScreen === "outcome") content = dappOutcomeScreen();
+  else if (routeSection === "installed") content = dappInstalledScreen();
+  else if (routeSection === "connections") content = dappConnectionsScreen();
+  else if (routeSection === "permissions") content = dappPermissionsScreen();
+  else content = dappDiscoverScreen();
+  const helpTopicOverride = state.dappScreen === "detail"
+    ? "dapps.detail"
+    : state.dappScreen === "review" ? "dapps.permission-review" : "";
+  return `<section class="view-enter dapp-roadmap" data-dapp-screen="${escapeHtml(state.dappScreen)}" data-dapp-section="${escapeHtml(routeSection)}"${helpTopicOverride ? ` data-help-topic-override="${helpTopicOverride}"` : ""}>${content}</section>`;
+}
+
+function messengerRuntimeControls() {
+  const relayResult = messengerGateway.readRelayState({ scenario: state.messengerRelayScenario });
+  const relay = relayResult.ok ? relayResult.data : {
+    availability: "unavailable",
+    summary: relayResult.error.message
+  };
+  const contactHandoff = state.contactActionHandoff?.target?.routeId === state.activeRoute
+    ? `<div class="capability-note messenger-contact-handoff" data-contact-messenger-handoff="${escapeHtml(state.contactActionHandoff.handoffId)}">${icon("shield")}<span><strong>Prepared for ${escapeHtml(state.contactActionHandoff.label)}</strong><small>The Contact supplied only a typed domain-specific reference. Messenger must revalidate it before any future compose or relay action.</small></span></div>`
+    : "";
+  return `<div class="messenger-relay-control" data-messenger-relay="${escapeHtml(state.messengerRelayScenario)}">
+      <span>${icon(relay.availability === "unavailable" ? "alert" : "activity")}<span><strong>Relay ${escapeHtml(relay.availability)}</strong><small>${escapeHtml(relay.summary)}</small></span></span>
+      <div>
+        <button class="button button-quiet" type="button" data-messenger-action="relay-unavailable">Show unavailable</button>
+        <button class="button" type="button" data-messenger-action="relay-recover">Retry locally</button>
+      </div>
+    </div>
+    ${contactHandoff}`;
+}
+
+function messengerMessageState(message) {
+  if (state.messengerDeletedIds.includes(message.id)) return "deleted";
+  if (state.messengerReportedIds.includes(message.id)) return "reported";
+  if (state.messengerAcknowledgedIds.includes(message.id)) return "acknowledged";
+  return message.deliveryState;
+}
+
+function messengerMessageCard(message) {
+  const status = messengerMessageState(message);
+  const isBlocked = state.messengerBlockedSenders.includes(message.senderLabel);
+  return `<article class="messenger-message-card${message.severity === "danger" ? " is-danger" : ""}" data-messenger-message="${escapeHtml(message.id)}">
+    <button class="messenger-message-open" type="button" data-messenger-action="open" data-message-id="${escapeHtml(message.id)}">
+      <span class="messenger-avatar" aria-hidden="true">${icon(message.kind === "request" ? "receive" : message.kind === "abuse" ? "alert" : "message")}</span>
+      <span class="messenger-message-copy">
+        <span><strong>${escapeHtml(message.senderLabel)}</strong><small>${escapeHtml(dappDateTime(message.createdAt))}</small></span>
+        <b>${escapeHtml(message.subject)}</b>
+        <small>${escapeHtml(message.preview)}</small>
+      </span>
+      ${dappStatusBadge(isBlocked ? "blocked" : status)}
+    </button>
+  </article>`;
+}
+
+function messengerFolderScreen(folder) {
+  const result = messengerGateway.listMessages({
+    folder,
+    deletedIds: state.messengerDeletedIds,
+    blockedSenders: state.messengerBlockedSenders
+  });
+  const items = result.ok ? result.data.items : [];
+  const title = folder === "requests" ? "Requests" : "Inbox";
+  const copy = folder === "requests"
+    ? "Typed advisory proposals remain read-only until an explicit review and separate Wallet handoff."
+    : "Short-lived local advisory items. Delivery and acknowledgement never imply payment settlement.";
+  return `${dappScreenHeading(title, copy, `<span class="status-badge">${items.length} local items</span>`)}
+    ${items.length
+      ? `<section class="messenger-message-list" aria-label="${title}">${items.map(messengerMessageCard).join("")}</section>`
+      : `<section class="empty-state messenger-empty-state"><h3>No visible local items</h3><p>Deleted and blocked items stay out of this presentation list. Wallet state is unchanged.</p></section>`}`;
+}
+
+function messengerConversationScreen() {
+  return `${dappScreenHeading("Conversations", "Short-lived off-chain thread previews. Search and retention remain local concepts.", `<span class="status-badge">${demoRuntime.MESSENGER_CONVERSATIONS.length} threads</span>`)}
+    <form class="messenger-local-search" id="messenger-conversation-search" autocomplete="off">
+      <label class="field-label" for="messenger-search">Search local labels and safe previews</label>
+      <div><input id="messenger-search" name="query" value="${escapeHtml(state.messengerQuery || "")}" maxlength="48" placeholder="Search conversations"><button class="button" type="submit">${icon("search")} Search</button></div>
+    </form>
+    <section class="messenger-record-grid">${demoRuntime.MESSENGER_CONVERSATIONS
+      .filter((entry) => !state.messengerQuery || `${entry.label} ${entry.preview}`.toLocaleLowerCase().includes(state.messengerQuery.toLocaleLowerCase()))
+      .map((entry) => `<article class="messenger-record-card" data-messenger-conversation="${escapeHtml(entry.id)}"><div><span class="messenger-avatar">${icon("message")}</span><span><strong>${escapeHtml(entry.label)}</strong><small>${escapeHtml(dappDateTime(entry.updatedAt))}</small></span></div><p>${escapeHtml(entry.preview)}</p><dl><div><dt>Retention</dt><dd>${escapeHtml(entry.retention)}</dd></div><div><dt>Items</dt><dd>${entry.messageCount}</dd></div></dl><div class="capability-note">${icon("shield")} <span><strong>Concept thread</strong><small>No durable mailbox, public presence, or live relay is connected.</small></span></div></article>`).join("")}</section>`;
+}
+
+function messengerSentScreen() {
+  return `${dappScreenHeading("Sent", "Sent and transport states are advisory. A failed relay cannot roll back or confirm Wallet state.", `<span class="status-badge">${demoRuntime.MESSENGER_SENT.length} local items</span>`)}
+    <section class="messenger-record-grid">${demoRuntime.MESSENGER_SENT.map((entry) => `<article class="messenger-record-card" data-messenger-sent="${escapeHtml(entry.id)}"><div><span class="messenger-avatar">${icon("send")}</span><span><strong>${escapeHtml(entry.subject)}</strong><small>${escapeHtml(dappDateTime(entry.updatedAt))}</small></span>${dappStatusBadge(entry.state)}</div><p>${escapeHtml(entry.summary)}</p></article>`).join("")}</section>`;
+}
+
+function messengerMessageDetail() {
+  const result = messengerGateway.readMessage({ messageId: state.messengerSelectedMessageId });
+  if (!result.ok) {
+    state.messengerScreen = "list";
+    return messengerFolderScreen(state.messengerSection);
+  }
+  const message = result.data.message;
+  const request = message.request;
+  return `<section class="messenger-detail" data-messenger-detail="${escapeHtml(message.id)}">
+    <button class="button button-quiet" type="button" data-messenger-action="back">← Back</button>
+    <header class="dapp-detail-heading"><span class="dapp-card-icon is-large">${icon(message.kind === "request" ? "receive" : message.kind === "abuse" ? "alert" : "message")}</span><div><p class="eyebrow">${escapeHtml(dappTitleCase(message.kind))}</p><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.preview)}</p></div>${dappStatusBadge(messengerMessageState(message))}</header>
+    <dl class="messenger-detail-grid">
+      <div><dt>From</dt><dd>${escapeHtml(message.senderLabel)}</dd></div>
+      <div><dt>Received</dt><dd>${escapeHtml(dappDateTime(message.createdAt))}</dd></div>
+      <div><dt>Expires</dt><dd>${escapeHtml(dappDateTime(message.expiresAt))}</dd></div>
+      <div><dt>Delivery</dt><dd>${escapeHtml(dappTitleCase(message.deliveryState))} · advisory only</dd></div>
+      ${request ? `<div><dt>Request type</dt><dd>${escapeHtml(dappTitleCase(request.type))}</dd></div><div><dt>Exact scope</dt><dd>${escapeHtml(request.exactScope)}</dd></div>` : ""}
+    </dl>
+    <div class="confirmation-note">${icon("shield")} Opening this item recorded only local presentation state. No Wallet object, balance, ownership, or settlement status changed.</div>
+    <div class="messenger-detail-actions">
+      ${request ? `<button class="button button-primary" type="button" data-messenger-action="review" data-message-id="${escapeHtml(message.id)}">Review request</button>` : ""}
+      <button class="button" type="button" data-messenger-action="acknowledge" data-message-id="${escapeHtml(message.id)}">Acknowledge locally</button>
+      <button class="button" type="button" data-messenger-action="delete" data-message-id="${escapeHtml(message.id)}">Delete locally</button>
+      <button class="button" type="button" data-messenger-action="block" data-message-id="${escapeHtml(message.id)}">Block sender</button>
+      <button class="button button-danger" type="button" data-messenger-action="report" data-message-id="${escapeHtml(message.id)}">Report abuse</button>
+    </div>
+  </section>`;
+}
+
+function messengerRequestReview() {
+  const result = messengerGateway.readRequestReview({ messageId: state.messengerSelectedMessageId });
+  if (!result.ok) {
+    state.messengerScreen = "detail";
+    return messengerMessageDetail();
+  }
+  const review = result.data;
+  return `<section class="messenger-review" data-messenger-review="${escapeHtml(review.reviewId)}">
+    <button class="button button-quiet" type="button" data-messenger-action="detail">← Message</button>
+    <header class="dapp-detail-heading"><span class="dapp-card-icon is-large">${icon("receive")}</span><div><p class="eyebrow">Advisory request review</p><h2>${escapeHtml(review.subject)}</h2><p>${escapeHtml(review.senderLabel)}</p></div>${dappStatusBadge(review.expired ? "expired" : "pending")}</header>
+    <div class="confirmation-note">${icon("shield")} Accepting creates a typed Messenger decision only. Wallet revalidates the immutable handoff and owns every later mutation.</div>
+    <dl class="dapp-review-grid">
+      <div><dt>Type</dt><dd>${escapeHtml(dappTitleCase(review.request.type))}</dd></div>
+      <div><dt>Object family</dt><dd>${escapeHtml(dappTitleCase(review.request.objectFamily))}</dd></div>
+      <div><dt>Action</dt><dd>${escapeHtml(review.request.action)}</dd></div>
+      <div><dt>Exact scope</dt><dd>${escapeHtml(review.request.exactScope)}</dd></div>
+      <div><dt>Value</dt><dd>${escapeHtml(review.request.value)}</dd></div>
+      <div><dt>Fee</dt><dd>${escapeHtml(review.request.fee)}</dd></div>
+      <div><dt>Expires</dt><dd>${escapeHtml(dappDateTime(review.expiresAt))}</dd></div>
+      <div><dt>Recipient</dt><dd>Withheld until Wallet review</dd></div>
+    </dl>
+    <p class="field-error messenger-review-error" role="alert">${escapeHtml(state.messengerReviewError || "")}</p>
+    <div class="messenger-detail-actions"><button class="button" type="button" data-messenger-action="reject-request">${escapeHtml(t("plan2.actions.reject"))}</button><button class="button button-primary" type="button" data-messenger-action="accept-request"${review.expired ? " disabled" : ""}>${escapeHtml(t("plan2.actions.accept"))} for Wallet review</button></div>
+  </section>`;
+}
+
+function messengerOutcomeScreen() {
+  const outcome = state.messengerLastOutcome;
+  if (!outcome) {
+    state.messengerScreen = "list";
+    return messengerFolderScreen(state.messengerSection);
+  }
+  const accepted = outcome.kind === "accepted";
+  return `<section class="dapp-outcome${accepted ? "" : " is-negative"} messenger-outcome" data-messenger-outcome="${escapeHtml(outcome.kind)}">
+    <span class="result-icon">${icon(accepted ? "check" : "close")}</span>
+    <p class="eyebrow">Local advisory decision</p>
+    <h2>${escapeHtml(outcome.title)}</h2>
+    <p>${escapeHtml(outcome.summary)}</p>
+    <div class="capability-note">${icon("shield")}<span><strong>Wallet state unchanged</strong><small>The message decision is presentation state. Only a separately revalidated Wallet review may prepare a wallet operation.</small></span></div>
+    <div class="messenger-detail-actions">${accepted ? `<button class="button button-primary" type="button" data-messenger-action="wallet-review">Continue in Wallet review</button>` : ""}<button class="button" type="button" data-messenger-action="back">Back to requests</button></div>
+  </section>`;
+}
+
+function messengerView() {
+  const section = state.activeRoute.startsWith("messenger.") ? state.activeRoute.split(".").at(-1) : state.messengerSection;
+  state.messengerSection = section;
+  let content;
+  if (state.messengerScreen === "detail") content = messengerMessageDetail();
+  else if (state.messengerScreen === "review") content = messengerRequestReview();
+  else if (state.messengerScreen === "outcome") content = messengerOutcomeScreen();
+  else if (section === "sent") content = messengerSentScreen();
+  else if (section === "conversations") content = messengerConversationScreen();
+  else content = messengerFolderScreen("inbox");
+  const helpTopicOverride = state.messengerScreen === "detail"
+    ? "messenger.detail"
+    : state.messengerScreen === "review" ? "messenger.request-review" : "";
+  return `<section class="view-enter messenger-roadmap" data-messenger-screen="${escapeHtml(state.messengerScreen)}" data-messenger-section="${escapeHtml(section)}"${helpTopicOverride ? ` data-help-topic-override="${helpTopicOverride}"` : ""}>${messengerRuntimeControls()}${content}</section>`;
+}
+
+function contactStatusBadge(status) {
+  const className = {
+    known_locally: "is-ready",
+    needs_confirmation: "is-warning",
+    identity_changed: "is-warning",
+    expired: "",
+    revoked: "is-error"
+  }[status] || "";
+  return `<span class="status-badge ${className}">${escapeHtml(dappTitleCase(status))}</span>`;
+}
+
+function contactCard(contact) {
+  return `<article class="contact-book-entry" data-contact="${escapeHtml(contact.id)}"><button class="contact-book-row" type="button" data-contact-action="open" data-contact-id="${escapeHtml(contact.id)}" aria-label="Open ${escapeHtml(contact.label)} contact">
+      <span class="contact-avatar" aria-hidden="true">${escapeHtml(contact.initials)}</span>
+      <span class="contact-book-copy"><strong>${escapeHtml(contact.label)}</strong><small>Last used ${escapeHtml(dappDateTime(contact.lastLocalUseAt))}</small></span>
+      <span class="contact-book-state">${contactStatusBadge(contact.status)}${icon("chevron")}</span>
+    </button></article>`;
+}
+
+function contactsListScreen() {
+  const result = contactsGateway.listContacts({
+    query: state.contactsQuery,
+    status: state.contactsStatus,
+    sort: state.contactsSort
+  });
+  const contacts = result.ok ? result.data.items : [];
+  return `${dappScreenHeading("Address book", "Choose a nickname to open that contact's local details. No presence lookup or contact upload occurs.", `<button class="button button-primary" type="button" data-contact-action="add">${icon("plus")} Add contact</button>`)}
+    <form class="contacts-toolbar" id="contacts-search-form" autocomplete="off">
+      <div class="field-group"><label class="field-label" for="contacts-query">Search nicknames</label><div class="contacts-search-row"><input id="contacts-query" name="query" value="${escapeHtml(state.contactsQuery)}" maxlength="48" placeholder="Nickname"><button class="button" type="submit">${icon("search")} ${escapeHtml(t("plan2.actions.search"))}</button></div></div>
+      <div class="field-group"><label class="field-label" for="contacts-status">Local status</label><select id="contacts-status" name="status" data-contact-status-filter><option value="all"${state.contactsStatus === "all" ? " selected" : ""}>All statuses</option>${demoRuntime.CONTACT_STATUS_IDS.map((status) => `<option value="${escapeHtml(status)}"${state.contactsStatus === status ? " selected" : ""}>${escapeHtml(dappTitleCase(status))}</option>`).join("")}</select></div>
+      <div class="field-group"><label class="field-label" for="contacts-sort">Sort by</label><select id="contacts-sort" name="sort" data-contact-sort><option value="nickname"${state.contactsSort === "nickname" ? " selected" : ""}>Nickname</option><option value="date"${state.contactsSort === "date" ? " selected" : ""}>Date</option></select></div>
+    </form>
+    ${contacts.length
+      ? `<section class="contact-list contact-book-list" aria-label="Address book">${contacts.map(contactCard).join("")}</section>`
+      : `<section class="empty-state"><h3>No local contacts match</h3><p>Clear the local search or choose another status. No network search was attempted.</p></section>`}`;
+}
+
+function contactDetailScreen() {
+  const result = contactsGateway.readContact({ contactId: state.contactsSelectedId });
+  if (!result.ok) {
+    state.contactsScreen = "list";
+    return contactsListScreen();
+  }
+  const contact = result.data.contact;
+  const requiresReview = contact.status === "identity_changed";
+  const unusable = ["expired", "revoked"].includes(contact.status);
+  return `<section class="contact-detail" data-contact-detail="${escapeHtml(contact.id)}">
+    <button class="button button-quiet" type="button" data-contact-action="back">← Contacts</button>
+    <header class="contact-detail-heading"><span class="contact-avatar is-large">${escapeHtml(contact.initials)}</span><div><p class="eyebrow">Wallet-local record</p><h2>${escapeHtml(contact.label)}</h2><p>${escapeHtml(contact.safeNote)}</p></div>${contactStatusBadge(contact.status)}</header>
+    <dl class="contact-detail-grid">
+      <div><dt>Abbreviated fingerprint</dt><dd>${escapeHtml(contact.fingerprint)}</dd></div>
+      <div><dt>Source</dt><dd>${escapeHtml(contact.source)}</dd></div>
+      <div><dt>Last local use</dt><dd>${escapeHtml(dappDateTime(contact.lastLocalUseAt))}</dd></div>
+      <div><dt>Compatibility</dt><dd>${escapeHtml(contact.compatibility)}</dd></div>
+      <div><dt>Expiry</dt><dd>${escapeHtml(dappDateTime(contact.expiresAt))}</dd></div>
+      <div><dt>Tags</dt><dd>${escapeHtml(contact.tags.join(", "))}</dd></div>
+      <div><dt>Identity domains</dt><dd>Contact · Reticulum · Wallet recipient remain separate</dd></div>
+      <div><dt>Verification</dt><dd>Known locally only; no public trust claim</dd></div>
+    </dl>
+    ${requiresReview ? `<div class="notice">${icon("alert")} Receiver identity changed. Review it before Pay, Request, or Message.</div>` : ""}
+    ${unusable ? `<div class="notice">${icon("alert")} This receiver material is ${escapeHtml(contact.status)}. Export remains available for local review; value and messaging actions fail closed.</div>` : ""}
+    <div class="contact-detail-actions">
+      <button class="button button-primary" type="button" data-contact-action="pay" data-contact-id="${escapeHtml(contact.id)}"${requiresReview || unusable ? " disabled" : ""}>Pay</button>
+      <button class="button" type="button" data-contact-action="request" data-contact-id="${escapeHtml(contact.id)}"${requiresReview || unusable ? " disabled" : ""}>Request</button>
+      <button class="button" type="button" data-contact-action="message" data-contact-id="${escapeHtml(contact.id)}"${requiresReview || unusable ? " disabled" : ""}>Message</button>
+      <button class="button" type="button" data-contact-action="edit" data-contact-id="${escapeHtml(contact.id)}">Edit label</button>
+      <button class="button" type="button" data-contact-action="export" data-contact-id="${escapeHtml(contact.id)}">Export public material</button>
+      ${requiresReview ? `<button class="button" type="button" data-contact-action="identity-review" data-contact-id="${escapeHtml(contact.id)}">Review identity change</button>` : ""}
+      <button class="button button-danger" type="button" data-contact-action="remove" data-contact-id="${escapeHtml(contact.id)}">Remove locally</button>
+    </div>
+  </section>`;
+}
+
+function contactImportScreen() {
+  const source = demoRuntime.CONTACT_IMPORT_PREVIEWS.find(({ id }) => id === state.contactsImportSourceId) || demoRuntime.CONTACT_IMPORT_PREVIEWS[0];
+  const nativeRequired = ["qr_scan", "native_share"].includes(source.id);
+  return `<section class="contact-import" data-contact-import="${escapeHtml(source.id)}">
+    <button class="button button-quiet" type="button" data-contact-action="back">← Contacts</button>
+    ${dappScreenHeading("Add contact", "Choose one reviewed local source. Browser camera, arbitrary URL, remote file, and secret import are unavailable.")}
+    <div class="contact-import-options" role="group" aria-label="Contact source">${demoRuntime.CONTACT_IMPORT_PREVIEWS.map((entry) => `<button class="contact-import-option${entry.id === source.id ? " is-selected" : ""}" type="button" data-contact-action="import-source" data-source-id="${escapeHtml(entry.id)}" aria-pressed="${entry.id === source.id}"><span>${icon(entry.iconName)}</span><strong>${escapeHtml(entry.label)}</strong><small>${escapeHtml(entry.summary)}</small></button>`).join("")}</div>
+    ${nativeRequired
+      ? `<section class="watcher-state-panel contact-native-boundary" role="status">${icon("alert")}<div><strong>Native boundary unavailable in browser demo</strong><p>${escapeHtml(source.summary)}</p><small>A Tauri command must mediate permission, parsing, cancellation, and sanitized errors.</small></div></section>`
+      : `<form class="contact-import-form" id="contact-import-form" autocomplete="off" novalidate><div class="field-group"><label class="field-label" for="contact-import-label">Local label</label><input id="contact-import-label" name="label" minlength="2" maxlength="40" required></div><div class="field-group"><label class="field-label" for="contact-import-note">Safe local note <span class="muted">(optional)</span></label><input id="contact-import-note" name="safeNote" maxlength="80"></div><p class="field-error" id="contact-import-error" role="alert">${escapeHtml(state.contactsFormError || "")}</p><div class="contact-detail-actions"><button class="button button-primary" type="submit">Review and save locally</button></div></form>`}
+  </section>`;
+}
+
+function contactEditScreen() {
+  const result = contactsGateway.readContact({ contactId: state.contactsSelectedId });
+  if (!result.ok) {
+    state.contactsScreen = "list";
+    return contactsListScreen();
+  }
+  const contact = result.data.contact;
+  return `<section class="contact-edit" data-contact-edit="${escapeHtml(contact.id)}"><button class="button button-quiet" type="button" data-contact-action="detail">← Contact</button>${dappScreenHeading("Edit local label", "This changes only local presentation metadata, never receiver material or counterparty state.")}
+    <form class="contact-import-form" id="contact-edit-form" autocomplete="off" novalidate><div class="field-group"><label class="field-label" for="contact-edit-label">Local label</label><input id="contact-edit-label" name="label" value="${escapeHtml(contact.label)}" minlength="2" maxlength="40" required></div><div class="field-group"><label class="field-label" for="contact-edit-note">Safe local note</label><input id="contact-edit-note" name="safeNote" value="${escapeHtml(contact.safeNote)}" maxlength="80"></div><p class="field-error" id="contact-edit-error" role="alert">${escapeHtml(state.contactsFormError || "")}</p><div class="contact-detail-actions"><button class="button button-primary" type="submit">Save local changes</button></div></form></section>`;
+}
+
+function contactIdentityReviewScreen() {
+  const result = contactsGateway.readContact({ contactId: state.contactsSelectedId });
+  if (!result.ok) {
+    state.contactsScreen = "list";
+    return contactsListScreen();
+  }
+  const contact = result.data.contact;
+  return `<section class="messenger-review contact-identity-review" data-contact-identity-review="${escapeHtml(contact.id)}"><button class="button button-quiet" type="button" data-contact-action="detail">← ${escapeHtml(t("navigation.contacts"))}</button><header class="contact-detail-heading"><span class="contact-avatar is-large">${escapeHtml(contact.initials)}</span><div><p class="eyebrow">Identity change review</p><h2>${escapeHtml(contact.label)}</h2><p>Compare reviewed receiver material outside this demo before accepting.</p></div>${contactStatusBadge(contact.status)}</header><dl class="contact-detail-grid"><div><dt>Displayed change</dt><dd>${escapeHtml(contact.fingerprint)}</dd></div><div><dt>Source</dt><dd>${escapeHtml(contact.source)}</dd></div><div><dt>Compatibility</dt><dd>${escapeHtml(contact.compatibility)}</dd></div><div><dt>Trust effect</dt><dd>None; local confirmation only</dd></div></dl><div class="confirmation-note">${icon("shield")} Accepting updates local compatibility only. It does not create public trust, upload the contact, or mutate Wallet value.</div><div class="contact-detail-actions"><button class="button" type="button" data-contact-action="identity-reject">${escapeHtml(t("plan2.actions.reject"))}</button><button class="button button-primary" type="button" data-contact-action="identity-accept">${escapeHtml(t("plan2.actions.accept"))}</button></div></section>`;
+}
+
+function contactOutcomeScreen() {
+  const outcome = state.contactsLastOutcome;
+  if (!outcome) {
+    state.contactsScreen = "list";
+    return contactsListScreen();
+  }
+  return `<section class="dapp-outcome contact-outcome" data-contact-outcome="${escapeHtml(outcome.kind)}"><span class="result-icon">${icon(outcome.kind === "removed" ? "remove" : "check")}</span><p class="eyebrow">Local contact outcome</p><h2>${escapeHtml(outcome.title)}</h2><p>${escapeHtml(outcome.summary)}</p><div class="capability-note">${icon("shield")}<span><strong>No remote side effect</strong><small>No contact upload, public presence, implicit trust, Wallet mutation, settlement mutation, or protocol revocation occurred.</small></span></div><button class="button button-primary" type="button" data-contact-action="back">Back to contacts</button></section>`;
+}
+
+function contactsView() {
+  let content;
+  if (state.contactsScreen === "detail") content = contactDetailScreen();
+  else if (state.contactsScreen === "import") content = contactImportScreen();
+  else if (state.contactsScreen === "edit") content = contactEditScreen();
+  else if (state.contactsScreen === "identity-review") content = contactIdentityReviewScreen();
+  else if (state.contactsScreen === "outcome") content = contactOutcomeScreen();
+  else content = contactsListScreen();
+  const helpTopicOverride = state.contactsScreen === "detail"
+    ? "contacts.detail"
+    : state.contactsScreen === "identity-review" ? "contacts.identity-review" : "";
+  return `<section class="view-enter contacts-roadmap" data-contact-screen="${escapeHtml(state.contactsScreen)}"${helpTopicOverride ? ` data-help-topic-override="${helpTopicOverride}"` : ""}>${content}</section>`;
+}
+
+function completeDappPermissionReview(decision, acknowledgements = {}) {
+  const reviewResult = dappGateway.readPermissionReview({
+    connectionId: state.dappReviewConnectionId
+  });
+  if (!reviewResult.ok) {
+    state.dappReviewValidationError = reviewResult.error.message;
+    render();
+    requestAnimationFrame(() => document.querySelector("#dapp-review-error")?.focus?.());
+    return false;
+  }
+
+  const result = dappGateway.decidePermissionReview({
+    reviewId: reviewResult.data.reviewId,
+    decision,
+    scopeConfirmed: Boolean(acknowledgements.scopeConfirmed),
+    reauthAcknowledged: Boolean(acknowledgements.reauthAcknowledged)
+  });
+  if (!result.ok) {
+    state.dappReviewValidationError = result.error.message;
+    state.dappReviewAcknowledgements = {
+      scopeConfirmed: Boolean(acknowledgements.scopeConfirmed),
+      reauthAcknowledged: Boolean(acknowledgements.reauthAcknowledged)
+    };
+    render();
+    requestAnimationFrame(() => document.querySelector("#dapp-review-error")?.focus?.());
+    return false;
+  }
+
+  state.dappReviewValidationError = null;
+  state.dappReviewDecision = result.data;
+  state.dappLastOutcome = {
+    kind: decision === "accepted" ? "intent_accepted" : "intent_rejected",
+    label: decision === "accepted" ? "Bounded intent accepted" : "Connection request rejected",
+    summary: decision === "accepted"
+      ? "The typed request passed app-level review. No Wallet operation was created and no wallet object changed."
+      : "The local request was rejected before any Wallet review, signing, object mutation, or settlement path.",
+    returnRoute: "dapps.connections",
+    descriptorId: result.data.descriptorId
+  };
+  state.dappScreen = "outcome";
+  render({ focusMain: true });
+  showToast(decision === "accepted" ? "Bounded local intent accepted." : "Local connection request rejected.");
+  return true;
+}
+
+function routePreviewView() {
+  const routeId = state.previewRoute;
+  const node = demoRuntime.navigationNodeForRoute(routeId);
+  const capability = node?.capabilityId ? demoRuntime.capabilityProfile(node.capabilityId) : null;
+  const label = node ? navigationLabel(node) : routeId;
+  const capabilityLabel = capability?.presentationMode === "roadmap_preview" ? t("navigation.roadmap") : "Concept";
+  const panel = `<section class="route-preview" aria-labelledby="route-preview-title">
+    <p class="eyebrow">${escapeHtml(capabilityLabel)}</p>
+    <h2 id="route-preview-title">${escapeHtml(label)}</h2>
+    <p>This route is deliberately visible in the navigation model, but it does not claim a protocol implementation or live network capability.</p>
+    <dl class="route-preview-metadata">
+      <div><dt>Presentation</dt><dd>${escapeHtml(capability?.presentationMode || "product")}</dd></div>
+      <div><dt>Maturity</dt><dd>${escapeHtml(capability?.maturity || "target")}</dd></div>
+      <div><dt>Availability</dt><dd>${escapeHtml(capability?.availability || "unavailable")}</dd></div>
+      <div><dt>Evidence</dt><dd>${escapeHtml(capability?.evidenceSource || "none")}</dd></div>
+    </dl>
+  </section>`;
+  const workspaceId = node?.target.kind === "workspace"
+    ? node.id
+    : demoRuntime.ancestorContainerIdsForNode(node?.id || "")
+      .find((containerId) => demoRuntime.navigationNode(containerId)?.target.kind === "workspace");
+  return workspaceId
+    ? workspaceFrame(workspaceId, panel)
+    : panel;
+}
+
+function renderActiveWorkspace(renderer) {
+  try {
+    const injectedFailure = new URLSearchParams(window.location.search).get("workspaceFailure");
+    if (injectedFailure === state.activeRoute) {
+      throw new Error("Deterministic workspace failure");
+    }
+    return renderer();
+  } catch {
+    return `<section class="view-enter workspace-error-boundary" role="alert" data-workspace-error="${escapeHtml(state.activeRoute)}">
+      <p class="eyebrow">Workspace unavailable</p>
+      <h2>This section could not be rendered</h2>
+      <p>The failure was isolated from the Z00Z shell. Navigation, Lock, Help, and every other workspace remain available.</p>
+      <button class="button button-primary" type="button" data-demo-action="retry-workspace">Retry this section</button>
+    </section>`;
+  }
 }
 
 function render(options = {}) {
-  closeMobilePopup();
+  synchronizeShellRoute();
   applyAppearancePreferences();
   renderWalletShell();
   const mobileMenuLabel = t("app.menu");
   mobileMenuButton.setAttribute("aria-label", mobileMenuLabel);
   mobileMenuButton.setAttribute("title", mobileMenuLabel);
-  const sidebarTarget = sidebarActiveTarget();
   const walletScreen = hasSelectedWalletContext();
   const wallet = activeWallet();
-  const [title, context] = headings[state.view];
-  const [telemetryTitle, telemetryContext] = telemetryTopbar[state.telemetrySource] || telemetryTopbar.onionnet;
-  const telemetryScreen = state.view === "telemetry";
-  const settingsScreen = state.view === "settings";
-  pageTitle.textContent = walletScreen ? wallet.address : telemetryScreen ? telemetryTitle : t(title);
+  const routeNode = demoRuntime.navigationNodeForRoute(state.activeRoute);
+  const [legacyTitle = "", legacyContext = ""] = headings[state.view] || [];
+  const ancestorLabels = routeNode
+    ? demoRuntime.ancestorContainerIdsForNode(routeNode.id).map((containerId) => navigationLabel(demoRuntime.navigationNode(containerId)))
+    : [];
+  routeBreadcrumb.textContent = routeNode ? [...ancestorLabels, navigationLabel(routeNode)].join(" / ") : "";
+  routeBreadcrumb.hidden = !routeNode;
+  pageTitle.textContent = routeNode ? navigationLabel(routeNode) : t(legacyTitle);
   pageContext.textContent = walletScreen
-    ? t("app.walletContext", { wallet: wallet.name })
-    : telemetryScreen
-      ? t(telemetryContext)
-      : t(context);
-  pageTitle.classList.toggle("is-wallet-address", walletScreen);
-  pageTitle.classList.toggle("is-telemetry-title", telemetryScreen);
-  pageTitle.classList.toggle("is-settings-title", settingsScreen);
-  topbarAddressGroup.classList.toggle("has-wallet-address", walletScreen);
+    ? `${wallet.name} · ${wallet.address}`
+    : legacyContext ? t(legacyContext) : "";
+  pageTitle.classList.remove("is-wallet-address", "is-telemetry-title", "is-settings-title");
+  topbarAddressGroup.classList.remove("has-wallet-address");
   copyWalletAddress.hidden = !walletScreen;
   walletIdentity.hidden = !walletScreen;
-
-  document.querySelectorAll("[data-view]").forEach((button) => {
-    const active = button.closest(".system-nav")
-      ? sidebarTarget.group === "settings"
-      : button.dataset.view === state.view;
-    button.classList.toggle("is-active", active);
-    if (button.closest("nav")) {
-      active ? button.setAttribute("aria-current", "page") : button.removeAttribute("aria-current");
-    }
-  });
-  main.innerHTML = {
-    home: homeView,
+  const activeRenderer = {
     wallet: walletView,
     "wallet-send": walletSendView,
     "wallet-receive": walletReceiveView,
@@ -1995,30 +3290,23 @@ function render(options = {}) {
     "wallet-backup": walletBackupView,
     "wallet-settings": walletSettingsView,
     settings: settingsView,
-    telemetry: telemetryView
-  }[state.view]();
-  help.configure({ language: state.language, theme: state.theme, palette: state.palette });
+    telemetry: telemetryView,
+    dapps: dappsView,
+    messenger: messengerView,
+    contacts: contactsView,
+    "data-storage": dataStorageView,
+    about: aboutView,
+    "route-preview": routePreviewView
+  }[state.view];
+  main.dataset.mountedRoute = state.activeRoute;
+  main.innerHTML = renderActiveWorkspace(activeRenderer);
+  help.configure({ language: state.language, palette: state.palette });
   help.mountContextButton(state, main.firstElementChild);
   suppressPasswordManagerUI(document);
 
   syncBalanceButtons();
-  const revealActiveWalletTab = () => {
-    const activeWalletTab = walletTabs.querySelector(".wallet-tab.is-active");
-    if (!activeWalletTab) return;
-
-    const activeBounds = activeWalletTab.getBoundingClientRect();
-    const tabsBounds = walletTabs.getBoundingClientRect();
-    const tabInset = window.matchMedia("(max-width: 760px)").matches ? 16 : 0;
-    if (activeBounds.right > tabsBounds.right - tabInset) {
-      walletTabs.scrollLeft += activeBounds.right - (tabsBounds.right - tabInset);
-    } else if (activeBounds.left < tabsBounds.left + tabInset) {
-      walletTabs.scrollLeft -= tabsBounds.left + tabInset - activeBounds.left;
-    }
-  };
-  revealActiveWalletTab();
-  document.fonts?.ready.then(revealActiveWalletTab);
+  if (!mobilePopupMenu.hidden && mobilePopupType === "menu") mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
   requestAnimationFrame(() => {
-    revealActiveWalletTab();
     const activeContext = main.querySelector(".context-nav-child.is-active") || main.querySelector(".context-nav-item.is-active");
     activeContext?.scrollIntoView({ block: "nearest", inline: "center" });
   });
@@ -2683,6 +3971,7 @@ function renderDialog() {
     : notificationsDialog();
   dialogContent.innerHTML = content;
   suppressPasswordManagerUI(dialogContent);
+  persistDialogHistoryState();
 }
 
 function defaultFlowData(type) {
@@ -2694,19 +3983,69 @@ function defaultFlowData(type) {
   return {};
 }
 
-function openFlow(type, trigger = document.activeElement, extraData = {}) {
-  state.lastDialogTrigger = trigger;
-  state.flow = { type, step: 0, data: { ...defaultFlowData(type), ...extraData } };
-  renderDialog();
-  if (!dialog.open) dialog.showModal();
+function cloneFlowForHistory(flow = state.flow) {
+  return flow ? JSON.parse(JSON.stringify(flow)) : null;
+}
+
+function persistDialogHistoryState() {
+  if (!dialogHistoryActive || !state.flow) return;
+  window.history.replaceState({
+    ...(window.history.state || {}),
+    z00zRoute: state.activeRoute,
+    z00zOverlay: "flow-dialog",
+    z00zFlow: cloneFlowForHistory()
+  }, "", window.location.href);
+}
+
+function focusDialogPrimaryControl() {
   requestAnimationFrame(() => {
     const target = dialog.querySelector("input:not([type='hidden']), select, button:not([data-dialog-close])");
     target?.focus();
   });
 }
 
-function closeDialog() {
-  if (dialog.open) dialog.close();
+function openFlow(type, trigger = document.activeElement, extraData = {}) {
+  const isOpening = !dialog.open;
+  if (isOpening) state.lastDialogTrigger = trigger;
+  state.flow = { type, step: 0, data: { ...defaultFlowData(type), ...extraData } };
+  renderDialog();
+  if (isOpening) {
+    window.history.pushState({
+      ...(window.history.state || {}),
+      z00zRoute: state.activeRoute,
+      z00zOverlay: "flow-dialog",
+      z00zFlow: cloneFlowForHistory()
+    }, "", window.location.href);
+    dialogHistoryActive = true;
+    dialogHistoryClosing = false;
+    dialog.showModal();
+  }
+  focusDialogPrimaryControl();
+}
+
+function closeDialog({ fromHistory = false } = {}) {
+  if (!dialog.open) return;
+  if (dialogHistoryActive && !fromHistory) {
+    if (dialogHistoryClosing) return;
+    persistDialogHistoryState();
+    dialogHistoryClosing = true;
+    window.history.back();
+    return;
+  }
+  dialogHistoryActive = false;
+  dialogHistoryClosing = false;
+  dialog.close();
+}
+
+function restoreDialogFromHistory(flow) {
+  if (!flow) return;
+  state.flow = cloneFlowForHistory(flow);
+  state.lastDialogTrigger = null;
+  dialogHistoryActive = true;
+  dialogHistoryClosing = false;
+  renderDialog();
+  if (!dialog.open) dialog.showModal();
+  focusDialogPrimaryControl();
 }
 
 function showToast(message, iconName = "check") {
@@ -2787,6 +4126,7 @@ function validateSend(form) {
     amount: normalizedAmount,
     memo: form.elements.memo.value.trim(),
     itemKey: item.key,
+    reviewedItem: structuredClone(item),
     step: 1,
     completed: null
   });
@@ -2988,54 +4328,87 @@ function setButtonLoading(button, label) {
   button.textContent = label;
 }
 
-function completeSend() {
-  const data = activeSendDraft();
+function renderSendOperationIfCurrent(walletId, requestGeneration) {
+  const draft = state.sendDrafts[walletId];
+  if (state.selectedWalletId === walletId
+    && state.activeRoute === "wallet.send"
+    && draft?.requestGeneration === requestGeneration) {
+    render({ focusMain: true });
+  }
+}
+
+function beginSendOperation() {
+  const draft = activeSendDraft();
   const wallet = activeWallet();
-  const item = selectedSendOption(data);
+  const item = selectedSendOption(draft);
   if (!item) {
-    showToast("This wallet item is no longer available.", "alert");
-    resetActiveSendDraft();
+    draft.operationError = { code: "conflict", message: "This wallet item is no longer available." };
+    draft.step = 2;
     render({ focusMain: true });
     return;
   }
 
-  let amountLabel = item.meta;
-  if (item.family === "asset") {
-    amountLabel = `${data.amount} ${item.asset.unit}`;
-    wallet.activities.unshift({ id: `tx-${wallet.activities.length + 1}`, type: item.asset.key === "z00z" ? "money" : "asset", direction: "out", title: `${item.label} sent`, detail: `Sent to ${data.recipientLabel} · waiting to settle`, amount: `− ${amountLabel}`, time: "Now", status: "settling" });
-  } else {
-    const result = walletGateway.transferObject({
+  draft.requestGeneration += 1;
+  const requestGeneration = draft.requestGeneration;
+  draft.idempotencyKey ||= `demo-payment-${wallet.id}-${Date.now().toString(36)}`;
+  draft.operationError = null;
+  draft.operationStatus = "submitting";
+  draft.step = 2;
+  render({ focusMain: true });
+
+  window.setTimeout(() => {
+    const currentDraft = state.sendDrafts[wallet.id];
+    if (!currentDraft || currentDraft.requestGeneration !== requestGeneration) return;
+    const result = walletGateway.submitPayment({
       walletId: wallet.id,
-      family: item.family,
-      objectId: item.entry.id,
-      recipient: data.recipient
+      family: currentDraft.family,
+      itemKey: currentDraft.itemKey,
+      amount: currentDraft.amount,
+      recipient: currentDraft.recipient,
+      idempotencyKey: currentDraft.idempotencyKey,
+      scenario: state.demoOperationScenario
     });
     if (!result.ok) {
-      showToast(result.error.message, "alert");
-      resetActiveSendDraft();
-      render({ focusMain: true });
+      currentDraft.operationId = result.error.operationId || null;
+      currentDraft.operationStatus = result.error.code === "timeout_unknown_outcome" ? "unknown_outcome" : "failed";
+      currentDraft.operationError = { code: result.error.code, message: result.error.message };
+      renderSendOperationIfCurrent(wallet.id, requestGeneration);
       return;
     }
-    wallet.activities.unshift({
-      id: `${item.family}-send-${wallet.activities.length + 1}`,
-      type: item.family,
-      direction: "out",
-      title: `${item.label} sent`,
-      detail: `Sent to ${data.recipient} · waiting to settle`,
-      amount: item.family === "voucher" ? item.entry.value : "",
-      time: "Now",
-      status: "settling"
-    });
-  }
+    currentDraft.operationId = result.data.operationId;
+    currentDraft.operationStatus = result.data.status;
+    currentDraft.operationError = null;
+    currentDraft.completed = { ...result.data.completed };
+    currentDraft.step = 3;
+    renderSendOperationIfCurrent(wallet.id, requestGeneration);
+  }, 650);
+}
 
-  data.completed = {
-    family: item.family,
-    label: item.label,
-    amountLabel,
-    recipientLabel: data.recipientLabel
-  };
-  data.step = 2;
+function reconcileSendOperation() {
+  const draft = activeSendDraft();
+  const walletId = activeWallet().id;
+  if (!draft.operationId) return;
+  draft.requestGeneration += 1;
+  const requestGeneration = draft.requestGeneration;
+  draft.operationStatus = "reconciling";
+  draft.operationError = null;
+  draft.step = 2;
   render({ focusMain: true });
+
+  window.setTimeout(() => {
+    const currentDraft = state.sendDrafts[walletId];
+    if (!currentDraft || currentDraft.requestGeneration !== requestGeneration) return;
+    const result = walletGateway.reconcileOperation({ operationId: currentDraft.operationId });
+    if (!result.ok) {
+      currentDraft.operationStatus = "failed";
+      currentDraft.operationError = { code: result.error.code, message: result.error.message };
+    } else {
+      currentDraft.operationStatus = result.data.status;
+      currentDraft.completed = { ...result.data.completed };
+      currentDraft.step = 3;
+    }
+    renderSendOperationIfCurrent(walletId, requestGeneration);
+  }, 450);
 }
 
 function handleDialogAction(action, button) {
@@ -3069,8 +4442,7 @@ function handleDialogAction(action, button) {
     state.walletSection = "permissions";
     render({ focusMain: true });
   } else if (action === "notification-voucher") {
-    closeDialog();
-    window.setTimeout(() => openFlow("voucher-review", button), 0);
+    openFlow("voucher-review", button);
   } else if (action === "select-wallet") {
     closeDialog();
     state.selectedWalletId = button.dataset.walletId;
@@ -3099,16 +4471,16 @@ function handleDialogAction(action, button) {
     const needsWalletSetup = state.wallets.length === 0;
     if (needsWalletSetup) {
       state.selectedWalletId = null;
-      state.view = "home";
+      state.view = "wallet";
     } else {
       state.selectedWalletId = selectedWalletId;
       state.view = "wallet";
     }
     state.activityFilter = "all";
-    closeDialog();
     render({ focusMain: true });
     showToast(state.wallets.length === 0 ? "All wallet profiles removed. Add a wallet to continue." : `${walletsToRemove.length} wallet${walletsToRemove.length === 1 ? "" : "s"} removed from this concept.`);
-    if (needsWalletSetup) window.setTimeout(() => openFlow("add-wallet", button), 0);
+    if (needsWalletSetup) openFlow("add-wallet", button);
+    else closeDialog();
   } else if (action === "add-wallet") {
     openFlow("add-wallet", button);
   } else if (["start-create", "start-recover"].includes(action)) {
@@ -3146,7 +4518,12 @@ function handleDialogAction(action, button) {
 }
 
 function handleDemoAction(action, button) {
-  if (action === "toggle-balance") {
+  if (action === "retry-workspace") {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("workspaceFailure");
+    history.replaceState(history.state, "", url);
+    render({ focusMain: true });
+  } else if (action === "toggle-balance") {
     state.balanceHidden = !state.balanceHidden;
     syncConfigDraftFromState();
     render();
@@ -3223,6 +4600,8 @@ function handleDemoAction(action, button) {
     showToast("An exchange quote requires a verified provider and an authoritative route.");
   } else if (action === "prepare-stake") {
     showToast(`${activeWallet().name} wallet needs validator and lock-up terms before staking can be reviewed.`);
+  } else if (action === "prepare-unstake") {
+    showToast(`${activeWallet().name} wallet needs an authoritative staked balance and unlock terms before unstaking can be reviewed.`);
   } else if (action === "asset-review") {
     showToast("Declared domain and metadata are not the same as an authoritative trust verdict.", "alert");
   } else if (action === "general-notifications") {
@@ -3230,6 +4609,10 @@ function handleDemoAction(action, button) {
     syncConfigDraftFromState();
     render();
     showToast(`Notifications ${state.notifications ? "enabled" : "disabled"}.`);
+  } else if (action === "check-for-updates") {
+    state.updateCheckStatus = "current";
+    render();
+    showToast(t("plan2.about.updateToast", { version: demoRuntime.APP_VERSION }));
   } else if (action === "motion") {
     state.reducedMotion = !state.reducedMotion;
     syncConfigDraftFromState();
@@ -3303,98 +4686,35 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const mobileMenuGroup = event.target.closest("[data-mobile-menu-group]");
-  if (mobileMenuGroup) {
-    const group = mobileMenuGroup.dataset.mobileMenuGroup;
-    const panel = mobilePopupMenu.querySelector(`[data-mobile-menu-panel="${group}"]`);
-    if (!panel) return;
-    const expanded = !mobileMenuExpandedGroups.has(group);
-    if (expanded) {
-      mobileMenuExpandedGroups.add(group);
-    } else {
-      mobileMenuExpandedGroups.delete(group);
-    }
-    mobileMenuGroup.setAttribute("aria-expanded", String(expanded));
-    panel.hidden = !expanded;
+  const navigationBranch = event.target.closest("[data-navigation-branch]");
+  if (navigationBranch) {
+    const nodeId = navigationBranch.dataset.navigationBranch;
+    mergeShellState({ type: "toggle_branch", nodeId });
+    render();
+    requestAnimationFrame(() => document.querySelectorAll(`[data-navigation-branch="${CSS.escape(nodeId)}"]`).forEach((button) => {
+      if (button.closest("#mobile-popup-menu") === navigationBranch.closest("#mobile-popup-menu")) button.focus();
+    }));
     return;
   }
 
-  const mobileWalletChoice = event.target.closest("[data-mobile-select-wallet]");
+  const navigationRoute = event.target.closest("[data-navigation-route]");
+  if (navigationRoute) {
+    selectCanonicalRoute(navigationRoute.dataset.navigationRoute);
+    closeMobilePopup();
+    render({ focusMain: true });
+    return;
+  }
+
+  const mobileWalletChoice = event.target.closest("[data-mobile-wallet-id]");
   if (mobileWalletChoice) {
-    state.selectedWalletId = mobileWalletChoice.dataset.mobileSelectWallet;
-    state.view = "wallet";
-    state.walletSection = "assets";
-    state.activityFilter = "all";
-    state.assetFilter = "all";
+    const walletId = mobileWalletChoice.dataset.mobileWalletId;
+    const walletRouteCompatible = demoRuntime.isWalletRoute(state.activeRoute);
+    clearExternalReviewHandoffs();
+    state.selectedWalletId = walletId;
+    mergeShellState({ type: "switch_wallet", walletId, walletRouteCompatible });
+    Object.assign(state, legacyStateForRoute(state.activeRoute));
     closeMobilePopup();
     render({ focusMain: true });
-    return;
-  }
-
-  const mobileNetworkChoice = event.target.closest("[data-mobile-select-network]");
-  if (mobileNetworkChoice) {
-    state.view = "telemetry";
-    state.telemetrySource = mobileNetworkChoice.dataset.mobileSelectNetwork;
-    state.isNetworkOpen = false;
-    closeMobilePopup();
-    render({ focusMain: true });
-    return;
-  }
-
-  const mobileAppView = event.target.closest("[data-mobile-app-view]");
-  if (mobileAppView) {
-    state.view = mobileAppView.dataset.mobileAppView;
-    state.settingsSection = "general";
-    state.networkSection = "overview";
-    state.isNetworkOpen = false;
-    closeMobilePopup();
-    render({ focusMain: true });
-    return;
-  }
-
-  const mobilePopupAction = event.target.closest("[data-mobile-popup-action]");
-  if (mobilePopupAction) {
-    const action = mobilePopupAction.dataset.mobilePopupAction;
-    closeMobilePopup();
-    handleDemoAction(action, mobileMenuButton);
-    return;
-  }
-
-  const mobileWalletSection = event.target.closest("[data-mobile-wallet-section]");
-  if (mobileWalletSection) {
-    state.view = "wallet";
-    state.walletSection = mobileWalletSection.dataset.mobileWalletSection;
-    closeMobilePopup();
-    render({ focusMain: true });
-    return;
-  }
-
-  const mobileWalletSettingsSection = event.target.closest("[data-mobile-wallet-settings-section]");
-  if (mobileWalletSettingsSection) {
-    state.view = "wallet-settings";
-    state.walletSettingsSection = mobileWalletSettingsSection.dataset.mobileWalletSettingsSection;
-    closeMobilePopup();
-    render({ focusMain: true });
-    return;
-  }
-
-  const mobileExchangeProvider = event.target.closest("[data-mobile-exchange-provider]");
-  if (mobileExchangeProvider) {
-    const draft = activeExchangeDraft();
-    draft.providerId = mobileExchangeProvider.dataset.mobileExchangeProvider;
-    draft.destinationId = demoRuntime.exchangeProvider(draft.providerId).defaultDestination;
-    draft.orderType = "market";
-    draft.limitPrice = "";
-    draft.step = 0;
-    state.view = "exchange";
-    closeMobilePopup();
-    render({ focusMain: true });
-    return;
-  }
-
-  const mobileContextTrigger = event.target.closest("#wallet-tabs [data-mobile-popup]");
-  if (mobileContextTrigger && isMobileNavigation()) {
-    openMobilePopup(mobileContextTrigger.dataset.mobilePopup, mobileContextTrigger);
     return;
   }
 
@@ -3407,11 +4727,6 @@ document.addEventListener("click", (event) => {
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) {
     const view = viewButton.dataset.view;
-    if (view === "settings" && viewButton.closest(".system-nav")) {
-      state.settingsSection = "general";
-      state.networkSection = "overview";
-      state.isNetworkOpen = false;
-    }
     state.view = view;
     render({ focusMain: true });
     return;
@@ -3420,11 +4735,18 @@ document.addEventListener("click", (event) => {
   const sendFamilyButton = event.target.closest("[data-send-family]");
   if (sendFamilyButton) {
     const draft = activeSendDraft();
+    clearExternalReviewHandoffs();
     draft.family = sendFamilyButton.dataset.sendFamily;
     draft.itemKey = sendOptionEntries(draft.family)[0]?.key || "";
     draft.amount = "";
     draft.step = 0;
+    draft.reviewedItem = null;
     draft.completed = null;
+    draft.idempotencyKey = "";
+    draft.operationId = null;
+    draft.operationStatus = null;
+    draft.operationError = null;
+    draft.requestGeneration += 1;
     render({ focusMain: true });
     return;
   }
@@ -3456,21 +4778,26 @@ document.addEventListener("click", (event) => {
     const action = sendActionButton.dataset.sendAction;
     const draft = activeSendDraft();
     if (action === "cancel") {
+      clearExternalReviewHandoffs();
       resetActiveSendDraft();
       state.view = "wallet";
       render({ focusMain: true });
     } else if (action === "back") {
-      draft.step = 0;
+      draft.step = draft.operationError ? 1 : 0;
       draft.completed = null;
+      draft.operationError = null;
       render({ focusMain: true });
     } else if (action === "submit") {
-      setButtonLoading(sendActionButton, "Sending once…");
-      window.setTimeout(completeSend, 650);
+      beginSendOperation();
+    } else if (action === "reconcile") {
+      reconcileSendOperation();
     } else if (action === "history") {
+      clearExternalReviewHandoffs();
       resetActiveSendDraft();
-      state.view = "activity";
+      selectCanonicalRoute("wallet.history");
       render({ focusMain: true });
     } else if (action === "done") {
+      clearExternalReviewHandoffs();
       resetActiveSendDraft();
       render({ focusMain: true });
     }
@@ -3479,16 +4806,14 @@ document.addEventListener("click", (event) => {
 
   const walletSectionButton = event.target.closest("[data-wallet-section]");
   if (walletSectionButton) {
-    state.view = "wallet";
-    state.walletSection = walletSectionButton.dataset.walletSection;
+    selectCanonicalRoute(`wallet.${walletSectionButton.dataset.walletSection}`);
     render({ focusMain: true });
     return;
   }
 
   const walletSettingsSectionButton = event.target.closest("[data-wallet-settings-section]");
   if (walletSettingsSectionButton) {
-    state.view = "wallet-settings";
-    state.walletSettingsSection = walletSettingsSectionButton.dataset.walletSettingsSection;
+    selectCanonicalRoute(`wallet.settings.${walletSettingsSectionButton.dataset.walletSettingsSection}`);
     render({ focusMain: true });
     return;
   }
@@ -3517,6 +4842,7 @@ document.addEventListener("click", (event) => {
 
   const walletButton = event.target.closest("[data-wallet-id]");
   if (walletButton && !walletButton.dataset.dialogAction) {
+    clearExternalReviewHandoffs();
     state.selectedWalletId = walletButton.dataset.walletId;
     state.view = "wallet";
     state.activityFilter = "all";
@@ -3549,55 +4875,507 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const networkButton = event.target.closest("[data-network-section]");
-  if (networkButton) {
-    if (networkButton.closest("#network-nav")) {
-      state.view = "telemetry";
-      state.telemetrySource = networkButton.dataset.networkSection;
-      state.isNetworkOpen = false;
+  const workspaceRouteButton = event.target.closest("[data-workspace-route]");
+  if (workspaceRouteButton) {
+    selectCanonicalRoute(workspaceRouteButton.dataset.workspaceRoute);
+    render({ focusMain: true });
+    return;
+  }
+
+  const watcherAlertButton = event.target.closest("[data-watcher-alert]");
+  if (watcherAlertButton) {
+    state.watcherSelectedAlertId = watcherAlertButton.dataset.watcherAlert;
+    state.watcherExportEnvelope = null;
+    render();
+    requestAnimationFrame(() => document.querySelector(`[data-watcher-alert="${CSS.escape(state.watcherSelectedAlertId)}"]`)?.focus());
+    return;
+  }
+
+  const watcherActionButton = event.target.closest("[data-watcher-action]");
+  if (watcherActionButton) {
+    const action = watcherActionButton.dataset.watcherAction;
+    if (action === "open-explorer") {
+      const deepLink = telemetryGateway.resolveExplorerDeepLink({
+        publicId: watcherActionButton.dataset.publicId
+      });
+      if (!deepLink.ok) {
+        showToast(deepLink.error.message, "alert");
+        return;
+      }
+      state.explorerScenario = "success";
+      state.explorerSelectedPublicId = deepLink.publicId;
+      state.explorerSearchResult = null;
+      state.explorerQuery = "";
+      state.explorerEvidenceKindFilter = "all";
+      state.explorerDetailMode = "summary";
+      selectCanonicalRoute(deepLink.routeId);
       render({ focusMain: true });
-      return;
+      showToast(`Opened ${deepLink.publicKind.replaceAll("_", " ")} public evidence.`);
+    } else if (action === "inspect-evidence") {
+      state.watcherSelectedAlertId = watcherActionButton.dataset.alertId;
+      state.watcherSeverityFilter = "all";
+      state.watcherKindFilter = "all";
+      state.watcherExportEnvelope = null;
+      selectCanonicalRoute("telemetry.watchers.evidence");
+      render({ focusMain: true });
+    } else if (action === "export-evidence") {
+      state.watcherSelectedAlertId = watcherActionButton.dataset.alertId;
+      state.watcherExportEnvelope = telemetryGateway.prepareWatcherEvidenceExport({
+        alertId: state.watcherSelectedAlertId,
+        sourceId: state.watcherSourceId
+      });
+      render();
+      showToast("Sanitized Watcher evidence fixture prepared.");
+    } else if (action === "clear-filters") {
+      state.watcherSeverityFilter = "all";
+      state.watcherKindFilter = "all";
+      state.watcherScenario = "success";
+      state.watcherExportEnvelope = null;
+      render();
+    } else if (action === "recover") {
+      mergeShellState({ type: "begin_request", requestKey: `telemetry:${state.activeRoute}` });
+      state.watcherScenario = "success";
+      state.watcherExportEnvelope = null;
+      render();
+      showToast("Deterministic Watchers fixture refreshed.");
     }
-  }
-
-  const reticulumTelemetryButton = event.target.closest("[data-reticulum-telemetry-tab]");
-  if (reticulumTelemetryButton) {
-    state.reticulumTelemetryTab = reticulumTelemetryButton.dataset.reticulumTelemetryTab;
-    render();
     return;
   }
 
-  const onionnetTelemetryButton = event.target.closest("[data-onionnet-telemetry-tab]");
-  if (onionnetTelemetryButton) {
-    state.onionnetTelemetryTab = onionnetTelemetryButton.dataset.onionnetTelemetryTab;
+  const explorerRecordButton = event.target.closest("[data-explorer-record]");
+  if (explorerRecordButton) {
+    state.explorerSelectedPublicId = explorerRecordButton.dataset.explorerRecord;
+    state.explorerDetailMode = "summary";
     render();
+    requestAnimationFrame(() => document.querySelector(`[data-explorer-record="${CSS.escape(state.explorerSelectedPublicId)}"]`)?.focus());
     return;
   }
 
-  const aggregatorsTelemetryButton = event.target.closest("[data-aggregators-telemetry-tab]");
-  if (aggregatorsTelemetryButton) {
-    state.aggregatorsTelemetryTab = aggregatorsTelemetryButton.dataset.aggregatorsTelemetryTab;
+  const explorerExampleButton = event.target.closest("[data-explorer-example-id]");
+  if (explorerExampleButton) {
+    state.explorerQuery = explorerExampleButton.dataset.explorerExampleId;
+    state.explorerSearchResult = telemetryGateway.searchExplorerPublicId({
+      query: state.explorerQuery,
+      scenario: state.explorerScenario,
+      generation: Number(state.requestGenerations["telemetry:telemetry.explorer.search"] || 0)
+    });
+    state.explorerSelectedPublicId = state.explorerSearchResult.status === "found"
+      ? state.explorerSearchResult.publicId
+      : null;
+    state.explorerDetailMode = "summary";
     render();
+    requestAnimationFrame(() => document.querySelector("#explorer-public-id")?.focus());
     return;
   }
 
-  const themeToggle = event.target.closest("[data-theme-toggle]");
-  if (themeToggle && themeToggle.tagName === "BUTTON") {
-    state.theme = state.theme === "dark" ? "light" : "dark";
-    syncConfigDraftFromState();
-    applyAppearancePreferences();
-    render();
-    showToast(`${state.theme === "dark" ? "Dark" : "Light"} theme applied locally.`);
+  const explorerRelatedButton = event.target.closest("[data-explorer-open-id]");
+  if (explorerRelatedButton) {
+    const publicId = explorerRelatedButton.dataset.explorerOpenId;
+    const result = telemetryGateway.searchExplorerPublicId({ query: publicId, scenario: "success" });
+    if (result.status !== "found") {
+      state.explorerSearchResult = result;
+      state.explorerQuery = "";
+      selectCanonicalRoute("telemetry.explorer.search");
+    } else {
+      state.explorerSelectedPublicId = result.publicId;
+      state.explorerDetailMode = "summary";
+      const routeId = result.record.recordType === "checkpoint"
+        ? "telemetry.explorer.checkpoints"
+        : result.record.recordType === "batch"
+          ? "telemetry.explorer.batches"
+          : "telemetry.explorer.evidence";
+      selectCanonicalRoute(routeId);
+    }
+    render({ focusMain: true });
+    return;
+  }
+
+  const explorerActionButton = event.target.closest("[data-explorer-action]");
+  if (explorerActionButton) {
+    const action = explorerActionButton.dataset.explorerAction;
+    if (action === "summary" || action === "technical") {
+      state.explorerDetailMode = action;
+      render();
+    } else if (action === "clear-search") {
+      state.explorerQuery = "";
+      state.explorerSearchResult = null;
+      state.explorerSelectedPublicId = null;
+      state.explorerDetailMode = "summary";
+      render();
+      requestAnimationFrame(() => document.querySelector("#explorer-public-id")?.focus());
+    } else if (action === "clear-filter") {
+      state.explorerEvidenceKindFilter = "all";
+      state.explorerScenario = "success";
+      state.explorerSelectedPublicId = null;
+      render();
+    } else if (action === "recover") {
+      mergeShellState({ type: "begin_request", requestKey: `telemetry:${state.activeRoute}` });
+      state.explorerScenario = "success";
+      state.explorerSearchResult = null;
+      state.explorerSelectedPublicId = null;
+      state.explorerDetailMode = "summary";
+      render();
+      showToast("Deterministic public evidence fixture refreshed.");
+    }
+    return;
+  }
+
+  const dappActionButton = event.target.closest("[data-dapp-action]");
+  if (dappActionButton) {
+    const action = dappActionButton.dataset.dappAction;
+    if (action === "open") {
+      const descriptor = demoRuntime.dappDescriptor(dappActionButton.dataset.dappId);
+      if (!descriptor) {
+        showToast("Unknown local dApp descriptor.", "alert");
+        return;
+      }
+      state.dappSelectedId = descriptor.id;
+      state.dappReviewConnectionId = null;
+      state.dappReviewValidationError = null;
+      state.dappScreen = "detail";
+      render({ focusMain: true });
+    } else if (action === "back") {
+      state.dappScreen = "list";
+      state.dappSelectedId = null;
+      state.dappReviewConnectionId = null;
+      state.dappReviewValidationError = null;
+      state.dappReviewAcknowledgements = {
+        scopeConfirmed: false,
+        reauthAcknowledged: false
+      };
+      render({ focusMain: true });
+    } else if (action === "review") {
+      const connection = demoRuntime.DAPP_CONNECTION_FIXTURES.find(({ id }) => id === dappActionButton.dataset.connectionId);
+      if (!connection) {
+        showToast("Unknown local connection fixture.", "alert");
+        return;
+      }
+      clearExternalReviewHandoffs();
+      state.dappSelectedId = connection.descriptorId;
+      state.dappReviewConnectionId = connection.id;
+      state.dappReviewValidationError = null;
+      state.dappReviewAcknowledgements = {
+        scopeConfirmed: false,
+        reauthAcknowledged: false
+      };
+      state.dappScreen = "review";
+      render({ focusMain: true });
+    } else if (action === "decide") {
+      const decision = dappActionButton.dataset.decision;
+      if (decision !== "rejected") {
+        showToast("The local review decision failed closed.", "alert");
+        return;
+      }
+      clearExternalReviewHandoffs();
+      completeDappPermissionReview("rejected");
+    } else if (action === "wallet-review") {
+      const handoffResult = dappGateway.prepareWalletReview({
+        decision: state.dappReviewDecision
+      });
+      if (!handoffResult.ok) {
+        showToast(handoffResult.error.message, "alert");
+        return;
+      }
+      const handoff = handoffResult.data;
+      clearExternalReviewHandoffs();
+      state.dappWalletReviewHandoff = handoff;
+      selectCanonicalRoute(handoff.target.routeId);
+      if (handoff.target.flow === "send") {
+        const draft = resetActiveSendDraft();
+        Object.assign(draft, {
+          ...handoff.draft,
+          step: 0,
+          recipientLabel: "",
+          reviewedItem: null,
+          completed: null,
+          idempotencyKey: "",
+          operationId: null,
+          operationStatus: null,
+          operationError: null
+        });
+      }
+      render({ focusMain: true });
+      showToast("Typed dApp intent opened in Wallet review.");
+    } else if (action === "revoke") {
+      const permission = demoRuntime.DAPP_PERMISSION_FIXTURES.find(({ id }) => id === dappActionButton.dataset.permissionId);
+      if (!permission || !["active", "expiring"].includes(dappPermissionStatus(permission))) {
+        showToast("No active local permission can be revoked.", "alert");
+        return;
+      }
+      state.dappRevokedPermissionIds = [...new Set([...state.dappRevokedPermissionIds, permission.id])];
+      state.dappLastOutcome = {
+        kind: "permission_revoked",
+        label: "Permission revoked",
+        summary: "Future app proposals under this local fixture are blocked. Prior Wallet outcomes remain independent and unchanged.",
+        returnRoute: "dapps.permissions",
+        descriptorId: permission.descriptorId
+      };
+      state.dappScreen = "outcome";
+      render({ focusMain: true });
+      showToast("Local dApp permission revoked.");
+    } else if (action === "outcome-back") {
+      selectCanonicalRoute(dappActionButton.dataset.returnRoute);
+      render({ focusMain: true });
+    }
+    return;
+  }
+
+  const messengerActionButton = event.target.closest("[data-messenger-action]");
+  if (messengerActionButton) {
+    const action = messengerActionButton.dataset.messengerAction;
+    const messageId = messengerActionButton.dataset.messageId || state.messengerSelectedMessageId;
+    if (action === "open") {
+      const opened = messengerGateway.advisoryAction({ messageId, action: "opened" });
+      if (!opened.ok) {
+        showToast(opened.error.message, "alert");
+        return;
+      }
+      state.messengerSelectedMessageId = messageId;
+      state.messengerReviewError = null;
+      state.messengerScreen = "detail";
+      render({ focusMain: true });
+    } else if (action === "back") {
+      state.messengerScreen = "list";
+      state.messengerSelectedMessageId = null;
+      state.messengerReviewDecision = null;
+      state.messengerReviewError = null;
+      state.messengerLastOutcome = null;
+      render({ focusMain: true });
+    } else if (action === "detail") {
+      state.messengerReviewError = null;
+      state.messengerScreen = "detail";
+      render({ focusMain: true });
+    } else if (action === "review") {
+      const review = messengerGateway.readRequestReview({ messageId });
+      if (!review.ok) {
+        showToast(review.error.message, "alert");
+        return;
+      }
+      state.messengerSelectedMessageId = messageId;
+      state.messengerReviewError = null;
+      state.messengerScreen = "review";
+      render({ focusMain: true });
+    } else if (action === "accept-request" || action === "reject-request") {
+      const review = messengerGateway.readRequestReview({ messageId });
+      const decision = action === "accept-request" ? "accepted" : "rejected";
+      const result = review.ok
+        ? messengerGateway.decideRequest({ reviewId: review.data.reviewId, decision })
+        : review;
+      if (!result.ok) {
+        state.messengerReviewError = result.error.message;
+        render();
+        return;
+      }
+      state.messengerReviewDecision = result.data;
+      state.messengerLastOutcome = {
+        kind: decision,
+        title: decision === "accepted" ? "Request accepted for Wallet review" : "Advisory request rejected",
+        summary: decision === "accepted"
+          ? "A typed local decision is ready for separate Wallet validation. No Wallet operation or settlement change exists yet."
+          : "The request ended locally before any Wallet review, signing, value mutation, or settlement path."
+      };
+      state.messengerReviewError = null;
+      state.messengerScreen = "outcome";
+      render({ focusMain: true });
+      showToast(decision === "accepted" ? "Request accepted locally." : "Request rejected locally.");
+    } else if (action === "wallet-review") {
+      const handoffResult = messengerGateway.prepareWalletReview({
+        decision: state.messengerReviewDecision
+      });
+      if (!handoffResult.ok) {
+        showToast(handoffResult.error.message, "alert");
+        return;
+      }
+      const validation = walletGateway.revalidateExternalReviewHandoff({
+        walletId: activeWallet().id,
+        handoff: handoffResult.data
+      });
+      if (!validation.ok) {
+        showToast(validation.error.message, "alert");
+        return;
+      }
+      const handoff = handoffResult.data;
+      clearExternalReviewHandoffs();
+      state.messengerWalletReviewHandoff = handoff;
+      selectCanonicalRoute(validation.data.target.routeId);
+      if (validation.data.target.flow === "send") {
+        const draft = resetActiveSendDraft();
+        Object.assign(draft, {
+          ...validation.data.draft,
+          step: 0,
+          recipientLabel: "",
+          reviewedItem: null,
+          completed: null,
+          idempotencyKey: "",
+          operationId: null,
+          operationStatus: null,
+          operationError: null
+        });
+      }
+      render({ focusMain: true });
+      showToast("Messenger request revalidated by Wallet.");
+    } else if (["acknowledge", "delete", "block", "report"].includes(action)) {
+      const gatewayAction = {
+        acknowledge: "acknowledged",
+        delete: "deleted",
+        block: "blocked",
+        report: "reported"
+      }[action];
+      const result = messengerGateway.advisoryAction({ messageId, action: gatewayAction });
+      if (!result.ok) {
+        showToast(result.error.message, "alert");
+        return;
+      }
+      if (action === "acknowledge") state.messengerAcknowledgedIds = [...new Set([...state.messengerAcknowledgedIds, messageId])];
+      if (action === "delete") state.messengerDeletedIds = [...new Set([...state.messengerDeletedIds, messageId])];
+      if (action === "report") state.messengerReportedIds = [...new Set([...state.messengerReportedIds, messageId])];
+      if (action === "block") state.messengerBlockedSenders = [...new Set([...state.messengerBlockedSenders, result.data.senderLabel])];
+      if (["delete", "block"].includes(action)) {
+        state.messengerScreen = "list";
+        state.messengerSelectedMessageId = null;
+      }
+      render({ focusMain: true });
+      showToast(`${dappTitleCase(gatewayAction)} locally; Wallet state unchanged.`);
+    } else if (action === "relay-unavailable") {
+      state.messengerRelayScenario = "unavailable";
+      render();
+      showToast("Unavailable relay fixture selected.");
+    } else if (action === "relay-recover") {
+      state.messengerRelayScenario = state.messengerRelayScenario === "recovering" ? "available" : "recovering";
+      render();
+      showToast(state.messengerRelayScenario === "recovering" ? "Local recovery check started." : "Local relay fixture restored.");
+    }
+    return;
+  }
+
+  const contactActionButton = event.target.closest("[data-contact-action]");
+  if (contactActionButton) {
+    const action = contactActionButton.dataset.contactAction;
+    const contactId = contactActionButton.dataset.contactId || state.contactsSelectedId;
+    if (action === "open") {
+      state.contactsSelectedId = contactId;
+      state.contactsFormError = null;
+      state.contactsScreen = "detail";
+      render({ focusMain: true });
+    } else if (action === "back") {
+      state.contactsSelectedId = null;
+      state.contactsFormError = null;
+      state.contactsLastOutcome = null;
+      state.contactsScreen = "list";
+      render({ focusMain: true });
+    } else if (action === "detail") {
+      state.contactsFormError = null;
+      state.contactsScreen = "detail";
+      render({ focusMain: true });
+    } else if (action === "add") {
+      state.contactsImportSourceId = "receiver_card";
+      state.contactsFormError = null;
+      state.contactsScreen = "import";
+      render({ focusMain: true });
+    } else if (action === "import-source") {
+      const preview = contactsGateway.createImportPreview({
+        sourceId: contactActionButton.dataset.sourceId
+      });
+      if (!preview.ok) {
+        showToast(preview.error.message, "alert");
+        return;
+      }
+      state.contactsImportSourceId = preview.data.source.id;
+      state.contactsFormError = null;
+      render();
+    } else if (action === "edit") {
+      state.contactsSelectedId = contactId;
+      state.contactsFormError = null;
+      state.contactsScreen = "edit";
+      render({ focusMain: true });
+    } else if (action === "identity-review") {
+      state.contactsSelectedId = contactId;
+      state.contactsScreen = "identity-review";
+      render({ focusMain: true });
+    } else if (action === "identity-accept" || action === "identity-reject") {
+      const decision = action === "identity-accept" ? "accepted" : "rejected";
+      const result = contactsGateway.reviewIdentityChange({
+        contactId,
+        decision
+      });
+      if (!result.ok) {
+        showToast(result.error.message, "alert");
+        return;
+      }
+      state.contactsLastOutcome = {
+        kind: `identity_${decision}`,
+        title: decision === "accepted" ? "Identity change accepted locally" : "Changed identity remains blocked",
+        summary: decision === "accepted"
+          ? "Local compatibility was updated after explicit review; no public trust claim was created."
+          : "The previous local block remains. No receiver reference or counterparty state changed."
+      };
+      state.contactsScreen = "outcome";
+      render({ focusMain: true });
+    } else if (action === "remove") {
+      const result = contactsGateway.removeContact({ contactId });
+      if (!result.ok) {
+        showToast(result.error.message, "alert");
+        return;
+      }
+      state.contactsLastOutcome = {
+        kind: "removed",
+        title: "Contact removed locally",
+        summary: "The local label was removed. Protocol objects, counterparty history, and remote state were not revoked or erased."
+      };
+      state.contactsSelectedId = null;
+      state.contactsScreen = "outcome";
+      render({ focusMain: true });
+    } else if (["pay", "request", "message", "export"].includes(action)) {
+      const result = contactsGateway.prepareAction({ contactId, action });
+      if (!result.ok) {
+        showToast(result.error.message, "alert");
+        return;
+      }
+      const handoff = result.data;
+      if (action === "export") {
+        state.contactActionHandoff = handoff;
+        state.contactsLastOutcome = {
+          kind: "export_prepared",
+          title: "Public-material export prepared",
+          summary: "The typed Contact identity reference is ready for a future native export review. It was not copied or uploaded."
+        };
+        state.contactsScreen = "outcome";
+        render({ focusMain: true });
+        return;
+      }
+      if (action === "pay") {
+        const validation = walletGateway.revalidateExternalReviewHandoff({
+          walletId: activeWallet().id,
+          handoff
+        });
+        if (!validation.ok) {
+          showToast(validation.error.message, "alert");
+          return;
+        }
+        clearExternalReviewHandoffs();
+        state.contactActionHandoff = handoff;
+        selectCanonicalRoute(validation.data.target.routeId);
+        const draft = resetActiveSendDraft();
+        draft.step = 0;
+        render({ focusMain: true });
+        showToast("Contact Pay action revalidated by Wallet.");
+        return;
+      }
+      clearExternalReviewHandoffs();
+      state.contactActionHandoff = handoff;
+      selectCanonicalRoute(handoff.target.routeId);
+      render({ focusMain: true });
+      showToast(`${dappTitleCase(action)} opened as a typed Messenger concept.`);
+    }
     return;
   }
 
   const paletteButton = event.target.closest("[data-palette]");
   if (paletteButton && paletteButton.tagName === "BUTTON") {
-    state.palette = paletteButton.dataset.palette;
+    applyPalette(paletteButton.dataset.palette);
     syncConfigDraftFromState();
     applyAppearancePreferences();
     render();
-    showToast(`${paletteOptions.find((palette) => palette.id === state.palette)?.label || "Palette"} applied locally.`);
     return;
   }
 
@@ -3640,7 +5418,7 @@ document.addEventListener("keydown", (event) => {
     closeMobilePopup({ restoreFocus: true });
     return;
   }
-  if (event.key === "Tab" && isMobileDrawer(mobilePopupType) && !mobilePopupMenu.hidden) {
+  if (event.key === "Tab" && mobilePopupType === "menu" && !mobilePopupMenu.hidden) {
     const focusable = [...mobilePopupMenu.querySelectorAll("button:not([disabled])")];
     if (focusable.length === 0) return;
     const first = focusable[0];
@@ -3658,14 +5436,101 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("resize", () => {
   if (!isMobileNavigation()) {
     closeMobilePopup();
-  } else if (!mobilePopupMenu.hidden) {
-    positionMobilePopup(mobilePopupTrigger);
   }
+});
+
+window.addEventListener("popstate", (event) => {
+  if (event.state?.z00zOverlay === "flow-dialog" && event.state.z00zFlow) {
+    restoreDialogFromHistory(event.state.z00zFlow);
+    return;
+  }
+  if (dialog.open && (dialogHistoryActive || dialogHistoryClosing)) {
+    closeDialog({ fromHistory: true });
+    return;
+  }
+  const requestedRoute = event.state?.z00zRoute || new URLSearchParams(window.location.search).get("route");
+  const routeId = requestedRoute === "wallet.staking" ? "wallet.staking.stake" : requestedRoute;
+  if (!demoRuntime.PORT_CONTRACT.routes.includes(routeId)) return;
+  selectCanonicalRoute(routeId, { pushHistory: false });
+  closeMobilePopup();
+  render({ focusMain: true });
 });
 
 document.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (["wallet-rename-entry", "wallet-seed-reveal-entry", "wallet-public-export-entry", "wallet-key-rotation-entry", "wallet-policy-apply-entry"].includes(event.target.id)) {
+  if (event.target.id === "dapp-permission-review-form") {
+    const acknowledgements = {
+      scopeConfirmed: Boolean(event.target.elements.scopeConfirmed.checked),
+      reauthAcknowledged: Boolean(event.target.elements.reauthAcknowledged.checked)
+    };
+    state.dappReviewAcknowledgements = acknowledgements;
+    completeDappPermissionReview("accepted", acknowledgements);
+  } else if (event.target.id === "explorer-public-search") {
+    const query = event.target.elements.publicId.value;
+    mergeShellState({ type: "begin_request", requestKey: "telemetry:telemetry.explorer.search" });
+    const result = telemetryGateway.searchExplorerPublicId({
+      query,
+      scenario: state.explorerScenario,
+      generation: Number(state.requestGenerations["telemetry:telemetry.explorer.search"] || 0)
+    });
+    state.explorerSearchResult = result;
+    state.explorerSelectedPublicId = result.status === "found" ? result.publicId : null;
+    state.explorerQuery = result.status === "found" ? result.publicId : "";
+    state.explorerDetailMode = "summary";
+    render();
+    requestAnimationFrame(() => document.querySelector(result.status === "found" ? "[data-explorer-detail]" : "#explorer-public-id")?.focus?.());
+  } else if (event.target.id === "messenger-conversation-search") {
+    state.messengerQuery = event.target.elements.query.value.trim();
+    render();
+    requestAnimationFrame(() => document.querySelector("#messenger-search")?.focus());
+  } else if (event.target.id === "contacts-search-form") {
+    state.contactsQuery = event.target.elements.query.value.trim();
+    state.contactsStatus = event.target.elements.status.value;
+    state.contactsSort = event.target.elements.sort.value;
+    render();
+    requestAnimationFrame(() => document.querySelector("#contacts-query")?.focus());
+  } else if (event.target.id === "contact-import-form") {
+    const result = contactsGateway.addContact({
+      sourceId: state.contactsImportSourceId,
+      label: event.target.elements.label.value,
+      safeNote: event.target.elements.safeNote.value
+    });
+    if (!result.ok) {
+      state.contactsFormError = result.error.message;
+      render();
+      requestAnimationFrame(() => document.querySelector("#contact-import-label")?.focus());
+      return;
+    }
+    state.contactsSelectedId = result.data.contact.id;
+    state.contactsFormError = null;
+    state.contactsLastOutcome = {
+      kind: "added",
+      title: "Contact saved locally",
+      summary: "A private local label and reviewed reference domains were created without a contact upload or public presence lookup."
+    };
+    state.contactsScreen = "outcome";
+    render({ focusMain: true });
+  } else if (event.target.id === "contact-edit-form") {
+    const result = contactsGateway.editLabel({
+      contactId: state.contactsSelectedId,
+      label: event.target.elements.label.value,
+      safeNote: event.target.elements.safeNote.value
+    });
+    if (!result.ok) {
+      state.contactsFormError = result.error.message;
+      render();
+      requestAnimationFrame(() => document.querySelector("#contact-edit-label")?.focus());
+      return;
+    }
+    state.contactsFormError = null;
+    state.contactsLastOutcome = {
+      kind: "edited",
+      title: "Local label updated",
+      summary: "Only local presentation metadata changed. Receiver material and all remote state remained unchanged."
+    };
+    state.contactsScreen = "outcome";
+    render({ focusMain: true });
+  } else if (["wallet-rename-entry", "wallet-seed-reveal-entry", "wallet-public-export-entry", "wallet-key-rotation-entry", "wallet-policy-apply-entry"].includes(event.target.id)) {
     validateWalletSettingsAction(event.target);
   } else if (event.target.id === "wallet-password-change-entry") {
     validateWalletPasswordChange(event.target);
@@ -3873,6 +5738,42 @@ document.addEventListener("scroll", (event) => {
 }, true);
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-contact-sort]")) {
+    state.contactsSort = event.target.value;
+    render();
+    requestAnimationFrame(() => document.querySelector("[data-contact-sort]")?.focus());
+    return;
+  }
+  if (event.target.matches("[data-contact-status-filter]")) {
+    state.contactsStatus = event.target.value;
+    render();
+    requestAnimationFrame(() => document.querySelector("[data-contact-status-filter]")?.focus());
+    return;
+  }
+  const watcherControl = event.target.dataset.watcherControl;
+  if (watcherControl) {
+    if (watcherControl === "source") state.watcherSourceId = event.target.value;
+    if (watcherControl === "scenario") state.watcherScenario = event.target.value;
+    if (watcherControl === "severity") state.watcherSeverityFilter = event.target.value;
+    if (watcherControl === "kind") state.watcherKindFilter = event.target.value;
+    state.watcherExportEnvelope = null;
+    mergeShellState({ type: "begin_request", requestKey: `telemetry:${state.activeRoute}` });
+    render();
+    requestAnimationFrame(() => document.querySelector(`[data-watcher-control="${CSS.escape(watcherControl)}"]`)?.focus());
+    return;
+  }
+  const explorerControl = event.target.dataset.explorerControl;
+  if (explorerControl) {
+    if (explorerControl === "scenario") state.explorerScenario = event.target.value;
+    if (explorerControl === "kind") state.explorerEvidenceKindFilter = event.target.value;
+    state.explorerSearchResult = null;
+    state.explorerSelectedPublicId = null;
+    state.explorerDetailMode = "summary";
+    mergeShellState({ type: "begin_request", requestKey: `telemetry:${state.activeRoute}` });
+    render();
+    requestAnimationFrame(() => document.querySelector(`[data-explorer-control="${CSS.escape(explorerControl)}"]`)?.focus());
+    return;
+  }
   if (event.target.id === "send-item") {
     const form = event.target.form;
     const draft = activeSendDraft();
@@ -3931,7 +5832,9 @@ document.addEventListener("change", (event) => {
     if (configControl === "regional-locale") state.regionalLocale = event.target.value;
     if (configControl === "time-zone") state.timeZone = event.target.value;
     if (configControl === "network-units") state.networkUnits = event.target.value;
-    if (configControl === "palette") state.palette = event.target.value;
+    if (configControl === "vibrate") state.vibrate = event.target.value;
+    if (configControl === "ringtone") state.ringtone = event.target.value;
+    if (configControl === "palette") applyPalette(event.target.value);
     if (configControl === "text-scale") state.textScale = event.target.value;
     if (configControl === "code-theme") state.codeTheme = event.target.value;
     if (configControl === "lock-after") {
@@ -3963,6 +5866,11 @@ dialog.addEventListener("click", (event) => {
   if (!inside) closeDialog();
 });
 
+dialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeDialog();
+});
+
 dialog.addEventListener("close", () => {
   state.flow = null;
   const trigger = state.lastDialogTrigger;
@@ -3971,5 +5879,12 @@ dialog.addEventListener("close", () => {
 });
 
 syncConfigDraftFromState();
+const requestedInitialRoute = new URLSearchParams(window.location.search).get("route");
+const initialCanonicalRoute = requestedInitialRoute === "wallet.staking"
+  ? "wallet.staking.stake"
+  : requestedInitialRoute;
+if (demoRuntime.PORT_CONTRACT.routes.includes(initialCanonicalRoute)) {
+  selectCanonicalRoute(initialCanonicalRoute, { pushHistory: false });
+}
 applyAppearancePreferences();
 render();

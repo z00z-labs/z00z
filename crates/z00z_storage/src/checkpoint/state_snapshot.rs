@@ -269,7 +269,7 @@ mod tests {
         StateSnapshotV1::new(
             StateSnapshotVersion::CURRENT,
             10_000,
-            10,
+            5,
             10_000,
             root(1),
             root(2),
@@ -288,7 +288,7 @@ mod tests {
         let snapshot = snapshot();
 
         assert_eq!(snapshot.height(), 10_000);
-        assert_eq!(snapshot.cadence_epochs(), 10);
+        assert_eq!(snapshot.cadence_epochs(), 5);
     }
 
     #[test]
@@ -317,7 +317,7 @@ mod tests {
         let err = StateSnapshotV1::new(
             StateSnapshotVersion::CURRENT,
             9_999,
-            10,
+            5,
             10_000,
             root(1),
             root(2),

@@ -13,7 +13,7 @@ pub use super::{
     nova::NovaProofEnvelopeV2,
     plonky3::{
         DyadicErrorBoundV2, Plonky3BaseAdapterV2, Plonky3BaseProofV2, Plonky3BaseStatementV2,
-        RecursiveSecurityBudgetManifestV2,
+        Plonky3ProofSizeStatusV2, Plonky3TraceDimensionsV2, RecursiveSecurityBudgetManifestV2,
     },
     receipt::{
         CryptographicVerificationReceiptV2, Plonky3BaseVerificationReceiptV2,
@@ -53,6 +53,7 @@ pub use super::{
         CheckpointVersionRegistryV2, CheckpointVersionRowV2, RecursiveBoundedObjectV2,
         RegistryFramingV2, RegistryLifecycleV2, ValidatedRecursivePreheaderV2,
         CHECKPOINT_VERSION_REGISTRY_API_V2, CHECKPOINT_VERSION_REGISTRY_GENERATION_V2,
+        PLONKY3_PUBLISH_BYTES_V2, PLONKY3_TARGET_BYTES_V2, RECURSIVE_INGRESS_BYTES_V2,
         RECURSIVE_OBJECT_MAGIC_V2, RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
         RECURSIVE_RUNTIME_PROFILE_GENERATION_V2, RECURSIVE_RUNTIME_PROFILE_V2,
     },

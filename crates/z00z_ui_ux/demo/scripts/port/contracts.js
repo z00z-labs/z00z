@@ -5,7 +5,6 @@
   const freezeRecord = (entries) => Object.freeze(Object.fromEntries(entries));
 
   const VIEW_IDS = freezeList([
-    "home",
     "wallet",
     "wallet-send",
     "wallet-receive",
@@ -16,7 +15,9 @@
     "wallet-backup",
     "wallet-settings",
     "settings",
-    "telemetry"
+    "telemetry",
+    "data-storage",
+    "about"
   ]);
   const WALLET_SECTION_IDS = freezeList(["assets", "vouchers", "permissions"]);
   const WALLET_SETTINGS_SECTION_IDS = freezeList(["general", "security", "backup", "policies", "advanced"]);
@@ -28,17 +29,154 @@
     Object.freeze({ id: "devnet-2", label: "Devnet-2", tone: "dev" })
   ]);
   const WALLET_CHAIN_IDS = freezeList(WALLET_CHAIN_OPTIONS.map(({ id }) => id));
-const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "appearance"]);
+  const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "notifications", "appearance"]);
   const NETWORK_SECTION_IDS = freezeList(["overview", "reticulum", "onionnet"]);
-  const TELEMETRY_SOURCE_IDS = freezeList(["onionnet", "reticulum", "aggregators"]);
+  const TELEMETRY_SOURCE_IDS = freezeList(["onionnet", "reticulum", "aggregators", "watchers", "explorer"]);
   const TELEMETRY_TAB_IDS = Object.freeze({
     reticulum: freezeList(["overview", "node", "interfaces", "radio", "entrypoints", "paths", "probes", "links"]),
     onionnet: freezeList(["overview", "epoch", "privacy", "transport", "queues", "probation", "ingress"]),
-    aggregators: freezeList(["overview"])
+    aggregators: freezeList(["overview", "ingress", "planning", "placement", "publication", "recovery"]),
+    watchers: freezeList(["overview", "alerts", "publication", "providers", "censorship", "evidence"]),
+    explorer: freezeList(["overview", "search", "checkpoints", "batches", "evidence"])
   });
-  const CAPABILITY_STATES = freezeList(["live", "target", "unavailable", "degraded"]);
+  const WALLET_ROUTE_IDS = freezeList([
+    "wallet.assets",
+    "wallet.vouchers",
+    "wallet.permissions",
+    "wallet.quarantine",
+    "wallet.send",
+    "wallet.receive",
+    "wallet.history",
+    "wallet.swap",
+    "wallet.exchange",
+    "wallet.staking.stake",
+    "wallet.staking.unstake",
+    "wallet.backup",
+    "wallet.settings.general",
+    "wallet.settings.security",
+    "wallet.settings.backup",
+    "wallet.settings.policies",
+    "wallet.settings.advanced"
+  ]);
+  const TELEMETRY_ROUTE_IDS = freezeList([
+    "telemetry.reticulum.overview",
+    "telemetry.reticulum.node",
+    "telemetry.reticulum.interfaces",
+    "telemetry.reticulum.radio",
+    "telemetry.reticulum.entrypoints",
+    "telemetry.reticulum.paths",
+    "telemetry.reticulum.probes",
+    "telemetry.reticulum.links",
+    "telemetry.onionnet.overview",
+    "telemetry.onionnet.epoch",
+    "telemetry.onionnet.privacy",
+    "telemetry.onionnet.transport",
+    "telemetry.onionnet.queues",
+    "telemetry.onionnet.probation",
+    "telemetry.onionnet.ingress",
+    "telemetry.aggregators.overview",
+    "telemetry.aggregators.ingress",
+    "telemetry.aggregators.planning",
+    "telemetry.aggregators.placement",
+    "telemetry.aggregators.publication",
+    "telemetry.aggregators.recovery",
+    "telemetry.watchers.overview",
+    "telemetry.watchers.alerts",
+    "telemetry.watchers.publication",
+    "telemetry.watchers.providers",
+    "telemetry.watchers.censorship",
+    "telemetry.watchers.evidence",
+    "telemetry.explorer.overview",
+    "telemetry.explorer.search",
+    "telemetry.explorer.checkpoints",
+    "telemetry.explorer.batches",
+    "telemetry.explorer.evidence"
+  ]);
+  const DAPP_ROUTE_IDS = freezeList([
+    "dapps.discover",
+    "dapps.installed",
+    "dapps.connections",
+    "dapps.permissions"
+  ]);
+  const MESSENGER_ROUTE_IDS = freezeList([
+    "messenger.inbox",
+    "messenger.sent",
+    "messenger.conversations"
+  ]);
+  const CONTACTS_ROUTE_IDS = freezeList(["contacts.list"]);
+  const DATA_STORAGE_ROUTE_IDS = freezeList(["data-storage.disk-usage", "data-storage.network-usage"]);
+  const APP_SETTINGS_ROUTE_IDS = freezeList(["settings.general", "settings.notifications", "settings.appearance"]);
+  const ABOUT_ROUTE_IDS = freezeList(["about"]);
+  const HELP_ROUTE_IDS = freezeList(["help.root"]);
+  const APP_ACTION_IDS = freezeList(["lock", "logout"]);
+  const ROUTE_NAMESPACE_IDS = freezeList([
+    "wallet",
+    "reticulum",
+    "onionnet",
+    "aggregators",
+    "watchers",
+    "explorer",
+    "dapps",
+    "messenger",
+    "data-storage",
+    "contacts",
+    "settings",
+    "about"
+  ]);
+  const APP_ROUTE_IDS = freezeList([
+    ...WALLET_ROUTE_IDS,
+    ...TELEMETRY_ROUTE_IDS,
+    ...DAPP_ROUTE_IDS,
+    ...MESSENGER_ROUTE_IDS,
+    ...DATA_STORAGE_ROUTE_IDS,
+    ...CONTACTS_ROUTE_IDS,
+    ...APP_SETTINGS_ROUTE_IDS,
+    ...ABOUT_ROUTE_IDS
+  ]);
+  const DEFAULT_ROUTE_BY_NAMESPACE = freezeRecord([
+    ["wallet", "wallet.assets"],
+    ["reticulum", "telemetry.reticulum.overview"],
+    ["onionnet", "telemetry.onionnet.overview"],
+    ["aggregators", "telemetry.aggregators.overview"],
+    ["watchers", "telemetry.watchers.overview"],
+    ["explorer", "telemetry.explorer.overview"],
+    ["dapps", "dapps.discover"],
+    ["messenger", "messenger.inbox"],
+    ["data-storage", "data-storage.disk-usage"],
+    ["contacts", "contacts.list"],
+    ["settings", "settings.general"],
+    ["about", "about"]
+  ]);
+  const DIALOG_HELP_TOPIC_IDS = freezeList([
+    "asset.details",
+    "dapps.detail",
+    "dapps.permission-review",
+    "messenger.detail",
+    "messenger.request-review",
+    "contacts.detail",
+    "contacts.identity-review",
+    "telemetry.watchers.alert-detail",
+    "telemetry.explorer.detail"
+  ]);
+  const HELP_TOPIC_IDS = freezeList(["app", ...APP_ROUTE_IDS, ...DIALOG_HELP_TOPIC_IDS]);
+  const APP_VERSION = "0.1.0";
+  const PALETTE_IDS = freezeList(["z00z-default", "z00z-corporate"]);
+  const MATURITY_IDS = freezeList(["live", "target", "concept"]);
+  const AVAILABILITY_IDS = freezeList(["available", "degraded", "unavailable"]);
+  const EVIDENCE_SOURCE_IDS = freezeList(["native", "fixture", "none"]);
+  const FRESHNESS_IDS = freezeList(["timestamp", "stale", "unknown", "not_applicable"]);
+  const PRESENTATION_MODE_IDS = freezeList(["product", "roadmap_preview"]);
+  const TELEMETRY_RESULT_STATE_IDS = freezeList([
+    "loading",
+    "success",
+    "degraded",
+    "unavailable",
+    "empty",
+    "malformed",
+    "error"
+  ]);
+  const LOCALE_IDS = freezeList(["en", "ru", "fr", "de", "es", "pt", "ko", "tr", "ja", "zh-Hans"]);
   const GATEWAY_QUERY_IDS = freezeList([
-    "load_home",
     "list_wallets",
     "load_wallet",
     "list_assets",
@@ -117,12 +255,15 @@ const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "ap
       telemetrySource,
       reticulumTelemetryTab: allowed(params.get("reticulumTab"), TELEMETRY_TAB_IDS.reticulum, "overview"),
       onionnetTelemetryTab: allowed(params.get("onionTab"), TELEMETRY_TAB_IDS.onionnet, "overview"),
-      aggregatorsTelemetryTab: allowed(params.get("aggregatorsTab"), TELEMETRY_TAB_IDS.aggregators, "overview")
+      aggregatorsTelemetryTab: allowed(params.get("aggregatorsTab"), TELEMETRY_TAB_IDS.aggregators, "overview"),
+      watchersTelemetryTab: allowed(params.get("watchersTab"), TELEMETRY_TAB_IDS.watchers, "overview"),
+      explorerTelemetryTab: allowed(params.get("explorerTab"), TELEMETRY_TAB_IDS.explorer, "overview")
     });
   }
 
   const PORT_CONTRACT = Object.freeze({
     version: "1.2.0",
+    appVersion: APP_VERSION,
     rendererRuntime: "leptos-csr-wasm",
     packagedHost: "tauri-2",
     browserProduct: false,
@@ -135,7 +276,28 @@ const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "ap
     networkSections: NETWORK_SECTION_IDS,
     telemetrySources: TELEMETRY_SOURCE_IDS,
     telemetryTabs: TELEMETRY_TAB_IDS,
-    capabilityStates: CAPABILITY_STATES,
+    routes: APP_ROUTE_IDS,
+    routeNamespaces: ROUTE_NAMESPACE_IDS,
+    walletRoutes: WALLET_ROUTE_IDS,
+    telemetryRoutes: TELEMETRY_ROUTE_IDS,
+    dappRoutes: DAPP_ROUTE_IDS,
+    messengerRoutes: MESSENGER_ROUTE_IDS,
+    contactsRoutes: CONTACTS_ROUTE_IDS,
+    dataStorageRoutes: DATA_STORAGE_ROUTE_IDS,
+    settingsRoutes: APP_SETTINGS_ROUTE_IDS,
+    aboutRoutes: ABOUT_ROUTE_IDS,
+    helpRoutes: HELP_ROUTE_IDS,
+    helpTopics: HELP_TOPIC_IDS,
+    actions: APP_ACTION_IDS,
+    defaultRouteByNamespace: DEFAULT_ROUTE_BY_NAMESPACE,
+    palettes: PALETTE_IDS,
+    maturity: MATURITY_IDS,
+    availability: AVAILABILITY_IDS,
+    evidenceSources: EVIDENCE_SOURCE_IDS,
+    freshness: FRESHNESS_IDS,
+    presentationModes: PRESENTATION_MODE_IDS,
+    telemetryResultStates: TELEMETRY_RESULT_STATE_IDS,
+    locales: LOCALE_IDS,
     gatewayQueries: GATEWAY_QUERY_IDS,
     gatewayCommands: GATEWAY_COMMAND_IDS,
     gatewayErrorCodes: GATEWAY_ERROR_CODES,
@@ -155,6 +317,7 @@ const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "ap
   });
 
   Object.assign(root.Z00ZDemo ||= {}, {
+    APP_VERSION,
     PORT_CONTRACT,
     WALLET_CHAIN_OPTIONS,
     resolveInitialNavigation

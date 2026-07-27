@@ -13,6 +13,10 @@ fn test_live_contract_uses_cadences() {
     assert_eq!(nova.publication_cadence_blocks, 1_000);
     assert_eq!(nova.proof_system, "nova_streaming_compressed_v2");
     assert_eq!(nova.mode, "fast_classical_streaming_v2");
+    assert_eq!(config.branches.plonky3_epoch.cadence_blocks, 2_000);
+    assert_eq!(config.post_quantum.cadence_blocks, 2_000);
+    assert_eq!(config.snapshots.cadence_epochs, 5);
+    assert_eq!(config.snapshots.cadence_blocks, 10_000);
 
     let registry = CheckpointVersionRegistryV2::authority_pinned().expect("pinned registry");
     for object in [

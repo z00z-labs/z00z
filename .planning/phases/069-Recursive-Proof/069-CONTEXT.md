@@ -20,7 +20,7 @@ over the existing storage-owned checkpoint theorem:
   archive, and PQ audit-anchor surfaces.
 - Canonical checkpoint admission, replay, exact transaction proof bytes, and
   `CheckpointProofSystem::VERIFIED` remain unchanged and non-authoritative.
-- After the height-1000 block satisfies inherited canonical DA-ready/QC gates,
+- After the height-2000 block satisfies inherited canonical DA-ready/QC gates,
   it closes its epoch and commits an outbox without waiting for Nova, Plonky3,
   PQ, evidence-publication, or archive workers. Later recursive evidence can
   block evidence promotion or deletion, never canonical finality.
@@ -226,7 +226,7 @@ must be read directly by every planner and executor.
   root before a promoted canonical validity path succeeds.
 - Celestia remains DA-only. IPFS is allowed only with pinning, independent
   provider receipts, and unpredictable retrieval audits.
-- Default finalization math is 5 seconds/block, 1000 blocks/epoch (17.28
+- Default finalization math is 5 seconds/block, 2000 blocks/epoch (8.64
   epochs/day), and 1,555,200 finalized blocks/90-day window from DA readiness.
   Permanent anchors SHOULD target 1 KiB, MUST be <= 4 KiB, and total compact
   historical growth MUST remain <= 100 KiB/day excluding current state.
@@ -369,7 +369,7 @@ must be read directly by every planner and executor.
 <specifics>
 ## Specific Ideas
 
-- The default PQ cadence is 1000 positive checkpoint heights; height 0 is
+- The default PQ cadence is 2000 positive checkpoint heights; height 0 is
   genesis, and epoch math is explicitly defined in `069-TODO.md`. Cadence
   closes the canonical epoch immediately and schedules asynchronous proof/
   history/PQ publication.
@@ -385,7 +385,7 @@ must be read directly by every planner and executor.
 
 ## 🔎 Normative Obligation Ownership
 
-<!-- TODO_ATOMIC_CONTEXT: sha256=06fef1042027b6d064dba16e1cb0b48c8644e8ae636c9271af2f501119a112b4 atoms=1344 shoulds=8 owners=13 -->
+<!-- TODO_ATOMIC_CONTEXT: sha256=ffb02dee86c05dc4238b60a8079373671c5ff3b3edc02f012196fc30979bdb10 atoms=1345 shoulds=8 owners=13 -->
 
 This context incorporates every atomic obligation from the exact TODO revision
 identified by the marker above through the hash-checked inventory in

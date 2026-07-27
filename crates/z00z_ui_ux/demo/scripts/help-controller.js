@@ -10,7 +10,6 @@
   }
 
   let language = "en";
-  let theme = "dark";
   let palette = "z00z-default";
 
   if (!root.name) root.name = "z00z-wallet";
@@ -22,7 +21,6 @@
     url.hash = "";
     url.searchParams.set("topic", topicId);
     url.searchParams.set("lang", language);
-    url.searchParams.set("theme", theme);
     url.searchParams.set("palette", palette);
     if (topicId !== registry.globalTopic()) url.searchParams.set("section", "current-view");
     const releaseVersion = current.searchParams.get("v");
@@ -33,6 +31,20 @@
   function open(topicId) {
     const resolved = registry.hasTopic(topicId) ? topicId : registry.globalTopic();
     document.dispatchEvent(new CustomEvent("z00z:help-opening"));
+    const nativeInvoke = root.__TAURI__?.core?.invoke;
+    if (typeof nativeInvoke === "function") {
+      nativeInvoke("open_or_focus_help", {
+        request: {
+          topicId: resolved,
+          locale: language,
+          palette,
+          section: resolved === registry.globalTopic() ? null : "current-view"
+        }
+      }).catch(() => {
+        document.dispatchEvent(new CustomEvent("z00z:help-error"));
+      });
+      return true;
+    }
     const helpWindow = root.open(helpUrl(resolved), "z00z-help");
     helpWindow?.focus();
     return Boolean(helpWindow);
@@ -40,13 +52,14 @@
 
   function configure(options = {}) {
     language = i18n.resolveLanguage(options.language || language);
-    theme = ["dark", "light"].includes(options.theme) ? options.theme : theme;
-    palette = /^[a-z0-9-]+$/.test(options.palette || "") ? options.palette : palette;
+    palette = ["z00z-default", "z00z-corporate"].includes(options.palette)
+      ? options.palette
+      : palette;
   }
 
   function mountContextButton(state, viewRoot) {
     contextHelpHost.replaceChildren();
-    const topicId = registry.resolveTopicId(state);
+    const topicId = registry.resolveTopicId(state, viewRoot?.dataset.helpTopicOverride || "");
     if (!topicId || !viewRoot) return;
     const button = document.createElement("button");
     button.type = "button";

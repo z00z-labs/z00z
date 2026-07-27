@@ -6,7 +6,7 @@ use super::{
 use crate::CheckpointError;
 
 /// Return the complete encoded-object cap for the authority-selected family.
-/// family. The wire never selects a family and unsupported families do not
+/// The wire never selects a family and unsupported families do not
 /// inherit a generic or larger fallback cap.
 pub(crate) fn effective_object_cap(
     object: RecursiveBoundedObjectV2,
@@ -57,7 +57,7 @@ mod tests {
     fn test_recursive_caps_match_v3() {
         assert_eq!(
             effective_object_cap(RecursiveBoundedObjectV2::NovaBlockProof).unwrap(),
-            17_825_792
+            16_777_216
         );
         assert_eq!(
             effective_object_cap(RecursiveBoundedObjectV2::RecursiveCheckpointSidecar).unwrap(),
@@ -65,10 +65,10 @@ mod tests {
         );
         assert_eq!(effective_nova_proof_body_cap().unwrap(), 131_072);
         assert!(
-            validate_object_ingress(RecursiveBoundedObjectV2::NovaBlockProof, 17_825_792).is_ok()
+            validate_object_ingress(RecursiveBoundedObjectV2::NovaBlockProof, 16_777_216).is_ok()
         );
         assert!(matches!(
-            validate_object_ingress(RecursiveBoundedObjectV2::NovaBlockProof, 17_825_793),
+            validate_object_ingress(RecursiveBoundedObjectV2::NovaBlockProof, 16_777_217),
             Err(CheckpointError::Limit)
         ));
         assert!(matches!(

@@ -13,7 +13,8 @@ node scripts/compile-help.mjs
 node scripts/check-help.mjs
 node scripts/test-port-contracts.mjs
 node scripts/check-port-readiness.mjs
-
+node scripts/test-palette-contrast.mjs
+node scripts/test-pages-release.mjs
 server_port="$(python3 - <<'PY'
 import socket
 
@@ -25,6 +26,11 @@ PY
 server_log="$output_dir/http-server.log"
 python3 -m http.server "$server_port" --bind 127.0.0.1 --directory "$demo_dir" >"$server_log" 2>&1 &
 server_pid="$!"
+
+playwright_executable="${Z00Z_PLAYWRIGHT_EXECUTABLE_PATH:-}"
+if [[ -z "$playwright_executable" ]] && command -v chromium >/dev/null 2>&1; then
+  playwright_executable="$(command -v chromium)"
+fi
 
 cleanup() {
   kill "$server_pid" 2>/dev/null || true
@@ -45,6 +51,7 @@ if [[ "$server_ready" != "true" ]]; then
   exit 1
 fi
 
+Z00Z_PLAYWRIGHT_EXECUTABLE_PATH="$playwright_executable" \
 Z00Z_PLAYWRIGHT_OUTPUT_DIR="$output_dir" \
 Z00Z_WALLET_DEMO_URL="http://127.0.0.1:$server_port/index.html" \
   npx --yes --package @playwright/test \

@@ -1,0 +1,6 @@
+title: "Staking"
+icon: staking
+order:
+  - index
+  - stake
+  - unstake

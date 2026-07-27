@@ -35,8 +35,11 @@ pins the snapshot codec, positive byte cap, and cadence manifest:
   seconds, or 83 minutes 20 seconds;
 - one Nova publication opportunity every 1000 blocks, independently of the
   recovery cadence;
-- one Plonky3/PQ/retrieval-audit epoch every 1000 blocks;
-- one state snapshot every 10,000 blocks: every 13 hours 53 minutes 20 seconds.
+- one independently configured retrieval audit every 1000 blocks;
+- one Plonky3/PQ epoch every 2000 blocks: every 10,000 seconds, or 2 hours
+  46 minutes 40 seconds;
+- one state snapshot every 10,000 blocks (five Plonky3/PQ epochs): every 50,000
+  seconds, or 13 hours 53 minutes 20 seconds.
 
 Therefore, Nova does **not** create and publish a compressed proof every five
 seconds, and the 100-block event is a local recovery snapshot, not a portable
@@ -112,8 +115,9 @@ At a nominal five-second finalized block interval:
 | Canonical block and logical Nova fold | 1 | 5 s | 17,280 | 1,555,200 |
 | Local Nova recovery snapshot | 100 | 500 s | 172.8 | 15,552 |
 | Nova compression/publication | 1000 | 5,000 s | 17.28 | 1,555 complete events, 1,555.2 steady-state average |
-| Plonky3/PQ/retrieval epoch | 1000 | 5,000 s | 17.28 | 1,555 complete epochs |
-| State snapshot | 10,000 | 50,000 s | 1.728 | 155 complete snapshots |
+| Retrieval audit | 1000 | 5,000 s | 17.28 | 1,555 complete audits |
+| Plonky3/PQ epoch | 2000 | 10,000 s | 8.64 | 777 complete epochs, 777.6 steady-state average |
+| State snapshot | 10,000 | 50,000 s | 1.728 | 155 complete snapshots, 155.52 steady-state average |
 
 The 90-day challenge window is exactly `1,555,200` finalized blocks and begins
 at `da_publication_ready`, not at local wall-clock time.
@@ -332,13 +336,15 @@ Thirty-six hypothetical independent prover lanes would require roughly
 only as a warning: the same accumulator cannot fold dependent blocks in
 parallel, so it is not a deployment solution.
 
-## Bytes written every five seconds, 100 blocks, and 1000 blocks
+## Bytes written every five seconds, 100, 1000, and 2000 blocks
 
 Use these symbols until the missing codecs are implemented and measured:
 
-- `S_da`: exact serialized `CheckpointDaPayloadV2` bytes per finalized block;
-- `D`: average unique exact challenge bytes added per finalized block after
-  digest deduplication and omission of derivable witness data;
+- `S_da`: normative exact `CheckpointDaPayloadV2` bytes per finalized block
+  (`419 B` without the optional epoch-close anchor, `451 B` with it);
+- `D_batch`: average unique exact challenge bytes for the one ordered batch
+  finalized by a checkpoint block, after digest deduplication and omission of
+  derivable witness data;
 - `R`: exact serialized local `NovaAccumulatorSnapshotV2` bytes;
 - `E`: exact serialized portable framed `NovaProofEnvelopeV2` bytes
   (`346,907 B`; its fixed payload is `346,859 B`);
@@ -346,22 +352,51 @@ Use these symbols until the missing codecs are implemented and measured:
 - `C`: exact fixed-layout current persisted claim (`354 B`);
 - `Q`: exact opaque in-memory receipt (`572 B`, never persisted or decoded);
 - `S_state`: logical live HJMT current-state bytes;
-- `U`: unique challenge bytes generated per day (`17,280 * D`).
+- `U_batch`: unique challenge bytes generated per day
+  (`17,280 * D_batch`).
+
+`D_batch` is not the size of one transaction and not the fixed-size batch
+commitment. It is the deduplicated replay material for the complete finalized
+batch:
+
+```text
+D_batch =
+    shared batch/checkpoint framing
+  + sum(unique canonical transaction-package bytes)
+  + sum(unique exact per-transaction proof/replay rows)
+  + required non-derivable witness/delta bytes
+  + exact DA payload/provider record
+```
+
+The batch root commits to these ordered inputs but cannot reconstruct them.
+Consequently, individual transaction size affects `D_batch` through the two
+per-transaction sums, while the number published to Celestia remains the
+fixed `S_da` checkpoint envelope.
 
 | Window | DA write | Nova/recovery write | Challenge input |
 | --- | ---: | ---: | ---: |
-| Every 5 s / 1 block | `S_da` | one in-memory fold; no default compressed proof write | `D` |
-| Every 100 blocks | `100 * S_da` | one local recovery snapshot `R` | `100 * D` |
-| Every 1000 blocks | `1000 * S_da` | one scheduled envelope `E`, plus the ten recovery opportunities already counted | `1000 * D` |
-| Per day | `17,280 * S_da` | `172.8 * R + 17.28 * E` before GC/dedup | `17,280 * D` |
-| 90 days | `1,555,200 * S_da` | recovery is a rolling local set, not 15,552 retained copies; Nova bodies use their separate finite lifecycle | `1,555,200 * D` logical |
+| Every 5 s / 1 block | `S_da` | one in-memory fold; no default compressed proof write | `D_batch` |
+| Every 100 blocks | `100 * S_da` | one local recovery snapshot `R` | `100 * D_batch` |
+| Every 1000 blocks | `1000 * S_da` | one scheduled envelope `E`, plus the ten recovery opportunities already counted | `1000 * D_batch` |
+| Every 2000 blocks | `2000 * S_da` | one asynchronous Plonky3/PQ epoch result, plus two Nova publication opportunities already counted | `2000 * D_batch` |
+| Per day | `17,280 * S_da` | `172.8 * R + 17.28 * E` before GC/dedup | `17,280 * D_batch` |
+| 90 days | `1,555,200 * S_da` | recovery is a rolling local set, not 15,552 retained copies; Nova bodies use their separate finite lifecycle | `1,555,200 * D_batch` logical |
 
-`CheckpointDaPayloadV2` is mandatory live scope in `069-TODO.md`, but no such
-canonical Rust type/codec is present in the current code. Its exact byte count
-cannot be fabricated from the legacy JSON/Celestia-local request. Likewise,
-`max_nova_hot_recovery_bytes` is currently `0`, and the canonical
-`NovaAccumulatorSnapshotV2` persistence codec is not active. Consequently,
-`S_da` and `R` are production blockers, not zero-byte costs.
+The frozen V2 wire is exactly `419 B` or `451 B`; therefore, at five-second
+finalization its logical application payload is `7,240,320-7,793,280 B/day`
+(`6.90-7.43 MiB/day`), `651,628,800-701,395,200 B` over 90 days
+(`621.44-668.90 MiB`), and `2,642,716,800-2,844,547,200 B/year`
+(`2.46-2.65 GiB`). Provider transaction/share framing, replication, retries,
+receipts, and fees are excluded.
+
+`CheckpointDaPayloadV2` is mandatory live scope in `069-TODO.md` and its exact
+wire is frozen by the Phase 078 authority, but the canonical storage-owned Rust
+type/codec and production adapter are not present in the current code. The
+legacy JSON/Celestia-local request MUST NOT be used to measure or populate the
+production payload. Likewise, `max_nova_hot_recovery_bytes` is currently `0`,
+and the canonical `NovaAccumulatorSnapshotV2` persistence codec is not active.
+Consequently, the V2 codec/adapter and `R` remain production blockers rather
+than zero-byte costs.
 
 When the current explicit `Snapshot` ingress is invoked, its first local
 evidence set is `E + P + C = 347,794 B`; a later snapshot that shares the same
@@ -407,6 +442,30 @@ runtime ledger/GC path is not implemented by Plan 051. This body cap does not
 include the public states/framing of full envelopes and does not replace the
 90-day canonical challenge archive.
 
+## Plonky3/PQ epoch traffic at the 2000-block default
+
+The active ConfigV3 generation-2 cadence is configurable but authority-pinned
+to `2000` blocks by default. At five-second finalization, epoch boundaries are
+`2000`, `4000`, and so on, with one epoch every `10,000 s`
+(`2 h 46 min 40 s`). The production acceptance target remains one complete
+canonical epoch/history payload of at most `2 MiB`; cadence does not multiply
+that target by the number of blocks.
+
+If every target-sized payload were retained or transferred once, the gross
+payload-only upper bound would be:
+
+| Window | Complete epochs | At 2 MiB target | At 4 MiB publish cap |
+| --- | ---: | ---: | ---: |
+| Per day, steady-state | 8.64 | 18,119,393.28 B | 36,238,786.56 B |
+| 90 days, complete epochs | 777 | 1,629,487,104 B (`1.52 GiB`) | 3,258,974,208 B (`3.04 GiB`) |
+| 90 days, steady-state | 777.6 | 1,630,745,395.2 B | 3,261,490,790.4 B |
+
+These are size-policy bounds, not measured Plonky3 output. Plan 07 still must
+produce and verify the real base theorem under its RAM cap, and Plan 08 must
+measure the one exact 2000-block canonical payload. Provider framing,
+manifests, receipts, RS coding, retry traffic, and temporary recursion nodes
+are excluded from the table.
+
 ## DA and 90-day challenge archive
 
 The DA payload is a small commitment envelope. Raw transaction packages, exact
@@ -415,26 +474,27 @@ bytes, and recursive proof bodies are excluded from it. The exact challenge
 bytes must live once in `EpochChallengePackV2` and be encoded with mandatory
 RS(10,16), whose exact coding overhead is `16/10 = 1.6×`.
 
-For average unique challenge bytes `D` per block:
+For average unique challenge bytes `D_batch` per finalized ordered batch:
 
 ```text
-logical_90d = D * 1,555,200
-rs_physical_90d = D * 1,555,200 * 1.6 = D * 2,488,320
+logical_90d = D_batch * 1,555,200
+rs_physical_90d = D_batch * 1,555,200 * 1.6
+                = D_batch * 2,488,320
 ```
 
-| Unique bytes/block `D` | Logical 90-day ring | Full RS(10,16) network storage |
+| Unique bytes/finalized batch `D_batch` | Logical 90-day ring | Full RS(10,16) network storage |
 | ---: | ---: | ---: |
 | 1 KiB | 1,592,524,800 B (`1.483 GiB`) | 2,548,039,680 B (`2.373 GiB`) |
 | 10 KiB | 15,925,248,000 B (`14.832 GiB`) | 25,480,396,800 B (`23.730 GiB`) |
 | 100 KiB | 159,252,480,000 B (`148.315 GiB`) | 254,803,968,000 B (`237.305 GiB`) |
 | 1 MiB | 1,630,745,395,200 B (`1.483 TiB`) | 2,609,192,632,320 B (`2.373 TiB`) |
 
-Equivalently, if `U` unique challenge bytes are generated per day:
+Equivalently, if `U_batch` unique challenge bytes are generated per day:
 
-- logical 90-day plateau: `90 * U`;
-- all 16 RS shards across the network: `144 * U`;
-- one shard placement: `9 * U`;
-- maximum allowed in one failure domain (two shards): `18 * U`.
+- logical 90-day plateau: `90 * U_batch`;
+- all 16 RS shards across the network: `144 * U_batch`;
+- one shard placement: `9 * U_batch`;
+- maximum allowed in one failure domain (two shards): `18 * U_batch`.
 
 These are plateau sizes after the window is full. Legal holds and unresolved
 disputes increase them because deletion must pause.
@@ -445,9 +505,10 @@ IPFS is valid only as `ipfs_pinned` with provider receipts and retrieval
 audits. A bare or unpinned CID is rejected. Under the selected placement rule,
 no failure domain may hold more than two of the 16 shards.
 
-An archive/Kubo operator that stores one shard needs at least `9 * U` bytes for
-the 90-day payload plateau; an operator storing the allowed maximum of two
-shards needs `18 * U`. Add filesystem/blockstore metadata, pin metadata,
+An archive/Kubo operator that stores one shard needs at least
+`9 * U_batch` bytes for the 90-day payload plateau; an operator storing the
+allowed maximum of two shards needs `18 * U_batch`. Add
+filesystem/blockstore metadata, pin metadata,
 temporary repair space, and compaction headroom. Until real CAR/blockstore
 measurements exist, capacity planning should reserve at least 25% operational
 headroom without relabelling that reserve as protocol data.
@@ -465,7 +526,8 @@ its runtime sharding/placement implementation is owned by Plan 09. Ignoring meta
 and transient COW/repair overhead, physical current-state storage is therefore
 approximately `3 * S_state` across the replica set, not `48 * S_state`.
 
-The mandatory downstream state-snapshot target is every 10,000 blocks with at
+The mandatory downstream state-snapshot target is every 10,000 blocks (five
+complete Plonky3/PQ epochs) with at
 least the latest three generations retained. Exact snapshot chunk bytes have not yet been
 measured, so their disk requirement is:
 
@@ -487,8 +549,8 @@ permanent history.
 | Canonical aggregator without in-process Nova | Existing canonical runtime requirement plus one asynchronous bounded queue | Existing runtime requirement; Nova worker must not consume it | `3 * S_state` across replica set plus journals/snapshots | Canonical finality may continue while shadow evidence lags. |
 | Dedicated Nova prototype worker | One in-flight prover; measured average `8.32` logical cores on this host. Reserve at least 12 dedicated modern cores for the measured prototype, but no tested core count meets five seconds. | `16 GiB` minimum from the 12-GiB authority ceiling plus OS headroom; `24 GiB` is the emergency harness ceiling, not production approval | `958,329,882 B` private material plus `15,372,615 B` verifier bundle, trace/replay spool, `2 * R`, atomic-replacement space, and job temp space | Does not meet five-second throughput. |
 | Clean Nova verifier | One current generation-2 cold sample passed in `58.343 s`, only `1.657 s` below the 60-s budget; persistent caching and p95/p99 measurement remain necessary. | Kernel peak `3,348,504,576 B`, leaving `946,462,720 B` under 4 GiB; deploy with service/OS headroom, never at the bare cap. | bundle plus atomic replacement and logs; active bundle `15,372,615 B` | Meets the same-format single-sample authority ceiling; not yet a production SLO. |
-| Challenge archive network | Encoding/repair/audit cores depend on measured `U` and repair SLA | Index/cache memory depends on pack/shard implementation | `144 * U` total RS plateau plus metadata/headroom | Codec and adapter are mandatory but unimplemented. |
-| One Kubo failure domain | Retrieval/audit concurrency must meet 1000-block audit cadence | Kubo index/cache must be measured | at most `18 * U` payload plateau plus headroom | Pin/receipt/audit integration is unimplemented. |
+| Challenge archive network | Encoding/repair/audit cores depend on measured `U_batch` and repair SLA | Index/cache memory depends on pack/shard implementation | `144 * U_batch` total RS plateau plus metadata/headroom | Codec and adapter are mandatory but unimplemented. |
+| One Kubo failure domain | Retrieval/audit concurrency must meet 1000-block audit cadence | Kubo index/cache must be measured | at most `18 * U_batch` payload plateau plus headroom | Pin/receipt/audit integration is unimplemented. |
 
 For the Nova-only worker, two complete authority-artifact generations for
 atomic replacement require `2 * 973,702,497 = 1,947,404,994 B`. A practical
@@ -522,7 +584,7 @@ Let:
 - `C_kwh` be electricity price per kWh;
 - `F` be configured network fanout;
 - `B_da = 1,555,200 * S_da` be 90-day DA payload bytes;
-- `B_archive = 2,488,320 * D` be full-network RS archive bytes;
+- `B_archive = 2,488,320 * D_batch` be full-network RS archive bytes;
 - `B_nova` be retained Nova envelope/body bytes under the lifecycle state.
 
 Then:
@@ -548,11 +610,13 @@ operators can substitute their own tariff inputs.
    formally approved target change is required.
 3. `max_nova_hot_recovery_bytes` is `0`; a positive finite cap cannot be
    activated until the real `R` snapshot size is implemented and measured.
-4. `CheckpointDaPayloadV2` and its canonical finite codec are absent, so exact
-   per-five-second DA bytes `S_da` are unknown.
+4. `CheckpointDaPayloadV2` has a frozen exact size of `419 B` or `451 B`, but
+   its canonical finite Rust codec and production provider adapter are absent;
+   provider framing, retry traffic, and billed DA bytes remain unmeasured.
 5. `EpochChallengePackV2`, RS(10,16) shard encoding, V2 availability manifest,
    pinned-IPFS adapter, provider receipts, and retrieval-audit path are absent,
-   so exact `D`, `U`, disk, repair traffic, and Kubo RAM are unknown.
+   so exact `D_batch`, `U_batch`, disk, repair traffic, and Kubo RAM are
+   unknown.
 6. The production aggregator scheduler/queue/restart path is not wired to the
    private Nova runner. Later-plan ownership does not make this live today.
 7. The clean verifier passed the 60-second cold ceiling by only 1.657 seconds

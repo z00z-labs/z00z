@@ -8,7 +8,13 @@ const context = vm.createContext({ Intl, window: {} });
 const registrySource = await readFile(resolve(demoRoot, "scripts/port/locale-registry.js"), "utf8");
 vm.runInContext(registrySource, context, { filename: "scripts/port/locale-registry.js" });
 const localeRegistry = context.window.Z00ZLocaleRegistry;
-const resources = ["i18n.js", ...localeRegistry.map(({ catalogue }) => catalogue), "locales/send-exchange.js"];
+const resources = [
+  "i18n.js",
+  ...localeRegistry.map(({ catalogue }) => catalogue),
+  "locales/send-exchange.js",
+  "locales/navigation.js",
+  "locales/demo-plan-2.js"
+];
 
 for (const resource of resources) {
   const source = await readFile(resolve(demoRoot, resource), "utf8");

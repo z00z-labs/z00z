@@ -33214,6 +33214,11 @@ mod tests {
             next_cs.which_is_unsatisfied()
         );
         let next_state = state_from_output(&next_output);
+        // This test synthesizes five full-size constraint systems. Release
+        // each system after its last assertion so the regular smoke process
+        // never retains overlapping Nova matrices.
+        drop(next_output);
+        drop(next_cs);
         assert_eq!(
             super::scalar_u64(next_state.cells[super::ORDINAL_CELL]),
             prior_steps + 1
@@ -33222,6 +33227,7 @@ mod tests {
             super::scalar_u64(next_state.cells[super::ANCHOR_SCALAR_START + 1]),
             prior_height + 1
         );
+        drop(next_state);
 
         let mut skipped_height = next_circuit.clone();
         skipped_height.next_block_prefix[super::ANCHOR_SCALAR_START + 1] += 1;
@@ -33230,6 +33236,7 @@ mod tests {
             !skip_cs.is_satisfied(),
             "a skipped successor height entered the continuous accumulator"
         );
+        drop(skip_cs);
 
         let mut wrong_root = next_circuit.clone();
         wrong_root.next_block_prefix[4 * super::DIGEST_LIMBS] ^= 1;
@@ -33238,6 +33245,7 @@ mod tests {
             !root_cs.is_satisfied(),
             "a wrong predecessor settlement root entered the continuous accumulator"
         );
+        drop(root_cs);
 
         let mut wrong_prior = next_circuit.clone();
         wrong_prior.next_block_prefix[super::PRIOR_FINALIZED_STATE_DIGEST_START] ^= 1;
@@ -33246,6 +33254,7 @@ mod tests {
             !prior_cs.is_satisfied(),
             "a caller-selected prior finalized-state digest spliced the accumulator"
         );
+        drop(prior_cs);
 
         let mut wrong_predecessor = next_circuit;
         wrong_predecessor.next_block_prefix
@@ -33255,6 +33264,7 @@ mod tests {
             !predecessor_cs.is_satisfied(),
             "a non-parent predecessor checkpoint entered the continuous accumulator"
         );
+        drop(predecessor_cs);
 
         assert!(!super::is_chain_done(true, false));
         assert!(super::is_chain_done(true, true));

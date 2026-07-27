@@ -1,0 +1,9 @@
+title: "メッセンジャー"
+icon: message
+order:
+  - index
+  - inbox
+  - sent
+  - conversations
+  - detail
+  - request-review

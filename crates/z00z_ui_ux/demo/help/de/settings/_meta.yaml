@@ -1,0 +1,7 @@
+title: "Einstellungen"
+icon: settings
+order:
+  - index
+  - general
+  - notifications
+  - appearance

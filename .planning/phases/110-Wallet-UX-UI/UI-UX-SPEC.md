@@ -7,7 +7,7 @@
 | Status | Product, interaction, configuration, and target-network baseline for prototype validation |
 | Version | 0.5.3 |
 | Date | 2026-07-19 |
-| Last updated | 2026-07-23 |
+| Last updated | 2026-07-26 |
 | Targets | Windows, Linux, iOS |
 | Prototype | [`crates/z00z_ui_ux/demo/index.html`](../../../crates/z00z_ui_ux/demo/index.html) |
 | Production UI decision | Tauri 2 + Leptos is a packaged standalone shell; no browser, container, or hosted-wallet profile |
@@ -17,7 +17,7 @@
 
 This document is the implementation contract for the Z00Z Wallet user interface. It fixes the product model, information architecture, screen behavior, interaction flows, content, visual system, security behavior, responsive rules, and RPC ownership before production implementation begins.
 
-The accompanying HTML prototype is the executable design reference. It demonstrates contextual navigation, responsive layout, lock state, object-family separation, payment, receiving, asset claiming, vouchers, permissions, activity, layered network status, policy profiles, UI/YAML configuration, theme switching, and representative error/success states. It does not perform cryptography or connect to a live wallet.
+The accompanying HTML prototype is the executable design reference. It demonstrates contextual navigation, responsive layout, lock state, object-family separation, payment, receiving, asset claiming, vouchers, permissions, activity, layered network status, policy profiles, UI/YAML configuration, the exact Default/Corporate palette selection, and representative error/success states. It does not perform cryptography or connect to a live wallet.
 
 Version 0.5 fixes a standalone-only deployment model: Z00Z Wallet is a packaged application for Windows, Linux, and iOS. Its UI and wallet backend run on the same device; frontend-to-backend traffic never crosses TCP, HTTP, WebSocket, a LAN, or the Internet. A Z00Z **Claim** is an asset-claim transaction with its own source proof, authority, recipient binding, and replay nullifier; it is not a voucher action. A `Right` is strictly zero-value, so a monetary budget cannot be represented as a bare permission card. Voucher actions are Accept, Reject, Transfer, Redeem, Refund, and Expire. UI/YAML synchronization, detailed Reticulum/OnionNet health, compliance profiles, and a wallet-facing claim-package intake remain target capabilities where current RPC is incomplete.
 
@@ -120,7 +120,7 @@ The interface is derived from concrete jobs rather than from RPC namespaces. Eve
 | Use a permission | Wallet → Permissions | Inspect the exact action, scope, uses, and expiry → use | Consumed/active permission activity |
 | Give a permission | Held delegable permission | Choose recipient and narrower scope/uses/expiry → review attenuation → delegate | Given permission; source authority remains explicit |
 | Resolve unsafe input | Attention or family filter | Read quarantine reason → discard/export diagnostics or retry with supported policy | Object remains non-spendable until authoritative promotion |
-| Diagnose connectivity | Header health or Settings → Network | Identify overlay, carrier, chain, and scan independently | Actionable degraded/unavailable state; no invented privacy claim |
+| Diagnose connectivity | Header health or Telemetry | Identify overlay, carrier, chain, and scan independently | Actionable degraded/unavailable state; no invented privacy claim |
 | Change configuration | Application control or selected-wallet Advanced YAML | Edit the configuration at its owning scope → validate → preview provenance/restart → apply | UI and YAML converge on one revision |
 
 ### 🧱 UI element work plan
@@ -152,7 +152,11 @@ Use:
 
 Tauri is the host, lifecycle, window, secure storage integration, platform bridge, and packaging layer. It is not the wallet domain API. Leptos owns views, local interaction state, routing, focus management, and presentation models. Tauri uses an embedded platform WebView as a renderer; it does **not** start an external browser, host a website, or expose a network wallet API.
 
-This is a **TARGET architecture decision**, not a description of the current repository. Exact Tauri, Leptos, Trunk, and plugin versions are pinned only after the implementation spike verifies Windows/Linux/iOS lifecycle, accessibility trees, secure-storage integration, binary size, and local-IPC packaging. The official Tauri Leptos guide itself is version-specific, so this specification deliberately does not freeze a Leptos minor version before that spike.
+This target is now represented by the bounded
+`z00z_wallet_ui_contract`/`z00z_wallet_ui`/`z00z_wallet_ui_tauri` spike.
+It proves the contract and cross-target build seams, not production readiness.
+Exact dependency pins remain gated by native Windows/Linux packaging and real
+iPhone/iPad lifecycle, accessibility, secure-storage, size, and IPC evidence.
 
 ### 📱 Mobile platform-adaptation contract
 
@@ -160,7 +164,7 @@ This is a **TARGET architecture decision**, not a description of the current rep
 
 | Concern | Shared Leptos/UI responsibility | iOS Tauri adapter responsibility |
 | --- | --- | --- |
-| Layout | Breakpoints, 44 px targets, responsive cards, sticky route bar, navigation drawer, popups, and sheets | Apply actual safe-area insets; test notches, home indicator, cut-outs, foldables, rotation, and split-screen/window resize |
+| Layout | Breakpoints, 44 px targets, responsive cards, sticky workspace-local tabs, navigation drawer, and sheets | Apply actual safe-area insets; test notches, home indicator, cut-outs, foldables, rotation, and split-screen/window resize |
 | Keyboard and forms | Keep the focused field and primary action visible; use semantic amount/password fields | Reconcile visual viewport and native keyboard; scroll/reposition the sheet rather than allowing the keyboard to obscure a review/submit action |
 | Back/navigation | Route state, modal stack, focus return, unsaved-input confirmation | iOS back gesture/control first closes the top dialog/sheet, then follows the route stack and never bypasses a required review |
 | Lifecycle and lock | Clear secret presentation state and stop foreground polling | Forward `backgrounded`, `suspended`, and `screen_locked` to the gateway; invoke the platform lock/privacy screen and refresh/re-auth on foreground. The wallet process remains authoritative for revocation/timeout |
@@ -173,7 +177,10 @@ This is a **TARGET architecture decision**, not a description of the current rep
 1. A mobile bottom sheet is full-screen when the task needs keyboard entry, long review text, recovery words, or an irreversible confirmation. It is never a clipped desktop dialog.
 2. App backgrounding, suspension, or screen lock immediately hides sensitive balances/identifiers and clears all seed/password/recovery words from rendered and in-memory UI state. Foregrounding does not imply an unlocked wallet.
 3. A native back/gesture never discards entered non-secret data silently and never confirms, signs, exports, or redeems an action. It closes only the top transient layer before route navigation.
-4. Mobile does not rely on hover, a permanent sidebar, a right-click, or desktop-width tables. The primary route row remains horizontally scrollable; third-level Assets and wallet-Settings routes open from anchored popup menus.
+4. Mobile does not rely on hover, a permanent sidebar, a right-click, or
+   desktop-width tables. Only the selected workspace's deeper destinations
+   remain horizontally scrollable below the topbar; global routes stay in the
+   canonical drawer and no route popup or nested accordion exists.
 5. Native capabilities are optional adapters with an unavailable state. If biometric, share, file, or secure-storage support is unavailable, the UI explains the fallback rather than imitating success.
 
 **Release gate:** validate the same build on an iPhone/iPad target for cold start, foreground/background/suspend/lock, keyboard overlap, safe areas, rotation, iOS return gesture, biometrics, share/import/export, VoiceOver, large text, reduced motion, and failed/unavailable native capability states. This is a platform-adaptation spike, not a justification for a second UI implementation.
@@ -278,7 +285,7 @@ Figma is optional and downstream. Use it after the product flows stabilize for c
 
 | Decision | Alternative considered | Why this contract wins | Failure to guard against |
 | --- | --- | --- | --- |
-| Workspaces + context navigation | One global tab for every RPC capability | Stable four-item global navigation plus a tree/rail where wallet and settings depth belongs | Tab explosion and empty speculative pages |
+| Root tree + workspace-local navigation | One global tab or nested accordion for every RPC capability | One canonical root-only tree plus desktop internal rails/mobile top tabs for deeper routes | Tab explosion, hidden mobile routes, and nested-accordion hunting |
 | Wallet rail Assets/Vouchers/Permissions | A technical “Object explorer” or horizontal tab strip | Preserves the three protocol families, scales to badges/quarantine, and keeps long labels readable | Mixing conditional or zero-value objects into Available |
 | Permission as durable label | Call every `Right` a Budget | Covers action/domain/object-scoped authority correctly | Showing a fake monetary limit for a non-monetary right |
 | OnionNet overlay + Reticulum carrier | Tor/OnionNet/Reticulum as equivalent route toggles | Matches Phase 080 layering and enables measurable privacy status | False privacy claims and unsafe fallback |
@@ -422,7 +429,7 @@ crates/z00z_wallet_ui/
       home/
       wallet/             # Assets, Vouchers, Permissions context routes
       activity/
-      settings/           # Application: General, Appearance, Network & privacy
+      settings/           # Application: General and Appearance only
       onboarding/
     component/
     accessibility/
@@ -443,74 +450,85 @@ crates/z00z_walletd/      # Windows/Linux only; ships the z00z-walletd binary
 
 ## 🗺️ Information architecture
 
-### 🖥️ Desktop and tablet landscape
+`crates/z00z_ui_ux/DEMO-PLAN-2.md` and
+`demo/scripts/port/navigation-model.js` are the canonical implementation
+contract. One registry projects the same hierarchy into the desktop sidebar,
+mobile drawer, workspace-local navigation, Help, deep links, and Rust enums.
 
-Persistent left rail:
+### Global navigation
 
-1. Z00Z identity lockup
-2. Scrollable wallet profiles
-3. Network telemetry shortcuts: OnionNet, Reticulum, and Aggregators
-4. Add/Remove wallet actions
-5. Settings and Log out
+The Z00Z logo is always visible in the topbar. The topbar contains identity,
+context, and utility controls, never global route tabs.
 
-The Wallets placeholder reserves the vertical capacity of exactly three list rows. Wallet cards, Add, and Remove are direct children of one ordered scroll area: all three scroll together. Remove becomes disabled when no local wallet profiles exist.
+Accordion controls exist only at the global root:
 
-Network shortcuts open distinct read-only telemetry workspaces. OnionNet reports future local route evidence, Reticulum reports future local interface and receipt evidence, and Aggregators reports future local publication evidence. They never perform route setup or configuration and must display unavailable until an authoritative bridge is registered. Runtime route/scan summary remains in the selected-wallet status bar. One sticky header contains the current workspace tabs together with the selected-wallet address and copy action, balance-visibility toggle, notifications, and account menu; selecting a wallet, Network shortcut, or Settings replaces the tabs in place and never creates a second navigation row.
+1. **Wallet**
+2. **Telemetry**
+3. **dApps**
+4. **Messenger**
+5. **Contacts** — direct destination
+6. separator
+7. **Settings**
+8. **Help ↗** — opens the standalone Help application
+9. separator
+10. **Log out** — action, never a selected route
 
-The desktop rail has one active destination only: a selected wallet profile, a selected Network shortcut, or Settings. Selecting any one clears the other rail active states and leaves exactly one rail `aria-current="page"`; wallet tabs and the Settings context rail keep their own scoped current route.
+Wallet, Telemetry, dApps, Messenger, and Settings are independent multi-open
+root accordions. Opening or closing a root is synchronous presentation state:
+it does not navigate or query a gateway. Closing one root preserves every other
+open root. A root exposes only first-level action/workspace leaves:
 
-The global rail selects a workspace. Inside Wallet and Settings, a compact **context rail/tree** selects the main-panel route. It follows the section rhythm of `z00z.io` while behaving as an application: the selected entry replaces the main panel rather than opening another window.
+- **Wallet:** Assets & Rights, Send, Receive, History, Swap, Exchange, Staking,
+  Backup, and Wallet Settings.
+- **Telemetry:** Reticulum, OnionNet, Aggregators, Watchers, and Explorer.
+- **dApps:** Discover, Installed, Connections, Permissions, and Activity.
+- **Messenger:** Inbox, Requests, Outbox, and Receipts.
+- **Settings:** General and Appearance.
 
-- Wallet peer entries: **Assets**, **Vouchers**, **Permissions**, and capability-gated **Quarantine**.
-- Wallet tabs start at **Assets** and continue through **History**, **Swap**, **Exchange**, **Stacking**, **Backup**, and **Settings**. `Overview` is not a wallet tab; Home is an app-level snapshot only.
-- Wallet Settings is local to the selected wallet and has its own context rail: **General**, **Security**, **Backup**, **Policies**, and **Advanced**. It must not mutate global language, appearance, notifications, or another wallet profile.
-- Application Settings groups: **Application** (General, Appearance) and **Connectivity** (Network & privacy). Security, Backup, Policies, and Advanced belong only to the selected wallet’s Settings context rail.
-- Network is the only expandable branch. Selecting it opens the **Overview** and expands **Reticulum**, **OnionNet**, **Carriers**, and capability-gated **Diagnostics** in place; selecting it again collapses that branch and restores Overview. A child route reopens its parent branch. Exactly one route has `aria-current="page"`: the parent for Overview, otherwise the selected child.
+There are no nested accordions. Selecting a workspace leaf opens the main
+workspace. Every deeper destination—Assets/Vouchers/Permissions/Quarantine,
+Wallet Settings General/Security/Backup/Policies/Advanced,
+Reticulum Overview/Node/etc., OnionNet Overview/Epoch/etc., Aggregator,
+Watcher, Explorer, and contextual Help siblings—renders inside that selected
+workspace:
 
-The context rail is navigation, not a tab widget: use `nav`, links/buttons, and `aria-current="page"`; do not apply `tablist/tab/tabpanel`. Rounded `ChoiceChip` controls are reserved for filtering or a small mutually exclusive view mode. Activity filters therefore remain rounded chips. These two patterns must not be restyled into look-alike third and fourth variants.
+- desktop: a vertical internal rail;
+- mobile and narrow tablet: a sticky horizontally scrollable top-tab row.
 
-### 📱 Mobile and narrow tablet
+Both projections use semantic `nav`/buttons and exactly one
+`aria-current="page"`. They are route navigation, not ARIA tabpanels. Choice
+chips remain reserved for filters and small view-mode choices.
 
-Mobile uses the same single sticky top navigation surface as desktop. Its compact order is **Menu**, Z00Z brand mark, then the horizontally scrollable current route tabs (Assets, Send, Receive, Swap, Exchange, Staking, Backup, History, Settings for a wallet). Desktop-only identity/address/privacy/account controls and bottom navigation are absent.
+The Wallets holder is separate from the route tree and always reserves exactly
+three constant-height wallet rows. One card represents one wallet. Wallet cards,
+Add, and Remove share one ordered scroll container; Remove is disabled when no
+local profiles exist. `Wallet Overview` is not a route.
 
-The Menu control opens a left, full-height modal drawer patterned after the public Z00Z mobile navigation. It has a backdrop, branded header, Close, focus containment, internal scrolling, and four root actions:
+### Responsive behavior
 
-1. **Wallets** — opens a nested wallet-profile picker; selecting a profile returns to that wallet's Assets route.
-2. **Network** — opens a nested Reticulum/OnionNet/Aggregators picker and then the selected read-only telemetry workspace.
-3. **Settings** — opens application-wide General, Appearance, Reticulum, and OnionNet settings.
-4. **Log out** — ends the local session and returns to the lock surface.
+Desktop and mobile use the same registry and independent root-accordion
+reducer. Mobile replaces the sidebar with a left full-height drawer containing
+the same root order, wallet selector, terminal Help/Log out actions, branded
+header, backdrop, close control, focus containment, and internal scrolling.
+Selecting a leaf closes the drawer; toggling an accordion does not.
 
-Nested Wallets and Network views provide Back to the drawer root. **Log out** is an action and never remains selected. Assets opens an anchored third-level popup for Assets/Vouchers/Permissions; wallet Settings opens an anchored popup for General/Security/Backup/Policies/Advanced. These popups replace their desktop context rails on narrow screens.
+The mobile topbar order is Menu then Z00Z logo. Desktop-only wallet
+address/privacy/account controls collapse without removing the logo. Quick
+actions remain stable cards, not a carousel. Native Back/Escape closes the most
+recent drawer, sheet, dialog, or overlay before route history. All retained
+controls are at least 44 × 44 CSS px and respect safe-area and software-keyboard
+occlusion.
 
-Quick actions are stable two-by-two cards, not a carousel. Native back/Escape closes the most recent popup, drawer, sheet, or dialog before navigating away, then returns to the preceding route/workspace.
+### Route contract
 
-### 🧭 Route contract
-
-| Route | Screen | Navigation label | Authentication |
-| --- | --- | --- | --- |
-| `/welcome` | Wallet list and first-run entry | — | No |
-| `/create` | Create wallet | — | No |
-| `/recover` | Recover wallet | — | No |
-| `/unlock/:wallet_id` | Unlock | — | No |
-| `/home` | Home snapshot | Home | Yes |
-| `/wallet/assets` | Spendable asset projection | Wallet → Assets | Yes |
-| `/wallet/vouchers` | Conditional-value offers and lifecycle | Wallet → Vouchers | Yes |
-| `/wallet/vouchers/:id` | Voucher details | — | Yes |
-| `/wallet/permissions` | Rights and safe permission recipes | Wallet → Permissions | Yes |
-| `/wallet/permissions/:id` | Permission details | — | Yes |
-| `/wallet/quarantine` | Unsupported/invalid objects | Wallet → Quarantine | Yes + capability |
-| `/wallet/settings` | Selected-wallet settings | Wallet → Settings | Yes |
-| `/wallet/settings/security` | Lock, public material, seed reveal, master-key rotation | Wallet → Settings → Security | Yes + re-auth for sensitive actions |
-| `/wallet/settings/backup` | Selected-wallet backup schedule and recovery scope | Wallet → Settings → Backup | Yes + re-auth for restore |
-| `/wallet/settings/policies` | Local `PolicyRules` and compliance-profile preview | Wallet → Settings → Policies | Yes + re-auth to apply local rules |
-| `/wallet/settings/advanced` | Safe selected-wallet YAML | Wallet → Settings → Advanced | Yes + explicit local/runtime boundary |
-| `/activity` | Unified activity | Activity | Yes |
-| `/activity/:tx_id` | Activity details and receipt | — | Yes |
-| `/settings` | Settings index | Settings | Yes |
-| `/settings/network` | Route and chain | Network | Yes |
-| `/settings/network/reticulum` | Resilient carrier and interfaces | Reticulum | Yes |
-| `/settings/network/onionnet` | Privacy overlay and route health | OnionNet | Yes |
-| `/settings/appearance` | Theme and accessibility preferences | Appearance | Yes |
+The exhaustive 61-value route contract is generated from
+`scripts/port/contracts.js` and mirrored by `z00z_wallet_ui_contract::AppRoute`.
+Its stable families are `wallet.*`, `telemetry.reticulum.*`,
+`telemetry.onionnet.*`, `telemetry.aggregators.*`,
+`telemetry.watchers.*`, `telemetry.explorer.*`, `dapps.*`, `messenger.*`,
+`contacts.list`, and `settings.*`. Detail/dialog states use stable Help topic
+IDs but do not become duplicate global navigation entries. Unknown route,
+palette, or Help identifiers fail closed.
 
 ## 🖼️ Global shell
 
@@ -529,9 +547,13 @@ Mobile order:
 
 1. Menu button.
 2. Z00Z mark.
-3. Horizontally scrollable current route tabs.
 
-Wallet switching belongs to the mobile drawer's **Wallets** branch, network telemetry to **Network**, and application preferences to **Settings**. The desktop address/Copy/balance-visibility/notifications/account toolbar is hidden on narrow screens. Retained controls remain at least 44 × 44 px and stay within the safe-area-adjusted viewport at 320 CSS px.
+Workspace-local destinations appear immediately below the topbar only when the
+selected workspace has deeper routes. Wallet switching belongs to the drawer's
+Wallet selector, telemetry to **Telemetry**, and application preferences to
+**Settings**. The desktop address/Copy/balance-visibility/notifications/account
+toolbar is hidden on narrow screens. Retained controls remain at least 44 × 44
+px and stay within the safe-area-adjusted viewport at 320 CSS px.
 
 Never place the full receiver ID, seed, session state, chain height, or route diagnostics in the default header.
 
@@ -839,9 +861,22 @@ Use `wallet.backup.create_backup`, `list_backups`, `restore_backup`, and `config
 
 ## ⚙️ Settings
 
-Settings uses the grouped context rail defined in the IA; it is neither a horizontal tab bar nor one long miscellaneous form. The selected route fills the main panel. Changes show **Saved**, **Applying**, **Restart required**, **Managed**, **Invalid**, or **Target capability** at field and page level. Every effective value can expose its source: Default, YAML file, UI patch, Environment, or Managed profile.
+Application Settings is one global root accordion with General and Appearance
+as its first-level destinations. The selected Settings workspace projects those
+destinations as a desktop internal rail or mobile top tabs; it contains no
+nested accordion and no Network subtree. Changes show **Saved**, **Applying**,
+**Restart required**, **Managed**, **Invalid**, or **Target capability** at
+field and page level. Every effective value can expose its source: Default,
+YAML file, UI patch, Environment, or Managed profile.
 
-**Layout contract:** the page heading spans the workspace above the content. At desktop width, the context rail and detail card begin on the same horizontal line beneath it; the rail is 240 px with a 32 px gutter. A context item must never exceed the rail: labels truncate within it. The Settings rail begins directly with its first group, **Wallet**; it does not repeat a redundant `Settings` caption already established by the workspace header and page heading. Network is the only accordion branch: its parent carries `aria-expanded` and the disclosure mark, toggles open/closed on repeated activation, restores Overview when closing, and exposes Overview, Reticulum, OnionNet, and Carriers only while open. A selected child, not its parent, is the current route; leaf routes have no trailing disclosure/chevron. A common settings row is a two-column grid (label/help + control) with one shared control edge; buttons/toggles align to that edge. At narrow width it becomes one vertical row without document-level horizontal overflow. Interactive setting rows use the same contained hover and focus treatment as list rows; static information does not pretend to be a control.
+**Layout contract:** the page heading spans the workspace above the content. At
+desktop width, the internal rail and detail card begin on the same horizontal
+line. A context item never exceeds the rail: it wraps at 200% text zoom and may
+truncate only when its accessible name remains complete. A common settings row
+is a two-column grid (label/help + control) with one shared control edge; at
+narrow width it becomes one vertical row without document-level horizontal
+overflow. Interactive rows use contained hover/focus treatment; static
+information does not pretend to be a control.
 
 ### 🧭 General
 
@@ -897,7 +932,7 @@ Reticulum is the resilient delivery fabric and path/interface abstraction. Onion
 
 **Evidence boundary:** the current live tree has no Reticulum runtime/API. `crates/z00z_networks/onionnet/src/lib.rs` explicitly exports placeholder module roots, including placeholder telemetry, and current `app.network.switch_to_onionet` returns `success: false`; `switch_to_tor` returns placeholder Devnet/localhost settings. Therefore every detailed status below is a **TARGET contract**. The demo labels it `Target simulation`; a production build without the future capability shows only unavailable/stub status.
 
-Default Overview surface:
+Future runtime-status projection:
 
 - Mode: Auto, Private, Resilient, or Direct.
 - Privacy: Onion route verified/unverified, privacy floor, hop count, and epoch.
@@ -914,16 +949,35 @@ Mode behavior:
 | Resilient | Reticulum mesh is allowed; higher latency and underlay diversity may be unverified | Delivery prioritized; privacy limitations remain visible |
 | Direct | Explicit test/emergency path with metadata warning and confirmation | No privacy-overlay claim |
 
-Network tree entries:
+The global **Telemetry** root exposes Reticulum, OnionNet, Aggregators,
+Watchers, and Explorer as first-level workspaces. It has no generic Overview
+leaf and no nested accordion. Runtime configuration, carrier priority, or route
+setup never appears in this read-only tree.
 
-- **Overview:** effective mode, privacy result, carrier, chain, scan, and one-line degradation reason.
-- **Reticulum:** service state, interfaces, mesh/bridge state, independent identity fingerprint, resource use, and restart requirement. Common UI controls are mode and allowed interface classes; raw interface configuration requires a future privileged runtime configuration route.
+The Reticulum telemetry workspace projects **Overview**, **Node**,
+**Interfaces**, **Radio**, **Entry points**, **Paths**, **Probes**, and
+**Links** through a desktop vertical internal rail and mobile sticky horizontal
+tabs. Each route owns one metric family and labels observing node, scope,
+freshness, availability, and evidence source. It must never claim global node
+count/topology/free bandwidth, RF metrics for intermediate hops, or a universal
+peer list. No route offers transport configuration, remote management, route
+changes, or a raw diagnostics dump.
 
-The standalone Reticulum telemetry workspace uses the same sticky, fully opaque horizontal tab grammar as selected-wallet tabs. Its seven read-only tabs are **Node**, **Interfaces**, **Radio**, **Entry points**, **Paths**, **Probes**, and **Links**. Each tab owns one metric family: a managed RNS instance; local interfaces; RNode/LoRa-only physical metrics; trusted local interface discovery; path/control-plane summaries; probes to controlled destinations; and application-owned logical links/receipts. The UI must label the observing node/scope and freshness. It must never claim a global node count, global topology, global availability/free bandwidth, RF metrics for intermediate hops, or a universal peer list. No tab may offer transport configuration, remote management, route changes, or a raw diagnostics dump.
-The standalone OnionNet telemetry workspace uses the same sticky, fully opaque horizontal tab grammar. Its seven read-only tabs are **Overview**, **Epoch**, **Privacy floor**, **Transport**, **Queues & replay**, **Probation**, and **Ingress boundary**. It separates public deterministic control-plane data from local node/client evidence and aggregate synthetic measurements. Public fields may cover epoch, registry/policy roots, deterministic active/reserve selection, lane contracts, lifecycle counts, diversity headroom, and aggregate carrier distribution. Local-only fields cover queue/replay/backpressure, route construction, and ingress timing; a global view exposes them only in privacy-preserving aggregates. It must never reveal a complete route, next hop, endpoint, circuit/session ID, packet trace, replay tag, ciphertext/hash, recipient identity, or a linkable cross-hop correlation ID. `selected active` is never represented as `currently reachable`; selected, observed, and probe coverage are separate labels. The UI must not synthesize a universal privacy/anonymity score. Privacy-floor, lane, diversity, and cover-traffic contract indicators remain separate and unavailable until a verified source exists. No tab may offer route rebuild, route setup, policy edits, transport configuration, or raw diagnostics.
-- **OnionNet:** the read-only dashboard above; no “anonymous” badge.
-- **Carriers:** priority and allow/deny for Reticulum, QUIC/TLS, and optional Tor compatibility. Changing priority previews fallback consequences.
-- **Diagnostics:** sanitized state transitions, test connection, export support bundle, and capability/backend status.
+The OnionNet workspace projects **Overview**, **Epoch**, **Privacy floor**,
+**Transport**, **Queues & replay**, **Probation**, and **Ingress boundary**
+through the same responsive local-navigation contract. It separates public
+deterministic control-plane data from local client evidence and aggregate
+synthetic measurements. It never reveals a complete route, next hop, endpoint,
+circuit/session ID, packet trace, replay tag, ciphertext/hash, recipient
+identity, or linkable cross-hop correlation ID. `selected active` is never
+represented as `currently reachable`; selected, observed, and probe coverage
+remain separate. It must not synthesize a universal privacy/anonymity score or
+offer route rebuild/setup, policy edits, transport configuration, or raw
+diagnostics.
+
+Aggregators, Watchers, and Explorer are mandatory selectable Roadmap previews.
+They use deterministic fixture evidence with persistent five-axis capability
+metadata; visibility never implies a live protocol bridge.
 
 Rules:
 
@@ -962,14 +1016,25 @@ Current wallet-local `PolicyRules` support maximum transaction/daily amounts, al
 
 ### 🎨 Appearance
 
-- System, Dark, Light.
-- YAML code highlighting is application-wide and independently selectable: One Light, Xcode, One Dark, and Night Owl. These presets change code-surface tokens only and do not alter safety semantics, wallet data, or runtime state.
-- Accent presets: Z00Z Gold, Private Cyan, Neutral, and validated Custom. Brand gold remains the default.
+`PaletteId` is exhaustive and contains exactly `z00z-default` and
+`z00z-corporate`. Z00Z Default is the preserved dark application; Z00Z
+Corporate is the light application derived from the approved local Corporate
+snapshot. The palette owns colour scheme—there is no independent
+System/Dark/Light selector, custom accent editor, removed preset, or
+palette/mode cross-product. Apply, Cancel, and Reset operate on this one typed
+preference; Reset selects Z00Z Default.
+
+- YAML code highlighting is application-wide and independently selectable: One
+  Light, Xcode, One Dark, and Night Owl. These presets change code surfaces
+  only and do not alter the application palette, safety semantics, wallet data,
+  or runtime state.
 - Text scale, information density, and high-contrast mode.
 - Compact mode for desktop lists only; it must not reduce touch targets.
 - Reduced motion follows OS and can be made stricter.
 - Language and number format when localization ships.
-- Custom colors may change brand/decorative tokens only in the common UI. Success, warning, failure, network-environment, focus, and privacy semantics keep protected contrast-safe tokens. Advanced YAML customizations are rejected when required contrast falls below WCAG AA.
+- Success, warning, failure, environment, focus, and privacy meanings use
+  protected contrast-safe semantic tokens in both palettes. Application YAML
+  cannot introduce additional palette IDs or arbitrary colours.
 
 ### 🔄 UI ↔ YAML configuration contract
 
@@ -1020,8 +1085,7 @@ wallet:
     auto_lock_timeout_seconds: 300
     default_fee: 1000
   appearance:
-    theme: dark
-    accent: z00z-gold
+    palette: z00z-default
     density: comfortable
   network:
     mode: private
@@ -1073,73 +1137,25 @@ The relationship to `z00z.io` is structural and tonal:
 
 The LUT has three layers:
 
-1. **Source values** use the `--lut-{palette}-{mode}-{role}` convention and hold every literal value.
-2. **Semantic variables** (`--brand`, `--success`, `--rail`, `--danger`, etc.) are the only colour interface for components.
-3. **Derived treatments** use `color-mix()` from a semantic variable; a component may not mix from a literal value.
+1. **Source values** use a closed `--lut-z00z-dark-*` or
+   `--lut-z00z-corporate-*` namespace and hold every literal value.
+2. **Semantic variables** (`--brand`, `--success`, `--rail`, `--danger`, etc.)
+   are the only colour interface for components.
+3. **Derived treatments** use `color-mix()` from a semantic variable; a
+   component may not mix from a literal value.
 
-The following are full review tables for the application palette. Values are authoritative only when they match `styles/colors.css`; edit the CSS LUT, not this specification table.
+The application palette registry has exactly two rows. Values below summarize
+the canonical sources; `styles/colors.css` remains authoritative.
 
-#### Surface and overlay values
+| Palette ID | Scheme | Canvas / surface | Primary text | Brand / rail |
+| --- | --- | --- | --- | --- |
+| `z00z-default` | dark | `#081019` / `#101d29` | `#f5f7f8` | `#fca311` / `#32a9e8` |
+| `z00z-corporate` | light | `#ffffff` / `#ffffff` with `#e8e8e8` raised | `#181a2a` | accessible local mappings of Corporate `#0082c4` / `#61738d` |
 
-| Palette / mode | Canvas | Sidebar | Surface | Raised | Overlay |
-| --- | --- | --- | --- | --- | --- |
-| Z00Z Default / dark | `#081019` | `#0B1520` | `#101D29` | `#162635` | `rgb(1 8 14 / 78%)` |
-| Z00Z Default / light | `#F4F7FA` | `#FFFFFF` | `#FFFFFF` | `#EDF2F6` | `rgb(20 30 40 / 48%)` |
-| Black & Gold / dark | `#000000` | `#14213D` | `#14213D` | `#1D2D4D` | `rgb(0 0 0 / 92%)` |
-| Black & Gold / light | `#F6F7F8` | `#FFFFFF` | `#FFFFFF` | `#E8EBEF` | `rgb(0 0 0 / 48%)` |
-| Moonlit Stroll / dark | `#10284E` | `#14365C` | `#14365C` | `#105E60` | `rgb(16 40 78 / 92%)` |
-| Moonlit Stroll / light | `#F2F7F7` | `#FFFFFF` | `#FFFFFF` | `#E4EFEF` | `rgb(16 40 78 / 44%)` |
-| Walking at Night / dark | `#0E191F` | `#2B3C43` | `#2B3C43` | `#423A37` | `rgb(14 25 31 / 92%)` |
-| Walking at Night / light | `#F3F6F7` | `#FFFFFF` | `#FFFFFF` | `#E7EDEF` | `rgb(14 25 31 / 44%)` |
-
-| Semantic token | Meaning |
-| --- | --- |
-| `--bg-canvas` | Application background |
-| `--bg-sidebar` | Global navigation background |
-| `--bg-surface` | Cards, sheets, and content regions |
-| `--bg-raised` | Hover, selected, and nested surface |
-| `--bg-overlay` | Dialog and privacy overlay |
-
-#### Text and divider values
-
-| Palette / mode | Primary text | Secondary text | Tertiary text | Divider | Strong divider |
-| --- | --- | --- | --- | --- | --- |
-| Z00Z Default / dark | `#F5F7F8` | `#A9B6C2` | `#788997` | `#263847` | `#395063` |
-| Z00Z Default / light | `#12202C` | `#526272` | `#728190` | `#D5DEE6` | `#B5C3CF` |
-| Black & Gold / dark | `#FFFFFF` | `#E5E5E5` | `#BFC5CA` | `#37445C` | `#5A6680` |
-| Black & Gold / light | `#14213D` | `#45546A` | `#6C7888` | `#C9D1DA` | `#AEB9C7` |
-| Moonlit Stroll / dark | `#F3F8F8` | `#C9DADA` | `#9BB5B7` | `#356B70` | `#6B7D7F` |
-| Moonlit Stroll / light | `#10284E` | `#315B68` | `#5D7C82` | `#C5D9DA` | `#9ABDC0` |
-| Walking at Night / dark | `#F3F6F7` | `#C7D1D6` | `#A1B2BC` | `#597276` | `#7B6D62` |
-| Walking at Night / light | `#0E191F` | `#43535C` | `#687780` | `#C7D1D3` | `#A7B5B8` |
-
-| Semantic token | Meaning |
-| --- | --- |
-| `--text-primary` | Readable interface language and key values |
-| `--text-secondary` | Supporting copy and secondary data |
-| `--text-tertiary` | Quiet labels and metadata |
-| `--border` | Default component boundary and divider |
-| `--border-strong` | Hover, field, and raised boundary |
-
-#### Brand, network, and state values
-
-| Palette / mode | Brand | Brand strong | Brand ink | Private rail | Success | Warning | Danger | Focus |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Z00Z Default / dark | `#E3B341` | `#F4C95D` | `#1E1704` | `#32A9E8` | `#4CD29B` | `#F3B65B` | `#FF6B72` | `#7CCBFF` |
-| Z00Z Default / light | `#9C6B00` | `#704B00` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
-| Black & Gold / dark | `#FCA311` | `#FFD166` | `#1A1200` | `#66C5E8` | `#4CD29B` | `#FCA311` | `#FF6B72` | `#9BDCFF` |
-| Black & Gold / light | `#9C6500` | `#704B00` | `#FFFFFF` | `#006FA8` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
-| Moonlit Stroll / dark | `#FCA311` | `#FFD166` | `#1A1200` | `#79C6E8` | `#4CD29B` | `#F3B65B` | `#FF6B72` | `#9BDCFF` |
-| Moonlit Stroll / light | `#9C6500` | `#704B00` | `#FFFFFF` | `#006F94` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
-| Walking at Night / dark | `#FCA311` | `#F3B65B` | `#1E1704` | `#76C5E5` | `#4CD29B` | `#F3B65B` | `#FF6B72` | `#9BDCFF` |
-| Walking at Night / light | `#9C6500` | `#704B00` | `#FFFFFF` | `#006F94` | `#087A52` | `#8A5200` | `#B4232C` | `#005FCC` |
-
-#### Moonlit Stroll and Walking at Night source-role order
-
-| Preset | Source order retained by the five card swatches | Application role order | Primary-action rationale |
-| --- | --- | --- | --- |
-| Moonlit Stroll | Midnight green `#004955` → Caribbean current `#105E60` → Slate gray `#6B7D7F` → Berkeley blue `#14365C` → Oxford blue `#10284E` | source swatch → raised → strong border → sidebar → canvas | Z00Z amber remains the action colour; the moonlit teal/navy source values stay structural so destructive red is never confused with selection. |
-| Walking at Night | Dim gray `#7B6D62` → Van Dyke `#423A37` → Rich black `#0E191F` → Gunmetal `#2B3C43` → Payne's gray `#597276` | strong border → raised → canvas → surface → border | Z00Z amber remains the action colour; cool blue-charcoal and stone brown distinguish route context without replacing safety semantics. |
+Corporate retains the dated 2026-07-26 `z00z.io` source snapshot and uses
+contrast-adjusted semantic mappings for controls and state text. Default is the
+preserved existing Z00Z dark baseline. Both reuse one component system and the
+same gold logo asset.
 
 | Semantic token | Meaning | Never use for |
 | --- | --- | --- |
@@ -1165,7 +1181,7 @@ YAML uses only `--code-bg`, `--code-border`, `--code-fg`, `--code-comment`, `--c
 
 | Token | Value / source | Use |
 | --- | --- | --- |
-| `--shadow` | Dark: `0 20px 60px rgb(0 0 0 / 32%)`; light: `0 20px 60px rgb(36 50 64 / 18%)` | Dialog/sheet elevation |
+| `--shadow` | Palette-owned dark or Corporate-light elevation source | Dialog/sheet elevation |
 | `--shadow-float` | `0 8px 26px rgb(0 0 0 / 18%)` | Floating controls |
 | `--elevation-highlight-*` | Theme-aware neutral alpha source | Inset elevation only |
 | `--ambient-rail`, `--ambient-rail-mobile` | `color-mix()` from `--rail` | Decorative background glow only |
@@ -1174,14 +1190,21 @@ YAML uses only `--code-bg`, `--code-border`, `--code-fg`, `--code-comment`, `--c
 
 **Change rules:**
 
-1. Change a colour at the matching `--lut-{palette}-{mode}-{role}` entry and verify both themes plus all five palette cards.
-2. A new colour requires a semantic role, a dark/light value, a palette mapping, a WCAG contrast check, and a documented use. Copying a hex value into component CSS or JavaScript is prohibited.
-3. Appearance exposes complete palette presets rather than individual semantic-token overrides; this keeps brand, privacy, safety, focus, code, QR, and security colours coherent.
+1. Change a colour at the matching closed Default/Corporate LUT entry and
+   verify both palette cards.
+2. A new colour requires a semantic role, values for both palettes, a WCAG
+   contrast check, and a documented use. Copying a hex value into component CSS
+   or JavaScript is prohibited.
+3. Appearance exposes the two complete palette presets rather than individual
+   semantic-token overrides; this keeps brand, privacy, safety, focus, code, QR,
+   and security colours coherent.
 4. Never encode state with colour alone; pair it with a label, icon, or status text.
 
 ### 🔤 Typography
 
-The typography system is a strict three-family contract. The prototype may load the families from Google Fonts for visual review. Production packages the same font files locally; remote font loading is not allowed in the packaged wallet.
+The typography system is a strict three-family contract. The demo and packaged
+application load the vendored Geist files locally; remote font loading is not
+allowed.
 
 | Family token | Family and available weights | Sole purpose | Not allowed for |
 | --- | --- | --- | --- |
@@ -1205,7 +1228,7 @@ Every visible text node must map to exactly one LUT row. `px` values assume the 
 | `TYPE-06` `--type-card-title` | Geist | 700 | 16 px | 16 px | 1.25 | -0.018em | Sentence | `.quick-action strong`, tool-card headings, primary action-card titles |
 | `TYPE-07` `--type-row-title` | Geist | 700 | 16 px | 16 px | 1.30 | -0.018em | Sentence | `.list-copy strong`, `.activity-copy strong`, asset names, wallet card names |
 | `TYPE-08` `--type-control` | Geist | 600 | 15 px | 15 px | 1.20 | -0.010em | Sentence | `.button`, inputs, compact controls, selectable chips |
-| `TYPE-18` `--type-nav` | Geist | 600/700 | 16 px | 16 px | 1.20 | 0 | Sentence / short uppercase | `.wallet-tab`, `.nav-item`, `.sidebar-label`; high-visibility navigation |
+| `TYPE-18` `--type-nav` / `--sidebar-label-*` | Geist | 700 | 16 px | 16 px | 1.25 tree; 1.20 tabs | 0 | Sentence / short uppercase | `.navigation-tree-item`, `.navigation-tree-group-label`, `.context-tab-list .context-nav-item`, `.sidebar-label`; matches the approved `/home/vadim/Desktop/demo` navigation reference |
 | `TYPE-09` `--type-body` | Geist | 400 | 16 px | 16 px | 1.50 | 0 | Sentence | explanatory paragraphs, review copy, empty/error content |
 | `TYPE-10` `--type-support` | Geist | 500 | 15 px | 15 px | 1.45 | 0 | Sentence | page introductions, card descriptions, helper text that is not technical data |
 | `TYPE-11` `--type-metric` | Geist Mono | 700 | 21.6 px | 21.6 px | 1.15 | -0.025em | Verbatim | `.metric-card strong`; compact total in a metric card |
@@ -1278,7 +1301,10 @@ Rules:
 2. Quick actions, Activity, Attention, Voucher, Permission, Asset, and sidebar wallet cards match their mapped LUT row without a smaller local override.
 3. The smallest visible supporting text is 12 px or larger at default zoom; 200% zoom does not create clipping or page-level horizontal scroll.
 4. Numeric columns use tabular numerals and their headers align to their own values, including Name/Balance/Value/Price in Assets.
-5. A screenshot review covers dark and light themes, 320 × 700, 390 × 844, and 1440 × 1000 viewports; it includes normal/hidden sensitive balance state, an asset table, an activity row, a wallet-settings route, a telemetry route, and a destructive wallet-selection dialog.
+5. A screenshot review covers Z00Z Default and Z00Z Corporate at 1280 × 800,
+   1024 × 768, 768 × 1024, 390 × 844, and 320 × 800; it includes
+   normal/hidden sensitive balance state, every canonical route, Roadmap states,
+   Help, and dialogs.
 6. At desktop width, the `WALLETS` label and wallet tabs are at least 16 px and the sidebar brand/top-bar content centers within the same top navigation frame.
 
 ### 📐 Spacing, shape, elevation
@@ -1322,8 +1348,8 @@ Rules:
 
 | Width | Shell | Content | Dialog behavior |
 | --- | --- | --- | --- |
-| 0–380 px | Menu + brand + scrollable route bar; modal drawer | One column, 12 px compact gutters | Bottom sheet; full screen for seed/recovery |
-| 381–599 px | Menu + brand + scrollable route bar; modal drawer | One column, 16 px gutters | Bottom sheet; full screen for seed/recovery |
+| 0–380 px | Menu + brand; local workspace tabs when applicable; modal drawer | One column, 12 px compact gutters | Bottom sheet; full screen for seed/recovery |
+| 381–599 px | Menu + brand; local workspace tabs when applicable; modal drawer | One column, 16 px gutters | Bottom sheet; full screen for seed/recovery |
 | 600–1023 px | Compact rail or drawer by orientation | One or two columns, 24 px gutters | Center dialog or side sheet |
 | 1024–1439 px | 248 px left rail | Max 1120 px, adaptive grid | Right sheet up to 520 px |
 | 1440+ px | 264 px left rail | Max 1240 px; no uncontrolled stretching | Right sheet up to 560 px |
@@ -1335,9 +1361,13 @@ Additional rules:
 - Software keyboard must not cover the active field or primary action.
 - Use numeric/decimal keyboards for amounts. Wallet-secret inputs remain application-local and suppress browser password-manager overlays; any production OS credential integration must be an explicit native-shell action rather than browser chrome.
 - Cards become stacked lists; tables do not create page-level horizontal scrolling.
-- The wallet header is one sticky row: Menu, Z00Z mark, and horizontally scrollable route tabs. The desktop wallet identity and account controls are absent.
-- The Menu drawer exposes `Wallets / Network / Settings / Log out`; Network supplies the mobile entry point for all three read-only telemetry workspaces.
-- Assets and wallet Settings expose their third-level destinations through anchored popup menus; the desktop context rails are hidden.
+- The mobile header is one sticky row: Menu and Z00Z mark. The desktop wallet
+  identity/account controls are absent.
+- The drawer projects the canonical Wallet, Telemetry, dApps, Messenger,
+  Contacts, Settings, Help, and Log out order with root-only multi-open
+  accordions.
+- Every deeper workspace destination uses sticky horizontal tabs below the
+  mobile topbar; no anchored route popup or nested drawer accordion exists.
 - Asset cards preserve Name/Balance/Value/Price relationships with identity on row one and three labelled metric cells on row two.
 - The longest supported translated labels must fit or wrap without clipping.
 - At 0–380 CSS px, every edge-to-edge scroll strip uses the same 12 px gutter as its containing content. Wallet tabs, context routes, and filters may scroll internally, but `documentElement.scrollWidth` must equal `clientWidth`; no strip may create page-level horizontal scroll.
@@ -1526,9 +1556,15 @@ Every component documents keyboard behavior, accessible name, loading state, err
 
 ### ❔ Contextual Help contract
 
+Global Help and the contextual `?` action open or reuse the same standalone
+Help application at either its root or the resolved topic. Help is never an
+in-app component or modal; Wallet and Help remain open, independent, and
+switchable on desktop and mobile.
+
 - Editable Help source is
-  `demo/help/<locale>/{app,wallets,network,settings}/<topic>.md`; each locale has
-  the exact grouped topic set declared by `demo/help/topics.yaml`.
+  `demo/help/<locale>/{app,wallets,telemetry,dapps,messenger,contacts,settings}/<topic>.md`;
+  each locale has the exact 71-topic set declared by
+  `demo/help/topics.yaml`.
 - Locale IDs come from the same canonical locale registry as the application;
   Help compile/check/scaffold tooling must not own a duplicated language list.
 - Topic routing is an exhaustive presentation-state LUT, not conditionals
@@ -1583,8 +1619,11 @@ contextual Help action never participates in row layout. No row may increase
 
 The HTML prototype must demonstrate:
 
-1. Desktop global rail plus mobile Menu/brand/route bar and modal navigation drawer; Wallet/Settings context rails become anchored narrow-screen popup menus.
-2. Dark/light appearance and system token structure.
+1. One canonical root-only multi-open navigation tree projected into the
+   desktop sidebar/mobile drawer, plus desktop internal rails/mobile top tabs
+   for every deeper workspace route.
+2. Exactly Z00Z Default dark and Z00Z Corporate light, without an independent
+   theme-mode or custom-palette control.
 3. Visible/hidden sensitive balances.
 4. Lock and mock unlock.
 5. Wallet switching, create with one-time 24-word reveal/check, and two-entry recovery with scan result.
@@ -1597,7 +1636,9 @@ The HTML prototype must demonstrate:
 12. Layered OnionNet/Reticulum/carrier status, modes, capability disclaimer, and TEST/DEV treatment.
 13. Policy-profile preview with immutable protocol layer, signed managed layer, local restrictions, and “Why blocked?” explanation.
 14. UI/YAML configuration status, provenance, valid external update, invalid-file last-known-good behavior, conflict/diff, and restart-required state.
-15. Dark/light theme toggle (Dark by default), accent presets, protected semantic colors, keyboard focus, dialog focus return, reduced motion, and 44 px targets.
+15. Immediate two-palette selection with one `ACTIVE` marker, protected
+    semantic colours, keyboard focus, dialog focus return, 200% zoom, reduced
+    motion, and 44 px targets.
 16. Mobile-adapter simulation: safe-area-aware sticky route bar and drawer, keyboard-safe entry/review sheet, back closes only the top transient layer, and background/lock clears sensitive presentation state before foreground refresh.
 
 The demo uses fabricated values and must display **Interactive concept · no real funds**. It must not import production wallet code or give the impression that it signs transactions.
@@ -1609,7 +1650,8 @@ The demo uses fabricated values and must display **Interactive concept · no rea
 - A new user can identify Available, Pay, Receive, Claim, Vouchers, and Permissions within five seconds.
 - No standard screen requires understanding voucher, right, package, UTXO, fee rate, Reticulum interface syntax, Tor port, or chain height.
 - Asset claims, vouchers, and permissions cannot be mistaken for spendable balance; non-native/non-cash assets cannot silently enter Available.
-- A user can explain that OnionNet provides the privacy route and Reticulum carries it after viewing Network Overview.
+- A user can explain that OnionNet provides the privacy overlay and Reticulum
+  carries it after viewing their separate Telemetry workspaces.
 - A managed user can identify which profile blocked an action and cannot weaken it through UI or YAML.
 - The same common setting edited in UI or YAML converges to the same effective value and exposes overrides/conflicts.
 - Every submitted action differentiates acceptance from settlement.

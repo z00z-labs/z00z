@@ -1,0 +1,7 @@
+title: "설정"
+icon: settings
+order:
+  - index
+  - general
+  - notifications
+  - appearance

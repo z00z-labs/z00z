@@ -4,30 +4,54 @@
 
 | Field | Result |
 | --- | --- |
-| Review date | 2026-07-20 |
+| Review date | 2026-07-26 |
 | Scope | Responsive wallet demo, design specification, legacy mockups, current wallet code, and official Z00Z documentation |
 | Review mode | Audit, implementation, and browser verification |
 | Verdict | **Demo consistency backlog implemented; service-backed P2 capabilities remain explicitly unavailable** |
 | Visual direction | Preserve the current dark, restrained, gold-accented Z00Z direction and its default palette |
-| Primary implementation source | This review defines the backlog; `UI-UX-SPEC.md` remains the normative design contract |
+| Primary implementation source | `DEMO-PLAN-2.md`, `UI-UX-SPEC.md`, and the canonical route/help/palette registries |
 
 ## 🎯 Executive conclusion
 
-### ✅ Mobile annotation follow-up — 2026-07-23
+### ✅ Navigation and mobile follow-up — 2026-07-26
 
-The annotated phone captures exposed three concrete implementation defects: the desktop identity toolbar consumed the mobile header, asset columns overlapped, and a second fixed bottom navigation duplicated app routes. The executable demo now removes the bottom navigation and uses one sticky topbar at every width. Its horizontally scrollable tabs change with the selected wallet, Network workspace, or application Settings; below 768 px the desktop identity/actions collapse to **Menu** and the Z00Z mark inside that same row.
+The executable demo now has one canonical navigation registry. Desktop renders
+it in the left sidebar; mobile renders the same root order in a full-height
+drawer. Wallet, Telemetry, dApps, Messenger, and Settings are independent
+root-only multi-open accordions; Contacts is direct; Help and Log out are
+terminal actions. Closing one root preserves every other open root and does not
+navigate. The topbar always retains the Z00Z logo and contains no global route
+tabs or fixed bottom navigation.
 
-The Menu control follows the public `z00z.io` mobile navigation pattern: a left, full-height drawer with a modal backdrop, close control, focus containment, scrollable content, and independent **Wallets** and **Network** accordion groups. Both groups may remain open; closing one preserves the other until the user selects a destination. The root drawer also exposes **Settings** and **Log out**. Assets and selected-wallet Settings use compact anchored popup menus for their third-level destinations instead of permanent narrow-screen rails. Asset rows now place identity on the first row and labelled Balance/Value/Price cells on the second row at 390 px and 320 px, preventing overlap while preserving touch-size cards. Mobile WebView text autosizing remains fixed at 100% so the documented Geist LUT—not browser heuristics—controls type geometry.
+A global first-level leaf opens a workspace. Every deeper destination is inside
+that workspace as a desktop vertical rail or mobile sticky horizontal tabs:
+Assets/Vouchers/Permissions/Quarantine, selected-wallet Settings,
+Reticulum/OnionNet/Aggregators/Watchers/Explorer subroutes, and contextual Help
+siblings all follow that rule. There are no nested accordions or anchored route
+popups. Asset rows remain non-overlapping at 390/320 px, touch targets are at
+least 44 px, and 200% text zoom stays within the viewport.
 
 ### ✅ Implementation update — 2026-07-20
 
 The executable demo now applies the P0/P1 findings in this review. It uses the normalized Geist/Geist Mono lookup table, with a reserved variable-weight Geist wordmark matching the public Z00Z docs header. It has no raw visible component font sizes below the documented token floor, and keeps prose in Geist while literal addresses, quantities, IDs, and YAML stay in Geist Mono—except the selected desktop-wallet address, which uses normal-weight Geist at the same desktop size and tracking as the Z00Z wordmark. All textual Cancel actions use the same neutral bordered secondary button; wallet selection uses the same horizontal rail grammar as the internal tabs; the wallet rail scrolls independently; route telemetry is a non-interactive item in the selected-wallet status bar rather than a top-bar button; and the mobile status surface is document-flow content rather than a viewport overlay.
 
-Appearance now offers the preserved Z00Z Default palette plus Black & Gold, Moonlit Stroll, and Walking at Night. Each preset maps the full token set in light and dark modes. Moonlit Stroll uses moonlit teal and navy structure; Walking at Night uses cool blue-charcoal surfaces with a warm stone raised layer. Z00Z amber remains primary in both presets, while success, warning, failure, focus, and environment colours remain semantic. YAML syntax is configured application-wide with the canonical One Light, Xcode, One Dark, and Night Owl token sets from the Z00Z website; it never changes safety colours, wallet data, or runtime data.
+Appearance now exposes exactly Z00Z Default (the preserved dark baseline) and
+Z00Z Corporate (the approved light Corporate mapping). `PaletteId` owns the
+scheme; there is no independent System/Dark/Light toggle, custom accent, removed
+preset, or palette/mode cross-product. YAML syntax themes remain code-only and
+never change safety colours, wallet data, or runtime state.
 
-Selected-wallet Advanced now exposes a safe, editable local concept YAML draft. Security, Backup, Policies, and Advanced are selected-wallet settings; General, Appearance, and Network & privacy remain application settings. Wallet controls and YAML update the same demo state, while secrets and local paths are rejected. `Apply locally` is deliberately restricted to the browser concept; the boundary explaining that runtime configuration write, watch, revision, conflict, and rollback RPCs do not exist remains visible. This is not a claim that a real wallet file can be changed.
+Selected-wallet Advanced now exposes a safe, editable local concept YAML draft.
+Security, Backup, Policies, and Advanced are selected-wallet settings; General
+and Appearance are application settings. Network evidence belongs to Telemetry,
+not a nested Settings branch. Wallet controls and YAML update only demo state,
+while secrets and local paths are rejected.
 
-Verification completed: locale, production-port, syntax, `git diff --check`, and all 32 Playwright smoke tests pass. Desktop and 390/320 px navigation, drawer accordion groups, Assets popup, asset cards, Appearance, Advanced YAML, and telemetry states were inspected after the change.
+Verification now covers 61 routes, 71 canonical Help topics in ten locales,
+exact two-palette parity, pure-JS production-port contract/static gates, and
+desktop/mobile Playwright flows. The complete five-viewport two-palette visual
+matrix is the Phase 9 review artifact. Rust/Tauri implementation is a separately
+authorized future port and is not part of this demo verdict.
 
 Public reference check: [`z00z.io/docs`](https://www.z00z.io/docs) renders its header wordmark with the Geist family, variable weight around 780, uppercase lettering, `0.045em` tracking, a 44 px desktop mark, and a 26 px desktop wordmark. Its mobile hamburger opens a left full-height modal drawer with backdrop, branded header, close control, contained focus, and scrollable navigation. The wallet demo adopts that interaction pattern without copying the documentation content hierarchy.
 
@@ -41,7 +65,10 @@ Interaction styling also has a confirmed systemic inconsistency. The shared `.bu
 
 The application/capability model must remain honest. The current dispatcher registers 75 methods, but several asset/network routes are compatibility, preview, or stub paths rather than canonical completed functionality. There is no exchange provider API, app configuration CRUD/watch/revision API, notification preferences API, wallet rename API, or safe local-profile detach API distinct from permanent wallet deletion. The UI must not present these as live operations until the matching contract exists.
 
-Appearance needs to evolve from theme plus accent into a real semantic-palette system. The current palette becomes the immutable `z00z-default` preset. The three selected palettes become optional presets with protected success, warning, danger, focus, privacy, and environment meanings. Selecting a palette must update the complete token map, not merely replace gold with another accent.
+The Appearance migration is resolved with a closed two-variant semantic palette
+system. Z00Z Default remains immutable; Z00Z Corporate maps the complete token
+set and preserves protected success, warning, danger, focus, privacy, and
+environment meanings.
 
 Advanced settings must eventually expose the real effective App and selected-Wallet configuration as editable YAML with bidirectional UI synchronization. The current runtime only reads and merges YAML; it does not expose write, watch, revision, conflict, rollback, or provenance RPCs. The existing demo editor is correctly described as a target preview, but its Apply affordance must remain disabled in production until those services exist. Secrets and machine-specific absolute paths must never appear in the editor.
 
@@ -55,7 +82,7 @@ Advanced settings must eventually expose the real effective App and selected-Wal
 | Legacy ASCII mockups | All 58 files and `001-functions-table.txt` | Useful task flows separated from unsupported legacy assumptions |
 | Guarda references | Images `1.png` through `8.png` | Reusable interaction patterns identified; custodial/market patterns rejected |
 | Zano references | Images `1.png` through `7.png`, `10.png`, `11.png`, and `12.png` | Multi-wallet, assets, history, receive, add-wallet, and copy-address patterns retained |
-| Palette references | Four requested palette images | Exact source colors and contrast constraints recorded |
+| Palette references | Selected design screenshots plus dated `z00z.io` Corporate snapshot | Interaction ideas retained; only Default and Corporate approved |
 | Official Z00Z docs | Learn, protocol, receiver, wallet, RPC, configuration, network, OnionNet, and payment-request pages | Product states and privacy boundaries mapped into the UI |
 | Current codebase | CodeGraph first, then live Rust types, dispatcher wiring, runtime configuration, and egui theme seam | Live, compatibility, target, and rejected capabilities separated |
 
@@ -65,14 +92,14 @@ Advanced settings must eventually expose the real effective App and selected-Wal
 | --- | --- | --- | --- |
 | P0-01 | Blocker | Typography tokens exist but are bypassed by 38 raw size declarations; visible text reaches 11.2 px | Amend the LUT, map every visible text node, and remove unsupported raw sizes |
 | P0-02 | Blocker | `Geist Mono` is used for ordinary descriptions and wallet/card metadata, creating the apparent mixed-font result | Restrict mono to verbatim data and tabular values; all ordinary language uses Geist |
-| P0-03 | Blocker | The Appearance `System` theme button has a malformed class attribute in the template and is not rendered as an independent control | Repair markup and add a DOM/screenshot assertion for all three theme choices |
+| P0-03 | Resolved | The former independent theme control conflicted with palette ownership | Remove it; assert exactly Default dark and Corporate light |
 | P0-04 | Blocker | Advanced YAML is a read-only fabricated preview while Apply looks actionable | Disable or capability-gate Apply until real get/validate/apply/watch/revision/rollback services exist |
 | P0-05 | Blocker | UI label `Remove wallet` can be confused with registered permanent `delete_wallet`; no distinct safe detach RPC exists | Define detach semantics/API or use explicit permanent deletion language, consequences, password, and confirmation |
 | P0-06 | Blocker | Mobile fixed status/navigation surfaces overlap page content and actionable rows | Reserve safe-area and fixed-bar space; verify no content is obscured at 390 × 844 and 200% zoom |
 | P1-01 | Major | Textual `Cancel` uses both borderless and bordered variants | Use one neutral bordered secondary `Cancel` everywhere |
 | P1-02 | Major | Wallet cards use local density/truncation rules; selected and unselected cards do not preserve equal text rhythm | One wallet-card component, fixed semantic rows, equal padding, stable metrics, and scrollable wallet viewport |
 | P1-03 | Major | Remove-wallet card text still uses raw `0.86rem` and `0.7rem` overrides | Map title and metadata to wallet-card LUT rows |
-| P1-04 | Major | Current Appearance offers accent swatches, not semantic palette presets | Add default plus four complete, validated palette presets and custom editing |
+| P1-04 | Resolved | Accent swatches were not a complete semantic palette contract | Use the closed Default/Corporate registry; no custom colour editor |
 | P1-05 | Major | Asset `Value` and `Price` are fabricated demo values; current wallet RPC supplies balance/metadata but no fiat market feed | Label them indicative with source/time or hide them until a market-data capability exists |
 | P1-06 | Major | Tabs and compact navigation are visually dense at the current control size | Raise control/row sizing and preserve 44 px minimum hit targets without increasing bar height arbitrarily |
 | P1-07 | Major | Top bar and status surfaces use translucency/blur inconsistently; internal wallet tabs are already opaque | Keep wallet tabs opaque; document intentional overlay surfaces or make application chrome opaque for consistency |
@@ -118,7 +145,7 @@ The specification LUT is structurally correct. Before implementation, revise the
 | `TYPE-06` `--type-card-title` | Geist | 700 | 16 px | 16 px | 1.25 | Card title/action |
 | `TYPE-07` `--type-row-title` | Geist | 700 | **16 px** | **16 px** | 1.30 | Wallet, asset, history, dialog-row title |
 | `TYPE-08` `--type-control` | Geist | 600 | **15 px** | **15 px** | 1.20 | Buttons, inputs, compact controls |
-| `TYPE-18` `--type-nav` | Geist | 600/700 | **16 px** | **16 px** | 1.20 | High-visibility wallet tabs, sidebar navigation, and `WALLETS` label |
+| `TYPE-18` `--type-nav` / `--sidebar-label-*` | Geist | 700 | **16 px** | **16 px** | 1.25 tree; 1.20 tabs | High-visibility desktop/mobile navigation and workspace tabs; verified against `/home/vadim/Desktop/demo` |
 | `TYPE-09` `--type-body` | Geist | 400 | 16 px | 16 px | 1.50 | Explanatory prose |
 | `TYPE-10` `--type-support` | Geist | 500 | **15 px** | **15 px** | 1.45 | Helper and card descriptions |
 | `TYPE-11` `--type-metric` | Geist Mono | 700 | 21.6 px | 21.6 px | 1.15 | Compact total/metric |
@@ -160,8 +187,12 @@ All textual `Cancel` controls must share the same 44 px minimum height, 1 px neu
 
 ### ⚙️ Wallet rail
 
-- Keep the left rail organized as a single three-row wallet placeholder, a compact Network telemetry group (OnionNet, Reticulum, Aggregators), and fixed utility actions below it. Wallet cards, Add, and Remove are direct children of one ordered scroll list; they scroll together. Network shortcuts open read-only telemetry workspaces, never Settings.
-- The left rail has exactly one active destination at a time: wallet, Network shortcut, or Settings. Selecting one clears the active state and `aria-current` from the other rail groups; inner wallet tabs and the Settings context rail remain separately scoped navigation.
+- Keep the Wallets holder separate from the route tree and at exactly three
+  constant-height wallet rows. One card represents one wallet; wallet cards,
+  Add, and Remove are direct children of one ordered scroll list.
+- Route selection belongs to the canonical tree below the holder. Exactly one
+  global leaf/workspace is current, while a selected workspace owns exactly one
+  local current route in its internal rail/mobile tabs.
 - Wallet cards use one height/padding/icon/text grid. Long names truncate only after preserving the amount/status line.
 - The active wallet uses the same bottom gold indicator grammar as the internal active tab, not an arbitrary full-height side stripe.
 - `Add wallet` and `Remove wallet` remain inside the wallet placeholder after the scrollable wallet cards. They settle at its lower edge for a short or empty list and scroll with a longer wallet list. `Settings` and `Log out` remain application-level utility actions outside that placeholder. Remove stays visible but disabled when the wallet list is empty.
@@ -171,10 +202,18 @@ All textual `Cancel` controls must share the same 44 px minimum height, 1 px neu
 
 ### ⚙️ Navigation and chrome
 
-- Tabs live inside the single sticky topbar; there is no independent second navigation row.
-- The topbar owns the fully opaque `var(--bg-canvas)` surface. Its tab strip is transparent only to inherit that same surface, never to reveal scrolled content.
-- Increase tab label size through `TYPE-08`; do not add per-tab font overrides.
-- Wallet tabs begin with `Assets`: `History`, `Swap`, `Exchange`, `Stacking`, `Backup`, and `Settings` follow. `Overview` is never a wallet tab; the app-level Home may present a selected-wallet snapshot without duplicating a second wallet route. `Send` and `Receive` are asset-agnostic actions available from all supported assets.
+- One canonical root-only tree drives the desktop sidebar and mobile drawer.
+  Wallet, Telemetry, dApps, Messenger, and Settings are independent multi-open
+  roots; Contacts is direct; Help and Log out are terminal actions.
+- The topbar always owns an opaque surface and the Z00Z logo. It contains no
+  global route tabs.
+- A first-level workspace leaf owns its deeper destinations. Desktop projects
+  them as a vertical internal rail; mobile projects the same ordered model as
+  sticky horizontal tabs below the topbar. No nested accordion or route popup
+  is permitted.
+- Assets & Rights owns Assets/Vouchers/Permissions/Quarantine. Wallet Settings
+  owns General/Security/Backup/Policies/Advanced. Every Telemetry component owns
+  its Overview/Node/etc. routes under the same projection rule.
 - `Exchange` must be disabled/target-labelled until an exchange contract exists. `Swap` and `Stacking` must disclose compatibility/noncanonical status until their confirmed lifecycle is canonical.
 - The top address and its single Copy button remain together. Route/network telemetry is a non-interactive item in the selected-wallet status bar, not a top-bar action.
 - Copy uses the ordinary top-bar icon hover state. Its tooltip uses the shared tooltip surface and shows the full address; the button does not become gold.
@@ -244,30 +283,23 @@ General ASCII patterns to retain are safe defaults, preview before commitment, e
 
 ## 🎨 Appearance and palette system
 
-The current palette is approved and remains the default. No implementation task may alter its visual character while adding configurability.
+The registry is closed:
 
-### 🎨 Preset source colors
+| Palette ID | Scheme | Decision |
+| --- | --- | --- |
+| `z00z-default` | dark | Preserved baseline and Reset target |
+| `z00z-corporate` | light | Approved local Corporate source mapping |
 
-| Preset ID | Source colors | Contrast note | Decision |
-| --- | --- | --- | --- |
-| `z00z-default` | Existing demo semantic tokens | Approved baseline | Default and Reset target |
-| `black-gold-elegance` | `#000000`, `#14213D`, `#FCA311`, `#E5E5E5`, `#FFFFFF` | Gold on navy is approximately 7.90:1 | Eligible |
-| `moonlit-stroll` | `#004955`, `#105E60`, `#6B7D7F`, `#14365C`, `#10284E` | The source set is intentionally teal and navy; Z00Z amber remains the accessible action accent | Eligible |
-| `walking-at-night` | `#7B6D62`, `#423A37`, `#0E191F`, `#2B3C43`, `#597276` | Warm stone and blue-charcoal surfaces retain a separate amber action colour | Eligible |
+`PaletteId` owns colour scheme. There is no independent theme control, custom
+accent editor, removed preset, or palette/mode combination. Selection previews
+immediately, Apply commits the local preference, Cancel reverts, and Reset
+restores Default without touching nonappearance state.
 
-Each preset must map these semantic tokens: canvas, sidebar, surface, raised, primary text, secondary text, tertiary text, border, strong border, brand, brand-strong, brand-ink, privacy rail, success, warning, danger, and focus. Source colors are inspiration/input, not permission to weaken semantic contrast.
-
-Required behavior:
-
-1. Theme mode (`system`, `dark`, `light`) and palette preset are independent settings.
-2. Preset cards show five source swatches and a small live component preview.
-3. Selection previews immediately but requires Apply or reverts on Cancel.
-4. Reset restores `z00z-default` without touching nonappearance settings.
-5. Per-token custom colour editing is not exposed; users select complete validated palette presets.
-6. Success, warning, danger, focus, privacy rail, testnet/devnet, and quarantine meanings remain stable across presets.
-7. State is never communicated by color alone.
-8. Text scale, reduced motion, and compact density stay separate from palette.
-9. Production packages fonts and palettes locally; no remote dependency is required at runtime.
+Both palettes map canvas/sidebar/surface/raised/text/border/brand/rail/success/
+warning/danger/focus through the same semantic contract. State is never
+communicated by colour alone. Text scale, reduced motion, compact density, and
+the four code-only YAML syntax themes remain separate. Fonts and palette assets
+are bundled locally.
 
 ## 🧭 App and wallet information architecture
 
@@ -280,13 +312,18 @@ Required behavior:
 
 Navigation contract:
 
-- The app rail contains a three-card wallet placeholder where wallet cards and the Add/Remove footer scroll together; Settings remains a separate app action.
-- A selected wallet owns its inner tab bar and all displayed balances/activity.
+- The app sidebar/drawer contains the canonical root-only tree below a
+  three-row wallet holder; wallet cards and Add/Remove scroll together.
+- A selected workspace owns its desktop internal rail/mobile top tabs and all
+  displayed data.
 - Rename Activity to History everywhere, including headings, links, empty states, and accessibility names.
 - Send and Receive apply to every supported asset; asset detail may preselect an asset but does not create separate asset-specific send semantics.
 - Backup precedes per-wallet Settings; Exchange remains visibly unavailable until supported.
-- Wallet Settings uses its own local context rail: General, Security, Backup, Policies, and Advanced. It is selected-wallet scoped and must never mutate app settings or another wallet profile.
-- Vouchers and Permissions remain independently discoverable through Assets-local navigation at narrow widths.
+- Wallet Settings uses its own local navigation: General, Security, Backup,
+  Policies, and Advanced. It is selected-wallet scoped and must never mutate app
+  settings or another wallet profile.
+- Assets, Vouchers, Permissions, and Quarantine remain discoverable through the
+  Assets & Rights desktop rail/mobile top tabs.
 
 ## 🔍 Capability map from current code
 
@@ -321,7 +358,7 @@ Status definitions:
 | OnionNet telemetry/routing | COMPAT/TARGET | Switch is unsuccessful/stub; crate is stub | No fabricated route telemetry; target label required |
 | Language/notifications persistence | TARGET | No settings/notification CRUD route | Form may be prototype-only until service exists |
 | App exit/log out process | TARGET | No app exit route | Define Log out as session end/lock unless host shell owns exit |
-| UI theme/palette persistence | TARGET | egui `ui_themes` is `None` in stub config | Demo-only until real configuration seam exists |
+| `PaletteId` persistence | TARGET | egui `ui_themes` is `None` in stub config | Persist only the closed Default/Corporate enum through a typed settings seam |
 | UI↔YAML get/apply/watch/revision | TARGET | Runtime reads/merges YAML only | Advanced editor stays nonactionable until service delivery |
 | Visible secret in General settings | REJECT | Violates wallet-local secret handling | Never include |
 
@@ -351,7 +388,6 @@ app:
     language: en
     notifications: true
   appearance:
-    theme: dark
     palette: z00z-default
     text_scale: 1.0
     reduced_motion: system
@@ -448,23 +484,31 @@ This confirms that the interface can be packaged without an Internet dependency.
 1. Every control must have an accessible name; icon-only buttons need tooltips plus `aria-label`.
 2. All pointer targets are at least 44 × 44 px; primary mobile actions may be 48–52 px.
 3. Keyboard focus is a protected 3 px ring with sufficient contrast and is never hidden behind sticky/fixed bars.
-4. Tabs use correct tab semantics or navigation-link current semantics consistently, including arrow-key behavior if implemented as ARIA tabs.
+4. Global roots expose button/`aria-expanded` state; global and local route
+   controls expose exactly one `aria-current="page"`. Workspace-local top tabs
+   remain navigation controls, not ARIA tabpanels.
 5. Remove-wallet selection uses native checkbox semantics, `fieldset`/`legend`, selected count, and non-color selection state.
 6. Tooltips are supplemental. Copy and privacy actions remain understandable and usable without hover.
 7. At 200% zoom, no page-level horizontal scrolling is required for ordinary tasks and no action is clipped.
 8. At 390 × 844, the sticky route bar, drawer, status surface, safe areas, and software keyboard do not cover content.
 9. Reduced-motion preference disables nonessential transitions; state changes remain visible without motion.
-10. Palette presets pass WCAG AA for normal text and controls; focus, warning, danger, success, and selected states are tested independently.
+10. Default and Corporate pass WCAG AA for normal text and controls; focus,
+    warning, danger, success, and selected states are tested independently.
 11. Tables transform into labelled rows/cards on narrow screens without losing the relationship between header and value.
 12. Sensitive amounts remain masked in accessible names when hidden; screen readers must not receive the secret value.
-13. The 320/390 px header contains Menu, the Z00Z mark, and one scrollable route row; the desktop address/privacy/account toolbar is absent.
-14. The modal mobile drawer provides reachable Wallets and Network accordion groups plus Settings and Log out; both groups can stay open, closing one preserves the other, and Log out remains an action rather than a persistent selection.
+13. The 320/390 px header contains Menu and the Z00Z mark; a scrollable route
+    row appears below it only for the selected workspace's deeper destinations.
+14. The mobile drawer exposes the complete canonical root order. All accordion
+    roots are independently multi-open; closing one preserves the others, and
+    Log out remains an action rather than a persistent selection.
 
 ## 🛠️ Implementation backlog
 
 ### 🚨 P0: correctness and honesty
 
-- [x] Replace the former three-position segmented control with one Dark/Light toggle and cover the default and transition with DOM and screenshot checks.
+- [x] Replace the former theme/preset controls with exactly Default and
+  Corporate; apply a card immediately, show one `ACTIVE` marker, and cover the
+  interaction with contract and screenshot checks.
 - [x] Amend the normative typography LUT using the reviewed sizes, then remove raw component sizes below the amended floor.
 - [x] Audit every `font-family` and `.mono` use; keep ordinary language in Geist.
 - [x] Resolve mobile fixed-bar/status overlap at 390 × 844 with long content; 200% zoom remains a production acceptance check.
@@ -481,11 +525,14 @@ This confirms that the interface can be packaged without an Internet dependency.
 - [x] Enforce one button geometry, one secondary style, one destructive style, one icon-button style, and one tooltip style.
 - [x] Verify the wallet-list scroll container with generated long content while utility actions remain reachable; 0/1/3 live demo states are smoke-tested.
 - [x] Verify `Name`, `Balance`, `Value`, and `Price` column/header alignment in the desktop demo.
-- [x] Keep wallet tabs sticky, opaque, and aligned to the main content edge.
+- [x] Keep desktop internal rails/mobile workspace tabs sticky, opaque, and
+  aligned to the main content edge.
 - [x] Replace the broken mobile asset subgrid with a non-overlapping identity/numeric card projection at 320 px and 390 px.
-- [x] Remove the mobile bottom bar; expose Wallets/Network/Settings/Log out in the full-height Menu drawer and add independent multi-open wallet/telemetry accordion groups.
-- [x] Replace the desktop identity toolbar on mobile with Menu + Z00Z + the contextual route row and normalize WebView text autosizing.
-- [x] Add the five semantic palette presets and contrast-gated protected custom accent validation.
+- [x] Remove the mobile bottom bar; expose the complete canonical root tree in
+  the full-height drawer with independent root-only multi-open accordions.
+- [x] Replace the desktop identity toolbar on mobile with Menu + Z00Z and put
+  only workspace-local destinations in the contextual route row.
+- [x] Add the exact two semantic palettes and protected contrast validation.
 - [x] Separate app settings from selected-wallet settings in the local YAML/Form/Mapping concept state.
 - [x] Replace generic lifecycle copy with exact receiver, transaction, object, scan, and backup states where the demo has an authoritative concept state.
 
@@ -502,6 +549,10 @@ This confirms that the interface can be packaged without an Internet dependency.
 
 ## ❔ Contextual Help and compact application copy — implemented 2026-07-23
 
+Standalone Help is the only Help surface. Both global Help and contextual `?`
+reuse that independent application, never an in-app component or modal. The
+main and Help applications remain open, independently closable, and switchable.
+
 - The permanent website-style explanation layer is removed from ordinary
   settings, asset, object, transaction, and telemetry views. Immediate
   validation, errors, destructive consequences, security/recovery warnings,
@@ -509,16 +560,16 @@ This confirms that the interface can be packaged without an Internet dependency.
 - The person/account topbar action is replaced by global Help. Mobile exposes
   the same action from the application drawer because desktop utility actions
   are hidden there.
-- Every routed view, settings subsection, telemetry tab, and Asset details
-  dialog resolves a stable topic from `demo/help/topics.yaml`. The audit covers
-  all 36 states derived from `PORT_CONTRACT`, including Home; each resolves
-  exactly one contextual topic and every contextual topic maps back to a route.
+- Every routed view, settings subsection, telemetry route, and supported detail
+  state resolves a stable topic from `demo/help/topics.yaml`. The audit covers
+  all 61 canonical routes and 71 topics; each route resolves exactly one
+  contextual topic and every contextual topic maps to a supported state.
   Context Help uses the local `akar-icons:question` symbol and does not change
   the active wallet, route, filter, tab, or draft.
-- Help source lives in ten separate locale trees under
-  `demo/help/<locale>/{app,wallets,network,settings}/`: 38 topics and 380
-  Markdown documents. Compile, check, and scaffold tools derive locale IDs from
-  the UI's canonical locale registry.
+- Help source lives in ten locale trees under
+  `demo/help/<locale>/{app,wallets,telemetry,dapps,messenger,contacts,settings}/`:
+  71 canonical topics per locale. Compile, check, and scaffold tools derive
+  locale IDs from the UI's canonical locale registry.
   English topic hashes are the source anchor in `help/source-state.json`.
   Changed English topics pass through the local build-time translation bridge
   for every locale; builds reject stale hashes or mismatched document structure.
@@ -530,18 +581,18 @@ This confirms that the interface can be packaged without an Internet dependency.
   390/320 px when possible. Long identifiers truncate while a title, copy
   action, or detail view preserves the full accessible value.
 - Global and Context Help open one named standalone Help page/window while the
-  wallet remains open in parallel. The desktop page uses a multi-open accordion
-  tree; mobile uses an Escape/backdrop-closable navigation drawer. Context
-  actions route directly to the active topic and its declared section without
-  mutating or inerting the wallet page or a parent dialog.
+  wallet remains open in parallel. Its global tree has root-only multi-open
+  accordions; deeper sibling topics use a desktop internal rail/mobile top
+  tabs. Context actions route directly to the active topic and declared section
+  without mutating or inerting the main app or a parent dialog.
 - The contextual question action now belongs to one shell-level host instead of
   each view DOM. It is fixed to the lower-right safe-area edge, aligned with the
   topbar Help action, remains stationary during document scrolling, and clears
   the desktop wallet status bar without reserving view padding.
-- The final 101-image visual matrix covers desktop baselines and all 36 routed
-  states at both 390×844 and 320×800, plus RU/DE/JA/KO/ZH long-label cases,
-  localized Help, Asset details, global Help, ordinary-view contextual Help,
-  and Help above Asset details. Geometry
+- The final matrix covers all 61 routes in both palettes across 1280×800,
+  1024×768, 768×1024, 390×844, and 320×800, plus RU/DE/FR/PT/TR/JA/KO/ZH
+  long-label cases, localized Help, details, errors, Roadmap flows, 200% zoom,
+  and reduced motion. Geometry
   tests additionally reject page-level horizontal overflow, Help/control
   overlap, toast/Help competition, clipped active tabs, and sub-44-pixel mobile
   targets.
@@ -552,17 +603,17 @@ This confirms that the interface can be packaged without an Internet dependency.
 | --- | --- |
 | Typography | Computed font family/size/weight for every visible text node maps to one LUT row; no wallet-specific divergence and no unsupported raw override |
 | Readability | No ordinary visible text below 13 px; body remains 16 px; 200% zoom has no clipping |
-| Wallet rail | 0–30 wallets work; list scrolls independently; Settings/Add/Remove remain reachable; selected indicator matches tab grammar; exactly one wallet/network/Settings rail destination is active |
+| Wallet/navigation | Wallet holder stays exactly three rows; Add/Remove remain reachable; root accordions are independently multi-open; exactly one global workspace and one local route are current |
 | Cancel | Every textual Cancel is the same neutral bordered secondary control in default/hover/focus/pressed/disabled states |
 | Checkboxes | Computed box is exactly 20 × 20 px, square at all viewports, keyboard focus visible, selected card uses danger semantics |
-| Tabs | Start at main-content edge, remain sticky/opaque, do not move on content scroll, and retain readable labels |
+| Local navigation | Desktop rails/mobile tabs start at the workspace edge, remain sticky/opaque, and retain readable labels at 200% zoom |
 | Copy | One Copy button beside address; ordinary panel hover; shared tooltip shows full address; no blue strip or gold button hover |
 | Assets | Name/Balance/Value/Price headers align with their data; value/price disclose source/time or remain unavailable |
-| Appearance | Default palette is unchanged; four optional presets update full semantic tokens and four application-wide code themes change YAML syntax only |
+| Appearance | Default is unchanged; Corporate is the only light palette; four code-only themes change YAML syntax only |
 | YAML | UI and YAML reflect the same typed draft; syntax highlighting remains an accessible overlay above the editable source; validation, provenance, revision conflicts, atomic apply, rollback, and secret exclusion are enforced |
 | Capability honesty | Every nonlive function is disabled or labelled Preview/Unavailable/Experimental; telemetry is read-only, local, freshness-labelled, and never fabricated |
 | Offline-first | Airplane-mode launch and navigation use bundled resources and local wallet state only; radio loss reports a typed capability state without Internet fallback |
-| Responsive | 390 × 844 and 1440 × 1000 screenshots show no overlap, clipping, transparent wallet tabs, or unreachable actions |
+| Responsive | Five required viewport profiles in both palettes show no overlap, clipping, document overflow, or unreachable actions |
 
 ## 🔍 Verification plan
 
@@ -571,7 +622,8 @@ This confirms that the interface can be packaged without an Internet dependency.
 3. Add component-state screenshot cases for default, hover, focus-visible, selected/current, disabled, loading, error, empty, and long-content states.
 4. Capture desktop and mobile views for Home, Assets, asset detail, History, Add Wallet, Remove Wallet with all selected, Appearance, Advanced YAML, Security, and Backup.
 5. Test wallet rail with 0, 1, 3, 10, and 30 wallets and names/addresses at maximum supported length.
-6. Test themes and all palettes with automated contrast checks, forced colors, 200% zoom, reduced motion, and hidden sensitive values.
+6. Test Default and Corporate with automated contrast checks, forced colours,
+   200% zoom, reduced motion, and hidden sensitive values.
 7. Test keyboard-only and screen-reader flows for wallet switching, copy address, tabs, Add Wallet, Remove Wallet, dialogs, and config validation.
 8. When backend integration begins, contract-test each visible function against the exact registered method and response type; registered-but-compatibility routes remain gated.
 9. Run the packaged Tauri app in airplane mode before unlock, after unlock, and after restart. Assert no remote resource request, all local renderer assets load, radio loss is explicit, and queued/submitted/settled states remain distinct.
@@ -585,8 +637,8 @@ This confirms that the interface can be packaged without an Internet dependency.
 - `old-sources/ascii-mockups/`
 - `old-sources/guarda pics/`
 - `old-sources/zano pics/`
-- `colors/Black & Gold Elegance.png`
-- [`Color Meanings: Moonlit Stroll and Walking at Night`](https://www.color-meanings.com/dark-color-palettes/)
+- `crates/z00z_ui_ux/demo/evidence/phase-0/z00z-corporate-source.json`
+- `crates/z00z_ui_ux/demo/styles/colors.css`
 - `crates/z00z_wallets/src/rpc/app_dispatcher_wiring.rs`
 - `crates/z00z_wallets/src/rpc/wallet_dispatcher_routes.rs`
 - `crates/z00z_wallets/src/services/wallet_runtime_config.rs`

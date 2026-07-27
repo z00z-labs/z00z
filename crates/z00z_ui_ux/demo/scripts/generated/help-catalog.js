@@ -19,6 +19,48 @@
     "ja",
     "zh-Hans"
   ],
+  "groups": [
+    {
+      "id": "app",
+      "labelKey": "help.title",
+      "iconId": "question"
+    },
+    {
+      "id": "wallets",
+      "labelKey": "app.wallets",
+      "iconId": "wallet"
+    },
+    {
+      "id": "telemetry",
+      "labelKey": "navigation.telemetry",
+      "iconId": "network"
+    },
+    {
+      "id": "dapps",
+      "labelKey": "navigation.dapps",
+      "iconId": "spark"
+    },
+    {
+      "id": "messenger",
+      "labelKey": "navigation.messenger",
+      "iconId": "message"
+    },
+    {
+      "id": "data-storage",
+      "labelKey": "navigation.dataStorage",
+      "iconId": "storage"
+    },
+    {
+      "id": "contacts",
+      "labelKey": "navigation.contacts",
+      "iconId": "user"
+    },
+    {
+      "id": "settings",
+      "labelKey": "navigation.settings",
+      "iconId": "settings"
+    }
+  ],
   "topics": [
     {
       "id": "app",
@@ -27,384 +69,778 @@
       "scope": "global",
       "match": {
         "global": "true"
-      }
+      },
+      "source": "group"
     },
     {
-      "id": "app.home",
+      "id": "about",
       "group": "app",
-      "file": "app-home",
+      "file": "about",
+      "source": "root",
       "scope": "context",
       "match": {
-        "view": "home"
+        "activeRoute": "about"
       }
     },
     {
       "id": "wallet.assets",
       "group": "wallets",
-      "file": "wallet-assets",
+      "file": "assets-rights/assets",
       "scope": "context",
       "match": {
-        "view": "wallet",
-        "walletSection": "assets"
-      }
+        "activeRoute": "wallet.assets"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.vouchers",
       "group": "wallets",
-      "file": "wallet-vouchers",
+      "file": "assets-rights/vouchers",
       "scope": "context",
       "match": {
-        "view": "wallet",
-        "walletSection": "vouchers"
-      }
+        "activeRoute": "wallet.vouchers"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.permissions",
       "group": "wallets",
-      "file": "wallet-permissions",
+      "file": "assets-rights/permissions",
       "scope": "context",
       "match": {
-        "view": "wallet",
-        "walletSection": "permissions"
-      }
+        "activeRoute": "wallet.permissions"
+      },
+      "source": "group"
+    },
+    {
+      "id": "wallet.quarantine",
+      "group": "wallets",
+      "file": "quarantine",
+      "scope": "context",
+      "match": {
+        "activeRoute": "wallet.quarantine"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.send",
       "group": "wallets",
-      "file": "wallet-send",
+      "file": "send",
       "scope": "context",
       "match": {
-        "view": "wallet-send"
-      }
+        "activeRoute": "wallet.send"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.receive",
       "group": "wallets",
-      "file": "wallet-receive",
+      "file": "receive",
       "scope": "context",
       "match": {
-        "view": "wallet-receive"
-      }
-    },
-    {
-      "id": "wallet.swap",
-      "group": "wallets",
-      "file": "wallet-swap",
-      "scope": "context",
-      "match": {
-        "view": "swap"
-      }
-    },
-    {
-      "id": "wallet.exchange",
-      "group": "wallets",
-      "file": "wallet-exchange",
-      "scope": "context",
-      "match": {
-        "view": "exchange"
-      }
-    },
-    {
-      "id": "wallet.staking",
-      "group": "wallets",
-      "file": "wallet-staking",
-      "scope": "context",
-      "match": {
-        "view": "staking"
-      }
-    },
-    {
-      "id": "wallet.backup",
-      "group": "wallets",
-      "file": "wallet-backup",
-      "scope": "context",
-      "match": {
-        "view": "wallet-backup"
-      }
+        "activeRoute": "wallet.receive"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.history",
       "group": "wallets",
-      "file": "wallet-history",
+      "file": "history",
       "scope": "context",
       "match": {
-        "view": "activity"
-      }
+        "activeRoute": "wallet.history"
+      },
+      "source": "group"
+    },
+    {
+      "id": "wallet.staking.stake",
+      "group": "wallets",
+      "file": "staking/stake",
+      "scope": "context",
+      "match": {
+        "activeRoute": "wallet.staking.stake"
+      },
+      "source": "group"
+    },
+    {
+      "id": "wallet.staking.unstake",
+      "group": "wallets",
+      "file": "staking/unstake",
+      "scope": "context",
+      "match": {
+        "activeRoute": "wallet.staking.unstake"
+      },
+      "source": "group"
+    },
+    {
+      "id": "wallet.backup",
+      "group": "wallets",
+      "file": "backup",
+      "scope": "context",
+      "match": {
+        "activeRoute": "wallet.backup"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.settings.general",
       "group": "wallets",
-      "file": "wallet-settings-general",
+      "file": "settings/general",
       "scope": "context",
       "match": {
-        "view": "wallet-settings",
-        "walletSettingsSection": "general"
-      }
+        "activeRoute": "wallet.settings.general"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.settings.security",
       "group": "wallets",
-      "file": "wallet-settings-security",
+      "file": "settings/security",
       "scope": "context",
       "match": {
-        "view": "wallet-settings",
-        "walletSettingsSection": "security"
-      }
+        "activeRoute": "wallet.settings.security"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.settings.backup",
       "group": "wallets",
-      "file": "wallet-settings-backup",
+      "file": "settings/backup",
       "scope": "context",
       "match": {
-        "view": "wallet-settings",
-        "walletSettingsSection": "backup"
-      }
+        "activeRoute": "wallet.settings.backup"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.settings.policies",
       "group": "wallets",
-      "file": "wallet-settings-policies",
+      "file": "settings/policies",
       "scope": "context",
       "match": {
-        "view": "wallet-settings",
-        "walletSettingsSection": "policies"
-      }
+        "activeRoute": "wallet.settings.policies"
+      },
+      "source": "group"
     },
     {
       "id": "wallet.settings.advanced",
       "group": "wallets",
-      "file": "wallet-settings-advanced",
+      "file": "settings/advanced",
       "scope": "context",
       "match": {
-        "view": "wallet-settings",
-        "walletSettingsSection": "advanced"
-      }
+        "activeRoute": "wallet.settings.advanced"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.overview",
+      "group": "telemetry",
+      "file": "reticulum/overview",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.overview"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.node",
+      "group": "telemetry",
+      "file": "reticulum/node",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.node"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.interfaces",
+      "group": "telemetry",
+      "file": "reticulum/interfaces",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.interfaces"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.radio",
+      "group": "telemetry",
+      "file": "reticulum/radio",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.radio"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.entrypoints",
+      "group": "telemetry",
+      "file": "reticulum/entrypoints",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.entrypoints"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.paths",
+      "group": "telemetry",
+      "file": "reticulum/paths",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.paths"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.probes",
+      "group": "telemetry",
+      "file": "reticulum/probes",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.probes"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.reticulum.links",
+      "group": "telemetry",
+      "file": "reticulum/links",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.reticulum.links"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.onionnet.overview",
+      "group": "telemetry",
+      "file": "onionnet/overview",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.onionnet.overview"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.onionnet.epoch",
+      "group": "telemetry",
+      "file": "onionnet/epoch",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.onionnet.epoch"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.onionnet.privacy",
+      "group": "telemetry",
+      "file": "onionnet/privacy",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.onionnet.privacy"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.onionnet.transport",
+      "group": "telemetry",
+      "file": "onionnet/transport",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.onionnet.transport"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.onionnet.queues",
+      "group": "telemetry",
+      "file": "onionnet/queues",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.onionnet.queues"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.onionnet.probation",
+      "group": "telemetry",
+      "file": "onionnet/probation",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.onionnet.probation"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.onionnet.ingress",
+      "group": "telemetry",
+      "file": "onionnet/ingress",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.onionnet.ingress"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.aggregators.overview",
+      "group": "telemetry",
+      "file": "aggregators/overview",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.aggregators.overview"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.aggregators.ingress",
+      "group": "telemetry",
+      "file": "aggregators/ingress",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.aggregators.ingress"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.aggregators.planning",
+      "group": "telemetry",
+      "file": "aggregators/planning",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.aggregators.planning"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.aggregators.placement",
+      "group": "telemetry",
+      "file": "aggregators/placement",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.aggregators.placement"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.aggregators.publication",
+      "group": "telemetry",
+      "file": "aggregators/publication",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.aggregators.publication"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.aggregators.recovery",
+      "group": "telemetry",
+      "file": "aggregators/recovery",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.aggregators.recovery"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.watchers.overview",
+      "group": "telemetry",
+      "file": "watchers/overview",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.watchers.overview"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.watchers.alerts",
+      "group": "telemetry",
+      "file": "watchers/alerts",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.watchers.alerts"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.watchers.publication",
+      "group": "telemetry",
+      "file": "watchers/publication",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.watchers.publication"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.watchers.providers",
+      "group": "telemetry",
+      "file": "watchers/providers",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.watchers.providers"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.watchers.censorship",
+      "group": "telemetry",
+      "file": "watchers/censorship",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.watchers.censorship"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.watchers.evidence",
+      "group": "telemetry",
+      "file": "watchers/evidence",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.watchers.evidence"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.explorer.overview",
+      "group": "telemetry",
+      "file": "explorer/overview",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.explorer.overview"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.explorer.search",
+      "group": "telemetry",
+      "file": "explorer/search",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.explorer.search"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.explorer.checkpoints",
+      "group": "telemetry",
+      "file": "explorer/checkpoints",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.explorer.checkpoints"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.explorer.batches",
+      "group": "telemetry",
+      "file": "explorer/batches",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.explorer.batches"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.explorer.evidence",
+      "group": "telemetry",
+      "file": "explorer/evidence",
+      "scope": "context",
+      "match": {
+        "activeRoute": "telemetry.explorer.evidence"
+      },
+      "source": "group"
+    },
+    {
+      "id": "dapps.discover",
+      "group": "dapps",
+      "file": "discover",
+      "scope": "context",
+      "match": {
+        "activeRoute": "dapps.discover"
+      },
+      "source": "group"
+    },
+    {
+      "id": "dapps.installed",
+      "group": "dapps",
+      "file": "installed",
+      "scope": "context",
+      "match": {
+        "activeRoute": "dapps.installed"
+      },
+      "source": "group"
+    },
+    {
+      "id": "dapps.connections",
+      "group": "dapps",
+      "file": "connections",
+      "scope": "context",
+      "match": {
+        "activeRoute": "dapps.connections"
+      },
+      "source": "group"
+    },
+    {
+      "id": "dapps.permissions",
+      "group": "dapps",
+      "file": "permissions",
+      "scope": "context",
+      "match": {
+        "activeRoute": "dapps.permissions"
+      },
+      "source": "group"
+    },
+    {
+      "id": "wallet.swap",
+      "group": "dapps",
+      "file": "swap",
+      "scope": "context",
+      "match": {
+        "activeRoute": "wallet.swap"
+      },
+      "source": "group"
+    },
+    {
+      "id": "wallet.exchange",
+      "group": "dapps",
+      "file": "exchange",
+      "scope": "context",
+      "match": {
+        "activeRoute": "wallet.exchange"
+      },
+      "source": "group"
+    },
+    {
+      "id": "messenger.inbox",
+      "group": "messenger",
+      "file": "inbox",
+      "scope": "context",
+      "match": {
+        "activeRoute": "messenger.inbox"
+      },
+      "source": "group"
+    },
+    {
+      "id": "messenger.sent",
+      "group": "messenger",
+      "file": "sent",
+      "scope": "context",
+      "match": {
+        "activeRoute": "messenger.sent"
+      },
+      "source": "group"
+    },
+    {
+      "id": "messenger.conversations",
+      "group": "messenger",
+      "file": "conversations",
+      "scope": "context",
+      "match": {
+        "activeRoute": "messenger.conversations"
+      },
+      "source": "group"
+    },
+    {
+      "id": "data-storage.disk-usage",
+      "group": "data-storage",
+      "file": "disk-usage",
+      "scope": "context",
+      "match": {
+        "activeRoute": "data-storage.disk-usage"
+      },
+      "source": "group"
+    },
+    {
+      "id": "data-storage.network-usage",
+      "group": "data-storage",
+      "file": "network-usage",
+      "scope": "context",
+      "match": {
+        "activeRoute": "data-storage.network-usage"
+      },
+      "source": "group"
+    },
+    {
+      "id": "contacts.list",
+      "group": "contacts",
+      "file": "contacts",
+      "scope": "context",
+      "match": {
+        "activeRoute": "contacts.list"
+      },
+      "source": "group"
     },
     {
       "id": "settings.general",
       "group": "settings",
-      "file": "settings-general",
+      "file": "general",
       "scope": "context",
       "match": {
-        "view": "settings",
-        "settingsSection": "general"
-      }
+        "activeRoute": "settings.general"
+      },
+      "source": "group"
+    },
+    {
+      "id": "settings.notifications",
+      "group": "settings",
+      "file": "notifications",
+      "scope": "context",
+      "match": {
+        "activeRoute": "settings.notifications"
+      },
+      "source": "group"
     },
     {
       "id": "settings.appearance",
       "group": "settings",
-      "file": "settings-appearance",
+      "file": "appearance",
       "scope": "context",
       "match": {
-        "view": "settings",
-        "settingsSection": "appearance"
+        "activeRoute": "settings.appearance"
+      },
+      "source": "group"
+    },
+    {
+      "id": "help.faq",
+      "group": "app",
+      "file": "faq",
+      "source": "root",
+      "scope": "article",
+      "match": {
+        "article": "faq"
       }
     },
     {
-      "id": "settings.reticulum",
-      "group": "settings",
-      "file": "settings-reticulum",
-      "scope": "context",
+      "id": "help.how-to",
+      "group": "app",
+      "file": "how-to",
+      "source": "root",
+      "scope": "article",
       "match": {
-        "view": "settings",
-        "settingsSection": "reticulum"
+        "article": "how-to"
       }
     },
     {
-      "id": "settings.onionnet",
-      "group": "settings",
-      "file": "settings-onionnet",
-      "scope": "context",
+      "id": "help.report-issues",
+      "group": "app",
+      "file": "report-issues",
+      "source": "root",
+      "scope": "article",
       "match": {
-        "view": "settings",
-        "settingsSection": "onionnet"
+        "article": "report-issues"
       }
     },
     {
-      "id": "telemetry.reticulum.overview",
-      "group": "network",
-      "file": "telemetry-reticulum-overview",
-      "scope": "context",
+      "id": "help.tips-and-tricks",
+      "group": "app",
+      "file": "tips-and-tricks",
+      "source": "root",
+      "scope": "article",
       "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "overview"
+        "article": "tips-and-tricks"
       }
     },
     {
-      "id": "telemetry.reticulum.node",
-      "group": "network",
-      "file": "telemetry-reticulum-node",
-      "scope": "context",
+      "id": "help.video-tutorials",
+      "group": "app",
+      "file": "video-tutorials",
+      "source": "root",
+      "scope": "article",
       "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "node"
-      }
-    },
-    {
-      "id": "telemetry.reticulum.interfaces",
-      "group": "network",
-      "file": "telemetry-reticulum-interfaces",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "interfaces"
-      }
-    },
-    {
-      "id": "telemetry.reticulum.radio",
-      "group": "network",
-      "file": "telemetry-reticulum-radio",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "radio"
-      }
-    },
-    {
-      "id": "telemetry.reticulum.entrypoints",
-      "group": "network",
-      "file": "telemetry-reticulum-entrypoints",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "entrypoints"
-      }
-    },
-    {
-      "id": "telemetry.reticulum.paths",
-      "group": "network",
-      "file": "telemetry-reticulum-paths",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "paths"
-      }
-    },
-    {
-      "id": "telemetry.reticulum.probes",
-      "group": "network",
-      "file": "telemetry-reticulum-probes",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "probes"
-      }
-    },
-    {
-      "id": "telemetry.reticulum.links",
-      "group": "network",
-      "file": "telemetry-reticulum-links",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "reticulum",
-        "reticulumTelemetryTab": "links"
-      }
-    },
-    {
-      "id": "telemetry.onionnet.overview",
-      "group": "network",
-      "file": "telemetry-onionnet-overview",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "onionnet",
-        "onionnetTelemetryTab": "overview"
-      }
-    },
-    {
-      "id": "telemetry.onionnet.epoch",
-      "group": "network",
-      "file": "telemetry-onionnet-epoch",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "onionnet",
-        "onionnetTelemetryTab": "epoch"
-      }
-    },
-    {
-      "id": "telemetry.onionnet.privacy",
-      "group": "network",
-      "file": "telemetry-onionnet-privacy",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "onionnet",
-        "onionnetTelemetryTab": "privacy"
-      }
-    },
-    {
-      "id": "telemetry.onionnet.transport",
-      "group": "network",
-      "file": "telemetry-onionnet-transport",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "onionnet",
-        "onionnetTelemetryTab": "transport"
-      }
-    },
-    {
-      "id": "telemetry.onionnet.queues",
-      "group": "network",
-      "file": "telemetry-onionnet-queues",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "onionnet",
-        "onionnetTelemetryTab": "queues"
-      }
-    },
-    {
-      "id": "telemetry.onionnet.probation",
-      "group": "network",
-      "file": "telemetry-onionnet-probation",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "onionnet",
-        "onionnetTelemetryTab": "probation"
-      }
-    },
-    {
-      "id": "telemetry.onionnet.ingress",
-      "group": "network",
-      "file": "telemetry-onionnet-ingress",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "onionnet",
-        "onionnetTelemetryTab": "ingress"
-      }
-    },
-    {
-      "id": "telemetry.aggregators.overview",
-      "group": "network",
-      "file": "telemetry-aggregators-overview",
-      "scope": "context",
-      "match": {
-        "view": "telemetry",
-        "telemetrySource": "aggregators",
-        "aggregatorsTelemetryTab": "overview"
+        "article": "video-tutorials"
       }
     },
     {
       "id": "asset.details",
       "group": "wallets",
-      "file": "asset-details",
+      "file": "assets-rights/asset-details",
       "scope": "dialog",
       "match": {
         "dialog": "asset-detail"
-      }
+      },
+      "source": "group"
+    },
+    {
+      "id": "dapps.detail",
+      "group": "dapps",
+      "file": "detail",
+      "scope": "dialog",
+      "match": {
+        "dialog": "dapps-detail"
+      },
+      "source": "group"
+    },
+    {
+      "id": "dapps.permission-review",
+      "group": "dapps",
+      "file": "permission-review",
+      "scope": "dialog",
+      "match": {
+        "dialog": "dapps-permission-review"
+      },
+      "source": "group"
+    },
+    {
+      "id": "messenger.detail",
+      "group": "messenger",
+      "file": "detail",
+      "scope": "dialog",
+      "match": {
+        "dialog": "messenger-detail"
+      },
+      "source": "group"
+    },
+    {
+      "id": "messenger.request-review",
+      "group": "messenger",
+      "file": "request-review",
+      "scope": "dialog",
+      "match": {
+        "dialog": "messenger-request-review"
+      },
+      "source": "group"
+    },
+    {
+      "id": "contacts.detail",
+      "group": "contacts",
+      "file": "detail",
+      "scope": "dialog",
+      "match": {
+        "dialog": "contacts-detail"
+      },
+      "source": "group"
+    },
+    {
+      "id": "contacts.identity-review",
+      "group": "contacts",
+      "file": "identity-review",
+      "scope": "dialog",
+      "match": {
+        "dialog": "contacts-identity-review"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.watchers.alert-detail",
+      "group": "telemetry",
+      "file": "watchers/alert-detail",
+      "scope": "dialog",
+      "match": {
+        "dialog": "watchers-alert-detail"
+      },
+      "source": "group"
+    },
+    {
+      "id": "telemetry.explorer.detail",
+      "group": "telemetry",
+      "file": "explorer/detail",
+      "scope": "dialog",
+      "match": {
+        "dialog": "explorer-detail"
+      },
+      "source": "group"
     }
   ],
   "catalogues": {
@@ -456,10 +892,10 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "Home",
-        "summary": "Home brings together the selected wallet balance, private actions, and recent events.",
+      "about": {
+        "id": "about",
+        "title": "About Z00Z",
+        "summary": "Review the Z00Z demo version, purpose, palette, and update channel.",
         "scope": "context",
         "sections": [
           {
@@ -469,8 +905,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Review the selected wallet, then open Send, Receive, History, or an item that needs attention.",
-                  "Wallet names and values belong to the selected local wallet profile."
+                  "Use Check for updates to verify the current demo metadata for this session.",
+                  "The JavaScript demo is the UX target for a future Rust and Tauri application."
                 ]
               }
             ]
@@ -482,8 +918,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Unavailable capabilities stay labelled and no live balance or route is invented.",
-                  "This Help is packaged with the application and works offline."
+                  "The demo does not download or install an update.",
+                  "A packaged application must verify a signed release manifest before offering an update."
                 ]
               }
             ]
@@ -592,6 +1028,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "Quarantine",
+        "summary": "Review wallet objects that require explicit local inspection before they can be used.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Inspect the stated reason, source, and local status before taking any recovery action.",
+                  "An unavailable action remains blocked until the native wallet reports a safe next step."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Quarantine never proves that an object is safe; authority remains with the native wallet policy.",
+                  "Secrets, raw signed packages, and private transport data never enter Help."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "Send",
@@ -660,10 +1130,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "Swap",
-        "summary": "Swap explains the controls and status shown in this view.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "History",
+        "summary": "History explains the controls and status shown in this view.",
         "scope": "context",
         "sections": [
           {
@@ -673,7 +1143,7 @@
               {
                 "type": "list",
                 "items": [
-                  "Choose a held source asset, amount, and compatible target asset, then inspect the preview before submission.",
+                  "Filter wallet events by object family and open a row for its receipt and technical lifecycle.",
                   "Unavailable, read-only, and pending states are shown explicitly."
                 ]
               }
@@ -694,10 +1164,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "Exchange",
-        "summary": "Exchange explains the controls and status shown in this view.",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
+        "title": "Stake",
+        "summary": "Stake explains the compatibility-only staking recipe and the authority still required from the native wallet.",
         "scope": "context",
         "sections": [
           {
@@ -707,8 +1177,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Choose Hyperliquid Spot for an order-book request or NEAR Intents for a solver-driven cross-chain request, then enter only the fields required by that execution model.",
-                  "Review pair or route, recipient/refund controls, slippage and deadline. Quote, output, fees, deposit address, and execution status stay unavailable until a verified connector supplies them."
+                  "Use Stake to prepare an amount only after the native wallet provides a verified staking position and terms.",
+                  "Review validator, lock-up, unlock, fee, and settlement terms before any authorization."
                 ]
               }
             ]
@@ -720,18 +1190,18 @@
               {
                 "type": "list",
                 "items": [
-                  "Wallet secrets and private transport data never enter Help.",
-                  "This Help is packaged with the application and works offline."
+                  "The demo does not invent validators, delegated balances, rewards, unlock periods, or settlement state.",
+                  "Stake and Unstake remain unavailable until an authoritative wallet adapter supplies terms and reconciliation."
                 ]
               }
             ]
           }
         ]
       },
-      "wallet.staking": {
-        "id": "wallet.staking",
-        "title": "Staking",
-        "summary": "Staking explains the controls and status shown in this view.",
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "Unstake",
+        "summary": "Unstake explains the compatibility-only staking recipe and the authority still required from the native wallet.",
         "scope": "context",
         "sections": [
           {
@@ -741,8 +1211,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Review available, staked, and reward amounts; choose an amount and validator only after chain verification.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
+                  "Use Unstake to prepare an amount only after the native wallet provides a verified staking position and terms.",
+                  "Review validator, lock-up, unlock, fee, and settlement terms before any authorization."
                 ]
               }
             ]
@@ -754,8 +1224,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Wallet secrets and private transport data never enter Help.",
-                  "This Help is packaged with the application and works offline."
+                  "The demo does not invent validators, delegated balances, rewards, unlock periods, or settlement state.",
+                  "Stake and Unstake remain unavailable until an authoritative wallet adapter supplies terms and reconciliation."
                 ]
               }
             ]
@@ -776,40 +1246,6 @@
                 "type": "list",
                 "items": [
                   "Check the latest local backup, integrity, and destination before creating a fresh encrypted backup.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Local and safe behavior",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet secrets and private transport data never enter Help.",
-                  "This Help is packaged with the application and works offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "History",
-        "summary": "History explains the controls and status shown in this view.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Use this view",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Filter wallet events by object family and open a row for its receipt and technical lifecycle.",
                   "Unavailable, read-only, and pending states are shown explicitly."
                 ]
               }
@@ -980,142 +1416,6 @@
                 "type": "list",
                 "items": [
                   "Validate and apply the selected wallet’s safe local YAML draft; secrets and filesystem paths are excluded.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Local and safe behavior",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet secrets and private transport data never enter Help.",
-                  "This Help is packaged with the application and works offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "Application preferences",
-        "summary": "Application preferences explains the controls and status shown in this view.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Use this view",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Choose the application language, regional format, display time zone, and notification preference.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Local and safe behavior",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet secrets and private transport data never enter Help.",
-                  "This Help is packaged with the application and works offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "Appearance",
-        "summary": "Appearance explains the controls and status shown in this view.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Use this view",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Switch Dark or Light mode, choose a palette, and select the local YAML highlighting theme.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Local and safe behavior",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet secrets and private transport data never enter Help.",
-                  "This Help is packaged with the application and works offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Reticulum preferences",
-        "summary": "Reticulum preferences explains the controls and status shown in this view.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Use this view",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Review the local carrier service, interface mode, and Reticulum network identity settings.",
-                  "Unavailable, read-only, and pending states are shown explicitly."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Local and safe behavior",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet secrets and private transport data never enter Help.",
-                  "This Help is packaged with the application and works offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "OnionNet preferences",
-        "summary": "OnionNet preferences explains the controls and status shown in this view.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Use this view",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Review privacy mode, membership and replay checks, and route-age controls above the carrier.",
                   "Unavailable, read-only, and pending states are shown explicitly."
                 ]
               }
@@ -1680,6 +1980,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "Aggregator ingress",
+        "summary": "Ingress explains how the runtime admits a transaction or claim payload as a digest-bound work item.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Check the `WorkPayload` to `WorkItem` or `RejectRecord` contract.",
+                  "Unavailable means no fresh admission snapshot exists; it does not mean accepted or rejected."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed boundary",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Object-package binding changes the admission digest and intake identity.",
+                  "Raw payloads, receivers, memos, and wallet-local routes never enter Help."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "Aggregator planning",
+        "summary": "Planning explains deterministic batch and shard-route binding without claiming settlement authority.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Review planner mode, route generation, intake count, operation count, and digest ownership.",
+                  "Unavailable means no verified `BatchPlanned` snapshot is connected."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed boundary",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Planner configuration, generation, route-table digest, and recomputed plan must agree.",
+                  "Planning never finalizes settlement, publication, or storage truth."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "Aggregator placement",
+        "summary": "Placement explains the runtime-owned shard generation, primary owner, secondary readiness, and journal lineage view.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Review the `ShardPlacementView` contract without inferring global topology.",
+                  "Unavailable means no current placement-table observation is connected."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed boundary",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The placement table must own the exact shard and routing generation.",
+                  "Aggregator IDs are operational data; endpoints and wallet identities stay hidden."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "Aggregator publication",
+        "summary": "Publication explains how an ordered batch is bound to checkpoint, quorum, data-availability, and lifecycle evidence.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Follow `PublicationRequest` to `PublishedBatch` and `PublicationRecord`.",
+                  "Unavailable means no verified publication or readiness bundle is connected."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed boundary",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Partial or mismatched provider, height, manifest, payload, statement, or evidence data is rejected.",
+                  "Storage owns checkpoint roots, proofs, and lifecycle truth."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "Aggregator recovery",
+        "summary": "Recovery explains restart and secondary-takeover checks against committed route, generation, primary, and journal lineage.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Review the `ShardRecoveryRecord`, recovery intent, durable state, and execution-ticket contract.",
+                  "Unavailable means no committed recovery snapshot is connected."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed boundary",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wrong generation, primary, shard, batch, route, or lineage is rejected.",
+                  "The renderer cannot initiate failover or mutate storage recovery truth."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "Watchers overview",
+        "summary": "Watchers overview explains the read-only Watchers roadmap preview and its public evidence boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Watchers overview to inspect deterministic publication-health evidence without changing network state.",
+                  "Unavailable, stale, malformed, and error states remain explicit and fail closed."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers is a roadmap preview backed by local fixtures, not a shipped protocol capability.",
+                  "Wallet labels, counterparties, route paths, messages, and secret material are never exposed."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "Watchers alerts",
+        "summary": "Watchers alerts explains the read-only Watchers roadmap preview and its public evidence boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Watchers alerts to inspect deterministic publication-health evidence without changing network state.",
+                  "Unavailable, stale, malformed, and error states remain explicit and fail closed."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers is a roadmap preview backed by local fixtures, not a shipped protocol capability.",
+                  "Wallet labels, counterparties, route paths, messages, and secret material are never exposed."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "Watchers publication",
+        "summary": "Watchers publication explains the read-only Watchers roadmap preview and its public evidence boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Watchers publication to inspect deterministic publication-health evidence without changing network state.",
+                  "Unavailable, stale, malformed, and error states remain explicit and fail closed."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers is a roadmap preview backed by local fixtures, not a shipped protocol capability.",
+                  "Wallet labels, counterparties, route paths, messages, and secret material are never exposed."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "Watchers da providers",
+        "summary": "Watchers da providers explains the read-only Watchers roadmap preview and its public evidence boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Watchers da providers to inspect deterministic publication-health evidence without changing network state.",
+                  "Unavailable, stale, malformed, and error states remain explicit and fail closed."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers is a roadmap preview backed by local fixtures, not a shipped protocol capability.",
+                  "Wallet labels, counterparties, route paths, messages, and secret material are never exposed."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "Watchers censorship signals",
+        "summary": "Watchers censorship signals explains the read-only Watchers roadmap preview and its public evidence boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Watchers censorship signals to inspect deterministic publication-health evidence without changing network state.",
+                  "Unavailable, stale, malformed, and error states remain explicit and fail closed."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers is a roadmap preview backed by local fixtures, not a shipped protocol capability.",
+                  "Wallet labels, counterparties, route paths, messages, and secret material are never exposed."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "Watchers public evidence",
+        "summary": "Watchers public evidence explains the read-only Watchers roadmap preview and its public evidence boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Watchers public evidence to inspect deterministic publication-health evidence without changing network state.",
+                  "Unavailable, stale, malformed, and error states remain explicit and fail closed."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers is a roadmap preview backed by local fixtures, not a shipped protocol capability.",
+                  "Wallet labels, counterparties, route paths, messages, and secret material are never exposed."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "Explorer overview",
+        "summary": "Explorer overview explains the privacy-bounded Explorer roadmap preview for supported public identifiers.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Explorer overview only with the supported public checkpoint, batch, alert, or evidence identifiers.",
+                  "Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.",
+                  "Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "Explorer search",
+        "summary": "Explorer search explains the privacy-bounded Explorer roadmap preview for supported public identifiers.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Explorer search only with the supported public checkpoint, batch, alert, or evidence identifiers.",
+                  "Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.",
+                  "Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "Explorer checkpoints",
+        "summary": "Explorer checkpoints explains the privacy-bounded Explorer roadmap preview for supported public identifiers.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Explorer checkpoints only with the supported public checkpoint, batch, alert, or evidence identifiers.",
+                  "Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.",
+                  "Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "Explorer batches",
+        "summary": "Explorer batches explains the privacy-bounded Explorer roadmap preview for supported public identifiers.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Explorer batches only with the supported public checkpoint, batch, alert, or evidence identifiers.",
+                  "Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.",
+                  "Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "Explorer public evidence",
+        "summary": "Explorer public evidence explains the privacy-bounded Explorer roadmap preview for supported public identifiers.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Explorer public evidence only with the supported public checkpoint, batch, alert, or evidence identifiers.",
+                  "Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.",
+                  "Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "Discover",
+        "summary": "Discover explains the bounded local dApps roadmap preview and its permission boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Discover to inspect deterministic local descriptors, scoped intents, and explicit outcomes.",
+                  "Review scope, uses, expiry, value, fee, disclosure, and revoke behavior before accepting an intent."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps is a roadmap preview: no remote app code, arbitrary URL, or generic signing request is executed.",
+                  "Accepted intents are revalidated by the Wallet; this view cannot mutate wallet objects."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "Installed",
+        "summary": "Installed explains the bounded local dApps roadmap preview and its permission boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Installed to inspect deterministic local descriptors, scoped intents, and explicit outcomes.",
+                  "Review scope, uses, expiry, value, fee, disclosure, and revoke behavior before accepting an intent."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps is a roadmap preview: no remote app code, arbitrary URL, or generic signing request is executed.",
+                  "Accepted intents are revalidated by the Wallet; this view cannot mutate wallet objects."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "Connections",
+        "summary": "Connections explains the bounded local dApps roadmap preview and its permission boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Connections to inspect deterministic local descriptors, scoped intents, and explicit outcomes.",
+                  "Review scope, uses, expiry, value, fee, disclosure, and revoke behavior before accepting an intent."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps is a roadmap preview: no remote app code, arbitrary URL, or generic signing request is executed.",
+                  "Accepted intents are revalidated by the Wallet; this view cannot mutate wallet objects."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "Permissions",
+        "summary": "Permissions explains the bounded local dApps roadmap preview and its permission boundary.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Permissions to inspect deterministic local descriptors, scoped intents, and explicit outcomes.",
+                  "Review scope, uses, expiry, value, fee, disclosure, and revoke behavior before accepting an intent."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps is a roadmap preview: no remote app code, arbitrary URL, or generic signing request is executed.",
+                  "Accepted intents are revalidated by the Wallet; this view cannot mutate wallet objects."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "Swap",
+        "summary": "Swap explains the controls and status shown in this view.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Choose a held source asset, amount, and compatible target asset, then inspect the preview before submission.",
+                  "Unavailable, read-only, and pending states are shown explicitly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet secrets and private transport data never enter Help.",
+                  "This Help is packaged with the application and works offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "Exchange",
+        "summary": "Exchange explains the controls and status shown in this view.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Choose Hyperliquid Spot for an order-book request or NEAR Intents for a solver-driven cross-chain request, then enter only the fields required by that execution model.",
+                  "Review pair or route, recipient/refund controls, slippage and deadline. Quote, output, fees, deposit address, and execution status stay unavailable until a verified connector supplies them."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet secrets and private transport data never enter Help.",
+                  "This Help is packaged with the application and works offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "Inbox",
+        "summary": "Inbox explains the private request-coordination roadmap preview and its Wallet handoff.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Inbox to inspect deterministic local messages, requests, receipts, expiry, and recovery states.",
+                  "Accepting a request creates a Wallet review intent; it does not settle or mutate wallet state."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger is a roadmap preview for short-lived relay coordination, not permanent on-chain chat.",
+                  "Opening, deleting, blocking, or reporting content never changes Wallet settlement state."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "Sent",
+        "summary": "Sent shows local delivery states while keeping them strictly separate from Wallet settlement.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Sent to inspect deterministic local messages, delivery states, expiry, and recovery states.",
+                  "A sent or acknowledged message does not prove delivery, ownership, or Wallet settlement."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger is a roadmap preview for short-lived relay coordination, not permanent on-chain chat.",
+                  "Retrying, expiring, or acknowledging content never changes Wallet settlement state."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "Conversations",
+        "summary": "Conversations explains the private request-coordination roadmap preview and its Wallet handoff.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Conversations to inspect deterministic local messages, requests, receipts, expiry, and recovery states.",
+                  "Accepting a request creates a Wallet review intent; it does not settle or mutate wallet state."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger is a roadmap preview for short-lived relay coordination, not permanent on-chain chat.",
+                  "Opening, deleting, blocking, or reporting content never changes Wallet settlement state."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "Disk usage",
+        "summary": "Disk usage explains privacy-bounded aggregate storage and network counters.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Disk usage to understand local resource use without opening private wallet records.",
+                  "Displayed totals are deterministic fixtures and never represent a live device scan."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contacts, destinations, messages, wallet activity, secrets, and arbitrary paths are excluded.",
+                  "A packaged app must expose aggregate counters only through a bounded native capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "Network usage",
+        "summary": "Network usage explains privacy-bounded aggregate storage and network counters.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Network usage to understand local resource use without opening private wallet records.",
+                  "Displayed totals are deterministic fixtures and never represent a live device scan."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contacts, destinations, messages, wallet activity, secrets, and arbitrary paths are excluded.",
+                  "A packaged app must expose aggregate counters only through a bounded native capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "Contacts",
+        "summary": "Contacts explains local contact labels, receiver cards, and explicit identity-change review.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Contacts to inspect local contact data, expiry, revocation, and identity-change evidence.",
+                  "A saved label is not proof of identity or trust; changed receiver data requires explicit review."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contacts remain local and are never uploaded or published as an address or presence graph.",
+                  "Removing a local contact cannot revoke external credentials or change Wallet settlement."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "Application preferences",
+        "summary": "Application preferences explains the controls and status shown in this view.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Choose the application language, regional format, display time zone, and notification preference.",
+                  "Unavailable, read-only, and pending states are shown explicitly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet secrets and private transport data never enter Help.",
+                  "This Help is packaged with the application and works offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "Notifications",
+        "summary": "Choose local notification, vibration, and ringtone preferences for this device.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use the master notification control before choosing a vibration policy or ringtone.",
+                  "Vibration and ringtone choices remain disabled when notifications are off."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "These are local demo preferences and do not request operating-system permission.",
+                  "The packaged application must fail clearly when sound or haptic capability is unavailable."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "Appearance",
+        "summary": "Appearance explains the controls and status shown in this view.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Switch Dark or Light mode, choose a palette, and select the local YAML highlighting theme.",
+                  "Unavailable, read-only, and pending states are shown explicitly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet secrets and private transport data never enter Help.",
+                  "This Help is packaged with the application and works offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "Asset details",
@@ -1708,6 +3245,278 @@
                 "items": [
                   "These fields are read-only and do not prove market value, ownership, or protocol trust.",
                   "The asset icon, metadata, and this Help are packaged locally and work offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApp details",
+        "summary": "dApp details explains the bounded local dApps roadmap preview and its permission boundary.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use dApp details to inspect deterministic local descriptors, scoped intents, and explicit outcomes.",
+                  "Review scope, uses, expiry, value, fee, disclosure, and revoke behavior before accepting an intent."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps is a roadmap preview: no remote app code, arbitrary URL, or generic signing request is executed.",
+                  "Accepted intents are revalidated by the Wallet; this view cannot mutate wallet objects."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApp permission review",
+        "summary": "dApp permission review explains the bounded local dApps roadmap preview and its permission boundary.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use dApp permission review to inspect deterministic local descriptors, scoped intents, and explicit outcomes.",
+                  "Review scope, uses, expiry, value, fee, disclosure, and revoke behavior before accepting an intent."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps is a roadmap preview: no remote app code, arbitrary URL, or generic signing request is executed.",
+                  "Accepted intents are revalidated by the Wallet; this view cannot mutate wallet objects."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "Messenger details",
+        "summary": "Messenger details explains the private request-coordination roadmap preview and its Wallet handoff.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Messenger details to inspect deterministic local messages, requests, receipts, expiry, and recovery states.",
+                  "Accepting a request creates a Wallet review intent; it does not settle or mutate wallet state."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger is a roadmap preview for short-lived relay coordination, not permanent on-chain chat.",
+                  "Opening, deleting, blocking, or reporting content never changes Wallet settlement state."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "Messenger request review",
+        "summary": "Messenger request review explains the private request-coordination roadmap preview and its Wallet handoff.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Messenger request review to inspect deterministic local messages, requests, receipts, expiry, and recovery states.",
+                  "Accepting a request creates a Wallet review intent; it does not settle or mutate wallet state."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger is a roadmap preview for short-lived relay coordination, not permanent on-chain chat.",
+                  "Opening, deleting, blocking, or reporting content never changes Wallet settlement state."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "Contact details",
+        "summary": "Contact details explains local contact labels, receiver cards, and explicit identity-change review.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Contact details to inspect local contact data, expiry, revocation, and identity-change evidence.",
+                  "A saved label is not proof of identity or trust; changed receiver data requires explicit review."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contacts remain local and are never uploaded or published as an address or presence graph.",
+                  "Removing a local contact cannot revoke external credentials or change Wallet settlement."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "Contact identity review",
+        "summary": "Contact identity review explains local contact labels, receiver cards, and explicit identity-change review.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Contact identity review to inspect local contact data, expiry, revocation, and identity-change evidence.",
+                  "A saved label is not proof of identity or trust; changed receiver data requires explicit review."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contacts remain local and are never uploaded or published as an address or presence graph.",
+                  "Removing a local contact cannot revoke external credentials or change Wallet settlement."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "Watchers alert details",
+        "summary": "Watchers alert details explains the read-only Watchers roadmap preview and its public evidence boundary.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Watchers alert details to inspect deterministic publication-health evidence without changing network state.",
+                  "Unavailable, stale, malformed, and error states remain explicit and fail closed."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers is a roadmap preview backed by local fixtures, not a shipped protocol capability.",
+                  "Wallet labels, counterparties, route paths, messages, and secret material are never exposed."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "Explorer details",
+        "summary": "Explorer details explains the privacy-bounded Explorer roadmap preview for supported public identifiers.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Use this view",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use Explorer details only with the supported public checkpoint, batch, alert, or evidence identifiers.",
+                  "Unknown, private, malformed, or unavailable identifiers fail closed without a wallet lookup."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Local and safe behavior",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer is a roadmap preview backed by local fixtures, not a public wallet-data service.",
+                  "Wallet-local balances, contacts, messages, memos, routes, and secret material never enter Explorer."
                 ]
               }
             ]
@@ -1763,34 +3572,34 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "Главная",
-        "summary": "Главная объединяет баланс выбранного кошелька, приватные действия и последние события.",
+      "about": {
+        "id": "about",
+        "title": "О приложении",
+        "summary": "О приложении: версия, назначение и канал обновлений Z00Z.",
         "scope": "context",
         "sections": [
           {
-            "title": "Как использовать экран",
+            "title": "Использование этого экрана",
             "target": "current-view",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Проверьте выбранный кошелёк, затем откройте Отправить, Получить, Историю или требующее внимания событие.",
-                  "Название и значения принадлежат выбранному локальному профилю кошелька."
+                  "Проверьте текущую версию демо для этой сессии.",
+                  "JavaScript-демо задаёт UX-цель для Rust и Tauri."
                 ]
               }
             ]
           },
           {
-            "title": "Локальная и безопасная работа",
+            "title": "Локальное и безопасное поведение",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Недоступные возможности явно отмечены; приложение не выдумывает баланс или маршрут.",
-                  "Справка встроена в приложение и работает без интернета."
+                  "Демо не скачивает и не устанавливает обновления.",
+                  "Готовое приложение должно проверять подписанный манифест выпуска."
                 ]
               }
             ]
@@ -1899,6 +3708,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "Карантин",
+        "summary": "Карантин: локальная справка для объектов, требующих явной проверки кошельком.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте указанную причину, источник и локальный статус перед любым действием.",
+                  "Недоступное действие остаётся заблокированным, пока нативный кошелёк не сообщит безопасный следующий шаг."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Окончательное решение принимает политика нативного кошелька, а не этот экран.",
+                  "Секреты и приватные транспортные данные не попадают в справку."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "Отправка",
@@ -1967,10 +3810,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "Обмен",
-        "summary": "Обмен: доступные действия и состояния этого экрана.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "История",
+        "summary": "История: доступные действия и состояния этого экрана.",
         "scope": "context",
         "sections": [
           {
@@ -1980,7 +3823,7 @@
               {
                 "type": "list",
                 "items": [
-                  "Выберите имеющийся исходный актив, сумму и совместимый целевой актив, затем проверьте предварительный расчёт.",
+                  "Фильтруйте события кошелька по типу объекта и открывайте строку для квитанции и технического жизненного цикла.",
                   "Недоступные, read-only и ожидающие состояния обозначаются явно."
                 ]
               }
@@ -2001,68 +3844,68 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "Биржа",
-        "summary": "Биржа: доступные действия и состояния этого экрана.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Как использовать экран",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Выберите Hyperliquid Spot для книги ордеров или NEAR Intents для кроссчейн-запроса через solver, затем заполните поля выбранной модели.",
-                  "Проверьте пару либо маршрут, получателя/возврат, проскальзывание и срок. Курс, выход, комиссии, депозитный адрес и статус недоступны без проверенного коннектора."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Локальная и безопасная работа",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
-                  "Справка встроена в приложение и работает без интернета."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.staking": {
-        "id": "wallet.staking",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
         "title": "Стейкинг",
-        "summary": "Стейкинг: доступные действия и состояния этого экрана.",
+        "summary": "Стейкинг: локальная справка для объектов, требующих явной проверки кошельком.",
         "scope": "context",
         "sections": [
           {
-            "title": "Как использовать экран",
+            "title": "Использование этого экрана",
             "target": "current-view",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Проверьте доступную, застейканную сумму и награды; выбирайте сумму и валидатора только после проверки сети.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
+                  "Проверьте указанную причину, источник и локальный статус перед любым действием.",
+                  "Недоступное действие остаётся заблокированным, пока нативный кошелёк не сообщит безопасный следующий шаг."
                 ]
               }
             ]
           },
           {
-            "title": "Локальная и безопасная работа",
+            "title": "Локальное и безопасное поведение",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
-                  "Справка встроена в приложение и работает без интернета."
+                  "Окончательное решение принимает политика нативного кошелька, а не этот экран.",
+                  "Секреты и приватные транспортные данные не попадают в справку."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "Вывести из стейкинга",
+        "summary": "Вывести из стейкинга: локальная справка для объектов, требующих явной проверки кошельком.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте указанную причину, источник и локальный статус перед любым действием.",
+                  "Недоступное действие остаётся заблокированным, пока нативный кошелёк не сообщит безопасный следующий шаг."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Окончательное решение принимает политика нативного кошелька, а не этот экран.",
+                  "Секреты и приватные транспортные данные не попадают в справку."
                 ]
               }
             ]
@@ -2083,40 +3926,6 @@
                 "type": "list",
                 "items": [
                   "Проверьте дату, целостность и назначение последней локальной копии перед созданием новой зашифрованной копии.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Локальная и безопасная работа",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
-                  "Справка встроена в приложение и работает без интернета."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "История",
-        "summary": "История: доступные действия и состояния этого экрана.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Как использовать экран",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Фильтруйте события кошелька по типу объекта и открывайте строку для квитанции и технического жизненного цикла.",
                   "Недоступные, read-only и ожидающие состояния обозначаются явно."
                 ]
               }
@@ -2287,142 +4096,6 @@
                 "type": "list",
                 "items": [
                   "Проверьте и примените безопасный локальный YAML выбранного кошелька; секреты и пути файлов исключены.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Локальная и безопасная работа",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
-                  "Справка встроена в приложение и работает без интернета."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "Настройки приложения",
-        "summary": "Настройки приложения: доступные действия и состояния этого экрана.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Как использовать экран",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Выберите язык приложения, региональный формат, часовой пояс отображения и режим уведомлений.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Локальная и безопасная работа",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
-                  "Справка встроена в приложение и работает без интернета."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "Оформление",
-        "summary": "Оформление: доступные действия и состояния этого экрана.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Как использовать экран",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Переключите тёмный или светлый режим, выберите палитру и локальную тему подсветки YAML.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Локальная и безопасная работа",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
-                  "Справка встроена в приложение и работает без интернета."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Настройки Reticulum",
-        "summary": "Настройки Reticulum: доступные действия и состояния этого экрана.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Как использовать экран",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Проверьте настройки локальной службы транспорта, режима интерфейсов и сетевой идентичности Reticulum.",
-                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Локальная и безопасная работа",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
-                  "Справка встроена в приложение и работает без интернета."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "Настройки OnionNet",
-        "summary": "Настройки OnionNet: доступные действия и состояния этого экрана.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Как использовать экран",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Проверьте режим приватности, контроль membership/replay и возраст маршрута поверх транспорта.",
                   "Недоступные, read-only и ожидающие состояния обозначаются явно."
                 ]
               }
@@ -2987,6 +4660,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "Вход агрегатора",
+        "summary": "Экран объясняет, как runtime принимает транзакцию или claim как рабочий элемент, связанный с digest.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверяйте контракт `WorkPayload` → `WorkItem` или `RejectRecord`.",
+                  "Недоступно означает отсутствие свежего снимка admission, а не принятие или отказ."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed граница",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Привязка object package изменяет admission digest и intake identity.",
+                  "Raw payload, получатели, memo и локальные маршруты кошелька не попадают в Help."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "Планирование агрегатора",
+        "summary": "Экран объясняет детерминированную привязку batch и shard route без заявления settlement authority.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверяйте planner mode, generation маршрута, число intake и операций, а также владельцев digest.",
+                  "Недоступно означает, что проверенный снимок `BatchPlanned` не подключён."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed граница",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Конфигурация, generation, route-table digest и пересчитанный plan должны совпадать.",
+                  "Планирование не финализирует settlement, publication или storage truth."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "Размещение агрегатора",
+        "summary": "Экран объясняет shard generation, primary owner, готовность secondary и journal lineage, которыми владеет runtime.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверяйте контракт `ShardPlacementView`, не делая выводов о глобальной топологии.",
+                  "Недоступно означает отсутствие текущего наблюдения placement table."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed граница",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Placement table должна владеть точным shard и routing generation.",
+                  "Aggregator ID — операционные данные; endpoints и identity кошелька скрыты."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "Публикация агрегатора",
+        "summary": "Экран объясняет привязку ordered batch к checkpoint, quorum, data availability и lifecycle evidence.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Следуйте цепочке `PublicationRequest` → `PublishedBatch` → `PublicationRecord`.",
+                  "Недоступно означает отсутствие проверенной публикации или readiness bundle."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed граница",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Неполные или несовпадающие provider, height, manifest, payload, statement и evidence отклоняются.",
+                  "Storage владеет checkpoint roots, proofs и lifecycle truth."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "Восстановление агрегатора",
+        "summary": "Экран объясняет проверки restart и secondary takeover по committed route, generation, primary и journal lineage.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверяйте `ShardRecoveryRecord`, recovery intent, durable state и execution ticket.",
+                  "Недоступно означает отсутствие подключённого committed recovery snapshot."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed граница",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Неверные generation, primary, shard, batch, route или lineage отклоняются.",
+                  "Renderer не может запускать failover или изменять storage recovery truth."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "Наблюдатели — Обзор",
+        "summary": "Наблюдатели — Обзор: справка о доступном только для чтения демо будущей функции Watchers и границе публичных доказательств.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте этот экран для проверки детерминированных данных о публикации без изменения состояния сети.",
+                  "Недоступные, устаревшие, повреждённые состояния и ошибки показываются явно и безопасно блокируют действие."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers — интерактивная дорожная карта на локальных фикстурах, а не готовая возможность протокола.",
+                  "Метки кошелька, контрагенты, маршруты, сообщения и секреты не раскрываются."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "Наблюдатели — Оповещения",
+        "summary": "Наблюдатели — Оповещения: справка о доступном только для чтения демо будущей функции Watchers и границе публичных доказательств.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте этот экран для проверки детерминированных данных о публикации без изменения состояния сети.",
+                  "Недоступные, устаревшие, повреждённые состояния и ошибки показываются явно и безопасно блокируют действие."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers — интерактивная дорожная карта на локальных фикстурах, а не готовая возможность протокола.",
+                  "Метки кошелька, контрагенты, маршруты, сообщения и секреты не раскрываются."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "Наблюдатели — Публикация",
+        "summary": "Наблюдатели — Публикация: справка о доступном только для чтения демо будущей функции Watchers и границе публичных доказательств.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте этот экран для проверки детерминированных данных о публикации без изменения состояния сети.",
+                  "Недоступные, устаревшие, повреждённые состояния и ошибки показываются явно и безопасно блокируют действие."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers — интерактивная дорожная карта на локальных фикстурах, а не готовая возможность протокола.",
+                  "Метки кошелька, контрагенты, маршруты, сообщения и секреты не раскрываются."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "Наблюдатели — DA-провайдеры",
+        "summary": "Наблюдатели — DA-провайдеры: справка о доступном только для чтения демо будущей функции Watchers и границе публичных доказательств.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте этот экран для проверки детерминированных данных о публикации без изменения состояния сети.",
+                  "Недоступные, устаревшие, повреждённые состояния и ошибки показываются явно и безопасно блокируют действие."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers — интерактивная дорожная карта на локальных фикстурах, а не готовая возможность протокола.",
+                  "Метки кошелька, контрагенты, маршруты, сообщения и секреты не раскрываются."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "Наблюдатели — Сигналы цензуры",
+        "summary": "Наблюдатели — Сигналы цензуры: справка о доступном только для чтения демо будущей функции Watchers и границе публичных доказательств.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте этот экран для проверки детерминированных данных о публикации без изменения состояния сети.",
+                  "Недоступные, устаревшие, повреждённые состояния и ошибки показываются явно и безопасно блокируют действие."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers — интерактивная дорожная карта на локальных фикстурах, а не готовая возможность протокола.",
+                  "Метки кошелька, контрагенты, маршруты, сообщения и секреты не раскрываются."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "Наблюдатели — Экспорт доказательств",
+        "summary": "Наблюдатели — Экспорт доказательств: справка о доступном только для чтения демо будущей функции Watchers и границе публичных доказательств.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте этот экран для проверки детерминированных данных о публикации без изменения состояния сети.",
+                  "Недоступные, устаревшие, повреждённые состояния и ошибки показываются явно и безопасно блокируют действие."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers — интерактивная дорожная карта на локальных фикстурах, а не готовая возможность протокола.",
+                  "Метки кошелька, контрагенты, маршруты, сообщения и секреты не раскрываются."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "Обозреватель — Обзор",
+        "summary": "Обозреватель — Обзор: справка о приватном демо Explorer для поддерживаемых публичных идентификаторов.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте только поддерживаемые публичные идентификаторы контрольных точек, пакетов, оповещений и доказательств.",
+                  "Неизвестные, приватные, повреждённые или недоступные идентификаторы блокируются без обращения к кошельку."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer — интерактивная дорожная карта на локальных фикстурах, а не сервис данных кошелька.",
+                  "Локальные балансы, контакты, сообщения, заметки, маршруты и секреты не передаются в Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "Обозреватель — Поиск",
+        "summary": "Обозреватель — Поиск: справка о приватном демо Explorer для поддерживаемых публичных идентификаторов.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте только поддерживаемые публичные идентификаторы контрольных точек, пакетов, оповещений и доказательств.",
+                  "Неизвестные, приватные, повреждённые или недоступные идентификаторы блокируются без обращения к кошельку."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer — интерактивная дорожная карта на локальных фикстурах, а не сервис данных кошелька.",
+                  "Локальные балансы, контакты, сообщения, заметки, маршруты и секреты не передаются в Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "Обозреватель — Контрольные точки",
+        "summary": "Обозреватель — Контрольные точки: справка о приватном демо Explorer для поддерживаемых публичных идентификаторов.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте только поддерживаемые публичные идентификаторы контрольных точек, пакетов, оповещений и доказательств.",
+                  "Неизвестные, приватные, повреждённые или недоступные идентификаторы блокируются без обращения к кошельку."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer — интерактивная дорожная карта на локальных фикстурах, а не сервис данных кошелька.",
+                  "Локальные балансы, контакты, сообщения, заметки, маршруты и секреты не передаются в Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "Обозреватель — Пакеты",
+        "summary": "Обозреватель — Пакеты: справка о приватном демо Explorer для поддерживаемых публичных идентификаторов.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте только поддерживаемые публичные идентификаторы контрольных точек, пакетов, оповещений и доказательств.",
+                  "Неизвестные, приватные, повреждённые или недоступные идентификаторы блокируются без обращения к кошельку."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer — интерактивная дорожная карта на локальных фикстурах, а не сервис данных кошелька.",
+                  "Локальные балансы, контакты, сообщения, заметки, маршруты и секреты не передаются в Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "Обозреватель — Публичные доказательства",
+        "summary": "Обозреватель — Публичные доказательства: справка о приватном демо Explorer для поддерживаемых публичных идентификаторов.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте только поддерживаемые публичные идентификаторы контрольных точек, пакетов, оповещений и доказательств.",
+                  "Неизвестные, приватные, повреждённые или недоступные идентификаторы блокируются без обращения к кошельку."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer — интерактивная дорожная карта на локальных фикстурах, а не сервис данных кошелька.",
+                  "Локальные балансы, контакты, сообщения, заметки, маршруты и секреты не передаются в Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "Обзор",
+        "summary": "Обзор: справка об ограниченном локальном демо dApps и его разрешениях.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные описания, ограниченные намерения и явный результат операции.",
+                  "Перед принятием проверьте область, число использований, срок, сумму, комиссию, раскрытие и отзыв."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps — интерактивная дорожная карта: удалённый код, произвольные URL и универсальная подпись не выполняются.",
+                  "Принятое намерение заново проверяет Кошелёк; этот экран не изменяет объекты кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "Установленные",
+        "summary": "Установленные: справка об ограниченном локальном демо dApps и его разрешениях.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные описания, ограниченные намерения и явный результат операции.",
+                  "Перед принятием проверьте область, число использований, срок, сумму, комиссию, раскрытие и отзыв."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps — интерактивная дорожная карта: удалённый код, произвольные URL и универсальная подпись не выполняются.",
+                  "Принятое намерение заново проверяет Кошелёк; этот экран не изменяет объекты кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "Подключения",
+        "summary": "Подключения: справка об ограниченном локальном демо dApps и его разрешениях.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные описания, ограниченные намерения и явный результат операции.",
+                  "Перед принятием проверьте область, число использований, срок, сумму, комиссию, раскрытие и отзыв."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps — интерактивная дорожная карта: удалённый код, произвольные URL и универсальная подпись не выполняются.",
+                  "Принятое намерение заново проверяет Кошелёк; этот экран не изменяет объекты кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "Полномочия",
+        "summary": "Полномочия: справка об ограниченном локальном демо dApps и его разрешениях.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные описания, ограниченные намерения и явный результат операции.",
+                  "Перед принятием проверьте область, число использований, срок, сумму, комиссию, раскрытие и отзыв."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps — интерактивная дорожная карта: удалённый код, произвольные URL и универсальная подпись не выполняются.",
+                  "Принятое намерение заново проверяет Кошелёк; этот экран не изменяет объекты кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "Обмен",
+        "summary": "Обмен: доступные действия и состояния этого экрана.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Выберите имеющийся исходный актив, сумму и совместимый целевой актив, затем проверьте предварительный расчёт.",
+                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальная и безопасная работа",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
+                  "Справка встроена в приложение и работает без интернета."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "Биржа",
+        "summary": "Биржа: доступные действия и состояния этого экрана.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Выберите Hyperliquid Spot для книги ордеров или NEAR Intents для кроссчейн-запроса через solver, затем заполните поля выбранной модели.",
+                  "Проверьте пару либо маршрут, получателя/возврат, проскальзывание и срок. Курс, выход, комиссии, депозитный адрес и статус недоступны без проверенного коннектора."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальная и безопасная работа",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
+                  "Справка встроена в приложение и работает без интернета."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "Входящие",
+        "summary": "Входящие: справка о приватном демо координации запросов и передаче в Кошелёк.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные сообщения, запросы, квитанции, срок действия и состояния восстановления.",
+                  "Принятие запроса создаёт намерение для проверки в Кошельке, но ничего не рассчитывает и не изменяет."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger — интерактивная дорожная карта краткоживущей ретрансляции, а не постоянный чат в цепочке.",
+                  "Открытие, удаление, блокировка или жалоба не меняют состояние расчётов Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "Отправленные",
+        "summary": "Отправленные: справка о приватном демо координации запросов и передаче в Кошелёк.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные сообщения, запросы, квитанции, срок действия и состояния восстановления.",
+                  "Принятие запроса создаёт намерение для проверки в Кошельке, но ничего не рассчитывает и не изменяет."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger — интерактивная дорожная карта краткоживущей ретрансляции, а не постоянный чат в цепочке.",
+                  "Открытие, удаление, блокировка или жалоба не меняют состояние расчётов Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "Диалоги",
+        "summary": "Диалоги: справка о приватном демо координации запросов и передаче в Кошелёк.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные сообщения, запросы, квитанции, срок действия и состояния восстановления.",
+                  "Принятие запроса создаёт намерение для проверки в Кошельке, но ничего не рассчитывает и не изменяет."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger — интерактивная дорожная карта краткоживущей ретрансляции, а не постоянный чат в цепочке.",
+                  "Открытие, удаление, блокировка или жалоба не меняют состояние расчётов Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "Использование диска",
+        "summary": "Использование диска: агрегированные локальные показатели без приватных данных.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте экран для оценки ресурсов без открытия записей кошелька.",
+                  "Показанные значения являются детерминированными демо-данными."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Контакты, сообщения, маршруты, операции и секреты исключены.",
+                  "Готовое приложение должно получать только агрегаты через ограниченную нативную возможность."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "Использование сети",
+        "summary": "Использование сети: агрегированные локальные показатели без приватных данных.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте экран для оценки ресурсов без открытия записей кошелька.",
+                  "Показанные значения являются детерминированными демо-данными."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Контакты, сообщения, маршруты, операции и секреты исключены.",
+                  "Готовое приложение должно получать только агрегаты через ограниченную нативную возможность."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "Контакты",
+        "summary": "Контакты: справка о локальных метках контактов, карточках получателя и проверке изменения личности.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные данные контакта, срок, отзыв и доказательства изменения личности.",
+                  "Сохранённая метка не доказывает личность или доверие; изменённые данные требуют явной проверки."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Контакты остаются локальными и не публикуются как граф адресов или присутствия.",
+                  "Удаление локального контакта не отзывает внешние полномочия и не изменяет расчёты Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "Настройки приложения",
+        "summary": "Настройки приложения: доступные действия и состояния этого экрана.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Выберите язык приложения, региональный формат, часовой пояс отображения и режим уведомлений.",
+                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальная и безопасная работа",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
+                  "Справка встроена в приложение и работает без интернета."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "Уведомления",
+        "summary": "Уведомления: локальные настройки уведомлений, вибрации и мелодии.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Сначала включите уведомления, затем выберите режим вибрации и мелодию.",
+                  "При отключённых уведомлениях зависимые параметры недоступны."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Демо не запрашивает системные разрешения.",
+                  "Готовое приложение должно явно сообщать, если звук или вибрация недоступны."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "Оформление",
+        "summary": "Оформление: доступные действия и состояния этого экрана.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Как использовать экран",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Переключите тёмный или светлый режим, выберите палитру и локальную тему подсветки YAML.",
+                  "Недоступные, read-only и ожидающие состояния обозначаются явно."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальная и безопасная работа",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Секреты кошелька и приватные транспортные данные не попадают в справку.",
+                  "Справка встроена в приложение и работает без интернета."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "Сведения об активе",
@@ -3015,6 +5925,278 @@
                 "items": [
                   "Поля доступны только для чтения и не подтверждают рыночную стоимость, владение или доверие к протоколу.",
                   "Иконка, метаданные и справка хранятся локально и работают без интернета."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps — сведения",
+        "summary": "dApps — сведения: справка об ограниченном локальном демо dApps и его разрешениях.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные описания, ограниченные намерения и явный результат операции.",
+                  "Перед принятием проверьте область, число использований, срок, сумму, комиссию, раскрытие и отзыв."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps — интерактивная дорожная карта: удалённый код, произвольные URL и универсальная подпись не выполняются.",
+                  "Принятое намерение заново проверяет Кошелёк; этот экран не изменяет объекты кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps — проверка разрешения",
+        "summary": "dApps — проверка разрешения: справка об ограниченном локальном демо dApps и его разрешениях.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные описания, ограниченные намерения и явный результат операции.",
+                  "Перед принятием проверьте область, число использований, срок, сумму, комиссию, раскрытие и отзыв."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps — интерактивная дорожная карта: удалённый код, произвольные URL и универсальная подпись не выполняются.",
+                  "Принятое намерение заново проверяет Кошелёк; этот экран не изменяет объекты кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "Мессенджер — сведения",
+        "summary": "Мессенджер — сведения: справка о приватном демо координации запросов и передаче в Кошелёк.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные сообщения, запросы, квитанции, срок действия и состояния восстановления.",
+                  "Принятие запроса создаёт намерение для проверки в Кошельке, но ничего не рассчитывает и не изменяет."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger — интерактивная дорожная карта краткоживущей ретрансляции, а не постоянный чат в цепочке.",
+                  "Открытие, удаление, блокировка или жалоба не меняют состояние расчётов Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "Мессенджер — проверка запроса",
+        "summary": "Мессенджер — проверка запроса: справка о приватном демо координации запросов и передаче в Кошелёк.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные сообщения, запросы, квитанции, срок действия и состояния восстановления.",
+                  "Принятие запроса создаёт намерение для проверки в Кошельке, но ничего не рассчитывает и не изменяет."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger — интерактивная дорожная карта краткоживущей ретрансляции, а не постоянный чат в цепочке.",
+                  "Открытие, удаление, блокировка или жалоба не меняют состояние расчётов Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "Контакты — сведения",
+        "summary": "Контакты — сведения: справка о локальных метках контактов, карточках получателя и проверке изменения личности.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные данные контакта, срок, отзыв и доказательства изменения личности.",
+                  "Сохранённая метка не доказывает личность или доверие; изменённые данные требуют явной проверки."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Контакты остаются локальными и не публикуются как граф адресов или присутствия.",
+                  "Удаление локального контакта не отзывает внешние полномочия и не изменяет расчёты Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "Контакты — проверка личности",
+        "summary": "Контакты — проверка личности: справка о локальных метках контактов, карточках получателя и проверке изменения личности.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Проверьте локальные данные контакта, срок, отзыв и доказательства изменения личности.",
+                  "Сохранённая метка не доказывает личность или доверие; изменённые данные требуют явной проверки."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Контакты остаются локальными и не публикуются как граф адресов или присутствия.",
+                  "Удаление локального контакта не отзывает внешние полномочия и не изменяет расчёты Кошелька."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "Наблюдатели — сведения об оповещении",
+        "summary": "Наблюдатели — сведения об оповещении: справка о доступном только для чтения демо будущей функции Watchers и границе публичных доказательств.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте этот экран для проверки детерминированных данных о публикации без изменения состояния сети.",
+                  "Недоступные, устаревшие, повреждённые состояния и ошибки показываются явно и безопасно блокируют действие."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers — интерактивная дорожная карта на локальных фикстурах, а не готовая возможность протокола.",
+                  "Метки кошелька, контрагенты, маршруты, сообщения и секреты не раскрываются."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "Обозреватель — сведения",
+        "summary": "Обозреватель — сведения: справка о приватном демо Explorer для поддерживаемых публичных идентификаторов.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Использование этого экрана",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Используйте только поддерживаемые публичные идентификаторы контрольных точек, пакетов, оповещений и доказательств.",
+                  "Неизвестные, приватные, повреждённые или недоступные идентификаторы блокируются без обращения к кошельку."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Локальное и безопасное поведение",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer — интерактивная дорожная карта на локальных фикстурах, а не сервис данных кошелька.",
+                  "Локальные балансы, контакты, сообщения, заметки, маршруты и секреты не передаются в Explorer."
                 ]
               }
             ]
@@ -3070,10 +6252,10 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "Accueil",
-        "summary": "L’accueil regroupe le solde du portefeuille sélectionné, les actions privées et les événements récents.",
+      "about": {
+        "id": "about",
+        "title": "À propos",
+        "summary": "À propos : version, objectif et canal de mise à jour Z00Z.",
         "scope": "context",
         "sections": [
           {
@@ -3083,21 +6265,21 @@
               {
                 "type": "list",
                 "items": [
-                  "Vérifiez le portefeuille sélectionné, puis ouvrez Envoyer, Recevoir, Historique ou un élément nécessitant votre attention.",
-                  "Les noms et les valeurs appartiennent au profil de portefeuille local sélectionné."
+                  "Vérifiez la version de démonstration de cette session.",
+                  "La démo JavaScript définit la cible UX pour Rust et Tauri."
                 ]
               }
             ]
           },
           {
-            "title": "Fonctionnement local et sûr",
+            "title": "Comportement local et sûr",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Les fonctions indisponibles restent signalées et aucun solde ou itinéraire réel n’est inventé.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
+                  "La démo ne télécharge ni n’installe de mise à jour.",
+                  "L’application doit vérifier un manifeste de version signé."
                 ]
               }
             ]
@@ -3206,6 +6388,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "Quarantaine",
+        "summary": "Quarantaine : aide locale pour les objets qui exigent un examen explicite du portefeuille.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Vérifiez le motif, la source et l’état local indiqués avant toute action.",
+                  "Une action indisponible reste bloquée jusqu’à ce que le portefeuille natif fournisse une étape sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "La décision finale appartient à la politique du portefeuille natif, pas à cette vue.",
+                  "Les secrets et les données de transport privées n’entrent jamais dans l’aide."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "Envoyer",
@@ -3274,10 +6490,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "Swap privé",
-        "summary": "Swap privé explique les commandes et les états de cette vue.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "Historique",
+        "summary": "Historique explique les commandes et les états de cette vue.",
         "scope": "context",
         "sections": [
           {
@@ -3287,7 +6503,7 @@
               {
                 "type": "list",
                 "items": [
-                  "Choisissez un actif détenu, un montant et un actif cible compatible, puis vérifiez l’aperçu.",
+                  "Filtrez les événements par famille d’objet et ouvrez une ligne pour son reçu et son cycle technique.",
                   "Les états indisponible, lecture seule et en attente sont explicites."
                 ]
               }
@@ -3308,10 +6524,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "Place d’échange",
-        "summary": "Place d’échange explique les commandes et les états de cette vue.",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
+        "title": "Staker",
+        "summary": "Staker : aide locale pour les objets qui exigent un examen explicite du portefeuille.",
         "scope": "context",
         "sections": [
           {
@@ -3321,31 +6537,31 @@
               {
                 "type": "list",
                 "items": [
-                  "Choisissez Hyperliquid Spot pour un carnet d’ordres ou NEAR Intents pour une requête inter-chaînes pilotée par solveur.",
-                  "Vérifiez paire ou route, destinataire/remboursement, glissement et délai. Devis, sortie, frais, adresse de dépôt et statut restent indisponibles sans connecteur vérifié."
+                  "Vérifiez le motif, la source et l’état local indiqués avant toute action.",
+                  "Une action indisponible reste bloquée jusqu’à ce que le portefeuille natif fournisse une étape sûre."
                 ]
               }
             ]
           },
           {
-            "title": "Fonctionnement local et sûr",
+            "title": "Comportement local et sûr",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
+                  "La décision finale appartient à la politique du portefeuille natif, pas à cette vue.",
+                  "Les secrets et les données de transport privées n’entrent jamais dans l’aide."
                 ]
               }
             ]
           }
         ]
       },
-      "wallet.staking": {
-        "id": "wallet.staking",
-        "title": "Staking",
-        "summary": "Staking explique les commandes et les états de cette vue.",
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "Retirer du staking",
+        "summary": "Retirer du staking : aide locale pour les objets qui exigent un examen explicite du portefeuille.",
         "scope": "context",
         "sections": [
           {
@@ -3355,21 +6571,21 @@
               {
                 "type": "list",
                 "items": [
-                  "Vérifiez les montants disponibles, mis en jeu et récompensés ; choisissez montant et validateur après contrôle de chaîne.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
+                  "Vérifiez le motif, la source et l’état local indiqués avant toute action.",
+                  "Une action indisponible reste bloquée jusqu’à ce que le portefeuille natif fournisse une étape sûre."
                 ]
               }
             ]
           },
           {
-            "title": "Fonctionnement local et sûr",
+            "title": "Comportement local et sûr",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
+                  "La décision finale appartient à la politique du portefeuille natif, pas à cette vue.",
+                  "Les secrets et les données de transport privées n’entrent jamais dans l’aide."
                 ]
               }
             ]
@@ -3390,40 +6606,6 @@
                 "type": "list",
                 "items": [
                   "Vérifiez la date, l’intégrité et la destination de la dernière sauvegarde avant d’en créer une nouvelle chiffrée.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Fonctionnement local et sûr",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "Historique",
-        "summary": "Historique explique les commandes et les états de cette vue.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utiliser cette vue",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Filtrez les événements par famille d’objet et ouvrez une ligne pour son reçu et son cycle technique.",
                   "Les états indisponible, lecture seule et en attente sont explicites."
                 ]
               }
@@ -3594,142 +6776,6 @@
                 "type": "list",
                 "items": [
                   "Validez et appliquez le brouillon YAML local sûr du portefeuille ; secrets et chemins sont exclus.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Fonctionnement local et sûr",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "Paramètres généraux",
-        "summary": "Paramètres généraux explique les commandes et les états de cette vue.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utiliser cette vue",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Choisissez la langue, le format régional, le fuseau d’affichage et la préférence de notification de l’application.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Fonctionnement local et sûr",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "Apparence",
-        "summary": "Apparence explique les commandes et les états de cette vue.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utiliser cette vue",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Basculez Clair ou Sombre, choisissez une palette et le thème local de coloration YAML.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Fonctionnement local et sûr",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Paramètres Reticulum",
-        "summary": "Paramètres Reticulum explique les commandes et les états de cette vue.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utiliser cette vue",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Consultez le service de transport local, le mode des interfaces et l’identité réseau Reticulum.",
-                  "Les états indisponible, lecture seule et en attente sont explicites."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Fonctionnement local et sûr",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
-                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "Paramètres OnionNet",
-        "summary": "Paramètres OnionNet explique les commandes et les états de cette vue.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utiliser cette vue",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Consultez le mode de confidentialité, les contrôles d’adhésion et de rejeu, et l’âge de la route.",
                   "Les états indisponible, lecture seule et en attente sont explicites."
                 ]
               }
@@ -4294,6 +7340,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "Entrée de l’agrégateur",
+        "summary": "Cette vue explique comment le runtime admet une transaction ou une réclamation comme travail lié à un digest.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Vérifiez le contrat `WorkPayload` vers `WorkItem` ou `RejectRecord`.",
+                  "Indisponible signifie qu’aucun instantané d’admission récent n’existe, pas que le travail est accepté ou rejeté."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "La liaison d’un object package modifie le digest d’admission et l’identité d’entrée.",
+                  "Payloads bruts, destinataires, mémos et routes locales du portefeuille restent hors de l’aide."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "Planification de l’agrégateur",
+        "summary": "Cette vue explique la liaison déterministe du batch et de la route shard sans revendiquer l’autorité de règlement.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Vérifiez le mode, la génération de route, les nombres d’entrées et d’opérations, et les digests.",
+                  "Indisponible signifie qu’aucun instantané `BatchPlanned` vérifié n’est connecté."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Configuration, génération, digest de table de routes et plan recalculé doivent correspondre.",
+                  "La planification ne finalise ni règlement, ni publication, ni vérité de stockage."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "Placement de l’agrégateur",
+        "summary": "Cette vue explique la génération shard, le primaire, l’état des secondaires et la lignée de journal détenus par le runtime.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Vérifiez `ShardPlacementView` sans déduire une topologie globale.",
+                  "Indisponible signifie qu’aucune observation actuelle de la table de placement n’est connectée."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "La table doit posséder exactement le shard et la génération de routage.",
+                  "Les IDs d’agrégateur sont opérationnels ; endpoints et identités du portefeuille restent cachés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "Publication de l’agrégateur",
+        "summary": "Cette vue explique la liaison d’un batch ordonné au checkpoint, quorum, DA et preuves de cycle de vie.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Suivez `PublicationRequest` vers `PublishedBatch` et `PublicationRecord`.",
+                  "Indisponible signifie qu’aucune publication ou bundle de disponibilité vérifié n’est connecté."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Provider, hauteur, manifeste, payload, statement et evidence incomplets ou divergents sont rejetés.",
+                  "Le stockage détient les racines, preuves et la vérité du cycle de vie."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "Récupération de l’agrégateur",
+        "summary": "Cette vue explique les contrôles de redémarrage et reprise secondaire sur route, génération, primaire et lignée engagés.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Vérifiez `ShardRecoveryRecord`, l’intention, l’état durable et le ticket d’exécution.",
+                  "Indisponible signifie qu’aucun instantané de récupération engagé n’est connecté."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Génération, primaire, shard, batch, route ou lignée incorrects sont rejetés.",
+                  "Le renderer ne peut ni déclencher le failover ni modifier la vérité de récupération du stockage."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "Observateurs — Aperçu",
+        "summary": "Observateurs — Aperçu : aide sur l’aperçu Watchers en lecture seule et sa limite de preuves publiques.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les données déterministes de publication sans modifier l’état du réseau.",
+                  "Les états indisponibles, périmés, malformés et en erreur restent explicites et échouent de façon sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers est un aperçu de feuille de route fondé sur des données locales, pas une fonction protocolaire livrée.",
+                  "Les libellés du portefeuille, contreparties, routes, messages et secrets ne sont jamais exposés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "Observateurs — Alertes",
+        "summary": "Observateurs — Alertes : aide sur l’aperçu Watchers en lecture seule et sa limite de preuves publiques.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les données déterministes de publication sans modifier l’état du réseau.",
+                  "Les états indisponibles, périmés, malformés et en erreur restent explicites et échouent de façon sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers est un aperçu de feuille de route fondé sur des données locales, pas une fonction protocolaire livrée.",
+                  "Les libellés du portefeuille, contreparties, routes, messages et secrets ne sont jamais exposés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "Observateurs — Publication",
+        "summary": "Observateurs — Publication : aide sur l’aperçu Watchers en lecture seule et sa limite de preuves publiques.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les données déterministes de publication sans modifier l’état du réseau.",
+                  "Les états indisponibles, périmés, malformés et en erreur restent explicites et échouent de façon sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers est un aperçu de feuille de route fondé sur des données locales, pas une fonction protocolaire livrée.",
+                  "Les libellés du portefeuille, contreparties, routes, messages et secrets ne sont jamais exposés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "Observateurs — Fournisseurs DA",
+        "summary": "Observateurs — Fournisseurs DA : aide sur l’aperçu Watchers en lecture seule et sa limite de preuves publiques.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les données déterministes de publication sans modifier l’état du réseau.",
+                  "Les états indisponibles, périmés, malformés et en erreur restent explicites et échouent de façon sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers est un aperçu de feuille de route fondé sur des données locales, pas une fonction protocolaire livrée.",
+                  "Les libellés du portefeuille, contreparties, routes, messages et secrets ne sont jamais exposés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "Observateurs — Signaux de censure",
+        "summary": "Observateurs — Signaux de censure : aide sur l’aperçu Watchers en lecture seule et sa limite de preuves publiques.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les données déterministes de publication sans modifier l’état du réseau.",
+                  "Les états indisponibles, périmés, malformés et en erreur restent explicites et échouent de façon sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers est un aperçu de feuille de route fondé sur des données locales, pas une fonction protocolaire livrée.",
+                  "Les libellés du portefeuille, contreparties, routes, messages et secrets ne sont jamais exposés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "Observateurs — Export de preuves",
+        "summary": "Observateurs — Export de preuves : aide sur l’aperçu Watchers en lecture seule et sa limite de preuves publiques.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les données déterministes de publication sans modifier l’état du réseau.",
+                  "Les états indisponibles, périmés, malformés et en erreur restent explicites et échouent de façon sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers est un aperçu de feuille de route fondé sur des données locales, pas une fonction protocolaire livrée.",
+                  "Les libellés du portefeuille, contreparties, routes, messages et secrets ne sont jamais exposés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "Explorateur — Aperçu",
+        "summary": "Explorateur — Aperçu : aide sur l’aperçu Explorer respectueux de la vie privée pour les identifiants publics pris en charge.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "N’utilisez que les identifiants publics pris en charge pour les points de contrôle, lots, alertes ou preuves.",
+                  "Les identifiants inconnus, privés, malformés ou indisponibles échouent sans consulter le portefeuille."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer est un aperçu de feuille de route fondé sur des données locales, pas un service de données du portefeuille.",
+                  "Soldes locaux, contacts, messages, notes, routes et secrets n’entrent jamais dans Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "Explorateur — Rechercher",
+        "summary": "Explorateur — Rechercher : aide sur l’aperçu Explorer respectueux de la vie privée pour les identifiants publics pris en charge.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "N’utilisez que les identifiants publics pris en charge pour les points de contrôle, lots, alertes ou preuves.",
+                  "Les identifiants inconnus, privés, malformés ou indisponibles échouent sans consulter le portefeuille."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer est un aperçu de feuille de route fondé sur des données locales, pas un service de données du portefeuille.",
+                  "Soldes locaux, contacts, messages, notes, routes et secrets n’entrent jamais dans Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "Explorateur — Points de contrôle",
+        "summary": "Explorateur — Points de contrôle : aide sur l’aperçu Explorer respectueux de la vie privée pour les identifiants publics pris en charge.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "N’utilisez que les identifiants publics pris en charge pour les points de contrôle, lots, alertes ou preuves.",
+                  "Les identifiants inconnus, privés, malformés ou indisponibles échouent sans consulter le portefeuille."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer est un aperçu de feuille de route fondé sur des données locales, pas un service de données du portefeuille.",
+                  "Soldes locaux, contacts, messages, notes, routes et secrets n’entrent jamais dans Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "Explorateur — Lots",
+        "summary": "Explorateur — Lots : aide sur l’aperçu Explorer respectueux de la vie privée pour les identifiants publics pris en charge.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "N’utilisez que les identifiants publics pris en charge pour les points de contrôle, lots, alertes ou preuves.",
+                  "Les identifiants inconnus, privés, malformés ou indisponibles échouent sans consulter le portefeuille."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer est un aperçu de feuille de route fondé sur des données locales, pas un service de données du portefeuille.",
+                  "Soldes locaux, contacts, messages, notes, routes et secrets n’entrent jamais dans Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "Explorateur — Preuves publiques",
+        "summary": "Explorateur — Preuves publiques : aide sur l’aperçu Explorer respectueux de la vie privée pour les identifiants publics pris en charge.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "N’utilisez que les identifiants publics pris en charge pour les points de contrôle, lots, alertes ou preuves.",
+                  "Les identifiants inconnus, privés, malformés ou indisponibles échouent sans consulter le portefeuille."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer est un aperçu de feuille de route fondé sur des données locales, pas un service de données du portefeuille.",
+                  "Soldes locaux, contacts, messages, notes, routes et secrets n’entrent jamais dans Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "Découvrir",
+        "summary": "Découvrir : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les descriptions locales, intentions limitées et résultats explicites.",
+                  "Avant d’accepter, vérifiez portée, utilisations, expiration, valeur, frais, divulgation et révocation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps est un aperçu de feuille de route : aucun code distant, URL arbitraire ou signature générique n’est exécuté.",
+                  "Le portefeuille revalide toute intention acceptée ; cette vue ne modifie pas ses objets."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "Installées",
+        "summary": "Installées : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les descriptions locales, intentions limitées et résultats explicites.",
+                  "Avant d’accepter, vérifiez portée, utilisations, expiration, valeur, frais, divulgation et révocation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps est un aperçu de feuille de route : aucun code distant, URL arbitraire ou signature générique n’est exécuté.",
+                  "Le portefeuille revalide toute intention acceptée ; cette vue ne modifie pas ses objets."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "Connexions",
+        "summary": "Connexions : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les descriptions locales, intentions limitées et résultats explicites.",
+                  "Avant d’accepter, vérifiez portée, utilisations, expiration, valeur, frais, divulgation et révocation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps est un aperçu de feuille de route : aucun code distant, URL arbitraire ou signature générique n’est exécuté.",
+                  "Le portefeuille revalide toute intention acceptée ; cette vue ne modifie pas ses objets."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "Autorisations",
+        "summary": "Autorisations : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les descriptions locales, intentions limitées et résultats explicites.",
+                  "Avant d’accepter, vérifiez portée, utilisations, expiration, valeur, frais, divulgation et révocation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps est un aperçu de feuille de route : aucun code distant, URL arbitraire ou signature générique n’est exécuté.",
+                  "Le portefeuille revalide toute intention acceptée ; cette vue ne modifie pas ses objets."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "Swap privé",
+        "summary": "Swap privé explique les commandes et les états de cette vue.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Choisissez un actif détenu, un montant et un actif cible compatible, puis vérifiez l’aperçu.",
+                  "Les états indisponible, lecture seule et en attente sont explicites."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fonctionnement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
+                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "Place d’échange",
+        "summary": "Place d’échange explique les commandes et les états de cette vue.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Choisissez Hyperliquid Spot pour un carnet d’ordres ou NEAR Intents pour une requête inter-chaînes pilotée par solveur.",
+                  "Vérifiez paire ou route, destinataire/remboursement, glissement et délai. Devis, sortie, frais, adresse de dépôt et statut restent indisponibles sans connecteur vérifié."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fonctionnement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
+                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "Boîte de réception",
+        "summary": "Boîte de réception : aide sur l’aperçu privé de coordination des demandes et son transfert vers le portefeuille.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les messages, demandes, reçus, expirations et états de récupération locaux.",
+                  "Accepter une demande crée une intention à examiner dans le portefeuille sans règlement ni mutation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger est un aperçu de feuille de route pour relais éphémères, pas une messagerie permanente sur chaîne.",
+                  "Ouvrir, supprimer, bloquer ou signaler ne change jamais l’état de règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "Envoyés",
+        "summary": "Envoyés : aide sur l’aperçu privé de coordination des demandes et son transfert vers le portefeuille.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les messages, demandes, reçus, expirations et états de récupération locaux.",
+                  "Accepter une demande crée une intention à examiner dans le portefeuille sans règlement ni mutation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger est un aperçu de feuille de route pour relais éphémères, pas une messagerie permanente sur chaîne.",
+                  "Ouvrir, supprimer, bloquer ou signaler ne change jamais l’état de règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "Conversations",
+        "summary": "Conversations : aide sur l’aperçu privé de coordination des demandes et son transfert vers le portefeuille.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les messages, demandes, reçus, expirations et états de récupération locaux.",
+                  "Accepter une demande crée une intention à examiner dans le portefeuille sans règlement ni mutation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger est un aperçu de feuille de route pour relais éphémères, pas une messagerie permanente sur chaîne.",
+                  "Ouvrir, supprimer, bloquer ou signaler ne change jamais l’état de règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "Utilisation du disque",
+        "summary": "Utilisation du disque : compteurs locaux agrégés sans données privées.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les ressources sans ouvrir les enregistrements du portefeuille.",
+                  "Les valeurs affichées sont des données de démonstration déterministes."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contacts, messages, routes, activités et secrets sont exclus.",
+                  "L’application doit obtenir uniquement des agrégats via une capacité native limitée."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "Utilisation du réseau",
+        "summary": "Utilisation du réseau : compteurs locaux agrégés sans données privées.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les ressources sans ouvrir les enregistrements du portefeuille.",
+                  "Les valeurs affichées sont des données de démonstration déterministes."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contacts, messages, routes, activités et secrets sont exclus.",
+                  "L’application doit obtenir uniquement des agrégats via une capacité native limitée."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "Contacts",
+        "summary": "Contacts : aide sur les libellés locaux, cartes de réception et changements d’identité explicites.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les données locales, l’expiration, la révocation et les preuves de changement d’identité.",
+                  "Un libellé enregistré ne prouve ni identité ni confiance ; toute donnée modifiée exige un examen."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Les contacts restent locaux et ne sont jamais publiés comme graphe d’adresses ou de présence.",
+                  "Supprimer un contact local ne révoque pas les droits externes et ne change pas le règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "Paramètres généraux",
+        "summary": "Paramètres généraux explique les commandes et les états de cette vue.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Choisissez la langue, le format régional, le fuseau d’affichage et la préférence de notification de l’application.",
+                  "Les états indisponible, lecture seule et en attente sont explicites."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fonctionnement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
+                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "Notifications",
+        "summary": "Notifications : préférences locales de notification, vibration et sonnerie.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Activez les notifications avant de choisir vibration et sonnerie.",
+                  "Les choix dépendants sont désactivés lorsque les notifications le sont."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "La démo ne demande aucune autorisation système.",
+                  "L’application doit signaler clairement une capacité audio ou haptique indisponible."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "Apparence",
+        "summary": "Apparence explique les commandes et les états de cette vue.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Basculez Clair ou Sombre, choisissez une palette et le thème local de coloration YAML.",
+                  "Les états indisponible, lecture seule et en attente sont explicites."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fonctionnement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Les secrets du portefeuille et les données de transport privées restent hors de l’aide.",
+                  "Cette aide est intégrée à l’application et fonctionne hors ligne."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "Détails de l’actif",
@@ -4322,6 +8605,278 @@
                 "items": [
                   "Ces champs sont en lecture seule et ne prouvent ni valeur de marché, ni propriété, ni confiance protocolaire.",
                   "L’icône, les métadonnées et cette aide sont locales et fonctionnent hors ligne."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps — détails",
+        "summary": "dApps — détails : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les descriptions locales, intentions limitées et résultats explicites.",
+                  "Avant d’accepter, vérifiez portée, utilisations, expiration, valeur, frais, divulgation et révocation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps est un aperçu de feuille de route : aucun code distant, URL arbitraire ou signature générique n’est exécuté.",
+                  "Le portefeuille revalide toute intention acceptée ; cette vue ne modifie pas ses objets."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps — examen de l’autorisation",
+        "summary": "dApps — examen de l’autorisation : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les descriptions locales, intentions limitées et résultats explicites.",
+                  "Avant d’accepter, vérifiez portée, utilisations, expiration, valeur, frais, divulgation et révocation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps est un aperçu de feuille de route : aucun code distant, URL arbitraire ou signature générique n’est exécuté.",
+                  "Le portefeuille revalide toute intention acceptée ; cette vue ne modifie pas ses objets."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "Messagerie — détails",
+        "summary": "Messagerie — détails : aide sur l’aperçu privé de coordination des demandes et son transfert vers le portefeuille.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les messages, demandes, reçus, expirations et états de récupération locaux.",
+                  "Accepter une demande crée une intention à examiner dans le portefeuille sans règlement ni mutation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger est un aperçu de feuille de route pour relais éphémères, pas une messagerie permanente sur chaîne.",
+                  "Ouvrir, supprimer, bloquer ou signaler ne change jamais l’état de règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "Messagerie — examen de la demande",
+        "summary": "Messagerie — examen de la demande : aide sur l’aperçu privé de coordination des demandes et son transfert vers le portefeuille.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les messages, demandes, reçus, expirations et états de récupération locaux.",
+                  "Accepter une demande crée une intention à examiner dans le portefeuille sans règlement ni mutation."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger est un aperçu de feuille de route pour relais éphémères, pas une messagerie permanente sur chaîne.",
+                  "Ouvrir, supprimer, bloquer ou signaler ne change jamais l’état de règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "Contacts — détails",
+        "summary": "Contacts — détails : aide sur les libellés locaux, cartes de réception et changements d’identité explicites.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les données locales, l’expiration, la révocation et les preuves de changement d’identité.",
+                  "Un libellé enregistré ne prouve ni identité ni confiance ; toute donnée modifiée exige un examen."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Les contacts restent locaux et ne sont jamais publiés comme graphe d’adresses ou de présence.",
+                  "Supprimer un contact local ne révoque pas les droits externes et ne change pas le règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "Contacts — examen de l’identité",
+        "summary": "Contacts — examen de l’identité : aide sur les libellés locaux, cartes de réception et changements d’identité explicites.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Examinez les données locales, l’expiration, la révocation et les preuves de changement d’identité.",
+                  "Un libellé enregistré ne prouve ni identité ni confiance ; toute donnée modifiée exige un examen."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Les contacts restent locaux et ne sont jamais publiés comme graphe d’adresses ou de présence.",
+                  "Supprimer un contact local ne révoque pas les droits externes et ne change pas le règlement du portefeuille."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "Observateurs — détails de l’alerte",
+        "summary": "Observateurs — détails de l’alerte : aide sur l’aperçu Watchers en lecture seule et sa limite de preuves publiques.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consultez les données déterministes de publication sans modifier l’état du réseau.",
+                  "Les états indisponibles, périmés, malformés et en erreur restent explicites et échouent de façon sûre."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers est un aperçu de feuille de route fondé sur des données locales, pas une fonction protocolaire livrée.",
+                  "Les libellés du portefeuille, contreparties, routes, messages et secrets ne sont jamais exposés."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "Explorateur — détails",
+        "summary": "Explorateur — détails : aide sur l’aperçu Explorer respectueux de la vie privée pour les identifiants publics pris en charge.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utiliser cette vue",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "N’utilisez que les identifiants publics pris en charge pour les points de contrôle, lots, alertes ou preuves.",
+                  "Les identifiants inconnus, privés, malformés ou indisponibles échouent sans consulter le portefeuille."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportement local et sûr",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer est un aperçu de feuille de route fondé sur des données locales, pas un service de données du portefeuille.",
+                  "Soldes locaux, contacts, messages, notes, routes et secrets n’entrent jamais dans Explorer."
                 ]
               }
             ]
@@ -4377,10 +8932,10 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "Start",
-        "summary": "Die Startansicht bündelt den Kontostand der gewählten Wallet, private Aktionen und aktuelle Ereignisse.",
+      "about": {
+        "id": "about",
+        "title": "Über",
+        "summary": "Über: Z00Z-Version, Zweck und Aktualisierungskanal.",
         "scope": "context",
         "sections": [
           {
@@ -4390,21 +8945,21 @@
               {
                 "type": "list",
                 "items": [
-                  "Prüfen Sie die gewählte Wallet und öffnen Sie dann Senden, Empfangen, Verlauf oder einen Eintrag mit Handlungsbedarf.",
-                  "Namen und Werte gehören zum ausgewählten lokalen Wallet-Profil."
+                  "Prüfen Sie die aktuelle Demoversion dieser Sitzung.",
+                  "Die JavaScript-Demo definiert das UX-Ziel für Rust und Tauri."
                 ]
               }
             ]
           },
           {
-            "title": "Lokal und sicher",
+            "title": "Lokales und sicheres Verhalten",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Nicht verfügbare Funktionen bleiben gekennzeichnet; kein Kontostand oder Pfad wird erfunden.",
-                  "Diese Hilfe ist in der Anwendung enthalten und funktioniert offline."
+                  "Die Demo lädt oder installiert keine Aktualisierung.",
+                  "Die App muss ein signiertes Veröffentlichungsmanifest prüfen."
                 ]
               }
             ]
@@ -4513,6 +9068,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "Quarantäne",
+        "summary": "Quarantäne: lokale Hilfe für Objekte, die eine ausdrückliche Wallet-Prüfung benötigen.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie vor jeder Aktion den angegebenen Grund, die Quelle und den lokalen Status.",
+                  "Eine nicht verfügbare Aktion bleibt gesperrt, bis die native Wallet einen sicheren nächsten Schritt meldet."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Die native Wallet-Richtlinie entscheidet endgültig, nicht diese Ansicht.",
+                  "Geheimnisse und private Transportdaten gelangen nie in die Hilfe."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "Senden",
@@ -4581,10 +9170,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "Privater Tausch",
-        "summary": "Privater Tausch erklärt die Bedienelemente und Zustände dieser Ansicht.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "Verlauf",
+        "summary": "Verlauf erklärt die Bedienelemente und Zustände dieser Ansicht.",
         "scope": "context",
         "sections": [
           {
@@ -4594,7 +9183,7 @@
               {
                 "type": "list",
                 "items": [
-                  "Wählen Sie gehaltenes Quell-Asset, Betrag und kompatibles Ziel-Asset und prüfen Sie anschließend die Vorschau.",
+                  "Filtern Sie Wallet-Ereignisse nach Objektfamilie und öffnen Sie eine Zeile für Beleg und technischen Lebenszyklus.",
                   "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
                 ]
               }
@@ -4615,10 +9204,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "Börse",
-        "summary": "Börse erklärt die Bedienelemente und Zustände dieser Ansicht.",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
+        "title": "Staken",
+        "summary": "Staken: lokale Hilfe für Objekte, die eine ausdrückliche Wallet-Prüfung benötigen.",
         "scope": "context",
         "sections": [
           {
@@ -4628,8 +9217,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Wählen Sie Hyperliquid Spot für eine Orderbuch-Anfrage oder NEAR Intents für eine Solver-basierte Cross-Chain-Anfrage.",
-                  "Prüfen Sie Paar oder Route, Empfänger/Rückzahlung, Slippage und Frist. Angebot, Ausgabe, Gebühren, Einzahlungsadresse und Status bleiben ohne verifizierten Connector nicht verfügbar."
+                  "Prüfen Sie vor jeder Aktion den angegebenen Grund, die Quelle und den lokalen Status.",
+                  "Eine nicht verfügbare Aktion bleibt gesperrt, bis die native Wallet einen sicheren nächsten Schritt meldet."
                 ]
               }
             ]
@@ -4641,18 +9230,18 @@
               {
                 "type": "list",
                 "items": [
-                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
-                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
+                  "Die native Wallet-Richtlinie entscheidet endgültig, nicht diese Ansicht.",
+                  "Geheimnisse und private Transportdaten gelangen nie in die Hilfe."
                 ]
               }
             ]
           }
         ]
       },
-      "wallet.staking": {
-        "id": "wallet.staking",
-        "title": "Staking",
-        "summary": "Staking erklärt die Bedienelemente und Zustände dieser Ansicht.",
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "Unstaken",
+        "summary": "Unstaken: lokale Hilfe für Objekte, die eine ausdrückliche Wallet-Prüfung benötigen.",
         "scope": "context",
         "sections": [
           {
@@ -4662,8 +9251,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Prüfen Sie verfügbare, eingesetzte und belohnte Beträge; wählen Sie Betrag und Validator erst nach Chain-Prüfung.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
+                  "Prüfen Sie vor jeder Aktion den angegebenen Grund, die Quelle und den lokalen Status.",
+                  "Eine nicht verfügbare Aktion bleibt gesperrt, bis die native Wallet einen sicheren nächsten Schritt meldet."
                 ]
               }
             ]
@@ -4675,8 +9264,8 @@
               {
                 "type": "list",
                 "items": [
-                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
-                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
+                  "Die native Wallet-Richtlinie entscheidet endgültig, nicht diese Ansicht.",
+                  "Geheimnisse und private Transportdaten gelangen nie in die Hilfe."
                 ]
               }
             ]
@@ -4697,40 +9286,6 @@
                 "type": "list",
                 "items": [
                   "Prüfen Sie Datum, Integrität und Ziel des letzten lokalen Backups, bevor Sie ein neues verschlüsseltes Backup erstellen.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Lokales und sicheres Verhalten",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
-                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "Verlauf",
-        "summary": "Verlauf erklärt die Bedienelemente und Zustände dieser Ansicht.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Diese Ansicht verwenden",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Filtern Sie Wallet-Ereignisse nach Objektfamilie und öffnen Sie eine Zeile für Beleg und technischen Lebenszyklus.",
                   "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
                 ]
               }
@@ -4901,142 +9456,6 @@
                 "type": "list",
                 "items": [
                   "Validieren und übernehmen Sie den sicheren lokalen YAML-Entwurf; Geheimnisse und Dateipfade sind ausgeschlossen.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Lokales und sicheres Verhalten",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
-                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "Allgemeine Einstellungen",
-        "summary": "Allgemeine Einstellungen erklärt die Bedienelemente und Zustände dieser Ansicht.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Diese Ansicht verwenden",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wählen Sie App-Sprache, Regionalformat, Anzeigezeitzone und Benachrichtigungseinstellung.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Lokales und sicheres Verhalten",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
-                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "Darstellung",
-        "summary": "Darstellung erklärt die Bedienelemente und Zustände dieser Ansicht.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Diese Ansicht verwenden",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wechseln Sie Hell oder Dunkel, wählen Sie eine Palette und das lokale YAML-Hervorhebungsthema.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Lokales und sicheres Verhalten",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
-                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Reticulum-Einstellungen",
-        "summary": "Reticulum-Einstellungen erklärt die Bedienelemente und Zustände dieser Ansicht.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Diese Ansicht verwenden",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Prüfen Sie lokalen Carrier-Dienst, Schnittstellenmodus und Reticulum-Netzwerkidentität.",
-                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Lokales und sicheres Verhalten",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
-                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "OnionNet-Einstellungen",
-        "summary": "OnionNet-Einstellungen erklärt die Bedienelemente und Zustände dieser Ansicht.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Diese Ansicht verwenden",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Prüfen Sie Datenschutzmodus, Mitgliedschafts-/Replay-Kontrollen und Routenalter über dem Carrier.",
                   "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
                 ]
               }
@@ -5601,6 +10020,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "Aggregator-Eingang",
+        "summary": "Diese Ansicht erklärt, wie die Runtime eine Transaktion oder Claim-Nutzlast als digest-gebundenes WorkItem zulässt.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie den Vertrag `WorkPayload` zu `WorkItem` oder `RejectRecord`.",
+                  "Nicht verfügbar bedeutet, dass kein aktueller Admission-Snapshot vorliegt, nicht Annahme oder Ablehnung."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed-Grenze",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Das Binden eines Object Package ändert Admission-Digest und Intake-Identität.",
+                  "Rohe Payloads, Empfänger, Memos und lokale Wallet-Routen bleiben außerhalb der Hilfe."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "Aggregator-Planung",
+        "summary": "Diese Ansicht erklärt deterministische Batch- und Shard-Routenbindung ohne Settlement-Autorität zu behaupten.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie Modus, Routengeneration, Intake- und Operationsanzahl sowie Digest-Besitz.",
+                  "Nicht verfügbar bedeutet, dass kein verifizierter `BatchPlanned`-Snapshot verbunden ist."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed-Grenze",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Konfiguration, Generation, Routentabellen-Digest und neu berechneter Plan müssen übereinstimmen.",
+                  "Planung finalisiert weder Settlement noch Publikation oder Storage-Wahrheit."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "Aggregator-Platzierung",
+        "summary": "Diese Ansicht erklärt Shard-Generation, Primärbesitz, Sekundärbereitschaft und Journal-Lineage der Runtime.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie `ShardPlacementView`, ohne eine globale Topologie abzuleiten.",
+                  "Nicht verfügbar bedeutet, dass keine aktuelle Placement-Table-Beobachtung verbunden ist."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed-Grenze",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Die Tabelle muss exakt den Shard und die Routing-Generation besitzen.",
+                  "Aggregator-IDs sind Betriebsdaten; Endpoints und Wallet-Identitäten bleiben verborgen."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "Aggregator-Publikation",
+        "summary": "Diese Ansicht erklärt die Bindung eines geordneten Batch an Checkpoint-, Quorum-, DA- und Lifecycle-Nachweise.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Folgen Sie `PublicationRequest` zu `PublishedBatch` und `PublicationRecord`.",
+                  "Nicht verfügbar bedeutet, dass keine verifizierte Publikation oder Readiness-Bundle verbunden ist."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed-Grenze",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Unvollständige oder abweichende Provider-, Höhen-, Manifest-, Payload-, Statement- oder Evidence-Daten werden abgelehnt.",
+                  "Storage besitzt Checkpoint-Wurzeln, Beweise und Lifecycle-Wahrheit."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "Aggregator-Wiederherstellung",
+        "summary": "Diese Ansicht erklärt Neustart- und Secondary-Takeover-Prüfungen gegen gebundene Route, Generation, Primärbesitz und Journal-Lineage.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie `ShardRecoveryRecord`, Intent, dauerhaften Zustand und Ausführungsticket.",
+                  "Nicht verfügbar bedeutet, dass kein gebundener Recovery-Snapshot verbunden ist."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed-Grenze",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Falsche Generation, Primary, Shard, Batch, Route oder Lineage werden abgelehnt.",
+                  "Der Renderer kann kein Failover starten oder die Recovery-Wahrheit des Storage ändern."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "Beobachter – Übersicht",
+        "summary": "Beobachter – Übersicht: Hilfe zur schreibgeschützten Watchers-Vorschau und ihrer Grenze für öffentliche Nachweise.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie deterministische Publikationsdaten, ohne den Netzwerkzustand zu ändern.",
+                  "Nicht verfügbare, veraltete, fehlerhafte und ungültige Zustände bleiben sichtbar und scheitern sicher."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers ist eine Roadmap-Vorschau mit lokalen Fixtures, keine ausgelieferte Protokollfunktion.",
+                  "Wallet-Namen, Gegenparteien, Routen, Nachrichten und Geheimnisse werden nicht offengelegt."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "Beobachter – Warnungen",
+        "summary": "Beobachter – Warnungen: Hilfe zur schreibgeschützten Watchers-Vorschau und ihrer Grenze für öffentliche Nachweise.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie deterministische Publikationsdaten, ohne den Netzwerkzustand zu ändern.",
+                  "Nicht verfügbare, veraltete, fehlerhafte und ungültige Zustände bleiben sichtbar und scheitern sicher."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers ist eine Roadmap-Vorschau mit lokalen Fixtures, keine ausgelieferte Protokollfunktion.",
+                  "Wallet-Namen, Gegenparteien, Routen, Nachrichten und Geheimnisse werden nicht offengelegt."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "Beobachter – Veröffentlichung",
+        "summary": "Beobachter – Veröffentlichung: Hilfe zur schreibgeschützten Watchers-Vorschau und ihrer Grenze für öffentliche Nachweise.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie deterministische Publikationsdaten, ohne den Netzwerkzustand zu ändern.",
+                  "Nicht verfügbare, veraltete, fehlerhafte und ungültige Zustände bleiben sichtbar und scheitern sicher."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers ist eine Roadmap-Vorschau mit lokalen Fixtures, keine ausgelieferte Protokollfunktion.",
+                  "Wallet-Namen, Gegenparteien, Routen, Nachrichten und Geheimnisse werden nicht offengelegt."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "Beobachter – DA-Anbieter",
+        "summary": "Beobachter – DA-Anbieter: Hilfe zur schreibgeschützten Watchers-Vorschau und ihrer Grenze für öffentliche Nachweise.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie deterministische Publikationsdaten, ohne den Netzwerkzustand zu ändern.",
+                  "Nicht verfügbare, veraltete, fehlerhafte und ungültige Zustände bleiben sichtbar und scheitern sicher."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers ist eine Roadmap-Vorschau mit lokalen Fixtures, keine ausgelieferte Protokollfunktion.",
+                  "Wallet-Namen, Gegenparteien, Routen, Nachrichten und Geheimnisse werden nicht offengelegt."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "Beobachter – Zensursignale",
+        "summary": "Beobachter – Zensursignale: Hilfe zur schreibgeschützten Watchers-Vorschau und ihrer Grenze für öffentliche Nachweise.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie deterministische Publikationsdaten, ohne den Netzwerkzustand zu ändern.",
+                  "Nicht verfügbare, veraltete, fehlerhafte und ungültige Zustände bleiben sichtbar und scheitern sicher."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers ist eine Roadmap-Vorschau mit lokalen Fixtures, keine ausgelieferte Protokollfunktion.",
+                  "Wallet-Namen, Gegenparteien, Routen, Nachrichten und Geheimnisse werden nicht offengelegt."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "Beobachter – Beweisexport",
+        "summary": "Beobachter – Beweisexport: Hilfe zur schreibgeschützten Watchers-Vorschau und ihrer Grenze für öffentliche Nachweise.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie deterministische Publikationsdaten, ohne den Netzwerkzustand zu ändern.",
+                  "Nicht verfügbare, veraltete, fehlerhafte und ungültige Zustände bleiben sichtbar und scheitern sicher."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers ist eine Roadmap-Vorschau mit lokalen Fixtures, keine ausgelieferte Protokollfunktion.",
+                  "Wallet-Namen, Gegenparteien, Routen, Nachrichten und Geheimnisse werden nicht offengelegt."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "Explorer – Übersicht",
+        "summary": "Explorer – Übersicht: Hilfe zur datenschutzbegrenzten Explorer-Vorschau für unterstützte öffentliche Kennungen.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verwenden Sie nur unterstützte öffentliche Kennungen für Prüfpunkte, Stapel, Warnungen oder Nachweise.",
+                  "Unbekannte, private, ungültige oder nicht verfügbare Kennungen scheitern ohne Wallet-Abfrage."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer ist eine Roadmap-Vorschau mit lokalen Fixtures, kein Wallet-Datendienst.",
+                  "Lokale Salden, Kontakte, Nachrichten, Notizen, Routen und Geheimnisse gelangen nie in Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "Explorer – Suchen",
+        "summary": "Explorer – Suchen: Hilfe zur datenschutzbegrenzten Explorer-Vorschau für unterstützte öffentliche Kennungen.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verwenden Sie nur unterstützte öffentliche Kennungen für Prüfpunkte, Stapel, Warnungen oder Nachweise.",
+                  "Unbekannte, private, ungültige oder nicht verfügbare Kennungen scheitern ohne Wallet-Abfrage."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer ist eine Roadmap-Vorschau mit lokalen Fixtures, kein Wallet-Datendienst.",
+                  "Lokale Salden, Kontakte, Nachrichten, Notizen, Routen und Geheimnisse gelangen nie in Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "Explorer – Prüfpunkte",
+        "summary": "Explorer – Prüfpunkte: Hilfe zur datenschutzbegrenzten Explorer-Vorschau für unterstützte öffentliche Kennungen.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verwenden Sie nur unterstützte öffentliche Kennungen für Prüfpunkte, Stapel, Warnungen oder Nachweise.",
+                  "Unbekannte, private, ungültige oder nicht verfügbare Kennungen scheitern ohne Wallet-Abfrage."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer ist eine Roadmap-Vorschau mit lokalen Fixtures, kein Wallet-Datendienst.",
+                  "Lokale Salden, Kontakte, Nachrichten, Notizen, Routen und Geheimnisse gelangen nie in Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "Explorer – Stapel",
+        "summary": "Explorer – Stapel: Hilfe zur datenschutzbegrenzten Explorer-Vorschau für unterstützte öffentliche Kennungen.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verwenden Sie nur unterstützte öffentliche Kennungen für Prüfpunkte, Stapel, Warnungen oder Nachweise.",
+                  "Unbekannte, private, ungültige oder nicht verfügbare Kennungen scheitern ohne Wallet-Abfrage."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer ist eine Roadmap-Vorschau mit lokalen Fixtures, kein Wallet-Datendienst.",
+                  "Lokale Salden, Kontakte, Nachrichten, Notizen, Routen und Geheimnisse gelangen nie in Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "Explorer – Öffentliche Beweise",
+        "summary": "Explorer – Öffentliche Beweise: Hilfe zur datenschutzbegrenzten Explorer-Vorschau für unterstützte öffentliche Kennungen.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verwenden Sie nur unterstützte öffentliche Kennungen für Prüfpunkte, Stapel, Warnungen oder Nachweise.",
+                  "Unbekannte, private, ungültige oder nicht verfügbare Kennungen scheitern ohne Wallet-Abfrage."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer ist eine Roadmap-Vorschau mit lokalen Fixtures, kein Wallet-Datendienst.",
+                  "Lokale Salden, Kontakte, Nachrichten, Notizen, Routen und Geheimnisse gelangen nie in Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "Entdecken",
+        "summary": "Entdecken: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Beschreibungen, begrenzte Absichten und eindeutige Ergebnisse.",
+                  "Prüfen Sie vor Annahme Umfang, Nutzungen, Ablauf, Wert, Gebühren, Offenlegung und Widerruf."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps ist eine Roadmap-Vorschau: Kein entfernter Code, keine beliebige URL und keine generische Signatur wird ausgeführt.",
+                  "Die Wallet prüft angenommene Absichten erneut; diese Ansicht verändert keine Wallet-Objekte."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "Installiert",
+        "summary": "Installiert: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Beschreibungen, begrenzte Absichten und eindeutige Ergebnisse.",
+                  "Prüfen Sie vor Annahme Umfang, Nutzungen, Ablauf, Wert, Gebühren, Offenlegung und Widerruf."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps ist eine Roadmap-Vorschau: Kein entfernter Code, keine beliebige URL und keine generische Signatur wird ausgeführt.",
+                  "Die Wallet prüft angenommene Absichten erneut; diese Ansicht verändert keine Wallet-Objekte."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "Verbindungen",
+        "summary": "Verbindungen: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Beschreibungen, begrenzte Absichten und eindeutige Ergebnisse.",
+                  "Prüfen Sie vor Annahme Umfang, Nutzungen, Ablauf, Wert, Gebühren, Offenlegung und Widerruf."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps ist eine Roadmap-Vorschau: Kein entfernter Code, keine beliebige URL und keine generische Signatur wird ausgeführt.",
+                  "Die Wallet prüft angenommene Absichten erneut; diese Ansicht verändert keine Wallet-Objekte."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "Berechtigungen",
+        "summary": "Berechtigungen: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Beschreibungen, begrenzte Absichten und eindeutige Ergebnisse.",
+                  "Prüfen Sie vor Annahme Umfang, Nutzungen, Ablauf, Wert, Gebühren, Offenlegung und Widerruf."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps ist eine Roadmap-Vorschau: Kein entfernter Code, keine beliebige URL und keine generische Signatur wird ausgeführt.",
+                  "Die Wallet prüft angenommene Absichten erneut; diese Ansicht verändert keine Wallet-Objekte."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "Privater Tausch",
+        "summary": "Privater Tausch erklärt die Bedienelemente und Zustände dieser Ansicht.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wählen Sie gehaltenes Quell-Asset, Betrag und kompatibles Ziel-Asset und prüfen Sie anschließend die Vorschau.",
+                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
+                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "Börse",
+        "summary": "Börse erklärt die Bedienelemente und Zustände dieser Ansicht.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wählen Sie Hyperliquid Spot für eine Orderbuch-Anfrage oder NEAR Intents für eine Solver-basierte Cross-Chain-Anfrage.",
+                  "Prüfen Sie Paar oder Route, Empfänger/Rückzahlung, Slippage und Frist. Angebot, Ausgabe, Gebühren, Einzahlungsadresse und Status bleiben ohne verifizierten Connector nicht verfügbar."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
+                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "Posteingang",
+        "summary": "Posteingang: Hilfe zur privaten Vorschau für Anfragekoordination und Wallet-Übergabe.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Nachrichten, Anfragen, Belege, Ablauf- und Wiederherstellungszustände.",
+                  "Das Annehmen erzeugt eine Wallet-Prüfabsicht, führt aber keine Abrechnung oder Änderung aus."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger ist eine Roadmap-Vorschau für kurzlebige Relays, kein dauerhafter On-Chain-Chat.",
+                  "Öffnen, Löschen, Blockieren oder Melden ändert niemals den Wallet-Abrechnungsstatus."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "Gesendet",
+        "summary": "Gesendet: Hilfe zur privaten Vorschau für Anfragekoordination und Wallet-Übergabe.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Nachrichten, Anfragen, Belege, Ablauf- und Wiederherstellungszustände.",
+                  "Das Annehmen erzeugt eine Wallet-Prüfabsicht, führt aber keine Abrechnung oder Änderung aus."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger ist eine Roadmap-Vorschau für kurzlebige Relays, kein dauerhafter On-Chain-Chat.",
+                  "Öffnen, Löschen, Blockieren oder Melden ändert niemals den Wallet-Abrechnungsstatus."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "Unterhaltungen",
+        "summary": "Unterhaltungen: Hilfe zur privaten Vorschau für Anfragekoordination und Wallet-Übergabe.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Nachrichten, Anfragen, Belege, Ablauf- und Wiederherstellungszustände.",
+                  "Das Annehmen erzeugt eine Wallet-Prüfabsicht, führt aber keine Abrechnung oder Änderung aus."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger ist eine Roadmap-Vorschau für kurzlebige Relays, kein dauerhafter On-Chain-Chat.",
+                  "Öffnen, Löschen, Blockieren oder Melden ändert niemals den Wallet-Abrechnungsstatus."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "Speichernutzung",
+        "summary": "Speichernutzung: aggregierte lokale Zähler ohne private Daten.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie Ressourcen, ohne Wallet-Datensätze zu öffnen.",
+                  "Die Werte sind deterministische Demodaten."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kontakte, Nachrichten, Routen, Aktivitäten und Geheimnisse sind ausgeschlossen.",
+                  "Die App darf Aggregate nur über eine begrenzte native Funktion beziehen."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "Netzwerknutzung",
+        "summary": "Netzwerknutzung: aggregierte lokale Zähler ohne private Daten.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie Ressourcen, ohne Wallet-Datensätze zu öffnen.",
+                  "Die Werte sind deterministische Demodaten."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kontakte, Nachrichten, Routen, Aktivitäten und Geheimnisse sind ausgeschlossen.",
+                  "Die App darf Aggregate nur über eine begrenzte native Funktion beziehen."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "Kontakte",
+        "summary": "Kontakte: Hilfe zu lokalen Kontaktbezeichnungen, Empfängerkarten und ausdrücklicher Identitätsprüfung.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Kontaktdaten, Ablauf, Widerruf und Nachweise einer Identitätsänderung.",
+                  "Eine gespeicherte Bezeichnung beweist weder Identität noch Vertrauen; geänderte Daten müssen geprüft werden."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kontakte bleiben lokal und werden nie als Adress- oder Präsenzgraph hochgeladen.",
+                  "Das Entfernen eines lokalen Kontakts widerruft keine externen Rechte und ändert keine Wallet-Abrechnung."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "Allgemeine Einstellungen",
+        "summary": "Allgemeine Einstellungen erklärt die Bedienelemente und Zustände dieser Ansicht.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wählen Sie App-Sprache, Regionalformat, Anzeigezeitzone und Benachrichtigungseinstellung.",
+                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
+                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "Benachrichtigungen",
+        "summary": "Benachrichtigungen: lokale Einstellungen für Benachrichtigung, Vibration und Klingelton.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Aktivieren Sie Benachrichtigungen, bevor Sie Vibration und Ton wählen.",
+                  "Abhängige Optionen sind bei deaktivierten Benachrichtigungen gesperrt."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Die Demo fordert keine Systemberechtigung an.",
+                  "Die App muss fehlende Audio- oder Haptikfunktionen klar melden."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "Darstellung",
+        "summary": "Darstellung erklärt die Bedienelemente und Zustände dieser Ansicht.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wechseln Sie Hell oder Dunkel, wählen Sie eine Palette und das lokale YAML-Hervorhebungsthema.",
+                  "Nicht verfügbar, schreibgeschützt und ausstehend werden eindeutig angezeigt."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet-Geheimnisse und private Transportdaten gelangen nie in die Hilfe.",
+                  "Diese Hilfe ist in der App enthalten und funktioniert offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "Asset-Details",
@@ -5629,6 +11285,278 @@
                 "items": [
                   "Die Felder sind schreibgeschützt und beweisen weder Marktwert noch Eigentum oder Protokollvertrauen.",
                   "Symbol, Metadaten und Hilfe sind lokal enthalten und funktionieren offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps – Details",
+        "summary": "dApps – Details: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Beschreibungen, begrenzte Absichten und eindeutige Ergebnisse.",
+                  "Prüfen Sie vor Annahme Umfang, Nutzungen, Ablauf, Wert, Gebühren, Offenlegung und Widerruf."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps ist eine Roadmap-Vorschau: Kein entfernter Code, keine beliebige URL und keine generische Signatur wird ausgeführt.",
+                  "Die Wallet prüft angenommene Absichten erneut; diese Ansicht verändert keine Wallet-Objekte."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps – Berechtigung prüfen",
+        "summary": "dApps – Berechtigung prüfen: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Beschreibungen, begrenzte Absichten und eindeutige Ergebnisse.",
+                  "Prüfen Sie vor Annahme Umfang, Nutzungen, Ablauf, Wert, Gebühren, Offenlegung und Widerruf."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps ist eine Roadmap-Vorschau: Kein entfernter Code, keine beliebige URL und keine generische Signatur wird ausgeführt.",
+                  "Die Wallet prüft angenommene Absichten erneut; diese Ansicht verändert keine Wallet-Objekte."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "Messenger – Details",
+        "summary": "Messenger – Details: Hilfe zur privaten Vorschau für Anfragekoordination und Wallet-Übergabe.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Nachrichten, Anfragen, Belege, Ablauf- und Wiederherstellungszustände.",
+                  "Das Annehmen erzeugt eine Wallet-Prüfabsicht, führt aber keine Abrechnung oder Änderung aus."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger ist eine Roadmap-Vorschau für kurzlebige Relays, kein dauerhafter On-Chain-Chat.",
+                  "Öffnen, Löschen, Blockieren oder Melden ändert niemals den Wallet-Abrechnungsstatus."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "Messenger – Anfrage prüfen",
+        "summary": "Messenger – Anfrage prüfen: Hilfe zur privaten Vorschau für Anfragekoordination und Wallet-Übergabe.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Nachrichten, Anfragen, Belege, Ablauf- und Wiederherstellungszustände.",
+                  "Das Annehmen erzeugt eine Wallet-Prüfabsicht, führt aber keine Abrechnung oder Änderung aus."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger ist eine Roadmap-Vorschau für kurzlebige Relays, kein dauerhafter On-Chain-Chat.",
+                  "Öffnen, Löschen, Blockieren oder Melden ändert niemals den Wallet-Abrechnungsstatus."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "Kontakte – Details",
+        "summary": "Kontakte – Details: Hilfe zu lokalen Kontaktbezeichnungen, Empfängerkarten und ausdrücklicher Identitätsprüfung.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Kontaktdaten, Ablauf, Widerruf und Nachweise einer Identitätsänderung.",
+                  "Eine gespeicherte Bezeichnung beweist weder Identität noch Vertrauen; geänderte Daten müssen geprüft werden."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kontakte bleiben lokal und werden nie als Adress- oder Präsenzgraph hochgeladen.",
+                  "Das Entfernen eines lokalen Kontakts widerruft keine externen Rechte und ändert keine Wallet-Abrechnung."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "Kontakte – Identität prüfen",
+        "summary": "Kontakte – Identität prüfen: Hilfe zu lokalen Kontaktbezeichnungen, Empfängerkarten und ausdrücklicher Identitätsprüfung.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie lokale Kontaktdaten, Ablauf, Widerruf und Nachweise einer Identitätsänderung.",
+                  "Eine gespeicherte Bezeichnung beweist weder Identität noch Vertrauen; geänderte Daten müssen geprüft werden."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kontakte bleiben lokal und werden nie als Adress- oder Präsenzgraph hochgeladen.",
+                  "Das Entfernen eines lokalen Kontakts widerruft keine externen Rechte und ändert keine Wallet-Abrechnung."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "Beobachter – Warnungsdetails",
+        "summary": "Beobachter – Warnungsdetails: Hilfe zur schreibgeschützten Watchers-Vorschau und ihrer Grenze für öffentliche Nachweise.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Prüfen Sie deterministische Publikationsdaten, ohne den Netzwerkzustand zu ändern.",
+                  "Nicht verfügbare, veraltete, fehlerhafte und ungültige Zustände bleiben sichtbar und scheitern sicher."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers ist eine Roadmap-Vorschau mit lokalen Fixtures, keine ausgelieferte Protokollfunktion.",
+                  "Wallet-Namen, Gegenparteien, Routen, Nachrichten und Geheimnisse werden nicht offengelegt."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "Explorer – Details",
+        "summary": "Explorer – Details: Hilfe zur datenschutzbegrenzten Explorer-Vorschau für unterstützte öffentliche Kennungen.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Diese Ansicht verwenden",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verwenden Sie nur unterstützte öffentliche Kennungen für Prüfpunkte, Stapel, Warnungen oder Nachweise.",
+                  "Unbekannte, private, ungültige oder nicht verfügbare Kennungen scheitern ohne Wallet-Abfrage."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Lokales und sicheres Verhalten",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer ist eine Roadmap-Vorschau mit lokalen Fixtures, kein Wallet-Datendienst.",
+                  "Lokale Salden, Kontakte, Nachrichten, Notizen, Routen und Geheimnisse gelangen nie in Explorer."
                 ]
               }
             ]
@@ -5684,10 +11612,10 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "Inicio",
-        "summary": "Inicio reúne el saldo de la cartera seleccionada, acciones privadas y eventos recientes.",
+      "about": {
+        "id": "about",
+        "title": "Acerca de",
+        "summary": "Acerca de: versión, propósito y canal de actualizaciones de Z00Z.",
         "scope": "context",
         "sections": [
           {
@@ -5697,21 +11625,21 @@
               {
                 "type": "list",
                 "items": [
-                  "Revise la cartera seleccionada y abra Enviar, Recibir, Historial o un elemento que requiera atención.",
-                  "Los nombres y valores pertenecen al perfil local de cartera seleccionado."
+                  "Compruebe la versión actual de la demo para esta sesión.",
+                  "La demo JavaScript define el objetivo UX para Rust y Tauri."
                 ]
               }
             ]
           },
           {
-            "title": "Funcionamiento local y seguro",
+            "title": "Comportamiento local y seguro",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Las funciones no disponibles permanecen indicadas y no se inventan saldos ni rutas.",
-                  "Esta ayuda se incluye en la aplicación y funciona sin conexión."
+                  "La demo no descarga ni instala actualizaciones.",
+                  "La aplicación debe verificar un manifiesto de versión firmado."
                 ]
               }
             ]
@@ -5820,6 +11748,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "Cuarentena",
+        "summary": "Cuarentena: ayuda local para objetos que requieren una revisión explícita de la cartera.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise el motivo, el origen y el estado local indicados antes de realizar cualquier acción.",
+                  "Una acción no disponible permanece bloqueada hasta que la cartera nativa indique un paso seguro."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "La política de la cartera nativa toma la decisión final, no esta vista.",
+                  "Los secretos y los datos privados de transporte nunca entran en la ayuda."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "Enviar",
@@ -5888,10 +11850,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "Intercambio privado",
-        "summary": "Intercambio privado explica los controles y estados de esta vista.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "Historial",
+        "summary": "Historial explica los controles y estados de esta vista.",
         "scope": "context",
         "sections": [
           {
@@ -5901,7 +11863,7 @@
               {
                 "type": "list",
                 "items": [
-                  "Elija un activo de origen disponible, el importe y un destino compatible y revise la vista previa.",
+                  "Filtre eventos por familia de objeto y abra una fila para ver su recibo y ciclo técnico.",
                   "Los estados no disponible, solo lectura y pendiente se muestran claramente."
                 ]
               }
@@ -5922,10 +11884,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "Casa de cambio",
-        "summary": "Casa de cambio explica los controles y estados de esta vista.",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
+        "title": "Hacer staking",
+        "summary": "Hacer staking: ayuda local para objetos que requieren una revisión explícita de la cartera.",
         "scope": "context",
         "sections": [
           {
@@ -5935,31 +11897,31 @@
               {
                 "type": "list",
                 "items": [
-                  "Elija Hyperliquid Spot para un libro de órdenes o NEAR Intents para una solicitud entre cadenas mediante solver.",
-                  "Revise par o ruta, destinatario/reembolso, deslizamiento y plazo. Cotización, salida, comisiones, dirección de depósito y estado quedan no disponibles sin un conector verificado."
+                  "Revise el motivo, el origen y el estado local indicados antes de realizar cualquier acción.",
+                  "Una acción no disponible permanece bloqueada hasta que la cartera nativa indique un paso seguro."
                 ]
               }
             ]
           },
           {
-            "title": "Funcionamiento local y seguro",
+            "title": "Comportamiento local y seguro",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
-                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
+                  "La política de la cartera nativa toma la decisión final, no esta vista.",
+                  "Los secretos y los datos privados de transporte nunca entran en la ayuda."
                 ]
               }
             ]
           }
         ]
       },
-      "wallet.staking": {
-        "id": "wallet.staking",
-        "title": "Staking",
-        "summary": "Staking explica los controles y estados de esta vista.",
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "Retirar staking",
+        "summary": "Retirar staking: ayuda local para objetos que requieren una revisión explícita de la cartera.",
         "scope": "context",
         "sections": [
           {
@@ -5969,21 +11931,21 @@
               {
                 "type": "list",
                 "items": [
-                  "Revise importes disponibles, apostados y recompensas; elija importe y validador tras verificar la cadena.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
+                  "Revise el motivo, el origen y el estado local indicados antes de realizar cualquier acción.",
+                  "Una acción no disponible permanece bloqueada hasta que la cartera nativa indique un paso seguro."
                 ]
               }
             ]
           },
           {
-            "title": "Funcionamiento local y seguro",
+            "title": "Comportamiento local y seguro",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
-                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
+                  "La política de la cartera nativa toma la decisión final, no esta vista.",
+                  "Los secretos y los datos privados de transporte nunca entran en la ayuda."
                 ]
               }
             ]
@@ -6004,40 +11966,6 @@
                 "type": "list",
                 "items": [
                   "Revise fecha, integridad y destino de la última copia antes de crear una nueva copia cifrada.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamiento local y seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
-                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "Historial",
-        "summary": "Historial explica los controles y estados de esta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Usar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Filtre eventos por familia de objeto y abra una fila para ver su recibo y ciclo técnico.",
                   "Los estados no disponible, solo lectura y pendiente se muestran claramente."
                 ]
               }
@@ -6208,142 +12136,6 @@
                 "type": "list",
                 "items": [
                   "Valide y aplique el borrador YAML local seguro; se excluyen secretos y rutas de archivos.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamiento local y seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
-                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "Ajustes generales",
-        "summary": "Ajustes generales explica los controles y estados de esta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Usar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Elija el idioma, formato regional, zona horaria de visualización y preferencia de notificaciones.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamiento local y seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
-                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "Apariencia",
-        "summary": "Apariencia explica los controles y estados de esta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Usar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Cambie entre Claro y Oscuro, elija una paleta y el tema local de resaltado YAML.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamiento local y seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
-                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Ajustes de Reticulum",
-        "summary": "Ajustes de Reticulum explica los controles y estados de esta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Usar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Revise el servicio de transporte local, el modo de interfaces y la identidad de red Reticulum.",
-                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamiento local y seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
-                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "Ajustes de OnionNet",
-        "summary": "Ajustes de OnionNet explica los controles y estados de esta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Usar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Revise el modo de privacidad, los controles de membresía y repetición y la antigüedad de la ruta.",
                   "Los estados no disponible, solo lectura y pendiente se muestran claramente."
                 ]
               }
@@ -6908,6 +12700,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "Entrada del agregador",
+        "summary": "Esta vista explica cómo el runtime admite una transacción o reclamación como trabajo ligado a un digest.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise el contrato `WorkPayload` hacia `WorkItem` o `RejectRecord`.",
+                  "No disponible significa que no hay snapshot reciente de admisión, no que fue aceptado o rechazado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Límite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Vincular un object package cambia el digest de admisión y la identidad de entrada.",
+                  "Payloads sin filtrar, receptores, notas y rutas locales de cartera no entran en la ayuda."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "Planificación del agregador",
+        "summary": "Esta vista explica la vinculación determinista de batch y ruta shard sin afirmar autoridad de liquidación.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise modo, generación de ruta, recuentos de entradas y operaciones, y propiedad de digests.",
+                  "No disponible significa que no hay un snapshot `BatchPlanned` verificado conectado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Límite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Configuración, generación, digest de tabla de rutas y plan recalculado deben coincidir.",
+                  "La planificación no finaliza liquidación, publicación ni verdad de almacenamiento."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "Colocación del agregador",
+        "summary": "Esta vista explica generación shard, propietario primario, estado de secundarios y linaje del journal del runtime.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise `ShardPlacementView` sin deducir una topología global.",
+                  "No disponible significa que no hay una observación actual de la tabla de colocación."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Límite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "La tabla debe poseer exactamente el shard y la generación de enrutamiento.",
+                  "Los IDs de agregador son datos operativos; endpoints e identidades de cartera permanecen ocultos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "Publicación del agregador",
+        "summary": "Esta vista explica cómo un batch ordenado se vincula a checkpoint, quorum, DA y evidencia de ciclo de vida.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Siga `PublicationRequest` hacia `PublishedBatch` y `PublicationRecord`.",
+                  "No disponible significa que no hay publicación o paquete de readiness verificado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Límite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Datos incompletos o divergentes de proveedor, altura, manifiesto, payload, statement o evidence se rechazan.",
+                  "Storage es autoridad de raíces, pruebas y ciclo de vida del checkpoint."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "Recuperación del agregador",
+        "summary": "Esta vista explica controles de reinicio y toma secundaria contra ruta, generación, primario y linaje confirmados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise `ShardRecoveryRecord`, intención, estado durable y ticket de ejecución.",
+                  "No disponible significa que no hay snapshot de recuperación confirmado conectado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Límite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Generación, primario, shard, batch, ruta o linaje incorrectos se rechazan.",
+                  "El renderer no puede iniciar failover ni modificar la verdad de recuperación de storage."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "Observadores — Resumen",
+        "summary": "Observadores — Resumen: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise datos deterministas de publicación sin cambiar el estado de la red.",
+                  "Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.",
+                  "No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "Observadores — Alertas",
+        "summary": "Observadores — Alertas: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise datos deterministas de publicación sin cambiar el estado de la red.",
+                  "Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.",
+                  "No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "Observadores — Publicación",
+        "summary": "Observadores — Publicación: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise datos deterministas de publicación sin cambiar el estado de la red.",
+                  "Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.",
+                  "No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "Observadores — Proveedores DA",
+        "summary": "Observadores — Proveedores DA: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise datos deterministas de publicación sin cambiar el estado de la red.",
+                  "Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.",
+                  "No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "Observadores — Señales de censura",
+        "summary": "Observadores — Señales de censura: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise datos deterministas de publicación sin cambiar el estado de la red.",
+                  "Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.",
+                  "No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "Observadores — Exportar pruebas",
+        "summary": "Observadores — Exportar pruebas: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise datos deterministas de publicación sin cambiar el estado de la red.",
+                  "Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.",
+                  "No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "Explorador — Resumen",
+        "summary": "Explorador — Resumen: ayuda sobre la vista previa privada de Explorer para identificadores públicos compatibles.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use solo identificadores públicos compatibles de puntos de control, lotes, alertas o pruebas.",
+                  "Los identificadores desconocidos, privados, mal formados o no disponibles fallan sin consultar la cartera."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer es una vista previa de la hoja de ruta con datos locales, no un servicio de datos de cartera.",
+                  "Los saldos, contactos, mensajes, notas, rutas y secretos locales nunca entran en Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "Explorador — Buscar",
+        "summary": "Explorador — Buscar: ayuda sobre la vista previa privada de Explorer para identificadores públicos compatibles.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use solo identificadores públicos compatibles de puntos de control, lotes, alertas o pruebas.",
+                  "Los identificadores desconocidos, privados, mal formados o no disponibles fallan sin consultar la cartera."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer es una vista previa de la hoja de ruta con datos locales, no un servicio de datos de cartera.",
+                  "Los saldos, contactos, mensajes, notas, rutas y secretos locales nunca entran en Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "Explorador — Puntos de control",
+        "summary": "Explorador — Puntos de control: ayuda sobre la vista previa privada de Explorer para identificadores públicos compatibles.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use solo identificadores públicos compatibles de puntos de control, lotes, alertas o pruebas.",
+                  "Los identificadores desconocidos, privados, mal formados o no disponibles fallan sin consultar la cartera."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer es una vista previa de la hoja de ruta con datos locales, no un servicio de datos de cartera.",
+                  "Los saldos, contactos, mensajes, notas, rutas y secretos locales nunca entran en Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "Explorador — Lotes",
+        "summary": "Explorador — Lotes: ayuda sobre la vista previa privada de Explorer para identificadores públicos compatibles.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use solo identificadores públicos compatibles de puntos de control, lotes, alertas o pruebas.",
+                  "Los identificadores desconocidos, privados, mal formados o no disponibles fallan sin consultar la cartera."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer es una vista previa de la hoja de ruta con datos locales, no un servicio de datos de cartera.",
+                  "Los saldos, contactos, mensajes, notas, rutas y secretos locales nunca entran en Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "Explorador — Pruebas públicas",
+        "summary": "Explorador — Pruebas públicas: ayuda sobre la vista previa privada de Explorer para identificadores públicos compatibles.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use solo identificadores públicos compatibles de puntos de control, lotes, alertas o pruebas.",
+                  "Los identificadores desconocidos, privados, mal formados o no disponibles fallan sin consultar la cartera."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer es una vista previa de la hoja de ruta con datos locales, no un servicio de datos de cartera.",
+                  "Los saldos, contactos, mensajes, notas, rutas y secretos locales nunca entran en Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "Descubrir",
+        "summary": "Descubrir: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise descriptores locales, intenciones limitadas y resultados explícitos.",
+                  "Antes de aceptar, revise alcance, usos, caducidad, valor, comisión, divulgación y revocación."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps es una vista previa de la hoja de ruta: no ejecuta código remoto, URL arbitrarias ni firmas genéricas.",
+                  "La cartera vuelve a validar cada intención aceptada; esta vista no modifica sus objetos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "Instaladas",
+        "summary": "Instaladas: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise descriptores locales, intenciones limitadas y resultados explícitos.",
+                  "Antes de aceptar, revise alcance, usos, caducidad, valor, comisión, divulgación y revocación."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps es una vista previa de la hoja de ruta: no ejecuta código remoto, URL arbitrarias ni firmas genéricas.",
+                  "La cartera vuelve a validar cada intención aceptada; esta vista no modifica sus objetos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "Conexiones",
+        "summary": "Conexiones: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise descriptores locales, intenciones limitadas y resultados explícitos.",
+                  "Antes de aceptar, revise alcance, usos, caducidad, valor, comisión, divulgación y revocación."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps es una vista previa de la hoja de ruta: no ejecuta código remoto, URL arbitrarias ni firmas genéricas.",
+                  "La cartera vuelve a validar cada intención aceptada; esta vista no modifica sus objetos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "Permisos",
+        "summary": "Permisos: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise descriptores locales, intenciones limitadas y resultados explícitos.",
+                  "Antes de aceptar, revise alcance, usos, caducidad, valor, comisión, divulgación y revocación."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps es una vista previa de la hoja de ruta: no ejecuta código remoto, URL arbitrarias ni firmas genéricas.",
+                  "La cartera vuelve a validar cada intención aceptada; esta vista no modifica sus objetos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "Intercambio privado",
+        "summary": "Intercambio privado explica los controles y estados de esta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Elija un activo de origen disponible, el importe y un destino compatible y revise la vista previa.",
+                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
+                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "Casa de cambio",
+        "summary": "Casa de cambio explica los controles y estados de esta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Elija Hyperliquid Spot para un libro de órdenes o NEAR Intents para una solicitud entre cadenas mediante solver.",
+                  "Revise par o ruta, destinatario/reembolso, deslizamiento y plazo. Cotización, salida, comisiones, dirección de depósito y estado quedan no disponibles sin un conector verificado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
+                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "Bandeja de entrada",
+        "summary": "Bandeja de entrada: ayuda sobre la vista previa privada de coordinación de solicitudes y su entrega a la cartera.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise mensajes, solicitudes, recibos, caducidad y estados de recuperación locales.",
+                  "Aceptar crea una intención para revisar en la cartera, pero no liquida ni modifica su estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger es una vista previa de la hoja de ruta para relés breves, no un chat permanente en cadena.",
+                  "Abrir, borrar, bloquear o denunciar nunca cambia el estado de liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "Enviados",
+        "summary": "Enviados: ayuda sobre la vista previa privada de coordinación de solicitudes y su entrega a la cartera.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise mensajes, solicitudes, recibos, caducidad y estados de recuperación locales.",
+                  "Aceptar crea una intención para revisar en la cartera, pero no liquida ni modifica su estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger es una vista previa de la hoja de ruta para relés breves, no un chat permanente en cadena.",
+                  "Abrir, borrar, bloquear o denunciar nunca cambia el estado de liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "Conversaciones",
+        "summary": "Conversaciones: ayuda sobre la vista previa privada de coordinación de solicitudes y su entrega a la cartera.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise mensajes, solicitudes, recibos, caducidad y estados de recuperación locales.",
+                  "Aceptar crea una intención para revisar en la cartera, pero no liquida ni modifica su estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger es una vista previa de la hoja de ruta para relés breves, no un chat permanente en cadena.",
+                  "Abrir, borrar, bloquear o denunciar nunca cambia el estado de liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "Uso del disco",
+        "summary": "Uso del disco: contadores locales agregados sin datos privados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise recursos sin abrir registros de la cartera.",
+                  "Los valores mostrados son datos de demostración deterministas."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Se excluyen contactos, mensajes, rutas, actividad y secretos.",
+                  "La aplicación solo debe obtener agregados mediante una capacidad nativa limitada."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "Uso de red",
+        "summary": "Uso de red: contadores locales agregados sin datos privados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise recursos sin abrir registros de la cartera.",
+                  "Los valores mostrados son datos de demostración deterministas."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Se excluyen contactos, mensajes, rutas, actividad y secretos.",
+                  "La aplicación solo debe obtener agregados mediante una capacidad nativa limitada."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "Contactos",
+        "summary": "Contactos: ayuda sobre etiquetas locales, tarjetas receptoras y revisión explícita de identidad.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise los datos locales, la caducidad, la revocación y las pruebas de cambio de identidad.",
+                  "Una etiqueta guardada no demuestra identidad ni confianza; los datos modificados requieren revisión."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Los contactos permanecen locales y nunca se publican como un grafo de direcciones o presencia.",
+                  "Eliminar un contacto local no revoca derechos externos ni cambia la liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "Ajustes generales",
+        "summary": "Ajustes generales explica los controles y estados de esta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Elija el idioma, formato regional, zona horaria de visualización y preferencia de notificaciones.",
+                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
+                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "Notificaciones",
+        "summary": "Notificaciones: preferencias locales de notificación, vibración y tono.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Active las notificaciones antes de elegir vibración y tono.",
+                  "Las opciones dependientes se desactivan al apagar las notificaciones."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "La demo no solicita permisos del sistema.",
+                  "La aplicación debe indicar claramente si no hay sonido o vibración."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "Apariencia",
+        "summary": "Apariencia explica los controles y estados de esta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Cambie entre Claro y Oscuro, elija una paleta y el tema local de resaltado YAML.",
+                  "Los estados no disponible, solo lectura y pendiente se muestran claramente."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Los secretos de la cartera y los datos privados de transporte no entran en la ayuda.",
+                  "Esta ayuda está incluida en la aplicación y funciona sin conexión."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "Detalles del activo",
@@ -6936,6 +13965,278 @@
                 "items": [
                   "Los campos son de solo lectura y no prueban valor de mercado, propiedad ni confianza en el protocolo.",
                   "El icono, los metadatos y esta ayuda son locales y funcionan sin conexión."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps — detalles",
+        "summary": "dApps — detalles: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise descriptores locales, intenciones limitadas y resultados explícitos.",
+                  "Antes de aceptar, revise alcance, usos, caducidad, valor, comisión, divulgación y revocación."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps es una vista previa de la hoja de ruta: no ejecuta código remoto, URL arbitrarias ni firmas genéricas.",
+                  "La cartera vuelve a validar cada intención aceptada; esta vista no modifica sus objetos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps — revisión del permiso",
+        "summary": "dApps — revisión del permiso: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise descriptores locales, intenciones limitadas y resultados explícitos.",
+                  "Antes de aceptar, revise alcance, usos, caducidad, valor, comisión, divulgación y revocación."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps es una vista previa de la hoja de ruta: no ejecuta código remoto, URL arbitrarias ni firmas genéricas.",
+                  "La cartera vuelve a validar cada intención aceptada; esta vista no modifica sus objetos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "Mensajero — detalles",
+        "summary": "Mensajero — detalles: ayuda sobre la vista previa privada de coordinación de solicitudes y su entrega a la cartera.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise mensajes, solicitudes, recibos, caducidad y estados de recuperación locales.",
+                  "Aceptar crea una intención para revisar en la cartera, pero no liquida ni modifica su estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger es una vista previa de la hoja de ruta para relés breves, no un chat permanente en cadena.",
+                  "Abrir, borrar, bloquear o denunciar nunca cambia el estado de liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "Mensajero — revisión de la solicitud",
+        "summary": "Mensajero — revisión de la solicitud: ayuda sobre la vista previa privada de coordinación de solicitudes y su entrega a la cartera.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise mensajes, solicitudes, recibos, caducidad y estados de recuperación locales.",
+                  "Aceptar crea una intención para revisar en la cartera, pero no liquida ni modifica su estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger es una vista previa de la hoja de ruta para relés breves, no un chat permanente en cadena.",
+                  "Abrir, borrar, bloquear o denunciar nunca cambia el estado de liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "Contactos — detalles",
+        "summary": "Contactos — detalles: ayuda sobre etiquetas locales, tarjetas receptoras y revisión explícita de identidad.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise los datos locales, la caducidad, la revocación y las pruebas de cambio de identidad.",
+                  "Una etiqueta guardada no demuestra identidad ni confianza; los datos modificados requieren revisión."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Los contactos permanecen locales y nunca se publican como un grafo de direcciones o presencia.",
+                  "Eliminar un contacto local no revoca derechos externos ni cambia la liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "Contactos — revisión de identidad",
+        "summary": "Contactos — revisión de identidad: ayuda sobre etiquetas locales, tarjetas receptoras y revisión explícita de identidad.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise los datos locales, la caducidad, la revocación y las pruebas de cambio de identidad.",
+                  "Una etiqueta guardada no demuestra identidad ni confianza; los datos modificados requieren revisión."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Los contactos permanecen locales y nunca se publican como un grafo de direcciones o presencia.",
+                  "Eliminar un contacto local no revoca derechos externos ni cambia la liquidación de la cartera."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "Observadores — detalles de la alerta",
+        "summary": "Observadores — detalles de la alerta: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Revise datos deterministas de publicación sin cambiar el estado de la red.",
+                  "Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.",
+                  "No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "Explorador — detalles",
+        "summary": "Explorador — detalles: ayuda sobre la vista previa privada de Explorer para identificadores públicos compatibles.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Usar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use solo identificadores públicos compatibles de puntos de control, lotes, alertas o pruebas.",
+                  "Los identificadores desconocidos, privados, mal formados o no disponibles fallan sin consultar la cartera."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamiento local y seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer es una vista previa de la hoja de ruta con datos locales, no un servicio de datos de cartera.",
+                  "Los saldos, contactos, mensajes, notas, rutas y secretos locales nunca entran en Explorer."
                 ]
               }
             ]
@@ -6991,34 +14292,34 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "Início",
-        "summary": "O início reúne o saldo da carteira selecionada, ações privadas e eventos recentes.",
+      "about": {
+        "id": "about",
+        "title": "Sobre",
+        "summary": "Sobre: versão, objetivo e canal de atualização Z00Z.",
         "scope": "context",
         "sections": [
           {
-            "title": "Usar esta vista",
+            "title": "Utilizar esta vista",
             "target": "current-view",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Verifique a carteira selecionada e abra Enviar, Receber, Histórico ou um item que precisa de atenção.",
-                  "Os nomes e valores pertencem ao perfil local de carteira selecionado."
+                  "Verifique a versão atual da demonstração nesta sessão.",
+                  "A demonstração JavaScript define o objetivo UX para Rust e Tauri."
                 ]
               }
             ]
           },
           {
-            "title": "Funcionamento local e seguro",
+            "title": "Comportamento local e seguro",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Recursos indisponíveis permanecem identificados e nenhum saldo ou rota é inventado.",
-                  "Esta ajuda acompanha o aplicativo e funciona offline."
+                  "A demonstração não transfere nem instala atualizações.",
+                  "A aplicação deve verificar um manifesto de versão assinado."
                 ]
               }
             ]
@@ -7127,6 +14428,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "Quarentena",
+        "summary": "Quarentena: ajuda local para objetos que exigem revisão explícita da carteira.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja o motivo, a origem e o estado local indicados antes de qualquer ação.",
+                  "Uma ação indisponível permanece bloqueada até a carteira nativa indicar um passo seguro."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A política da carteira nativa toma a decisão final, não esta vista.",
+                  "Segredos e dados de transporte privados nunca entram na Ajuda."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "Enviar",
@@ -7195,10 +14530,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "Troca privada",
-        "summary": "Troca privada explica os controlos e estados desta vista.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "Histórico",
+        "summary": "Histórico explica os controlos e estados desta vista.",
         "scope": "context",
         "sections": [
           {
@@ -7208,7 +14543,7 @@
               {
                 "type": "list",
                 "items": [
-                  "Escolha o ativo de origem detido, o montante e um alvo compatível e reveja a pré-visualização.",
+                  "Filtre eventos por família de objeto e abra uma linha para o recibo e ciclo técnico.",
                   "Os estados indisponível, só de leitura e pendente são mostrados claramente."
                 ]
               }
@@ -7229,10 +14564,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "Câmbio",
-        "summary": "Câmbio explica os controlos e estados desta vista.",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
+        "title": "Fazer staking",
+        "summary": "Fazer staking: ajuda local para objetos que exigem revisão explícita da carteira.",
         "scope": "context",
         "sections": [
           {
@@ -7242,31 +14577,31 @@
               {
                 "type": "list",
                 "items": [
-                  "Escolha Hyperliquid Spot para um livro de ordens ou NEAR Intents para um pedido entre cadeias orientado por solver.",
-                  "Reveja par ou rota, destinatário/reembolso, slippage e prazo. Cotação, saída, taxas, endereço de depósito e estado ficam indisponíveis sem conector verificado."
+                  "Reveja o motivo, a origem e o estado local indicados antes de qualquer ação.",
+                  "Uma ação indisponível permanece bloqueada até a carteira nativa indicar um passo seguro."
                 ]
               }
             ]
           },
           {
-            "title": "Funcionamento local e seguro",
+            "title": "Comportamento local e seguro",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
-                  "Esta ajuda está incluída na aplicação e funciona offline."
+                  "A política da carteira nativa toma a decisão final, não esta vista.",
+                  "Segredos e dados de transporte privados nunca entram na Ajuda."
                 ]
               }
             ]
           }
         ]
       },
-      "wallet.staking": {
-        "id": "wallet.staking",
-        "title": "Staking",
-        "summary": "Staking explica os controlos e estados desta vista.",
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "Retirar staking",
+        "summary": "Retirar staking: ajuda local para objetos que exigem revisão explícita da carteira.",
         "scope": "context",
         "sections": [
           {
@@ -7276,21 +14611,21 @@
               {
                 "type": "list",
                 "items": [
-                  "Reveja valores disponíveis, em staking e recompensas; escolha valor e validador após verificar a cadeia.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
+                  "Reveja o motivo, a origem e o estado local indicados antes de qualquer ação.",
+                  "Uma ação indisponível permanece bloqueada até a carteira nativa indicar um passo seguro."
                 ]
               }
             ]
           },
           {
-            "title": "Funcionamento local e seguro",
+            "title": "Comportamento local e seguro",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
-                  "Esta ajuda está incluída na aplicação e funciona offline."
+                  "A política da carteira nativa toma a decisão final, não esta vista.",
+                  "Segredos e dados de transporte privados nunca entram na Ajuda."
                 ]
               }
             ]
@@ -7311,40 +14646,6 @@
                 "type": "list",
                 "items": [
                   "Reveja data, integridade e destino da última cópia antes de criar uma nova cópia encriptada.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamento local e seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
-                  "Esta ajuda está incluída na aplicação e funciona offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "Histórico",
-        "summary": "Histórico explica os controlos e estados desta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utilizar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Filtre eventos por família de objeto e abra uma linha para o recibo e ciclo técnico.",
                   "Os estados indisponível, só de leitura e pendente são mostrados claramente."
                 ]
               }
@@ -7515,142 +14816,6 @@
                 "type": "list",
                 "items": [
                   "Valide e aplique o rascunho YAML local seguro; segredos e caminhos de ficheiros são excluídos.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamento local e seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
-                  "Esta ajuda está incluída na aplicação e funciona offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "Definições gerais",
-        "summary": "Definições gerais explica os controlos e estados desta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utilizar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Escolha o idioma, formato regional, fuso horário de apresentação e preferência de notificações.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamento local e seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
-                  "Esta ajuda está incluída na aplicação e funciona offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "Aparência",
-        "summary": "Aparência explica os controlos e estados desta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utilizar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Alterne Claro ou Escuro, escolha uma paleta e o tema local de realce YAML.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamento local e seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
-                  "Esta ajuda está incluída na aplicação e funciona offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Definições do Reticulum",
-        "summary": "Definições do Reticulum explica os controlos e estados desta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utilizar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Reveja o serviço de transporte local, o modo das interfaces e a identidade de rede Reticulum.",
-                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Funcionamento local e seguro",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
-                  "Esta ajuda está incluída na aplicação e funciona offline."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "Definições do OnionNet",
-        "summary": "Definições do OnionNet explica os controlos e estados desta vista.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Utilizar esta vista",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Reveja o modo de privacidade, os controlos de adesão e replay e a idade da rota.",
                   "Os estados indisponível, só de leitura e pendente são mostrados claramente."
                 ]
               }
@@ -8215,6 +15380,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "Entrada do agregador",
+        "summary": "Esta vista explica como o runtime admite uma transação ou claim como trabalho ligado a um digest.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verifique o contrato `WorkPayload` para `WorkItem` ou `RejectRecord`.",
+                  "Indisponível significa que não há snapshot recente de admissão, não que foi aceite ou rejeitado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ligar um object package altera o digest de admissão e a identidade de entrada.",
+                  "Payloads brutos, destinatários, notas e rotas locais da carteira não entram na Ajuda."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "Planeamento do agregador",
+        "summary": "Esta vista explica a ligação determinística de batch e rota shard sem reivindicar autoridade de settlement.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verifique modo, geração da rota, contagens de entradas e operações e propriedade dos digests.",
+                  "Indisponível significa que nenhum snapshot `BatchPlanned` verificado está ligado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Configuração, geração, digest da tabela de rotas e plano recalculado devem coincidir.",
+                  "O planeamento não finaliza settlement, publicação ou verdade de armazenamento."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "Colocação do agregador",
+        "summary": "Esta vista explica geração shard, proprietário primário, prontidão dos secundários e linhagem do journal do runtime.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verifique `ShardPlacementView` sem inferir uma topologia global.",
+                  "Indisponível significa que nenhuma observação atual da tabela de colocação está ligada."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A tabela deve possuir exatamente o shard e a geração de routing.",
+                  "IDs de agregador são dados operacionais; endpoints e identidades da carteira ficam ocultos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "Publicação do agregador",
+        "summary": "Esta vista explica como um batch ordenado é ligado a checkpoint, quorum, DA e evidência de ciclo de vida.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Siga `PublicationRequest` para `PublishedBatch` e `PublicationRecord`.",
+                  "Indisponível significa que não há publicação ou pacote de readiness verificado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Dados incompletos ou divergentes de provider, altura, manifesto, payload, statement ou evidence são rejeitados.",
+                  "Storage possui as raízes, provas e verdade de ciclo de vida do checkpoint."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "Recuperação do agregador",
+        "summary": "Esta vista explica verificações de reinício e takeover secundário contra rota, geração, primário e linhagem comprometidos.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Verifique `ShardRecoveryRecord`, intenção, estado durável e ticket de execução.",
+                  "Indisponível significa que nenhum snapshot de recuperação comprometido está ligado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Limite fail-closed",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Geração, primário, shard, batch, rota ou linhagem incorretos são rejeitados.",
+                  "O renderer não pode iniciar failover ou alterar a verdade de recuperação do storage."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "Observadores — Visão geral",
+        "summary": "Observadores — Visão geral: ajuda sobre a pré-visualização Watchers só de leitura e o limite de evidência pública.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte dados determinísticos de publicação sem alterar o estado da rede.",
+                  "Estados indisponíveis, desatualizados, inválidos e de erro continuam explícitos e falham com segurança."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers é uma pré-visualização do roteiro com dados locais, não uma função de protocolo disponibilizada.",
+                  "Etiquetas da carteira, contrapartes, rotas, mensagens e segredos nunca são expostos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "Observadores — Alertas",
+        "summary": "Observadores — Alertas: ajuda sobre a pré-visualização Watchers só de leitura e o limite de evidência pública.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte dados determinísticos de publicação sem alterar o estado da rede.",
+                  "Estados indisponíveis, desatualizados, inválidos e de erro continuam explícitos e falham com segurança."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers é uma pré-visualização do roteiro com dados locais, não uma função de protocolo disponibilizada.",
+                  "Etiquetas da carteira, contrapartes, rotas, mensagens e segredos nunca são expostos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "Observadores — Publicação",
+        "summary": "Observadores — Publicação: ajuda sobre a pré-visualização Watchers só de leitura e o limite de evidência pública.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte dados determinísticos de publicação sem alterar o estado da rede.",
+                  "Estados indisponíveis, desatualizados, inválidos e de erro continuam explícitos e falham com segurança."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers é uma pré-visualização do roteiro com dados locais, não uma função de protocolo disponibilizada.",
+                  "Etiquetas da carteira, contrapartes, rotas, mensagens e segredos nunca são expostos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "Observadores — Fornecedores DA",
+        "summary": "Observadores — Fornecedores DA: ajuda sobre a pré-visualização Watchers só de leitura e o limite de evidência pública.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte dados determinísticos de publicação sem alterar o estado da rede.",
+                  "Estados indisponíveis, desatualizados, inválidos e de erro continuam explícitos e falham com segurança."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers é uma pré-visualização do roteiro com dados locais, não uma função de protocolo disponibilizada.",
+                  "Etiquetas da carteira, contrapartes, rotas, mensagens e segredos nunca são expostos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "Observadores — Sinais de censura",
+        "summary": "Observadores — Sinais de censura: ajuda sobre a pré-visualização Watchers só de leitura e o limite de evidência pública.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte dados determinísticos de publicação sem alterar o estado da rede.",
+                  "Estados indisponíveis, desatualizados, inválidos e de erro continuam explícitos e falham com segurança."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers é uma pré-visualização do roteiro com dados locais, não uma função de protocolo disponibilizada.",
+                  "Etiquetas da carteira, contrapartes, rotas, mensagens e segredos nunca são expostos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "Observadores — Exportar evidências",
+        "summary": "Observadores — Exportar evidências: ajuda sobre a pré-visualização Watchers só de leitura e o limite de evidência pública.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte dados determinísticos de publicação sem alterar o estado da rede.",
+                  "Estados indisponíveis, desatualizados, inválidos e de erro continuam explícitos e falham com segurança."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers é uma pré-visualização do roteiro com dados locais, não uma função de protocolo disponibilizada.",
+                  "Etiquetas da carteira, contrapartes, rotas, mensagens e segredos nunca são expostos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "Explorador — Visão geral",
+        "summary": "Explorador — Visão geral: ajuda sobre a pré-visualização privada do Explorer para identificadores públicos suportados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use apenas identificadores públicos suportados de pontos de controlo, lotes, alertas ou evidência.",
+                  "Identificadores desconhecidos, privados, inválidos ou indisponíveis falham sem consultar a carteira."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer é uma pré-visualização do roteiro com dados locais, não um serviço de dados da carteira.",
+                  "Saldos, contactos, mensagens, notas, rotas e segredos locais nunca entram no Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "Explorador — Pesquisar",
+        "summary": "Explorador — Pesquisar: ajuda sobre a pré-visualização privada do Explorer para identificadores públicos suportados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use apenas identificadores públicos suportados de pontos de controlo, lotes, alertas ou evidência.",
+                  "Identificadores desconhecidos, privados, inválidos ou indisponíveis falham sem consultar a carteira."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer é uma pré-visualização do roteiro com dados locais, não um serviço de dados da carteira.",
+                  "Saldos, contactos, mensagens, notas, rotas e segredos locais nunca entram no Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "Explorador — Pontos de controlo",
+        "summary": "Explorador — Pontos de controlo: ajuda sobre a pré-visualização privada do Explorer para identificadores públicos suportados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use apenas identificadores públicos suportados de pontos de controlo, lotes, alertas ou evidência.",
+                  "Identificadores desconhecidos, privados, inválidos ou indisponíveis falham sem consultar a carteira."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer é uma pré-visualização do roteiro com dados locais, não um serviço de dados da carteira.",
+                  "Saldos, contactos, mensagens, notas, rotas e segredos locais nunca entram no Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "Explorador — Lotes",
+        "summary": "Explorador — Lotes: ajuda sobre a pré-visualização privada do Explorer para identificadores públicos suportados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use apenas identificadores públicos suportados de pontos de controlo, lotes, alertas ou evidência.",
+                  "Identificadores desconhecidos, privados, inválidos ou indisponíveis falham sem consultar a carteira."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer é uma pré-visualização do roteiro com dados locais, não um serviço de dados da carteira.",
+                  "Saldos, contactos, mensagens, notas, rotas e segredos locais nunca entram no Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "Explorador — Evidência pública",
+        "summary": "Explorador — Evidência pública: ajuda sobre a pré-visualização privada do Explorer para identificadores públicos suportados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use apenas identificadores públicos suportados de pontos de controlo, lotes, alertas ou evidência.",
+                  "Identificadores desconhecidos, privados, inválidos ou indisponíveis falham sem consultar a carteira."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer é uma pré-visualização do roteiro com dados locais, não um serviço de dados da carteira.",
+                  "Saldos, contactos, mensagens, notas, rotas e segredos locais nunca entram no Explorer."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "Descobrir",
+        "summary": "Descobrir: ajuda sobre a pré-visualização local limitada de dApps e o respetivo limite de permissões.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja descritores locais, intenções limitadas e resultados explícitos.",
+                  "Antes de aceitar, reveja âmbito, utilizações, validade, valor, taxa, divulgação e revogação."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps é uma pré-visualização do roteiro: não executa código remoto, URL arbitrários nem assinatura genérica.",
+                  "A carteira revalida cada intenção aceite; esta vista não altera objetos da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "Instaladas",
+        "summary": "Instaladas: ajuda sobre a pré-visualização local limitada de dApps e o respetivo limite de permissões.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja descritores locais, intenções limitadas e resultados explícitos.",
+                  "Antes de aceitar, reveja âmbito, utilizações, validade, valor, taxa, divulgação e revogação."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps é uma pré-visualização do roteiro: não executa código remoto, URL arbitrários nem assinatura genérica.",
+                  "A carteira revalida cada intenção aceite; esta vista não altera objetos da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "Ligações",
+        "summary": "Ligações: ajuda sobre a pré-visualização local limitada de dApps e o respetivo limite de permissões.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja descritores locais, intenções limitadas e resultados explícitos.",
+                  "Antes de aceitar, reveja âmbito, utilizações, validade, valor, taxa, divulgação e revogação."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps é uma pré-visualização do roteiro: não executa código remoto, URL arbitrários nem assinatura genérica.",
+                  "A carteira revalida cada intenção aceite; esta vista não altera objetos da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "Permissões",
+        "summary": "Permissões: ajuda sobre a pré-visualização local limitada de dApps e o respetivo limite de permissões.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja descritores locais, intenções limitadas e resultados explícitos.",
+                  "Antes de aceitar, reveja âmbito, utilizações, validade, valor, taxa, divulgação e revogação."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps é uma pré-visualização do roteiro: não executa código remoto, URL arbitrários nem assinatura genérica.",
+                  "A carteira revalida cada intenção aceite; esta vista não altera objetos da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "Troca privada",
+        "summary": "Troca privada explica os controlos e estados desta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Escolha o ativo de origem detido, o montante e um alvo compatível e reveja a pré-visualização.",
+                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
+                  "Esta ajuda está incluída na aplicação e funciona offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "Câmbio",
+        "summary": "Câmbio explica os controlos e estados desta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Escolha Hyperliquid Spot para um livro de ordens ou NEAR Intents para um pedido entre cadeias orientado por solver.",
+                  "Reveja par ou rota, destinatário/reembolso, slippage e prazo. Cotação, saída, taxas, endereço de depósito e estado ficam indisponíveis sem conector verificado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
+                  "Esta ajuda está incluída na aplicação e funciona offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "Caixa de entrada",
+        "summary": "Caixa de entrada: ajuda sobre a pré-visualização privada de coordenação de pedidos e passagem para a carteira.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja mensagens, pedidos, recibos, validade e estados de recuperação locais.",
+                  "Aceitar cria uma intenção para revisão na carteira, mas não liquida nem altera o estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger é uma pré-visualização do roteiro para retransmissão temporária, não conversa permanente na cadeia.",
+                  "Abrir, eliminar, bloquear ou denunciar nunca altera o estado de liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "Enviados",
+        "summary": "Enviados: ajuda sobre a pré-visualização privada de coordenação de pedidos e passagem para a carteira.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja mensagens, pedidos, recibos, validade e estados de recuperação locais.",
+                  "Aceitar cria uma intenção para revisão na carteira, mas não liquida nem altera o estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger é uma pré-visualização do roteiro para retransmissão temporária, não conversa permanente na cadeia.",
+                  "Abrir, eliminar, bloquear ou denunciar nunca altera o estado de liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "Conversas",
+        "summary": "Conversas: ajuda sobre a pré-visualização privada de coordenação de pedidos e passagem para a carteira.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja mensagens, pedidos, recibos, validade e estados de recuperação locais.",
+                  "Aceitar cria uma intenção para revisão na carteira, mas não liquida nem altera o estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger é uma pré-visualização do roteiro para retransmissão temporária, não conversa permanente na cadeia.",
+                  "Abrir, eliminar, bloquear ou denunciar nunca altera o estado de liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "Utilização do disco",
+        "summary": "Utilização do disco: contadores locais agregados sem dados privados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte recursos sem abrir registos da carteira.",
+                  "Os valores apresentados são dados de demonstração determinísticos."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contactos, mensagens, rotas, atividade e segredos são excluídos.",
+                  "A aplicação deve obter apenas agregados por uma capacidade nativa limitada."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "Utilização da rede",
+        "summary": "Utilização da rede: contadores locais agregados sem dados privados.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte recursos sem abrir registos da carteira.",
+                  "Os valores apresentados são dados de demonstração determinísticos."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Contactos, mensagens, rotas, atividade e segredos são excluídos.",
+                  "A aplicação deve obter apenas agregados por uma capacidade nativa limitada."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "Contactos",
+        "summary": "Contactos: ajuda sobre etiquetas locais, cartões de receção e revisão explícita da identidade.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja dados locais, validade, revogação e evidência de alteração da identidade.",
+                  "Uma etiqueta guardada não prova identidade nem confiança; dados alterados exigem revisão."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Os contactos permanecem locais e nunca são publicados como grafo de endereços ou presença.",
+                  "Remover um contacto local não revoga direitos externos nem altera a liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "Definições gerais",
+        "summary": "Definições gerais explica os controlos e estados desta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Escolha o idioma, formato regional, fuso horário de apresentação e preferência de notificações.",
+                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
+                  "Esta ajuda está incluída na aplicação e funciona offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "Notificações",
+        "summary": "Notificações: preferências locais de notificação, vibração e toque.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ative as notificações antes de escolher vibração e toque.",
+                  "As opções dependentes ficam desativadas quando as notificações estão desligadas."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A demonstração não pede permissões do sistema.",
+                  "A aplicação deve indicar claramente som ou vibração indisponíveis."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "Aparência",
+        "summary": "Aparência explica os controlos e estados desta vista.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Alterne Claro ou Escuro, escolha uma paleta e o tema local de realce YAML.",
+                  "Os estados indisponível, só de leitura e pendente são mostrados claramente."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Funcionamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Os segredos da carteira e os dados privados de transporte não entram na ajuda.",
+                  "Esta ajuda está incluída na aplicação e funciona offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "Detalhes do ativo",
@@ -8243,6 +16645,278 @@
                 "items": [
                   "Os campos são só de leitura e não provam valor de mercado, propriedade ou confiança no protocolo.",
                   "O ícone, os metadados e esta ajuda são locais e funcionam offline."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps — detalhes",
+        "summary": "dApps — detalhes: ajuda sobre a pré-visualização local limitada de dApps e o respetivo limite de permissões.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja descritores locais, intenções limitadas e resultados explícitos.",
+                  "Antes de aceitar, reveja âmbito, utilizações, validade, valor, taxa, divulgação e revogação."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps é uma pré-visualização do roteiro: não executa código remoto, URL arbitrários nem assinatura genérica.",
+                  "A carteira revalida cada intenção aceite; esta vista não altera objetos da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps — revisão da permissão",
+        "summary": "dApps — revisão da permissão: ajuda sobre a pré-visualização local limitada de dApps e o respetivo limite de permissões.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja descritores locais, intenções limitadas e resultados explícitos.",
+                  "Antes de aceitar, reveja âmbito, utilizações, validade, valor, taxa, divulgação e revogação."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps é uma pré-visualização do roteiro: não executa código remoto, URL arbitrários nem assinatura genérica.",
+                  "A carteira revalida cada intenção aceite; esta vista não altera objetos da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "Mensageiro — detalhes",
+        "summary": "Mensageiro — detalhes: ajuda sobre a pré-visualização privada de coordenação de pedidos e passagem para a carteira.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja mensagens, pedidos, recibos, validade e estados de recuperação locais.",
+                  "Aceitar cria uma intenção para revisão na carteira, mas não liquida nem altera o estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger é uma pré-visualização do roteiro para retransmissão temporária, não conversa permanente na cadeia.",
+                  "Abrir, eliminar, bloquear ou denunciar nunca altera o estado de liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "Mensageiro — revisão do pedido",
+        "summary": "Mensageiro — revisão do pedido: ajuda sobre a pré-visualização privada de coordenação de pedidos e passagem para a carteira.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja mensagens, pedidos, recibos, validade e estados de recuperação locais.",
+                  "Aceitar cria uma intenção para revisão na carteira, mas não liquida nem altera o estado."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger é uma pré-visualização do roteiro para retransmissão temporária, não conversa permanente na cadeia.",
+                  "Abrir, eliminar, bloquear ou denunciar nunca altera o estado de liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "Contactos — detalhes",
+        "summary": "Contactos — detalhes: ajuda sobre etiquetas locais, cartões de receção e revisão explícita da identidade.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja dados locais, validade, revogação e evidência de alteração da identidade.",
+                  "Uma etiqueta guardada não prova identidade nem confiança; dados alterados exigem revisão."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Os contactos permanecem locais e nunca são publicados como grafo de endereços ou presença.",
+                  "Remover um contacto local não revoga direitos externos nem altera a liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "Contactos — revisão da identidade",
+        "summary": "Contactos — revisão da identidade: ajuda sobre etiquetas locais, cartões de receção e revisão explícita da identidade.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Reveja dados locais, validade, revogação e evidência de alteração da identidade.",
+                  "Uma etiqueta guardada não prova identidade nem confiança; dados alterados exigem revisão."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Os contactos permanecem locais e nunca são publicados como grafo de endereços ou presença.",
+                  "Remover um contacto local não revoga direitos externos nem altera a liquidação da carteira."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "Observadores — detalhes do alerta",
+        "summary": "Observadores — detalhes do alerta: ajuda sobre a pré-visualização Watchers só de leitura e o limite de evidência pública.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Consulte dados determinísticos de publicação sem alterar o estado da rede.",
+                  "Estados indisponíveis, desatualizados, inválidos e de erro continuam explícitos e falham com segurança."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers é uma pré-visualização do roteiro com dados locais, não uma função de protocolo disponibilizada.",
+                  "Etiquetas da carteira, contrapartes, rotas, mensagens e segredos nunca são expostos."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "Explorador — detalhes",
+        "summary": "Explorador — detalhes: ajuda sobre a pré-visualização privada do Explorer para identificadores públicos suportados.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Utilizar esta vista",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Use apenas identificadores públicos suportados de pontos de controlo, lotes, alertas ou evidência.",
+                  "Identificadores desconhecidos, privados, inválidos ou indisponíveis falham sem consultar a carteira."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Comportamento local e seguro",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer é uma pré-visualização do roteiro com dados locais, não um serviço de dados da carteira.",
+                  "Saldos, contactos, mensagens, notas, rotas e segredos locais nunca entram no Explorer."
                 ]
               }
             ]
@@ -8298,10 +16972,10 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "홈",
-        "summary": "홈은 선택한 지갑의 잔액, 비공개 작업, 최근 이벤트를 한곳에 모읍니다.",
+      "about": {
+        "id": "about",
+        "title": "정보",
+        "summary": "정보: Z00Z 버전, 목적 및 업데이트 채널입니다.",
         "scope": "context",
         "sections": [
           {
@@ -8311,21 +16985,21 @@
               {
                 "type": "list",
                 "items": [
-                  "선택한 지갑을 확인한 뒤 보내기, 받기, 기록 또는 주의가 필요한 항목을 여세요.",
-                  "이름과 값은 선택한 로컬 지갑 프로필에 속합니다."
+                  "이 세션의 현재 데모 버전을 확인하세요.",
+                  "JavaScript 데모는 Rust 및 Tauri UX 목표를 정의합니다."
                 ]
               }
             ]
           },
           {
-            "title": "로컬 및 안전한 동작",
+            "title": "로컬 및 안전 동작",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "사용할 수 없는 기능은 명확히 표시되며 잔액이나 경로를 임의로 만들지 않습니다.",
-                  "이 도움말은 앱에 포함되어 오프라인에서도 작동합니다."
+                  "데모는 업데이트를 다운로드하거나 설치하지 않습니다.",
+                  "패키지 앱은 서명된 릴리스 매니페스트를 확인해야 합니다."
                 ]
               }
             ]
@@ -8434,6 +17108,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "격리",
+        "summary": "격리: 지갑의 명시적 검토가 필요한 객체에 대한 로컬 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "작업하기 전에 표시된 이유, 출처, 로컬 상태를 확인하세요.",
+                  "네이티브 지갑이 안전한 다음 단계를 제공할 때까지 사용할 수 없는 작업은 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "최종 결정은 이 화면이 아니라 네이티브 지갑 정책이 내립니다.",
+                  "비밀 정보와 비공개 전송 데이터는 도움말에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "보내기",
@@ -8502,10 +17210,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "비공개 스왑",
-        "summary": "비공개 스왑 화면의 컨트롤과 상태를 설명합니다.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "기록",
+        "summary": "기록 화면의 컨트롤과 상태를 설명합니다.",
         "scope": "context",
         "sections": [
           {
@@ -8515,7 +17223,7 @@
               {
                 "type": "list",
                 "items": [
-                  "보유한 원본 자산, 금액과 호환 대상 자산을 선택하고 제출 전에 미리보기를 확인합니다.",
+                  "객체 종류로 지갑 이벤트를 필터링하고 행을 열어 영수증과 기술 수명 주기를 확인합니다.",
                   "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
                 ]
               }
@@ -8536,44 +17244,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "거래소",
-        "summary": "거래소 화면의 컨트롤과 상태를 설명합니다.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "이 화면 사용",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "오더북 요청은 Hyperliquid Spot, solver 기반 크로스체인 요청은 NEAR Intents를 선택합니다.",
-                  "페어 또는 경로, 수신자/환불, 슬리피지와 기한을 확인합니다. 검증된 커넥터 없이는 견적, 출력, 수수료, 입금 주소, 실행 상태가 제공되지 않습니다."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "로컬 및 안전 동작",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
-                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.staking": {
-        "id": "wallet.staking",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
         "title": "스테이킹",
-        "summary": "스테이킹 화면의 컨트롤과 상태를 설명합니다.",
+        "summary": "스테이킹: 지갑의 명시적 검토가 필요한 객체에 대한 로컬 도움말입니다.",
         "scope": "context",
         "sections": [
           {
@@ -8583,8 +17257,8 @@
               {
                 "type": "list",
                 "items": [
-                  "사용 가능액, 스테이킹액과 보상을 확인하고 체인 검증 후 금액과 검증자를 선택합니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
+                  "작업하기 전에 표시된 이유, 출처, 로컬 상태를 확인하세요.",
+                  "네이티브 지갑이 안전한 다음 단계를 제공할 때까지 사용할 수 없는 작업은 차단됩니다."
                 ]
               }
             ]
@@ -8596,8 +17270,42 @@
               {
                 "type": "list",
                 "items": [
-                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
-                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
+                  "최종 결정은 이 화면이 아니라 네이티브 지갑 정책이 내립니다.",
+                  "비밀 정보와 비공개 전송 데이터는 도움말에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "언스테이킹",
+        "summary": "언스테이킹: 지갑의 명시적 검토가 필요한 객체에 대한 로컬 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "작업하기 전에 표시된 이유, 출처, 로컬 상태를 확인하세요.",
+                  "네이티브 지갑이 안전한 다음 단계를 제공할 때까지 사용할 수 없는 작업은 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "최종 결정은 이 화면이 아니라 네이티브 지갑 정책이 내립니다.",
+                  "비밀 정보와 비공개 전송 데이터는 도움말에 포함되지 않습니다."
                 ]
               }
             ]
@@ -8618,40 +17326,6 @@
                 "type": "list",
                 "items": [
                   "새 암호화 백업을 만들기 전에 최근 로컬 백업의 날짜, 무결성과 대상을 확인합니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "로컬 및 안전 동작",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
-                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "기록",
-        "summary": "기록 화면의 컨트롤과 상태를 설명합니다.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "이 화면 사용",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "객체 종류로 지갑 이벤트를 필터링하고 행을 열어 영수증과 기술 수명 주기를 확인합니다.",
                   "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
                 ]
               }
@@ -8822,142 +17496,6 @@
                 "type": "list",
                 "items": [
                   "선택한 지갑의 안전한 로컬 YAML 초안을 검증하고 적용합니다. 비밀과 파일 경로는 제외됩니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "로컬 및 안전 동작",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
-                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "일반 설정",
-        "summary": "일반 설정 화면의 컨트롤과 상태를 설명합니다.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "이 화면 사용",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "앱 언어, 지역 형식, 표시 시간대와 알림 환경설정을 선택합니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "로컬 및 안전 동작",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
-                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "모양",
-        "summary": "모양 화면의 컨트롤과 상태를 설명합니다.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "이 화면 사용",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "라이트 또는 다크 모드, 팔레트와 로컬 YAML 강조 테마를 선택합니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "로컬 및 안전 동작",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
-                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Reticulum 설정",
-        "summary": "Reticulum 설정 화면의 컨트롤과 상태를 설명합니다.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "이 화면 사용",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "로컬 캐리어 서비스, 인터페이스 모드와 Reticulum 네트워크 ID 설정을 확인합니다.",
-                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "로컬 및 안전 동작",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
-                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "OnionNet 설정",
-        "summary": "OnionNet 설정 화면의 컨트롤과 상태를 설명합니다.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "이 화면 사용",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "캐리어 위의 개인정보 모드, 멤버십·재생 검사와 경로 수명 컨트롤을 확인합니다.",
                   "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
                 ]
               }
@@ -9522,6 +18060,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "애그리게이터 인그레스",
+        "summary": "런타임이 트랜잭션 또는 클레임 payload를 digest에 바인딩된 작업 항목으로 승인하는 방식을 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`WorkPayload`에서 `WorkItem` 또는 `RejectRecord`로 이어지는 계약을 확인하세요.",
+                  "사용 불가는 최신 승인 스냅샷이 없다는 뜻이며 승인이나 거부를 뜻하지 않습니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 경계",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Object package 바인딩은 admission digest와 intake identity를 변경합니다.",
+                  "Raw payload, 수신자, 메모와 지갑 로컬 경로는 도움말에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "애그리게이터 계획",
+        "summary": "결제 권한을 주장하지 않고 결정론적 batch와 shard route 바인딩을 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Planner mode, route generation, intake와 operation 수, digest 소유권을 확인하세요.",
+                  "사용 불가는 검증된 `BatchPlanned` 스냅샷이 연결되지 않았다는 뜻입니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 경계",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "설정, generation, route-table digest와 재계산된 plan은 일치해야 합니다.",
+                  "계획은 settlement, publication 또는 storage truth를 확정하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "애그리게이터 배치",
+        "summary": "런타임 소유의 shard generation, primary, secondary 준비 상태와 journal lineage를 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "글로벌 토폴로지를 추정하지 말고 `ShardPlacementView` 계약을 확인하세요.",
+                  "사용 불가는 현재 placement table 관측이 연결되지 않았다는 뜻입니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 경계",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Placement table은 정확한 shard와 routing generation을 소유해야 합니다.",
+                  "Aggregator ID는 운영 데이터이며 endpoint와 지갑 identity는 숨겨집니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "애그리게이터 게시",
+        "summary": "정렬된 batch가 checkpoint, quorum, DA 및 lifecycle evidence에 바인딩되는 방식을 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`PublicationRequest`에서 `PublishedBatch`와 `PublicationRecord`로 이어지는 흐름을 확인하세요.",
+                  "사용 불가는 검증된 게시 또는 readiness bundle이 연결되지 않았다는 뜻입니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 경계",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Provider, height, manifest, payload, statement 또는 evidence가 불완전하거나 다르면 거부됩니다.",
+                  "Storage가 checkpoint root, proof와 lifecycle truth를 소유합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "애그리게이터 복구",
+        "summary": "커밋된 route, generation, primary와 journal lineage에 대한 재시작 및 secondary takeover 검사를 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`ShardRecoveryRecord`, recovery intent, durable state와 execution ticket을 확인하세요.",
+                  "사용 불가는 커밋된 복구 스냅샷이 연결되지 않았다는 뜻입니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 경계",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Generation, primary, shard, batch, route 또는 lineage가 틀리면 거부됩니다.",
+                  "Renderer는 failover를 시작하거나 storage recovery truth를 변경할 수 없습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "감시자 · 개요",
+        "summary": "감시자 · 개요: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.",
+                  "사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.",
+                  "지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "감시자 · 알림",
+        "summary": "감시자 · 알림: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.",
+                  "사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.",
+                  "지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "감시자 · 게시",
+        "summary": "감시자 · 게시: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.",
+                  "사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.",
+                  "지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "감시자 · DA 제공자",
+        "summary": "감시자 · DA 제공자: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.",
+                  "사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.",
+                  "지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "감시자 · 검열 신호",
+        "summary": "감시자 · 검열 신호: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.",
+                  "사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.",
+                  "지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "감시자 · 증거 내보내기",
+        "summary": "감시자 · 증거 내보내기: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.",
+                  "사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.",
+                  "지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "탐색기 · 개요",
+        "summary": "탐색기 · 개요: 지원되는 공개 식별자만 다루는 개인정보 보호형 Explorer 미리보기 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지원되는 공개 검사점, 배치, 알림 또는 증거 식별자만 사용하세요.",
+                  "알 수 없거나 비공개이거나 잘못되었거나 사용할 수 없는 식별자는 지갑 조회 없이 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer는 로컬 픽스처 기반 로드맵 미리보기이며 지갑 데이터 서비스가 아닙니다.",
+                  "로컬 잔액, 연락처, 메시지, 메모, 경로, 비밀 정보는 Explorer에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "탐색기 · 검색",
+        "summary": "탐색기 · 검색: 지원되는 공개 식별자만 다루는 개인정보 보호형 Explorer 미리보기 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지원되는 공개 검사점, 배치, 알림 또는 증거 식별자만 사용하세요.",
+                  "알 수 없거나 비공개이거나 잘못되었거나 사용할 수 없는 식별자는 지갑 조회 없이 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer는 로컬 픽스처 기반 로드맵 미리보기이며 지갑 데이터 서비스가 아닙니다.",
+                  "로컬 잔액, 연락처, 메시지, 메모, 경로, 비밀 정보는 Explorer에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "탐색기 · 검사점",
+        "summary": "탐색기 · 검사점: 지원되는 공개 식별자만 다루는 개인정보 보호형 Explorer 미리보기 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지원되는 공개 검사점, 배치, 알림 또는 증거 식별자만 사용하세요.",
+                  "알 수 없거나 비공개이거나 잘못되었거나 사용할 수 없는 식별자는 지갑 조회 없이 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer는 로컬 픽스처 기반 로드맵 미리보기이며 지갑 데이터 서비스가 아닙니다.",
+                  "로컬 잔액, 연락처, 메시지, 메모, 경로, 비밀 정보는 Explorer에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "탐색기 · 배치",
+        "summary": "탐색기 · 배치: 지원되는 공개 식별자만 다루는 개인정보 보호형 Explorer 미리보기 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지원되는 공개 검사점, 배치, 알림 또는 증거 식별자만 사용하세요.",
+                  "알 수 없거나 비공개이거나 잘못되었거나 사용할 수 없는 식별자는 지갑 조회 없이 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer는 로컬 픽스처 기반 로드맵 미리보기이며 지갑 데이터 서비스가 아닙니다.",
+                  "로컬 잔액, 연락처, 메시지, 메모, 경로, 비밀 정보는 Explorer에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "탐색기 · 공개 증거",
+        "summary": "탐색기 · 공개 증거: 지원되는 공개 식별자만 다루는 개인정보 보호형 Explorer 미리보기 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지원되는 공개 검사점, 배치, 알림 또는 증거 식별자만 사용하세요.",
+                  "알 수 없거나 비공개이거나 잘못되었거나 사용할 수 없는 식별자는 지갑 조회 없이 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer는 로컬 픽스처 기반 로드맵 미리보기이며 지갑 데이터 서비스가 아닙니다.",
+                  "로컬 잔액, 연락처, 메시지, 메모, 경로, 비밀 정보는 Explorer에 포함되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "찾아보기",
+        "summary": "찾아보기: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 설명자, 범위가 제한된 인텐트, 명시적 결과를 검토하세요.",
+                  "수락 전에 범위, 사용 횟수, 만료, 금액, 수수료, 공개, 취소 조건을 확인하세요."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps는 로드맵 미리보기이며 원격 코드, 임의 URL, 범용 서명을 실행하지 않습니다.",
+                  "수락한 인텐트는 지갑이 다시 검증하며 이 화면은 지갑 객체를 변경할 수 없습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "설치됨",
+        "summary": "설치됨: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 설명자, 범위가 제한된 인텐트, 명시적 결과를 검토하세요.",
+                  "수락 전에 범위, 사용 횟수, 만료, 금액, 수수료, 공개, 취소 조건을 확인하세요."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps는 로드맵 미리보기이며 원격 코드, 임의 URL, 범용 서명을 실행하지 않습니다.",
+                  "수락한 인텐트는 지갑이 다시 검증하며 이 화면은 지갑 객체를 변경할 수 없습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "연결",
+        "summary": "연결: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 설명자, 범위가 제한된 인텐트, 명시적 결과를 검토하세요.",
+                  "수락 전에 범위, 사용 횟수, 만료, 금액, 수수료, 공개, 취소 조건을 확인하세요."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps는 로드맵 미리보기이며 원격 코드, 임의 URL, 범용 서명을 실행하지 않습니다.",
+                  "수락한 인텐트는 지갑이 다시 검증하며 이 화면은 지갑 객체를 변경할 수 없습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "권한",
+        "summary": "권한: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 설명자, 범위가 제한된 인텐트, 명시적 결과를 검토하세요.",
+                  "수락 전에 범위, 사용 횟수, 만료, 금액, 수수료, 공개, 취소 조건을 확인하세요."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps는 로드맵 미리보기이며 원격 코드, 임의 URL, 범용 서명을 실행하지 않습니다.",
+                  "수락한 인텐트는 지갑이 다시 검증하며 이 화면은 지갑 객체를 변경할 수 없습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "비공개 스왑",
+        "summary": "비공개 스왑 화면의 컨트롤과 상태를 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "보유한 원본 자산, 금액과 호환 대상 자산을 선택하고 제출 전에 미리보기를 확인합니다.",
+                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
+                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "거래소",
+        "summary": "거래소 화면의 컨트롤과 상태를 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "오더북 요청은 Hyperliquid Spot, solver 기반 크로스체인 요청은 NEAR Intents를 선택합니다.",
+                  "페어 또는 경로, 수신자/환불, 슬리피지와 기한을 확인합니다. 검증된 커넥터 없이는 견적, 출력, 수수료, 입금 주소, 실행 상태가 제공되지 않습니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
+                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "받은편지함",
+        "summary": "받은편지함: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 메시지, 요청, 영수증, 만료, 복구 상태를 검토하세요.",
+                  "요청 수락은 지갑 검토 인텐트를 만들 뿐 결제하거나 지갑 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger는 단기 릴레이용 로드맵 미리보기이며 영구 온체인 채팅이 아닙니다.",
+                  "열기, 삭제, 차단, 신고는 지갑 결제 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "보낸편지함",
+        "summary": "보낸편지함: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 메시지, 요청, 영수증, 만료, 복구 상태를 검토하세요.",
+                  "요청 수락은 지갑 검토 인텐트를 만들 뿐 결제하거나 지갑 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger는 단기 릴레이용 로드맵 미리보기이며 영구 온체인 채팅이 아닙니다.",
+                  "열기, 삭제, 차단, 신고는 지갑 결제 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "대화",
+        "summary": "대화: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 메시지, 요청, 영수증, 만료, 복구 상태를 검토하세요.",
+                  "요청 수락은 지갑 검토 인텐트를 만들 뿐 결제하거나 지갑 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger는 단기 릴레이용 로드맵 미리보기이며 영구 온체인 채팅이 아닙니다.",
+                  "열기, 삭제, 차단, 신고는 지갑 결제 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "디스크 사용량",
+        "summary": "디스크 사용량: 비공개 데이터가 없는 집계 로컬 카운터입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지갑 기록을 열지 않고 리소스 사용량을 확인하세요.",
+                  "표시 값은 결정적 데모 데이터입니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "연락처, 메시지, 경로, 활동 및 비밀은 제외됩니다.",
+                  "패키지 앱은 제한된 네이티브 기능으로 집계 값만 가져와야 합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "네트워크 사용량",
+        "summary": "네트워크 사용량: 비공개 데이터가 없는 집계 로컬 카운터입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지갑 기록을 열지 않고 리소스 사용량을 확인하세요.",
+                  "표시 값은 결정적 데모 데이터입니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "연락처, 메시지, 경로, 활동 및 비밀은 제외됩니다.",
+                  "패키지 앱은 제한된 네이티브 기능으로 집계 값만 가져와야 합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "연락처",
+        "summary": "연락처: 로컬 연락처 레이블, 수신자 카드, 명시적 신원 변경 검토에 대한 도움말입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 연락처 데이터, 만료, 취소, 신원 변경 증거를 검토하세요.",
+                  "저장된 레이블은 신원이나 신뢰를 증명하지 않으며 변경된 데이터는 검토해야 합니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "연락처는 로컬에 유지되며 주소 또는 온라인 상태 그래프로 업로드되지 않습니다.",
+                  "로컬 연락처 삭제는 외부 권한을 취소하거나 지갑 결제를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "일반 설정",
+        "summary": "일반 설정 화면의 컨트롤과 상태를 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "앱 언어, 지역 형식, 표시 시간대와 알림 환경설정을 선택합니다.",
+                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
+                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "알림",
+        "summary": "알림: 알림, 진동 및 벨소리의 로컬 설정입니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "진동과 벨소리를 선택하기 전에 알림을 켜세요.",
+                  "알림이 꺼지면 관련 선택 항목도 비활성화됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "데모는 운영 체제 권한을 요청하지 않습니다.",
+                  "패키지 앱은 소리나 진동을 사용할 수 없을 때 명확히 알려야 합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "모양",
+        "summary": "모양 화면의 컨트롤과 상태를 설명합니다.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "라이트 또는 다크 모드, 팔레트와 로컬 YAML 강조 테마를 선택합니다.",
+                  "사용 불가, 읽기 전용, 대기 상태를 명확하게 표시합니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지갑 비밀과 개인 전송 데이터는 도움말에 포함되지 않습니다.",
+                  "도움말은 앱에 포함되어 오프라인에서도 작동합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "자산 세부 정보",
@@ -9550,6 +19325,278 @@
                 "items": [
                   "이 필드는 읽기 전용이며 시장 가치, 소유권 또는 프로토콜 신뢰를 증명하지 않습니다.",
                   "아이콘, 메타데이터, 도움말은 로컬에 포함되어 오프라인에서도 작동합니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps · 세부 정보",
+        "summary": "dApps · 세부 정보: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 설명자, 범위가 제한된 인텐트, 명시적 결과를 검토하세요.",
+                  "수락 전에 범위, 사용 횟수, 만료, 금액, 수수료, 공개, 취소 조건을 확인하세요."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps는 로드맵 미리보기이며 원격 코드, 임의 URL, 범용 서명을 실행하지 않습니다.",
+                  "수락한 인텐트는 지갑이 다시 검증하며 이 화면은 지갑 객체를 변경할 수 없습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps · 권한 검토",
+        "summary": "dApps · 권한 검토: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 설명자, 범위가 제한된 인텐트, 명시적 결과를 검토하세요.",
+                  "수락 전에 범위, 사용 횟수, 만료, 금액, 수수료, 공개, 취소 조건을 확인하세요."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps는 로드맵 미리보기이며 원격 코드, 임의 URL, 범용 서명을 실행하지 않습니다.",
+                  "수락한 인텐트는 지갑이 다시 검증하며 이 화면은 지갑 객체를 변경할 수 없습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "메신저 · 세부 정보",
+        "summary": "메신저 · 세부 정보: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 메시지, 요청, 영수증, 만료, 복구 상태를 검토하세요.",
+                  "요청 수락은 지갑 검토 인텐트를 만들 뿐 결제하거나 지갑 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger는 단기 릴레이용 로드맵 미리보기이며 영구 온체인 채팅이 아닙니다.",
+                  "열기, 삭제, 차단, 신고는 지갑 결제 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "메신저 · 요청 검토",
+        "summary": "메신저 · 요청 검토: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 메시지, 요청, 영수증, 만료, 복구 상태를 검토하세요.",
+                  "요청 수락은 지갑 검토 인텐트를 만들 뿐 결제하거나 지갑 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger는 단기 릴레이용 로드맵 미리보기이며 영구 온체인 채팅이 아닙니다.",
+                  "열기, 삭제, 차단, 신고는 지갑 결제 상태를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "연락처 · 세부 정보",
+        "summary": "연락처 · 세부 정보: 로컬 연락처 레이블, 수신자 카드, 명시적 신원 변경 검토에 대한 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 연락처 데이터, 만료, 취소, 신원 변경 증거를 검토하세요.",
+                  "저장된 레이블은 신원이나 신뢰를 증명하지 않으며 변경된 데이터는 검토해야 합니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "연락처는 로컬에 유지되며 주소 또는 온라인 상태 그래프로 업로드되지 않습니다.",
+                  "로컬 연락처 삭제는 외부 권한을 취소하거나 지갑 결제를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "연락처 · 신원 검토",
+        "summary": "연락처 · 신원 검토: 로컬 연락처 레이블, 수신자 카드, 명시적 신원 변경 검토에 대한 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "로컬 연락처 데이터, 만료, 취소, 신원 변경 증거를 검토하세요.",
+                  "저장된 레이블은 신원이나 신뢰를 증명하지 않으며 변경된 데이터는 검토해야 합니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "연락처는 로컬에 유지되며 주소 또는 온라인 상태 그래프로 업로드되지 않습니다.",
+                  "로컬 연락처 삭제는 외부 권한을 취소하거나 지갑 결제를 변경하지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "감시자 · 알림 세부 정보",
+        "summary": "감시자 · 알림 세부 정보: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.",
+                  "사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.",
+                  "지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "탐색기 · 세부 정보",
+        "summary": "탐색기 · 세부 정보: 지원되는 공개 식별자만 다루는 개인정보 보호형 Explorer 미리보기 도움말입니다.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "이 화면 사용",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "지원되는 공개 검사점, 배치, 알림 또는 증거 식별자만 사용하세요.",
+                  "알 수 없거나 비공개이거나 잘못되었거나 사용할 수 없는 식별자는 지갑 조회 없이 차단됩니다."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "로컬 및 안전 동작",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer는 로컬 픽스처 기반 로드맵 미리보기이며 지갑 데이터 서비스가 아닙니다.",
+                  "로컬 잔액, 연락처, 메시지, 메모, 경로, 비밀 정보는 Explorer에 포함되지 않습니다."
                 ]
               }
             ]
@@ -9605,34 +19652,34 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "Ana sayfa",
-        "summary": "Ana sayfa seçili cüzdan bakiyesini, özel işlemleri ve son olayları bir araya getirir.",
+      "about": {
+        "id": "about",
+        "title": "Hakkında",
+        "summary": "Hakkında: Z00Z sürümü, amacı ve güncelleme kanalı.",
         "scope": "context",
         "sections": [
           {
-            "title": "Bu görünümü kullanın",
+            "title": "Bu görünümü kullanma",
             "target": "current-view",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Seçili cüzdanı kontrol edin; ardından Gönder, Al, Geçmiş veya dikkat gerektiren bir öğeyi açın.",
-                  "Adlar ve değerler seçili yerel cüzdan profiline aittir."
+                  "Bu oturumun güncel demo sürümünü kontrol edin.",
+                  "JavaScript demosu Rust ve Tauri UX hedefini tanımlar."
                 ]
               }
             ]
           },
           {
-            "title": "Yerel ve güvenli çalışma",
+            "title": "Yerel ve güvenli davranış",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Kullanılamayan yetenekler işaretli kalır; bakiye veya rota uydurulmaz.",
-                  "Bu yardım uygulamayla birlikte gelir ve çevrimdışı çalışır."
+                  "Demo güncelleme indirmez veya kurmaz.",
+                  "Paket uygulama imzalı sürüm bildirimini doğrulamalıdır."
                 ]
               }
             ]
@@ -9741,6 +19788,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "Karantina",
+        "summary": "Karantina: açık cüzdan incelemesi gerektiren nesneler için yerel yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Herhangi bir işlemden önce belirtilen nedeni, kaynağı ve yerel durumu inceleyin.",
+                  "Yerel cüzdan güvenli bir sonraki adım sunana kadar kullanılamayan işlem engelli kalır."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Son kararı bu görünüm değil, yerel cüzdan ilkesi verir.",
+                  "Gizli bilgiler ve özel aktarım verileri Yardım’a asla girmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "Gönder",
@@ -9809,10 +19890,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "Özel takas",
-        "summary": "Özel takas, bu görünümdeki denetimleri ve durumları açıklar.",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "Geçmiş",
+        "summary": "Geçmiş, bu görünümdeki denetimleri ve durumları açıklar.",
         "scope": "context",
         "sections": [
           {
@@ -9822,7 +19903,7 @@
               {
                 "type": "list",
                 "items": [
-                  "Eldeki kaynak varlığı, tutarı ve uyumlu hedefi seçin; göndermeden önce önizlemeyi inceleyin.",
+                  "Cüzdan olaylarını nesne ailesine göre filtreleyin ve makbuz ile teknik yaşam döngüsü için satırı açın.",
                   "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
                 ]
               }
@@ -9843,10 +19924,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "Borsa",
-        "summary": "Borsa, bu görünümdeki denetimleri ve durumları açıklar.",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
+        "title": "Stake et",
+        "summary": "Stake et: açık cüzdan incelemesi gerektiren nesneler için yerel yardım.",
         "scope": "context",
         "sections": [
           {
@@ -9856,31 +19937,31 @@
               {
                 "type": "list",
                 "items": [
-                  "Emir defteri isteği için Hyperliquid Spot’u, solver tabanlı zincirler arası istek için NEAR Intents’i seçin.",
-                  "Çift veya rota, alıcı/iade, kayma ve süreyi inceleyin. Doğrulanmış bağlayıcı olmadan teklif, çıktı, ücret, yatırma adresi ve durum kullanılamaz kalır."
+                  "Herhangi bir işlemden önce belirtilen nedeni, kaynağı ve yerel durumu inceleyin.",
+                  "Yerel cüzdan güvenli bir sonraki adım sunana kadar kullanılamayan işlem engelli kalır."
                 ]
               }
             ]
           },
           {
-            "title": "Yerel ve güvenli çalışma",
+            "title": "Yerel ve güvenli davranış",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
-                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
+                  "Son kararı bu görünüm değil, yerel cüzdan ilkesi verir.",
+                  "Gizli bilgiler ve özel aktarım verileri Yardım’a asla girmez."
                 ]
               }
             ]
           }
         ]
       },
-      "wallet.staking": {
-        "id": "wallet.staking",
-        "title": "Stake etme",
-        "summary": "Stake etme, bu görünümdeki denetimleri ve durumları açıklar.",
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "Stake’den çıkar",
+        "summary": "Stake’den çıkar: açık cüzdan incelemesi gerektiren nesneler için yerel yardım.",
         "scope": "context",
         "sections": [
           {
@@ -9890,21 +19971,21 @@
               {
                 "type": "list",
                 "items": [
-                  "Kullanılabilir, stake edilmiş ve ödül tutarlarını inceleyin; zincir doğrulamasından sonra miktar ve doğrulayıcı seçin.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
+                  "Herhangi bir işlemden önce belirtilen nedeni, kaynağı ve yerel durumu inceleyin.",
+                  "Yerel cüzdan güvenli bir sonraki adım sunana kadar kullanılamayan işlem engelli kalır."
                 ]
               }
             ]
           },
           {
-            "title": "Yerel ve güvenli çalışma",
+            "title": "Yerel ve güvenli davranış",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
-                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
+                  "Son kararı bu görünüm değil, yerel cüzdan ilkesi verir.",
+                  "Gizli bilgiler ve özel aktarım verileri Yardım’a asla girmez."
                 ]
               }
             ]
@@ -9925,40 +20006,6 @@
                 "type": "list",
                 "items": [
                   "Yeni şifreli yedek oluşturmadan önce son yerel yedeğin tarihini, bütünlüğünü ve hedefini inceleyin.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Yerel ve güvenli çalışma",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
-                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "Geçmiş",
-        "summary": "Geçmiş, bu görünümdeki denetimleri ve durumları açıklar.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Bu görünümü kullanma",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Cüzdan olaylarını nesne ailesine göre filtreleyin ve makbuz ile teknik yaşam döngüsü için satırı açın.",
                   "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
                 ]
               }
@@ -10129,142 +20176,6 @@
                 "type": "list",
                 "items": [
                   "Seçili cüzdanın güvenli yerel YAML taslağını doğrulayıp uygulayın; sırlar ve dosya yolları hariçtir.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Yerel ve güvenli çalışma",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
-                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "Genel ayarlar",
-        "summary": "Genel ayarlar, bu görünümdeki denetimleri ve durumları açıklar.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Bu görünümü kullanma",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Uygulama dilini, bölgesel biçimi, görüntüleme saat dilimini ve bildirim tercihini seçin.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Yerel ve güvenli çalışma",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
-                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "Görünüm",
-        "summary": "Görünüm, bu görünümdeki denetimleri ve durumları açıklar.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Bu görünümü kullanma",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Açık veya Koyu modu, paleti ve yerel YAML vurgulama temasını seçin.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Yerel ve güvenli çalışma",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
-                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Reticulum ayarları",
-        "summary": "Reticulum ayarları, bu görünümdeki denetimleri ve durumları açıklar.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Bu görünümü kullanma",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Yerel taşıyıcı hizmetini, arayüz modunu ve Reticulum ağ kimliğini inceleyin.",
-                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
-                ]
-              }
-            ]
-          },
-          {
-            "title": "Yerel ve güvenli çalışma",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
-                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "OnionNet ayarları",
-        "summary": "OnionNet ayarları, bu görünümdeki denetimleri ve durumları açıklar.",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "Bu görünümü kullanma",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "Taşıyıcı üzerindeki gizlilik modunu, üyelik/yeniden oynatma kontrollerini ve rota yaşını inceleyin.",
                   "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
                 ]
               }
@@ -10829,6 +20740,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "Toplayıcı girişi",
+        "summary": "Runtime’ın bir işlem veya claim payload’unu digest bağlı bir iş öğesi olarak nasıl kabul ettiğini açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`WorkPayload` → `WorkItem` veya `RejectRecord` sözleşmesini inceleyin.",
+                  "Kullanılamaz, güncel kabul snapshot’ı olmadığı anlamına gelir; kabul veya ret anlamına gelmez."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed sınırı",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Object package bağlama admission digest ve intake identity değerini değiştirir.",
+                  "Ham payload, alıcı, memo ve cüzdanın yerel rotaları Yardım içine girmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "Toplayıcı planlama",
+        "summary": "Settlement yetkisi iddia etmeden deterministik batch ve shard route bağlamasını açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Planner mode, route generation, intake ve operation sayıları ile digest sahipliğini inceleyin.",
+                  "Kullanılamaz, doğrulanmış `BatchPlanned` snapshot’ı bağlı olmadığı anlamına gelir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed sınırı",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yapılandırma, generation, route-table digest ve yeniden hesaplanan plan eşleşmelidir.",
+                  "Planlama settlement, publication veya storage truth değerini kesinleştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "Toplayıcı yerleşimi",
+        "summary": "Runtime’a ait shard generation, primary owner, secondary readiness ve journal lineage görünümünü açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Küresel topoloji çıkarmadan `ShardPlacementView` sözleşmesini inceleyin.",
+                  "Kullanılamaz, güncel placement table gözlemi bağlı olmadığı anlamına gelir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed sınırı",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Tablo tam shard ve routing generation değerine sahip olmalıdır.",
+                  "Aggregator ID operasyonel veridir; endpoint ve cüzdan kimlikleri gizli kalır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "Toplayıcı yayını",
+        "summary": "Sıralı batch’in checkpoint, quorum, DA ve lifecycle evidence ile nasıl bağlandığını açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`PublicationRequest` → `PublishedBatch` → `PublicationRecord` akışını izleyin.",
+                  "Kullanılamaz, doğrulanmış publication veya readiness bundle bağlı olmadığı anlamına gelir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed sınırı",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Eksik ya da uyuşmayan provider, height, manifest, payload, statement veya evidence reddedilir.",
+                  "Checkpoint root, proof ve lifecycle truth Storage’a aittir."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "Toplayıcı kurtarma",
+        "summary": "Bağlı route, generation, primary ve journal lineage karşısında restart ve secondary takeover kontrollerini açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`ShardRecoveryRecord`, recovery intent, durable state ve execution ticket sözleşmesini inceleyin.",
+                  "Kullanılamaz, bağlı committed recovery snapshot olmadığı anlamına gelir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed sınırı",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yanlış generation, primary, shard, batch, route veya lineage reddedilir.",
+                  "Renderer failover başlatamaz veya Storage recovery truth değerini değiştiremez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "İzleyiciler — Genel bakış",
+        "summary": "İzleyiciler — Genel bakış: salt okunur Watchers yol haritası önizlemesi ve genel kanıt sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ağ durumunu değiştirmeden belirlenimci yayın verilerini inceleyin.",
+                  "Kullanılamayan, eski, bozuk ve hata durumları açık kalır ve güvenli biçimde başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers, yerel verili bir yol haritası önizlemesidir; yayımlanmış protokol özelliği değildir.",
+                  "Cüzdan etiketleri, taraflar, yollar, mesajlar ve gizli bilgiler açığa çıkmaz."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "İzleyiciler — Uyarılar",
+        "summary": "İzleyiciler — Uyarılar: salt okunur Watchers yol haritası önizlemesi ve genel kanıt sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ağ durumunu değiştirmeden belirlenimci yayın verilerini inceleyin.",
+                  "Kullanılamayan, eski, bozuk ve hata durumları açık kalır ve güvenli biçimde başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers, yerel verili bir yol haritası önizlemesidir; yayımlanmış protokol özelliği değildir.",
+                  "Cüzdan etiketleri, taraflar, yollar, mesajlar ve gizli bilgiler açığa çıkmaz."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "İzleyiciler — Yayınlama",
+        "summary": "İzleyiciler — Yayınlama: salt okunur Watchers yol haritası önizlemesi ve genel kanıt sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ağ durumunu değiştirmeden belirlenimci yayın verilerini inceleyin.",
+                  "Kullanılamayan, eski, bozuk ve hata durumları açık kalır ve güvenli biçimde başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers, yerel verili bir yol haritası önizlemesidir; yayımlanmış protokol özelliği değildir.",
+                  "Cüzdan etiketleri, taraflar, yollar, mesajlar ve gizli bilgiler açığa çıkmaz."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "İzleyiciler — DA sağlayıcıları",
+        "summary": "İzleyiciler — DA sağlayıcıları: salt okunur Watchers yol haritası önizlemesi ve genel kanıt sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ağ durumunu değiştirmeden belirlenimci yayın verilerini inceleyin.",
+                  "Kullanılamayan, eski, bozuk ve hata durumları açık kalır ve güvenli biçimde başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers, yerel verili bir yol haritası önizlemesidir; yayımlanmış protokol özelliği değildir.",
+                  "Cüzdan etiketleri, taraflar, yollar, mesajlar ve gizli bilgiler açığa çıkmaz."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "İzleyiciler — Sansür sinyalleri",
+        "summary": "İzleyiciler — Sansür sinyalleri: salt okunur Watchers yol haritası önizlemesi ve genel kanıt sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ağ durumunu değiştirmeden belirlenimci yayın verilerini inceleyin.",
+                  "Kullanılamayan, eski, bozuk ve hata durumları açık kalır ve güvenli biçimde başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers, yerel verili bir yol haritası önizlemesidir; yayımlanmış protokol özelliği değildir.",
+                  "Cüzdan etiketleri, taraflar, yollar, mesajlar ve gizli bilgiler açığa çıkmaz."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "İzleyiciler — Kanıt dışa aktarma",
+        "summary": "İzleyiciler — Kanıt dışa aktarma: salt okunur Watchers yol haritası önizlemesi ve genel kanıt sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ağ durumunu değiştirmeden belirlenimci yayın verilerini inceleyin.",
+                  "Kullanılamayan, eski, bozuk ve hata durumları açık kalır ve güvenli biçimde başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers, yerel verili bir yol haritası önizlemesidir; yayımlanmış protokol özelliği değildir.",
+                  "Cüzdan etiketleri, taraflar, yollar, mesajlar ve gizli bilgiler açığa çıkmaz."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "Gezgin — Genel bakış",
+        "summary": "Gezgin — Genel bakış: desteklenen genel kimlikler için gizlilik sınırlı Explorer önizlemesi hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yalnızca desteklenen genel kontrol noktası, parti, uyarı veya kanıt kimliklerini kullanın.",
+                  "Bilinmeyen, özel, bozuk veya kullanılamayan kimlikler cüzdan sorgusu olmadan başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer, yerel verili bir yol haritası önizlemesidir; cüzdan veri hizmeti değildir.",
+                  "Yerel bakiyeler, kişiler, mesajlar, notlar, yollar ve gizli bilgiler Explorer’a girmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "Gezgin — Ara",
+        "summary": "Gezgin — Ara: desteklenen genel kimlikler için gizlilik sınırlı Explorer önizlemesi hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yalnızca desteklenen genel kontrol noktası, parti, uyarı veya kanıt kimliklerini kullanın.",
+                  "Bilinmeyen, özel, bozuk veya kullanılamayan kimlikler cüzdan sorgusu olmadan başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer, yerel verili bir yol haritası önizlemesidir; cüzdan veri hizmeti değildir.",
+                  "Yerel bakiyeler, kişiler, mesajlar, notlar, yollar ve gizli bilgiler Explorer’a girmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "Gezgin — Kontrol noktaları",
+        "summary": "Gezgin — Kontrol noktaları: desteklenen genel kimlikler için gizlilik sınırlı Explorer önizlemesi hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yalnızca desteklenen genel kontrol noktası, parti, uyarı veya kanıt kimliklerini kullanın.",
+                  "Bilinmeyen, özel, bozuk veya kullanılamayan kimlikler cüzdan sorgusu olmadan başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer, yerel verili bir yol haritası önizlemesidir; cüzdan veri hizmeti değildir.",
+                  "Yerel bakiyeler, kişiler, mesajlar, notlar, yollar ve gizli bilgiler Explorer’a girmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "Gezgin — Partiler",
+        "summary": "Gezgin — Partiler: desteklenen genel kimlikler için gizlilik sınırlı Explorer önizlemesi hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yalnızca desteklenen genel kontrol noktası, parti, uyarı veya kanıt kimliklerini kullanın.",
+                  "Bilinmeyen, özel, bozuk veya kullanılamayan kimlikler cüzdan sorgusu olmadan başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer, yerel verili bir yol haritası önizlemesidir; cüzdan veri hizmeti değildir.",
+                  "Yerel bakiyeler, kişiler, mesajlar, notlar, yollar ve gizli bilgiler Explorer’a girmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "Gezgin — Genel kanıt",
+        "summary": "Gezgin — Genel kanıt: desteklenen genel kimlikler için gizlilik sınırlı Explorer önizlemesi hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yalnızca desteklenen genel kontrol noktası, parti, uyarı veya kanıt kimliklerini kullanın.",
+                  "Bilinmeyen, özel, bozuk veya kullanılamayan kimlikler cüzdan sorgusu olmadan başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer, yerel verili bir yol haritası önizlemesidir; cüzdan veri hizmeti değildir.",
+                  "Yerel bakiyeler, kişiler, mesajlar, notlar, yollar ve gizli bilgiler Explorer’a girmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "Keşfet",
+        "summary": "Keşfet: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel tanımları, kapsamlı niyetleri ve açık sonuçları inceleyin.",
+                  "Kabulden önce kapsamı, kullanımları, süreyi, değeri, ücreti, açıklamayı ve iptali inceleyin."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps bir yol haritası önizlemesidir; uzak kod, rastgele URL veya genel imza çalıştırmaz.",
+                  "Kabul edilen niyeti Cüzdan yeniden doğrular; bu görünüm cüzdan nesnelerini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "Yüklü",
+        "summary": "Yüklü: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel tanımları, kapsamlı niyetleri ve açık sonuçları inceleyin.",
+                  "Kabulden önce kapsamı, kullanımları, süreyi, değeri, ücreti, açıklamayı ve iptali inceleyin."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps bir yol haritası önizlemesidir; uzak kod, rastgele URL veya genel imza çalıştırmaz.",
+                  "Kabul edilen niyeti Cüzdan yeniden doğrular; bu görünüm cüzdan nesnelerini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "Bağlantılar",
+        "summary": "Bağlantılar: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel tanımları, kapsamlı niyetleri ve açık sonuçları inceleyin.",
+                  "Kabulden önce kapsamı, kullanımları, süreyi, değeri, ücreti, açıklamayı ve iptali inceleyin."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps bir yol haritası önizlemesidir; uzak kod, rastgele URL veya genel imza çalıştırmaz.",
+                  "Kabul edilen niyeti Cüzdan yeniden doğrular; bu görünüm cüzdan nesnelerini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "İzinler",
+        "summary": "İzinler: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel tanımları, kapsamlı niyetleri ve açık sonuçları inceleyin.",
+                  "Kabulden önce kapsamı, kullanımları, süreyi, değeri, ücreti, açıklamayı ve iptali inceleyin."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps bir yol haritası önizlemesidir; uzak kod, rastgele URL veya genel imza çalıştırmaz.",
+                  "Kabul edilen niyeti Cüzdan yeniden doğrular; bu görünüm cüzdan nesnelerini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "Özel takas",
+        "summary": "Özel takas, bu görünümdeki denetimleri ve durumları açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Eldeki kaynak varlığı, tutarı ve uyumlu hedefi seçin; göndermeden önce önizlemeyi inceleyin.",
+                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli çalışma",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
+                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "Borsa",
+        "summary": "Borsa, bu görünümdeki denetimleri ve durumları açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Emir defteri isteği için Hyperliquid Spot’u, solver tabanlı zincirler arası istek için NEAR Intents’i seçin.",
+                  "Çift veya rota, alıcı/iade, kayma ve süreyi inceleyin. Doğrulanmış bağlayıcı olmadan teklif, çıktı, ücret, yatırma adresi ve durum kullanılamaz kalır."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli çalışma",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
+                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "Gelen kutusu",
+        "summary": "Gelen kutusu: özel istek eşgüdümü önizlemesi ve Cüzdan aktarımı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel mesajları, istekleri, makbuzları, süreyi ve kurtarma durumlarını inceleyin.",
+                  "Kabul, Cüzdan inceleme niyeti oluşturur; ödeme yapmaz veya cüzdan durumunu değiştirmez."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger kısa süreli aktarım için yol haritası önizlemesidir; kalıcı zincir üstü sohbet değildir.",
+                  "Açma, silme, engelleme veya bildirme Cüzdan ödeme durumunu değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "Gönderilenler",
+        "summary": "Gönderilenler: özel istek eşgüdümü önizlemesi ve Cüzdan aktarımı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel mesajları, istekleri, makbuzları, süreyi ve kurtarma durumlarını inceleyin.",
+                  "Kabul, Cüzdan inceleme niyeti oluşturur; ödeme yapmaz veya cüzdan durumunu değiştirmez."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger kısa süreli aktarım için yol haritası önizlemesidir; kalıcı zincir üstü sohbet değildir.",
+                  "Açma, silme, engelleme veya bildirme Cüzdan ödeme durumunu değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "Konuşmalar",
+        "summary": "Konuşmalar: özel istek eşgüdümü önizlemesi ve Cüzdan aktarımı hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel mesajları, istekleri, makbuzları, süreyi ve kurtarma durumlarını inceleyin.",
+                  "Kabul, Cüzdan inceleme niyeti oluşturur; ödeme yapmaz veya cüzdan durumunu değiştirmez."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger kısa süreli aktarım için yol haritası önizlemesidir; kalıcı zincir üstü sohbet değildir.",
+                  "Açma, silme, engelleme veya bildirme Cüzdan ödeme durumunu değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "Disk Kullanımı",
+        "summary": "Disk Kullanımı: özel veri içermeyen toplu yerel sayaçlar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Cüzdan kayıtlarını açmadan kaynak kullanımını inceleyin.",
+                  "Gösterilen değerler belirlenimci demo verileridir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kişiler, mesajlar, rotalar, etkinlik ve gizli bilgiler hariç tutulur.",
+                  "Paket uygulama yalnızca sınırlı yerel yetenekten toplu değer almalıdır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "Ağ Kullanımı",
+        "summary": "Ağ Kullanımı: özel veri içermeyen toplu yerel sayaçlar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Cüzdan kayıtlarını açmadan kaynak kullanımını inceleyin.",
+                  "Gösterilen değerler belirlenimci demo verileridir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kişiler, mesajlar, rotalar, etkinlik ve gizli bilgiler hariç tutulur.",
+                  "Paket uygulama yalnızca sınırlı yerel yetenekten toplu değer almalıdır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "Kişiler",
+        "summary": "Kişiler: yerel kişi etiketleri, alıcı kartları ve açık kimlik değişikliği incelemesi hakkında yardım.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel kişi verilerini, süreyi, iptali ve kimlik değişikliği kanıtını inceleyin.",
+                  "Kaydedilmiş etiket kimliği veya güveni kanıtlamaz; değişen veriler açıkça incelenmelidir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kişiler yerel kalır ve adres ya da çevrim içi durum grafiği olarak yüklenmez.",
+                  "Yerel kişiyi kaldırmak dış hakları iptal etmez veya Cüzdan ödemesini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "Genel ayarlar",
+        "summary": "Genel ayarlar, bu görünümdeki denetimleri ve durumları açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Uygulama dilini, bölgesel biçimi, görüntüleme saat dilimini ve bildirim tercihini seçin.",
+                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli çalışma",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
+                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "Bildirimler",
+        "summary": "Bildirimler: yerel bildirim, titreşim ve zil sesi tercihleri.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Titreşim ve zil sesi seçmeden önce bildirimleri açın.",
+                  "Bildirimler kapalıyken bağlı seçenekler devre dışıdır."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Demo işletim sistemi izni istemez.",
+                  "Paket uygulama ses veya titreşim kullanılamadığında bunu açıkça bildirmelidir."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "Görünüm",
+        "summary": "Görünüm, bu görünümdeki denetimleri ve durumları açıklar.",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Açık veya Koyu modu, paleti ve yerel YAML vurgulama temasını seçin.",
+                  "Kullanılamaz, salt okunur ve bekleyen durumlar açıkça gösterilir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli çalışma",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Cüzdan sırları ve özel taşıma verileri Yardım içine girmez.",
+                  "Bu Yardım uygulamayla paketlenir ve çevrimdışı çalışır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "Varlık ayrıntıları",
@@ -10857,6 +22005,278 @@
                 "items": [
                   "Alanlar salt okunurdur; piyasa değerini, sahipliği veya protokol güvenini kanıtlamaz.",
                   "Simge, meta veri ve Yardım yerel olarak paketlenir ve çevrimdışı çalışır."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps — ayrıntılar",
+        "summary": "dApps — ayrıntılar: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel tanımları, kapsamlı niyetleri ve açık sonuçları inceleyin.",
+                  "Kabulden önce kapsamı, kullanımları, süreyi, değeri, ücreti, açıklamayı ve iptali inceleyin."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps bir yol haritası önizlemesidir; uzak kod, rastgele URL veya genel imza çalıştırmaz.",
+                  "Kabul edilen niyeti Cüzdan yeniden doğrular; bu görünüm cüzdan nesnelerini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps — izin incelemesi",
+        "summary": "dApps — izin incelemesi: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel tanımları, kapsamlı niyetleri ve açık sonuçları inceleyin.",
+                  "Kabulden önce kapsamı, kullanımları, süreyi, değeri, ücreti, açıklamayı ve iptali inceleyin."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps bir yol haritası önizlemesidir; uzak kod, rastgele URL veya genel imza çalıştırmaz.",
+                  "Kabul edilen niyeti Cüzdan yeniden doğrular; bu görünüm cüzdan nesnelerini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "Mesajlaşma — ayrıntılar",
+        "summary": "Mesajlaşma — ayrıntılar: özel istek eşgüdümü önizlemesi ve Cüzdan aktarımı hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel mesajları, istekleri, makbuzları, süreyi ve kurtarma durumlarını inceleyin.",
+                  "Kabul, Cüzdan inceleme niyeti oluşturur; ödeme yapmaz veya cüzdan durumunu değiştirmez."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger kısa süreli aktarım için yol haritası önizlemesidir; kalıcı zincir üstü sohbet değildir.",
+                  "Açma, silme, engelleme veya bildirme Cüzdan ödeme durumunu değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "Mesajlaşma — istek incelemesi",
+        "summary": "Mesajlaşma — istek incelemesi: özel istek eşgüdümü önizlemesi ve Cüzdan aktarımı hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel mesajları, istekleri, makbuzları, süreyi ve kurtarma durumlarını inceleyin.",
+                  "Kabul, Cüzdan inceleme niyeti oluşturur; ödeme yapmaz veya cüzdan durumunu değiştirmez."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger kısa süreli aktarım için yol haritası önizlemesidir; kalıcı zincir üstü sohbet değildir.",
+                  "Açma, silme, engelleme veya bildirme Cüzdan ödeme durumunu değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "Kişiler — ayrıntılar",
+        "summary": "Kişiler — ayrıntılar: yerel kişi etiketleri, alıcı kartları ve açık kimlik değişikliği incelemesi hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel kişi verilerini, süreyi, iptali ve kimlik değişikliği kanıtını inceleyin.",
+                  "Kaydedilmiş etiket kimliği veya güveni kanıtlamaz; değişen veriler açıkça incelenmelidir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kişiler yerel kalır ve adres ya da çevrim içi durum grafiği olarak yüklenmez.",
+                  "Yerel kişiyi kaldırmak dış hakları iptal etmez veya Cüzdan ödemesini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "Kişiler — kimlik incelemesi",
+        "summary": "Kişiler — kimlik incelemesi: yerel kişi etiketleri, alıcı kartları ve açık kimlik değişikliği incelemesi hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yerel kişi verilerini, süreyi, iptali ve kimlik değişikliği kanıtını inceleyin.",
+                  "Kaydedilmiş etiket kimliği veya güveni kanıtlamaz; değişen veriler açıkça incelenmelidir."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Kişiler yerel kalır ve adres ya da çevrim içi durum grafiği olarak yüklenmez.",
+                  "Yerel kişiyi kaldırmak dış hakları iptal etmez veya Cüzdan ödemesini değiştirmez."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "İzleyiciler — uyarı ayrıntıları",
+        "summary": "İzleyiciler — uyarı ayrıntıları: salt okunur Watchers yol haritası önizlemesi ve genel kanıt sınırı hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Ağ durumunu değiştirmeden belirlenimci yayın verilerini inceleyin.",
+                  "Kullanılamayan, eski, bozuk ve hata durumları açık kalır ve güvenli biçimde başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers, yerel verili bir yol haritası önizlemesidir; yayımlanmış protokol özelliği değildir.",
+                  "Cüzdan etiketleri, taraflar, yollar, mesajlar ve gizli bilgiler açığa çıkmaz."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "Gezgin — ayrıntılar",
+        "summary": "Gezgin — ayrıntılar: desteklenen genel kimlikler için gizlilik sınırlı Explorer önizlemesi hakkında yardım.",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "Bu görünümü kullanma",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Yalnızca desteklenen genel kontrol noktası, parti, uyarı veya kanıt kimliklerini kullanın.",
+                  "Bilinmeyen, özel, bozuk veya kullanılamayan kimlikler cüzdan sorgusu olmadan başarısız olur."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Yerel ve güvenli davranış",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer, yerel verili bir yol haritası önizlemesidir; cüzdan veri hizmeti değildir.",
+                  "Yerel bakiyeler, kişiler, mesajlar, notlar, yollar ve gizli bilgiler Explorer’a girmez."
                 ]
               }
             ]
@@ -10912,10 +22332,10 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "ホーム",
-        "summary": "ホームには、選択したウォレットの残高、非公開アクション、最近のイベントがまとまっています。",
+      "about": {
+        "id": "about",
+        "title": "このアプリについて",
+        "summary": "このアプリについて：Z00Z のバージョン、目的、更新チャネルです。",
         "scope": "context",
         "sections": [
           {
@@ -10925,8 +22345,8 @@
               {
                 "type": "list",
                 "items": [
-                  "選択したウォレットを確認し、送信、受信、履歴、または対応が必要な項目を開きます。",
-                  "名前と値は、選択したローカルウォレットプロファイルに属します。"
+                  "このセッションの現在のデモバージョンを確認します。",
+                  "JavaScript デモは Rust と Tauri の UX 目標を定義します。"
                 ]
               }
             ]
@@ -10938,8 +22358,8 @@
               {
                 "type": "list",
                 "items": [
-                  "利用できない機能は明示され、残高や経路を推測して表示しません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
+                  "デモは更新をダウンロードまたはインストールしません。",
+                  "製品版は署名済みリリースマニフェストを検証する必要があります。"
                 ]
               }
             ]
@@ -11048,6 +22468,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "隔離",
+        "summary": "隔離：ウォレットによる明示的な確認が必要な対象のローカルヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "操作する前に、表示された理由、提供元、ローカル状態を確認してください。",
+                  "ネイティブウォレットが安全な次の手順を示すまで、利用不可の操作はブロックされます。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "最終判断はこの画面ではなく、ネイティブウォレットのポリシーが行います。",
+                  "秘密情報と非公開の転送データがヘルプに入ることはありません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "送信",
@@ -11116,10 +22570,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "プライベートスワップ",
-        "summary": "プライベートスワップの操作と状態を説明します。",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "履歴",
+        "summary": "履歴の操作と状態を説明します。",
         "scope": "context",
         "sections": [
           {
@@ -11129,7 +22583,7 @@
               {
                 "type": "list",
                 "items": [
-                  "保有する元資産、金額、互換性のある対象資産を選び、送信前にプレビューを確認します。",
+                  "オブジェクト種類でイベントを絞り込み、行を開いて受領証と技術的ライフサイクルを確認します。",
                   "利用不可、読み取り専用、保留中の状態を明確に表示します。"
                 ]
               }
@@ -11150,10 +22604,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "取引所",
-        "summary": "取引所の操作と状態を説明します。",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
+        "title": "ステーク",
+        "summary": "ステーク：ウォレットによる明示的な確認が必要な対象のローカルヘルプです。",
         "scope": "context",
         "sections": [
           {
@@ -11163,8 +22617,8 @@
               {
                 "type": "list",
                 "items": [
-                  "注文板リクエストには Hyperliquid Spot、solver によるクロスチェーンリクエストには NEAR Intents を選びます。",
-                  "ペアまたはルート、受取人/返金、スリッページ、期限を確認します。検証済みコネクタなしでは見積、出力、手数料、入金先、実行状態は利用できません。"
+                  "操作する前に、表示された理由、提供元、ローカル状態を確認してください。",
+                  "ネイティブウォレットが安全な次の手順を示すまで、利用不可の操作はブロックされます。"
                 ]
               }
             ]
@@ -11176,18 +22630,18 @@
               {
                 "type": "list",
                 "items": [
-                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
+                  "最終判断はこの画面ではなく、ネイティブウォレットのポリシーが行います。",
+                  "秘密情報と非公開の転送データがヘルプに入ることはありません。"
                 ]
               }
             ]
           }
         ]
       },
-      "wallet.staking": {
-        "id": "wallet.staking",
-        "title": "ステーキング",
-        "summary": "ステーキングの操作と状態を説明します。",
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "アンステーク",
+        "summary": "アンステーク：ウォレットによる明示的な確認が必要な対象のローカルヘルプです。",
         "scope": "context",
         "sections": [
           {
@@ -11197,8 +22651,8 @@
               {
                 "type": "list",
                 "items": [
-                  "利用可能額、ステーク額、報酬を確認し、チェーン検証後に金額とバリデータを選択します。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
+                  "操作する前に、表示された理由、提供元、ローカル状態を確認してください。",
+                  "ネイティブウォレットが安全な次の手順を示すまで、利用不可の操作はブロックされます。"
                 ]
               }
             ]
@@ -11210,8 +22664,8 @@
               {
                 "type": "list",
                 "items": [
-                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
+                  "最終判断はこの画面ではなく、ネイティブウォレットのポリシーが行います。",
+                  "秘密情報と非公開の転送データがヘルプに入ることはありません。"
                 ]
               }
             ]
@@ -11232,40 +22686,6 @@
                 "type": "list",
                 "items": [
                   "新しい暗号化バックアップを作成する前に、最新コピーの日付、整合性、保存先を確認します。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "ローカルで安全な動作",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "履歴",
-        "summary": "履歴の操作と状態を説明します。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "この画面の使い方",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "オブジェクト種類でイベントを絞り込み、行を開いて受領証と技術的ライフサイクルを確認します。",
                   "利用不可、読み取り専用、保留中の状態を明確に表示します。"
                 ]
               }
@@ -11436,142 +22856,6 @@
                 "type": "list",
                 "items": [
                   "安全なローカル YAML 下書きを検証して適用します。秘密情報とファイルパスは含まれません。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "ローカルで安全な動作",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "一般設定",
-        "summary": "一般設定の操作と状態を説明します。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "この画面の使い方",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "アプリの言語、地域形式、表示タイムゾーン、通知設定を選択します。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "ローカルで安全な動作",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "外観",
-        "summary": "外観の操作と状態を説明します。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "この画面の使い方",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "ライト／ダーク、パレット、ローカル YAML 強調テーマを選択します。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "ローカルで安全な動作",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Reticulum設定",
-        "summary": "Reticulum設定の操作と状態を説明します。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "この画面の使い方",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "ローカルキャリアサービス、インターフェースモード、Reticulum ネットワーク ID を確認します。",
-                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "ローカルで安全な動作",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
-                  "このヘルプはアプリに同梱され、オフラインで動作します。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "OnionNet設定",
-        "summary": "OnionNet設定の操作と状態を説明します。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "この画面の使い方",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "キャリア上のプライバシーモード、メンバーシップ／リプレイ検査、経路の経過時間を確認します。",
                   "利用不可、読み取り専用、保留中の状態を明確に表示します。"
                 ]
               }
@@ -12136,6 +23420,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "アグリゲーター入力",
+        "summary": "Runtime がトランザクションまたは claim payload を digest に結び付いた作業項目として受け入れる方法を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`WorkPayload` から `WorkItem` または `RejectRecord` への契約を確認します。",
+                  "利用不可は新しい admission snapshot がないことを示し、受理や拒否を意味しません。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 境界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Object package の結合は admission digest と intake identity を変更します。",
+                  "Raw payload、受取人、メモ、ウォレットのローカル経路はヘルプに入りません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "アグリゲーター計画",
+        "summary": "Settlement 権限を主張せず、決定論的な batch と shard route の結合を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Planner mode、route generation、intake と operation の数、digest の所有者を確認します。",
+                  "利用不可は検証済み `BatchPlanned` snapshot が接続されていないことを示します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 境界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "設定、generation、route-table digest、再計算した plan は一致する必要があります。",
+                  "計画は settlement、publication、storage truth を確定しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "アグリゲーター配置",
+        "summary": "Runtime が所有する shard generation、primary、secondary readiness、journal lineage を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "グローバルなトポロジーを推測せず `ShardPlacementView` 契約を確認します。",
+                  "利用不可は現在の placement table 観測が接続されていないことを示します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 境界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Table は正確な shard と routing generation を所有する必要があります。",
+                  "Aggregator ID は運用データで、endpoint とウォレット identity は非表示です。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "アグリゲーター公開",
+        "summary": "Ordered batch が checkpoint、quorum、DA、lifecycle evidence に結び付く方法を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`PublicationRequest` から `PublishedBatch`、`PublicationRecord` への流れを確認します。",
+                  "利用不可は検証済み publication または readiness bundle が接続されていないことを示します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 境界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Provider、height、manifest、payload、statement、evidence が不完全または不一致なら拒否されます。",
+                  "Storage が checkpoint root、proof、lifecycle truth を所有します。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "アグリゲーター復旧",
+        "summary": "確定した route、generation、primary、journal lineage に対する再起動と secondary takeover の検査を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "`ShardRecoveryRecord`、recovery intent、durable state、execution ticket を確認します。",
+                  "利用不可は確定済み recovery snapshot が接続されていないことを示します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 境界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Generation、primary、shard、batch、route、lineage が誤っていれば拒否されます。",
+                  "Renderer は failover を開始したり Storage の recovery truth を変更したりできません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "監視：概要",
+        "summary": "監視：概要：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ネットワーク状態を変更せず、決定的な公開データを確認します。",
+                  "利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。",
+                  "ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "監視：アラート",
+        "summary": "監視：アラート：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ネットワーク状態を変更せず、決定的な公開データを確認します。",
+                  "利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。",
+                  "ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "監視：公開",
+        "summary": "監視：公開：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ネットワーク状態を変更せず、決定的な公開データを確認します。",
+                  "利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。",
+                  "ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "監視：DAプロバイダー",
+        "summary": "監視：DAプロバイダー：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ネットワーク状態を変更せず、決定的な公開データを確認します。",
+                  "利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。",
+                  "ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "監視：検閲シグナル",
+        "summary": "監視：検閲シグナル：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ネットワーク状態を変更せず、決定的な公開データを確認します。",
+                  "利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。",
+                  "ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "監視：証拠をエクスポート",
+        "summary": "監視：証拠をエクスポート：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ネットワーク状態を変更せず、決定的な公開データを確認します。",
+                  "利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。",
+                  "ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "エクスプローラー：概要",
+        "summary": "エクスプローラー：概要：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。",
+                  "不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。",
+                  "ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "エクスプローラー：検索",
+        "summary": "エクスプローラー：検索：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。",
+                  "不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。",
+                  "ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "エクスプローラー：チェックポイント",
+        "summary": "エクスプローラー：チェックポイント：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。",
+                  "不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。",
+                  "ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "エクスプローラー：バッチ",
+        "summary": "エクスプローラー：バッチ：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。",
+                  "不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。",
+                  "ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "エクスプローラー：公開証拠",
+        "summary": "エクスプローラー：公開証拠：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。",
+                  "不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。",
+                  "ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "探索",
+        "summary": "探索：制限されたローカル dApps プレビューと権限境界のヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカル記述、範囲限定インテント、明示された結果を確認します。",
+                  "承認前に範囲、利用回数、有効期限、金額、手数料、開示、取り消しを確認してください。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps はロードマッププレビューであり、外部コード、任意 URL、汎用署名を実行しません。",
+                  "承認したインテントはウォレットが再検証し、この画面はウォレット対象を変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "インストール済み",
+        "summary": "インストール済み：制限されたローカル dApps プレビューと権限境界のヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカル記述、範囲限定インテント、明示された結果を確認します。",
+                  "承認前に範囲、利用回数、有効期限、金額、手数料、開示、取り消しを確認してください。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps はロードマッププレビューであり、外部コード、任意 URL、汎用署名を実行しません。",
+                  "承認したインテントはウォレットが再検証し、この画面はウォレット対象を変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "接続",
+        "summary": "接続：制限されたローカル dApps プレビューと権限境界のヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカル記述、範囲限定インテント、明示された結果を確認します。",
+                  "承認前に範囲、利用回数、有効期限、金額、手数料、開示、取り消しを確認してください。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps はロードマッププレビューであり、外部コード、任意 URL、汎用署名を実行しません。",
+                  "承認したインテントはウォレットが再検証し、この画面はウォレット対象を変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "権限",
+        "summary": "権限：制限されたローカル dApps プレビューと権限境界のヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカル記述、範囲限定インテント、明示された結果を確認します。",
+                  "承認前に範囲、利用回数、有効期限、金額、手数料、開示、取り消しを確認してください。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps はロードマッププレビューであり、外部コード、任意 URL、汎用署名を実行しません。",
+                  "承認したインテントはウォレットが再検証し、この画面はウォレット対象を変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "プライベートスワップ",
+        "summary": "プライベートスワップの操作と状態を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "保有する元資産、金額、互換性のある対象資産を選び、送信前にプレビューを確認します。",
+                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
+                  "このヘルプはアプリに同梱され、オフラインで動作します。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "取引所",
+        "summary": "取引所の操作と状態を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "注文板リクエストには Hyperliquid Spot、solver によるクロスチェーンリクエストには NEAR Intents を選びます。",
+                  "ペアまたはルート、受取人/返金、スリッページ、期限を確認します。検証済みコネクタなしでは見積、出力、手数料、入金先、実行状態は利用できません。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
+                  "このヘルプはアプリに同梱され、オフラインで動作します。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "受信トレイ",
+        "summary": "受信トレイ：非公開リクエスト調整プレビューとウォレット引き渡しのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルのメッセージ、リクエスト、受領書、期限、復旧状態を確認します。",
+                  "承認はウォレット確認用インテントを作るだけで、決済や状態変更は行いません。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger は短期中継のロードマッププレビューであり、永続的なオンチェーンチャットではありません。",
+                  "開く、削除、ブロック、報告の操作がウォレット決済状態を変えることはありません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "送信済み",
+        "summary": "送信済み：非公開リクエスト調整プレビューとウォレット引き渡しのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルのメッセージ、リクエスト、受領書、期限、復旧状態を確認します。",
+                  "承認はウォレット確認用インテントを作るだけで、決済や状態変更は行いません。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger は短期中継のロードマッププレビューであり、永続的なオンチェーンチャットではありません。",
+                  "開く、削除、ブロック、報告の操作がウォレット決済状態を変えることはありません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "会話",
+        "summary": "会話：非公開リクエスト調整プレビューとウォレット引き渡しのヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルのメッセージ、リクエスト、受領書、期限、復旧状態を確認します。",
+                  "承認はウォレット確認用インテントを作るだけで、決済や状態変更は行いません。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger は短期中継のロードマッププレビューであり、永続的なオンチェーンチャットではありません。",
+                  "開く、削除、ブロック、報告の操作がウォレット決済状態を変えることはありません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "ディスク使用量",
+        "summary": "ディスク使用量：非公開データを含まない集計ローカル値です。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ウォレット記録を開かずにリソース使用量を確認します。",
+                  "表示値は決定的なデモデータです。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "連絡先、メッセージ、経路、操作、秘密情報は除外されます。",
+                  "製品版は制限されたネイティブ機能から集計値のみを取得する必要があります。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "ネットワーク使用量",
+        "summary": "ネットワーク使用量：非公開データを含まない集計ローカル値です。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ウォレット記録を開かずにリソース使用量を確認します。",
+                  "表示値は決定的なデモデータです。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "連絡先、メッセージ、経路、操作、秘密情報は除外されます。",
+                  "製品版は制限されたネイティブ機能から集計値のみを取得する必要があります。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "連絡先",
+        "summary": "連絡先：ローカル連絡先ラベル、受取カード、明示的な本人情報変更確認のヘルプです。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルデータ、有効期限、失効、本人情報変更の証拠を確認します。",
+                  "保存したラベルは本人確認や信頼の証明ではなく、変更されたデータは確認が必要です。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "連絡先はローカルに保持され、住所や在席状況のグラフとして送信されません。",
+                  "ローカル連絡先の削除は外部権限を失効させず、ウォレット決済も変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "一般設定",
+        "summary": "一般設定の操作と状態を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "アプリの言語、地域形式、表示タイムゾーン、通知設定を選択します。",
+                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
+                  "このヘルプはアプリに同梱され、オフラインで動作します。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "通知",
+        "summary": "通知：通知、振動、着信音のローカル設定です。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "振動と着信音を選ぶ前に通知を有効にします。",
+                  "通知が無効な場合、関連する選択肢も無効です。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "デモは OS 権限を要求しません。",
+                  "製品版は音声や振動を利用できない場合に明示する必要があります。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "外観",
+        "summary": "外観の操作と状態を説明します。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ライト／ダーク、パレット、ローカル YAML 強調テーマを選択します。",
+                  "利用不可、読み取り専用、保留中の状態を明確に表示します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。",
+                  "このヘルプはアプリに同梱され、オフラインで動作します。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "資産の詳細",
@@ -12164,6 +24685,278 @@
                 "items": [
                   "各項目は読み取り専用で、市場価値、所有権、プロトコルの信頼性を証明しません。",
                   "アイコン、メタデータ、ヘルプはローカルに同梱され、オフラインで動作します。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps：詳細",
+        "summary": "dApps：詳細：制限されたローカル dApps プレビューと権限境界のヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカル記述、範囲限定インテント、明示された結果を確認します。",
+                  "承認前に範囲、利用回数、有効期限、金額、手数料、開示、取り消しを確認してください。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps はロードマッププレビューであり、外部コード、任意 URL、汎用署名を実行しません。",
+                  "承認したインテントはウォレットが再検証し、この画面はウォレット対象を変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps：権限の確認",
+        "summary": "dApps：権限の確認：制限されたローカル dApps プレビューと権限境界のヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカル記述、範囲限定インテント、明示された結果を確認します。",
+                  "承認前に範囲、利用回数、有効期限、金額、手数料、開示、取り消しを確認してください。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps はロードマッププレビューであり、外部コード、任意 URL、汎用署名を実行しません。",
+                  "承認したインテントはウォレットが再検証し、この画面はウォレット対象を変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "メッセンジャー：詳細",
+        "summary": "メッセンジャー：詳細：非公開リクエスト調整プレビューとウォレット引き渡しのヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルのメッセージ、リクエスト、受領書、期限、復旧状態を確認します。",
+                  "承認はウォレット確認用インテントを作るだけで、決済や状態変更は行いません。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger は短期中継のロードマッププレビューであり、永続的なオンチェーンチャットではありません。",
+                  "開く、削除、ブロック、報告の操作がウォレット決済状態を変えることはありません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "メッセンジャー：リクエストの確認",
+        "summary": "メッセンジャー：リクエストの確認：非公開リクエスト調整プレビューとウォレット引き渡しのヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルのメッセージ、リクエスト、受領書、期限、復旧状態を確認します。",
+                  "承認はウォレット確認用インテントを作るだけで、決済や状態変更は行いません。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger は短期中継のロードマッププレビューであり、永続的なオンチェーンチャットではありません。",
+                  "開く、削除、ブロック、報告の操作がウォレット決済状態を変えることはありません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "連絡先：詳細",
+        "summary": "連絡先：詳細：ローカル連絡先ラベル、受取カード、明示的な本人情報変更確認のヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルデータ、有効期限、失効、本人情報変更の証拠を確認します。",
+                  "保存したラベルは本人確認や信頼の証明ではなく、変更されたデータは確認が必要です。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "連絡先はローカルに保持され、住所や在席状況のグラフとして送信されません。",
+                  "ローカル連絡先の削除は外部権限を失効させず、ウォレット決済も変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "連絡先：本人情報の確認",
+        "summary": "連絡先：本人情報の確認：ローカル連絡先ラベル、受取カード、明示的な本人情報変更確認のヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ローカルデータ、有効期限、失効、本人情報変更の証拠を確認します。",
+                  "保存したラベルは本人確認や信頼の証明ではなく、変更されたデータは確認が必要です。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "連絡先はローカルに保持され、住所や在席状況のグラフとして送信されません。",
+                  "ローカル連絡先の削除は外部権限を失効させず、ウォレット決済も変更しません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "監視：アラートの詳細",
+        "summary": "監視：アラートの詳細：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "ネットワーク状態を変更せず、決定的な公開データを確認します。",
+                  "利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。",
+                  "ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "エクスプローラー：詳細",
+        "summary": "エクスプローラー：詳細：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "この画面の使い方",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。",
+                  "不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "ローカルで安全な動作",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。",
+                  "ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。"
                 ]
               }
             ]
@@ -12219,34 +25012,34 @@
           }
         ]
       },
-      "app.home": {
-        "id": "app.home",
-        "title": "首页",
-        "summary": "首页集中显示所选钱包的余额、私密操作和最近事件。",
+      "about": {
+        "id": "about",
+        "title": "关于",
+        "summary": "关于：Z00Z 版本、用途和更新通道。",
         "scope": "context",
         "sections": [
           {
-            "title": "使用此页面",
+            "title": "使用此视图",
             "target": "current-view",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "检查所选钱包，然后打开发送、接收、历史记录或需要关注的项目。",
-                  "名称和值属于所选的本地钱包配置。"
+                  "检查本次会话的当前演示版本。",
+                  "JavaScript 演示定义 Rust 和 Tauri 的 UX 目标。"
                 ]
               }
             ]
           },
           {
-            "title": "本地且安全",
+            "title": "本地和安全行为",
             "target": "",
             "blocks": [
               {
                 "type": "list",
                 "items": [
-                  "不可用的功能会明确标注，应用不会虚构余额或路由。",
-                  "此帮助随应用打包，可离线使用。"
+                  "演示不会下载或安装更新。",
+                  "正式应用必须验证签名的发布清单。"
                 ]
               }
             ]
@@ -12355,6 +25148,40 @@
           }
         ]
       },
+      "wallet.quarantine": {
+        "id": "wallet.quarantine",
+        "title": "隔离",
+        "summary": "隔离：针对需要钱包明确审核的对象的本地帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "执行任何操作前，请检查显示的原因、来源和本地状态。",
+                  "在原生钱包提供安全的后续步骤前，不可用的操作保持阻止状态。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "最终决定由原生钱包策略作出，而不是此视图。",
+                  "机密和私密传输数据绝不会进入帮助。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "wallet.send": {
         "id": "wallet.send",
         "title": "发送",
@@ -12423,10 +25250,10 @@
           }
         ]
       },
-      "wallet.swap": {
-        "id": "wallet.swap",
-        "title": "私密兑换",
-        "summary": "私密兑换说明此视图中的控件和状态。",
+      "wallet.history": {
+        "id": "wallet.history",
+        "title": "历史记录",
+        "summary": "历史记录说明此视图中的控件和状态。",
         "scope": "context",
         "sections": [
           {
@@ -12436,7 +25263,7 @@
               {
                 "type": "list",
                 "items": [
-                  "选择持有的源资产、金额和兼容目标资产，然后在提交前检查预览。",
+                  "按对象类型筛选钱包事件，并打开一行查看收据和技术生命周期。",
                   "不可用、只读和待处理状态会明确显示。"
                 ]
               }
@@ -12457,44 +25284,10 @@
           }
         ]
       },
-      "wallet.exchange": {
-        "id": "wallet.exchange",
-        "title": "交易所",
-        "summary": "交易所说明此视图中的控件和状态。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "使用此视图",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "订单簿请求选择 Hyperliquid Spot；solver 驱动的跨链请求选择 NEAR Intents。",
-                  "检查交易对或路线、接收/退款地址、滑点和期限。没有已验证连接器时，报价、输出、费用、充值地址和执行状态保持不可用。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "本地和安全行为",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "钱包机密和私有传输数据不会进入帮助内容。",
-                  "此帮助随应用打包，可离线使用。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.staking": {
-        "id": "wallet.staking",
+      "wallet.staking.stake": {
+        "id": "wallet.staking.stake",
         "title": "质押",
-        "summary": "质押说明此视图中的控件和状态。",
+        "summary": "质押：针对需要钱包明确审核的对象的本地帮助。",
         "scope": "context",
         "sections": [
           {
@@ -12504,8 +25297,8 @@
               {
                 "type": "list",
                 "items": [
-                  "查看可用、已质押和奖励金额；仅在链验证后选择金额和验证者。",
-                  "不可用、只读和待处理状态会明确显示。"
+                  "执行任何操作前，请检查显示的原因、来源和本地状态。",
+                  "在原生钱包提供安全的后续步骤前，不可用的操作保持阻止状态。"
                 ]
               }
             ]
@@ -12517,8 +25310,42 @@
               {
                 "type": "list",
                 "items": [
-                  "钱包机密和私有传输数据不会进入帮助内容。",
-                  "此帮助随应用打包，可离线使用。"
+                  "最终决定由原生钱包策略作出，而不是此视图。",
+                  "机密和私密传输数据绝不会进入帮助。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.staking.unstake": {
+        "id": "wallet.staking.unstake",
+        "title": "解除质押",
+        "summary": "解除质押：针对需要钱包明确审核的对象的本地帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "执行任何操作前，请检查显示的原因、来源和本地状态。",
+                  "在原生钱包提供安全的后续步骤前，不可用的操作保持阻止状态。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "最终决定由原生钱包策略作出，而不是此视图。",
+                  "机密和私密传输数据绝不会进入帮助。"
                 ]
               }
             ]
@@ -12539,40 +25366,6 @@
                 "type": "list",
                 "items": [
                   "创建新的加密备份前，查看最近本地备份的日期、完整性和目标位置。",
-                  "不可用、只读和待处理状态会明确显示。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "本地和安全行为",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "钱包机密和私有传输数据不会进入帮助内容。",
-                  "此帮助随应用打包，可离线使用。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "wallet.history": {
-        "id": "wallet.history",
-        "title": "历史记录",
-        "summary": "历史记录说明此视图中的控件和状态。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "使用此视图",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "按对象类型筛选钱包事件，并打开一行查看收据和技术生命周期。",
                   "不可用、只读和待处理状态会明确显示。"
                 ]
               }
@@ -12743,142 +25536,6 @@
                 "type": "list",
                 "items": [
                   "验证并应用所选钱包的安全本地 YAML 草稿；其中不包含机密和文件路径。",
-                  "不可用、只读和待处理状态会明确显示。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "本地和安全行为",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "钱包机密和私有传输数据不会进入帮助内容。",
-                  "此帮助随应用打包，可离线使用。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.general": {
-        "id": "settings.general",
-        "title": "常规设置",
-        "summary": "常规设置说明此视图中的控件和状态。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "使用此视图",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "选择应用语言、区域格式、显示时区和通知偏好。",
-                  "不可用、只读和待处理状态会明确显示。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "本地和安全行为",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "钱包机密和私有传输数据不会进入帮助内容。",
-                  "此帮助随应用打包，可离线使用。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.appearance": {
-        "id": "settings.appearance",
-        "title": "外观",
-        "summary": "外观说明此视图中的控件和状态。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "使用此视图",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "切换浅色或深色模式，选择调色板和本地 YAML 高亮主题。",
-                  "不可用、只读和待处理状态会明确显示。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "本地和安全行为",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "钱包机密和私有传输数据不会进入帮助内容。",
-                  "此帮助随应用打包，可离线使用。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.reticulum": {
-        "id": "settings.reticulum",
-        "title": "Reticulum 设置",
-        "summary": "Reticulum 设置说明此视图中的控件和状态。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "使用此视图",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "查看本地承载服务、接口模式和 Reticulum 网络身份设置。",
-                  "不可用、只读和待处理状态会明确显示。"
-                ]
-              }
-            ]
-          },
-          {
-            "title": "本地和安全行为",
-            "target": "",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "钱包机密和私有传输数据不会进入帮助内容。",
-                  "此帮助随应用打包，可离线使用。"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "settings.onionnet": {
-        "id": "settings.onionnet",
-        "title": "OnionNet 设置",
-        "summary": "OnionNet 设置说明此视图中的控件和状态。",
-        "scope": "context",
-        "sections": [
-          {
-            "title": "使用此视图",
-            "target": "current-view",
-            "blocks": [
-              {
-                "type": "list",
-                "items": [
-                  "查看承载层之上的隐私模式、成员与重放检查以及路径时长控件。",
                   "不可用、只读和待处理状态会明确显示。"
                 ]
               }
@@ -13443,6 +26100,1243 @@
           }
         ]
       },
+      "telemetry.aggregators.ingress": {
+        "id": "telemetry.aggregators.ingress",
+        "title": "聚合器入口",
+        "summary": "此视图说明运行时如何将交易或 claim payload 接纳为绑定 digest 的工作项。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看从 `WorkPayload` 到 `WorkItem` 或 `RejectRecord` 的契约。",
+                  "不可用表示没有新的 admission snapshot，并不表示已接纳或拒绝。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 边界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "绑定 object package 会改变 admission digest 和 intake identity。",
+                  "Raw payload、接收方、备注和钱包本地路由不会进入帮助内容。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.planning": {
+        "id": "telemetry.aggregators.planning",
+        "title": "聚合器规划",
+        "summary": "此视图说明确定性的 batch 和 shard route 绑定，而不声称拥有 settlement 权限。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看 planner mode、route generation、intake 和 operation 数量以及 digest 所有权。",
+                  "不可用表示未连接经过验证的 `BatchPlanned` snapshot。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 边界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "配置、generation、route-table digest 和重新计算的 plan 必须一致。",
+                  "规划不会最终确定 settlement、publication 或 storage truth。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.placement": {
+        "id": "telemetry.aggregators.placement",
+        "title": "聚合器放置",
+        "summary": "此视图说明运行时拥有的 shard generation、primary、secondary readiness 和 journal lineage。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看 `ShardPlacementView` 契约，不要推断全局拓扑。",
+                  "不可用表示未连接当前 placement table 观测。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 边界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Table 必须拥有精确的 shard 和 routing generation。",
+                  "Aggregator ID 是运行数据；endpoint 和钱包 identity 保持隐藏。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.publication": {
+        "id": "telemetry.aggregators.publication",
+        "title": "聚合器发布",
+        "summary": "此视图说明 ordered batch 如何绑定 checkpoint、quorum、DA 和 lifecycle evidence。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看 `PublicationRequest` 到 `PublishedBatch` 和 `PublicationRecord` 的流程。",
+                  "不可用表示未连接经过验证的 publication 或 readiness bundle。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 边界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Provider、height、manifest、payload、statement 或 evidence 不完整或不一致时会被拒绝。",
+                  "Storage 拥有 checkpoint root、proof 和 lifecycle truth。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.aggregators.recovery": {
+        "id": "telemetry.aggregators.recovery",
+        "title": "聚合器恢复",
+        "summary": "此视图说明针对已提交 route、generation、primary 和 journal lineage 的重启与 secondary takeover 检查。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看 `ShardRecoveryRecord`、recovery intent、durable state 和 execution ticket。",
+                  "不可用表示未连接已提交的 recovery snapshot。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Fail-closed 边界",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Generation、primary、shard、batch、route 或 lineage 错误时会被拒绝。",
+                  "Renderer 不能启动 failover 或修改 Storage recovery truth。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.overview": {
+        "id": "telemetry.watchers.overview",
+        "title": "监测器：概览",
+        "summary": "监测器：概览：只读 Watchers 路线图预览及其公开证据边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看确定性的发布数据，而不更改网络状态。",
+                  "不可用、过期、格式错误和异常状态均会明确显示并安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。",
+                  "钱包标签、交易对手、路径、消息和机密不会暴露。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alerts": {
+        "id": "telemetry.watchers.alerts",
+        "title": "监测器：警报",
+        "summary": "监测器：警报：只读 Watchers 路线图预览及其公开证据边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看确定性的发布数据，而不更改网络状态。",
+                  "不可用、过期、格式错误和异常状态均会明确显示并安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。",
+                  "钱包标签、交易对手、路径、消息和机密不会暴露。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.publication": {
+        "id": "telemetry.watchers.publication",
+        "title": "监测器：发布",
+        "summary": "监测器：发布：只读 Watchers 路线图预览及其公开证据边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看确定性的发布数据，而不更改网络状态。",
+                  "不可用、过期、格式错误和异常状态均会明确显示并安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。",
+                  "钱包标签、交易对手、路径、消息和机密不会暴露。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.providers": {
+        "id": "telemetry.watchers.providers",
+        "title": "监测器：DA 提供商",
+        "summary": "监测器：DA 提供商：只读 Watchers 路线图预览及其公开证据边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看确定性的发布数据，而不更改网络状态。",
+                  "不可用、过期、格式错误和异常状态均会明确显示并安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。",
+                  "钱包标签、交易对手、路径、消息和机密不会暴露。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.censorship": {
+        "id": "telemetry.watchers.censorship",
+        "title": "监测器：审查信号",
+        "summary": "监测器：审查信号：只读 Watchers 路线图预览及其公开证据边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看确定性的发布数据，而不更改网络状态。",
+                  "不可用、过期、格式错误和异常状态均会明确显示并安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。",
+                  "钱包标签、交易对手、路径、消息和机密不会暴露。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.evidence": {
+        "id": "telemetry.watchers.evidence",
+        "title": "监测器：导出证据",
+        "summary": "监测器：导出证据：只读 Watchers 路线图预览及其公开证据边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看确定性的发布数据，而不更改网络状态。",
+                  "不可用、过期、格式错误和异常状态均会明确显示并安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。",
+                  "钱包标签、交易对手、路径、消息和机密不会暴露。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.overview": {
+        "id": "telemetry.explorer.overview",
+        "title": "浏览器：概览",
+        "summary": "浏览器：概览：面向受支持公开标识符、受隐私约束的 Explorer 预览帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "仅使用受支持的公开检查点、批次、警报或证据标识符。",
+                  "未知、私密、格式错误或不可用的标识符不会查询钱包，并会安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer 是基于本地样本的路线图预览，并非钱包数据服务。",
+                  "本地余额、联系人、消息、备注、路径和机密不会进入 Explorer。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.search": {
+        "id": "telemetry.explorer.search",
+        "title": "浏览器：搜索",
+        "summary": "浏览器：搜索：面向受支持公开标识符、受隐私约束的 Explorer 预览帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "仅使用受支持的公开检查点、批次、警报或证据标识符。",
+                  "未知、私密、格式错误或不可用的标识符不会查询钱包，并会安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer 是基于本地样本的路线图预览，并非钱包数据服务。",
+                  "本地余额、联系人、消息、备注、路径和机密不会进入 Explorer。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.checkpoints": {
+        "id": "telemetry.explorer.checkpoints",
+        "title": "浏览器：检查点",
+        "summary": "浏览器：检查点：面向受支持公开标识符、受隐私约束的 Explorer 预览帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "仅使用受支持的公开检查点、批次、警报或证据标识符。",
+                  "未知、私密、格式错误或不可用的标识符不会查询钱包，并会安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer 是基于本地样本的路线图预览，并非钱包数据服务。",
+                  "本地余额、联系人、消息、备注、路径和机密不会进入 Explorer。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.batches": {
+        "id": "telemetry.explorer.batches",
+        "title": "浏览器：批次",
+        "summary": "浏览器：批次：面向受支持公开标识符、受隐私约束的 Explorer 预览帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "仅使用受支持的公开检查点、批次、警报或证据标识符。",
+                  "未知、私密、格式错误或不可用的标识符不会查询钱包，并会安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer 是基于本地样本的路线图预览，并非钱包数据服务。",
+                  "本地余额、联系人、消息、备注、路径和机密不会进入 Explorer。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.evidence": {
+        "id": "telemetry.explorer.evidence",
+        "title": "浏览器：公开证据",
+        "summary": "浏览器：公开证据：面向受支持公开标识符、受隐私约束的 Explorer 预览帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "仅使用受支持的公开检查点、批次、警报或证据标识符。",
+                  "未知、私密、格式错误或不可用的标识符不会查询钱包，并会安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer 是基于本地样本的路线图预览，并非钱包数据服务。",
+                  "本地余额、联系人、消息、备注、路径和机密不会进入 Explorer。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.discover": {
+        "id": "dapps.discover",
+        "title": "发现",
+        "summary": "发现：受限本地 dApps 预览及其权限边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地描述、范围受限的意图和明确结果。",
+                  "接受前请检查范围、使用次数、期限、金额、费用、披露和撤销条件。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps 是路线图预览，不会执行远程代码、任意网址或通用签名。",
+                  "钱包会重新验证已接受的意图；此视图不能更改钱包对象。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.installed": {
+        "id": "dapps.installed",
+        "title": "已安装",
+        "summary": "已安装：受限本地 dApps 预览及其权限边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地描述、范围受限的意图和明确结果。",
+                  "接受前请检查范围、使用次数、期限、金额、费用、披露和撤销条件。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps 是路线图预览，不会执行远程代码、任意网址或通用签名。",
+                  "钱包会重新验证已接受的意图；此视图不能更改钱包对象。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.connections": {
+        "id": "dapps.connections",
+        "title": "连接",
+        "summary": "连接：受限本地 dApps 预览及其权限边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地描述、范围受限的意图和明确结果。",
+                  "接受前请检查范围、使用次数、期限、金额、费用、披露和撤销条件。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps 是路线图预览，不会执行远程代码、任意网址或通用签名。",
+                  "钱包会重新验证已接受的意图；此视图不能更改钱包对象。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permissions": {
+        "id": "dapps.permissions",
+        "title": "权限",
+        "summary": "权限：受限本地 dApps 预览及其权限边界的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地描述、范围受限的意图和明确结果。",
+                  "接受前请检查范围、使用次数、期限、金额、费用、披露和撤销条件。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps 是路线图预览，不会执行远程代码、任意网址或通用签名。",
+                  "钱包会重新验证已接受的意图；此视图不能更改钱包对象。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.swap": {
+        "id": "wallet.swap",
+        "title": "私密兑换",
+        "summary": "私密兑换说明此视图中的控件和状态。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "选择持有的源资产、金额和兼容目标资产，然后在提交前检查预览。",
+                  "不可用、只读和待处理状态会明确显示。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "钱包机密和私有传输数据不会进入帮助内容。",
+                  "此帮助随应用打包，可离线使用。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "wallet.exchange": {
+        "id": "wallet.exchange",
+        "title": "交易所",
+        "summary": "交易所说明此视图中的控件和状态。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "订单簿请求选择 Hyperliquid Spot；solver 驱动的跨链请求选择 NEAR Intents。",
+                  "检查交易对或路线、接收/退款地址、滑点和期限。没有已验证连接器时，报价、输出、费用、充值地址和执行状态保持不可用。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "钱包机密和私有传输数据不会进入帮助内容。",
+                  "此帮助随应用打包，可离线使用。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.inbox": {
+        "id": "messenger.inbox",
+        "title": "收件箱",
+        "summary": "收件箱：私密请求协调预览及其钱包交接的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地消息、请求、回执、到期和恢复状态。",
+                  "接受请求只会创建钱包审核意图，不会结算或更改钱包状态。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger 是短期中继的路线图预览，并非永久链上聊天。",
+                  "打开、删除、屏蔽或举报内容不会更改钱包结算状态。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.sent": {
+        "id": "messenger.sent",
+        "title": "已发送",
+        "summary": "已发送：私密请求协调预览及其钱包交接的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地消息、请求、回执、到期和恢复状态。",
+                  "接受请求只会创建钱包审核意图，不会结算或更改钱包状态。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger 是短期中继的路线图预览，并非永久链上聊天。",
+                  "打开、删除、屏蔽或举报内容不会更改钱包结算状态。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.conversations": {
+        "id": "messenger.conversations",
+        "title": "会话",
+        "summary": "会话：私密请求协调预览及其钱包交接的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地消息、请求、回执、到期和恢复状态。",
+                  "接受请求只会创建钱包审核意图，不会结算或更改钱包状态。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger 是短期中继的路线图预览，并非永久链上聊天。",
+                  "打开、删除、屏蔽或举报内容不会更改钱包结算状态。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.disk-usage": {
+        "id": "data-storage.disk-usage",
+        "title": "磁盘使用情况",
+        "summary": "磁盘使用情况：不含私密数据的本地汇总计数。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "无需打开钱包记录即可查看资源使用情况。",
+                  "显示值为确定性的演示数据。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "联系人、消息、路径、活动和机密均被排除。",
+                  "正式应用只能通过受限原生能力获取汇总值。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "data-storage.network-usage": {
+        "id": "data-storage.network-usage",
+        "title": "网络使用情况",
+        "summary": "网络使用情况：不含私密数据的本地汇总计数。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "无需打开钱包记录即可查看资源使用情况。",
+                  "显示值为确定性的演示数据。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "联系人、消息、路径、活动和机密均被排除。",
+                  "正式应用只能通过受限原生能力获取汇总值。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.list": {
+        "id": "contacts.list",
+        "title": "联系人",
+        "summary": "联系人：本地联系人标签、接收卡和明确身份变更审核的帮助。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地联系人数据、到期、撤销和身份变更证据。",
+                  "已保存的标签不能证明身份或信任；变更后的数据需要明确审核。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "联系人保留在本地，不会作为地址或在线状态图上传。",
+                  "删除本地联系人不会撤销外部权限或更改钱包结算。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.general": {
+        "id": "settings.general",
+        "title": "常规设置",
+        "summary": "常规设置说明此视图中的控件和状态。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "选择应用语言、区域格式、显示时区和通知偏好。",
+                  "不可用、只读和待处理状态会明确显示。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "钱包机密和私有传输数据不会进入帮助内容。",
+                  "此帮助随应用打包，可离线使用。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.notifications": {
+        "id": "settings.notifications",
+        "title": "通知",
+        "summary": "通知：本地通知、振动和铃声设置。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "选择振动和铃声前，请先启用通知。",
+                  "关闭通知时，相关选项也会禁用。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "演示不会请求操作系统权限。",
+                  "正式应用必须明确提示声音或振动不可用。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "settings.appearance": {
+        "id": "settings.appearance",
+        "title": "外观",
+        "summary": "外观说明此视图中的控件和状态。",
+        "scope": "context",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "切换浅色或深色模式，选择调色板和本地 YAML 高亮主题。",
+                  "不可用、只读和待处理状态会明确显示。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "钱包机密和私有传输数据不会进入帮助内容。",
+                  "此帮助随应用打包，可离线使用。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.faq": {
+        "id": "help.faq",
+        "title": "Frequently asked questions",
+        "summary": "Find short answers about the Z00Z wallet demo, roadmap screens, and local data.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Can I buy or sell Z00Z here?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No live exchange, fiat provider, bridge, or settlement service is connected to this demo.",
+                  "Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Does the demo use real wallet data?",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "The demo uses deterministic local fixtures and does not request a seed phrase or private key.",
+                  "Help is packaged with the application and does not receive wallet secrets or private transport data."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.how-to": {
+        "id": "help.how-to",
+        "title": "How to use the demo",
+        "summary": "Learn the navigation model and the safe way to explore planned Z00Z wallet flows.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Navigate on desktop and mobile",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.",
+                  "Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Explore roadmap exchange flows",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.",
+                  "The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Keep the boundary clear",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.",
+                  "The original Ethereum and BOLD design research is retained under the English Help drafts and is not presented as a shipped capability."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.report-issues": {
+        "id": "help.report-issues",
+        "title": "Report issues",
+        "summary": "Collect useful, non-sensitive details before reporting a problem with the Z00Z demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Describe the problem",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Record the screen, selected wallet label, language, palette, viewport size, and exact action that failed.",
+                  "Include the expected result and the result you observed, with a screenshot when it does not expose private data."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Protect sensitive data",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Never include a seed phrase, private key, recovery material, private message, contact details, or full wallet history.",
+                  "Use the Z00Z GitHub repository issue tracker for reproducible demo defects and remove sensitive data before submitting."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.tips-and-tricks": {
+        "id": "help.tips-and-tricks",
+        "title": "Tips and tricks",
+        "summary": "Use faster navigation, contextual Help, search, and appearance controls across the demo.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Move through the application",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Keep more than one first-level accordion open when comparing areas, and close either one without changing the other.",
+                  "On mobile, use the top workspace tabs for repeated actions instead of reopening the main menu."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Find the right Help",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Open Help from the main menu for the complete tree, or use the question button for the current screen.",
+                  "Search article titles and content, then switch language or palette without leaving the standalone Help application."
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "help.video-tutorials": {
+        "id": "help.video-tutorials",
+        "title": "Video tutorials",
+        "summary": "Review the planned tutorial subjects and the current availability boundary.",
+        "scope": "article",
+        "sections": [
+          {
+            "title": "Planned tutorials",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Wallet navigation, Assets, Send, Receive, Contacts, privacy controls, and safe backup are intended tutorial subjects.",
+                  "Telemetry, dApps, Messenger, Watchers, and Explorer tutorials must identify roadmap-only behavior clearly."
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Current availability",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "No official tutorial video is bundled with this demo yet.",
+                  "Use the searchable Help tree for the current interaction model; future videos must match the same versioned Help content."
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "asset.details": {
         "id": "asset.details",
         "title": "资产详情",
@@ -13471,6 +27365,278 @@
                 "items": [
                   "这些字段为只读，不能证明市场价值、所有权或协议可信度。",
                   "图标、元数据和帮助均在本地打包，可离线使用。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.detail": {
+        "id": "dapps.detail",
+        "title": "dApps：详情",
+        "summary": "dApps：详情：受限本地 dApps 预览及其权限边界的帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地描述、范围受限的意图和明确结果。",
+                  "接受前请检查范围、使用次数、期限、金额、费用、披露和撤销条件。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps 是路线图预览，不会执行远程代码、任意网址或通用签名。",
+                  "钱包会重新验证已接受的意图；此视图不能更改钱包对象。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dapps.permission-review": {
+        "id": "dapps.permission-review",
+        "title": "dApps：权限审核",
+        "summary": "dApps：权限审核：受限本地 dApps 预览及其权限边界的帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地描述、范围受限的意图和明确结果。",
+                  "接受前请检查范围、使用次数、期限、金额、费用、披露和撤销条件。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "dApps 是路线图预览，不会执行远程代码、任意网址或通用签名。",
+                  "钱包会重新验证已接受的意图；此视图不能更改钱包对象。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.detail": {
+        "id": "messenger.detail",
+        "title": "信使：详情",
+        "summary": "信使：详情：私密请求协调预览及其钱包交接的帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地消息、请求、回执、到期和恢复状态。",
+                  "接受请求只会创建钱包审核意图，不会结算或更改钱包状态。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger 是短期中继的路线图预览，并非永久链上聊天。",
+                  "打开、删除、屏蔽或举报内容不会更改钱包结算状态。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "messenger.request-review": {
+        "id": "messenger.request-review",
+        "title": "信使：请求审核",
+        "summary": "信使：请求审核：私密请求协调预览及其钱包交接的帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地消息、请求、回执、到期和恢复状态。",
+                  "接受请求只会创建钱包审核意图，不会结算或更改钱包状态。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Messenger 是短期中继的路线图预览，并非永久链上聊天。",
+                  "打开、删除、屏蔽或举报内容不会更改钱包结算状态。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.detail": {
+        "id": "contacts.detail",
+        "title": "联系人：详情",
+        "summary": "联系人：详情：本地联系人标签、接收卡和明确身份变更审核的帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地联系人数据、到期、撤销和身份变更证据。",
+                  "已保存的标签不能证明身份或信任；变更后的数据需要明确审核。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "联系人保留在本地，不会作为地址或在线状态图上传。",
+                  "删除本地联系人不会撤销外部权限或更改钱包结算。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "contacts.identity-review": {
+        "id": "contacts.identity-review",
+        "title": "联系人：身份审核",
+        "summary": "联系人：身份审核：本地联系人标签、接收卡和明确身份变更审核的帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看本地联系人数据、到期、撤销和身份变更证据。",
+                  "已保存的标签不能证明身份或信任；变更后的数据需要明确审核。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "联系人保留在本地，不会作为地址或在线状态图上传。",
+                  "删除本地联系人不会撤销外部权限或更改钱包结算。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.watchers.alert-detail": {
+        "id": "telemetry.watchers.alert-detail",
+        "title": "监测器：警报详情",
+        "summary": "监测器：警报详情：只读 Watchers 路线图预览及其公开证据边界的帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "查看确定性的发布数据，而不更改网络状态。",
+                  "不可用、过期、格式错误和异常状态均会明确显示并安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。",
+                  "钱包标签、交易对手、路径、消息和机密不会暴露。"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "telemetry.explorer.detail": {
+        "id": "telemetry.explorer.detail",
+        "title": "浏览器：详情",
+        "summary": "浏览器：详情：面向受支持公开标识符、受隐私约束的 Explorer 预览帮助。",
+        "scope": "dialog",
+        "sections": [
+          {
+            "title": "使用此视图",
+            "target": "current-view",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "仅使用受支持的公开检查点、批次、警报或证据标识符。",
+                  "未知、私密、格式错误或不可用的标识符不会查询钱包，并会安全失败。"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "本地和安全行为",
+            "target": "",
+            "blocks": [
+              {
+                "type": "list",
+                "items": [
+                  "Explorer 是基于本地样本的路线图预览，并非钱包数据服务。",
+                  "本地余额、联系人、消息、备注、路径和机密不会进入 Explorer。"
                 ]
               }
             ]

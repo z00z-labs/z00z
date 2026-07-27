@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "capturedOn": "2026-07-26",
+  "source": "crates/z00z_ui_ux/demo/styles/colors.css",
+  "sourceSha256": "23dcbf4eda769079fc68afd2f5615223f7607c7e160e52456d3492d3f753cf6f",
+  "paletteId": "z00z-default",
+  "colorScheme": "dark",
+  "tokens": {
+    "canvas": "#081019",
+    "sidebar": "#0b1520",
+    "surface": "#101d29",
+    "raised": "#162635",
+    "overlay": "rgb(1 8 14 / 78%)",
+    "text-primary": "#f5f7f8",
+    "text-secondary": "#a9b6c2",
+    "text-tertiary": "#788997",
+    "border": "#263847",
+    "border-strong": "#395063",
+    "brand": "#fca311",
+    "brand-strong": "#f3b65b",
+    "brand-ink": "#1e1704",
+    "rail": "#32a9e8",
+    "success": "#4cd29b",
+    "warning": "#f3b65b",
+    "danger": "#ff6b72",
+    "focus": "#7ccbff"
+  }
+}

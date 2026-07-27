@@ -1,0 +1,10 @@
+title: "Explorador"
+icon: search
+order:
+  - index
+  - overview
+  - search
+  - checkpoints
+  - batches
+  - evidence
+  - detail

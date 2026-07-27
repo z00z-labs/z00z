@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" data-palette="z00z-default">
+<html lang="en" data-palette="z00z-default">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -46,6 +46,7 @@
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
       <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></symbol>
       <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+      <symbol id="i-message" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4Z"/><path d="M8 9h8M8 12h5"/></symbol>
       <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 0 1 4.8 1c0 2-2.5 2.2-2.5 4M12 17.5v.1"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
       <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
@@ -70,6 +71,8 @@
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5"/><path d="m14 16 4-4-4-4M18 12H9"/></symbol>
       <symbol id="i-remove" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-3h4l1 3M6 7l1 13h10l1-13"/></symbol>
+      <symbol id="i-storage" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.1"/></symbol>
     </svg>
 
     <section class="lock-screen" id="lock-screen" aria-labelledby="lock-title" hidden>
@@ -101,61 +104,58 @@
     </section>
 
     <div class="app-shell" id="app-shell">
-      <aside class="sidebar" aria-label="Primary navigation">
-        <div class="brand">
+      <header class="topbar" id="primary-topbar">
+        <div class="desktop-topbar-brand brand" aria-label="Z00Z">
           <img class="brand-mark" src="assets/logo/z00z-logo-gold-circle.png" alt="">
           <span>Z00Z</span>
         </div>
+        <div class="mobile-navigation-leading">
+          <button class="icon-button mobile-menu-button" id="mobile-menu-button" type="button" aria-controls="mobile-popup-menu" aria-expanded="false">
+            <svg class="icon"><use href="#i-menu"/></svg>
+          </button>
+          <span class="mobile-nav-brand" role="img" aria-label="Z00Z">
+            <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
+          </span>
+        </div>
+        <div class="topbar-address-group">
+          <div class="page-heading">
+            <p class="route-breadcrumb" id="route-breadcrumb" aria-label="Current path"></p>
+            <h1 id="page-title">Home</h1>
+            <p id="page-context">Your private money at a glance</p>
+            <button class="icon-button address-copy" id="copy-wallet-address" type="button" data-demo-action="copy-wallet-address" aria-label="Copy selected wallet address" title="Copy selected wallet address">
+              <svg class="icon"><use href="#i-copy"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="wallet-identity" id="wallet-identity" type="button" data-demo-action="switch-wallet" aria-live="polite"></button>
+          <button class="icon-button" type="button" data-demo-action="toggle-balance" aria-label="Hide sensitive amounts" title="Hide sensitive amounts">
+            <svg class="icon"><use href="#i-eye"/></svg>
+          </button>
+          <button class="icon-button topbar-notification" type="button" data-demo-action="notifications" aria-label="Notifications, one unread" title="Notifications">
+            <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
+          </button>
+        </div>
+      </header>
+
+      <div class="app-body" id="app-body">
+        <aside class="sidebar" aria-label="Primary navigation">
         <p class="sidebar-label" data-i18n="app.wallets">Wallets</p>
         <div class="wallet-nav-viewport">
           <nav class="wallet-nav" id="wallet-nav" aria-label="Wallets"></nav>
         </div>
-        <p class="sidebar-label sidebar-network-label" data-i18n="app.network">Network</p>
-        <nav class="network-nav" id="network-nav" aria-label="Network routes"></nav>
-        <div class="sidebar-spacer"></div>
-        <nav class="system-nav" aria-label="Application actions">
-          <button class="nav-item" type="button" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span data-i18n="app.settings">Settings</span></button>
-          <button class="nav-item help-button" type="button" data-help-topic="app" aria-label="Open application help" title="Help"><svg class="icon"><use href="#i-question"/></svg><span data-i18n="help.title">Help</span></button>
-          <button class="nav-item" type="button" data-demo-action="logout"><svg class="icon"><use href="#i-logout"/></svg><span data-i18n="app.logOut">Log out</span></button>
-        </nav>
-      </aside>
+          <nav class="app-navigation-tree" id="app-navigation-tree" aria-label="Application navigation"></nav>
+          <nav class="app-navigation-terminal" id="app-navigation-terminal" aria-label="Application actions"></nav>
+        </aside>
 
-      <div class="app-column">
-        <header class="topbar" id="primary-topbar">
-          <div class="mobile-navigation-leading">
-            <button class="icon-button mobile-menu-button" id="mobile-menu-button" type="button" aria-controls="mobile-popup-menu" aria-expanded="false">
-              <svg class="icon"><use href="#i-menu"/></svg>
-            </button>
-            <span class="mobile-nav-brand" role="img" aria-label="Z00Z">
-              <img src="assets/logo/z00z-logo-gold-circle.png" alt="">
-            </span>
-          </div>
-          <div class="topbar-address-group">
-            <div class="page-heading">
-              <h1 id="page-title">Home</h1>
-              <p id="page-context">Your private money at a glance</p>
-              <button class="icon-button address-copy" id="copy-wallet-address" type="button" data-demo-action="copy-wallet-address" aria-label="Copy selected wallet address" title="Copy selected wallet address">
-                <svg class="icon"><use href="#i-copy"/></svg>
-              </button>
-            </div>
-          </div>
-          <nav class="wallet-tabs" id="wallet-tabs" aria-label="Selected wallet"></nav>
-          <div class="topbar-actions">
-            <button class="wallet-identity" id="wallet-identity" type="button" data-demo-action="switch-wallet" aria-live="polite"></button>
-            <button class="icon-button" type="button" data-demo-action="toggle-balance" aria-label="Hide sensitive amounts" title="Hide sensitive amounts">
-              <svg class="icon"><use href="#i-eye"/></svg>
-            </button>
-            <button class="icon-button topbar-notification" type="button" data-demo-action="notifications" aria-label="Notifications, one unread" title="Notifications">
-              <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
-            </button>
-          </div>
-        </header>
-        <button class="mobile-menu-backdrop" id="mobile-menu-backdrop" type="button" tabindex="-1" aria-label="Close menu" hidden></button>
-        <div class="mobile-popup-menu" id="mobile-popup-menu" role="menu" hidden></div>
+        <div class="app-column">
         <main class="main-content" id="main-content" tabindex="-1"></main>
         <div class="context-help-host" id="context-help-host"></div>
         <footer class="wallet-statusbar" id="wallet-statusbar" aria-label="Selected wallet status"></footer>
+        </div>
       </div>
+      <button class="mobile-menu-backdrop" id="mobile-menu-backdrop" type="button" tabindex="-1" aria-label="Close menu" hidden></button>
+      <div class="mobile-popup-menu" id="mobile-popup-menu" role="dialog" hidden></div>
     </div>
 
     <dialog class="flow-dialog" id="flow-dialog" aria-labelledby="dialog-title">
@@ -177,14 +177,24 @@
     <script src="locales/ja.js"></script>
     <script src="locales/zh-Hans.js"></script>
     <script src="locales/send-exchange.js"></script>
+    <script src="locales/navigation.js"></script>
+    <script src="locales/demo-plan-2.js"></script>
     <script src="scripts/generated/help-catalog.js"></script>
     <script src="scripts/port/help-registry.js"></script>
     <script src="scripts/help-controller.js"></script>
     <script src="scripts/port/contracts.js"></script>
+    <script src="scripts/port/navigation-model.js"></script>
     <script src="scripts/port/exchange-catalog.js"></script>
+    <script src="scripts/port/dapp-catalog.js"></script>
+    <script src="scripts/port/messenger-catalog.js"></script>
+    <script src="scripts/port/contacts-catalog.js"></script>
     <script src="scripts/port/fixtures.js"></script>
     <script src="scripts/port/presentation-state.js"></script>
     <script src="scripts/port/mock-wallet-gateway.js"></script>
+    <script src="scripts/port/mock-telemetry-gateway.js"></script>
+    <script src="scripts/port/mock-dapp-gateway.js"></script>
+    <script src="scripts/port/mock-messenger-gateway.js"></script>
+    <script src="scripts/port/mock-contacts-gateway.js"></script>
     <script src="scripts/port/icon-registry.js"></script>
     <script src="app.js"></script>
   </body>

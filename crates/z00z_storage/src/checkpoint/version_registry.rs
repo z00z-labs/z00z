@@ -17,12 +17,18 @@ use super::{
 };
 
 pub const CHECKPOINT_VERSION_REGISTRY_API_V2: u16 = 2;
-pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 7;
+pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 9;
 pub const RECURSIVE_OBJECT_PREHEADER_BYTES_V2: usize = 48;
 pub const RECURSIVE_OBJECT_MAGIC_V2: [u8; 4] = *b"ZCP2";
+/// Preferred complete canonical Plonky3 proof envelope size.
+pub const PLONKY3_TARGET_BYTES_V2: usize = 2 * 1024 * 1024;
+/// Largest complete canonical Plonky3 proof envelope that may be published.
+pub const PLONKY3_PUBLISH_BYTES_V2: usize = 4 * 1024 * 1024;
+/// Generic untrusted recursive-object ingress ceiling before typed dispatch.
+pub const RECURSIVE_INGRESS_BYTES_V2: usize = 16 * 1024 * 1024;
 pub const RECURSIVE_RUNTIME_PROFILE_V2: &str = "checkpoint-contract-client-notary-v2";
 pub const RECURSIVE_RUNTIME_PROFILE_GENERATION_V2: u16 = 2;
-pub const RECURSIVE_PARAMETER_GENERATION_V2: u32 = 2;
+pub const RECURSIVE_PARAMETER_GENERATION_V2: u32 = 3;
 pub const RUNTIME_MANIFEST_MAX_BYTES_V2: usize = 4 * 1024;
 pub(crate) const NOVA_PROOF_ENVELOPE_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.nova-proof-envelope.v2";
@@ -55,14 +61,14 @@ pub const RECURSIVE_PROFILE_MANIFEST_DIGEST_V2: [u8; 32] = [
     0xc3, 0xb3, 0xef, 0x33, 0xf7, 0x1b, 0xff, 0x63, 0xff, 0x1e, 0x08, 0x0e, 0x9d, 0x78, 0xe7, 0x1b,
 ];
 
-/// Literal production pin for the canonical generation-7 registry bytes.
+/// Literal production pin for the canonical generation-9 registry bytes.
 ///
 /// `authority_pinned` recomputes and compares this value before exposing any
 /// row, so changing a row without an explicit generation/pin rotation fails
 /// closed in production rather than only in a unit assertion.
 pub const CHECKPOINT_VERSION_REGISTRY_DIGEST_V2: [u8; 32] = [
-    0x7e, 0x95, 0x08, 0x73, 0x88, 0x15, 0xc6, 0x70, 0x95, 0x57, 0x24, 0x14, 0x4f, 0x72, 0xd2, 0xac,
-    0xee, 0x60, 0x66, 0xf2, 0xb8, 0x8a, 0x2f, 0x2f, 0xb1, 0xde, 0x55, 0xf2, 0xcf, 0x72, 0xfb, 0x9b,
+    0x3f, 0x46, 0x30, 0x33, 0x17, 0x4c, 0xad, 0x0e, 0x33, 0xfa, 0xe0, 0x24, 0xad, 0x1d, 0xa0, 0xe6,
+    0x1a, 0x8f, 0x16, 0xa5, 0xae, 0x8c, 0x9c, 0xbd, 0xb7, 0xe3, 0x18, 0x6c, 0x3a, 0x49, 0xf4, 0xf0,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -929,7 +935,7 @@ const REGISTRY_ROWS_V2: &[CheckpointVersionRowV2] = &[
     local_plonky3_v2(
         RecursiveBoundedObjectV2::Plonky3BaseProof,
         "Plonky3BaseProofV2",
-        32 * 1024 * 1024,
+        (PLONKY3_PUBLISH_BYTES_V2 - RECURSIVE_OBJECT_PREHEADER_BYTES_V2) as u64,
     ),
     local_plonky3_v2(
         RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt,
@@ -1058,7 +1064,10 @@ impl CheckpointVersionRegistryV2 {
         )?;
         let digest = registry_digest(&canonical_bytes);
         if digest != CHECKPOINT_VERSION_REGISTRY_DIGEST_V2 {
-            return Err(registry_error("version registry digest pin mismatch"));
+            return Err(registry_error(format!(
+                "version registry digest pin mismatch: derived={}",
+                digest_hex(digest)
+            )));
         }
         Ok(Self {
             rows: REGISTRY_ROWS_V2,
@@ -1606,6 +1615,16 @@ fn registry_digest(canonical_bytes: &[u8]) -> [u8; 32] {
     )
 }
 
+fn digest_hex(digest: [u8; 32]) -> String {
+    use core::fmt::Write as _;
+
+    let mut encoded = String::with_capacity(64);
+    for byte in digest {
+        write!(&mut encoded, "{byte:02x}").expect("write digest hex");
+    }
+    encoded
+}
+
 fn put_registry_bytes(out: &mut Vec<u8>, value: &[u8]) -> Result<(), CheckpointError> {
     let len = u64::try_from(value.len()).map_err(|_| registry_error("registry length overflow"))?;
     out.extend_from_slice(&len.to_le_bytes());
@@ -1817,7 +1836,7 @@ mod tests {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
         assert_eq!(
             super::super::contract_config_v3::hex_digest(registry.digest()),
-            "7e9508738815c670955724144f72d2acee6066f2b88a2f2fb1de55f2cf72fb9b"
+            "3f463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0"
         );
         let mut bytes = registry
             .encode_preheader(

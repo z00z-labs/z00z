@@ -6,10 +6,13 @@ import { compileHelp } from "./compile-help.mjs";
 import { assertHelpSynchronized, helpStructure } from "./sync-help.mjs";
 import {
   helpDocumentPath,
+  helpDocumentRelativePath,
   loadHelpLocales,
   loadHelpSource,
   parseHelpMarkdown
 } from "./help-source.mjs";
+import { validateEnglishHelpContentMap } from "./help-content-map.mjs";
+import { DIALOG_HELP_TOPICS, serializeHelpTopics } from "./help-topics.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
@@ -24,25 +27,7 @@ async function loadPortContract() {
 }
 
 function routedHelpStates(contract) {
-  return contract.views.flatMap((view) => {
-    if (view === "wallet") {
-      return contract.walletSections.map((walletSection) => ({ view, walletSection }));
-    }
-    if (view === "wallet-settings") {
-      return contract.walletSettingsSections.map((walletSettingsSection) => ({ view, walletSettingsSection }));
-    }
-    if (view === "settings") {
-      return contract.settingsSections.map((settingsSection) => ({ view, settingsSection }));
-    }
-    if (view === "telemetry") {
-      return contract.telemetrySources.flatMap((telemetrySource) => contract.telemetryTabs[telemetrySource].map((tab) => ({
-        view,
-        telemetrySource,
-        [`${telemetrySource}TelemetryTab`]: tab
-      })));
-    }
-    return [{ view }];
-  });
+  return contract.routes.map((activeRoute) => ({ activeRoute }));
 }
 
 function matchesState(topic, state) {
@@ -70,6 +55,12 @@ function checkRouteCoverage(lut, contract) {
   if (globalTopics.length !== 1 || globalTopics[0].id !== "app") {
     throw new Error("Help must expose exactly one global app topic");
   }
+  const dialogTopics = lut.topics.filter(({ scope }) => scope === "dialog");
+  const expectedDialogs = DIALOG_HELP_TOPICS.map(({ id, dialog }) => `${id}:${dialog}`).sort();
+  const actualDialogs = dialogTopics.map(({ id, match }) => `${id}:${match.dialog || ""}`).sort();
+  if (JSON.stringify(actualDialogs) !== JSON.stringify(expectedDialogs)) {
+    throw new Error("Help dialog topics do not match the supported detail/review contexts");
+  }
   return routedStates.length;
 }
 
@@ -77,6 +68,7 @@ async function listMarkdownFiles(root, directory = root) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = await Promise.all(entries.map(async (entry) => {
     const path = resolve(directory, entry.name);
+    if (entry.isDirectory() && entry.name === "_drafts") return [];
     if (entry.isDirectory()) return listMarkdownFiles(root, path);
     return entry.isFile() && entry.name.endsWith(".md")
       ? [relative(root, path).replaceAll("\\", "/")]
@@ -85,12 +77,60 @@ async function listMarkdownFiles(root, directory = root) {
   return files.flat().sort();
 }
 
+async function loadPreservedSources() {
+  const path = resolve(demoRoot, "help/preserved-sources.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  const safePath = (entry) => (
+    typeof entry === "string"
+    && /^(?:[a-z0-9][a-z0-9-]*\/)*[a-z0-9][a-z0-9-]*\.md$/.test(entry)
+    && !entry.includes("..")
+  );
+  if (
+    manifest.version !== 1
+    || !Array.isArray(manifest.paths)
+    || !manifest.paths.length
+    || new Set(manifest.paths).size !== manifest.paths.length
+    || manifest.paths.some((entry) => !safePath(entry))
+    || !manifest.optionalLocalePaths
+    || typeof manifest.optionalLocalePaths !== "object"
+    || Array.isArray(manifest.optionalLocalePaths)
+    || Object.entries(manifest.optionalLocalePaths).some(([locale, entries]) => (
+      !/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(locale)
+      || !Array.isArray(entries)
+      || new Set(entries).size !== entries.length
+      || entries.some((entry) => !safePath(entry))
+    ))
+  ) {
+    throw new Error(`${path}: invalid preserved Help source manifest`);
+  }
+  return Object.freeze({
+    paths: Object.freeze([...manifest.paths].sort()),
+    optionalLocalePaths: Object.freeze(Object.fromEntries(Object.entries(manifest.optionalLocalePaths)
+      .map(([locale, entries]) => [locale, Object.freeze([...entries].sort())])))
+  });
+}
+
 async function main() {
   const { lut } = await loadHelpSource(demoRoot);
   const localeIds = await loadHelpLocales(demoRoot);
+  await validateEnglishHelpContentMap(demoRoot, lut, localeIds);
   await assertHelpSynchronized(demoRoot);
-  const routeCount = checkRouteCoverage(lut, await loadPortContract());
-  const expectedFiles = lut.topics.map(({ group, file }) => `${group}/${file}.md`).sort();
+  const contract = await loadPortContract();
+  const expectedTopics = serializeHelpTopics(contract);
+  const actualTopics = await readFile(resolve(demoRoot, "help/topics.yaml"), "utf8");
+  if (actualTopics !== expectedTopics) {
+    throw new Error("Help topic map is stale; run node scripts/generate-help-topics.mjs");
+  }
+  const routeCount = checkRouteCoverage(lut, contract);
+  const expectedFiles = lut.topics.map(helpDocumentRelativePath).sort();
+  const preserved = await loadPreservedSources();
+  const allPreserved = new Set([
+    ...preserved.paths,
+    ...Object.values(preserved.optionalLocalePaths).flat()
+  ]);
+  if (expectedFiles.some((path) => allPreserved.has(path))) {
+    throw new Error("Preserved Help sources must not overlap canonical runtime topics");
+  }
   const englishStructures = Object.fromEntries(await Promise.all(lut.topics.map(async (topic) => {
     const path = helpDocumentPath(demoRoot, "en", topic);
     return [topic.id, JSON.stringify(helpStructure(parseHelpMarkdown(await readFile(path, "utf8"), path)))];
@@ -99,8 +139,22 @@ async function main() {
   for (const locale of localeIds) {
     const localeRoot = resolve(demoRoot, "help", locale);
     const actualFiles = await listMarkdownFiles(localeRoot);
-    if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
-      throw new Error(`${localeRoot}: Help topic files do not match topics.yaml`);
+    const requiredPreservedFiles = [...preserved.paths].sort();
+    const optionalPreservedFiles = [
+      ...(preserved.optionalLocalePaths[locale] || [])
+    ].sort();
+    const preservedFiles = [
+      ...preserved.paths,
+      ...optionalPreservedFiles
+    ].sort();
+    const preservedSet = new Set(preservedFiles);
+    const missingPreserved = requiredPreservedFiles.filter((path) => !actualFiles.includes(path));
+    if (missingPreserved.length) {
+      throw new Error(`${localeRoot}: preserved Help sources are missing: ${missingPreserved.join(", ")}`);
+    }
+    const canonicalFiles = actualFiles.filter((path) => !preservedSet.has(path));
+    if (JSON.stringify(canonicalFiles) !== JSON.stringify(expectedFiles)) {
+      throw new Error(`${localeRoot}: canonical Help topic files do not match topics.yaml`);
     }
     for (const topic of lut.topics) {
       const path = helpDocumentPath(demoRoot, locale, topic);
@@ -114,7 +168,7 @@ async function main() {
       if (document.sections.some(({ blocks }) => blocks.length === 0)) {
         throw new Error(`${path}: every Help section must contain content`);
       }
-      if (topic.scope !== "global" && !document.sections.some(({ target }) => target === "current-view")) {
+      if (["context", "dialog"].includes(topic.scope) && !document.sections.some(({ target }) => target === "current-view")) {
         throw new Error(`${path}: contextual and dialog Help must declare the current-view target`);
       }
       if (/\bTODO\b|\[translate\]/i.test(`${document.title} ${document.summary} ${JSON.stringify(document.sections)}`)) {

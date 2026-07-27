@@ -129,6 +129,41 @@ docker ps -a
 формирую не просто список слов placeholder, а карту “документ заявляет → код подтверждает → можно закрыть локально?”. В карте останутся только те gaps, где уже есть существующий harness, локальный backend, тестовая модель или симуляторный путь. Это всё можно делать сейчас локальными tests/scripts/CI guardrails, без реальной сети, chain, DA или OnionNet.
 
 -----------------------------------------
+Plonky3
+Да — для интервала 1000 блоков расчёт верный:
+31,536,000 sec / (5 sec × 1000) ≈ 6,307 proofs/year
+При предельных 16 MiB это примерно 98.5 GiB/year. Если checkpoint фактически каждые 100 блоков — уже около 985 GiB/year.
+Что делать:
+16 MiB оставить только hard cap, а production target установить ≤1–2 MiB.
+На DA писать не каждый полный proof, а компактный commitment/CID + availability certificate.
+Полные checkpoint proofs хранить в IPFS/erasure-coded 90-day ring и рекурсивно сворачивать в редкий epoch proof.
+На DA публиковать полный proof только для epoch/finality либо по challenge.
+Не рассчитывать на gzip: криптографические proof bytes почти несжимаемы.
+Для <100 GB/year при cadence 1000 блоков достаточно среднего proof ≤16 MiB; при cadence 100 блоков нужен средний размер около ≤1.5 MiB. Это внесу как отдельный operational target, не ослабляя текущий 16 MiB safety cap. Продолжаю Plan 07.
+----------
+Да. Текущий обязательный production target:
+один канонический рекурсивный Plonky3 proof-envelope на каждые 1000 финализированных блоков;
+размер всего envelope — ≤ 2 MiB, а не каждого внутреннего root;
+16 MiB остаётся только аварийным parser/DoS-лимитом и не считается успешным результатом.
+Но это пока цель Plan 07/08, а не подтверждённое измерение. Plan 07 нельзя закрыть, пока реальный proof не пройдёт pinned Plonky3 verifier без swap, с RAM ≤16 GiB и итоговым размером ≤2 MiB.
+
+
+
+Внутренний chunk/intermediate proof может быть больше 2 MiB: он не публикуется и может пройти ещё один уровень рекурсивного сжатия.
+Лимит 2 MiB применяется только к окончательному canonical envelope для эпохи из 1000 блоков.
+Если именно финальный envelope остаётся >2 MiB, криптографически proof может быть корректным, но production-policy его не принимает и не публикует: ProofSizeBudgetExceeded.
+Поскольку Plonky3-ветка сейчас asynchronous и non-authoritative, canonical finality и Nova fold продолжаются. Эпоха попадает в bounded pending-PQ queue; после установленного лимита система останавливает новые compression/publication jobs, но не consensus/finality.
+Aggregator может продолжить только через дополнительную sound recursion/compaction с сохранением ≥100-bit security. Делить эпоху на несколько “финальных” proof или ослаблять FRI запрещено.
+Добавлю этот fail-closed, но non-catastrophic сценарий прямо в 069-07/08, чтобы >2 MiB нигде не трактовался как падение chain.
+
+Семантика подтверждена live-кодом:
+1 — Nova делает локальный IVC fold каждого finalized block (5 с).
+100 — сохраняет hot recovery image аккумулятора каждые 8 мин 20 с; это не публичный state snapshot и не Plonky3 proof.
+1000 compression — строит компактное классическое Nova evidence каждые 1 ч 23 мин 20 с.
+1000 publication — отдельно разрешает публикацию/выдачу этого verified envelope; сейчас совпадает с compression, но это независимый knob.
+Nova остаётся classical-only; Plonky3 независимо закрывает диапазон из 2000 блоков.
+StateSnapshotV1 — другой объект: bootstrap snapshot состояния с root/manifests/PQ bindings. Меняю его default на 5 PQ epochs = 10 000 blocks = 13 ч 53 мин 20 с; config generation остаётся 2, потому что generation 2 ещё формируется как одна незафиксированная миграция.
+-----------------------------------------
 
 
 1. Run `./pack_z00z_project.sh`.

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "capturedOn": "2026-07-26",
+  "sourceUrl": "https://z00z.io/",
+  "role": "design provenance only",
+  "runtimeDependency": false,
+  "paletteId": "z00z-corporate",
+  "colorScheme": "light",
+  "sourceTokens": {
+    "base100": "#FFFFFF",
+    "base200": "#E8E8E8",
+    "base300": "#D1D1D1",
+    "baseContent": "#181A2A",
+    "primary": "#0082C4",
+    "secondary": "#61738D",
+    "accent": "#009588",
+    "success": "#00A242",
+    "warning": "#F7C800",
+    "error": "#FF6266"
+  },
+  "sourceScreenshots": [
+    "z00z-corporate-desktop.png",
+    "z00z-corporate-mobile.png"
+  ]
+}

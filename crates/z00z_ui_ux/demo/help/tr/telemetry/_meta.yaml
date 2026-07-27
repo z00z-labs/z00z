@@ -1,0 +1,9 @@
+title: "Telemetri"
+icon: network
+order:
+  - index
+  - reticulum
+  - onionnet
+  - aggregators
+  - watchers
+  - explorer

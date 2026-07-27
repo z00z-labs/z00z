@@ -1,0 +1,7 @@
+title: "연락처"
+icon: user
+order:
+  - index
+  - contacts
+  - detail
+  - identity-review

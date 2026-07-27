@@ -1,0 +1,9 @@
+title: "Ajustes de cartera"
+icon: settings
+order:
+  - index
+  - general
+  - security
+  - backup
+  - policies
+  - advanced

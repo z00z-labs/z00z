@@ -1,0 +1,12 @@
+title: "Wallets"
+icon: wallet
+order:
+  - index
+  - assets-rights
+  - quarantine
+  - send
+  - receive
+  - history
+  - staking
+  - backup
+  - settings

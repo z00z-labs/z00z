@@ -12,6 +12,13 @@ pub(crate) const ACTIVE_VERIFIER_BUNDLE_DIGEST_V2: [u8; 32] = [
     0x6a, 0x83, 0xf9, 0xa4, 0x0c, 0x17, 0x4f, 0xef, 0xd8, 0x12, 0xbd, 0x98, 0xe7, 0xe3, 0xa8, 0x19,
 ];
 
+/// Actual preprocessed-common/VK identity of the canonical Plan-07 root circuit.
+///
+/// A zero value is an explicit fail-closed generation state. The isolated real
+/// prover emits the non-secret candidate digest; release authority must pin that
+/// candidate here and rerun the complete no-swap proof before Plan 07 can close.
+pub(crate) const ACTIVE_PLONKY3_ROOT_COMMON_DIGEST_V2: [u8; 32] = [0; 32];
+
 /// Exact upstream revision selected by the live Plonky3 base-proof authority.
 pub(crate) const ACTIVE_PLONKY3_SOURCE_REVISION_V2: &str =
     "b36339709a7a67ee9760fb578b3d4339fd983709";

@@ -1,0 +1,6 @@
+title: "データとストレージ"
+icon: storage
+order:
+  - index
+  - disk-usage
+  - network-usage

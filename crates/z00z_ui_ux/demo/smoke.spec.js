@@ -1,54 +1,9 @@
 const { expect, test } = require("playwright/test");
+const { readFile } = require("node:fs/promises");
+const path = require("node:path");
 
 const demoUrl = process.env.Z00Z_WALLET_DEMO_URL || "http://127.0.0.1:4173/index.html";
-const demoSeedWords = [
-  "canvas", "orbit", "maple", "velvet", "harbor", "copper", "quiet", "meadow",
-  "lamp", "river", "winter", "piano", "forest", "amber", "window", "salt",
-  "comet", "paper", "garden", "silver", "cloud", "stone", "echo", "north"
-];
-
-function resourcePath(value) {
-  return new URL(value, "https://demo.invalid/").pathname.slice(1);
-}
-
-async function resolved_color(page, property) {
-  return page.evaluate((token) => {
-    const probe = document.createElement("span");
-    probe.style.backgroundColor = `var(${token})`;
-    document.body.append(probe);
-    const color = getComputedStyle(probe).backgroundColor;
-    probe.remove();
-    return color;
-  }, property);
-}
-
-async function recoveryChallengeIndexes(page) {
-  return page.locator('#create-wallet-verify select[data-seed-index]').evaluateAll((selects) =>
-    selects.map((select) => Number(select.dataset.seedIndex))
-  );
-}
-
-async function completeRecoveryChallenge(page) {
-  const selects = page.locator('#create-wallet-verify select[data-seed-index]');
-  const indexes = await recoveryChallengeIndexes(page);
-  for (let index = 0; index < indexes.length; index += 1) {
-    await selects.nth(index).selectOption(demoSeedWords[indexes[index]]);
-  }
-}
-
-async function expectDialogActionsCentered(page) {
-  const footer = page.locator(".dialog-footer");
-  await expect(footer).toHaveCount(1);
-  await expect(footer).toHaveCSS("justify-content", "center");
-  const offset = await footer.evaluate((element) => {
-    const buttons = [...element.querySelectorAll("button")];
-    const footerBox = element.getBoundingClientRect();
-    const first = buttons[0].getBoundingClientRect();
-    const last = buttons.at(-1).getBoundingClientRect();
-    return Math.abs((first.left + last.right) / 2 - (footerBox.left + footerBox.right) / 2);
-  });
-  expect(offset).toBeLessThanOrEqual(1);
-}
+const demoDir = __dirname;
 
 async function openStandaloneHelp(page, trigger) {
   const popupPromise = page.waitForEvent("popup");
@@ -58,2562 +13,1836 @@ async function openStandaloneHelp(page, trigger) {
   return helpPage;
 }
 
-function routeQuery(parameters) {
-  return `?${new URLSearchParams(parameters).toString()}`;
-}
+async function selectCanonicalRoute(page, routeId, { mobile = false } = {}) {
+  const navigation = mobile
+    ? page.locator("#mobile-popup-menu")
+    : page.locator(".sidebar");
+  const route = navigation.locator(`[data-navigation-route="${routeId}"]`);
+  await expect(route).toHaveCount(1);
 
-function allRoutedViews(contract) {
-  return contract.views.flatMap((view) => {
-    if (view === "wallet") {
-      return contract.walletSections.map((walletSection) => ({
-        name: `wallet-${walletSection}`,
-        query: routeQuery({ view, wallet: walletSection })
-      }));
+  const ancestors = await route.evaluate((node) => {
+    const branchIds = [];
+    let current = node.parentElement;
+    while (current) {
+      if (current.classList.contains("navigation-tree-children")) {
+        const toggle = document.getElementById(current.getAttribute("aria-labelledby"));
+        if (toggle?.dataset.navigationBranch) branchIds.push(toggle.dataset.navigationBranch);
+      }
+      current = current.parentElement;
     }
-    if (view === "wallet-settings") {
-      return contract.walletSettingsSections.map((walletSettingsSection) => ({
-        name: `wallet-settings-${walletSettingsSection}`,
-        query: routeQuery({ view, walletSettings: walletSettingsSection })
-      }));
-    }
-    if (view === "settings") {
-      return contract.settingsSections.map((settingsSection) => ({
-        name: `settings-${settingsSection}`,
-        query: routeQuery({ view, settings: settingsSection })
-      }));
-    }
-    if (view === "telemetry") {
-      return contract.telemetrySources.flatMap((telemetrySource) => (
-        contract.telemetryTabs[telemetrySource].map((tab) => ({
-          name: `telemetry-${telemetrySource}-${tab}`,
-          query: routeQuery({
-            view,
-            telemetry: telemetrySource,
-            [`${telemetrySource === "onionnet" ? "onion" : telemetrySource}Tab`]: tab
-          })
-        }))
-      ));
-    }
-    return [{ name: view, query: routeQuery({ view }) }];
+    return branchIds.reverse();
   });
+
+  for (const branchId of ancestors) {
+    const branch = navigation.locator(`[data-navigation-branch="${branchId}"]`);
+    if (await branch.getAttribute("aria-expanded") === "false") await branch.click();
+  }
+  await route.click();
 }
 
-test("object families and claim/voucher/permission flows remain distinct", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=home`);
-
-  await expect(page.locator("#i-permission")).toHaveAttribute("viewBox", "0 0 24 24");
-  await expect(page.locator("#i-advanced")).toHaveAttribute("viewBox", "0 0 24 24");
-  const iconContract = await page.locator(".svg-sprite symbol").evaluateAll((symbols) => ({
-    allNormalized: symbols.every((symbol) => symbol.getAttribute("viewBox") === "0 0 24 24"),
-    hasSourceFill: symbols.some((symbol) => symbol.querySelector('[fill="currentColor"]'))
+async function expectNoViewportOverflow(page, label = "responsive geometry") {
+  const geometry = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    rootRect: document.documentElement.getBoundingClientRect().toJSON(),
+    bodyRect: document.body.getBoundingClientRect().toJSON(),
+    bodyScrollWidth: document.body.scrollWidth,
+    main: document.querySelector("#main-content, #help-main")?.getBoundingClientRect().toJSON(),
+    offenders: [...document.querySelectorAll("body *")]
+      .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && (rect.left < -1 || rect.right > window.innerWidth + 1))
+      .slice(0, 20)
+      .map(({ node, rect }) => ({
+        selector: `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ""}${[...node.classList].slice(0, 3).map((name) => `.${name}`).join("")}`,
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        width: Math.round(rect.width),
+      })),
+    scrollOffenders: [...document.querySelectorAll("body *")]
+      .filter((node) => node.scrollWidth > node.clientWidth + 1 && getComputedStyle(node).overflowX === "visible")
+      .slice(0, 20)
+      .map((node) => ({
+        selector: `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ""}${[...node.classList].slice(0, 3).map((name) => `.${name}`).join("")}`,
+        clientWidth: node.clientWidth,
+        scrollWidth: node.scrollWidth,
+      })),
   }));
-  expect(iconContract).toEqual({ allNormalized: true, hasSourceFill: false });
+  expect(
+    geometry.document,
+    `${label}: document width; diagnostics=${JSON.stringify({
+      offenders: geometry.offenders,
+      scrollOffenders: geometry.scrollOffenders,
+      rootRect: geometry.rootRect,
+      bodyRect: geometry.bodyRect,
+      bodyScrollWidth: geometry.bodyScrollWidth,
+    })}`,
+  ).toBeLessThanOrEqual(geometry.viewport + 1);
+  expect(geometry.main.left, `${label}: main left edge`).toBeGreaterThanOrEqual(-1);
+  expect(geometry.main.right, `${label}: main right edge`).toBeLessThanOrEqual(geometry.viewport + 1);
+}
 
-  const quickPairs = page.locator(".quick-pair");
-  const lowerPanels = page.locator(".home-lower > article");
-  await expect(quickPairs).toHaveCount(2);
-  await expect(lowerPanels).toHaveCount(2);
+test("canonical navigation replaces global tabs and has no stale hierarchy styles", async ({ page }) => {
+  const [index, app, components] = await Promise.all([
+    readFile(path.join(demoDir, "index.html"), "utf8"),
+    readFile(path.join(demoDir, "app.js"), "utf8"),
+    readFile(path.join(demoDir, "styles/components.css"), "utf8"),
+  ]);
 
-  const pairBox = await quickPairs.first().boundingBox();
-  const panelBox = await lowerPanels.first().boundingBox();
-  expect(Math.abs(pairBox.width - panelBox.width)).toBeLessThanOrEqual(1);
+  expect(index).toContain('id="app-navigation-tree"');
+  expect(index).toContain('id="app-navigation-terminal"');
+  expect(index).toContain('class="desktop-topbar-brand brand"');
+  expect(index).not.toContain('id="wallet-tabs"');
+  expect(app).not.toContain('closest(".system-nav")');
+  expect(app).not.toContain('closest("#network-nav")');
+  expect(components).not.toMatch(/\.wallet-tabs\b|\.wallet-tab\b|\.system-nav\b/);
 
-  await page.locator('[data-open-flow="asset-claim"]').click();
-  await expect(page.getByRole("heading", { name: "Claim asset allocation" })).toBeVisible();
-  await expect(page.getByText("The claim package is separate from vouchers.")).toBeVisible();
-  await page.getByRole("button", { name: "Close" }).click();
-
-  await page.locator('[data-wallet-id="everyday"]').click();
-  await expect(page.locator(".context-rail .context-nav-item > .icon")).toHaveCount(3);
-  await expect(page.locator('[data-wallet-section="vouchers"] > svg use')).toHaveAttribute("href", "#i-voucher");
-  await expect(page.locator('[data-wallet-section="permissions"] > svg use')).toHaveAttribute("href", "#i-permission");
-  await expect(page.locator('.context-rail [data-wallet-section] > .object-family-glyph')).toHaveCount(0);
-  await expect(page.locator(".context-rail-label")).toHaveCount(0);
-  await expect(page.locator(".context-rail .context-nav-item small")).toHaveCount(0);
-  await expect(page.locator(".context-rail .nav-count")).toHaveCount(0);
-  const assetContextType = await page.locator(".context-rail .context-nav-item").first().evaluate((item) => {
-    const tab = document.querySelector("#wallet-tabs .wallet-tab");
-    const icon = item.querySelector(".icon");
-    const tabIcon = tab.querySelector(".icon");
-    return [getComputedStyle(item).fontSize, getComputedStyle(item).fontWeight, getComputedStyle(icon).width, getComputedStyle(tab).fontSize, getComputedStyle(tab).fontWeight, getComputedStyle(tabIcon).width];
-  });
-  expect(assetContextType.slice(0, 3)).toEqual(assetContextType.slice(3));
-  await page.getByRole("button", { name: /Vouchers/ }).click();
-  await expect(page.locator(".claim-row")).toHaveCount(8);
-  expect(resourcePath(await page.locator(".claim-row .object-family-glyph").first().getAttribute("src"))).toBe("assets/z00z-friendly/Vauchers/vaucher-orange.svg");
-  const voucherIconSources = await page.locator(".claim-row .object-family-glyph").evaluateAll((icons) => icons.map((icon) => icon.getAttribute("src")));
-  expect(new Set(voucherIconSources).size).toBe(8);
-  await page.getByRole("button", { name: /Travel refund voucher/ }).click();
-  await expect(page.getByRole("heading", { name: "Review voucher" })).toBeVisible();
-  await page.getByRole("button", { name: "Close" }).click();
-
-  await page.getByRole("button", { name: /Permissions/ }).click();
-  await expect(page.locator(".permission-row")).toHaveCount(8);
-  expect(resourcePath(await page.locator(".permission-row .object-family-glyph").first().getAttribute("src"))).toBe("assets/z00z-friendly/Permissions/permission-blue.svg");
-  const permissionIconSources = await page.locator(".permission-row .object-family-glyph").evaluateAll((icons) => icons.map((icon) => icon.getAttribute("src")));
-  expect(new Set(permissionIconSources).size).toBe(8);
-  await expect(page.locator(".permission-list")).not.toContainText("Z00Z");
-  await expect(page.locator('[aria-label="Permission filters"] button')).toHaveText(["Held", "Delegated", "Used"]);
-  await page.getByRole("button", { name: /Delivery receipt access/ }).click();
-  await expect(page.getByText("Monetary value")).toBeVisible();
-  await expect(page.getByText("None", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Done" }).click();
-  await page.getByRole("button", { name: /Deploy to staging/ }).click();
-  await expect(page.getByRole("heading", { name: "Deploy to staging" })).toBeVisible();
-  await expect(page.getByText("Machine capability", { exact: true })).toBeVisible();
-});
-
-test("wallet context rails share a compact width", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  await expect(page.locator("#wallet-tabs, #network-nav")).toHaveCount(0);
+  await expect(page.locator(".desktop-topbar-brand .brand-mark")).toBeVisible();
+  await expect(page.locator("#app-navigation-tree > .navigation-tree-branch > [data-navigation-branch]")).toHaveCount(5);
+  await expect(page.locator('#app-navigation-tree [data-navigation-route="wallet.overview"]')).toHaveCount(0);
+  await expect(page.locator('#app-navigation-tree [data-navigation-branch="wallet.assets-rights"]')).toHaveCount(0);
+  await expect(page.locator('#app-navigation-tree [data-navigation-route="wallet.assets"]')).toContainText("Assets");
+  await expect(page.locator('#app-navigation-tree [data-navigation-route="wallet.vouchers"], #app-navigation-tree [data-navigation-route="wallet.permissions"], #app-navigation-tree [data-navigation-route="wallet.quarantine"]')).toHaveCount(0);
+  await expect(page.locator('#app-navigation-tree [data-navigation-workspace="wallet.settings"]')).toBeVisible();
+  await expect(page.locator('#app-navigation-tree [data-navigation-route^="wallet.settings."]')).toHaveCount(1);
+  await expect(page.locator('#app-navigation-tree > [data-navigation-route="contacts.list"]')).toHaveCount(1);
+  await expect(page.locator('#app-navigation-tree [data-navigation-branch="settings"]')).toHaveCount(0);
+  await expect(page.locator('#app-navigation-terminal > .navigation-tree-branch [data-navigation-branch="settings"]')).toContainText("Settings");
+  await expect(page.locator("#app-navigation-terminal > .navigation-tree-terminal")).toHaveText(["Help", "About", "Log out"]);
+  await expect(page.locator('#app-navigation-terminal [data-navigation-route="about"]')).toBeVisible();
+  await expect(page.locator("#app-navigation-terminal .app-version")).toHaveText("Version 0.1.0");
 
-  const measureRail = () => page.locator(".workspace-layout").evaluate((layout) => {
-    const rail = layout.querySelector(".context-rail");
-    const style = getComputedStyle(layout);
+  const walletPlaceholderGeometry = await page.evaluate(() => {
+    const topbar = document.querySelector(".topbar").getBoundingClientRect();
+    const label = document.querySelector(".sidebar-label").getBoundingClientRect();
     return {
-      gap: Number.parseFloat(style.columnGap),
-      width: Math.round(rail.getBoundingClientRect().width)
+      topbarBottom: topbar.bottom,
+      labelTop: label.top,
     };
   });
+  expect(walletPlaceholderGeometry.labelTop - walletPlaceholderGeometry.topbarBottom).toBeCloseTo(30, 0);
 
-  await page.goto(`${demoUrl}?view=wallet`);
-  const assetsRail = await measureRail();
+  const desktopTypography = await page.locator('#app-navigation-tree [data-navigation-branch="wallet"]').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      family: style.fontFamily,
+      size: style.fontSize,
+      weight: style.fontWeight,
+      lineHeight: style.lineHeight,
+    };
+  });
+  expect(desktopTypography.family).toContain("Geist");
+  expect(desktopTypography).toMatchObject({
+    size: "16px",
+    weight: "700",
+    lineHeight: "20px",
+  });
 
-  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=general`);
-  const settingsRail = await measureRail();
-
-  expect(assetsRail).toEqual({ gap: 24, width: 192 });
-  expect(settingsRail).toEqual(assetsRail);
+  const topbarTypography = await page.locator("#page-title").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      family: style.fontFamily,
+      size: style.fontSize,
+    };
+  });
+  expect(topbarTypography.family).toContain("Geist");
+  expect(topbarTypography.size).toBe("20px");
 });
 
-test("wallet navigation scopes history and wallet tools to the selected wallet", async ({ page }) => {
-  await page.goto(demoUrl);
+test("desktop tree keeps root accordions independent and opens sublevels inside the workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
 
-  await expect(page).toHaveTitle("Z00Z Wallet");
-  await expect(page.locator("#wallet-nav .wallet-nav-item")).toHaveCount(3);
-  const [activeStripeColor, brandColor, stripeTop, stripeBottom, stripeHeight, stripeRadius] = await page.locator("#wallet-nav .wallet-nav-item.is-active").evaluate((node) => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--brand)";
-    document.body.append(probe);
-    const stripe = getComputedStyle(node, "::after");
-    const result = [stripe.backgroundColor, getComputedStyle(probe).color, stripe.top, stripe.bottom, stripe.height, stripe.borderRadius];
-    probe.remove();
-    return result;
-  });
-  expect(activeStripeColor).toBe(brandColor);
-  expect(parseFloat(stripeTop)).toBeGreaterThan(0);
-  expect(stripeBottom).toBe("-1px");
-  expect(stripeHeight).toBe("3px");
-  expect(stripeRadius).toBe("999px");
-  await expect(page.locator('.sidebar [data-view="activity"]')).toHaveCount(0);
-  await expect(page.locator("#wallet-tabs .wallet-tab")).toHaveCount(9);
-  expect(await page.locator("#wallet-tabs .wallet-tab").evaluateAll((tabs) => tabs.map((tab) => tab.dataset.view))).toEqual(["wallet", "wallet-send", "wallet-receive", "swap", "exchange", "staking", "wallet-backup", "activity", "wallet-settings"]);
-  await expect(page.locator('#wallet-tabs [data-view="wallet"] > .icon:not(.mobile-tab-disclosure) use')).toHaveAttribute("href", "#i-wallet");
-  await expect(page.locator('[data-wallet-section="assets"] use')).toHaveAttribute("href", "#i-assets");
-  await expect(page.locator('#wallet-tabs [data-view="home"]')).toHaveCount(0);
-  await expect(page.locator('#wallet-tabs [data-view="wallet-send"]')).toHaveText("Send");
-  await expect(page.locator('#wallet-tabs [data-view="wallet-receive"]')).toHaveText("Receive");
-  await expect(page.locator('#wallet-tabs [data-view="activity"]')).toHaveText("History");
-  await expect(page.locator('#wallet-tabs [data-view="swap"]')).toHaveText("Swap");
-  await expect(page.locator('#wallet-tabs [data-view="exchange"]')).toContainText("Exchange");
-  await expect(page.locator('#wallet-tabs [data-view="staking"]')).toHaveText("Staking");
-  await expect(page.locator('#wallet-tabs [data-view="staking"] .icon use')).toHaveAttribute("href", "#i-staking");
-  await expect(page.locator('#wallet-tabs [data-view="wallet-backup"]')).toHaveText("Backup");
-  await expect(page.locator('#wallet-tabs [data-view="wallet-settings"]')).toHaveText("Settings");
-  await expect(page.locator("#network-nav .network-nav-item")).toHaveCount(3);
-  await expect(page.locator("#network-nav")).toContainText("OnionNet");
-  await expect(page.locator("#network-nav")).toContainText("Reticulum");
-  await expect(page.locator("#network-nav")).toContainText("Aggregators");
-  await expect(page.locator("#network-nav .network-nav-item strong")).toHaveText(["Reticulum", "OnionNet", "Aggregators"]);
-  await expect(page.locator("#network-nav .network-nav-copy small")).toHaveCount(0);
-  const sidebarTypography = await page.evaluate(() => {
-    const properties = ["fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing"];
-    const read = (selector) => {
-      const style = getComputedStyle(document.querySelector(selector));
-      return Object.fromEntries(properties.map((property) => [property, style[property]]));
-    };
-    return {
-      aggregators: read('#network-nav [data-network-section="aggregators"] .network-nav-copy strong'),
-      settings: read('.system-nav [data-view="settings"] > span'),
-      help: read('.system-nav .help-button > span'),
-      logout: read('.system-nav [data-demo-action="logout"] > span')
-    };
-  });
-  expect(sidebarTypography.settings).toEqual(sidebarTypography.aggregators);
-  expect(sidebarTypography.help).toEqual(sidebarTypography.aggregators);
-  expect(sidebarTypography.logout).toEqual(sidebarTypography.aggregators);
-  const [walletNameSize, walletAmountSize, walletTabSize] = await page.locator("#wallet-nav .wallet-nav-item").first().evaluate((walletCard) => {
-    const tab = document.querySelector("#wallet-tabs .wallet-tab");
-    return [
-      parseFloat(getComputedStyle(walletCard.querySelector(".wallet-nav-copy strong")).fontSize),
-      parseFloat(getComputedStyle(walletCard.querySelector(".wallet-nav-copy small")).fontSize),
-      parseFloat(getComputedStyle(tab).fontSize)
-    ];
-  });
-  expect(walletNameSize).toBeGreaterThanOrEqual(14);
-  expect(walletAmountSize).toBeGreaterThanOrEqual(12);
-  expect(walletTabSize).toBeGreaterThanOrEqual(14);
-  await expect(page.getByRole("button", { name: "Add wallet" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove wallet" })).toBeVisible();
-  expect(resourcePath(await page.locator(".sidebar .brand-mark").getAttribute("src"))).toBe("assets/logo/z00z-logo-gold-circle.png");
-  await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("border-radius", "0px");
-  await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("object-fit", "contain");
-  expect(await page.locator(".brand-mark").evaluateAll((marks) => marks.every((mark) => new URL(mark.getAttribute("src"), "https://demo.invalid/").pathname === "/assets/logo/z00z-logo-gold-circle.png"))).toBe(true);
-  await expect(page.locator(".sidebar .brand-mark")).toHaveJSProperty("complete", true);
-  await expect(page.locator(".sidebar .brand-mark")).toHaveCSS("width", "52px");
-  const wordmarkSize = await page.locator(".sidebar .brand > span").evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
-  expect(wordmarkSize).toBeGreaterThanOrEqual(28);
-  await expect(page.locator(".wallet-nav-actions .nav-item")).toHaveCount(2);
-  const sidebarButtonOrder = await page.locator(".sidebar button").evaluateAll((nodes) => nodes.map((node) => node.textContent.trim()));
-  expect(sidebarButtonOrder.indexOf("Add wallet")).toBeGreaterThan(sidebarButtonOrder.indexOf("Travel"));
-  expect(sidebarButtonOrder.indexOf("Add wallet")).toBeLessThan(sidebarButtonOrder.indexOf("Settings"));
-  expect(sidebarButtonOrder.indexOf("Remove wallet")).toBeLessThan(sidebarButtonOrder.indexOf("Settings"));
-  await expect(page.locator(".wallet-nav-viewport")).toBeVisible();
-  await expect(page.locator(".wallet-nav-viewport")).toHaveCSS("overflow-y", "auto");
-  const walletViewportScroll = await page.locator(".wallet-nav-viewport").evaluate((viewport) => {
-    const nav = viewport.querySelector(".wallet-nav");
-    const actions = viewport.querySelector(".wallet-nav-actions");
-    const original = nav.innerHTML;
-    const initialNavBox = nav.getBoundingClientRect();
-    nav.insertAdjacentHTML("afterbegin", Array.from({ length: 12 }, (_, index) => `<button class="wallet-nav-item" type="button"><span class="wallet-avatar">${index + 1}</span><span class="wallet-nav-copy"><strong>Wallet ${index + 1}</strong><small>0.00 Z00Z available</small></span></button>`).join(""));
-    const beforeActionsTop = actions.getBoundingClientRect().top;
-    viewport.scrollTop = viewport.scrollHeight;
-    const afterActionsTop = actions.getBoundingClientRect().top;
-    const result = {
-      scrollable: viewport.scrollHeight > viewport.clientHeight,
-      actionsInsideWalletList: actions.parentElement === nav,
-      actionsFollowWallets: afterActionsTop < beforeActionsTop,
-      rowsVisible: initialNavBox.height >= 3 * 68,
-      visibleRows: Math.floor((viewport.clientHeight - 10) / 68),
-      scrollbarGutter: getComputedStyle(viewport).scrollbarGutter
-    };
-    nav.innerHTML = original;
-    return result;
-  });
-  expect(walletViewportScroll.scrollable).toBe(true);
-  expect(walletViewportScroll.actionsInsideWalletList).toBe(true);
-  expect(walletViewportScroll.actionsFollowWallets).toBe(true);
-  expect(walletViewportScroll.rowsVisible).toBe(true);
-  expect(walletViewportScroll.visibleRows).toBe(3);
-  expect(walletViewportScroll.scrollbarGutter).toContain("stable");
-  await expect(page.locator("html")).toHaveCSS("font-family", /Geist/);
-  await expect(page.locator(".sidebar").getByRole("button", { name: "Create wallet" })).toHaveCount(0);
-  await expect(page.locator('.system-nav [data-view="settings"]')).toBeVisible();
-  await expect(page.locator(".topbar-actions .help-button")).toHaveCount(0);
-  await expect(page.locator(".system-nav .help-button")).toBeVisible();
-  await expect(page.locator(".system-nav .nav-item > span")).toHaveText(["Settings", "Help", "Log out"]);
-  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
-  await expect(page.locator(".connection-card")).toHaveCount(0);
-  await expect(page.locator("#page-title")).toHaveText("ZxChpo…2Mj8Pt");
-  await expect(page.locator("#copy-wallet-address")).toBeVisible();
+  const wallet = page.locator('#app-navigation-tree [data-navigation-branch="wallet"]');
+  const telemetry = page.locator('#app-navigation-tree [data-navigation-branch="telemetry"]');
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+  await expect(telemetry).toHaveAttribute("aria-expanded", "false");
+  await telemetry.click();
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#page-title")).toHaveText("Assets");
+  await wallet.click();
+  await expect(wallet).toHaveAttribute("aria-expanded", "false");
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#page-title")).toHaveText("Assets");
+  await wallet.click();
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await telemetry.click();
+  await expect(telemetry).toHaveAttribute("aria-expanded", "false");
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+
+  await telemetry.click();
+  await expect(page.locator('#app-navigation-tree [data-navigation-branch="telemetry.reticulum"]')).toHaveCount(0);
+  await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.reticulum"]')).toBeVisible();
+  await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.onionnet"]')).toBeVisible();
+  await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.aggregators"]')).toBeVisible();
+  await expect(page.locator('#app-navigation-tree [data-navigation-route="telemetry.reticulum.node"]')).toHaveCount(0);
+  await expect(page.locator('#app-navigation-tree [data-navigation-route^="telemetry.onionnet."]')).toHaveCount(1);
+  await expect(page.locator('#app-navigation-tree [data-navigation-route^="telemetry.aggregators."]')).toHaveCount(1);
+  await page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.reticulum"]').click();
+  await expect(page.locator(".telemetry-workspace-layout > .context-rail")).toBeVisible();
+  await expect(page.locator(".telemetry-workspace-context [data-workspace-route]")).toHaveCount(8);
+  await page.locator('[data-workspace-route="telemetry.reticulum.node"]').click();
+  await expect(page.locator("#page-title")).toHaveText("Node");
+  await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.reticulum"]')).toHaveAttribute("aria-current", "page");
+  await expect(page.locator('#app-navigation-tree [aria-current="page"]')).toHaveCount(1);
+
+  await page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.watchers"]').click();
+  await expect(page.locator(".telemetry-workspace-context [data-workspace-route]")).toHaveCount(6);
+  await page.locator('[data-workspace-route="telemetry.watchers.alerts"]').click();
+  await expect(page.locator("#page-title")).toHaveText("Alerts");
+  await expect(page.locator('[data-watcher-screen="alerts"]')).toBeVisible();
+  await expect(page.locator(".route-preview")).toHaveCount(0);
+  await expect(page.locator('#app-navigation-tree [data-navigation-route="telemetry.watchers.alerts"]')).toHaveCount(0);
+  await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.watchers"]')).toHaveAttribute("aria-current", "page");
+
+  await selectCanonicalRoute(page, "wallet.send");
+  await expect(page.locator('#app-navigation-tree [data-navigation-route="wallet.send"]')).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("#page-title")).toHaveText("Send");
+  await expect(page.locator("#main-content")).toContainText("Send");
+
+  await selectCanonicalRoute(page, "settings.appearance");
+  await expect(page.locator("#page-title")).toHaveText("Appearance");
+  await expect(page.locator('#main-content [data-palette="z00z-default"]')).toHaveCount(1);
+  await expect(page.locator('#main-content [data-palette="z00z-corporate"]')).toHaveCount(1);
+});
+
+test("wallet profiles and object families remain selected through the canonical tree", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
 
   await page.locator('[data-wallet-id="savings"]').click();
   await expect(page.locator("#wallet-identity")).toContainText("Savings");
-  await expect(page.locator("#wallet-statusbar")).toContainText("7,215.00 Z00Z");
-  await page.locator('[data-view="activity"]:visible').click();
-  await expect(page.getByText("Transfer from Everyday")).toBeVisible();
-  await expect(page.getByText("Payment to Mira")).toHaveCount(0);
+  await expect(page.locator('#wallet-nav [data-wallet-id="savings"]')).toHaveAttribute("aria-current", "page");
 
-  await page.locator('[data-wallet-id="travel"]').click();
-  await page.locator('#wallet-tabs [data-view="activity"]').click();
-  await expect(page.getByText("Payment to RailLink")).toBeVisible();
-  await expect(page.getByText("Transfer from Everyday")).toHaveCount(0);
-  await page.locator('#wallet-tabs [data-view="swap"]').click();
-  const swapHeading = page.getByRole("heading", { name: "Build a swap" });
-  await expect(swapHeading).toBeVisible();
-  await expect(swapHeading).toHaveCSS("font-size", "23.2px");
-  await expect(page.locator(".wallet-tool-summary")).toHaveCount(0);
-  await expect(page.locator(".wallet-tool-grid-single")).toHaveCSS("grid-template-columns", "640px");
-  const swapGeometry = await page.locator(".wallet-tool-grid-single").evaluate((grid) => {
-    const gridBox = grid.getBoundingClientRect();
-    const card = grid.querySelector(".swap-card");
-    const cardBox = card.getBoundingClientRect();
-    const heading = card.querySelector(".tool-card-heading");
-    const iconBox = heading.querySelector(".list-icon").getBoundingClientRect();
-    const titleBox = heading.querySelector("h2").getBoundingClientRect();
-    return {
-      centerOffset: Math.abs(
-        (cardBox.left + cardBox.width / 2) - (gridBox.left + gridBox.width / 2)
-      ),
-      headingAlignment: getComputedStyle(heading).alignItems,
-      titleIconCenterOffset: Math.abs(
-        (titleBox.top + titleBox.height / 2) - (iconBox.top + iconBox.height / 2)
-      )
-    };
-  });
-  expect(swapGeometry.centerOffset).toBeLessThanOrEqual(1);
-  expect(swapGeometry.headingAlignment).toBe("center");
-  expect(swapGeometry.titleIconCenterOffset).toBeLessThanOrEqual(1);
-  await expect(page.locator('#wallet-tabs [data-view="exchange"]')).toBeEnabled();
-  await page.locator('[data-view="staking"]:visible').click();
-  const stakingHeading = page.getByRole("heading", { name: "Prepare a stake" });
-  await expect(stakingHeading).toBeVisible();
-  await expect(stakingHeading).toHaveCSS("font-size", "23.2px");
-  await expect(page.locator(".staking-card")).toHaveCount(1);
-  await expect(page.locator(".staking-metric")).toHaveCount(3);
-  const stakingTypography = await page.locator(".staking-card").evaluate((card) => {
-    const heading = card.querySelector(".tool-card-heading h2");
-    const headingIcon = card.querySelector(".tool-card-heading .list-icon");
-    const metricLabel = card.querySelector(".staking-metric span");
-    const metricValue = card.querySelector(".staking-metric strong");
-    const availableValue = card.querySelector(".staking-metric strong .sensitive");
-    const amountLabel = card.querySelector('label[for="stake-amount"]');
-    const style = (element) => {
-      const computed = getComputedStyle(element);
-      return {
-        color: computed.color,
-        family: computed.fontFamily,
-        size: computed.fontSize,
-        weight: computed.fontWeight
-      };
-    };
-    const headingBox = heading.getBoundingClientRect();
-    const iconBox = headingIcon.getBoundingClientRect();
-    return {
-      headingCenterOffset: Math.abs(
-        (headingBox.top + headingBox.height / 2) - (iconBox.top + iconBox.height / 2)
-      ),
-      metricLabel: style(metricLabel),
-      metricValue: style(metricValue),
-      availableValue: style(availableValue),
-      amountLabel: style(amountLabel)
-    };
-  });
-  expect(stakingTypography.headingCenterOffset).toBeLessThanOrEqual(1);
-  expect(stakingTypography.metricLabel.family).toContain("Geist");
-  expect(stakingTypography.metricLabel.size).toBe("16px");
-  expect(stakingTypography.metricLabel.weight).toBe("650");
-  expect(stakingTypography.metricValue.family).toContain("Geist");
-  expect(stakingTypography.metricValue.family).not.toContain("Mono");
-  expect(stakingTypography.metricValue.size).toBe("20px");
-  expect(stakingTypography.metricValue.weight).toBe("650");
-  expect(stakingTypography.availableValue).toEqual(stakingTypography.metricValue);
-  expect(stakingTypography.amountLabel.family).toBe(stakingTypography.metricLabel.family);
-  expect(stakingTypography.amountLabel.size).toBe(stakingTypography.metricLabel.size);
-  expect(stakingTypography.amountLabel.weight).toBe(stakingTypography.metricLabel.weight);
-  await expect(page.locator(".money-summary")).toHaveCount(0);
-  await expect(page.locator(".wallet-tool-summary")).toHaveCount(0);
-  const stakingAlignment = await page.locator(".wallet-tool-grid-centered").evaluate((grid) => {
-    const card = grid.querySelector(".staking-card").getBoundingClientRect();
-    const bounds = grid.getBoundingClientRect();
-    return Math.abs((card.left + card.right) / 2 - (bounds.left + bounds.right) / 2);
-  });
-  expect(stakingAlignment).toBeLessThanOrEqual(1);
-  await page.locator('#wallet-tabs [data-view="wallet-backup"]').click();
-  await expect(page.getByRole("heading", { name: "Backup status" })).toBeVisible();
+  await page.locator(".asset-identity-button").first().click();
+  await expect(page.getByRole("heading", { name: "Asset details" })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
 
-  const visibleWalletRows = async () => page.locator(".wallet-nav-viewport").evaluate((viewport) => {
-    const nav = viewport.querySelector(".wallet-nav");
-    const actions = viewport.querySelector(".wallet-nav-actions");
-    const extraRows = Array.from({ length: 3 }, (_, index) => `<button class="wallet-nav-item" type="button">Extra wallet ${index + 1}</button>`).join("");
-    actions.insertAdjacentHTML("beforebegin", extraRows);
-    viewport.scrollTop = 0;
-    const box = viewport.getBoundingClientRect();
-    const count = [...nav.querySelectorAll(".wallet-nav-item")].filter((row) => {
-      const rowBox = row.getBoundingClientRect();
-      return rowBox.top >= box.top && rowBox.bottom <= box.bottom;
-    }).length;
-    nav.querySelectorAll(".wallet-nav-item:nth-last-of-type(-n + 3)").forEach((row) => row.remove());
-    return count;
-  });
-
-  await page.setViewportSize({ width: 1280, height: 800 });
-  expect(await visibleWalletRows()).toBe(3);
-
-  await page.setViewportSize({ width: 1000, height: 800 });
-  expect(await visibleWalletRows()).toBe(3);
+  await page.locator('[data-wallet-id="everyday"]').click();
+  await page.locator('[data-wallet-section="vouchers"]').click();
+  await expect(page.locator(".claim-row")).toHaveCount(8);
+  await page.locator('[data-wallet-id="savings"]').click();
+  await expect(page.locator(".claim-row")).toHaveCount(0);
+  await expect(page.locator(".object-empty-state")).toBeVisible();
+  await page.locator('[data-wallet-id="everyday"]').click();
+  await expect(page.locator(".claim-row")).toHaveCount(8);
+  await page.locator('[data-wallet-section="permissions"]').click();
+  await expect(page.locator(".permission-row")).toHaveCount(8);
+  await expect(page.locator('[aria-label="Permission filters"] button')).toHaveText(["Held", "Delegated", "Used"]);
 });
 
-test("every routed view starts on the shared content baseline", async ({ page }) => {
-  test.setTimeout(90_000);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
-  const contract = await page.evaluate(() => window.Z00ZDemo.PORT_CONTRACT);
-  const routes = allRoutedViews(contract);
+test("deep links, drafts, pending state, and native Back preserve route-overlay order", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 320, height: 800, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    await expect(page.locator("#wallet-statusbar")).toContainText("Pending in960.00 Z00Z");
+    await expect(page.locator("#wallet-statusbar")).toContainText("Pending out240.00 Z00Z");
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.send", { mobile: viewport.mobile });
+    await page.locator("#send-recipient").fill("z00z1private-request");
+    await page.locator("#send-amount").fill("42.75");
+    await page.locator("#send-memo").fill("Preserve this draft");
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.receive", { mobile: viewport.mobile });
+    await expect(page).toHaveURL(/route=wallet\.receive/);
+    await page.goBack();
+    await expect(page).toHaveURL(/route=wallet\.send/);
+    await expect(page.locator("#send-recipient")).toHaveValue("z00z1private-request");
+    await expect(page.locator("#send-amount")).toHaveValue("42.75");
+    await expect(page.locator("#send-memo")).toHaveValue("Preserve this draft");
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.assets", { mobile: viewport.mobile });
+    await page.locator(".asset-identity-button").first().click();
+    await expect(page.getByRole("heading", { name: "Asset details" })).toBeVisible();
+
+    await page.goBack();
+    await expect(page.locator("#flow-dialog")).not.toBeVisible();
+    await expect(page).toHaveURL(/route=wallet\.assets/);
+    await expect(page.locator("#page-title")).toHaveText("Assets");
+
+    await page.goForward();
+    await expect(page.getByRole("heading", { name: "Asset details" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#flow-dialog")).not.toBeVisible();
+    await expect(page).toHaveURL(/route=wallet\.assets/);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/route=wallet\.send/);
+    await expect(page.locator("#send-memo")).toHaveValue("Preserve this draft");
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.history", { mobile: viewport.mobile });
+    await expect(page.locator(".activity-row .status-badge.is-settling").first()).toHaveText("Settling");
+    await expect(page.locator("#wallet-statusbar")).toContainText("Pending in960.00 Z00Z");
+    await expect(page.locator("#wallet-statusbar")).toContainText("Pending out240.00 Z00Z");
+  }
+});
+
+test("wallet actions are reached from the tree without recreating tab controls", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+
+  await selectCanonicalRoute(page, "wallet.send");
+  await expect(page.locator("#send-entry")).toBeVisible();
+  await expect(page.locator("#send-entry")).toContainText("Recipient or private request");
+
+  await selectCanonicalRoute(page, "wallet.receive");
+  await expect(page.locator("#main-content")).toContainText("Receive");
+  await expect(page.locator(".mock-qr")).toBeVisible();
+
+  await selectCanonicalRoute(page, "wallet.history");
+  await expect(page.locator(".activity-row")).toHaveCount(7);
+
+  await selectCanonicalRoute(page, "wallet.backup");
+  await expect(page.locator("#main-content")).toContainText("Backup");
+});
+
+test("capability profiles stay typed without redundant boundary cards", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+
+    for (const capability of [
+      { route: "wallet.swap", maturity: "live", evidence: "fixture" },
+      { route: "wallet.staking.stake", capabilityId: "wallet.staking", maturity: "live", evidence: "fixture" },
+      { route: "wallet.exchange", maturity: "target", evidence: "none" },
+    ]) {
+      await page.goto(`${demoUrl}?route=${capability.route}`);
+      const profile = await page.evaluate(
+        (capabilityId) => window.Z00ZDemo.capabilityProfile(capabilityId),
+        capability.capabilityId || capability.route,
+      );
+      expect(profile).toMatchObject({
+        maturity: capability.maturity,
+        availability: "unavailable",
+        evidenceSource: capability.evidence,
+        freshness: "not_applicable",
+        presentationMode: "product",
+      });
+      await expect(page.locator(".capability-boundary")).toHaveCount(0);
+      await expectNoViewportOverflow(page);
+    }
+
+    await page.goto(`${demoUrl}?route=wallet.swap`);
+    await expect(page.getByRole("button", { name: "Preview experimental recipe" })).toBeVisible();
+    await page.getByRole("button", { name: "Preview experimental recipe" }).click();
+    await expect(page.locator("#toast-region")).toContainText("needs a verified quote");
+
+    await page.goto(`${demoUrl}?route=wallet.staking.stake`);
+    await expect(page.locator(".staking-summary")).not.toContainText("0.00 Z00Z");
+    await expect(page.locator(".staking-summary")).toContainText("Unavailable");
+    await page.getByRole("button", { name: "Review stake" }).click();
+    await expect(page.locator("#toast-region")).toContainText("needs validator and lock-up terms");
+    await page.locator('[data-workspace-route="wallet.staking.unstake"]').click();
+    await expect(page.locator("#main-content")).toContainText("Unstake");
+    await expect(page.locator("#unstake-position")).toBeVisible();
+    await page.locator('[data-demo-action="prepare-unstake"]').click();
+    await expect(page.locator("#toast-region")).toContainText("needs an authoritative staked balance and unlock terms");
+
+    await page.goto(`${demoUrl}?route=wallet.exchange`);
+    await page.locator("#exchange-amount").fill("10");
+    await page.locator("#exchange-recipient").fill("target-recipient");
+    await page.locator("#exchange-refund").fill("target-refund");
+    await page.getByRole("button", { name: "Review target request" }).click();
+    await expect(page.locator(".exchange-unavailable-grid strong")).toHaveText([
+      "Unavailable",
+      "Unavailable",
+      "Unavailable",
+      "Unavailable",
+      "Unavailable",
+      "Unavailable",
+      "Unavailable",
+    ]);
+    await expect(page.locator(".capability-boundary")).toHaveCount(0);
+    await expectNoViewportOverflow(page);
+  }
+});
+
+test("Send reconciles an unknown native outcome without duplicating the operation", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.send&operationScenario=timeout_unknown_outcome`);
+    await page.locator("#send-recipient").fill("z00z1native-boundary");
+    await page.locator("#send-amount").fill("12.50");
+    await page.locator("#send-memo").fill("Keep across native timeout");
+    await page.locator("#send-entry").evaluate((form) => form.requestSubmit());
+    await expect(page.locator('[data-send-action="submit"]')).toBeVisible();
+    await page.locator('[data-send-action="submit"]').click();
+
+    await expect(page.locator(".operation-progress-state")).toBeVisible();
+    await expect(page.locator(".operation-progress-list li")).toHaveCount(3);
+    await expectNoViewportOverflow(page);
+
+    const errorState = page.locator(".operation-error-state");
+    await expect(errorState).toBeVisible();
+    await expect(errorState).toContainText("Reconcile this operation before any retry");
+    await expect(page.locator(".send-panel-body")).toContainText("Preserved for this wallet");
+    await expect(page.locator(".send-panel-body .mono")).toHaveText(/^payment-everyday-\d+$/);
+    await expectNoViewportOverflow(page);
+
+    await page.locator('[data-send-action="reconcile"]').click();
+    await expect(page.locator("#send-panel-title")).toHaveText("Reconciling operation");
+    await expect(page.locator(".operation-progress-state")).toBeVisible();
+    await expect(page.locator(".operation-progress-list .is-done")).toHaveCount(2);
+    await expectNoViewportOverflow(page);
+
+    await expect(page.locator(".result-state")).toBeVisible();
+    await expect(page.locator(".receipt-ref")).toHaveText(/^payment-everyday-\d+$/);
+    await expect(page.locator(".send-panel-body")).toContainText("Submitted · pending confirmation");
+    await page.locator('[data-send-action="history"]').click();
+    await expect(page.locator(".activity-row")).toHaveCount(8);
+    await expect(page.locator(".activity-row").first()).toContainText("Z00Z sent");
+    await expectNoViewportOverflow(page);
+  }
+});
+
+test("Default and Corporate palettes switch immediately with one ACTIVE marker", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=settings.appearance`);
+
+    const palettes = page.locator("#main-content [data-palette]");
+    const defaultPalette = page.locator('#main-content [data-palette="z00z-default"]');
+    const corporatePalette = page.locator('#main-content [data-palette="z00z-corporate"]');
+    await expect(palettes).toHaveCount(2);
+    expect(await palettes.evaluateAll((cards) => cards.map((card) => card.dataset.palette))).toEqual([
+      "z00z-default",
+      "z00z-corporate",
+    ]);
+    await expect(defaultPalette).toHaveAttribute("aria-pressed", "true");
+    await expect(defaultPalette.getByText("Active", { exact: true })).toBeVisible();
+    await expect(defaultPalette.locator(".palette-card-heading em")).toHaveCSS("text-transform", "uppercase");
+    await expect(corporatePalette).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator(".palette-card-heading em")).toHaveCount(1);
+    await expect(page.locator(".palette-card small")).toHaveCount(0);
+    await expect(page.locator("#main-content")).not.toContainText("Current dark Z00Z application palette");
+    await expect(page.locator("#main-content")).not.toContainText("Light Corporate palette");
+    await expect(page.locator("[data-palette-apply], [data-palette-cancel], [data-palette-reset], .palette-preview-status")).toHaveCount(0);
+
+    await corporatePalette.click();
+    await expect(page.locator("html")).toHaveAttribute("data-palette", "z00z-corporate");
+    await expect(corporatePalette).toHaveAttribute("aria-pressed", "true");
+    await expect(corporatePalette.getByText("Active", { exact: true })).toBeVisible();
+    await expect(defaultPalette).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator(".palette-card-heading em")).toHaveCount(1);
+
+    await defaultPalette.click();
+    await expect(page.locator("html")).toHaveAttribute("data-palette", "z00z-default");
+    await expect(defaultPalette).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("html")).not.toHaveAttribute("data-theme", /./);
+    await expectNoViewportOverflow(page, `Appearance at ${viewport.width}px`);
+  }
+});
+
+test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 320, height: 800, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    const walletAssetSnapshot = await page.locator(".asset-row").allInnerTexts();
+    await page.goto(`${demoUrl}?route=wallet.history`);
+    const walletHistoryCount = await page.locator(".activity-row").count();
+    await page.goto(`${demoUrl}?route=dapps.discover`);
+
+    await expect(page.locator(".dapp-roadmap")).toBeVisible();
+    await expect(page.locator(".route-preview")).toHaveCount(0);
+    await expect(page.locator("[data-dapp-card]")).toHaveCount(6);
+    await expect(page.locator(".capability-boundary")).toHaveCount(0);
+    await expect(page.locator(".navigation-tree-badge")).toHaveCount(0);
+    await expect(page.locator(viewport.mobile ? ".mobile-nav-brand img" : ".desktop-topbar-brand .brand-mark")).toBeVisible();
+    await expect(page.locator("#page-title")).toHaveText("Discover");
+    await expect(page.locator("#route-breadcrumb")).toHaveText("dApps / Discover");
+
+    const navigation = viewport.mobile
+      ? page.locator("#mobile-popup-menu .mobile-navigation-tree")
+      : page.locator("#app-navigation-tree");
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await expect(navigation.locator('[data-navigation-branch="dapps"]')).toHaveAttribute("aria-expanded", "true");
+    const dappRoutes = navigation.locator('[data-navigation-branch="dapps"] + .navigation-tree-children > [data-navigation-route]');
+    await expect(dappRoutes).toHaveCount(6);
+    await expect(dappRoutes).toHaveText(["Discover", "Installed", "Connections", "Permissions", "Swap", "Exchange"]);
+    await expect(navigation.locator('[data-navigation-branch="wallet"] + .navigation-tree-children > [data-navigation-route="wallet.swap"], [data-navigation-branch="wallet"] + .navigation-tree-children > [data-navigation-route="wallet.exchange"]')).toHaveCount(0);
+    await expect(navigation.locator('[data-navigation-branch="dapps"] + .navigation-tree-children [data-navigation-branch]')).toHaveCount(0);
+    await expect(navigation.locator('[data-navigation-route="dapps.discover"]')).toHaveAttribute("aria-current", "page");
+    if (viewport.mobile) await page.keyboard.press("Escape");
+
+    await page.locator('[data-dapp-card="external-asset-locker"] [data-dapp-action="open"]').click();
+    await expect(page.locator('[data-dapp-detail="external-asset-locker"]')).toBeVisible();
+    await expect(page.locator('[data-dapp-detail="external-asset-locker"]')).toContainText("Typed intent only · no wallet bridge");
+    await expectNoViewportOverflow(page);
+    await page.locator('[data-dapp-action="back"]').click();
+
+    await page.goto(`${demoUrl}?route=dapps.connections`);
+    await expect(page.locator("[data-dapp-connection]")).toHaveCount(3);
+    await page.locator('[data-dapp-connection="connection_offline_pay"] [data-dapp-action="review"]').click();
+    const review = page.locator('[data-dapp-review="connection_offline_pay"]');
+    await expect(review).toBeVisible();
+    await expect(review.locator(".dapp-review-grid > div")).toHaveCount(12);
+    await expect(review).toContainText("Value");
+    await expect(review).toContainText("Fee path");
+    await expect(review).toContainText("Wallet object");
+    await expect(review.locator('input[type="password"], [data-secure-entry]')).toHaveCount(0);
+    await expectNoViewportOverflow(page);
+    const acceptIntent = review.getByRole("button", { name: "Accept bounded intent" });
+    await acceptIntent.click();
+    await expect(review.locator("#dapp-review-error")).toContainText("Confirm the exact displayed scope");
+    await review.locator('input[name="scopeConfirmed"]').check();
+    await acceptIntent.click();
+    await expect(review.locator("#dapp-review-error")).toContainText("Acknowledge that Wallet re-auth is required");
+    await review.locator('input[name="reauthAcknowledged"]').check();
+    await acceptIntent.click();
+    await expect(page.locator('[data-dapp-outcome-route="intent_accepted"]')).toBeVisible();
+    await expect(page.locator('[data-dapp-outcome-route="intent_accepted"]')).toContainText("Wallet state unchanged");
+    await expect(page.locator('[data-dapp-action="activity"], [data-navigation-route="dapps.activity"]')).toHaveCount(0);
+
+    await page.goto(`${demoUrl}?route=dapps.connections`);
+    await page.locator('[data-dapp-connection="connection_offline_pay"] [data-dapp-action="review"]').click();
+    const walletReview = page.locator('[data-dapp-review="connection_offline_pay"]');
+    await walletReview.locator('input[name="scopeConfirmed"]').check();
+    await walletReview.locator('input[name="reauthAcknowledged"]').check();
+    await walletReview.getByRole("button", { name: "Accept bounded intent" }).click();
+    await page.locator('[data-dapp-action="wallet-review"]').click();
+    await expect(page.locator("#page-title")).toHaveText("Send");
+    await expect(page.locator('[data-dapp-wallet-handoff]')).toContainText("Prepared from Offline Pay");
+    await expect(page.locator("#send-recipient")).toHaveValue("");
+    await expect(page.locator("#send-item")).toHaveValue("z00z");
+    await expect(page.locator("#send-amount")).toHaveValue("24.00");
+    await expect(page.locator("#send-panel-title")).toHaveText("Send privately");
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.assets", { mobile: viewport.mobile });
+    expect(await page.locator(".asset-row").allInnerTexts()).toEqual(walletAssetSnapshot);
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.history", { mobile: viewport.mobile });
+    await expect(page.locator(".activity-row")).toHaveCount(walletHistoryCount);
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.send", { mobile: viewport.mobile });
+    await expect(page.locator('[data-dapp-wallet-handoff]')).toBeVisible();
+    await expect(page.locator("#send-amount")).toHaveValue("24.00");
+    await page.locator("#send-recipient").fill("z00z1wallet-review-demo");
+    await page.locator('button[form="send-entry"]').click();
+    await expect(page.locator("#send-panel-title")).toHaveText("Review send");
+    await expect(page.locator(".review-hero")).toContainText("24.00 Z00Z");
+    await expect(page.locator(".review-hero")).toContainText("z00z1wallet-review-demo");
+
+    await page.goto(`${demoUrl}?route=dapps.permissions`);
+    await expect(page.locator("[data-dapp-permission]")).toHaveCount(3);
+    await expect(page.locator('[data-dapp-permission="permission_service_credits"]')).toContainText("Expired");
+    await page.locator('[data-dapp-permission="permission_scoped_expenses"] [data-dapp-action="revoke"]').click();
+    await expect(page.locator('[data-dapp-outcome-route="permission_revoked"]')).toBeVisible();
+    await page.locator('[data-dapp-action="outcome-back"]').click();
+    await expect(page.locator('[data-dapp-permission="permission_scoped_expenses"]')).toContainText("Revoked");
+
+    await page.goto(`${demoUrl}?route=dapps.installed`);
+    await expect(page.locator("[data-dapp-card]")).toHaveCount(3);
+    await expect(page.locator(".notice")).toContainText("No third-party executable or remote service was loaded");
+    await expectNoViewportOverflow(page);
+  }
+});
+
+test("Messenger keeps advisory actions local and revalidates payment inside Wallet on desktop and mobile", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 320, height: 800, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    const walletAssetSnapshot = await page.locator(".asset-row").allInnerTexts();
+    await page.goto(`${demoUrl}?route=wallet.history`);
+    const walletHistoryCount = await page.locator(".activity-row").count();
+
+    await page.goto(`${demoUrl}?route=messenger.inbox`);
+    await expect(page.locator(".messenger-roadmap")).toBeVisible();
+    await expect(page.locator(".route-preview")).toHaveCount(0);
+    await expect(page.locator("[data-messenger-message]")).toHaveCount(8);
+    await expect(page.locator(".capability-boundary")).toHaveCount(0);
+    await expect(page.locator(".messenger-relay-control")).toBeVisible();
+    await expect(page.locator(viewport.mobile ? ".mobile-nav-brand img" : ".desktop-topbar-brand .brand-mark")).toBeVisible();
+
+    const navigation = viewport.mobile
+      ? page.locator("#mobile-popup-menu .mobile-navigation-tree")
+      : page.locator("#app-navigation-tree");
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await expect(navigation.locator('[data-navigation-branch="messenger"] + .navigation-tree-children > [data-navigation-route^="messenger."]')).toHaveCount(3);
+    await expect(navigation.locator('[data-navigation-branch="messenger"] + .navigation-tree-children > [data-navigation-route^="messenger."] .navigation-tree-label')).toHaveText(["Inbox", "Sent", "Conversations"]);
+    await expect(navigation.locator('[data-navigation-branch="messenger"] + .navigation-tree-children [data-navigation-branch]')).toHaveCount(0);
+    if (viewport.mobile) await page.keyboard.press("Escape");
+
+    await page.goto(`${demoUrl}?route=messenger.sent`);
+    await expect(page.locator("#page-title")).toHaveText("Sent");
+    await expect(page.locator("[data-messenger-sent]")).toHaveCount(5);
+    await page.goto(`${demoUrl}?route=messenger.conversations`);
+    await expect(page.locator("[data-messenger-conversation]")).toHaveCount(2);
+    await page.goto(`${demoUrl}?route=messenger.inbox`);
+
+    await page.locator('[data-messenger-message="message_advisory_001"] [data-messenger-action="open"]').click();
+    await expect(page.locator('[data-messenger-detail="message_advisory_001"]')).toContainText("Wallet object");
+    await page.locator('[data-messenger-action="acknowledge"]').click();
+    await expect(page.locator('[data-messenger-detail="message_advisory_001"]')).toContainText("Acknowledged");
+    await page.locator('[data-messenger-action="delete"]').click();
+    await expect(page.locator("[data-messenger-message]")).toHaveCount(7);
+
+    await page.locator('[data-messenger-action="relay-unavailable"]').click();
+    await expect(page.locator('[data-messenger-relay="unavailable"]')).toContainText("Relay unavailable");
+    await page.locator('[data-messenger-action="relay-recover"]').click();
+    await expect(page.locator('[data-messenger-relay="recovering"]')).toContainText("Recovery check is local-only");
+
+    await page.goto(`${demoUrl}?route=messenger.inbox`);
+    await expect(page.locator("[data-messenger-message]")).toHaveCount(8);
+    await page.locator('[data-messenger-message="message_expired_001"] [data-messenger-action="open"]').click();
+    await page.locator('[data-messenger-action="review"]').click();
+    await expect(page.locator('[data-messenger-review="review_message_expired_001"]')).toContainText("Expired");
+    await expect(page.locator('[data-messenger-action="accept-request"]')).toBeDisabled();
+    await page.locator('[data-messenger-action="detail"]').click();
+    await page.locator('[data-messenger-action="back"]').click();
+
+    await page.locator('[data-messenger-message="message_payment_001"] [data-messenger-action="open"]').click();
+    await page.locator('[data-messenger-action="review"]').click();
+    await expect(page.locator('[data-messenger-review="review_message_payment_001"]')).toContainText("18.50 Z00Z");
+    await page.locator('[data-messenger-action="accept-request"]').click();
+    await expect(page.locator('[data-messenger-outcome="accepted"]')).toContainText("Wallet state unchanged");
+    await page.locator('[data-messenger-action="wallet-review"]').click();
+    await expect(page.locator("#page-title")).toHaveText("Send");
+    await expect(page.locator("[data-messenger-wallet-handoff]")).toContainText("Revalidated Messenger payment request");
+    await expect(page.locator("#send-recipient")).toHaveValue("");
+    await expect(page.locator("#send-item")).toHaveValue("z00z");
+    await expect(page.locator("#send-amount")).toHaveValue("18.50");
+    await expectNoViewportOverflow(page);
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.assets", { mobile: viewport.mobile });
+    expect(await page.locator(".asset-row").allInnerTexts()).toEqual(walletAssetSnapshot);
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.history", { mobile: viewport.mobile });
+    await expect(page.locator(".activity-row")).toHaveCount(walletHistoryCount);
+  }
+});
+
+test("Contacts stays wallet-local across search, import, identity review, actions, and removal", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    const walletAssetSnapshot = await page.locator(".asset-row").allInnerTexts();
+    await page.goto(`${demoUrl}?route=wallet.history`);
+    const walletHistoryCount = await page.locator(".activity-row").count();
+    await page.goto(`${demoUrl}?route=contacts.list`);
+
+    await expect(page.locator(".contacts-roadmap")).toBeVisible();
+    await expect(page.locator("#page-title")).toHaveText("Contacts");
+    await expect(page.locator(".contacts-roadmap")).toContainText("Address book");
+    await expect(page.locator("[data-contact]")).toHaveCount(6);
+    await expect(page.locator(".contact-book-row")).toHaveCount(6);
+    await expect(page.locator(".contact-card")).toHaveCount(0);
+    await expect(page.locator(".capability-boundary")).toHaveCount(0);
+    await page.locator("[data-contact-status-filter]").selectOption("identity_changed");
+    await expect(page.locator("[data-contact]")).toHaveCount(1);
+    await page.locator("[data-contact-status-filter]").selectOption("all");
+    await page.locator("#contacts-query").fill("voucher");
+    await page.locator("#contacts-search-form").evaluate((form) => form.requestSubmit());
+    await expect(page.locator("[data-contact]")).toHaveCount(1);
+    await page.locator("#contacts-query").fill("");
+    await page.locator("#contacts-search-form").evaluate((form) => form.requestSubmit());
+    await page.locator("[data-contact-sort]").selectOption("nickname");
+    expect(await page.locator("[data-contact]").evaluateAll((cards) => cards.map((card) => card.dataset.contact))).toEqual([
+      "contact_ada",
+      "contact_ben",
+      "contact_community",
+      "contact_old_service",
+      "contact_ops",
+      "contact_revoked",
+    ]);
+    await page.locator("[data-contact-sort]").selectOption("date");
+    expect(await page.locator("[data-contact]").evaluateAll((cards) => cards.map((card) => card.dataset.contact))).toEqual([
+      "contact_ada",
+      "contact_ben",
+      "contact_community",
+      "contact_ops",
+      "contact_old_service",
+      "contact_revoked",
+    ]);
+
+    await page.locator('[data-contact="contact_ops"] [data-contact-action="open"]').click();
+    await expect(page.locator('[data-contact-detail="contact_ops"]')).toContainText("Identity Changed");
+    await page.locator('[data-contact-action="identity-review"]').click();
+    await expect(page.locator('[data-contact-identity-review="contact_ops"]')).toContainText("None; local confirmation only");
+    await page.locator('[data-contact-action="identity-accept"]').click();
+    await expect(page.locator('[data-contact-outcome="identity_accepted"]')).toContainText("no public trust claim");
+    await page.locator('[data-contact-action="back"]').click();
+
+    await page.locator('[data-contact-action="add"]').click();
+    await page.locator('[data-source-id="qr_scan"]').click();
+    await expect(page.locator('[data-contact-import="qr_scan"]')).toContainText("Native boundary unavailable");
+    await page.locator('[data-source-id="manual"]').click();
+    await page.locator("#contact-import-label").fill("Local test");
+    await page.locator("#contact-import-note").fill("Browser-free local record");
+    await page.locator("#contact-import-form").evaluate((form) => form.requestSubmit());
+    await expect(page.locator('[data-contact-outcome="added"]')).toContainText("without a contact upload");
+    await page.locator('[data-contact-action="back"]').click();
+    await expect(page.locator("[data-contact]")).toHaveCount(7);
+    await page.locator('[data-contact="contact_local_0007"] [data-contact-action="open"]').click();
+    await page.locator('[data-contact-action="edit"]').click();
+    await page.locator("#contact-edit-label").fill("Local revised");
+    await page.locator("#contact-edit-form").evaluate((form) => form.requestSubmit());
+    await expect(page.locator('[data-contact-outcome="edited"]')).toContainText("remote state remained unchanged");
+    await page.locator('[data-contact-action="back"]').click();
+    await page.locator('[data-contact="contact_local_0007"] [data-contact-action="open"]').click();
+    await page.locator('[data-contact-action="remove"]').click();
+    await expect(page.locator('[data-contact-outcome="removed"]')).toContainText("not revoked or erased");
+
+    await page.goto(`${demoUrl}?route=contacts.list`);
+    await page.locator('[data-contact="contact_ada"] [data-contact-action="open"]').click();
+    await page.locator('[data-contact-action="pay"]').click();
+    await expect(page.locator("#page-title")).toHaveText("Send");
+    await expect(page.locator("[data-contact-wallet-handoff]")).toContainText("Revalidated Pay action for Ada");
+    await expect(page.locator("#send-recipient")).toHaveValue("");
+    await expectNoViewportOverflow(page);
+
+    await page.goto(`${demoUrl}?route=contacts.list`);
+    await page.locator('[data-contact="contact_community"] [data-contact-action="open"]').click();
+    await page.locator('[data-contact-action="message"]').click();
+    await expect(page.locator("#page-title")).toHaveText("Conversations");
+    await expect(page.locator("[data-contact-messenger-handoff]")).toContainText("Prepared for Community desk");
+    await expect(page.locator(".capability-boundary")).toHaveCount(0);
+    await expect(page.locator("[data-contact-messenger-handoff]")).toContainText("must revalidate");
+    await expectNoViewportOverflow(page);
+
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    expect(await page.locator(".asset-row").allInnerTexts()).toEqual(walletAssetSnapshot);
+    await page.goto(`${demoUrl}?route=wallet.history`);
+    await expect(page.locator(".activity-row")).toHaveCount(walletHistoryCount);
+  }
+});
+
+test("desktop Help is a separate application and keeps the selected palette", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=settings.appearance`);
+  await page.locator('[data-palette="z00z-corporate"]').click();
+
+  const helpPage = await openStandaloneHelp(page, page.locator("#app-navigation-terminal [data-help-topic]"));
+  await expect(helpPage.locator("#help-document")).toBeVisible();
+  await expect(helpPage.locator("html")).toHaveAttribute("data-palette", "z00z-corporate");
+  await expect(helpPage.locator(".help-sidebar")).toBeVisible();
+  await helpPage.close();
+  await expect(page.locator("#main-content")).toBeVisible();
+});
+
+test("version, destructive Log out, Data & Storage, Notifications, and About work on desktop and mobile", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 390, height: 844, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    const terminal = viewport.mobile
+      ? page.locator(".mobile-navigation-terminal")
+      : page.locator("#app-navigation-terminal");
+    const logout = terminal.locator('[data-demo-action="logout"]');
+    const terminalSettings = terminal.locator(':scope > .navigation-tree-branch [data-navigation-branch="settings"]');
+    await expect(terminalSettings).toContainText("Settings");
+    await expect(terminal.locator(":scope > .navigation-tree-terminal")).toHaveText(["Help", "About", "Log out"]);
+    await expect(terminal.locator('[data-navigation-route="about"]')).toBeVisible();
+    const primaryNavigation = viewport.mobile
+      ? page.locator(".mobile-navigation-tree")
+      : page.locator("#app-navigation-tree");
+    const primaryOrder = await primaryNavigation.evaluate((navigation) => [...navigation.children].map((child) => {
+      const target = child.matches("[data-navigation-branch], [data-navigation-route]")
+        ? child
+        : child.querySelector(":scope > [data-navigation-branch], :scope > [data-navigation-route]");
+      return target?.dataset.navigationBranch || target?.dataset.navigationRoute || "";
+    }));
+    expect(primaryOrder.indexOf("data-storage")).toBeLessThan(primaryOrder.indexOf("contacts.list"));
+    await expect(terminalSettings).toHaveAttribute("aria-expanded", "false");
+    await terminalSettings.click();
+    await expect(terminalSettings).toHaveAttribute("aria-expanded", "true");
+    await expect(terminal.locator(':scope > .navigation-tree-branch > .navigation-tree-children [data-navigation-route^="settings."]')).toHaveCount(3);
+    await expect(terminal.locator(".app-version")).toHaveText("Version 0.1.0");
+    expect(await logout.evaluate((element) => getComputedStyle(element).color)).toBe(
+      await page.locator(".nav-item-danger").evaluate((element) => getComputedStyle(element).color),
+    );
+    expect(await logout.evaluate((element) => element.nextElementSibling?.classList.contains("app-version"))).toBe(true);
+
+    await terminal.locator('[data-navigation-route="about"]').click();
+    await expect(page).toHaveURL(/route=about/);
+    if (viewport.mobile) await expect(page.locator("#mobile-popup-menu")).toBeHidden();
+    await expect(page.locator("#page-title")).toHaveText("About");
+    const about = page.locator(".about-surface");
+    await expect(about).toContainText("Z00Z Wallet v0.1.0");
+    await expect(about.locator("a")).toHaveText([
+      "Privacy Policy",
+      "Terms of Use",
+      "Visit Z00Z Website",
+      "Visit Z00Z GitHub repository",
+    ]);
+    await expect(about.locator('a[href="https://z00z.io/docs/legal/privacy"]')).toHaveAttribute("target", "_blank");
+    await expect(about.locator('a[href="https://z00z.io/docs/legal/terms"]')).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(about.locator('a[href="https://z00z.io/"]')).toBeVisible();
+    await expect(about.locator('a[href="https://github.com/z00z-labs/z00z"]')).toBeVisible();
+    await expect(about.locator(":scope > :last-child")).toHaveAttribute("data-demo-action", "check-for-updates");
+    await expect(page.locator(".about-card, .about-metadata")).toHaveCount(0);
+    await page.locator('[data-demo-action="check-for-updates"]').click();
+    await expect(page.locator(".update-check-status")).toContainText("current demo version 0.1.0");
+
+    await page.goto(`${demoUrl}?route=data-storage.disk-usage`);
+    await expect(page.locator(".data-storage-view")).toContainText("Disk Usage");
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "data-storage.network-usage", { mobile: viewport.mobile });
+    await expect(page.locator(".data-storage-view")).toContainText("Network Usage");
+
+    await page.goto(`${demoUrl}?route=settings.notifications`);
+    await expect(page.locator('[data-config-control="vibrate"]')).toHaveValue("messages-and-alerts");
+    await expect(page.locator('[data-config-control="ringtone"]')).toHaveValue("z00z-pulse");
+    await page.locator('[data-config-control="vibrate"]').selectOption("alerts-only");
+    await page.locator('[data-config-control="ringtone"]').selectOption("soft-chime");
+    await expect(page.locator('[data-config-control="vibrate"]')).toHaveValue("alerts-only");
+    await expect(page.locator('[data-config-control="ringtone"]')).toHaveValue("soft-chime");
+
+    await page.goto(`${demoUrl}?route=settings.general`);
+    await expect(page.locator('[data-config-control="language"] option').first()).toContainText("🇬🇧");
+    await expectNoViewportOverflow(page);
+  }
+});
+
+test("Help reuses App section icons, language flags, and searchable localized content", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const helpPage = await openStandaloneHelp(page, page.locator("#app-navigation-terminal [data-help-topic]"));
+
+  await expect(helpPage.locator('[data-help-group="wallets"] use').first()).toHaveAttribute("href", "#i-wallet");
+  await expect(helpPage.locator('[data-help-group="telemetry"] use').first()).toHaveAttribute("href", "#i-network");
+  await expect(helpPage.locator('[data-help-group="data-storage"] use').first()).toHaveAttribute("href", "#i-storage");
+  await expect(helpPage.locator(".help-language-icon")).toBeVisible();
+  await expect(helpPage.locator(".help-language-icon use")).toHaveAttribute("href", "#i-language");
+  await expect(helpPage.locator("#i-language")).toHaveAttribute("data-icon-source", "material-symbols-light:language");
+  await expect(helpPage.locator("#help-language-label")).toHaveClass(/visually-hidden/);
+  await expect(helpPage.locator("#help-language")).toHaveAttribute("aria-label", "Language");
+  await expect(helpPage.locator("#help-language option").first()).toContainText("🇬🇧");
+  await helpPage.locator("#help-search").fill("signed release manifest");
+  await expect(helpPage.locator('[data-help-search-topic="about"]')).toBeVisible();
+  await helpPage.locator('[data-help-search-topic="about"]').click();
+  await expect(helpPage.locator("#help-title")).toContainText("About Z00Z");
+
+  await helpPage.setViewportSize({ width: 390, height: 844 });
+  await helpPage.locator("#help-menu-button").click();
+  await helpPage.locator("#help-search").fill("public evidence");
+  await expect(helpPage.locator(".help-search-result").first()).toBeVisible();
+  await expectNoViewportOverflow(helpPage);
+  await helpPage.close();
+});
+
+test("all root Help articles are selectable on desktop and mobile", async ({ page }) => {
+  const articles = [
+    ["about", "About Z00Z"],
+    ["help.faq", "Frequently asked questions"],
+    ["help.how-to", "How to use the demo"],
+    ["help.report-issues", "Report issues"],
+    ["help.tips-and-tricks", "Tips and tricks"],
+    ["help.video-tutorials", "Video tutorials"],
+  ];
 
   for (const viewport of [
-    { name: "desktop", width: 1280, height: 800 },
-    { name: "mobile-390", width: 390, height: 844 },
-    { name: "mobile-320", width: 320, height: 800 }
+    { width: 1280, height: 800, mobile: false },
+    { width: 390, height: 844, mobile: true },
   ]) {
     await page.setViewportSize(viewport);
-    const measurements = [];
-
-    for (const route of routes) {
-      await page.goto(`${demoUrl}${route.query}`);
-      await expect(page.locator("#main-content > .view-enter")).toBeVisible();
-      const offset = await page.locator("#main-content > .view-enter").evaluate((root) => {
-        root.style.animation = "none";
-        const firstVisibleChild = [...root.children].find((child) => {
-          const bounds = child.getBoundingClientRect();
-          const style = getComputedStyle(child);
-          return !child.matches(".sr-only")
-            && style.display !== "none"
-            && style.visibility !== "hidden"
-            && bounds.width > 0
-            && bounds.height > 0;
-        });
-        const mainTop = document.querySelector("#main-content").getBoundingClientRect().top;
-        return Math.round((firstVisibleChild.getBoundingClientRect().top - mainTop) * 10) / 10;
-      });
-      measurements.push({ route: route.name, offset });
-    }
-
-    const offsets = measurements.map(({ offset }) => offset);
-    const spread = Math.max(...offsets) - Math.min(...offsets);
-    expect(
-      spread,
-      `${viewport.name} view-start offsets:\n${JSON.stringify(measurements, null, 2)}`
-    ).toBeLessThanOrEqual(1);
-  }
-});
-
-test("the current workspace tabs live in the single topbar on wide screens", async ({ page }) => {
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.goto(`${demoUrl}?view=wallet`);
-
-  const navigationContract = await page.evaluate(() => {
-    const topbar = document.querySelector("#primary-topbar");
-    const addressGroup = document.querySelector(".topbar-address-group");
-    const tabsNode = document.querySelector("#wallet-tabs");
-    const tabs = document.querySelectorAll("#wallet-tabs .wallet-tab");
-    const firstTab = tabs[0];
-    const firstTabStyle = getComputedStyle(firstTab);
-    const firstTabBox = firstTab.getBoundingClientRect();
-    const addressBox = addressGroup.getBoundingClientRect();
-    const settings = tabs[tabs.length - 1].getBoundingClientRect();
-    return {
-      tabsParent: tabsNode.parentElement.id,
-      removedSecondRow: document.querySelector(".wallet-navigation-bar") === null,
-      settingsInsideTopbar: settings.right <= topbar.getBoundingClientRect().right,
-      firstTabAtAddressEdge: Math.abs(firstTabBox.left - addressBox.right) <= 1,
-      firstTabPadding: [
-        Number.parseFloat(firstTabStyle.paddingLeft),
-        Number.parseFloat(firstTabStyle.paddingRight)
-      ]
-    };
-  });
-
-  expect(navigationContract).toEqual({
-    tabsParent: "primary-topbar",
-    removedSecondRow: true,
-    settingsInsideTopbar: true,
-    firstTabAtAddressEdge: true,
-    firstTabPadding: [15, 15]
-  });
-});
-
-test("history exposes only object-type filters", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=activity`);
-
-  const filters = page.locator("#main-content [data-filter]");
-  await expect(filters).toHaveText(["All", "Assets", "Vouchers", "Permissions", "System"]);
-  await expect(filters).toHaveCount(5);
-  await expect(page.getByRole("button", { name: "Needs attention", exact: true })).toHaveCount(0);
-});
-
-test("history rows use a compact desktop measure and remain fluid on mobile", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto(`${demoUrl}?view=activity`);
-
-  const desktopGeometry = await page.locator(".activity-card-list").evaluate((list) => {
-    const listBox = list.getBoundingClientRect();
-    const filterBox = document.querySelector(".filter-bar").getBoundingClientRect();
-    const searchBox = document.querySelector(".filter-bar .search-wrap").getBoundingClientRect();
-    return {
-      width: listBox.width,
-      filterWidth: filterBox.width,
-      leftOffset: Math.abs(listBox.left - filterBox.left),
-      searchWidth: searchBox.width,
-      searchRightOffset: Math.abs(searchBox.right - listBox.right)
-    };
-  });
-  expect(desktopGeometry.width).toBeLessThanOrEqual(760.5);
-  expect(Math.abs(desktopGeometry.filterWidth - desktopGeometry.width)).toBeLessThanOrEqual(1);
-  expect(desktopGeometry.leftOffset).toBeLessThanOrEqual(1);
-  expect(desktopGeometry.searchWidth).toBeCloseTo(220, 0);
-  expect(desktopGeometry.searchRightOffset).toBeLessThanOrEqual(1);
-
-  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 800 }]) {
-    await page.setViewportSize(viewport);
-    await page.goto(`${demoUrl}?view=activity`);
-    const mobileGeometry = await page.locator(".activity-card-list").evaluate((list) => {
-      const listBox = list.getBoundingClientRect();
-      const parentBox = list.parentElement.getBoundingClientRect();
-      return {
-        width: listBox.width,
-        availableWidth: parentBox.width,
-        insideViewport: listBox.left >= 0 && listBox.right <= document.documentElement.clientWidth
-      };
-    });
-    expect(Math.abs(mobileGeometry.width - mobileGeometry.availableWidth)).toBeLessThanOrEqual(1);
-    expect(mobileGeometry.insideViewport).toBe(true);
-  }
-});
-
-test("filters and row hovers use the shared neutral interaction state", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet`);
-
-  const selectedBackground = await resolved_color(page, "--interaction-selected-bg");
-  const selectedBorder = await resolved_color(page, "--brand");
-  const hoverBackground = await resolved_color(page, "--interaction-hover-bg");
-  const hoverBorder = await resolved_color(page, "--interaction-hover-border");
-
-  const assetsAll = page.locator('[data-asset-filter="all"]');
-  await expect(assetsAll).toHaveCSS("background-color", selectedBackground);
-  await expect(assetsAll).toHaveCSS("border-top-color", selectedBorder);
-  await page.locator('[data-asset-filter="token"]').click();
-  await expect(page.locator('[data-asset-filter="token"]')).toHaveCSS("background-color", selectedBackground);
-
-  const assetRow = page.locator('.asset-row').first();
-  await assetRow.hover();
-  await expect(assetRow).toHaveCSS("background-color", hoverBackground);
-  await expect(assetRow).toHaveCSS("border-top-color", hoverBorder);
-
-  const walletRow = page.locator('#wallet-nav [data-wallet-id="savings"]');
-  await walletRow.hover();
-  await expect(walletRow).toHaveCSS("background-color", hoverBackground);
-  await expect(walletRow).toHaveCSS("border-top-color", hoverBorder);
-
-  const assetsTab = page.locator('[data-wallet-section="assets"]');
-  await assetsTab.hover();
-  await expect(assetsTab).toHaveCSS("background-color", hoverBackground);
-  await expect(assetsTab).toHaveCSS("border-top-color", hoverBorder);
-
-  await page.locator('[data-wallet-section="vouchers"]').click();
-  await expect(page.locator('[aria-label="Voucher filters"] .choice-chip.is-active')).toHaveCSS("background-color", selectedBackground);
-  await page.locator('[data-wallet-section="permissions"]').click();
-  await expect(page.locator('[aria-label="Permission filters"] .choice-chip.is-active')).toHaveCSS("background-color", selectedBackground);
-
-  await page.locator('#wallet-tabs [data-view="activity"]').click();
-  await page.locator('[data-filter="voucher"]').click();
-  await expect(page.locator('[data-filter="voucher"]')).toHaveCSS("background-color", selectedBackground);
-  const activityRow = page.locator('.activity-row').first();
-  await activityRow.hover();
-  await expect(activityRow).toHaveCSS("background-color", hoverBackground);
-
-  await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
-  await expect(page.locator(".send-panel")).toBeVisible();
-  await expect(page.locator(".transfer-asset-row")).toHaveCount(0);
-
-  await page.locator('#wallet-tabs [data-view="wallet-settings"]').click();
-  const settingLine = page.locator('.setting-line').first();
-  await settingLine.hover();
-  await expect(settingLine).toHaveCSS("background-color", hoverBackground);
-});
-
-test("backup action is separated from the backup status card", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet-backup`);
-
-  const heading = page.getByRole("heading", { name: "Backup status" });
-  await expect(heading).toHaveCSS("font-size", "23.2px");
-  await expect(page.locator(".wallet-tool-summary")).toHaveCount(0);
-  await expect(page.locator(".wallet-tool-grid-single")).toHaveCSS("grid-template-columns", "640px");
-  await expect(page.locator(".wallet-backup-actions")).toHaveCSS("margin-top", "16px");
-  const [statusBox, actionsBox, createBox, recoveryBox, iconBox, headingBox, gridBox, cardBox] = await Promise.all([
-    page.locator(".wallet-tool-card .review-card").first().boundingBox(),
-    page.locator(".wallet-backup-actions").boundingBox(),
-    page.locator(".wallet-backup-action").boundingBox(),
-    page.locator(".wallet-backup-recovery").boundingBox(),
-    page.locator(".backup-card-heading .list-icon").boundingBox(),
-    heading.boundingBox(),
-    page.locator(".wallet-tool-grid-centered").boundingBox(),
-    page.locator(".backup-card").boundingBox()
-  ]);
-  expect(actionsBox.y - (statusBox.y + statusBox.height)).toBeGreaterThanOrEqual(16);
-  expect(recoveryBox.y - (createBox.y + createBox.height)).toBe(10);
-  expect(recoveryBox.width).toBe(createBox.width);
-  await expect(page.locator(".wallet-backup-recovery .icon")).toBeVisible();
-  await expect(page.locator(".wallet-backup-recovery use")).toHaveAttribute("href", "#i-restore");
-  expect(Math.abs((iconBox.y + iconBox.height / 2) - (headingBox.y + headingBox.height / 2))).toBeLessThanOrEqual(1);
-  expect(Math.abs((gridBox.x + gridBox.width / 2) - (cardBox.x + cardBox.width / 2))).toBeLessThanOrEqual(1);
-
-  const rowHeights = await page.locator(".backup-summary .summary-row").evaluateAll((rows) => (
-    rows.map((row) => Math.round(row.getBoundingClientRect().height))
-  ));
-  expect(new Set(rowHeights).size).toBe(1);
-
-  await page.locator(".wallet-backup-recovery").click();
-  await expect(page.locator("#toast-region")).toContainText("Restore validates integrity before any replacement.");
-});
-
-test("selected wallet settings are scoped, re-authenticated, and capability-labelled", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=general`);
-
-  await expect(page.locator("#wallet-tabs .wallet-tab.is-active")).toHaveText("Settings");
-  await expect(page.locator(".wallet-settings-context .context-nav-item")).toHaveCount(5);
-  await expect(page.locator(".wallet-settings-context .context-group-label")).toHaveCount(0);
-  await expect(page.locator(".wallet-settings-context .context-nav-item small")).toHaveCount(0);
-  await expect(page.locator(".wallet-settings-context .context-nav-item > .icon")).toHaveCount(5);
-  const settingsContextType = await page.locator(".wallet-settings-context .context-nav-item").first().evaluate((item) => {
-    const tab = document.querySelector("#wallet-tabs .wallet-tab");
-    const icon = item.querySelector(".icon");
-    const tabIcon = tab.querySelector(".icon");
-    return [getComputedStyle(item).fontSize, getComputedStyle(item).fontWeight, getComputedStyle(icon).width, getComputedStyle(tab).fontSize, getComputedStyle(tab).fontWeight, getComputedStyle(tabIcon).width];
-  });
-  expect(settingsContextType.slice(0, 3)).toEqual(settingsContextType.slice(3));
-  await expect(page.getByRole("heading", { name: "Wallet details" })).toHaveCount(0);
-  await expect(page.getByText("Selected wallet", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Local profile", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Display currency", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("Default fee")).toHaveCount(0);
-  await expect(page.getByText(/public wallet-settings write route is not registered yet/i)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Help for this view" })).toBeVisible();
-
-  await page.getByRole("button", { name: "Rename" }).click();
-  await expect(page.getByRole("heading", { name: "Rename wallet" })).toBeVisible();
-  await expectDialogActionsCentered(page);
-  await page.locator("#wallet-rename-name").fill("Daily");
-  await expect(page.locator("#wallet-rename-name")).toHaveValue("Daily");
-  await page.locator("#wallet-rename-password").fill("concept-pass");
-  await expect(page.locator("#wallet-rename-password")).toHaveValue("concept-pass");
-  await page.getByRole("button", { name: "Save wallet name" }).click();
-  await expect(page.getByText("Wallet name updated")).toBeVisible();
-  await expectDialogActionsCentered(page);
-  await page.getByRole("button", { name: "Done" }).click();
-  await expect(page.locator("#wallet-nav")).toContainText("Daily");
-
-  await page.getByRole("button", { name: /Security/ }).click();
-  await page.getByRole("button", { name: "Change password" }).click();
-  await expect(page.getByRole("heading", { name: "Change wallet password" })).toBeVisible();
-  await expectDialogActionsCentered(page);
-  await page.getByLabel("Current password").fill("concept-pass");
-  await page.getByLabel("New password", { exact: true }).fill("concept-new");
-  await page.getByLabel("Confirm new password").fill("concept-new");
-  await page.locator('button[type="submit"][form="wallet-password-change-entry"]').click();
-  await expect(page.locator("#dialog-title")).toHaveText("Password updated");
-  await expect(page.locator("#wallet-current-password, #wallet-new-password, #wallet-confirm-new-password")).toHaveCount(0);
-  await expectDialogActionsCentered(page);
-  await page.getByRole("button", { name: "Done" }).click();
-
-  await page.getByRole("button", { name: "View phrase" }).click();
-  await page.locator("#wallet-seed-reveal-password").fill("concept-pass");
-  await page.locator("#wallet-seed-reveal-confirmation").fill("SHOW SEED");
-  await page.getByRole("button", { name: "Reveal demonstration phrase" }).click();
-  await expect(page.getByText("DEMONSTRATION WORDS · NOT A REAL WALLET SEED")).toBeVisible();
-  await page.getByRole("button", { name: "Done" }).click();
-
-  await page.getByRole("button", { name: /Policies/ }).click();
-  await expect(page.getByText("Compliance profile", { exact: true })).toBeVisible();
-  await expect(page.getByText("Target", { exact: true }).last()).toBeVisible();
-  await page.getByRole("button", { name: "Review" }).click();
-  await page.locator("#wallet-policy-apply-password").fill("concept-pass");
-  await expect(page.locator("#wallet-policy-apply-password")).toHaveValue("concept-pass");
-  await page.locator("#wallet-policy-apply-confirmation").fill("APPLY");
-  await expect(page.locator("#wallet-policy-apply-confirmation")).toHaveValue("APPLY");
-  await page.getByRole("button", { name: "Apply local rules" }).click();
-  await expect(page.getByText("Local spend rules updated")).toBeVisible();
-});
-
-test("wallet settings tabs start directly with their controls", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=security`);
-
-  const sections = ["security", "backup", "policies", "advanced"];
-  for (const section of sections) {
-    await page.locator(`[data-wallet-settings-section="${section}"]`).click();
-    await expect(page.locator(".settings-detail > .settings-heading")).toHaveCount(0);
-  }
-
-  await expect(page.getByText("Private authority", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Recovery state", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Bounded authority", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Wallet configuration", { exact: true })).toHaveCount(0);
-});
-
-test("wallet backup settings keep scheduling controls while backup actions stay in the Backup tab", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=backup`);
-
-  const walletSettings = page.locator(".wallet-settings-view");
-  await expect(walletSettings.getByText("Automatic backup", { exact: true })).toBeVisible();
-  await expect(walletSettings.getByText("Backup interval", { exact: true })).toBeVisible();
-  await expect(walletSettings.locator('[data-demo-action="backup"]')).toHaveCount(0);
-  await expect(walletSettings.locator('[data-demo-action="restore"]')).toHaveCount(0);
-
-  await page.goto(`${demoUrl}?view=wallet-backup`);
-  await expect(page.locator(".wallet-backup-action")).toBeVisible();
-  await expect(page.locator(".wallet-backup-recovery")).toBeVisible();
-});
-
-test("every modal flow centers its footer actions on desktop and mobile", async ({ page }) => {
-  await page.goto(demoUrl);
-  const scenarios = [
-    { type: "asset-claim" },
-    { type: "create-voucher" },
-    { type: "voucher-detail" },
-    { type: "voucher-review" },
-    { type: "voucher-settled" },
-    { type: "create-permission" },
-    { type: "permission" },
-    { type: "permission-detail", data: { permissionId: "receipt" } },
-    { type: "activity", data: { item: { id: "audit", type: "money", direction: "out", title: "Audit transfer", detail: "Modal audit", amount: "1.00 Z00Z", time: "Now", status: "settled" } } },
-    { type: "asset-detail", data: { assetKey: "z00z" } },
-    { type: "connection" },
-    { type: "wallets" },
-    { type: "remove-wallet" },
-    { type: "add-wallet" },
-    { type: "create-wallet" },
-    { type: "open-wallet" },
-    { type: "recover-wallet" },
-    { type: "wallet-rename" },
-    { type: "wallet-password-change" },
-    { type: "wallet-seed-reveal" },
-    { type: "wallet-public-export" },
-    { type: "wallet-key-rotation" },
-    { type: "wallet-policy-apply" },
-    { type: "wallet-policy-profile" },
-    { type: "notifications" }
-  ];
-
-  for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
-    await page.setViewportSize(viewport);
-    for (const scenario of scenarios) {
-      await test.step(`${viewport.width}px · ${scenario.type}`, async () => {
-        await page.evaluate(({ type, data }) => window.openFlow(type, document.body, data || {}), scenario);
-        await expect(page.locator("#flow-dialog")).toBeVisible();
-        await expectDialogActionsCentered(page);
-      });
-    }
-  }
-});
-
-test("secure-entry fields do not activate browser password-manager overlays", async ({ page }) => {
-  await page.goto(demoUrl);
-  const ignoredByPasswordManagers = async (locator) => locator.evaluateAll((elements) => elements.map((element) => ({
-    formType: element.getAttribute("data-form-type"),
-    lastPassIgnore: element.getAttribute("data-lpignore"),
-    onePasswordIgnore: element.getAttribute("data-1p-ignore"),
-    bitwardenIgnore: element.getAttribute("data-bwignore"),
-    protonPassIgnore: element.getAttribute("data-protonpass-ignore")
-  })));
-  const isIgnored = (attributes) => attributes.every((attribute) => attribute.formType === "other"
-    && attribute.lastPassIgnore === "true"
-    && attribute.onePasswordIgnore === "true"
-    && attribute.bitwardenIgnore === "true"
-    && attribute.protonPassIgnore === "true");
-
-  for (const type of ["create-wallet", "wallet-rename", "wallet-password-change", "wallet-seed-reveal", "wallet-public-export", "wallet-key-rotation", "wallet-policy-apply"]) {
-    await page.evaluate((flowType) => window.openFlow(flowType, document.body), type);
-    const passwordForm = page.locator('#flow-dialog form:has(input[data-secure-entry])');
-    const passwordInputs = passwordForm.locator('input[data-secure-entry]');
-    await expect(passwordForm).toHaveCount(1);
-    expect(await passwordInputs.count()).toBeGreaterThan(0);
-    expect(isIgnored(await ignoredByPasswordManagers(passwordForm))).toBe(true);
-    expect(isIgnored(await ignoredByPasswordManagers(passwordInputs))).toBe(true);
-    const autocompleteValues = await passwordInputs.evaluateAll((inputs) => inputs.map((input) => input.autocomplete));
-    expect(autocompleteValues.every((value) => /one-time-code$/.test(value))).toBe(true);
-    expect(await passwordInputs.evaluateAll((inputs) => inputs.every((input) => input.type === "text"
-      && input.dataset.portControl === "secure-entry"
-      && getComputedStyle(input).webkitTextSecurity === "disc"))).toBe(true);
-    await expect(page.locator('#flow-dialog input[type="password"], #flow-dialog [autocomplete$="new-password"]')).toHaveCount(0);
-    for (let index = 0; index < await passwordInputs.count(); index += 1) {
-      const input = passwordInputs.nth(index);
-      await expect(input).toHaveValue("");
-      await input.focus();
-      await expect(page.getByText("Manage passwords", { exact: true })).toHaveCount(0);
-    }
-    const credentialLikeNames = await passwordForm.locator("input").evaluateAll((inputs) => inputs
-      .map((input) => input.name)
-      .filter((name) => /^(?:name|username|user|password|currentPassword|newPassword)$/i.test(name)));
-    expect(credentialLikeNames).toEqual([]);
-    const walletLabels = passwordForm.locator('input[name="walletLabel"]');
-    if (await walletLabels.count()) {
-      expect(isIgnored(await ignoredByPasswordManagers(walletLabels))).toBe(true);
-      await expect(walletLabels.first()).toHaveAttribute("autocomplete", /nickname$/);
-    }
-  }
-  const unlockForm = page.locator("#unlock-form");
-  const unlockPassword = page.locator("#unlock-password");
-  expect(isIgnored(await ignoredByPasswordManagers(unlockForm))).toBe(true);
-  expect(isIgnored(await ignoredByPasswordManagers(unlockPassword))).toBe(true);
-  await expect(unlockPassword).toHaveAttribute("autocomplete", /one-time-code$/);
-  await expect(unlockPassword).toHaveAttribute("type", "text");
-  await expect(unlockPassword).toHaveCSS("-webkit-text-security", "disc");
-  await expect(page.locator('input[type="password"], [autocomplete$="new-password"]')).toHaveCount(0);
-  await expect(page.getByText("Manage passwords", { exact: true })).toHaveCount(0);
-});
-
-test("every form field suppresses password-manager overlays", async ({ page }) => {
-  const expectSuppressed = async (root) => {
-    const forms = root.locator("form");
-    const fields = root.locator("input, textarea, select");
-    if (await forms.count()) {
-      const formContract = await forms.evaluateAll((elements) => elements.map((element) => ({
-        autocomplete: element.getAttribute("autocomplete"),
-        formType: element.getAttribute("data-form-type"),
-        onePasswordIgnore: element.getAttribute("data-1p-ignore"),
-        lastPassIgnore: element.getAttribute("data-lpignore"),
-        bitwardenIgnore: element.getAttribute("data-bwignore"),
-        protonPassIgnore: element.getAttribute("data-protonpass-ignore")
-      })));
-      expect(formContract.every((entry) => entry.autocomplete === "off"
-        && entry.formType === "other"
-        && entry.onePasswordIgnore === "true"
-        && entry.lastPassIgnore === "true"
-        && entry.bitwardenIgnore === "true"
-        && entry.protonPassIgnore === "true")).toBe(true);
-    }
-    if (await fields.count()) {
-      const fieldContract = await fields.evaluateAll((elements) => elements.map((element) => ({
-        autocomplete: element.getAttribute("autocomplete"),
-        formType: element.getAttribute("data-form-type"),
-        onePasswordIgnore: element.getAttribute("data-1p-ignore"),
-        lastPassIgnore: element.getAttribute("data-lpignore"),
-        bitwardenIgnore: element.getAttribute("data-bwignore"),
-        protonPassIgnore: element.getAttribute("data-protonpass-ignore")
-      })));
-      expect(fieldContract.every((entry) => entry.autocomplete
-        && entry.formType === "other"
-        && entry.onePasswordIgnore === "true"
-        && entry.lastPassIgnore === "true"
-        && entry.bitwardenIgnore === "true"
-        && entry.protonPassIgnore === "true")).toBe(true);
-    }
-    await expect(page.getByText("Manage passwords", { exact: true })).toHaveCount(0);
-  };
-
-  for (const location of [
-    demoUrl,
-    `${demoUrl}?view=wallet-send`,
-    `${demoUrl}?view=activity`,
-    `${demoUrl}?view=swap`,
-    `${demoUrl}?view=staking`,
-    `${demoUrl}?view=settings&settings=general`,
-    `${demoUrl}?view=settings&settings=appearance`,
-    `${demoUrl}?view=wallet-settings&walletSettings=advanced`
-  ]) {
-    await page.goto(location);
-    await expectSuppressed(page.locator("body"));
-  }
-
-  const scenarios = [
-    { type: "create-voucher" },
-    { type: "create-permission" },
-    { type: "permission" },
-    { type: "create-wallet" },
-    { type: "open-wallet" },
-    { type: "recover-wallet" },
-    { type: "wallet-rename" },
-    { type: "wallet-password-change" },
-    { type: "wallet-seed-reveal" },
-    { type: "wallet-public-export" },
-    { type: "wallet-key-rotation" },
-    { type: "wallet-policy-apply" }
-  ];
-  for (const scenario of scenarios) {
-    await page.evaluate(({ type, data }) => window.openFlow(type, document.body, data || {}), scenario);
-    const dialogFields = page.locator("#flow-dialog input, #flow-dialog textarea, #flow-dialog select");
-    expect(await dialogFields.count()).toBeGreaterThan(0);
-    await expectSuppressed(page.locator("#flow-dialog"));
-  }
-});
-
-test("left navigation has exactly one active destination", async ({ page }) => {
-  await page.goto(demoUrl);
-
-  const activeRailItems = page.locator(".sidebar .wallet-nav-item.is-active, .sidebar .network-nav-item.is-active, .sidebar .system-nav .nav-item.is-active");
-  const expectOnly = async (selector) => {
-    await expect(activeRailItems).toHaveCount(1);
-    await expect(page.locator(`.sidebar ${selector}`)).toHaveClass(/is-active/);
-    await expect(page.locator(".sidebar .wallet-nav-item[aria-current='page'], .sidebar .network-nav-item[aria-current='page'], .sidebar .system-nav .nav-item[aria-current='page']")).toHaveCount(1);
-  };
-
-  await expectOnly('[data-wallet-id="everyday"]');
-
-  await page.locator('[data-network-section="onionnet"]').click();
-  await expectOnly('[data-network-section="onionnet"]');
-  await expect(page.getByRole("heading", { name: "OnionNet telemetry" })).toBeVisible();
-  await expect(page.getByText("Local capability unavailable")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Help for this view" })).toBeVisible();
-  await expect(page.locator('[data-wallet-id="everyday"]')).not.toHaveClass(/is-active/);
-  await expect(page.locator('.system-nav [data-view="settings"]')).not.toHaveClass(/is-active/);
-
-  await page.locator('.system-nav [data-view="settings"]').click();
-  await expectOnly('.system-nav [data-view="settings"]');
-  await expect(page.locator('[data-network-section="onionnet"]')).not.toHaveClass(/is-active/);
-
-  await page.locator('[data-wallet-id="savings"]').click();
-  await expectOnly('[data-wallet-id="savings"]');
-  await expect(page.locator('.system-nav [data-view="settings"]')).not.toHaveClass(/is-active/);
-});
-
-test("network shortcuts open read-only telemetry rather than setup", async ({ page }) => {
-  await page.goto(demoUrl);
-  const expectTelemetryTopbar = async (title, context) => {
-    await expect(page.locator("#page-title")).toHaveText(title);
-    await expect(page.locator("#page-context")).toHaveText(context);
-    await expect(page.locator("#page-title")).toHaveClass(/is-telemetry-title/);
-    const titleStyle = await page.locator("#page-title").evaluate((node) => ({
-      fontSize: getComputedStyle(node).fontSize,
-      fontWeight: Number.parseInt(getComputedStyle(node).fontWeight, 10),
-      letterSpacing: Number.parseFloat(getComputedStyle(node).letterSpacing)
-    }));
-    expect(titleStyle.fontSize).toBe("26px");
-    expect(titleStyle.fontWeight).toBeGreaterThanOrEqual(700);
-    expect(titleStyle.letterSpacing).toBeGreaterThan(0);
-  };
-
-  await page.locator('[data-network-section="onionnet"]').click();
-  await expect(page.getByRole("heading", { name: "OnionNet telemetry" })).toBeVisible();
-  await expectTelemetryTopbar("OnionNet", "Route telemetry");
-  const onionnetTabs = [
-    ["overview", "Overview"],
-    ["epoch", "Epoch"],
-    ["privacy", "Privacy"],
-    ["transport", "Transport"],
-    ["queues", "Queues & Replay"],
-    ["probation", "Probation"],
-    ["ingress", "Ingress"]
-  ];
-  await expect(page.locator("#wallet-tabs")).toBeVisible();
-  await expect(page.locator("#wallet-tabs [data-onionnet-telemetry-tab]")).toHaveCount(onionnetTabs.length);
-  for (const [id, label] of onionnetTabs) {
-    await page.locator(`[data-onionnet-telemetry-tab="${id}"]`).click();
-    await expect(page.locator(`[data-onionnet-telemetry-tab="${id}"]`)).toHaveAttribute("aria-selected", "true");
-    await expect(page.locator("[data-onionnet-telemetry-tab][aria-selected='true']")).toHaveCount(1);
-    await expect(page.getByRole("tabpanel", { name: label })).toContainText("Unavailable");
-  }
-  const onionnetHelp = await openStandaloneHelp(page, page.getByRole("button", { name: "Help for this view" }));
-  await expect(onionnetHelp).toHaveURL(/help\.html\?.*topic=telemetry\.onionnet\.ingress/);
-  await expect(onionnetHelp.locator("#help-title")).toHaveText("OnionNet ingress");
-  await onionnetHelp.close();
-  await expect(page.locator("#wallet-tabs .wallet-tab.is-active")).toHaveCount(1);
-
-  await page.locator('[data-network-section="reticulum"]').click();
-  await expect(page.getByRole("heading", { name: "Reticulum telemetry" })).toBeVisible();
-  await expectTelemetryTopbar("Reticulum", "Carrier telemetry");
-  const reticulumTabs = [
-    ["overview", "Overview"],
-    ["node", "Node"],
-    ["interfaces", "Interfaces"],
-    ["radio", "Radio"],
-    ["entrypoints", "Entry points"],
-    ["paths", "Paths"],
-    ["probes", "Probes"],
-    ["links", "Links"]
-  ];
-  await expect(page.locator("#wallet-tabs")).toBeVisible();
-  await expect(page.locator("#wallet-tabs [data-reticulum-telemetry-tab]")).toHaveCount(reticulumTabs.length);
-  for (const [id, label] of reticulumTabs) {
-    await page.locator(`[data-reticulum-telemetry-tab="${id}"]`).click();
-    await expect(page.locator(`[data-reticulum-telemetry-tab="${id}"]`)).toHaveAttribute("aria-selected", "true");
-    await expect(page.locator("[data-reticulum-telemetry-tab][aria-selected='true']")).toHaveCount(1);
-    await expect(page.getByRole("tabpanel", { name: label })).toContainText("Unavailable");
-  }
-  const reticulumHelp = await openStandaloneHelp(page, page.getByRole("button", { name: "Help for this view" }));
-  await expect(reticulumHelp).toHaveURL(/help\.html\?.*topic=telemetry\.reticulum\.links/);
-  await expect(reticulumHelp.locator("#help-title")).toHaveText("Reticulum links");
-  await reticulumHelp.close();
-  await expect(page.locator("#copy-wallet-address")).toBeHidden();
-  await expect(page.locator("#wallet-tabs .wallet-tab.is-active")).toHaveCount(1);
-
-  await page.locator('[data-network-section="aggregators"]').click();
-  await expect(page.getByRole("heading", { name: "Aggregators telemetry" })).toBeVisible();
-  await expectTelemetryTopbar("Aggregators", "Publication telemetry");
-  await expect(page.locator("#wallet-tabs [data-aggregators-telemetry-tab]")).toHaveCount(1);
-  await page.locator('[data-aggregators-telemetry-tab="overview"]').click();
-  await expect(page.locator('[data-aggregators-telemetry-tab="overview"]')).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tabpanel", { name: "Overview" })).toContainText("Service bindings");
-  await expect(page.getByText("Service bindings", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText("Local capability unavailable")).toBeVisible();
-  await expect(page.locator('[data-network-section="aggregators"]')).toHaveClass(/is-active/);
-  await expect(page.locator(".sidebar .wallet-nav-item.is-active, .sidebar .network-nav-item.is-active, .sidebar .system-nav .nav-item.is-active")).toHaveCount(1);
-});
-
-test("wallet address copy stays next to the address and uses the shared native title tooltip", async ({ page }) => {
-  await page.goto(demoUrl);
-
-  const copyPositions = [];
-  for (const walletId of ["everyday", "savings", "travel"]) {
-    await page.locator(`[data-wallet-id="${walletId}"]`).click();
-    const geometry = await page.locator(".topbar-address-group").evaluate((group) => {
-      const addressBox = group.querySelector("#page-title").getBoundingClientRect();
-      const contextBox = group.querySelector("#page-context").getBoundingClientRect();
-      const copyBox = group.querySelector("#copy-wallet-address").getBoundingClientRect();
-      return {
-        copyX: copyBox.x,
-        addressRight: addressBox.right,
-        copyRight: copyBox.right,
-        copyCenterY: copyBox.top + copyBox.height / 2,
-        contextCenterY: contextBox.top + contextBox.height / 2,
-        copyWidth: copyBox.width,
-        copyHeight: copyBox.height
-      };
-    });
-    copyPositions.push(geometry.copyX);
-    expect(Math.abs(geometry.addressRight - geometry.copyRight)).toBeLessThanOrEqual(1);
-    expect(Math.abs(geometry.copyCenterY - geometry.contextCenterY)).toBeLessThanOrEqual(2);
-    expect([geometry.copyWidth, geometry.copyHeight]).toEqual([26, 26]);
-  }
-  expect(Math.max(...copyPositions) - Math.min(...copyPositions)).toBeLessThanOrEqual(0.5);
-  await expect(page.locator(".health-pill")).toHaveCount(0);
-  await expect(page.locator("#wallet-statusbar")).toContainText("Route telemetry");
-  await expect(page.locator("#wallet-statusbar")).toContainText("Unavailable");
-
-  await page.locator('[data-wallet-id="everyday"]').click();
-  const copy = page.locator("#copy-wallet-address");
-  await expect(copy).toHaveAttribute("title", "ZxChpoioBEFR1PRJPamJxh5aWdEb94ek8J52PmT8PYAEa8RKVtSs9X3UPgaSaHvMMZKcQoiyVFhEE256vcyGPeFV23d2Mj8Pt");
-  const otherPanelButton = page.locator('[data-demo-action="toggle-balance"]');
-  await copy.hover();
-  await page.waitForTimeout(220);
-  const copyHoverStyle = await copy.evaluate((node) => {
-    const style = getComputedStyle(node);
-    return [style.color, style.borderColor, style.backgroundColor];
-  });
-  await otherPanelButton.hover();
-  const otherHoverStyle = await otherPanelButton.evaluate((node) => {
-    const style = getComputedStyle(node);
-    return [style.color, style.borderColor, style.backgroundColor];
-  });
-  expect(copyHoverStyle).toEqual(otherHoverStyle);
-  await expect(copy).toHaveAttribute("title", /ZxChpoioBEFR1PRJ/);
-});
-
-test("remove wallet selects one or more wallet cards before changing local profiles", async ({ page }) => {
-  await page.goto(demoUrl);
-
-  const remove = page.locator(".wallet-nav-actions").getByRole("button", { name: "Remove wallet" });
-  await remove.click();
-  await expect(page.getByRole("heading", { name: "Remove wallet profiles" })).toBeVisible();
-  await expect(page.locator("[data-remove-wallet-id]")).toHaveCount(3);
-  await expect(page.getByRole("button", { name: "Remove profiles" })).toBeDisabled();
-  const removeFooterCentered = await page.locator(".dialog-footer").evaluate((footer) => getComputedStyle(footer).justifyContent);
-  expect(removeFooterCentered).toBe("center");
-  await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.locator("#wallet-nav .wallet-nav-item")).toHaveCount(3);
-
-  await remove.click();
-  await page.locator('[data-remove-wallet-id="savings"]').check();
-  await page.locator('[data-remove-wallet-id="travel"]').check();
-  const selectedRemoveCard = page.locator('.wallet-remove-choice:has(input:checked)').first();
-  const [selectedCardBackground, selectedCardExpected, checkedBackground, checkedDanger, checkboxWidth, checkboxHeight, checkboxRadius] = await selectedRemoveCard.evaluate((card) => {
-    const panelProbe = document.createElement("span");
-    panelProbe.style.background = "color-mix(in srgb, var(--danger) 12%, var(--bg-raised))";
-    const dangerProbe = document.createElement("span");
-    dangerProbe.style.background = "var(--danger)";
-    document.body.append(panelProbe, dangerProbe);
-    const checkbox = card.querySelector("input");
-    const checkboxStyle = getComputedStyle(checkbox);
-    const result = [getComputedStyle(card).backgroundColor, getComputedStyle(panelProbe).backgroundColor, checkboxStyle.backgroundColor, getComputedStyle(dangerProbe).backgroundColor, checkboxStyle.width, checkboxStyle.height, checkboxStyle.borderRadius];
-    panelProbe.remove();
-    dangerProbe.remove();
-    return result;
-  });
-  expect(selectedCardBackground).toBe(selectedCardExpected);
-  expect(checkedBackground).toBe(checkedDanger);
-  expect(checkboxWidth).toBe("20px");
-  expect(checkboxHeight).toBe("20px");
-  expect(checkboxRadius).toBe("3px");
-  await expect(page.getByText("2 of 3 selected. This removes concept profiles only.")).toBeVisible();
-  await page.getByRole("button", { name: "Remove profiles (2)" }).click();
-  await expect(page.locator("#wallet-nav .wallet-nav-item")).toHaveCount(1);
-  await expect(page.locator("#wallet-nav")).toContainText("Everyday");
-  await expect(page.locator("#wallet-identity")).toContainText("Everyday");
-
-  await page.getByRole("button", { name: "Remove wallet" }).click();
-  await page.locator('[data-remove-wallet-id="everyday"]').check();
-  await expect(page.getByText("1 of 1 selected. This removes concept profiles only.")).toBeVisible();
-  await expect(page.getByText("All concept profiles will be removed.")).toBeVisible();
-  await page.getByRole("button", { name: "Remove profiles (1)" }).click();
-  await expect(page.locator("#wallet-nav .wallet-nav-item")).toHaveCount(0);
-  await expect(page.locator("#page-title")).not.toHaveText("Add wallet");
-  await expect(page.getByRole("heading", { name: "Add wallet" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove wallet" })).toBeDisabled();
-});
-
-test("send opens one compact inline form and receive shows only the receiver card", async ({ page }) => {
-  await page.goto(demoUrl);
-
-  await expect(page.getByText("Pay", { exact: true })).toHaveCount(0);
-  await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
-  const sendPanel = page.locator(".send-panel");
-  await expect(sendPanel).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Send privately" })).toBeVisible();
-  await expect(page.locator(".send-view")).toHaveCSS("padding-top", "0px");
-  const recipientLabel = page.locator('label[for="send-recipient"]');
-  await expect(recipientLabel).toHaveCSS("font-family", /Geist(?! Mono)/);
-  await expect(recipientLabel).toHaveCSS("font-size", "16px");
-  await expect(page.locator(".transfer-asset-row, .transfer-object-row")).toHaveCount(0);
-  await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
-  await expect(page.locator("[data-send-family]")).toHaveCount(3);
-  await expect(page.locator("#send-item option")).toHaveCount(16);
-  expect((await sendPanel.boundingBox()).width).toBe(640);
-  await page.locator("#send-item").selectOption("z00z");
-  await expect(page.locator("#send-amount")).toHaveAttribute("max", "12480.75");
-  await page.getByLabel("Recipient or private request").fill("Mira");
-  await page.locator("#send-amount").fill("12");
-  await page.getByRole("button", { name: /Review send/ }).click();
-  await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
-  await expect(page.locator(".review-card").first()).toContainText("Z00Z");
-  await page.getByRole("button", { name: "Send asset" }).click();
-  await expect(page.getByRole("heading", { name: "Asset sent" })).toBeVisible({ timeout: 2000 });
-  await page.getByRole("button", { name: "Done" }).click();
-
-  await page.locator('#wallet-tabs [data-view="wallet-receive"]').click();
-  const receiverCard = page.locator(".receiver-card");
-  await expect(receiverCard).toBeVisible();
-  await expect(receiverCard.getByRole("heading", { name: "Receive privately" })).toBeVisible();
-  await expect(receiverCard.getByText("Assets, Vouchers and Permissions", { exact: true })).toBeVisible();
-  await expect(receiverCard.locator(".mock-qr span")).toHaveCount(441);
-  await expect(receiverCard.locator(".receiver-card-address")).toContainText("ZxChpoioBEFR");
-  await expect(receiverCard.locator(".receiver-card-address")).toContainText("23d2Mj8Pt");
-  await expect(receiverCard.locator("h1, h3, .transfer-asset-row, .choice-strip")).toHaveCount(0);
-  await expect(receiverCard.locator("h2")).toHaveCount(1);
-  await expect(receiverCard.locator("p")).toHaveCount(1);
-  await expect(receiverCard.locator("button")).toHaveCount(1);
-  await receiverCard.locator(".receiver-card-copy").click();
-  await expect(page.getByText("Wallet address copied.")).toBeVisible();
-
-  await page.goto(`${demoUrl}?view=home`);
-  await page.locator('.quick-action[data-view="wallet-receive"]').click();
-  await expect(page.locator(".receiver-card")).toBeVisible();
-  await expect(page.locator("#flow-dialog")).not.toHaveAttribute("open", "");
-});
-
-test("send, swap, exchange, staking, and backup share one responsive card width", async ({ page }) => {
-  const routes = [
-    ["wallet-send", ".send-panel"],
-    ["swap", ".swap-card"],
-    ["exchange", ".exchange-card"],
-    ["staking", ".staking-card"],
-    ["wallet-backup", ".backup-card"],
-  ];
-
-  await page.setViewportSize({ width: 1280, height: 800 });
-  const desktopWidths = [];
-  for (const [view, selector] of routes) {
-    await page.goto(`${demoUrl}?view=${view}`);
-    desktopWidths.push(Math.round((await page.locator(selector).boundingBox()).width));
-  }
-  expect(desktopWidths).toEqual([640, 640, 640, 640, 640]);
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  const mobileWidths = [];
-  for (const [view, selector] of routes) {
-    await page.goto(`${demoUrl}?view=${view}`);
-    const box = await page.locator(selector).boundingBox();
-    mobileWidths.push(Math.round(box.width));
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(390);
-  }
-  expect(new Set(mobileWidths).size).toBe(1);
-});
-
-test("send keeps object families distinct and swap remains asset-only", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet-send`);
-
-  await expect(page.locator('[data-send-family="asset"]')).toHaveAttribute("aria-current", "page");
-  await expect(page.locator("#send-item option")).toHaveCount(16);
-  await expect(page.locator(".send-family-facts")).toContainText("Spendable balance");
-
-  await page.locator('[data-send-family="voucher"]').click();
-  await expect(page.locator("#send-item option")).toHaveCount(3);
-  await expect(page.locator(".send-family-facts")).toContainText("Conditional value");
-  await expect(page.locator(".send-family-facts")).toContainText("Receiver acceptance");
-
-  await page.locator('[data-send-family="permission"]').click();
-  await expect(page.locator("#send-item option")).toHaveCount(3);
-  await expect(page.locator(".send-family-facts")).toContainText("Zero-value");
-  await expect(page.locator(".send-family-facts")).toContainText("Delegation");
-
-  await page.locator('#wallet-tabs [data-view="swap"]').click();
-  await expect(page.locator("#swap-from option")).toHaveCount(16);
-  await expect(page.locator("#swap-to option")).toHaveCount(16);
-  await expect(page.locator("#swap-from")).not.toContainText("voucher");
-  await expect(page.locator("#swap-from")).not.toContainText("permission");
-});
-
-test("exchange branches between NEAR Intents and Hyperliquid Spot without inventing a quote", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=exchange`);
-
-  await expect(page.getByRole("heading", { name: "Build an exchange request" })).toBeVisible();
-  const exchangeHeadingCenters = await page.locator(".exchange-card .tool-card-heading").evaluate((heading) => {
-    const iconBox = heading.querySelector(".list-icon").getBoundingClientRect();
-    const titleBox = heading.querySelector("h2").getBoundingClientRect();
-    return [iconBox.top + iconBox.height / 2, titleBox.top + titleBox.height / 2];
-  });
-  expect(Math.abs(exchangeHeadingCenters[0] - exchangeHeadingCenters[1])).toBeLessThanOrEqual(1);
-  await expect(page.locator(".exchange-provider-context")).toBeVisible();
-  await expect(page.locator(".exchange-provider-strip")).toHaveCount(0);
-  await expect(page.getByRole("radio", { name: /NEAR Intents/ })).toHaveAttribute("aria-checked", "true");
-  await expect(page.locator("#exchange-recipient")).toBeVisible();
-  await expect(page.locator("#exchange-order-type")).toHaveCount(0);
-  await page.locator("#exchange-amount").fill("1");
-  await page.locator("#exchange-recipient").fill("near-destination.example");
-  await page.locator("#exchange-refund").fill("z00z-refund.example");
-  await page.getByRole("button", { name: /Review request/ }).click();
-  await expect(page.getByRole("heading", { name: "Review exchange request" })).toBeVisible();
-  await expect(page.locator(".exchange-card").getByText("NEAR Intents", { exact: true })).toBeVisible();
-  await expect(page.locator(".exchange-unavailable-grid").getByText("Unavailable", { exact: true })).toHaveCount(7);
-  await expect(page.getByText(/No provider connector is registered/)).toBeVisible();
-
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await page.getByRole("radio", { name: /Hyperliquid Spot/ }).click();
-  await expect(page.locator("#exchange-order-type")).toBeVisible();
-  await expect(page.locator("#exchange-recipient")).toHaveCount(0);
-  await page.locator("#exchange-order-type").selectOption("limit");
-  await expect(page.locator("#exchange-limit-price")).toBeVisible();
-  await page.locator("#exchange-amount").fill("1");
-  await page.locator("#exchange-limit-price").fill("0.5");
-  await page.getByRole("button", { name: /Review request/ }).click();
-  await expect(page.locator(".exchange-card").getByText("Hyperliquid Spot", { exact: true })).toBeVisible();
-  await expect(page.getByText("Limit", { exact: true })).toBeVisible();
-  await expect(page.getByText("Z00Z/USDC", { exact: true })).toBeVisible();
-});
-
-test("context navigation uses one content-gap token across wallet workspaces", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const cases = [
-    ["wallet", ".wallet-assets-layout > .workspace-panel"],
-    ["wallet-send", ".send-panel"],
-    ["exchange", ".exchange-card"],
-    ["wallet-settings", ".settings-detail"]
-  ];
-
-  for (const [view, contentSelector] of cases) {
-    await page.goto(`${demoUrl}?view=${view}`);
-    const geometry = await page.locator(".workspace-layout").evaluate((layout, selector) => {
-      const rail = layout.querySelector(":scope > .context-rail");
-      const content = layout.querySelector(selector);
-      const rootStyle = getComputedStyle(document.documentElement);
-      return {
-        gap: content.getBoundingClientRect().left - rail.getBoundingClientRect().right,
-        token: Number.parseFloat(rootStyle.getPropertyValue("--context-nav-content-gap"))
-      };
-    }, contentSelector);
-    expect(Math.abs(geometry.gap - geometry.token)).toBeLessThanOrEqual(1);
-  }
-});
-
-test("mobile Exchange chooses its provider from the top-tab popup", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${demoUrl}?view=wallet`);
-
-  const exchangeTab = page.locator('#wallet-tabs [data-mobile-popup="exchange"]');
-  await exchangeTab.scrollIntoViewIfNeeded();
-  await exchangeTab.click();
-
-  const popup = page.locator('#mobile-popup-menu[data-popup-type="exchange"]');
-  await expect(popup).toBeVisible();
-  await expect(popup.locator("[data-mobile-exchange-provider]")).toHaveText(["Hyperliquid Spot", "NEAR Intents"]);
-  await expect(popup.locator('[data-mobile-exchange-provider="near-intents"]')).toHaveAttribute("aria-current", "page");
-
-  await popup.locator('[data-mobile-exchange-provider="hyperliquid"]').click();
-  await expect(page.locator("#exchange-order-type")).toBeVisible();
-  await expect(page.locator(".exchange-workspace-layout > .context-rail")).toBeHidden();
-
-  await exchangeTab.click();
-  await page.locator('[data-mobile-exchange-provider="near-intents"]').click();
-  await expect(page.locator("#exchange-recipient")).toBeVisible();
-
-  await page.setViewportSize({ width: 320, height: 700 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-});
-
-test("swap and staking form labels use the standard readable Geist treatment", async ({ page }) => {
-  await page.goto(demoUrl);
-
-  for (const [view, label] of [["swap", "swap-from"], ["staking", "stake-amount"]]) {
-    await page.locator(`#wallet-tabs [data-view="${view}"]`).click();
-    const fieldLabel = page.locator(`label[for="${label}"]`);
-    await expect(fieldLabel).toBeVisible();
-    await expect(fieldLabel).toHaveCSS("font-family", /Geist(?! Mono)/);
-    await expect(fieldLabel).toHaveCSS("font-size", "16px");
-    await expect(fieldLabel).toHaveCSS("font-weight", "650");
-  }
-});
-
-test("log out clears the application shell before unlock", async ({ page }) => {
-  await page.goto(demoUrl);
-
-  await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page.locator("#lock-screen")).toBeVisible();
-  await expect(page.locator("#app-shell")).toBeHidden();
-
-  const password = page.locator("#unlock-password");
-  const visibilityToggle = page.locator("[data-toggle-password]");
-  await expect(visibilityToggle).toHaveAttribute("aria-label", "Show password");
-  await expect(password).toHaveCSS("-webkit-text-security", "disc");
-  await visibilityToggle.click();
-  await expect(password).toHaveCSS("-webkit-text-security", "none");
-  await expect(visibilityToggle).toHaveAttribute("aria-label", "Hide password");
-  await visibilityToggle.click();
-  await expect(password).toHaveCSS("-webkit-text-security", "disc");
-  await password.fill("concept-lock");
-  await page.locator("#unlock-form").press("Enter");
-  await expect(page.locator("#lock-screen")).toBeHidden();
-  await expect(page.locator("#app-shell")).toBeVisible();
-  await expect(password).toHaveValue("");
-});
-
-test("add wallet dialog creates and restores wallet cards", async ({ page }) => {
-  await page.goto(demoUrl);
-  const priorTopbarTitle = await page.locator("#page-title").textContent();
-
-  await page.getByRole("button", { name: "Add wallet" }).click();
-  await expect(page.locator("#page-title")).toHaveText(priorTopbarTitle);
-  await expect(page.getByRole("heading", { name: "Add wallet" })).toBeVisible();
-  await expect(page.locator(".flow-dialog")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create new wallet" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open existing wallet" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Restore from backup" })).toBeVisible();
-  const addCancel = page.getByRole("button", { name: "Cancel" });
-  await expect(addCancel).toBeVisible();
-  await expect(addCancel).toHaveClass(/button-quiet/);
-  await expect(addCancel).toHaveCSS("min-height", "44px");
-  await expect(addCancel).not.toHaveCSS("border-top-style", "none");
-  await expect(page.locator(".dialog-footer")).toHaveCSS("justify-content", "center");
-  await expect(page.getByText(/Back to /)).toHaveCount(0);
-  const addChoiceWidths = await page.locator(".add-wallet-choice").evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().width));
-  expect(new Set(addChoiceWidths).size).toBe(1);
-  expect(addChoiceWidths[0]).toBeLessThanOrEqual(360);
-  const [addWalletBackgrounds, addWalletBrandStrong] = await page.locator(".add-wallet-choice.is-primary").evaluateAll((buttons) => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--brand-strong)";
-    document.body.append(probe);
-    const brandStrong = getComputedStyle(probe).color;
-    probe.remove();
-    return [buttons.map((button) => getComputedStyle(button).backgroundImage), brandStrong];
-  });
-  expect(addWalletBackgrounds).toHaveLength(2);
-  for (const background of addWalletBackgrounds) {
-    expect(background).toContain(addWalletBrandStrong);
-    expect(background).not.toContain("rgb(50, 169, 232)");
-  }
-
-  await page.getByRole("button", { name: "Create new wallet" }).click();
-  await expect(page.locator(".dialog-footer")).toHaveCSS("justify-content", "center");
-  await expect(page.getByText("Storage", { exact: true })).toHaveCount(0);
-  const chainSelect = page.locator("#create-chain");
-  await expect(chainSelect.locator("option")).toHaveText(["Mainnet", "Testnet-1", "Testnet-2", "Devnet-1", "Devnet-2"]);
-  await expect(chainSelect).toHaveValue("mainnet");
-  await chainSelect.selectOption("testnet-2");
-  const createName = page.locator("#create-name");
-  const createPassword = page.locator("#create-password");
-  const createConfirm = page.locator("#create-confirm");
-  await createName.fill("Field Fund");
-  await expect(createName).toHaveValue("Field Fund");
-  await createPassword.fill("concept-password");
-  await expect(createPassword).toHaveValue("concept-password");
-  await createConfirm.fill("concept-password");
-  await expect(createConfirm).toHaveValue("concept-password");
-  await page.getByRole("button", { name: "Create securely" }).click();
-  await expect(page.locator(".dialog-footer")).toHaveCSS("justify-content", "center");
-  await page.getByRole("button", { name: "I've saved these words" }).click();
-  await expect(page.getByText("Confirm four random words before continuing")).toBeVisible();
-  await expect(page.locator('#create-wallet-verify select[data-seed-index]')).toHaveCount(4);
-  const firstChallenge = await recoveryChallengeIndexes(page);
-  await page.getByRole("button", { name: "View words again" }).click();
-  await page.getByRole("button", { name: "I've saved these words" }).click();
-  const secondChallenge = await recoveryChallengeIndexes(page);
-  expect(secondChallenge).toHaveLength(4);
-  expect(secondChallenge.every((index) => !firstChallenge.includes(index))).toBe(true);
-  await completeRecoveryChallenge(page);
-  await page.getByRole("button", { name: "Finish setup" }).click();
-  await expect(page.locator(".dialog-footer")).toHaveCSS("justify-content", "center");
-  await page.getByRole("button", { name: "Open wallet" }).click();
-
-  await expect(page.locator("#wallet-nav .wallet-nav-item")).toHaveCount(4);
-  await expect(page.locator("#wallet-identity")).toContainText("Field Fund");
-  await expect(page.locator("#wallet-statusbar")).toContainText("0.00 Z00Z");
-  await expect(page.locator(".asset-row")).toHaveCount(16);
-  await expect(page.locator(".asset-row").first()).toContainText("Z00Z");
-  await expect(page.locator(".asset-row").first()).toContainText("0.00 Z00Z");
-  await expect(page.getByText("Acme Credits", { exact: true })).toHaveCount(0);
-  const freshWalletAssets = await page.locator(".asset-row").evaluateAll((rows) => rows.map((row) => {
-    const values = [...row.querySelectorAll(".asset-number strong")].map((value) => value.textContent.trim());
-    const image = row.querySelector(".asset-logo img");
-    return { balance: values[0], value: values[1], icon: image?.getAttribute("src"), loaded: Boolean(image?.naturalWidth) };
-  }));
-  expect(freshWalletAssets.every(({ balance, value, loaded }) => balance.startsWith("0.00 ") && value === "0.00" && loaded)).toBe(true);
-  expect(freshWalletAssets.map(({ icon }) => resourcePath(icon))).toEqual([
-    "assets/z00z-friendly/Coins/z00z-logo-gold.svg",
-    "assets/z00z-friendly/Coins/algorand-algo-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/avalanche-avax-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/bitcoin-btc-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/BOLD_logo-z00z.svg",
-    "assets/z00z-friendly/Coins/cardano-ada-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/dai-dai-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/ethereum-eth-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/hyperliquid-hype-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/liquity-lqty-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/solana-sol-logo-z00z.svg",
-    "assets/z00z-friendly/Coins/zcash-zec-logo-z00z.svg",
-    "assets/z00z-friendly/Tokens/rain-rain.svg",
-    "assets/z00z-friendly/Tokens/sky-sky.svg",
-    "assets/z00z-friendly/NFTs/bcap-nft.svg",
-    "assets/z00z-friendly/NFTs/stable-nft.svg"
-  ]);
-
-  await page.locator('[data-wallet-section="vouchers"]').click();
-  await expect(page.getByRole("heading", { name: "No vouchers yet" })).toBeVisible();
-  await expect(page.locator(".claim-row")).toHaveCount(0);
-  await page.getByRole("button", { name: "Create voucher" }).click();
-  await page.locator("#voucher-create-name").fill("Field credit");
-  await page.locator("#voucher-create-amount").fill("25");
-  await page.locator('button[form="create-voucher-entry"]').click();
-  await expect(page.locator(".claim-row")).toHaveCount(1);
-  await expect(page.locator(".claim-row")).toContainText("Field credit");
-
-  await page.locator('[data-wallet-section="permissions"]').click();
-  await expect(page.getByRole("heading", { name: "No permissions yet" })).toBeVisible();
-  await expect(page.locator(".permission-row")).toHaveCount(0);
-  await page.getByRole("button", { name: "Create permission" }).click();
-  await page.locator("#permission-create-name").fill("Field access");
-  await page.locator('button[form="create-permission-entry"]').click();
-  await expect(page.locator(".permission-row")).toHaveCount(1);
-  await expect(page.locator(".permission-row")).toContainText("Field access");
-
-  await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
-  await expect(page.locator(".transfer-asset-row, .transfer-object-row")).toHaveCount(0);
-  await page.locator('[data-send-family="voucher"]').click();
-  await expect(page.locator("#send-item option")).toContainText(["Field credit"]);
-  await page.locator("#send-item").selectOption({ label: "Field credit · Vouchers" });
-  await expect(page.locator("#send-amount")).toHaveCount(0);
-  await expect(page.locator(".send-object-value")).toContainText("Field credit");
-  await page.locator("#send-recipient").fill("ZxRecipient42");
-  await page.getByRole("button", { name: /Review send/ }).click();
-  await page.getByRole("button", { name: "Send voucher" }).click();
-  await expect(page.getByRole("heading", { name: "Voucher sent" })).toBeVisible({ timeout: 2000 });
-  await page.getByRole("button", { name: "Done" }).click();
-  await page.locator('[data-send-family="permission"]').click();
-  await expect(page.locator("#send-item")).toContainText("Field access");
-  await expect(page.locator("#send-item")).not.toContainText("Field credit");
-
-  await page.locator('#wallet-tabs [data-view="wallet-settings"]').click();
-  const chainRow = page.locator("[data-wallet-chain-readonly]");
-  await expect(chainRow).toContainText("Chain");
-  await expect(chainRow.locator(".environment-tag")).toHaveText("Testnet-2");
-  await expect(chainRow.locator("select, input, button")).toHaveCount(0);
-  await page.getByRole("button", { name: "Advanced" }).click();
-  const createdWalletYaml = page.locator("#wallet-settings-yaml");
-  await expect(createdWalletYaml).toHaveValue(/chain: "testnet-2"/);
-  await createdWalletYaml.fill((await createdWalletYaml.inputValue()).replace('chain: "testnet-2"', 'chain: "devnet-1"'));
-  await page.getByRole("button", { name: "Apply locally" }).click();
-  await expect(page.locator(".config-foot")).toContainText("chain is read-only and must remain testnet-2");
-  await page.getByRole("button", { name: "General" }).click();
-  await expect(page.locator("[data-wallet-chain-readonly] .environment-tag")).toHaveText("Testnet-2");
-
-  await page.getByRole("button", { name: "Add wallet" }).click();
-  await page.getByRole("button", { name: "Restore from backup" }).click();
-  await page.locator("#recover-name").fill("Recovered Store");
-  await page.getByRole("button", { name: "Fill demonstration words" }).click();
-  await page.getByRole("button", { name: "Validate and recover" }).click();
-  await expect(page.locator(".dialog-footer")).toHaveCSS("justify-content", "center");
-  await page.getByRole("button", { name: "Open wallet" }).click();
-  await expect(page.locator("#wallet-nav .wallet-nav-item")).toHaveCount(5);
-  await expect(page.locator("#wallet-nav")).toContainText("Recovered Store");
-
-  await page.getByRole("button", { name: "Add wallet" }).click();
-  await page.getByRole("button", { name: "Open existing wallet" }).click();
-  await expect(page.locator(".dialog-footer")).toHaveCSS("justify-content", "center");
-  await page.getByRole("button", { name: "Cancel" }).click();
-});
-
-test("assets show table values and expose per-asset details", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet`);
-
-  await expect(page.locator("#i-send")).toHaveAttribute("viewBox", "0 0 24 24");
-  await expect(page.locator("#i-send path")).toHaveAttribute("d", "M12 20V5m-6 6 6-6 6 6");
-  await expect(page.locator("#i-receive")).toHaveAttribute("viewBox", "0 0 24 24");
-  await expect(page.locator("#i-receive path")).toHaveAttribute("d", "M12 4v15m-6-6 6 6 6-6");
-  await expect(page.locator("#i-swap path")).toHaveAttribute("d", "M7 7h12m0 0-3-3m3 3-3 3M17 17H5m0 0 3 3m-3-3 3-3");
-  await expect(page.locator("#i-exchange g")).toHaveAttribute("stroke-width", "1.5");
-  await expect(page.locator("#i-exchange path").first()).toHaveAttribute("d", "M3.53 11.47v2.118a4.235 4.235 0 0 0 4.235 4.236H20.47M3.53 6.176h12.705a4.235 4.235 0 0 1 4.236 4.236v2.117");
-  await expect(page.locator("#main-content .page-intro")).toHaveCount(0);
-  await expect(page.locator("#main-content .money-summary")).toHaveCount(0);
-  for (const walletId of ["everyday", "savings", "travel"]) {
-    await page.locator(`[data-wallet-id="${walletId}"]`).click();
-    await expect(page.locator("#main-content .page-intro")).toHaveCount(0);
-    await expect(page.locator("#main-content .money-summary")).toHaveCount(0);
-    await expect(page.locator(".asset-row")).toHaveCount(16);
-    await expect(page.locator(".asset-logo img")).toHaveCount(16);
-    expect(await page.locator(".asset-logo img").evaluateAll((images) => images.every((image) => image.naturalWidth > 0))).toBe(true);
-  }
-  await expect(page.locator(".asset-table-head")).toContainText("Name");
-  await expect(page.locator(".asset-table-head")).toContainText("Balance");
-  await expect(page.locator(".asset-table-head")).toContainText("Value");
-  await expect(page.locator(".asset-table-head")).toContainText("Price");
-  await expect(page.locator(".asset-actions")).toHaveCount(0);
-  await expect(page.locator(".asset-info small")).toHaveCount(0);
-  await expect(page.locator(".asset-number-label")).toHaveCount(48);
-  await expect(page.locator(".asset-number-label").first()).toBeHidden();
-  await expect(page.locator(".asset-logo img")).toHaveCount(16);
-  await expect(page.getByText("Acme Credits", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Founders Pass #014", { exact: true })).toHaveCount(0);
-  const assetFilters = page.locator("[data-asset-filter]");
-  await expect(assetFilters).toHaveCount(4);
-  await expect(assetFilters).toHaveText(["All", "Coins", "Tokens", "NFTs"]);
-  await page.getByRole("button", { name: "Tokens", exact: true }).click();
-  await expect(page.locator(".asset-row")).toHaveCount(5);
-  await expect(page.locator(".asset-row")).toContainText(["wBOLD", "wDAI", "wLiquity", "Rain", "Sky"]);
-  await page.getByRole("button", { name: "NFTs", exact: true }).click();
-  await expect(page.locator(".asset-row")).toHaveCount(2);
-  await expect(page.locator(".asset-row")).toContainText(["BCAP", "STABLE"]);
-  await page.getByRole("button", { name: "All", exact: true }).click();
-  await expect(page.locator(".asset-transfer-links")).toHaveCount(0);
-  const walletTabIcons = page.locator('#wallet-tabs [data-view="wallet"], #wallet-tabs [data-view="wallet-send"], #wallet-tabs [data-view="wallet-receive"]');
-  await expect(walletTabIcons.locator(":scope > .icon:not(.mobile-tab-disclosure)")).toHaveCount(3);
-  await expect(walletTabIcons.nth(0).locator(":scope > .icon:not(.mobile-tab-disclosure) use")).toHaveAttribute("href", "#i-wallet");
-  await expect(walletTabIcons.nth(1).locator(":scope > .icon:not(.mobile-tab-disclosure) use")).toHaveAttribute("href", "#i-send");
-  await expect(walletTabIcons.nth(2).locator(":scope > .icon:not(.mobile-tab-disclosure) use")).toHaveAttribute("href", "#i-receive");
-  const tabIconBoxes = await walletTabIcons.locator(":scope > .icon:not(.mobile-tab-disclosure)").evaluateAll((icons) => icons.map((item) => {
-    const box = item.getBoundingClientRect();
-    return [box.width, box.height, getComputedStyle(item).transform];
-  }));
-  expect(tabIconBoxes).toEqual([[19, 19, "none"], [19, 19, "none"], [19, 19, "none"]]);
-  await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
-  await expect(page.locator(".send-panel")).toBeVisible();
-  await expect(page.locator(".transfer-asset-list")).toHaveCount(0);
-  await page.locator('#wallet-tabs [data-view="wallet"]').click();
-  await page.locator('#wallet-tabs [data-view="wallet-receive"]').click();
-  await expect(page.locator(".receiver-card")).toBeVisible();
-  await expect(page.locator(".transfer-asset-list")).toHaveCount(0);
-  await page.locator('#wallet-tabs [data-view="wallet"]').click();
-  await expect(page.locator(".asset-table-head")).toBeVisible();
-  const columnPositions = await page.locator(".asset-table-head").evaluate((head) => {
-    const headers = [...head.querySelectorAll("span")];
-    const values = [
-      document.querySelector(".asset-row .asset-info strong"),
-      ...document.querySelectorAll(".asset-row .asset-number strong")
-    ];
-    return headers.slice(0, 4).map((header, index) => ({
-      label: header.textContent.trim(),
-      headerX: header.getBoundingClientRect().x + parseFloat(getComputedStyle(header).paddingLeft),
-      valueX: values[index].getBoundingClientRect().x
-    }));
-  });
-  for (const column of columnPositions) {
-    expect(Math.abs(column.headerX - column.valueX), `${column.label} must align with its values`).toBeLessThanOrEqual(1);
-  }
-  await page.getByRole("button", { name: "View details for wZcash" }).click();
-  const assetDetailLogo = page.locator(".dialog-header .asset-detail-logo");
-  expect(resourcePath(await assetDetailLogo.locator("img").getAttribute("src"))).toBe("assets/z00z-friendly/Coins/zcash-zec-logo-z00z.svg");
-  const detailLogoBox = await assetDetailLogo.boundingBox();
-  const detailLogoImageBox = await assetDetailLogo.locator("img").boundingBox();
-  expect([detailLogoBox.width, detailLogoBox.height]).toEqual([64, 64]);
-  expect(Math.abs(detailLogoImageBox.x - detailLogoBox.x - 6)).toBeLessThanOrEqual(1);
-  expect(Math.abs(detailLogoImageBox.y - detailLogoBox.y - 6)).toBeLessThanOrEqual(1);
-  for (const field of ["Asset name", "Ticker", "Owner", "Asset ID", "Current supply", "Max supply"]) {
-    await expect(page.getByText(field, { exact: true })).toBeVisible();
-  }
-  await page.getByRole("button", { name: "OK", exact: true }).click();
-});
-
-test("wallet object rows stay consistent while receive uses a single responsive receiver card", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet`);
-
-  const readIconBoxes = (selector) => page.locator(selector).evaluateAll((icons) => icons.map((icon) => {
-    const style = getComputedStyle(icon);
-    return [style.width, style.height, style.borderRadius];
-  }));
-  const expectCardRows = async (rows, minHeight, renderedHeight = 64) => {
-    const styles = await rows.evaluateAll((items) => items.map((item) => {
-      const style = getComputedStyle(item);
-      return [style.minHeight, style.borderTopWidth, style.borderRadius, style.backgroundColor, Math.round(item.getBoundingClientRect().height)];
-    }));
-    expect(styles.length).toBeGreaterThan(1);
-    styles.forEach((style) => {
-      expect(style[0]).toBe(minHeight);
-      expect(style[1]).toBe("1px");
-      expect(style[2]).toBe("14px");
-      expect(style[4]).toBeGreaterThanOrEqual(renderedHeight);
-      expect(style[4]).toBeLessThanOrEqual(renderedHeight + 1);
-    });
-    return styles[0].slice(0, 4);
-  };
-  const expectCardRowGaps = async (rows) => {
-    const gaps = await rows.evaluateAll((items) => items.slice(1).map((item, index) => (
-      Math.round(item.getBoundingClientRect().top - items[index].getBoundingClientRect().bottom)
-    )));
-    expect(gaps).toEqual(Array(Math.max(0, gaps.length)).fill(8));
-  };
-
-  const assetCardStyle = await expectCardRows(page.locator(".asset-row"), "64px");
-  await expectCardRowGaps(page.locator(".asset-row"));
-  expect(await readIconBoxes(".asset-logo")).toEqual(Array(16).fill(["40px", "40px", "11px"]));
-
-  await page.locator('[data-wallet-section="vouchers"]').click();
-  await expect(page.locator(".action-panel")).toHaveCount(0);
-  expect(await expectCardRows(page.locator(".claim-row"), "64px")).toEqual(assetCardStyle);
-  expect(await readIconBoxes(".claim-row .list-icon")).toEqual(Array(8).fill(["40px", "40px", "11px"]));
-
-  await page.locator('[data-wallet-section="permissions"]').click();
-  await expect(page.locator(".action-panel")).toHaveCount(0);
-  expect(await expectCardRows(page.locator(".permission-row"), "64px")).toEqual(assetCardStyle);
-  expect(await readIconBoxes(".permission-row .list-icon")).toEqual(Array(8).fill(["40px", "40px", "11px"]));
-
-  await page.locator('[data-wallet-section="assets"]').click();
-
-  await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
-  const desktopSendBox = await page.locator(".send-panel").boundingBox();
-  expect(desktopSendBox.width).toBe(640);
-  await expect(page.locator(".transfer-asset-row")).toHaveCount(0);
-
-  await page.locator('#wallet-tabs [data-view="wallet-receive"]').click();
-  await expect(page.locator(".receiver-card")).toBeVisible();
-  await expect(page.locator(".transfer-asset-row")).toHaveCount(0);
-  const [desktopMainBox, desktopReceiverBox, desktopQrBox] = await Promise.all([
-    page.locator("#main-content").boundingBox(),
-    page.locator(".receiver-card").boundingBox(),
-    page.locator(".receiver-card-qr").boundingBox()
-  ]);
-  expect(Math.abs((desktopReceiverBox.x + desktopReceiverBox.width / 2) - (desktopMainBox.x + desktopMainBox.width / 2))).toBeLessThanOrEqual(1);
-  expect(desktopReceiverBox.width).toBeLessThanOrEqual(300);
-  expect(Math.abs(desktopQrBox.width - desktopQrBox.height)).toBeLessThanOrEqual(1);
-
-  await page.locator('#wallet-tabs [data-view="activity"]').click();
-  expect(await expectCardRows(page.locator(".activity-card-list .activity-row"), "64px")).toEqual(assetCardStyle);
-  await expectCardRowGaps(page.locator(".activity-card-list .activity-row"));
-  expect(await readIconBoxes(".activity-card-list .activity-icon")).toEqual(Array(7).fill(["40px", "40px", "11px"]));
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${demoUrl}?view=wallet`);
-  await expectCardRows(page.locator(".asset-row"), "88px", 88);
-  await expectCardRowGaps(page.locator(".asset-row"));
-  await page.locator('#wallet-tabs [data-view="wallet-send"]').click();
-  const mobileSendBox = await page.locator(".send-panel").boundingBox();
-  expect(mobileSendBox.x).toBeGreaterThanOrEqual(0);
-  expect(mobileSendBox.x + mobileSendBox.width).toBeLessThanOrEqual(390);
-  expect(mobileSendBox.width).toBeLessThan(390);
-  await page.locator(".send-panel-footer").scrollIntoViewIfNeeded();
-  await expect(page.locator(".send-panel-footer")).toBeVisible();
-  await page.locator('#wallet-tabs [data-view="wallet-receive"]').click();
-  const mobileReceiverBox = await page.locator(".receiver-card").boundingBox();
-  await expect(page.locator(".receiver-card")).toBeVisible();
-  await expect(page.locator(".transfer-asset-row")).toHaveCount(0);
-  expect(mobileReceiverBox.x).toBeGreaterThanOrEqual(0);
-  expect(mobileReceiverBox.x + mobileReceiverBox.width).toBeLessThanOrEqual(390);
-  await page.locator('#wallet-tabs [data-view="activity"]').click();
-  await expectCardRows(page.locator(".activity-card-list .activity-row"), "88px", 88);
-  await expectCardRowGaps(page.locator(".activity-card-list .activity-row"));
-});
-
-test("typography LUT assigns Geist and Geist Mono to their semantic roles", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`${demoUrl}?view=home`);
-
-  const [wordmark, topbarAddress, topbarContext, topbarPairHeight, copyHeight, balance, quickTitle, quickMeta, rowTitle, rowValue, navigation] = await page.evaluate(() => {
-    const read = (selector) => {
-      const style = getComputedStyle(document.querySelector(selector));
-      return { family: style.fontFamily, size: parseFloat(style.fontSize), weight: style.fontWeight };
-    };
-    const brandBox = document.querySelector(".sidebar > .brand").getBoundingClientRect();
-    const topbarBox = document.querySelector(".topbar").getBoundingClientRect();
-    return [
-      read(".sidebar .brand > span"),
-      read(".page-heading h1.is-wallet-address"),
-      read("#page-context"),
-      document.querySelector(".page-heading").getBoundingClientRect().height,
-      document.querySelector("#copy-wallet-address").getBoundingClientRect().height,
-      read(".balance-amount"),
-      read(".quick-action strong"),
-      read(".quick-action small"),
-      read(".attention-item .list-copy strong"),
-      read(".attention-item .list-meta strong"),
-      {
-        sidebarLabel: read(".sidebar-label"),
-        walletTab: read(".wallet-tab"),
-        centerDelta: Math.abs((brandBox.top + brandBox.height / 2) - (topbarBox.top + topbarBox.height / 2))
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    const trigger = viewport.mobile
+      ? page.locator(".mobile-navigation-terminal [data-help-topic]")
+      : page.locator("#app-navigation-terminal [data-help-topic]");
+    const helpPage = await openStandaloneHelp(page, trigger);
+    await helpPage.setViewportSize(viewport);
+
+    for (const [topicId, title] of articles) {
+      if (
+        viewport.mobile
+        && !await helpPage.locator("#help-sidebar").evaluate((sidebar) => sidebar.classList.contains("is-open"))
+      ) {
+        await helpPage.locator("#help-menu-button").click();
       }
-    ];
-  });
-  expect(wordmark.family).toContain("Geist");
-  expect(wordmark.family).not.toContain("Rajdhani");
-  expect(wordmark.weight).toBe("780");
-  expect(topbarAddress.family).toBe(wordmark.family);
-  expect(topbarAddress.weight).toBe("400");
-  expect(topbarAddress.size).toBe(21);
-  expect(topbarContext.size).toBe(13);
-  expect(topbarPairHeight).toBeGreaterThan(copyHeight);
-  expect(copyHeight).toBe(26);
-  expect(balance.family).toContain("Geist Mono");
-  expect(balance.size).toBeGreaterThanOrEqual(35);
-  expect(balance.weight).toBe("700");
-  expect(quickTitle.family).toContain("Geist");
-  expect(quickTitle.size).toBe(16);
-  expect(quickTitle.weight).toBe("700");
-  expect(quickMeta.family).toContain("Geist");
-  expect(quickMeta.family).not.toContain("Geist Mono");
-  expect(quickMeta.size).toBeGreaterThanOrEqual(14);
-  expect(rowTitle.family).toContain("Geist");
-  expect(rowTitle.size).toBeGreaterThanOrEqual(15);
-  expect(rowValue.family).toContain("Geist Mono");
-  expect(rowValue.size).toBeGreaterThanOrEqual(14);
-  expect(navigation.sidebarLabel.size).toBe(16);
-  expect(navigation.walletTab.size).toBe(16);
-  expect(navigation.centerDelta).toBeLessThanOrEqual(1);
-
-  await page.goto(`${demoUrl}?view=wallet`);
-  const [headerSize, assetName, assetNumber, assetKind] = await page.evaluate(() => {
-    const read = (selector) => {
-      const style = getComputedStyle(document.querySelector(selector));
-      return { family: style.fontFamily, size: parseFloat(style.fontSize) };
-    };
-    return [
-      parseFloat(getComputedStyle(document.querySelector(".asset-table-head")).fontSize),
-      read(".asset-info strong"),
-      read(".asset-number strong"),
-      read(".object-kind")
-    ];
-  });
-  expect(headerSize).toBeGreaterThanOrEqual(12);
-  expect(assetName.family).toContain("Geist");
-  expect(assetName.size).toBeGreaterThanOrEqual(15);
-  expect(assetNumber.family).toContain("Geist Mono");
-  expect(assetNumber.size).toBeGreaterThanOrEqual(15);
-  expect(assetKind.family).toContain("Geist");
-  expect(assetKind.family).not.toContain("Geist Mono");
-  expect(assetKind.size).toBeGreaterThanOrEqual(12);
+      const appGroup = helpPage.locator('[data-help-group="app"]');
+      if (await appGroup.getAttribute("aria-expanded") !== "true") await appGroup.click();
+      const articleLink = helpPage.locator(`[data-help-topic-link="${topicId}"]`);
+      await expect(articleLink).toBeVisible();
+      await articleLink.click();
+      await expect(helpPage.locator("#help-title")).toHaveText(title);
+      await expect(helpPage).toHaveURL(new RegExp(`topic=${topicId.replaceAll(".", "\\.")}`));
+      await expect(helpPage.locator("#help-context-tabs")).toBeHidden();
+      const titlePosition = await helpPage.evaluate(() => ({
+        headerTop: document.querySelector(".help-site-header").getBoundingClientRect().top,
+        headerBottom: document.querySelector(".help-site-header").getBoundingClientRect().bottom,
+        titleTop: document.querySelector("#help-title").getBoundingClientRect().top,
+      }));
+      expect(Math.abs(titlePosition.headerTop)).toBeLessThanOrEqual(1);
+      expect(titlePosition.titleTop).toBeGreaterThanOrEqual(titlePosition.headerBottom);
+    }
+    await expectNoViewportOverflow(helpPage);
+    await helpPage.close();
+  }
 });
 
-test("common settings and selected-wallet settings keep their scopes separate", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=settings&settings=general`);
-
-  await expect(page.locator("#page-title")).toHaveClass(/is-settings-title/);
-  await expect(page.locator("#page-title")).toHaveText("Settings");
-  await expect(page.locator("#page-context")).toHaveText("Application preferences");
-  await expect(page.getByLabel("Language")).toBeVisible();
-  await expect(page.getByLabel("Notifications on")).toBeVisible();
-  await expect(page.getByLabel("Wallet name")).toHaveCount(0);
-  await expect(page.getByLabel("Default fee")).toHaveCount(0);
-  await expect(page.getByText("Configuration file", { exact: true })).toHaveCount(0);
-  await expect(page.locator("#wallet-tabs [data-settings-section]")).toHaveCount(4);
-  await expect(page.locator("#wallet-tabs [data-settings-section=general]")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".settings-layout .context-rail")).toHaveCount(0);
-  await expect(page.locator('[data-settings-section="security"], [data-settings-section="backup"], [data-settings-section="policies"], [data-settings-section="advanced"]')).toHaveCount(0);
-  await expect(page.locator(".settings-detail > h2")).toHaveCount(0);
-
-  await page.locator('#wallet-tabs [data-settings-section="appearance"]').click();
-  await expect(page.locator('#wallet-tabs [data-settings-section="appearance"]')).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".settings-detail > .settings-heading")).toHaveCount(0);
-  await expect(page.locator(".palette-grid")).toHaveCount(1);
-  await page.locator('#wallet-tabs [data-settings-section="reticulum"]').click();
-  await expect(page.locator('#wallet-tabs [data-settings-section="reticulum"]')).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".settings-network-tabs")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Reticulum" })).toBeVisible();
-
-  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=security`);
-  await expect(page.getByLabel("Lock app after")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Lock now" })).toBeVisible();
-  await expect(page.locator(".wallet-settings-context .context-nav-item")).toHaveCount(5);
-});
-
-test("global and contextual Help are local, multilingual, focus-safe, and state-aware", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
-
-  const globalHelp = page.locator(".help-button");
-  await globalHelp.focus();
-  const helpPage = await openStandaloneHelp(page, globalHelp);
-  await expect(helpPage).toHaveURL(/help\.html\?.*topic=app.*lang=en/);
-  await expect(helpPage.locator("#help-title")).toHaveText("Application help");
-  await expect(helpPage.locator("#help-document")).toContainText("Test Text");
-  await expect(page.locator("#help-host")).toHaveCount(0);
-  await expect(page.locator("#app-shell")).not.toHaveAttribute("inert", "");
-
-  const appGroup = helpPage.locator('[data-help-group="app"]');
-  const walletGroup = helpPage.locator('[data-help-group="wallets"]');
-  const networkGroup = helpPage.locator('[data-help-group="network"]');
-  await expect(appGroup).toHaveAttribute("aria-expanded", "true");
-  await walletGroup.click();
-  await networkGroup.click();
-  await expect(walletGroup).toHaveAttribute("aria-expanded", "true");
-  await expect(networkGroup).toHaveAttribute("aria-expanded", "true");
-  await walletGroup.click();
-  await expect(walletGroup).toHaveAttribute("aria-expanded", "false");
-  await expect(networkGroup).toHaveAttribute("aria-expanded", "true");
-
-  const contextualHelp = page.getByRole("button", { name: "Help for this view" });
-  const [settingsBox, globalHelpBox, logoutBox, contextualHelpBox, statusbarBox] = await Promise.all([
-    page.locator('.system-nav [data-view="settings"]').boundingBox(),
-    globalHelp.boundingBox(),
-    page.locator('.system-nav [data-demo-action="logout"]').boundingBox(),
-    contextualHelp.boundingBox(),
-    page.locator("#wallet-statusbar").boundingBox()
+test("context navigation stays vertical on desktop and becomes top tabs on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const desktopRail = page.locator(".wallet-assets-layout > .context-rail");
+  const desktopPanel = page.locator(".wallet-assets-layout > .workspace-panel");
+  await expect(desktopRail).toBeVisible();
+  await expect(desktopRail.locator("[data-wallet-section]")).toHaveCount(3);
+  const desktopGeometry = await Promise.all([
+    desktopRail.boundingBox(),
+    desktopPanel.boundingBox(),
   ]);
-  expect(globalHelpBox.y).toBeGreaterThan(settingsBox.y);
-  expect(globalHelpBox.y).toBeLessThan(logoutBox.y);
-  expect(contextualHelpBox.y + contextualHelpBox.height).toBeLessThan(statusbarBox.y);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  const contextualHelpAfterScroll = await contextualHelp.boundingBox();
-  expect(Math.abs(contextualHelpAfterScroll.y - contextualHelpBox.y)).toBeLessThanOrEqual(1);
-  await contextualHelp.click();
-  await expect(helpPage).toHaveURL(/topic=wallet\.assets.*section=current-view/);
-  await expect(helpPage.locator("#help-title")).toHaveText("Assets");
-  await expect(helpPage.locator("#current-view")).toBeVisible();
-  await helpPage.locator(".help-wallet-link").click();
-  await expect(page.locator(".asset-row").first()).toBeVisible();
+  expect(desktopGeometry[0].x + desktopGeometry[0].width).toBeLessThanOrEqual(desktopGeometry[1].x);
 
-  await page.goto(`${demoUrl}?view=home`);
-  await page.getByRole("button", { name: "Help for this view" }).click();
-  await expect(helpPage).toHaveURL(/topic=app\.home/);
-  await expect(helpPage.locator("#help-title")).toHaveText("Home");
-
-  await page.context().setOffline(true);
-  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
-  await globalHelp.click();
-  await expect(helpPage.locator("#help-title")).toHaveText("Application help");
-  await page.context().setOffline(false);
-
-  await page.goto(`${demoUrl}?view=settings&settings=general`);
-  await page.selectOption('[data-config-control="language"]', "ru");
-  await page.locator(".help-button").click();
-  await expect(helpPage).toHaveURL(/topic=app.*lang=ru/);
-  await expect(helpPage.locator("#help-title")).toHaveText("Справка приложения");
-  await expect(helpPage.locator("#help-document")).toContainText("работает без интернета");
-  await helpPage.close();
-});
-
-test("mobile Help is a standalone page with an accordion drawer", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=general`);
-
-  const rowGeometry = await page.locator(".compact-row").first().evaluate((row) => {
-    const parts = [...row.children].map((element) => element.getBoundingClientRect());
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const mobileRail = page.locator(".wallet-assets-layout > .context-rail");
+  const mobileTabs = mobileRail.locator("[data-wallet-section]");
+  await expect(mobileRail).toBeVisible();
+  await expect(mobileTabs).toHaveCount(3);
+  await page.locator(".wallet-assets-layout").evaluate((layout) => (
+    Promise.all(layout.getAnimations().map((animation) => animation.finished))
+  ));
+  const mobileGeometry = await page.evaluate(() => {
+    const topbar = document.querySelector(".topbar").getBoundingClientRect();
+    const rail = document.querySelector(".wallet-assets-layout > .context-rail").getBoundingClientRect();
+    const tabs = [...document.querySelectorAll(".wallet-assets-layout [data-wallet-section]")]
+      .map((tab) => tab.getBoundingClientRect());
     return {
-      row: row.getBoundingClientRect(),
-      centers: parts.filter((box) => box.width > 0).map((box) => Math.round(box.top + box.height / 2)),
-      documentWidth: document.documentElement.scrollWidth,
-      viewportWidth: window.innerWidth
+      topbarBottom: topbar.bottom,
+      railTop: rail.top,
+      tabTops: tabs.map(({ top }) => top),
     };
   });
-  expect(Math.max(...rowGeometry.centers) - Math.min(...rowGeometry.centers)).toBeLessThanOrEqual(4);
-  expect(rowGeometry.documentWidth).toBeLessThanOrEqual(rowGeometry.viewportWidth);
-  const contextualHelp = page.getByRole("button", { name: "Help for this view" });
-  const contextHelpBox = await contextualHelp.boundingBox();
-  expect(await contextualHelp.evaluate((button) => getComputedStyle(button.parentElement).position)).toBe("fixed");
-  expect(contextHelpBox.x + contextHelpBox.width).toBeLessThanOrEqual(390 - 16 + 1);
-  expect(contextHelpBox.y + contextHelpBox.height).toBeLessThanOrEqual(844 - 16 + 1);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  const contextHelpAfterScroll = await contextualHelp.boundingBox();
-  expect(Math.abs(contextHelpAfterScroll.x - contextHelpBox.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(contextHelpAfterScroll.y - contextHelpBox.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(mobileGeometry.railTop - mobileGeometry.topbarBottom)).toBeLessThanOrEqual(1);
+  expect(new Set(mobileGeometry.tabTops.map((top) => Math.round(top))).size).toBe(1);
+
+  await mobileTabs.filter({ hasText: "Vouchers" }).click();
+  await expect(page.locator(".claim-row")).toHaveCount(8);
+  await expect(page.locator('[data-wallet-section="vouchers"]')).toHaveAttribute("aria-current", "page");
+  await expect(page.locator('#app-navigation-tree [data-navigation-route="wallet.vouchers"]')).toHaveCount(0);
+  await expectNoViewportOverflow(page);
+
+  await page.goto(`${demoUrl}?route=wallet.send`);
+  await expect(page.locator(".send-workspace-layout > .context-rail")).toBeVisible();
+  await expect(page.locator("[data-send-family]")).toHaveCount(3);
+
+  await page.goto(`${demoUrl}?route=telemetry.reticulum.overview`);
+  const telemetryRail = page.locator(".telemetry-workspace-layout > .context-rail");
+  await expect(telemetryRail).toBeVisible();
+  await expect(telemetryRail.locator("[data-workspace-route]")).toHaveCount(8);
+  await telemetryRail.locator('[data-workspace-route="telemetry.reticulum.node"]').click();
+  await expect(page.locator("#page-title")).toHaveText("Node");
+  await expect(page.locator("#mobile-popup-menu")).toBeHidden();
+  await expectNoViewportOverflow(page);
+});
+
+test("all Telemetry components keep deeper routes inside desktop rails and mobile tabs", async ({ page }) => {
+  const workspaces = [
+    {
+      id: "telemetry.reticulum",
+      route: "telemetry.reticulum.overview",
+      childRoute: "telemetry.reticulum.links",
+      childTitle: "Links",
+      localCount: 8,
+    },
+    {
+      id: "telemetry.onionnet",
+      route: "telemetry.onionnet.overview",
+      childRoute: "telemetry.onionnet.queues",
+      childTitle: "Queues",
+      localCount: 7,
+    },
+    {
+      id: "telemetry.aggregators",
+      route: "telemetry.aggregators.overview",
+      childRoute: "telemetry.aggregators.publication",
+      childTitle: "Publication",
+      localCount: 6,
+    },
+    {
+      id: "telemetry.watchers",
+      route: "telemetry.watchers.overview",
+      childRoute: "telemetry.watchers.evidence",
+      childTitle: "Evidence export",
+      localCount: 6,
+    },
+    {
+      id: "telemetry.explorer",
+      route: "telemetry.explorer.overview",
+      childRoute: "telemetry.explorer.evidence",
+      childTitle: "Public evidence",
+      localCount: 5,
+    },
+  ];
+
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 320, height: 800, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const workspace of workspaces) {
+      await page.goto(`${demoUrl}?route=${workspace.route}`);
+      const rail = page.locator(".telemetry-workspace-layout > .context-rail");
+      await expect(rail).toBeVisible();
+      await expect(rail.locator("[data-workspace-route]")).toHaveCount(workspace.localCount);
+      await rail.locator(`[data-workspace-route="${workspace.childRoute}"]`).click();
+      await expect(page.locator("#page-title")).toHaveText(workspace.childTitle);
+      await expect(rail.locator(`[data-workspace-route="${workspace.childRoute}"]`)).toHaveAttribute("aria-current", "page");
+      if (["telemetry.aggregators", "telemetry.watchers", "telemetry.explorer"].includes(workspace.id)) {
+        if (workspace.id === "telemetry.watchers") {
+          await expect(page.locator('[data-watcher-screen="evidence"]')).toBeVisible();
+        } else if (workspace.id === "telemetry.explorer") {
+          await expect(page.locator('[data-explorer-screen="evidence"]')).toBeVisible();
+        } else {
+          await expect(page.locator('[data-aggregator-screen="publication"]')).toBeVisible();
+        }
+        await expect(page.locator(".route-preview")).toHaveCount(0);
+      }
+
+      if (viewport.mobile) {
+        const tabTops = await rail.locator("[data-workspace-route]").evaluateAll((tabs) => (
+          tabs.map((tab) => Math.round(tab.getBoundingClientRect().top))
+        ));
+        expect(new Set(tabTops).size).toBe(1);
+        await page.locator("#mobile-menu-button").click();
+        const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+        await expect(drawer.locator(`[data-navigation-workspace="${workspace.id}"]`)).toHaveAttribute("aria-current", "page");
+        await expect(drawer.locator(`[data-navigation-route="${workspace.childRoute}"]`)).toHaveCount(0);
+        await page.keyboard.press("Escape");
+      } else {
+        const [railBox, panelBox] = await Promise.all([
+          rail.boundingBox(),
+          page.locator(".telemetry-workspace-layout > .workspace-panel").boundingBox(),
+        ]);
+        expect(railBox.x + railBox.width).toBeLessThanOrEqual(panelBox.x);
+        await expect(page.locator(`#app-navigation-tree [data-navigation-workspace="${workspace.id}"]`)).toHaveAttribute("aria-current", "page");
+        await expect(page.locator(`#app-navigation-tree [data-navigation-route="${workspace.childRoute}"]`)).toHaveCount(0);
+      }
+      await expectNoViewportOverflow(page);
+    }
+  }
+});
+
+test("every canonical workspace projects deeper routes only inside the main window", async ({ page }) => {
+  const workspaces = [
+    ["wallet.assets-rights", "wallet.assets", "wallet.permissions", 3],
+    ["wallet.staking", "wallet.staking.stake", "wallet.staking.unstake", 2],
+    ["wallet.settings", "wallet.settings.general", "wallet.settings.advanced", 5],
+    ["telemetry.reticulum", "telemetry.reticulum.overview", "telemetry.reticulum.links", 8],
+    ["telemetry.onionnet", "telemetry.onionnet.overview", "telemetry.onionnet.ingress", 7],
+    ["telemetry.aggregators", "telemetry.aggregators.overview", "telemetry.aggregators.recovery", 6],
+    ["telemetry.watchers", "telemetry.watchers.overview", "telemetry.watchers.evidence", 6],
+    ["telemetry.explorer", "telemetry.explorer.overview", "telemetry.explorer.evidence", 5],
+  ];
+
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 320, height: 800, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const [workspaceId, defaultRoute, childRoute, localCount] of workspaces) {
+      await page.goto(`${demoUrl}?route=${defaultRoute}`);
+      const localNavigation = page.locator(".workspace-layout > .context-rail");
+      await expect(localNavigation).toBeVisible();
+      await expect(localNavigation.locator("button")).toHaveCount(localCount);
+
+      if (viewport.mobile) {
+        await page.locator("#mobile-menu-button").click();
+        const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+        await expect(drawer.locator(`[data-navigation-workspace="${workspaceId}"]`)).toHaveCount(1);
+        await expect(drawer.locator(`[data-navigation-route="${childRoute}"]`)).toHaveCount(0);
+        await page.keyboard.press("Escape");
+        const topCoordinates = await localNavigation.locator("button").evaluateAll((buttons) => (
+          buttons.map((button) => Math.round(button.getBoundingClientRect().top))
+        ));
+        expect(new Set(topCoordinates).size).toBe(1);
+      } else {
+        await expect(page.locator(`#app-navigation-tree [data-navigation-workspace="${workspaceId}"]`)).toHaveCount(1);
+        await expect(page.locator(`#app-navigation-tree [data-navigation-route="${childRoute}"]`)).toHaveCount(0);
+        const [railBox, panelBox] = await Promise.all([
+          localNavigation.boundingBox(),
+          page.locator(".workspace-layout > .workspace-panel, .wallet-settings-view .settings-detail").first().boundingBox(),
+        ]);
+        expect(railBox.x + railBox.width).toBeLessThanOrEqual(panelBox.x);
+      }
+      await expectNoViewportOverflow(page);
+    }
+  }
+});
+
+test("Watchers roadmap completes typed alert to sanitized evidence across desktop and mobile states", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=telemetry.watchers.alerts`);
+
+    const screen = page.locator('[data-watcher-screen="alerts"]');
+    await expect(screen).toBeVisible();
+    await expect(page.locator(".route-preview")).toHaveCount(0);
+    await expect(page.locator(".capability-boundary")).toHaveCount(0);
+    await expect(screen.locator("[data-watcher-alert]")).toHaveCount(3);
+
+    await screen.locator('[data-watcher-alert="watcher-alert-002"]').click();
+    const alertDetail = page.locator(".watcher-alert-detail");
+    await expect(alertDetail).toContainText("MissingBlob");
+    await expect(alertDetail).toContainText("published_batch · batch_a13d9e22");
+    await expect(alertDetail).toContainText("2026-07-26T12:00:00.000Z");
+    await expect(alertDetail).toContainText("watchers::da_health");
+    await expect(alertDetail).toContainText("da_ref_72be91");
+
+    const explorerLink = alertDetail.locator('[data-watcher-action="open-explorer"]');
+    await expect(explorerLink).toHaveAttribute("data-public-id", "da_ref_72be91");
+    await explorerLink.click();
+    await expect(page.locator("#page-title")).toHaveText("Public evidence");
+    await expect(page.locator('[data-explorer-screen="evidence"]')).toBeVisible();
+    await expect(page.locator('[data-explorer-detail="da_ref_72be91"]')).toContainText("Opaque provider ref");
+    await expect(page.locator(".route-preview")).toHaveCount(0);
+    await page.goBack();
+    await expect(page.locator("#page-title")).toHaveText("Alerts");
+    await expect(page.locator('[data-watcher-alert="watcher-alert-002"]')).toHaveAttribute("aria-current", "true");
+
+    await alertDetail.locator('[data-watcher-action="inspect-evidence"]').click();
+    await expect(page.locator("#page-title")).toHaveText("Evidence export");
+    const evidenceScreen = page.locator('[data-watcher-screen="evidence"]');
+    await expect(evidenceScreen).toBeVisible();
+    await expect(evidenceScreen.locator(".watcher-evidence-card.is-selected")).toContainText("MissingBlob");
+    await evidenceScreen.locator('[data-watcher-action="export-evidence"][data-alert-id="watcher-alert-002"]').click();
+    const exportResult = evidenceScreen.locator(".watcher-export-result");
+    await expect(exportResult).toContainText("watcher-evidence-export-v1");
+    await expect(exportResult).toContainText("batch_a13d9e22");
+    await expect(exportResult).toContainText("private addressing and communication fields excluded");
+    for (const privateValue of ["Everyday", "Savings", "Travel", "z00z1native-boundary"]) {
+      await expect(page.locator("#main-content")).not.toContainText(privateValue);
+    }
+
+    await page.goto(`${demoUrl}?route=telemetry.watchers.alerts`);
+    await page.locator('[data-watcher-control="severity"]').selectOption("critical");
+    await expect(page.locator("[data-watcher-alert]")).toHaveCount(1);
+    await expect(page.locator("[data-watcher-alert]")).toContainText("MissingBlob");
+    await page.locator('[data-watcher-control="source"]').selectOption("evidence_archive");
+    await expect(page.locator('[data-watcher-control="source"]')).toHaveValue("evidence_archive");
+
+    for (const scenario of ["loading", "degraded", "empty", "malformed", "error", "unavailable"]) {
+      await page.locator('[data-watcher-control="scenario"]').selectOption(scenario);
+      await expect(page.locator(".watcher-roadmap")).toHaveAttribute("data-watcher-result", scenario);
+      if (scenario === "degraded") {
+        await expect(page.locator(".watcher-state-notice")).toBeVisible();
+        await expect(page.locator("[data-watcher-alert]")).toHaveCount(1);
+      } else {
+        await expect(page.locator(`[data-watcher-state="${scenario}"]`)).toBeVisible();
+      }
+    }
+    await page.locator('[data-watcher-action="recover"]').click();
+    await expect(page.locator(".watcher-roadmap")).toHaveAttribute("data-watcher-result", "success");
+
+    const localTabs = page.locator(".telemetry-workspace-layout > .context-rail [data-workspace-route]");
+    await expect(localTabs).toHaveCount(6);
+    if (viewport.width === 320) {
+      const tabTops = await localTabs.evaluateAll((tabs) => tabs.map((tab) => Math.round(tab.getBoundingClientRect().top)));
+      expect(new Set(tabTops).size).toBe(1);
+    }
+    await expectNoViewportOverflow(page);
+  }
+});
+
+test("Explorer roadmap accepts only public typed IDs and keeps detail inside desktop and mobile workspaces", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=telemetry.explorer.search`);
+
+    const screen = page.locator('[data-explorer-screen="search"]');
+    await expect(screen).toBeVisible();
+    await expect(page.locator(".route-preview")).toHaveCount(0);
+    await expect(page.locator(".capability-boundary")).toHaveCount(0);
+
+    const submitSearch = async (publicId) => {
+      await page.locator("#explorer-public-id").fill(publicId);
+      await page.locator("#explorer-public-search").evaluate((form) => form.requestSubmit());
+    };
+    for (const [publicId, kind] of [
+      ["checkpoint_000184", "checkpoint"],
+      ["batch_4f91c7a0", "batch"],
+      ["publication_6f840184", "publication"],
+      ["proof_92840184", "proof"],
+      ["da_ref_72be91", "da reference"],
+    ]) {
+      await submitSearch(publicId);
+      const detail = page.locator(`[data-explorer-detail="${publicId}"]`);
+      await expect(detail).toBeVisible();
+      await expect(detail).toContainText(kind);
+      await expect(detail).toContainText(publicId);
+    }
+
+    await page.locator('[data-explorer-action="technical"]').click();
+    await expect(page.locator(".explorer-technical-json")).toContainText("CheckpointDaReferenceV1");
+    await page.locator('[data-explorer-action="summary"]').click();
+
+    for (const [query, status] of [
+      ["receiver_secret_001", "private"],
+      ["checkpoint_18", "malformed"],
+      ["tx_deadbeef", "unsupported"],
+      ["checkpoint_999999", "unknown"],
+      ["checkpoint_000183", "stale"],
+    ]) {
+      await submitSearch(query);
+      await expect(page.locator(`[data-explorer-search-status="${status}"]`)).toBeVisible();
+      await expect(page.locator("#explorer-public-id")).toHaveValue("");
+      await expect(page.locator("#main-content")).not.toContainText(query);
+    }
+
+    const contextRail = page.locator(".telemetry-workspace-layout > .context-rail");
+    const localTabs = contextRail.locator("[data-workspace-route]");
+    await expect(localTabs).toHaveCount(5);
+    await contextRail.locator('[data-workspace-route="telemetry.explorer.checkpoints"]').click();
+    await expect(page.locator('[data-explorer-screen="checkpoints"] [data-explorer-record]')).toHaveCount(3);
+    await page.locator('[data-explorer-record="checkpoint_000184"]').click();
+    const checkpointDetail = page.locator('[data-explorer-detail="checkpoint_000184"]');
+    await expect(checkpointDetail).toContainText("finalized");
+    await expect(checkpointDetail).toContainText("root_84f2d18a");
+    await checkpointDetail.locator('[data-explorer-open-id="publication_6f840184"]').click();
+    await expect(page.locator("#page-title")).toHaveText("Public evidence");
+    await expect(page.locator('[data-explorer-detail="publication_6f840184"]')).toContainText("Route generation");
+
+    await page.locator('[data-explorer-control="kind"]').selectOption("proof");
+    await expect(page.locator("[data-explorer-record]")).toHaveCount(3);
+    await expect(page.locator("[data-explorer-record]").first()).toContainText("Proof envelope");
+
+    await contextRail.locator('[data-workspace-route="telemetry.explorer.checkpoints"]').click();
+    for (const scenario of ["loading", "degraded", "empty", "malformed", "error", "unavailable"]) {
+      await page.locator('[data-explorer-control="scenario"]').selectOption(scenario);
+      await expect(page.locator(".explorer-roadmap")).toHaveAttribute("data-explorer-result", scenario);
+      if (scenario === "degraded") {
+        await expect(page.locator(".watcher-state-notice")).toBeVisible();
+        await expect(page.locator("[data-explorer-record]")).toHaveCount(1);
+      } else {
+        await expect(page.locator(`[data-explorer-state="${scenario}"]`)).toBeVisible();
+      }
+    }
+    await page.locator('[data-explorer-action="recover"]').click();
+    await expect(page.locator(".explorer-roadmap")).toHaveAttribute("data-explorer-result", "success");
+
+    if (viewport.width === 320) {
+      const tabTops = await localTabs.evaluateAll((tabs) => tabs.map((tab) => Math.round(tab.getBoundingClientRect().top)));
+      expect(new Set(tabTops).size).toBe(1);
+      await page.locator("#mobile-menu-button").click();
+      const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+      await expect(drawer.locator('[data-navigation-workspace="telemetry.explorer"]')).toHaveAttribute("aria-current", "page");
+      await expect(drawer.locator('[data-navigation-route="telemetry.explorer.search"]')).toHaveCount(0);
+      await page.keyboard.press("Escape");
+    }
+    await expectNoViewportOverflow(page);
+  }
+});
+
+test("Telemetry renderer redacts wallet, receiver, memo, path, inbox, and secret canaries on every route", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.send`);
+    await page.locator("#send-recipient").fill("z00z1telemetry-private-receiver");
+    await page.locator("#send-memo").fill("telemetry-private-memo-canary");
+
+    const { telemetryRoutes, fixtureCanaries } = await page.evaluate(() => ({
+      telemetryRoutes: [...window.Z00ZDemo.PORT_CONTRACT.telemetryRoutes],
+      fixtureCanaries: [...new Set(window.Z00ZDemo.INITIAL_WALLET_FIXTURES.flatMap((wallet) => [
+        wallet.name,
+        wallet.address,
+        wallet.fullAddress,
+        ...wallet.activities.flatMap((activity) => Object.values(activity.titleValues || {})),
+      ]))].filter(Boolean),
+    }));
+    const privateCanaries = [
+      ...fixtureCanaries,
+      "z00z1telemetry-private-receiver",
+      "telemetry-private-memo-canary",
+      "/home/vadim/Projects/z00z",
+      "/tmp/z00z-private-route",
+      "inbox-record-private",
+      "messenger.inbox",
+      "seed_phrase",
+      "private_key",
+      "session_token",
+      "raw_signed_package",
+      "arbitrary_filesystem_path",
+    ].map((value) => value.toLowerCase());
+
+    for (const routeId of telemetryRoutes) {
+      await page.evaluate((route) => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("route", route);
+        window.history.pushState({ z00zRoute: route }, "", url);
+        window.dispatchEvent(new PopStateEvent("popstate", { state: { z00zRoute: route } }));
+      }, routeId);
+      await page.waitForFunction((route) => (
+        [...document.querySelectorAll("[data-workspace-route][aria-current='page']")]
+          .some((item) => item.dataset.workspaceRoute === route)
+      ), routeId);
+      const rendered = await page.locator("#main-content").evaluate((main) => (
+        `${main.innerText}\n${main.innerHTML}`.toLowerCase()
+      ));
+      for (const canary of privateCanaries) {
+        expect(rendered.includes(canary), `${routeId} rendered private canary: ${canary}`).toBe(false);
+      }
+    }
+
+    await page.evaluate(() => {
+      const route = "wallet.send";
+      const url = new URL(window.location.href);
+      url.searchParams.set("route", route);
+      window.history.pushState({ z00zRoute: route }, "", url);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: { z00zRoute: route } }));
+    });
+    await expect(page.locator("#send-recipient")).toHaveValue("z00z1telemetry-private-receiver");
+    await expect(page.locator("#send-memo")).toHaveValue("telemetry-private-memo-canary");
+  }
+});
+
+test("Aggregator concept screens keep runtime contracts without redundant boundary cards", async ({ page }) => {
+  const screens = [
+    ["overview", "Admission"],
+    ["ingress", "WorkPayload::Tx"],
+    ["planning", "BatchPlanned"],
+    ["placement", "SecondaryState"],
+    ["publication", "quorum digests"],
+    ["recovery", "ShardExecState"],
+  ];
+
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const [screenId, contractField] of screens) {
+      await page.goto(`${demoUrl}?route=telemetry.aggregators.${screenId}`);
+      const screen = page.locator(`[data-aggregator-screen="${screenId}"]`);
+      await expect(screen).toBeVisible();
+      await expect(page.locator(".route-preview")).toHaveCount(0);
+      await expect(page.locator(".capability-boundary")).toHaveCount(0);
+      await expect(screen.locator(".aggregator-contract-card").first()).toContainText(contractField);
+      await expect(screen.locator(".network-summary-grid strong")).toHaveText([
+        "Unavailable",
+        "Unavailable",
+        "Unavailable",
+        "Unavailable",
+      ]);
+      await expectNoViewportOverflow(page);
+    }
+  }
+});
+
+test("mobile drawer uses the same root-only accordion tree and preserves the topbar logo", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  await expect(page.locator(".mobile-nav-brand img")).toBeVisible();
+  await expect(page.locator(".desktop-topbar-brand")).not.toBeVisible();
 
   await page.locator("#mobile-menu-button").click();
-  const helpPage = await openStandaloneHelp(page, page.getByRole("button", { name: "Help", exact: true }));
+  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.locator(".mobile-navigation-scroll-region")).toBeVisible();
+  await expect(drawer.locator('[data-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+  const telemetry = drawer.locator('[data-navigation-branch="telemetry"]');
+  await expect(telemetry).toHaveAttribute("aria-expanded", "false");
+  await telemetry.click();
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await expect(drawer.locator('[data-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#page-title")).toHaveText("Assets");
+  const wallet = drawer.locator('[data-navigation-branch="wallet"]');
+  await wallet.click();
+  await expect(wallet).toHaveAttribute("aria-expanded", "false");
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#page-title")).toHaveText("Assets");
+  await wallet.click();
+  await expect(wallet).toHaveAttribute("aria-expanded", "true");
+  await expect(telemetry).toHaveAttribute("aria-expanded", "true");
+  await expect(drawer.locator('[data-navigation-branch="telemetry.reticulum"]')).toHaveCount(0);
+  await expect(drawer.locator('[data-navigation-workspace="telemetry.reticulum"]')).toBeVisible();
+  await expect(drawer.locator('[data-navigation-workspace="telemetry.onionnet"]')).toBeVisible();
+  await expect(drawer.locator('[data-navigation-workspace="telemetry.aggregators"]')).toBeVisible();
+  await expect(drawer.locator('[data-navigation-route="telemetry.reticulum.node"]')).toHaveCount(0);
+  const mobileTypography = await drawer.locator('[data-navigation-branch="telemetry"]').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      family: style.fontFamily,
+      size: style.fontSize,
+      weight: style.fontWeight,
+      lineHeight: style.lineHeight,
+    };
+  });
+  expect(mobileTypography.family).toContain("Geist");
+  expect(mobileTypography).toMatchObject({
+    size: "16px",
+    weight: "700",
+    lineHeight: "20px",
+  });
+  await telemetry.click();
+  await expect(telemetry).toHaveAttribute("aria-expanded", "false");
+  await expect(drawer.locator('[data-navigation-branch="wallet"]')).toHaveAttribute("aria-expanded", "true");
+
+  await selectCanonicalRoute(page, "wallet.send", { mobile: true });
+  await expect(drawer).toBeHidden();
+  await expect(page.locator("#page-title")).toHaveText("Send");
+  await expectNoViewportOverflow(page);
+});
+
+test("mobile profile selection, Help, and drawer focus are independent of desktop navigation", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  await page.locator("#mobile-menu-button").click();
+  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+  await drawer.locator('[data-mobile-wallet-id="travel"]').click();
+  await expect(drawer).toBeHidden();
+  await expect(page.locator("#wallet-identity")).toContainText("Travel");
+
+  await page.locator("#mobile-menu-button").click();
+  await expect(page.locator("#app-body")).toHaveJSProperty("inert", true);
+  await expect(drawer.locator("[data-mobile-popup-close]")).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(drawer.getByRole("button", { name: "Log out", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(drawer.locator("[data-mobile-popup-close]")).toBeFocused();
+  await page.locator("#mobile-menu-backdrop").click({ position: { x: 310, y: 400 } });
+  await expect(drawer).toBeHidden();
+  await expect(page.locator("#app-body")).toHaveJSProperty("inert", false);
+  await expect(page.locator("#mobile-menu-button")).toBeFocused();
+
+  await page.locator("#mobile-menu-button").click();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+  await expect(page.locator("#mobile-menu-button")).toBeFocused();
+
+  await page.locator("#mobile-menu-button").click();
+  const helpPage = await openStandaloneHelp(page, drawer.getByRole("button", { name: "Help", exact: true }));
   await helpPage.setViewportSize({ width: 390, height: 844 });
-  await expect(helpPage.locator("#help-title")).toHaveText("Application help");
-  await expect(page.locator("#mobile-popup-menu")).toBeHidden();
+  await expect(helpPage.locator("#help-document")).toBeVisible();
+  await expect(helpPage.locator("#help-context-tabs")).toBeHidden();
+  await expect(helpPage.locator("[data-help-context-topic]")).toHaveCount(1);
+  await helpPage.close();
+  await expect(drawer).toBeHidden();
+  await expectNoViewportOverflow(page);
+});
+
+test("mobile contextual Help exposes sibling topics as top tabs without opening its drawer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  const helpPage = await openStandaloneHelp(
+    page,
+    page.getByRole("button", { name: "Help for this view" }),
+  );
+  await helpPage.setViewportSize({ width: 390, height: 844 });
+
+  const contextTabs = helpPage.locator("#help-context-tabs");
+  await expect(contextTabs).toBeVisible();
+  await expect(contextTabs.locator("[data-help-context-topic]")).toHaveCount(3);
+  await expect(contextTabs.locator('[data-help-context-topic="wallet.assets"]')).toHaveAttribute("aria-current", "page");
+  await expect(helpPage.locator('#help-tree [data-help-topic-link="wallet.assets"]')).toContainText("Assets");
+  await expect(helpPage.locator('#help-tree [data-help-topic-link="wallet.vouchers"]')).toHaveCount(0);
+  await expect(helpPage.locator('#help-tree [data-help-topic-link="asset.details"]')).toHaveCount(0);
+  await expect(helpPage.locator('[data-help-group="telemetry"]')).toContainText("Telemetry");
+  await expect(helpPage.locator("#help-sidebar")).not.toHaveClass(/is-open/);
+  await expect(helpPage.locator("#help-menu-button")).toHaveAttribute("aria-expanded", "false");
+
+  await contextTabs.locator('[data-help-context-topic="wallet.vouchers"]').click();
+  await expect(contextTabs.locator('[data-help-context-topic="wallet.vouchers"]')).toHaveAttribute("aria-current", "page");
+  await expect(helpPage.locator("#help-title")).toContainText("Vouchers");
+  await expect(helpPage).toHaveURL(/topic=wallet\.vouchers/);
+  await helpPage.close();
+
+  await page.goto(`${demoUrl}?route=wallet.staking.stake`);
+  const stakingHelpPage = await openStandaloneHelp(
+    page,
+    page.getByRole("button", { name: "Help for this view" }),
+  );
+  await stakingHelpPage.setViewportSize({ width: 390, height: 844 });
+  const stakingTabs = stakingHelpPage.locator("#help-context-tabs");
+  await expect(stakingTabs.locator("[data-help-context-topic]")).toHaveCount(2);
+  await expect(stakingTabs.locator('[data-help-context-topic="wallet.staking.stake"]')).toHaveAttribute("aria-current", "page");
+  await stakingTabs.locator('[data-help-context-topic="wallet.staking.unstake"]').click();
+  await expect(stakingHelpPage.locator("#help-title")).toContainText("Unstake");
+  await expect(stakingHelpPage).toHaveURL(/topic=wallet\.staking\.unstake/);
+  await stakingHelpPage.close();
+});
+
+test("standalone Help keeps root accordions independent and projects workspace topics responsively", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=dapps.discover`);
+  const helpPage = await openStandaloneHelp(
+    page,
+    page.getByRole("button", { name: "Help for this view" }),
+  );
+  await helpPage.setViewportSize({ width: 1280, height: 800 });
+
+  const rootGroups = helpPage.locator("[data-help-group]");
+  await expect(rootGroups).toHaveCount(8);
+  await expect(helpPage.locator(".help-tree-items [data-help-group]")).toHaveCount(0);
+  const walletGroup = helpPage.locator('[data-help-group="wallets"]');
+  const telemetryGroup = helpPage.locator('[data-help-group="telemetry"]');
+  await walletGroup.click();
+  await telemetryGroup.click();
+  await expect(walletGroup).toHaveAttribute("aria-expanded", "true");
+  await expect(telemetryGroup).toHaveAttribute("aria-expanded", "true");
+  await walletGroup.click();
+  await expect(walletGroup).toHaveAttribute("aria-expanded", "false");
+  await expect(telemetryGroup).toHaveAttribute("aria-expanded", "true");
+
+  const desktopTopics = helpPage.locator("#help-context-tabs [data-help-context-topic]");
+  await expect(desktopTopics).toHaveCount(6);
+  await expect(desktopTopics).toHaveText(["Discover", "Installed", "Connections", "Permissions", "Swap", "Exchange"]);
+  const desktopGeometry = await Promise.all([
+    helpPage.locator("#help-context-tabs").boundingBox(),
+    helpPage.locator("#help-document").boundingBox(),
+  ]);
+  expect(desktopGeometry[0].x + desktopGeometry[0].width).toBeLessThanOrEqual(desktopGeometry[1].x);
+
+  await helpPage.setViewportSize({ width: 390, height: 844 });
+  const mobileGeometry = await helpPage.evaluate(() => {
+    const header = document.querySelector(".help-site-header").getBoundingClientRect();
+    const tabs = document.querySelector("#help-context-tabs").getBoundingClientRect();
+    return { headerBottom: header.bottom, tabsTop: tabs.top };
+  });
+  expect(Math.abs(mobileGeometry.tabsTop - mobileGeometry.headerBottom)).toBeLessThanOrEqual(1);
   await helpPage.locator("#help-menu-button").click();
   await expect(helpPage.locator("#help-sidebar")).toHaveClass(/is-open/);
-  const closeSize = await helpPage.locator("#help-sidebar-close").boundingBox();
-  expect(closeSize.width).toBeGreaterThanOrEqual(44);
-  expect(closeSize.height).toBeGreaterThanOrEqual(44);
-  await helpPage.locator('[data-help-group="wallets"]').click();
-  await helpPage.locator('[data-help-group="network"]').click();
-  await expect(helpPage.locator('[data-help-group="wallets"]')).toHaveAttribute("aria-expanded", "true");
-  await expect(helpPage.locator('[data-help-group="network"]')).toHaveAttribute("aria-expanded", "true");
-  await helpPage.locator('[data-help-topic-link="wallet.assets"]').click();
-  await expect(helpPage.locator("#help-title")).toHaveText("Assets");
+  await expect(telemetryGroup).toHaveAttribute("aria-expanded", "true");
+  await walletGroup.click();
+  await expect(walletGroup).toHaveAttribute("aria-expanded", "true");
+  await telemetryGroup.click();
+  await expect(telemetryGroup).toHaveAttribute("aria-expanded", "false");
+  await expect(walletGroup).toHaveAttribute("aria-expanded", "true");
+  await helpPage.locator("#help-sidebar-close").click();
   await expect(helpPage.locator("#help-sidebar")).not.toHaveClass(/is-open/);
-  expect(await helpPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-});
-
-test("asset detail key and value remain one mobile row with full values accessible", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
-  await page.locator('[data-open-flow="asset-detail"]').first().click();
-
-  const rows = page.locator(".asset-detail-row");
-  await expect(rows).toHaveCount(6);
-  const geometry = await rows.evaluateAll((items) => items.map((row) => {
-    const label = row.children[0].getBoundingClientRect();
-    const value = row.children[1].getBoundingClientRect();
-    return {
-      labelCenter: Math.round(label.top + label.height / 2),
-      valueCenter: Math.round(value.top + value.height / 2)
-    };
-  }));
-  geometry.forEach(({ labelCenter, valueCenter }) => expect(Math.abs(labelCenter - valueCenter)).toBeLessThanOrEqual(2));
-  await expect(rows.nth(3).locator("strong")).toHaveAttribute("title", /.+/);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-
-  const dialogHelp = page.locator(".dialog-help-button");
-  const helpPage = await openStandaloneHelp(page, dialogHelp);
-  await expect(helpPage).toHaveURL(/topic=asset\.details/);
-  await expect(helpPage.locator("#help-title")).toHaveText("Asset details");
-  await expect(page.locator("#dialog-content")).toHaveJSProperty("inert", false);
-  await expect(page.getByRole("heading", { name: "Asset details" })).toBeVisible();
   await helpPage.close();
 });
 
-test("common Settings uses the same topbar typography as OnionNet", async ({ page }) => {
-  const readTitleType = (selector) => page.locator(selector).evaluate((node) => {
-    const style = getComputedStyle(node);
-    return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.letterSpacing];
-  });
-
-  await page.goto(`${demoUrl}?view=settings&settings=general`);
-  await expect(page.locator("#page-context")).toHaveText("Application preferences");
-  const settingsType = await readTitleType("#page-title");
-
-  await page.goto(`${demoUrl}?view=telemetry&telemetry=onionnet`);
-  const onionnetType = await readTitleType("#page-title");
-
-  expect(settingsType).toEqual(onionnetType);
-});
-
-test("target-only capabilities are disclosed", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=settings&settings=network&network=onionnet`);
-  await expect(page.getByText("Target Phase 080 simulation")).toBeVisible();
-  await expect(page.getByText(/current live network RPC is stubbed/i)).toBeVisible();
-
-  const onionnet = page.locator('#wallet-tabs [data-settings-section="onionnet"]');
-  await expect(onionnet).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".settings-network-tabs")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Carriers" })).toHaveCount(0);
-  await expect(page.locator(".settings-layout .context-rail")).toHaveCount(0);
-
-  await onionnet.click();
-  await expect(onionnet).toHaveAttribute("aria-selected", "true");
-  await expect(onionnet).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("heading", { name: "OnionNet" })).toBeVisible();
-
-  await expect(page.locator('[data-settings-section="security"], [data-settings-section="backup"], [data-settings-section="policies"], [data-settings-section="advanced"]')).toHaveCount(0);
-});
-
-test("telemetry tabs use the assigned icon LUT", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=telemetry&telemetry=reticulum`);
-
-  const reticulumIcons = {
-    overview: "#i-overview",
-    node: "#i-reticulum-node",
-    interfaces: "#i-reticulum-interface",
-    entrypoints: "#i-entry",
-    paths: "#i-reticulum-paths",
-    probes: "#i-probe",
-    links: "#i-reticulum-link"
-  };
-
-  for (const [tabId, iconId] of Object.entries(reticulumIcons)) {
-    await expect(page.locator(`#reticulum-tab-${tabId} use`)).toHaveAttribute("href", iconId);
-  }
-  await expect(page.locator("#i-reticulum-paths")).toHaveAttribute("viewBox", "0 0 24 24");
-  await expect(page.locator("#i-reticulum-paths path")).toHaveAttribute("d", "M7 5h3a4 4 0 0 1 4 4v3a4 4 0 0 0 4 4h1M7 19h2a5 5 0 0 0 5-5V9a2 2 0 0 1 2-2h1");
-
-  await page.goto(`${demoUrl}?view=telemetry&telemetry=onionnet`);
-  const onionnetIcons = {
-    overview: "#i-overview",
-    queues: "#i-queue",
-    probation: "#i-probe",
-    ingress: "#i-entry"
-  };
-  for (const [tabId, iconId] of Object.entries(onionnetIcons)) {
-    await expect(page.locator(`#onionnet-tab-${tabId} use`)).toHaveAttribute("href", iconId);
-  }
-
-  await page.goto(`${demoUrl}?view=telemetry&telemetry=aggregators`);
-  await expect(page.locator("#aggregators-tab-overview use")).toHaveAttribute("href", "#i-overview");
-
-});
-
-test("appearance palettes and YAML highlighting stay application-wide", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=settings&settings=appearance`);
-
-  await expect(page.locator(".palette-grid [data-palette]")).toHaveCount(4);
-  const paletteIds = await page.locator(".palette-grid [data-palette]").evaluateAll((cards) => cards.map((card) => card.dataset.palette));
-  expect(paletteIds).toEqual([
-    "z00z-default",
-    "black-gold-elegance",
-    "moonlit-stroll",
-    "walking-at-night"
-  ]);
-  await expect(page.locator(".code-theme-card")).toHaveCount(4);
-  await page.locator('[data-code-theme="night-owl"]').click();
-  await expect(page.locator("html")).toHaveAttribute("data-code-theme", "night-owl");
-  await page.locator('[data-palette="moonlit-stroll"]').click();
-  await expect(page.locator("html")).toHaveAttribute("data-palette", "moonlit-stroll");
-  await page.getByLabel("Text scale").selectOption("110");
-  await expect(page.locator("html")).toHaveAttribute("data-text-scale", "110");
-
-  await page.locator('[data-wallet-id="savings"]').click();
-  await page.locator('#wallet-tabs [data-view="wallet-settings"]').click();
-  await expect(page.locator(".wallet-settings-context .context-nav-item")).toHaveCount(5);
-  await expect(page.locator('[data-wallet-settings-section="advanced"] use')).toHaveAttribute("href", "#i-advanced");
-  await expect(page.getByRole("button", { name: "Appearance", exact: true })).toHaveCount(0);
-  await expect(page.locator("html")).toHaveAttribute("data-code-theme", "night-owl");
-  await page.getByRole("button", { name: /Advanced/ }).click();
-  const walletYaml = page.locator("#wallet-settings-yaml");
-  await expect(walletYaml).not.toHaveValue(/code_theme:/);
-  await walletYaml.fill("schema_version: 1\nwallet:\n  id: savings\n  chain: \"mainnet\"\n  display:\n    currency: Z00Z\n  transactions:\n    default_fee: \"0.010\"");
-  await page.getByRole("button", { name: "Apply locally" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-code-theme", "night-owl");
-  await expect(walletYaml).not.toHaveValue(/code_theme:/);
-});
-
-test("colors.css is the single source for palette, semantic, and YAML preview colours", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=settings&settings=appearance`);
-
-  const [styleEntry, componentStyles, lutSource] = await page.evaluate(async () => {
-    const [entry, foundation, components, lut] = await Promise.all([
-      fetch("styles.css").then((response) => response.text()),
-      fetch("styles/foundation.css").then((response) => response.text()),
-      fetch("styles/components.css").then((response) => response.text()),
-      fetch("styles/colors.css").then((response) => response.text())
-    ]);
-    return [entry, [foundation, components].join("\n"), lut];
-  });
-  expect(styleEntry).toMatch(/@import url\("styles\/colors\.css(?:\?v=[a-f0-9]{40})?"\)/i);
-  expect(componentStyles).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
-  expect(lutSource).toContain("--lut-z00z-dark-brand");
-  expect(lutSource).toContain("--lut-code-night-owl-keyword");
-
-  const swatchColours = await page.locator('.palette-card[data-palette="z00z-default"] .palette-swatches i').evaluateAll((swatches) => swatches.map((swatch) => getComputedStyle(swatch).backgroundColor));
-  expect(swatchColours).toHaveLength(5);
-  expect(new Set(swatchColours).size).toBe(5);
-  expect(swatchColours).not.toContain("rgba(0, 0, 0, 0)");
-
-  const themeToggle = page.locator("[data-theme-toggle]");
-  await expect(themeToggle).toHaveCount(1);
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(themeToggle).toHaveText("Dark");
-  await expect(themeToggle).toHaveAttribute("aria-label", "Switch to light mode");
-  await themeToggle.click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect(themeToggle).toHaveText("Light");
-  await expect(themeToggle).toHaveAttribute("aria-label", "Switch to dark mode");
-  await themeToggle.click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await themeToggle.click();
-  await page.locator('[data-palette="moonlit-stroll"]').click();
-  const semanticColours = await page.locator("html").evaluate((root) => {
-    const style = getComputedStyle(root);
-    return [style.getPropertyValue("--brand").trim(), style.getPropertyValue("--rail").trim(), style.getPropertyValue("--success").trim()];
-  });
-  expect(semanticColours).toEqual(["#9c6500", "#006f94", "#087a52"]);
-
-  await page.locator('.code-theme-card[data-code-theme="night-owl"]').click();
-  await expect(page.locator('.code-theme-card[data-code-theme="night-owl"] .code-theme-preview')).toHaveCSS("background-color", "rgb(1, 22, 39)");
-});
-
-test("mobile wallet accordion keeps wallet actions reachable when the drawer overflows", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(demoUrl);
-  await page.locator("#mobile-menu-button").click();
-  await page.locator('[data-mobile-menu-group="wallets"]').click();
-
-  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
-  const drawerScroller = drawer.locator(":scope > .mobile-popup-list");
-  const walletPanel = drawer.locator("#mobile-menu-wallets");
-  const walletList = walletPanel.locator(".mobile-menu-accordion-items");
-  const actions = walletPanel.locator(".mobile-wallet-actions");
-  const addWallet = actions.locator('[data-mobile-popup-action="add-wallet"]');
-  const removeWallet = actions.locator('[data-mobile-popup-action="remove-wallet"]');
-
-  await expect(walletPanel).toBeVisible();
-  await expect(addWallet).toHaveText("Add wallet");
-  await expect(removeWallet).toHaveText("Remove wallet");
-  await expect(removeWallet).toBeEnabled();
-  await expect(drawerScroller).toHaveCSS("overflow-y", "auto");
-
-  await walletList.evaluate((list) => {
-    const source = list.querySelector("[data-mobile-select-wallet]");
-    for (let index = 0; index < 12; index += 1) {
-      const clone = source.cloneNode(true);
-      clone.removeAttribute("aria-current");
-      clone.classList.remove("is-active");
-      clone.dataset.mobileSelectWallet = `overflow-${index}`;
-      clone.querySelector("span:nth-child(2)").textContent = `Overflow wallet ${index + 1}`;
-      clone.querySelector(".icon")?.remove();
-      list.append(clone);
-    }
-  });
-  await addWallet.scrollIntoViewIfNeeded();
-
-  const overflowGeometry = await drawerScroller.evaluate((list) => ({
-    clientHeight: list.clientHeight,
-    scrollHeight: list.scrollHeight,
-    scrollTop: list.scrollTop,
-  }));
-  expect(overflowGeometry.scrollHeight).toBeGreaterThan(overflowGeometry.clientHeight);
-  expect(overflowGeometry.scrollTop).toBeGreaterThan(0);
-
-  await addWallet.click();
-  await expect(page.getByRole("heading", { name: "Add wallet" })).toBeVisible();
-  await page.keyboard.press("Escape");
-
-  await page.locator("#mobile-menu-button").click();
-  await expect(page.locator('[data-mobile-menu-group="wallets"]')).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator("#mobile-menu-wallets")).toBeVisible();
-  await page.locator('[data-mobile-popup-action="remove-wallet"]').click();
-  await expect(page.getByRole("heading", { name: "Remove wallet profiles" })).toBeVisible();
-});
-
-test("responsive navigation, hover, focus, and overflow contract", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${demoUrl}?view=settings&settings=network&network=onionnet`);
-
-  const activeContext = page.locator('#wallet-tabs [data-settings-section="onionnet"].is-active');
-  await expect(activeContext).toHaveText("OnionNet");
-  const activeBox = await activeContext.boundingBox();
-  expect(activeBox.x).toBeGreaterThanOrEqual(0);
-  expect(activeBox.x + activeBox.width).toBeLessThanOrEqual(390);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-
-  await page.goto(demoUrl);
-  await expect(page.locator(".bottom-nav")).toHaveCount(0);
-  const mobileNavigationLayout = await page.evaluate(() => {
-    const box = (selector) => {
-      const bounds = document.querySelector(selector)?.getBoundingClientRect();
-      return bounds ? { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom } : null;
-    };
-    return {
-      bar: box("#primary-topbar"),
-      menu: box("#mobile-menu-button"),
-      logo: box(".mobile-nav-brand"),
-      tabs: box("#wallet-tabs"),
-      topbarDisplay: getComputedStyle(document.querySelector(".topbar")).display
-    };
-  });
-  expect(mobileNavigationLayout.topbarDisplay).toBe("flex");
-  [mobileNavigationLayout.bar, mobileNavigationLayout.menu, mobileNavigationLayout.logo, mobileNavigationLayout.tabs].forEach((box) => {
-    expect(box.left).toBeGreaterThanOrEqual(0);
-    expect(box.right).toBeLessThanOrEqual(390);
-  });
-  expect(mobileNavigationLayout.menu.right).toBeLessThanOrEqual(mobileNavigationLayout.logo.left);
-  expect(mobileNavigationLayout.logo.right).toBeLessThanOrEqual(mobileNavigationLayout.tabs.left);
-
-  await page.locator("#mobile-menu-button").click();
-  await expect(page.locator("#mobile-popup-menu")).toBeVisible();
-  const walletGroup = page.locator('[data-mobile-menu-group="wallets"]');
-  const networkGroup = page.locator('[data-mobile-menu-group="network"]');
-  const walletPanel = page.locator("#mobile-menu-wallets");
-  const networkPanel = page.locator("#mobile-menu-network");
-  const rootMenuItems = page.locator("#mobile-popup-menu > .mobile-popup-list > .mobile-popup-item, #mobile-popup-menu > .mobile-popup-list > .mobile-menu-accordion > .mobile-popup-item");
-  await expect(rootMenuItems).toHaveText(["Wallets", "Network", "Settings", "Help", "Log out"]);
-  await expect(walletGroup).toHaveAttribute("aria-expanded", "false");
-  await expect(networkGroup).toHaveAttribute("aria-expanded", "false");
-
-  await walletGroup.click();
-  await expect(walletGroup).toHaveAttribute("aria-expanded", "true");
-  await expect(walletPanel).toBeVisible();
-  await expect(page.locator("[data-mobile-select-wallet] > span:nth-child(2)")).toHaveText(["Everyday", "Savings", "Travel"]);
-  await expect(page.locator(".mobile-wallet-actions .mobile-popup-item")).toHaveText(["Add wallet", "Remove wallet"]);
-
-  await networkGroup.click();
-  await expect(networkGroup).toHaveAttribute("aria-expanded", "true");
-  await expect(walletPanel).toBeVisible();
-  await expect(networkPanel).toBeVisible();
-
-  await walletGroup.click();
-  await expect(walletGroup).toHaveAttribute("aria-expanded", "false");
-  await expect(walletPanel).toBeHidden();
-  await expect(networkGroup).toHaveAttribute("aria-expanded", "true");
-  await expect(networkPanel).toBeVisible();
-
-  await walletGroup.click();
-  await page.locator('[data-mobile-select-wallet="savings"]').click();
-  await expect(page.locator("#page-context")).toHaveText("Savings wallet");
-
-  const assetTab = page.locator('#wallet-tabs [data-mobile-popup="assets"]');
-  await assetTab.click();
-  await expect(page.locator("[data-mobile-wallet-section]")).toHaveText(["Assets", "Vouchers", "Permissions"]);
-  await page.locator('[data-mobile-wallet-section="vouchers"]').click();
-  await assetTab.click();
-  await expect(page.locator('[data-mobile-wallet-section="vouchers"]')).toHaveAttribute("aria-current", "page");
-  await page.locator('[data-mobile-wallet-section="assets"]').click();
-
-  const mobileAssetGeometry = await page.locator(".asset-row").evaluateAll((rows) => rows.slice(0, 6).map((row) => {
-    const rowBox = row.getBoundingClientRect();
-    const identityBox = row.querySelector(".asset-identity-button").getBoundingClientRect();
-    const numberBoxes = [...row.querySelectorAll(".asset-number")].map((number) => number.getBoundingClientRect());
-    return {
-      row: { left: rowBox.left, right: rowBox.right, height: rowBox.height },
-      identityBottom: identityBox.bottom,
-      numberTop: Math.min(...numberBoxes.map((box) => box.top)),
-      numbersInside: numberBoxes.every((box) => box.left >= rowBox.left && box.right <= rowBox.right),
-      numbersSeparated: numberBoxes.every((box, index) => index === 0 || numberBoxes[index - 1].right <= box.left)
-    };
-  }));
-  mobileAssetGeometry.forEach((geometry) => {
-    expect(Math.round(geometry.row.height)).toBeGreaterThanOrEqual(88);
-    expect(Math.round(geometry.row.height)).toBeLessThanOrEqual(89);
-    expect(geometry.identityBottom).toBeLessThanOrEqual(geometry.numberTop);
-    expect(geometry.numbersInside).toBe(true);
-    expect(geometry.numbersSeparated).toBe(true);
-  });
-  await expect(page.locator(".asset-number-label").first()).toBeVisible();
-
-  await page.locator("#mobile-menu-button").click();
-  await expect(networkGroup).toHaveAttribute("aria-expanded", "true");
-  await expect(networkPanel).toBeVisible();
-  await page.locator('[data-mobile-select-network="reticulum"]').click();
-  await expect(page.locator("#page-title")).toHaveText("Reticulum");
-  await page.locator("#mobile-menu-button").click();
-  await expect(walletGroup).toHaveAttribute("aria-expanded", "true");
-  await expect(walletPanel).toBeVisible();
-  await page.locator('[data-mobile-select-wallet="everyday"]').click();
-
-  await expect(page.locator("#wallet-statusbar")).toHaveCSS("position", "static");
-
-  await page.setViewportSize({ width: 320, height: 700 });
-  await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=advanced`);
-  const compactActiveContext = page.locator(".wallet-settings-context .context-nav-item.is-active");
-  await expect(compactActiveContext.locator("strong")).toHaveText("Advanced");
-  await expect(page.locator(".wallet-settings-view .context-rail")).toBeHidden();
-  const walletSettingsTab = page.locator('#wallet-tabs [data-mobile-popup="wallet-settings"]');
-  await walletSettingsTab.scrollIntoViewIfNeeded();
-  await walletSettingsTab.click();
-  await expect(page.locator('[data-mobile-wallet-settings-section="advanced"]')).toHaveAttribute("aria-current", "page");
-  const compactPopupBox = await page.locator("#mobile-popup-menu").boundingBox();
-  expect(compactPopupBox.x).toBeGreaterThanOrEqual(0);
-  expect(compactPopupBox.x + compactPopupBox.width).toBeLessThanOrEqual(320);
-  await page.keyboard.press("Escape");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-
-  await page.goto(`${demoUrl}?view=wallet`);
-  const compactFilterHeight = await page.locator(".choice-chip").first().evaluate((node) => node.getBoundingClientRect().height);
-  expect(Math.round(compactFilterHeight)).toBeGreaterThanOrEqual(44);
-  const compactNavigationBoxes = await page.locator("#primary-topbar").evaluate((navigation) => [
-    navigation.querySelector("#mobile-menu-button"),
-    navigation.querySelector(".mobile-nav-brand"),
-    navigation.querySelector("#wallet-tabs")
-  ].map((element) => {
-    const box = element.getBoundingClientRect();
-    return { left: box.left, right: box.right };
-  }));
-  compactNavigationBoxes.forEach((box, index) => {
-    expect(box.left).toBeGreaterThanOrEqual(0);
-    expect(box.right).toBeLessThanOrEqual(320);
-    if (index > 0) expect(compactNavigationBoxes[index - 1].right).toBeLessThanOrEqual(box.left);
-  });
-  const compactAssetOverlap = await page.locator(".asset-row").evaluateAll((rows) => rows.slice(0, 6).some((row) => {
-    const identity = row.querySelector(".asset-identity-button").getBoundingClientRect();
-    const numbers = [...row.querySelectorAll(".asset-number")].map((number) => number.getBoundingClientRect());
-    return numbers.some((number, index) => identity.bottom > number.top
-      || number.right > row.getBoundingClientRect().right
-      || (index > 0 && numbers[index - 1].right > number.left));
-  }));
-  expect(compactAssetOverlap).toBe(false);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-
+test("global and contextual Help reuse one named surface and preserve application state", async ({ page, context }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto(`${demoUrl}?view=settings&settings=general`);
-  const [settingsTabBox, detailBox] = await Promise.all([
-    page.locator('#wallet-tabs [data-settings-section="general"]').boundingBox(),
-    page.locator(".settings-detail").boundingBox()
-  ]);
-  expect(settingsTabBox.x).toBeGreaterThanOrEqual(detailBox.x);
-  await expect(page.locator(".settings-layout .context-rail")).toHaveCount(0);
-  await expect(page.locator('#wallet-tabs [data-settings-section="general"]')).toHaveAttribute("aria-selected", "true");
+  await page.goto(`${demoUrl}?route=wallet.send`);
+  await page.locator("#send-recipient").fill("z00z1-help-state-preserved");
+  await page.locator("#send-amount").fill("17");
 
-  const [languageBox, notificationBox] = await Promise.all([
-    page.getByLabel("Language").boundingBox(),
-    page.getByLabel("Notifications on").boundingBox()
-  ]);
-  expect(Math.abs((languageBox.x + languageBox.width) - (notificationBox.x + notificationBox.width))).toBeLessThanOrEqual(1);
+  const helpPage = await openStandaloneHelp(page, page.locator("#app-navigation-terminal [data-help-topic]"));
+  await expect(helpPage).toHaveURL(/topic=app/);
+  expect(await helpPage.evaluate(() => window.name)).toBe("z00z-help");
+  expect(context.pages()).toHaveLength(2);
 
-  const activeGlobal = page.locator('.nav-item[data-view="settings"]');
-  const [activeGlobalColor, brandStrongColor] = await activeGlobal.evaluate((node) => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--brand-strong)";
-    document.body.append(probe);
-    const result = [getComputedStyle(node).color, getComputedStyle(probe).color];
-    probe.remove();
-    return result;
+  await page.bringToFront();
+  await page.getByRole("button", { name: "Help for this view" }).click();
+  await expect(helpPage).toHaveURL(/topic=wallet\.send/);
+  expect(context.pages()).toHaveLength(2);
+  await expect(page.locator("#send-recipient")).toHaveValue("z00z1-help-state-preserved");
+  await expect(page.locator("#send-amount")).toHaveValue("17");
+
+  await helpPage.close();
+  await expect(page.locator("#send-recipient")).toHaveValue("z00z1-help-state-preserved");
+  await expect(page.locator("#send-amount")).toHaveValue("17");
+});
+
+test("context Help follows detail and review state instead of the containing route", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  await page.goto(`${demoUrl}?route=dapps.discover`);
+  await page.locator("[data-dapp-card] [data-dapp-action='open']").first().click();
+  await expect(page.locator(".context-help-button")).toHaveAttribute("data-help-topic", "dapps.detail");
+  await page.locator("[data-dapp-action='back']").click();
+  await page.goto(`${demoUrl}?route=dapps.connections`);
+  await page.locator("[data-dapp-connection] [data-dapp-action='review']").first().click();
+  await expect(page.locator(".context-help-button")).toHaveAttribute("data-help-topic", "dapps.permission-review");
+
+  await page.goto(`${demoUrl}?route=messenger.inbox`);
+  await page.locator("[data-messenger-message] [data-messenger-action='open']").first().click();
+  await expect(page.locator(".context-help-button")).toHaveAttribute("data-help-topic", "messenger.detail");
+
+  await page.goto(`${demoUrl}?route=contacts.list`);
+  await page.locator("[data-contact] [data-contact-action='open']").first().click();
+  await expect(page.locator(".context-help-button")).toHaveAttribute("data-help-topic", "contacts.detail");
+
+  await page.goto(`${demoUrl}?route=telemetry.watchers.alerts`);
+  await page.locator("[data-watcher-alert]").first().click();
+  await expect(page.locator(".context-help-button")).toHaveAttribute("data-help-topic", "telemetry.watchers.alert-detail");
+
+  await page.goto(`${demoUrl}?route=telemetry.explorer.checkpoints`);
+  await page.locator("[data-explorer-record]").first().click();
+  await expect(page.locator(".context-help-button")).toHaveAttribute("data-help-topic", "telemetry.explorer.detail");
+});
+
+test("compact route context, status, privacy, attention, and lock utilities keep the shell singular", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+
+  await expect(page.locator("#route-breadcrumb")).toContainText("Wallet");
+  await expect(page.locator("#page-context")).toContainText("Everyday");
+  const contextualHelpGap = await page.evaluate(() => {
+    const helpButton = document.querySelector(".context-help-button").getBoundingClientRect();
+    const statusbar = document.querySelector("#wallet-statusbar").getBoundingClientRect();
+    return Math.round(statusbar.top - helpButton.bottom);
   });
-  expect(activeGlobalColor).not.toBe(brandStrongColor);
+  expect(contextualHelpGap).toBe(20);
+  await expect(page.locator("#wallet-statusbar")).toContainText("Available");
+  await expect(page.locator("#wallet-tabs")).toHaveCount(0);
 
-  await page.setViewportSize({ width: 1920, height: 700 });
-  await page.goto(demoUrl);
-  const [tabBox, topbarBox] = await Promise.all([
-    page.locator("#wallet-tabs .wallet-tab").first().boundingBox(),
-    page.locator("#primary-topbar").boundingBox()
-  ]);
-  expect(tabBox.y).toBe(topbarBox.y);
-  expect(Math.abs(tabBox.height - topbarBox.height)).toBeLessThanOrEqual(1);
-  const [tabStart, addressEdge] = await Promise.all([
-    page.locator("#wallet-tabs .wallet-tab").first().evaluate((node) => node.getBoundingClientRect().left),
-    page.locator(".topbar-address-group").evaluate((node) => node.getBoundingClientRect().right)
-  ]);
-  expect(Math.abs(tabStart - addressEdge)).toBeLessThanOrEqual(1);
-  const workspaceTabStarts = [tabStart];
-  for (const route of [
-    `${demoUrl}?view=telemetry&telemetry=reticulum`,
-    `${demoUrl}?view=settings&settings=general`
+  const privacyButton = page.locator('[data-demo-action="toggle-balance"]').first();
+  await privacyButton.click();
+  await expect(privacyButton).toHaveAttribute("aria-label", "Show sensitive amounts");
+  await page.locator('[data-demo-action="notifications"]').click();
+  await expect(page.getByText("One item needs attention", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await selectCanonicalRoute(page, "wallet.settings.general");
+  await expect(page.locator(".wallet-settings-context [data-wallet-settings-section]")).toHaveCount(5);
+  await page.locator('[data-wallet-settings-section="security"]').click();
+  await page.locator('[data-demo-action="lock"]').click();
+  await expect(page.locator("#lock-screen")).toBeVisible();
+  await expect(page.locator("#lock-screen .brand")).toBeVisible();
+  await expect(page.locator("#app-shell")).toBeHidden();
+  await expect(page.locator("#unlock-password")).toBeFocused();
+  await page.locator("#unlock-password").fill("demo");
+  await page.locator("#unlock-form").evaluate((form) => form.requestSubmit());
+  await expect(page.locator("#lock-screen")).toBeHidden();
+  await expect(page.locator("#app-shell")).toBeVisible();
+});
+
+test("desktop and mobile maintain responsive geometry on canonical routes", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
   ]) {
-    await page.goto(route);
-    await expect(page.locator("#wallet-tabs .wallet-tab").first()).toBeVisible();
-    workspaceTabStarts.push(await page.locator("#wallet-tabs .wallet-tab").first().evaluate((node) => node.getBoundingClientRect().left));
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=settings.appearance`);
+    await expect(page.locator("#main-content")).toBeVisible();
+    await expectNoViewportOverflow(page);
   }
-  expect(Math.max(...workspaceTabStarts) - Math.min(...workspaceTabStarts)).toBeLessThanOrEqual(1);
-  await page.goto(demoUrl);
-  for (const width of [1280, 1024]) {
-    await page.setViewportSize({ width, height: 700 });
-    const segments = await page.evaluate(() => {
-      const box = (selector) => document.querySelector(selector).getBoundingClientRect();
-      return {
-        topbar: box("#primary-topbar"),
-        address: box(".topbar-address-group"),
-        tabs: box("#wallet-tabs"),
-        actions: box(".topbar-actions")
-      };
-    });
-    expect(segments.address.right).toBeLessThanOrEqual(segments.tabs.left);
-    expect(segments.tabs.right).toBeLessThanOrEqual(segments.actions.left);
-    expect(segments.actions.right).toBeLessThanOrEqual(segments.topbar.right);
-  }
-  await page.setViewportSize({ width: 1920, height: 700 });
-  await page.evaluate(() => window.scrollTo(0, 500));
-  await page.waitForTimeout(100);
-  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-  const [stickyTabBox, stickyTopbarBox] = await Promise.all([
-    page.locator("#wallet-tabs").boundingBox(),
-    page.locator("#primary-topbar").boundingBox()
-  ]);
-  expect(Math.abs(stickyTabBox.y - stickyTopbarBox.y)).toBeLessThanOrEqual(1);
-  const [topbarBackground, canvasBackground] = await page.locator("#primary-topbar").evaluate((topbar) => {
-    const probe = document.createElement("span");
-    probe.style.background = "var(--bg-canvas)";
-    document.body.append(probe);
-    const result = [getComputedStyle(topbar).backgroundColor, getComputedStyle(probe).backgroundColor];
-    probe.remove();
-    return result;
-  });
-  expect(topbarBackground).toBe(canvasBackground);
+});
 
-  await page.goto(`${demoUrl}?view=home`);
-  const quickAction = page.locator('.quick-action[data-view="wallet-send"]');
-  const before = await quickAction.evaluate((node) => getComputedStyle(node).backgroundColor);
-  await quickAction.hover();
-  await page.waitForTimeout(220);
-  const after = await quickAction.evaluate((node) => getComputedStyle(node).backgroundColor);
-  expect(after).not.toBe(before);
+test("active-route mounting and workspace failures stay isolated from the branded shell", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800, mobile: false },
+    { width: 320, height: 800, mobile: true },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=telemetry.watchers.overview&workspaceFailure=telemetry.watchers.overview`);
+
+    await expect(page.locator("#main-content")).toHaveAttribute("data-mounted-route", "telemetry.watchers.overview");
+    await expect(page.locator('.workspace-error-boundary[data-workspace-error="telemetry.watchers.overview"]')).toBeVisible();
+    await expect(page.locator(viewport.mobile ? ".mobile-nav-brand img" : ".desktop-topbar-brand img")).toBeVisible();
+    await expect(page.locator("#app-shell")).toBeVisible();
+
+    if (viewport.mobile) await page.locator("#mobile-menu-button").click();
+    await selectCanonicalRoute(page, "wallet.send", { mobile: viewport.mobile });
+    await expect(page.locator("#main-content")).toHaveAttribute("data-mounted-route", "wallet.send");
+    await expect(page.locator(".workspace-error-boundary")).toHaveCount(0);
+    await expect(page.locator("#page-title")).toHaveText("Send");
+
+    await page.goto(`${demoUrl}?route=telemetry.watchers.overview&workspaceFailure=telemetry.watchers.overview`);
+    await page.locator('[data-demo-action="retry-workspace"]').click();
+    await expect(page).not.toHaveURL(/workspaceFailure=/);
+    await expect(page.locator('[data-workspace-id="telemetry.watchers"]')).toBeVisible();
+    await expect(page.locator("#main-content")).toHaveAttribute("data-mounted-route", "telemetry.watchers.overview");
+  }
+});
+
+test("navigation and workspace-local destinations expose screen-reader state without nested accordions", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=telemetry.reticulum.node`);
+
+  const rootBranches = page.locator("#app-navigation-tree > .navigation-tree-branch > [data-navigation-branch]");
+  await expect(rootBranches).toHaveCount(5);
+  for (const branch of await rootBranches.all()) {
+    await expect(branch).toHaveAttribute("aria-expanded", /true|false/);
+    const controls = await branch.getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    await expect(page.locator(`#${controls}`)).toHaveCount(1);
+  }
+  await expect(page.locator("#app-navigation-tree .navigation-tree-children [data-navigation-branch]")).toHaveCount(0);
+  await expect(page.locator('[data-navigation-workspace="telemetry.reticulum"]')).toHaveAttribute("aria-current", "page");
+
+  const localNavigation = page.locator('[data-workspace-id="telemetry.reticulum"] .workspace-local-context');
+  await expect(localNavigation).toHaveAttribute("aria-label", "Reticulum");
+  await expect(localNavigation.locator('[data-workspace-route="telemetry.reticulum.node"]')).toHaveAttribute("aria-current", "page");
+  await expect(localNavigation.locator("[aria-current='page']")).toHaveCount(1);
 
   await page.keyboard.press("Tab");
-  const focusOutline = await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
-  expect(focusOutline).not.toBe("none");
+  await expect(page.locator(":focus")).toBeVisible();
 });
 
-test("language catalogues stay complete and relocalize the shell without changing wallet data", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=settings&settings=general`);
-
-  const reports = await page.evaluate(() => window.Z00ZI18n.auditCatalogues());
-  expect(reports).toHaveLength(10);
-  expect(reports.every((report) => report.ready)).toBe(true);
-  expect(reports.map((report) => report.language)).toEqual(["en", "ru", "fr", "de", "es", "pt", "ko", "tr", "ja", "zh-Hans"]);
-
-  const languageControl = page.locator('[data-config-control="language"]');
-  await expect(languageControl.locator("option")).toHaveText(["English", "Русский", "Français", "Deutsch", "Español", "Português", "한국어", "Türkçe", "日本語", "简体中文"]);
-  for (const [language, title] of [["pt", "Definições"], ["ko", "설정"], ["tr", "Ayarlar"]]) {
-    await languageControl.selectOption(language);
-    await expect(page.locator("html")).toHaveAttribute("lang", language);
-    await expect(page.locator("#page-title")).toHaveText(title);
-  }
-
-  await languageControl.selectOption("ru");
-  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
-  await expect(page.getByLabel("Язык")).toBeVisible();
-  await expect(page.locator("#page-title")).toHaveText("Настройки");
-  await expect(page.locator("#page-context")).toHaveText("Настройки приложения");
-  await expect(page.locator(".sidebar-label").first()).toHaveText("Кошельки");
-  await expect(page.locator('[data-wallet-id="everyday"] strong')).toHaveText("Everyday");
-  await expect(page.locator('[data-wallet-id="savings"] strong')).toHaveText("Savings");
-  await expect(page.locator('[data-wallet-id="travel"] strong')).toHaveText("Travel");
-  await expect(page.locator('[data-wallet-id="everyday"] small')).toContainText("доступно");
-
-  await languageControl.selectOption("ja");
-  await expect(page.locator("html")).toHaveAttribute("lang", "ja");
-  await expect(page.getByLabel("言語")).toBeVisible();
-  await expect(page.locator("#page-title")).toHaveText("設定");
-  await expect(page.locator('[data-wallet-id="everyday"] strong')).toHaveText("Everyday");
-  await expect(page.locator('[data-wallet-id="savings"] strong')).toHaveText("Savings");
-  await expect(page.locator('[data-wallet-id="travel"] strong')).toHaveText("Travel");
-  await expect(page.locator('[data-wallet-id="everyday"] small')).toContainText("利用可能");
-  await expect(page.locator("#network-nav")).toContainText("OnionNet");
-  await expect(page.locator("#network-nav")).toContainText("Reticulum");
-
-  await languageControl.selectOption("zh-Hans");
-  await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hans");
-  await expect(page.getByLabel("语言")).toBeVisible();
-  await page.locator('[data-wallet-id="everyday"]').click();
-  await page.locator('#wallet-tabs [data-view="activity"]').click();
-  await expect(page.locator("#main-content")).toContainText("向 Mira 付款");
-  await expect(page.locator("#main-content")).toContainText("7月21日");
-  await expect(page.locator("#main-content")).not.toContainText("Everything that changed");
-  await expect(page.locator("#main-content")).not.toContainText("21 Jul");
-  await page.locator('[data-open-activity="tx-7f31"]').click();
-  await expect(page.getByText("历史详情")).toBeVisible();
-  await expect(page.getByRole("button", { name: "复制收据" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "关闭" })).toBeVisible();
-  await page.getByRole("button", { name: "关闭" }).click();
-  await page.locator('#wallet-tabs [data-view="staking"]').click();
-  await expect(page.locator("#main-content")).toContainText("准备质押");
-
-  await page.locator('[data-wallet-id="everyday"]').click();
-  await expect(page.locator(".context-rail-label")).toHaveCount(0);
-  await expect(page.locator("#main-content .page-intro")).toHaveCount(0);
-  await expect(page.locator("#main-content .money-summary")).toHaveCount(0);
-  await expect(page.locator("#main-content")).toContainText("全部");
-  await expect(page.locator("#main-content")).toContainText("名称余额价值价格");
-  await expect(page.locator("#main-content")).not.toContainText(/\[assets\./);
-  await expect(page.locator("#main-content")).toContainText("Z00Z");
-  await expect(page.locator("#main-content")).not.toContainText("Acme Credits");
-
-  const localized = await page.evaluate(() => ({
-    russianNumber: window.Z00ZI18n.formatNumber(12480.75, "ru", "ru-RU", { minimumFractionDigits: 2 }),
-    japaneseRate: window.Z00ZI18n.formatBitrate(12500, "ja", "ja-JP")
-  }));
-  expect(localized.russianNumber).toContain(",75");
-  expect(localized.japaneseRate).toContain("kbit/s");
-});
-
-test("settings tabs share the standard single-topbar tab treatment", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet`);
-  const assetTabStyle = await page.locator('#wallet-tabs [data-view="wallet"]').evaluate((element) => {
-    const style = getComputedStyle(element);
-    return [style.fontFamily, style.fontSize, style.minHeight];
-  });
-
-  await page.goto(`${demoUrl}?view=settings&settings=general`);
-  const settingsTab = page.locator('#settings-tab-general');
-  const [settingsTabStyle, tabBarJustification, tabsParent] = await Promise.all([
-    settingsTab.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return [style.fontFamily, style.fontSize, style.minHeight];
-    }),
-    page.locator("#wallet-tabs").evaluate((element) => getComputedStyle(element).justifyContent),
-    page.locator("#wallet-tabs").evaluate((element) => element.parentElement.id)
+test("mobile navigation meets touch-target, safe-area, reduced-motion, and software-keyboard contracts", async ({ page }) => {
+  const [components, helpStyles] = await Promise.all([
+    readFile(path.join(demoDir, "styles/components.css"), "utf8"),
+    readFile(path.join(demoDir, "styles/help.css"), "utf8"),
   ]);
-
-  expect(settingsTabStyle).toEqual(assetTabStyle);
-  expect(tabBarJustification).toBe("flex-start");
-  expect(tabsParent).toBe("primary-topbar");
-  expect(
-    await page.locator("#wallet-tabs [data-settings-section]").evaluateAll((tabs) =>
-      tabs.map((tab) => tab.dataset.settingsSection)
-    )
-  ).toEqual(["general", "reticulum", "onionnet", "appearance"]);
-});
-
-test("all app settings sections share one centered compact card", async ({ page }) => {
-  const sections = ["general", "reticulum", "onionnet", "appearance"];
-  const desktopWidths = [];
-
-  await page.setViewportSize({ width: 1280, height: 800 });
-  for (const section of sections) {
-    await page.goto(`${demoUrl}?view=settings&settings=${section}`);
-    const geometry = await page.locator(".settings-layout--full").evaluate((card) => {
-      const cardBox = card.getBoundingClientRect();
-      const mainBox = document.querySelector("#main-content").getBoundingClientRect();
-      return {
-        width: cardBox.width,
-        centerOffset: Math.abs(
-          (cardBox.left + cardBox.width / 2) - (mainBox.left + mainBox.width / 2)
-        )
-      };
-    });
-    desktopWidths.push(Math.round(geometry.width));
-    expect(geometry.width).toBeLessThanOrEqual(640.5);
-    expect(geometry.centerOffset).toBeLessThanOrEqual(1);
-  }
-  expect(new Set(desktopWidths).size).toBe(1);
+  expect(components).toContain("env(safe-area-inset-top)");
+  expect(components).toContain("env(safe-area-inset-bottom)");
+  expect(helpStyles).toContain("env(safe-area-inset-top)");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const section of sections) {
-    await page.goto(`${demoUrl}?view=settings&settings=${section}`);
-    const geometry = await page.locator(".settings-layout--full").evaluate((card) => {
-      const cardBox = card.getBoundingClientRect();
-      const mainBox = document.querySelector("#main-content").getBoundingClientRect();
-      return {
-        width: cardBox.width,
-        mainWidth: mainBox.width,
-        centerOffset: Math.abs(
-          (cardBox.left + cardBox.width / 2) - (mainBox.left + mainBox.width / 2)
-        )
-      };
+  await page.goto(`${demoUrl}?route=wallet.assets`);
+  await page.locator("#mobile-menu-button").click();
+  const targets = page.locator(
+    '#mobile-popup-menu button:visible, #mobile-popup-menu [data-navigation-route]:visible, #mobile-popup-menu [data-navigation-workspace]:visible',
+  );
+  expect(await targets.count()).toBeGreaterThan(10);
+  const undersized = await targets.evaluateAll((nodes) => nodes
+    .map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { label: node.textContent.trim(), width: rect.width, height: rect.height };
+    })
+    .filter(({ width, height }) => width < 44 || height < 44));
+  expect(undersized).toEqual([]);
+  await page.keyboard.press("Escape");
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.locator("#mobile-menu-button").click();
+  const motion = await page.locator("#mobile-popup-menu").evaluate((node) => {
+    const style = getComputedStyle(node);
+    const seconds = (value) => value.split(",").map((part) => {
+      const duration = part.trim();
+      return duration.endsWith("ms") ? Number.parseFloat(duration) / 1000 : Number.parseFloat(duration);
     });
-    expect(geometry.width).toBeLessThanOrEqual(geometry.mainWidth);
-    expect(geometry.centerOffset).toBeLessThanOrEqual(1);
-  }
+    return {
+      animations: seconds(style.animationDuration),
+      transitions: seconds(style.transitionDuration),
+    };
+  });
+  expect(Math.max(...motion.animations, ...motion.transitions)).toBeLessThanOrEqual(0.00002);
+  await page.keyboard.press("Escape");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=wallet.send`);
+  await page.locator("#send-recipient").focus();
+  await page.setViewportSize({ width: 390, height: 420 });
+  await page.locator("#send-recipient").scrollIntoViewIfNeeded();
+  const activeInput = await page.locator("#send-recipient").boundingBox();
+  expect(activeInput.y).toBeGreaterThanOrEqual(0);
+  expect(activeInput.y + activeInput.height).toBeLessThanOrEqual(420);
+  await expectNoViewportOverflow(page);
 });
 
-test("all wallet settings sections share the Assets rail gap and one compact card width", async ({ page }) => {
-  const sections = ["general", "security", "backup", "policies", "advanced"];
-  const desktopWidths = [];
-
-  await page.setViewportSize({ width: 1280, height: 800 });
-  for (const section of sections) {
-    await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=${section}`);
-    const geometry = await page.locator(".wallet-settings-view .settings-layout").evaluate((layout) => {
-      const layoutBox = layout.getBoundingClientRect();
-      const railBox = layout.querySelector(".context-rail").getBoundingClientRect();
-      const cardBox = layout.querySelector(".settings-detail").getBoundingClientRect();
-      const gap = Number.parseFloat(getComputedStyle(layout).columnGap);
-      return {
-        width: cardBox.width,
-        expectedGap: gap,
-        actualGap: cardBox.left - railBox.right,
-        contained: cardBox.right <= layoutBox.right
-      };
-    });
-    desktopWidths.push(Math.round(geometry.width));
-    expect(geometry.width).toBeLessThanOrEqual(520.5);
-    expect(Math.abs(geometry.actualGap - geometry.expectedGap)).toBeLessThanOrEqual(1);
-    expect(geometry.contained).toBe(true);
-    const labelsFit = await page.locator(".wallet-settings-view .compact-row-label").evaluateAll(
-      (labels) => labels.every((label) => label.scrollWidth <= label.clientWidth + 1)
-    );
-    expect(labelsFit).toBe(true);
-  }
-  expect(new Set(desktopWidths).size).toBe(1);
-
-  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 800 }]) {
-    await page.setViewportSize(viewport);
-    for (const section of sections) {
-      await page.goto(`${demoUrl}?view=wallet-settings&walletSettings=${section}`);
-      const geometry = await page.locator(".wallet-settings-view .settings-layout").evaluate((layout) => {
-        const layoutBox = layout.getBoundingClientRect();
-        const cardBox = layout.querySelector(".settings-detail").getBoundingClientRect();
-        return {
-          width: cardBox.width,
-          layoutWidth: layoutBox.width,
-          centerOffset: Math.abs(
-            (cardBox.left + cardBox.width / 2) - (layoutBox.left + layoutBox.width / 2)
-          )
-        };
+test("200 percent text zoom preserves canonical routes at desktop and constrained mobile widths", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    for (const routeId of [
+      "wallet.assets",
+      "wallet.send",
+      "telemetry.reticulum.node",
+      "telemetry.watchers.alerts",
+      "dapps.connections",
+      "messenger.inbox",
+      "contacts.list",
+      "settings.appearance",
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`${demoUrl}?route=${routeId}`);
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "200%";
       });
-      expect(geometry.width).toBeLessThanOrEqual(geometry.layoutWidth);
-      expect(geometry.centerOffset).toBeLessThanOrEqual(1);
-      const truncatedLabels = await page.locator(".wallet-settings-view .compact-row-label").evaluateAll(
-        (labels) => labels
-          .filter((label) => label.scrollWidth > label.clientWidth + 1)
-          .map((label) => ({
-            text: label.textContent.trim(),
-            width: label.clientWidth,
-            requiredWidth: label.scrollWidth
-          }))
-      );
-      expect(truncatedLabels, `${viewport.width}px ${section} labels must not truncate`).toEqual([]);
+      await expect(page.locator(viewport.width <= 767 ? ".mobile-nav-brand img" : ".desktop-topbar-brand img")).toBeVisible();
+      await expectNoViewportOverflow(page, `${routeId} at ${viewport.width}px and 200% text zoom`);
     }
   }
 });
 
-test("appearance starts without a redundant horizontal divider", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=settings&settings=appearance`);
-  const firstGroupStyle = await page.locator(".settings-detail > .setting-group").evaluate((group) => {
-    const style = getComputedStyle(group);
-    return {
-      borderTopWidth: style.borderTopWidth,
-      marginTop: style.marginTop,
-      paddingTop: style.paddingTop
-    };
+test("packaged Help invokes one bounded command without wallet or draft data", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "__TAURI__", {
+      configurable: true,
+      value: {
+        core: {
+          invoke(command, payload) {
+            window.__z00zCapturedNativeHelp = { command, payload };
+            return Promise.resolve();
+          },
+        },
+      },
+    });
   });
-  expect(firstGroupStyle).toEqual({
-    borderTopWidth: "0px",
-    marginTop: "0px",
-    paddingTop: "0px"
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=wallet.send&palette=z00z-corporate`);
+  await page.locator("#send-recipient").fill("receiver_secret_never_forward");
+  await page.locator("#send-amount").fill("314.159");
+  await page.getByRole("button", { name: "Help for this view" }).click();
+
+  const captured = await page.evaluate(() => window.__z00zCapturedNativeHelp);
+  expect(captured.command).toBe("open_or_focus_help");
+  expect(Object.keys(captured.payload)).toEqual(["request"]);
+  expect(Object.keys(captured.payload.request).sort()).toEqual(["locale", "palette", "section", "topicId"]);
+  expect(captured.payload.request).toEqual({
+    topicId: "wallet.send",
+    locale: "en",
+    palette: "z00z-corporate",
+    section: "current-view",
   });
+  expect(JSON.stringify(captured)).not.toContain("receiver_secret_never_forward");
+  expect(JSON.stringify(captured)).not.toContain("314.159");
 });
 
-test("wallet sections omit redundant introductory headers", async ({ page }) => {
-  await page.goto(`${demoUrl}?view=wallet`);
+test("768px narrow tablet uses the drawer and keeps its branded header while the tree scrolls", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  for (const palette of ["z00z-default", "z00z-corporate"]) {
+    await page.goto(`${demoUrl}?route=messenger.sent&palette=${palette}`);
+    await expect(page.locator(".mobile-nav-brand img")).toBeVisible();
+    await expect(page.locator(".desktop-topbar-brand")).not.toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-palette", palette);
+    await expectNoViewportOverflow(page, `Messenger Sent at 768px in ${palette}`);
 
-  await page.locator('[data-wallet-section="vouchers"]').click();
-  await expect(page.locator("#main-content .page-intro")).toHaveCount(0);
-  await page.locator('[data-wallet-section="permissions"]').click();
-  await expect(page.locator("#main-content .page-intro")).toHaveCount(0);
-
-  for (const view of ["activity", "swap", "staking", "wallet-backup"]) {
-    await page.locator(`#wallet-tabs [data-view="${view}"]`).click();
-    await expect(page.locator("#main-content .page-intro")).toHaveCount(0);
+    await page.goto(`${demoUrl}?route=telemetry.reticulum.node&palette=${palette}`);
+    const localRail = page.locator('[data-workspace-id="telemetry.reticulum"] > .context-rail');
+    await expect(localRail).toBeVisible();
+    const railGeometry = await localRail.evaluate((node) => ({
+      clientWidth: node.clientWidth,
+      scrollWidth: node.scrollWidth,
+      position: getComputedStyle(node).position,
+    }));
+    expect(railGeometry.position).toBe("sticky");
+    expect(railGeometry.scrollWidth).toBeGreaterThan(railGeometry.clientWidth);
+    await expectNoViewportOverflow(page, `Reticulum local tabs at 768px in ${palette}`);
   }
+
+  await page.locator("#mobile-menu-button").click();
+  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+  const drawerHeader = drawer.locator(".mobile-drawer-header");
+  const scrollRegion = drawer.locator(".mobile-navigation-scroll-region");
+  await scrollRegion.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  await expect(drawerHeader).toBeVisible();
+  const positions = await Promise.all([
+    page.locator(".topbar").boundingBox(),
+    drawerHeader.boundingBox(),
+  ]);
+  expect(Math.abs(positions[0].y + positions[0].height - positions[1].y)).toBeLessThanOrEqual(1);
+  await expect(drawer.getByRole("button", { name: "Close" })).toBeVisible();
 });

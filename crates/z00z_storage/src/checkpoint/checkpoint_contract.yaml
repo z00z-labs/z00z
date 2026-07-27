@@ -6,10 +6,10 @@ runtime_profile:
   generation: 2
   manifest_digest: c58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b
 version_authority:
-  registry_digest: 7e9508738815c670955724144f72d2acee6066f2b88a2f2fb1de55f2cf72fb9b
+  registry_digest: 3f463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0
   authority_generation: 2
-  parameter_generation: 2
-  config_generation: 1
+  parameter_generation: 3
+  config_generation: 3
   activation_height: 0
   rollback_floor: 1
 statement:
@@ -71,7 +71,7 @@ branches:
     proof_body_retention: nova_retention_state_v2
   plonky3_epoch:
     is_enabled: true
-    cadence_blocks: 1000
+    cadence_blocks: 2000
     is_authoritative: false
     has_pq_epoch_evidence: true
     mode: pq_epoch_evidence_async
@@ -202,7 +202,7 @@ archive_retention:
   - retention_ticket_root
 post_quantum:
   is_enabled: true
-  cadence_blocks: 1000
+  cadence_blocks: 2000
   mode: plonky3_epoch_evidence_async
   enforcement_stage: pq_anchor_writer
   is_live_cadence_enforced: false
@@ -220,7 +220,7 @@ post_quantum:
   - epoch_evidence_commitment
 snapshots:
   is_enabled: true
-  cadence_epochs: 10
+  cadence_epochs: 5
   cadence_blocks: 10000
   object_type: state_snapshot_v1
   is_snapshot_bootstrap_allowed: true
@@ -301,14 +301,15 @@ limits:
   max_batch_ops: 1000
   max_batch_bytes: 8388608
   max_witness_bytes: 67108864
-  max_recursive_proof_envelope_bytes: 17825792
+  max_recursive_proof_envelope_bytes: 16777216
   max_recursive_sidecar_bytes: 25165824
   max_nova_block_proof_bytes: 131072
   max_nova_retained_proof_bodies: 16
   max_nova_retained_body_bytes: 2097152
   max_nova_hot_recovery_bytes: 1698758656
   max_epoch_nova_archive_bytes: 134217728
-  max_plonky3_epoch_proof_bytes: 16777216
+  target_plonky3_epoch_proof_bytes: 2097152
+  max_plonky3_epoch_proof_bytes: 4194304
   max_plonky3_epoch_sidecar_bytes: 25165824
   max_pq_anchor_bytes: 4096
   max_archive_manifest_bytes: 8388608

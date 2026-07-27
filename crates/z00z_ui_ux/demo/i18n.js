@@ -5,9 +5,9 @@
   const catalogues = new Map();
   const localeRegistry = window.Z00ZLocaleRegistry;
   if (!localeRegistry?.length) throw new Error("Z00Z locale registry must load before i18n.");
-  const languageMeta = new Map(localeRegistry.map(({ id, locale, nativeName, direction }) => [
+  const languageMeta = new Map(localeRegistry.map(({ id, locale, nativeName, flag, direction }) => [
     id,
-    Object.freeze({ locale, nativeName, direction })
+    Object.freeze({ locale, nativeName, flag, direction })
   ]));
 
   const pluralForms = new Set(["zero", "one", "two", "few", "many", "other"]);

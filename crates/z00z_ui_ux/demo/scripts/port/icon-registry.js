@@ -4,10 +4,11 @@
   const ICON_NAMES = Object.freeze([
     "home", "menu", "wallet", "assets", "spark", "activity", "swap", "exchange", "staking",
     "settings", "advanced", "send", "receive", "coin", "token", "nft", "voucher",
-    "right", "claim", "permission", "eye", "eye-off", "lock", "shield", "bell", "user", "question",
+    "right", "claim", "permission", "eye", "eye-off", "lock", "shield", "bell", "user", "message", "question",
     "chevron", "copy", "check", "close", "moon", "sun", "more", "alert", "search",
     "backup", "restore", "network", "overview", "reticulum-node", "reticulum-interface", "entry",
-    "reticulum-paths", "queue", "probe", "reticulum-link", "plus", "logout", "remove"
+    "reticulum-paths", "queue", "probe", "reticulum-link", "plus", "logout", "remove",
+    "storage", "info"
   ]);
 
   const OBJECT_FAMILY_ICON_LUT = Object.freeze({

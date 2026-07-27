@@ -35,7 +35,8 @@ use super::{
     recursive_measurement::NovaCadenceManifestV2,
     version_registry::{
         CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, RegistryOperationV2,
-        CHECKPOINT_VERSION_REGISTRY_DIGEST_V2, RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
+        CHECKPOINT_VERSION_REGISTRY_DIGEST_V2, PLONKY3_PUBLISH_BYTES_V2, PLONKY3_TARGET_BYTES_V2,
+        RECURSIVE_INGRESS_BYTES_V2, RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
         RECURSIVE_PARAMETER_GENERATION_V2, RECURSIVE_PROFILE_MANIFEST_DIGEST_V2,
         RECURSIVE_RUNTIME_PROFILE_GENERATION_V2, RECURSIVE_RUNTIME_PROFILE_V2,
     },
@@ -67,8 +68,8 @@ const EMBEDDED_RELEASE_IDENTITY_V3: &str = "phase-069-07";
 // review tool. Production recomputes that tuple and compares it to this literal;
 // it never accepts a candidate's recomputation as its own authorization.
 const EMBEDDED_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-    0x4a, 0x5b, 0x0f, 0x1b, 0x4c, 0xd3, 0xf2, 0x86, 0x1b, 0x00, 0x52, 0xd9, 0x9f, 0x80, 0x74, 0xe1,
-    0x14, 0xdc, 0x1a, 0xe5, 0x5b, 0xd2, 0xf7, 0xf3, 0xd9, 0xb8, 0xda, 0x95, 0x39, 0x5c, 0x4b, 0x53,
+    0xb9, 0x04, 0x5f, 0x28, 0x26, 0x17, 0xb4, 0x15, 0x35, 0x31, 0x92, 0x27, 0x60, 0x94, 0x0f, 0x2e,
+    0x3c, 0xc3, 0x9f, 0x39, 0xc7, 0x79, 0x7b, 0x61, 0x47, 0xb9, 0xa9, 0xf4, 0xbf, 0x39, 0xe9, 0xd8,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -469,6 +470,7 @@ pub struct CheckpointContractLimitsV3 {
     pub max_nova_retained_body_bytes: usize,
     pub max_nova_hot_recovery_bytes: usize,
     pub max_epoch_nova_archive_bytes: usize,
+    pub target_plonky3_epoch_proof_bytes: usize,
     pub max_plonky3_epoch_proof_bytes: usize,
     pub max_plonky3_epoch_sidecar_bytes: usize,
     pub max_pq_anchor_bytes: usize,
@@ -578,6 +580,11 @@ impl CheckpointContractConfigV3 {
         let registry = CheckpointVersionRegistryV2::authority_pinned()?;
         let nova_cadence = NovaCadenceManifestV2::authority_pinned();
         nova_cadence.validate()?;
+        let snapshot_cadence_blocks = self
+            .post_quantum
+            .cadence_blocks
+            .checked_mul(self.snapshots.cadence_epochs)
+            .ok_or(CheckpointError::Overflow)?;
         if self.version_authority.registry_digest
             != hex_digest(CHECKPOINT_VERSION_REGISTRY_DIGEST_V2)
             || self.version_authority.registry_digest != hex_digest(registry.digest())
@@ -592,6 +599,9 @@ impl CheckpointContractConfigV3 {
                 != nova_cadence.compression_cadence_blocks()
             || self.branches.nova.publication_cadence_blocks
                 != nova_cadence.publication_cadence_blocks()
+            || self.branches.plonky3_epoch.cadence_blocks == 0
+            || self.branches.plonky3_epoch.cadence_blocks != self.post_quantum.cadence_blocks
+            || self.snapshots.cadence_blocks != snapshot_cadence_blocks
             || self.limits.max_nova_hot_recovery_bytes
                 != usize::try_from(nova_cadence.max_hot_recovery_bytes())
                     .map_err(|_| CheckpointError::Limit)?
@@ -632,6 +642,11 @@ impl CheckpointContractConfigV3 {
             || self.archive_retention.erasure_coding_profile != "rs_10_16_v1"
             || self.archive_retention.reconstruction_threshold != 10
             || self.archive_retention.total_shards != 16
+            || self.limits.max_recursive_proof_envelope_bytes != RECURSIVE_INGRESS_BYTES_V2
+            || self.limits.target_plonky3_epoch_proof_bytes != PLONKY3_TARGET_BYTES_V2
+            || self.limits.max_plonky3_epoch_proof_bytes != PLONKY3_PUBLISH_BYTES_V2
+            || self.limits.target_plonky3_epoch_proof_bytes
+                > self.limits.max_plonky3_epoch_proof_bytes
             || self.limits.max_pq_anchor_bytes != 4_096
             || self.pruning.stage != "declared_only"
         {
@@ -2328,9 +2343,9 @@ mod tests {
     use super::*;
 
     const TEST_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-        0x6e, 0x7a, 0x5a, 0xbf, 0xb5, 0xa2, 0x3a, 0xd0, 0xe1, 0x5a, 0xda, 0xde, 0xb7, 0xaa, 0x1b,
-        0xb3, 0x91, 0x19, 0x8f, 0x0c, 0xba, 0x23, 0x87, 0xcc, 0x6a, 0x70, 0x01, 0x02, 0x40, 0xf0,
-        0x30, 0x75,
+        0x51, 0xe1, 0x6c, 0xc0, 0xe7, 0xdf, 0xa8, 0xdc, 0x8e, 0x4d, 0x72, 0xd7, 0xe9, 0xb0, 0x45,
+        0x2e, 0x8c, 0xac, 0x0a, 0x5a, 0x3f, 0xb1, 0x9d, 0xb4, 0x59, 0x38, 0x84, 0x33, 0x45, 0x12,
+        0x07, 0xfa,
     ];
 
     fn migration_source_v2() -> (CheckpointContractConfigV2, Vec<u8>) {

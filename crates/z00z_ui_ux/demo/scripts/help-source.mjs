@@ -2,11 +2,12 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import vm from "node:vm";
 
-const TOPIC_KEYS = new Set(["id", "group", "file", "scope", "match"]);
+const REQUIRED_TOPIC_KEYS = Object.freeze(["id", "group", "file", "scope", "match"]);
+const TOPIC_KEYS = new Set([...REQUIRED_TOPIC_KEYS, "source"]);
 const FRONT_MATTER_KEYS = new Set(["id", "title", "summary", "scope"]);
 const SAFE_ID = /^[a-z0-9][a-z0-9.-]*$/;
-const SAFE_FILE = /^[a-z0-9][a-z0-9-]*$/;
-const SAFE_GROUPS = new Set(["app", "network", "settings", "wallets"]);
+const SAFE_FILE = /^(?:[a-z0-9][a-z0-9-]*\/)*[a-z0-9][a-z0-9-]*$/;
+const SAFE_GROUPS = new Set(["app", "wallets", "telemetry", "dapps", "messenger", "contacts", "data-storage", "settings"]);
 const SAFE_TARGET = /^[a-z][a-z0-9-]*$/;
 const SAFE_LOCALE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
@@ -51,17 +52,20 @@ export function parseTopicLut(source, sourceName = "topics.yaml") {
   const ids = new Set();
   const files = new Set();
   for (const topic of topics) {
-    for (const key of TOPIC_KEYS) {
+    for (const key of REQUIRED_TOPIC_KEYS) {
       if (!topic[key]) throw new Error(`${sourceName}: topic is missing ${key}`);
     }
+    topic.source ||= "group";
     if (!SAFE_ID.test(topic.id)) throw new Error(`${sourceName}: unsafe topic id ${topic.id}`);
     if (!SAFE_GROUPS.has(topic.group)) throw new Error(`${sourceName}: invalid topic group ${topic.group}`);
     if (!SAFE_FILE.test(topic.file)) throw new Error(`${sourceName}: unsafe topic file ${topic.file}`);
-    if (!["global", "context", "dialog"].includes(topic.scope)) throw new Error(`${sourceName}: invalid scope ${topic.scope}`);
+    if (!["group", "root"].includes(topic.source)) throw new Error(`${sourceName}: invalid topic source ${topic.source}`);
+    if (!["global", "context", "dialog", "article"].includes(topic.scope)) throw new Error(`${sourceName}: invalid scope ${topic.scope}`);
     if (ids.has(topic.id)) throw new Error(`${sourceName}: duplicate id ${topic.id}`);
-    if (files.has(topic.file)) throw new Error(`${sourceName}: duplicate file ${topic.file}`);
+    const documentPath = topic.source === "root" ? topic.file : `${topic.group}/${topic.file}`;
+    if (files.has(documentPath)) throw new Error(`${sourceName}: duplicate file ${documentPath}`);
     ids.add(topic.id);
-    files.add(topic.file);
+    files.add(documentPath);
     topic.match = topic.match === "global"
       ? Object.freeze({ global: "true" })
       : Object.freeze(Object.fromEntries(topic.match.split(";").map((entry) => {
@@ -99,7 +103,7 @@ export function parseHelpMarkdown(source, sourceName = "help.md") {
   const lines = source.replaceAll("\r\n", "\n").split("\n");
   const { meta, bodyStart } = parseFrontMatter(lines, sourceName);
   if (!SAFE_ID.test(meta.id)) throw new Error(`${sourceName}: unsafe id ${meta.id}`);
-  if (!["global", "context", "dialog"].includes(meta.scope)) throw new Error(`${sourceName}: invalid scope ${meta.scope}`);
+  if (!["global", "context", "dialog", "article"].includes(meta.scope)) throw new Error(`${sourceName}: invalid scope ${meta.scope}`);
 
   const sections = [];
   let current = null;
@@ -147,10 +151,22 @@ export async function loadHelpSource(root) {
 
 export function helpDocumentPath(root, locale, topic) {
   if (!SAFE_LOCALE.test(locale)) throw new Error(`Unsafe Help locale ${locale}`);
-  if (!topic || !SAFE_GROUPS.has(topic.group) || !SAFE_FILE.test(topic.file)) {
+  if (
+    !topic
+    || !SAFE_GROUPS.has(topic.group)
+    || !SAFE_FILE.test(topic.file)
+    || !["group", "root"].includes(topic.source || "group")
+  ) {
     throw new Error("Invalid Help topic path.");
   }
-  return resolve(root, "help", locale, topic.group, `${topic.file}.md`);
+  return resolve(root, "help", locale, helpDocumentRelativePath(topic));
+}
+
+export function helpDocumentRelativePath(topic) {
+  const source = topic.source || "group";
+  return source === "root"
+    ? `${topic.file}.md`
+    : `${topic.group}/${topic.file}.md`;
 }
 
 export async function loadHelpLocales(root) {

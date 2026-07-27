@@ -40,7 +40,7 @@ has_ancestor_command() {
     return 1
 }
 
-mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACMR)
+mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACMRD)
 
 if [[ "${#STAGED_FILES[@]}" -eq 0 ]]; then
     log 'No staged files to validate'
@@ -51,6 +51,7 @@ vendor_touched=0
 version_file_touched=0
 rust_related_touched=0
 strict_check_files=()
+help_english_touched=0
 
 for file_path in "${STAGED_FILES[@]}"; do
     case "$file_path" in
@@ -72,7 +73,17 @@ for file_path in "${STAGED_FILES[@]}"; do
             strict_check_files+=("$file_path")
             ;;
     esac
+
+    case "$file_path" in
+        crates/z00z_ui_ux/demo/help/en/*.md|crates/z00z_ui_ux/demo/help/en/*.yaml|crates/z00z_ui_ux/demo/help/en/*.yml)
+            help_english_touched=1
+            ;;
+    esac
 done
+
+if git diff --cached --name-only --diff-filter=D -- crates/z00z_ui_ux/demo/help/en | grep -q .; then
+    help_english_touched=1
+fi
 
 if [[ "$vendor_touched" -eq 1 ]]; then
     fail "Vendor subtree crates/z00z_crypto/tari/ is read-only. Move integration changes into z00z_crypto wrappers instead."
@@ -90,6 +101,28 @@ if [[ "${#strict_check_files[@]}" -gt 0 ]]; then
     fi
 fi
 rm -f /tmp/z00z-pre-commit-check.$$
+
+if [[ "$help_english_touched" -eq 1 ]]; then
+    demo_rel="crates/z00z_ui_ux/demo"
+    log 'Synchronizing all Help locales from staged help/en changes'
+    sync_json="$(cd "$demo_rel" && node scripts/sync-help.mjs --json)"
+    mapfile -t synced_paths < <(
+        printf '%s' "$sync_json" \
+            | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => JSON.parse(input).paths.forEach(path => console.log(path)));'
+    )
+    (
+        cd "$demo_rel"
+        node scripts/compile-help.mjs
+        node scripts/check-help.mjs
+    )
+    git add -- \
+        "$demo_rel/help/source-state.json" \
+        "$demo_rel/scripts/generated/help-catalog.js"
+    for synced_path in "${synced_paths[@]}"; do
+        git add -- "$demo_rel/$synced_path"
+    done
+    log "Help locale synchronization staged (${#synced_paths[@]} localized files updated)"
+fi
 
 if [[ "$rust_related_touched" -eq 1 ]]; then
     log 'Running cargo fmt --all --check'

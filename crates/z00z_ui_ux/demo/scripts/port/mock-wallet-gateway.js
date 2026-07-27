@@ -7,12 +7,16 @@
   }
 
   const ok = (data = {}) => Object.freeze({ ok: true, data });
-  const fail = (code, message) => Object.freeze({
+  const fail = (code, message, details = {}) => Object.freeze({
     ok: false,
-    error: Object.freeze({ code, message })
+    error: Object.freeze({ code, message, ...details })
   });
 
   function createMockWalletGateway(state) {
+    const operations = new Map();
+    const operationIdByIdempotencyKey = new Map();
+    let operationSequence = 0;
+
     function walletById(walletId) {
       return state.wallets.find((wallet) => wallet.id === walletId);
     }
@@ -22,8 +26,99 @@
       return `${family}-${wallet.id}-${entries.length + 1}`;
     }
 
+    function transferObjectImpl({ walletId, family, objectId, recipient }) {
+      const wallet = walletById(walletId);
+      if (!wallet) return fail("validation", "Wallet profile no longer exists.");
+      if (!["voucher", "permission"].includes(family)) return fail("validation", "Unsupported wallet object family.");
+      const entries = family === "voucher" ? wallet.vouchers : wallet.permissions;
+      const entry = entries.find((candidate) => candidate.id === objectId);
+      if (!entry || !entry.transferable) return fail("conflict", "This wallet object is no longer transferable.");
+      const normalizedRecipient = String(recipient ?? "").trim();
+      if (normalizedRecipient.length < 3) return fail("validation", "Enter a valid recipient address.");
+      entry.transferable = false;
+      entry.status = "Sent";
+      entry.tone = "settling";
+      entry.recipient = normalizedRecipient;
+      entry.detail = `Sent to ${normalizedRecipient} · waiting to settle`;
+      return ok({ entry, family, recipient: normalizedRecipient });
+    }
+
+    function operationResult(operation) {
+      return {
+        operationId: operation.operationId,
+        status: operation.status,
+        completed: { ...operation.completed }
+      };
+    }
+
+    function revalidateExternalReviewHandoff({ walletId, handoff } = {}) {
+      const wallet = walletById(walletId);
+      if (!wallet) return fail("validation", "Wallet profile no longer exists.");
+      if (handoff?.schemaVersion === "contact-action-handoff-v1") {
+        if (!handoff.handoffId
+          || handoff.action !== "pay"
+          || handoff.target?.routeId !== "wallet.send"
+          || handoff.target?.flow !== "send"
+          || handoff.target?.referenceDomain !== "wallet_recipient"
+          || !/^wallet_receiver_ref_[a-z0-9_]+(?:…[a-z0-9]+)?$/i.test(String(handoff.reference || ""))
+          || handoff.constraints?.revalidationRequired !== true
+          || handoff.constraints?.prefillOnly !== true
+          || handoff.constraints?.networkRequest !== false
+          || handoff.constraints?.walletMutation !== false
+          || handoff.constraints?.settlementMutation !== false) {
+          return fail("external_review_rejected", "The Contact action failed Wallet schema and authority validation.");
+        }
+        return ok(Object.freeze({
+          schemaVersion: "wallet-external-review-validation-v1",
+          handoffId: handoff.handoffId,
+          walletId: wallet.id,
+          target: handoff.target,
+          draft: null,
+          result: "accepted_for_wallet_entry",
+          walletMutation: false,
+          settlementMutation: false
+        }));
+      }
+      if (!handoff
+        || handoff.schemaVersion !== "messenger-wallet-review-handoff-v1"
+        || !handoff.handoffId
+        || handoff.source?.requestType !== "payment_request"
+        || handoff.target?.routeId !== "wallet.send"
+        || handoff.target?.flow !== "send"
+        || handoff.request?.objectFamily !== "asset"
+        || handoff.constraints?.prefillOnly !== true
+        || handoff.constraints?.walletRevalidationRequired !== true
+        || handoff.constraints?.walletMutation !== false
+        || handoff.constraints?.settlementMutation !== false) {
+        return fail("external_review_rejected", "The external advisory handoff failed Wallet schema and authority validation.");
+      }
+      const draft = handoff.draft;
+      const asset = demo.ASSET_CATALOG.find(({ key }) => key === draft?.itemKey);
+      const amount = Number(draft?.amount);
+      if (!asset
+        || !wallet.assetKeys.includes(asset.key)
+        || draft?.family !== "asset"
+        || draft?.recipient !== ""
+        || !Number.isFinite(amount)
+        || amount <= 0
+        || amount > Number((asset.key === "z00z" ? wallet.summary.available : asset.demoBalance || "0").replaceAll(",", ""))) {
+        return fail("external_review_rejected", "Wallet rejected the stale, unsupported, or over-broad advisory prefill.");
+      }
+      return ok(Object.freeze({
+        schemaVersion: "wallet-external-review-validation-v1",
+        handoffId: handoff.handoffId,
+        walletId: wallet.id,
+        target: handoff.target,
+        draft: handoff.draft,
+        result: "accepted_for_wallet_entry",
+        walletMutation: false,
+        settlementMutation: false
+      }));
+    }
+
     return Object.freeze({
       contractVersion: demo.PORT_CONTRACT.version,
+      revalidateExternalReviewHandoff,
 
       listWallets() {
         return ok({
@@ -161,20 +256,79 @@
       },
 
       transferObject({ walletId, family, objectId, recipient }) {
+        return transferObjectImpl({ walletId, family, objectId, recipient });
+      },
+
+      submitPayment({ walletId, family, itemKey, amount, recipient, idempotencyKey, scenario = "success" }) {
         const wallet = walletById(walletId);
         if (!wallet) return fail("validation", "Wallet profile no longer exists.");
-        if (!["voucher", "permission"].includes(family)) return fail("validation", "Unsupported wallet object family.");
-        const entries = family === "voucher" ? wallet.vouchers : wallet.permissions;
-        const entry = entries.find((candidate) => candidate.id === objectId);
-        if (!entry || !entry.transferable) return fail("conflict", "This wallet object is no longer transferable.");
         const normalizedRecipient = String(recipient ?? "").trim();
         if (normalizedRecipient.length < 3) return fail("validation", "Enter a valid recipient address.");
-        entry.transferable = false;
-        entry.status = "Sent";
-        entry.tone = "settling";
-        entry.recipient = normalizedRecipient;
-        entry.detail = `Sent to ${normalizedRecipient} · waiting to settle`;
-        return ok({ entry, family, recipient: normalizedRecipient });
+        const normalizedIdempotencyKey = String(idempotencyKey ?? "").trim();
+        if (!normalizedIdempotencyKey) return fail("validation", "A payment idempotency key is required.");
+
+        const existingOperationId = operationIdByIdempotencyKey.get(normalizedIdempotencyKey);
+        if (existingOperationId) return ok(operationResult(operations.get(existingOperationId)));
+
+        const operationId = `payment-${wallet.id}-${++operationSequence}`;
+        let label;
+        let amountLabel;
+        let activityType;
+        if (family === "asset") {
+          const asset = demo.ASSET_CATALOG.find((entry) => entry.key === itemKey);
+          const normalizedAmount = Number(amount);
+          if (!asset || !wallet.assetKeys.includes(asset.key)) return fail("conflict", "This wallet asset is no longer available.");
+          if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0 || (!asset.divisible && !Number.isInteger(normalizedAmount))) {
+            return fail("validation", "Enter a valid amount for the selected asset.");
+          }
+          label = asset.label;
+          amountLabel = `${asset.divisible ? normalizedAmount.toFixed(2) : normalizedAmount} ${asset.unit}`;
+          activityType = asset.key === "z00z" ? "money" : "asset";
+        } else {
+          const objectId = String(itemKey || "").split(":").slice(1).join(":");
+          const result = transferObjectImpl({ walletId, family, objectId, recipient: normalizedRecipient });
+          if (!result.ok) return result;
+          label = result.data.entry.title;
+          amountLabel = family === "voucher" ? result.data.entry.value : result.data.entry.remaining;
+          activityType = family;
+        }
+
+        wallet.activities.unshift({
+          id: `${family}-send-${wallet.activities.length + 1}`,
+          type: activityType,
+          direction: "out",
+          title: `${label} sent`,
+          detail: `Sent to ${normalizedRecipient} · waiting to settle`,
+          amount: family === "permission" ? "" : `− ${amountLabel}`,
+          time: "Now",
+          status: "settling"
+        });
+
+        const recipientLabel = normalizedRecipient.length > 24
+          ? `${normalizedRecipient.slice(0, 12)}…${normalizedRecipient.slice(-8)}`
+          : normalizedRecipient;
+        const operation = Object.freeze({
+          operationId,
+          status: "pending_confirmation",
+          completed: Object.freeze({ family, label, amountLabel, recipientLabel })
+        });
+        operations.set(operationId, operation);
+        operationIdByIdempotencyKey.set(normalizedIdempotencyKey, operationId);
+
+        if (scenario === "timeout_unknown_outcome") {
+          return fail(
+            "timeout_unknown_outcome",
+            "Native submission timed out after handoff. Reconcile this operation before any retry.",
+            { operationId }
+          );
+        }
+        return ok(operationResult(operation));
+      },
+
+      reconcileOperation({ operationId }) {
+        const operation = operations.get(String(operationId ?? ""));
+        if (!operation) return fail("conflict", "The operation record is unavailable; do not submit again until native diagnostics resolve it.");
+        return ok(operationResult(operation));
       }
     });
   }

@@ -1177,7 +1177,7 @@ mod tests {
             },
             recursive_trace::{
                 structural_event_id, RecursiveTraceEventV2, RecursiveTraceOpcodeV2,
-                RecursiveTransitionTraceSourceV2,
+                RecursiveTransitionTraceSourceV2, STRUCTURAL_EVENT_HASH_LABEL_V2,
             },
             CheckpointDraft, CheckpointExecInput, CheckpointExecOut, CheckpointExecTx,
             CheckpointExecVersion, CheckpointFsStore, CheckpointId, CheckpointInRef,
@@ -1371,6 +1371,82 @@ mod tests {
             )
             .expect("persist canonical checkpoint artifact and link");
         (checkpoint_store, prep_store, link.checkpoint_id())
+    }
+
+    #[test]
+    fn test_plonky3_structural_source_geometry_is_bounded() {
+        ensure_chain_identity();
+        let temp = tempfile::TempDir::new().expect("structural geometry directory");
+        let input = path(1, 1, 1);
+        let output = item(path(2, 2, 2), 20);
+        let handoff = handoff(input, output);
+        let mut store = SettlementStore::new();
+        store
+            .put_settlement_item(item(input, 10))
+            .expect("seed structural geometry pre-state");
+        let pre_root = store
+            .settlement_root_v2(7)
+            .expect("structural geometry pre-root");
+        let mut expected = store.recursive_v2_preflight_clone();
+        expected
+            .apply_test_exec_handoff_v2(handoff.clone(), temp.path())
+            .expect("structural geometry expected transition");
+        let post_root = expected
+            .settlement_root_v2(7)
+            .expect("structural geometry post-root");
+        let (checkpoint_store, prep_store, checkpoint_id) =
+            canonical_checkpoint(temp.path(), pre_root, post_root, &handoff);
+        let mut transition = CanonicalCheckpointTransitionV2::from_exec(
+            temp.path(),
+            profile(),
+            &checkpoint_store,
+            &prep_store,
+            checkpoint_id,
+            &mut store,
+            handoff,
+        )
+        .expect("structural geometry transition");
+
+        let mut source_index = 0_usize;
+        let mut max_blocks = 0_u64;
+        transition
+            .replay_canonical_events(&store, |event| {
+                if !event.opcode().is_source_record() {
+                    return Ok(());
+                }
+                let payload_bytes =
+                    u64::try_from(event.payload().len()).map_err(|_| crate::CheckpointError::Limit)?;
+                let raw_bytes = u64::try_from(STRUCTURAL_EVENT_HASH_LABEL_V2.len())
+                    .map_err(|_| crate::CheckpointError::Limit)?
+                    .checked_add(1)
+                    .and_then(|bytes| bytes.checked_add(8))
+                    .and_then(|bytes| bytes.checked_add(payload_bytes))
+                    .ok_or(crate::CheckpointError::Overflow)?;
+                let message_bytes =
+                    super::CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
+                        super::CheckpointShaRole::Trace,
+                        raw_bytes,
+                        4,
+                    )?;
+                let block_count =
+                    super::CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(
+                        message_bytes,
+                    )?;
+                max_blocks = max_blocks.max(block_count);
+                eprintln!(
+                    "Z00Z_PLONKY3_STRUCTURAL_GEOMETRY_V1 index={source_index} ordinal={} opcode={:?} payload_bytes={} sha_blocks={block_count}",
+                    event.ordinal(),
+                    event.opcode(),
+                    event.payload().len(),
+                );
+                source_index = source_index
+                    .checked_add(1)
+                    .ok_or(crate::CheckpointError::Overflow)?;
+                Ok(())
+            })
+            .expect("bounded structural geometry replay");
+        assert_eq!(source_index, 105);
+        assert!(max_blocks > 0);
     }
 
     #[test]

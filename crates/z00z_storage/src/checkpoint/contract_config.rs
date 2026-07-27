@@ -1665,7 +1665,8 @@ mod tests {
         assert!(cfg.branches.plonky3_epoch.is_enabled);
         assert!(cfg.branches.plonky3_epoch.has_pq_epoch_evidence);
         assert_eq!(cfg.branches.plonky3_epoch.mode, "pq_epoch_evidence_async");
-        assert_eq!(cfg.post_quantum.cadence_blocks, 1000);
+        assert_eq!(cfg.branches.plonky3_epoch.cadence_blocks, 2_000);
+        assert_eq!(cfg.post_quantum.cadence_blocks, 2_000);
         assert_eq!(
             cfg.post_quantum.mode,
             super::super::contract_config_v3::CONFIG_V3_PQ_MODE
@@ -1674,6 +1675,7 @@ mod tests {
         assert_eq!(cfg.archive_retention.reconstruction_threshold, 10);
         assert!(cfg.archive_retention.has_ipfs_pinning);
         assert_eq!(cfg.snapshots.object_type, "state_snapshot_v1");
+        assert_eq!(cfg.snapshots.cadence_epochs, 5);
         assert_eq!(cfg.snapshots.cadence_blocks, 10_000);
         assert!(!cfg.pruning.is_legacy_pruning_allowed);
     }
@@ -1693,9 +1695,9 @@ mod tests {
         let cfg = cfg();
 
         assert!(!cfg.has_pq_checkpoint(0));
-        assert!(!cfg.has_pq_checkpoint(999));
-        assert!(cfg.has_pq_checkpoint(1000));
+        assert!(!cfg.has_pq_checkpoint(1_999));
         assert!(cfg.has_pq_checkpoint(2000));
+        assert!(cfg.has_pq_checkpoint(4000));
     }
 
     #[test]

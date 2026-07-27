@@ -76,6 +76,26 @@ pub fn apply_best_effort() -> HardeningReport {
     report
 }
 
+/// Return allocator-owned free heap pages to the OS when glibc supports it.
+///
+/// This is a process-local best-effort operation. It does not change sysctl,
+/// swap, cgroup, systemd, or global OOM policy. A `false` result means either
+/// that no pages were released or that the platform has no compatible API.
+#[must_use]
+pub fn trim_process_heap_best_effort() -> bool {
+    #[cfg(all(target_os = "linux", target_env = "gnu", not(miri)))]
+    {
+        // SAFETY: glibc documents `malloc_trim` as MT-safe. Passing zero asks
+        // the allocator to keep no additional top-of-heap padding.
+        return unsafe { libc::malloc_trim(0) != 0 };
+    }
+
+    #[cfg(any(miri, not(target_os = "linux"), not(target_env = "gnu")))]
+    {
+        false
+    }
+}
+
 fn disable_core_dumps() -> Result<bool, HardeningError> {
     // Conservative: iOS behavior/availability differs and is harder to validate in CI.
     #[cfg(all(unix, not(target_os = "ios"), not(miri)))]

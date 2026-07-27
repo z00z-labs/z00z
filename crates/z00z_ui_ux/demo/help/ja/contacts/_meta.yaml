@@ -1,0 +1,7 @@
+title: "連絡先"
+icon: user
+order:
+  - index
+  - contacts
+  - detail
+  - identity-review

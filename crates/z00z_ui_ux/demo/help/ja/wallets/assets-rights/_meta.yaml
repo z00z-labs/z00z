@@ -1,0 +1,8 @@
+title: "資産"
+icon: assets
+order:
+  - index
+  - assets
+  - vouchers
+  - permissions
+  - asset-details

@@ -86,8 +86,8 @@ run_guards() {
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
     'readonly EXPECTED_SOURCE_REVISION="2d4a6312028d3987520d10e53f376dd22b40e303fd0e7d1b122c900f0d9e55d8"'
     'readonly EXPECTED_WORKER_SOURCE="a0fd346405c1f3d103d62b7d7b886574ad50d58dd749fcea22f8bf22960ade69"'
-    'readonly EXPECTED_NOVA_SHA256="ef88f863c74806b667858ab571f22772d40aadb7010d56231bb9d68020a7eb88"'
-    'readonly EXPECTED_CARGO_LOCK_SHA256="4242e8927bbb38fee1d6e43889daeb64084e0db20773f98b58c51aca999d414a"'
+    'readonly EXPECTED_NOVA_SHA256="c3468b04960761f38d00e136a42fef737c3d7ea0bbd33974d2247fe7e4ed4c7d"'
+    'readonly EXPECTED_CARGO_LOCK_SHA256="e3c6be97b546b23e4d9b46e89b221e37616804a8d7a6b5828a65ae07084a34fd"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
     "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}ROOT_DIR/target/workspace\""
     "cargo test --release -p z00z_storage --lib \"${dollar}TEST_NAME\" --"

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -9,12 +9,14 @@ import {
   loadHelpSource,
   parseHelpMarkdown
 } from "./help-source.mjs";
+import { synchronizeHelpLayout } from "./sync-help-layout.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const demoRoot = resolve(scriptDirectory, "..");
 const SOURCE_LOCALE = "en";
-const STATE_VERSION = 1;
+const STATE_VERSION = 2;
 const HASH_PREFIX = "sha256:";
+const bundledTranslator = resolve(scriptDirectory, "local-help-translate.mjs");
 const statePathFor = (root) => resolve(root, "help/source-state.json");
 
 function canonicalDocument(document) {
@@ -66,6 +68,15 @@ export function helpMessages(document) {
     });
   });
   return Object.freeze(messages);
+}
+
+function messageHash(value) {
+  return `${HASH_PREFIX}${createHash("sha256").update(value).digest("hex")}`;
+}
+
+export function helpMessageHashes(messages) {
+  return Object.freeze(Object.fromEntries(Object.entries(messages)
+    .map(([key, value]) => [key, messageHash(value)])));
 }
 
 function translatedValue(messages, key) {
@@ -123,19 +134,53 @@ async function loadDocument(root, locale, topic) {
   };
 }
 
+async function loadLocalizedDocumentOrSource(root, locale, topic, source) {
+  try {
+    return await loadDocument(root, locale, topic);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return {
+      path: helpDocumentPath(root, locale, topic),
+      document: source.document,
+      missing: true
+    };
+  }
+}
+
+async function helpDocumentExists(root, locale, topic) {
+  try {
+    await access(helpDocumentPath(root, locale, topic));
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 async function loadState(root) {
   const path = statePathFor(root);
   try {
     const state = JSON.parse(await readFile(path, "utf8"));
     if (
-      state.version !== STATE_VERSION
+      ![1, STATE_VERSION].includes(state.version)
       || state.sourceLocale !== SOURCE_LOCALE
       || state.hashAlgorithm !== "sha256"
       || !state.topics
     ) {
       throw new Error(`${path}: unsupported Help source-state schema`);
     }
-    return state;
+    return {
+      ...state,
+      version: STATE_VERSION,
+      topics: Object.fromEntries(Object.entries(state.topics).map(([topicId, entry]) => [
+        topicId,
+        {
+          ...entry,
+          sourceMessageHashes: entry.sourceMessageHashes
+            || (entry.sourceMessages ? helpMessageHashes(entry.sourceMessages) : null)
+        }
+      ]))
+    };
   } catch (error) {
     if (error.code === "ENOENT") {
       return {
@@ -155,7 +200,15 @@ async function writeState(root, state) {
   await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
-function translationCommand(command, locale, topic, sourceHash, messages) {
+function translationCommand(
+  command,
+  locale,
+  topic,
+  sourceHash,
+  messages,
+  previousMessageHashes,
+  currentMessages
+) {
   const translated = spawnSync(command, [locale], {
     shell: false,
     encoding: "utf8",
@@ -165,7 +218,9 @@ function translationCommand(command, locale, topic, sourceHash, messages) {
       sourceLanguage: SOURCE_LOCALE,
       topic: topic.id,
       sourceHash,
-      messages
+      messages,
+      previousMessageHashes,
+      currentMessages
     })
   });
   if (translated.error) throw translated.error;
@@ -173,13 +228,35 @@ function translationCommand(command, locale, topic, sourceHash, messages) {
     throw new Error(`Local Help translator failed for ${locale}/${topic.id}: ${translated.stderr.trim()}`);
   }
   const parsed = JSON.parse(translated.stdout);
-  return parsed.messages && typeof parsed.messages === "object" ? parsed.messages : parsed;
+  return {
+    messages: parsed.messages && typeof parsed.messages === "object" ? parsed.messages : parsed,
+    fallbackKeys: Array.isArray(parsed.fallbackKeys)
+      ? parsed.fallbackKeys.filter((key) => typeof key === "string")
+      : []
+  };
 }
 
-function topicState(sourceHash, localeIds) {
+function localeSourceHash(entry) {
+  return typeof entry === "string" ? entry : entry?.sourceHash;
+}
+
+function localeReviewHash(entry) {
+  return typeof entry === "object" ? entry?.reviewHash : "";
+}
+
+async function topicState(root, topic, sourceHash, sourceMessageHashes, localeIds) {
+  const locales = {};
+  for (const locale of localeIds) {
+    const localized = await loadDocument(root, locale, topic);
+    locales[locale] = {
+      sourceHash,
+      reviewHash: helpSourceHash(localized.document)
+    };
+  }
   return {
     sourceHash,
-    locales: Object.fromEntries(localeIds.map((locale) => [locale, sourceHash]))
+    sourceMessageHashes,
+    locales
   };
 }
 
@@ -196,7 +273,14 @@ export async function recordReviewedHelpState(root = demoRoot) {
         throw new Error(`${localized.path}: structure does not match English source ${source.path}`);
       }
     }
-    topics[topic.id] = topicState(helpSourceHash(source.document), localeIds);
+    const sourceHash = helpSourceHash(source.document);
+    topics[topic.id] = await topicState(
+      root,
+      topic,
+      sourceHash,
+      helpMessageHashes(helpMessages(source.document)),
+      localeIds
+    );
   }
   const state = {
     version: STATE_VERSION,
@@ -221,38 +305,69 @@ export async function assertHelpSynchronized(root = demoRoot) {
   for (const topic of lut.topics) {
     const source = await loadDocument(root, SOURCE_LOCALE, topic);
     const sourceHash = helpSourceHash(source.document);
+    const sourceMessages = helpMessages(source.document);
+    const sourceMessageHashes = helpMessageHashes(sourceMessages);
     const entry = state.topics[topic.id];
     if (entry.sourceHash !== sourceHash) {
       throw new Error(`English Help changed for ${topic.id}; run node scripts/sync-help.mjs`);
     }
+    if (JSON.stringify(entry.sourceMessageHashes) !== JSON.stringify(sourceMessageHashes)) {
+      throw new Error(`English Help message state is stale for ${topic.id}; run node scripts/sync-help.mjs`);
+    }
     const synchronizedLocales = Object.keys(entry.locales || {}).sort();
     if (
       JSON.stringify(synchronizedLocales) !== JSON.stringify([...localeIds].sort())
-      || localeIds.some((locale) => entry.locales[locale] !== sourceHash)
+      || localeIds.some((locale) => localeSourceHash(entry.locales[locale]) !== sourceHash)
     ) {
       throw new Error(`Help locale synchronization is stale for ${topic.id}; run node scripts/sync-help.mjs`);
+    }
+    for (const locale of localeIds) {
+      const reviewHash = localeReviewHash(entry.locales[locale]);
+      if (!reviewHash) {
+        throw new Error(`Help native-language review hash is missing for ${locale}/${topic.id}; run node scripts/sync-help.mjs`);
+      }
+      const localized = await loadDocument(root, locale, topic);
+      if (helpSourceHash(localized.document) !== reviewHash) {
+        throw new Error(`Help native-language review hash is stale for ${locale}/${topic.id}; rerun the local review workflow`);
+      }
     }
   }
   return state;
 }
 
 export async function synchronizeHelp(root = demoRoot, options = {}) {
+  const changedPaths = [...await synchronizeHelpLayout(root)];
   const { lut } = await loadHelpSource(root);
   const localeIds = await loadHelpLocales(root);
   const state = await loadState(root);
-  const translator = options.translatorCommand ?? process.env.Z00Z_TRANSLATE_COMMAND;
+  const translator = options.translatorCommand !== undefined
+    ? options.translatorCommand
+    : (process.env.Z00Z_TRANSLATE_COMMAND || bundledTranslator);
   const changedTopics = [];
+  const fallbacks = [];
 
   for (const topic of lut.topics) {
     const source = await loadDocument(root, SOURCE_LOCALE, topic);
     const sourceHash = helpSourceHash(source.document);
+    const messages = helpMessages(source.document);
+    const messageHashes = helpMessageHashes(messages);
     const previous = state.topics[topic.id];
-    const staleLocales = localeIds.filter((locale) => (
-      locale !== SOURCE_LOCALE
-      && (options.force || previous?.sourceHash !== sourceHash || previous?.locales?.[locale] !== sourceHash)
-    ));
+    const staleLocales = [];
+    for (const locale of localeIds) {
+      if (
+        locale !== SOURCE_LOCALE
+        && (
+          options.force
+          || !await helpDocumentExists(root, locale, topic)
+          || previous?.sourceHash !== sourceHash
+          || localeSourceHash(previous?.locales?.[locale]) !== sourceHash
+        )
+      ) {
+        staleLocales.push(locale);
+      }
+    }
     if (!staleLocales.length) {
-      state.topics[topic.id] = topicState(sourceHash, localeIds);
+      state.topics[topic.id] = await topicState(root, topic, sourceHash, messageHashes, localeIds);
       continue;
     }
     if (!translator) {
@@ -261,17 +376,38 @@ export async function synchronizeHelp(root = demoRoot, options = {}) {
       );
     }
 
-    const messages = helpMessages(source.document);
     for (const locale of staleLocales) {
-      const translatedMessages = translationCommand(translator, locale, topic, sourceHash, messages);
-      const localized = localizeHelpDocument(source.document, translatedMessages);
+      const current = await loadLocalizedDocumentOrSource(root, locale, topic, source);
+      const currentIsSourceFallback = current.missing
+        || (
+          helpSourceHash(current.document) === sourceHash
+          && localeReviewHash(previous?.locales?.[locale]) === sourceHash
+        );
+      const translation = translationCommand(
+        translator,
+        locale,
+        topic,
+        sourceHash,
+        messages,
+        previous?.sourceMessageHashes,
+        currentIsSourceFallback ? {} : helpMessages(current.document)
+      );
+      const localized = localizeHelpDocument(source.document, translation.messages);
+      if (translation.fallbackKeys.length) {
+        fallbacks.push(Object.freeze({
+          topic: topic.id,
+          locale,
+          keys: Object.freeze([...translation.fallbackKeys])
+        }));
+      }
       const output = serializeHelpMarkdown(localized);
       const outputPath = helpDocumentPath(root, locale, topic);
       parseHelpMarkdown(output, `${locale}/${topic.group}/${topic.file}.md`);
       await mkdir(dirname(outputPath), { recursive: true });
       await writeFile(outputPath, output, "utf8");
+      changedPaths.push(outputPath.slice(root.length + 1).replaceAll("\\", "/"));
     }
-    state.topics[topic.id] = topicState(sourceHash, localeIds);
+    state.topics[topic.id] = await topicState(root, topic, sourceHash, messageHashes, localeIds);
     changedTopics.push(topic.id);
   }
 
@@ -280,6 +416,14 @@ export async function synchronizeHelp(root = demoRoot, options = {}) {
     if (!liveTopicIds.has(topicId)) delete state.topics[topicId];
   });
   await writeState(root, state);
+  Object.defineProperty(changedTopics, "paths", {
+    value: Object.freeze(changedPaths),
+    enumerable: false
+  });
+  Object.defineProperty(changedTopics, "fallbacks", {
+    value: Object.freeze(fallbacks),
+    enumerable: false
+  });
   return Object.freeze(changedTopics);
 }
 
@@ -290,9 +434,22 @@ async function main() {
     return;
   }
   const changedTopics = await synchronizeHelp(demoRoot, { force: process.argv.includes("--force") });
+  if (process.argv.includes("--json")) {
+    console.log(JSON.stringify({
+      topics: [...changedTopics],
+      paths: changedTopics.paths,
+      fallbacks: changedTopics.fallbacks
+    }));
+    return;
+  }
   console.log(changedTopics.length
     ? `Synchronized Help translations: ${changedTopics.join(", ")}`
     : "Help translations already match the English source hashes.");
+  if (changedTopics.fallbacks.length) {
+    console.warn(
+      `English fallback retained for ${changedTopics.fallbacks.length} locale/topic updates; native-language review is required.`
+    );
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

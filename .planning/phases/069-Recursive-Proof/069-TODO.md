@@ -76,7 +76,7 @@ implementation architecture is hybrid:
 - Nova IVC fold on every checkpoint block, with compressed proof snapshots at
   a measured/configured cadence, as a fast classical lane.
 - Plonky3 recursive STARK epoch proof every configured PQ cadence interval,
-  default `1000` blocks, as a hash/FRI-only end-to-end post-quantum recursive
+  default `2000` blocks, as a hash/FRI-only end-to-end post-quantum recursive
   proof chain over the accepted checkpoint transition-consistency predicate.
 - Canonical checkpoint artifacts, exact transaction proof bytes, HJMT roots,
   witness roots, DA payload commitments, bounded archive-availability manifests,
@@ -84,7 +84,7 @@ implementation architecture is hybrid:
 
 📌 The Plonky3 epoch proof MUST prove or re-check the accepted canonical
 transition-consistency predicate for every step in the epoch. It MUST NOT be a
-STARK wrapper that only proves "1000 Nova proofs verified". The epoch proof MAY
+STARK wrapper that only proves "2000 Nova proofs verified". The epoch proof MAY
 bind the Nova chain root as non-authoritative metadata, but its verification
 and every ancestor proof MUST remain completely independent of Nova. The
 Plonky3 recursion chain MAY be described as end-to-end post-quantum only after
@@ -112,7 +112,7 @@ not satisfy this output.
 the hybrid lane reviewable: statement vectors, object schemas, rejection matrix,
 benchmark metadata, backend-manifest red lines, Plonky3/Nova parameter
 decisions, and eventually complete PQ epoch artifact evidence for every already
-closed configured 1000-block range once asynchronous evidence enforcement is
+closed configured 2000-block range once asynchronous evidence enforcement is
 active. Proof availability at the boundary is never a canonical-finality gate.
 
 ## 🧭 Document Structure
@@ -240,7 +240,7 @@ filtered by this spec and the recursive-ready checkpoint contract.
 | `13_chat-Recursive Proof Analysis.md` | ECC attack model, RNG/reuse risks, genesis trust, quantum migration warning. | DLP-based proof as long-term PQ-safe authority. |
 | `14_chat-Обзор PQ рекурсивных доказательств.md` | PQ backend evidence checklist: parameters, ABI, vectors, PoK, center-lift, domain slots, constant-time review; STARK/FRI as the practical PQ-friendly implementation direction for Phase 069. | Pedersen binding as PQ-safe, unproved RLWE/folding claims, LatticeFold/RLWE/Fractal as live production backends. |
 | `plonky3-stark.md` | Primary real implementation target: Nova fold every block plus measured-cadence compression and a Plonky3 recursive STARK epoch proof every `post_quantum.cadence_blocks`; Plonky3 must prove the scoped canonical predicate and may bind Nova root. | Plonky3 proof that only verifies Nova proofs; permanent storage of all per-block STARK proofs; exact proof-size claims without Z00Z benchmarks. |
-| `068-TODO.md` | Checkpoint-contract-first architecture, recursive branch surfaces, DA readiness gate, retention policy, stage transitions, and 1000-block PQ epoch cadence. | Treating a generic PQ anchor as enough once Plonky3 epoch proof is selected, or enabling live cadence before `pq_anchor_writer`. |
+| `068-TODO.md` | Checkpoint-contract-first architecture, recursive branch surfaces, DA readiness gate, retention policy, stage transitions, and the inherited 1000-block PQ epoch proposal; Phase 069 ConfigV3 generation 2 supersedes that cadence with the authority-pinned 2000-block default. | Treating the inherited 1000-block proposal as live authority, treating a generic PQ anchor as enough once Plonky3 epoch proof is selected, or enabling live cadence before `pq_anchor_writer`. |
 | `+69-70-proposal.md` | Wave 69 scope and Wave 70 dependency boundaries. | DA/publication evidence as recursive proof authority. |
 | `+69-70-proposal.audit.md` | Conflict resolutions and residual risks. | Any source group marked rejected or research-only. |
 
@@ -272,7 +272,7 @@ configuration and MUST NOT bypass repository dependency pinning.
 | --- | --- | --- |
 | Backend pros/cons table for Nova, SuperNova, Plonky3, Fractal, HyperPlonk, LatticeFold, RLWE, and generic STARK/Winterfell. | `Hybrid Backend Architecture` and `Backend And PQ Policy`. | Imported and normalized into Phase 069 decisions. |
 | Proof-size and overhead tables. | `Nova Block Proof Contract`, `Plonky3 Epoch Proof Contract`, `Config Gates`, and `Measurement Contract`. | Imported as targets and hard caps; exact numbers remain measurement-gated. |
-| Hybrid flow: Nova every block, Plonky3 every 1000 blocks. | `Hybrid Backend Architecture`, `Post-Quantum Cadence Contract`, `Required Workflow`, and `Gate Flow`. | Imported and made normative through config gates. |
+| Hybrid flow: Nova every block, Plonky3 at a configured epoch cadence (the imported source proposed 1000 blocks). | `Hybrid Backend Architecture`, `Post-Quantum Cadence Contract`, `Required Workflow`, and `Gate Flow`. | Imported with the active authority-pinned default updated to 2000 blocks through ConfigV3 generation 2. |
 | Warning that Plonky3 must not only verify Nova proofs. | `Non-Negotiable Invariants`, `Plonky3 Epoch Proof Contract`, `Reject Reason Contract`, `Failure Model`, and acceptance criteria `RCP-AC-021`/`RCP-AC-022`. | Imported as a hard rejection rule. |
 | Retention rule: do not store every per-block STARK proof permanently. | `Hybrid Backend Architecture`, `Bounded Challenge Archive And Permanent Notary Contract`, `Config Gates`, and `Required Artifacts`. | Imported and extended with lossless challenge packs, compact anchors/MMR, receipts/audits, rolling history, snapshots, and retention tickets. |
 | Config deltas for Nova, Plonky3, PQ cadence, retention, and proof-size caps. | `Config Gates`, `crates/z00z_storage/src/checkpoint/checkpoint_contract.yaml`, baseline `CheckpointContractConfigV2`, and target `CheckpointContractConfigV3`. | The live YAML is already schema `version: 2` even though its Rust owner is still misnamed `CheckpointContractConfigV1`. Plan 069-051 first performs an API-owner rename/caller cutover without changing canonical schema-2 bytes, then performs an explicit bounded schema-2 to schema-3 migration for every Phase 069 field or semantic change. It adds a schema-1 decoder only if an actual schema-1 fixture is discovered and retained. API suffixes, recursive-object wire versions, and config schema generations never drive one another. |
@@ -398,7 +398,7 @@ plan; storage schema support alone does not require installing Kubo.
 | `Prior-output binding` | The recursive chain rule where a previous proof output root equals the next statement previous root. |
 | `Backend label` | A configured identifier for the proof lane. In the active profile the required labels are `nova_streaming_compressed_v2` and `plonky3_stark_epoch_v2`; local test labels cannot be promoted. |
 | `PostQuantumCheckpointAnchorV2` | Asynchronous epoch audit envelope emitted after a configured range closes. It separately binds Plonky3 epoch/history material, canonical challenge-content and DA commitments, the later archive-availability manifest, optional Nova root, and a domain-separated non-authenticating `epoch_evidence_commitment`; it never participates in canonical admission/finality. Inherited V1 `pq_signature_or_commitment` is decode-only migration input. |
-| `PQ cadence` | The configured target interval, default `1000`, for asynchronous Plonky3 epoch/history proof and PQ evidence publication once `authority_promotion.stage >= pq_anchor_writer`. Missing evidence blocks evidence completeness or pruning, never the canonical epoch-close transition. |
+| `PQ cadence` | The configured target interval, default `2000`, for asynchronous Plonky3 epoch/history proof and PQ evidence publication once `authority_promotion.stage >= pq_anchor_writer`. Missing evidence blocks evidence completeness or pruning, never the canonical epoch-close transition. |
 | `RecursiveCheckpointDocumentationPacketV2` | Phase 069 closeout packet containing schemas, vectors, chain evidence, measurements, reject matrix, PQ cadence evidence, and rejected-claim register. |
 
 ## 🧭 Current Code Truth
@@ -438,7 +438,7 @@ MUST update this ledger and add a test that proves the new boundary.
 | Watchers observe publication readiness only. | Phase 068 says watcher evidence is not settlement authority. | `z00z_watchers::PublicationWatch` checks runtime, validator, and storage bindings. | Watchers can report readiness/gaps, not recursive validity. | Publication readiness and no-authority tests. |
 | Real recursive implementation is active only after storage contract gates. | User-approved architecture selects real implementation targets, not placeholder scaffolds. | T0 contains no recursive backend; T1 creates `z00z_storage::checkpoint::recursive_v2` as the sole verifier-gated boundary. | The V2 module owns Nova and Plonky3 adapters while the checkpoint facade owns statement bytes, artifact codecs, path gates, and reject taxonomy. | Implementation slices `069-05` through `069-08`. |
 | Nova folds every block and compresses on measured cadence. | `plonky3-stark.md` resolves Nova as fast classical lane. | Legacy config contains `branches.nova.cadence_blocks: 1`; Phase 069 separates fold, recovery-snapshot, compression, and publication cadences into four fields. | Every finalized checkpoint block updates the prover-local IVC state; only measured recovery/compression snapshots bind statement digest, checkpoint link, prior Nova output, and output root, while publication independently selects which verified envelopes become retrievable. | Nova cadence-manifest, branch-config, restart, traffic, and chain tests. |
-| Plonky3 recursively proves closed epochs asynchronously. | `plonky3-stark.md` resolves Plonky3/STARK as primary PQ-friendly epoch lane. | Legacy config contains `branches.plonky3_epoch.cadence_blocks: 1000`, `proof_system: plonky3_stark_epoch_v2`, `field: koala_bear`, `hash: poseidon2`, nominal `security_bits: 124`, `recursion_library: p3_recursion`. | Height 1000 first commits `EpochCloseAnchorV2` canonically; a later job emits exact-epoch proof, rolling-history successor, manifest, and PQ evidence without changing canonical finality. The manifest derives a finite lifetime budget and carries cumulative soundness loss across rotations. | Cadence tests at heights 999/1000, prover-unavailable epoch-close test, later-attachment test, Plonky3 history tests, and security-budget overflow/rotation tests. |
+| Plonky3 recursively proves closed epochs asynchronously. | `plonky3-stark.md` resolves Plonky3/STARK as primary PQ-friendly epoch lane. | Legacy config proposed `branches.plonky3_epoch.cadence_blocks: 1000`; active ConfigV3 generation 2 pins `2000`, `proof_system: plonky3_stark_epoch_v2`, `field: koala_bear`, `hash: poseidon2`, nominal `security_bits: 124`, and `recursion_library: p3_recursion`. | Height 2000 first commits `EpochCloseAnchorV2` canonically; a later job emits exact-epoch proof, rolling-history successor, manifest, and PQ evidence without changing canonical finality. The manifest derives a finite lifetime budget and carries cumulative soundness loss across rotations. | Cadence tests at heights 1999/2000, prover-unavailable epoch-close test, later-attachment test, Plonky3 history tests, and security-budget overflow/rotation tests. |
 | Plonky3 MUST NOT depend only on Nova. | Quantum attack can break ECC/Nova and then a STARK wrapper over Nova verifier would only prove false classical proofs verify. | Config has `has_transition_range_proof: true` and `has_independent_transition_proof: true`. | Plonky3 epoch proof may bind `nova_chain_root`, but PQ soundness must come from canonical transition range, roots, witnesses, deltas, and archive commitments. | `Plonky3DependsOnlyOnNova` negative test. |
 | PQ epoch artifact budget is explicit. | Plonky3/STARK proofs are larger than ECC/Nova; permanent proof-body retention is unnecessary when rolling history verifies exact predecessors. | Config limits reserve hard anti-amplification caps, not expected sizes; Phase 069 adds 4 KiB compact-anchor and 100 KiB/day permanent-history budgets. | Keep current plus two prior verified history/proof bodies and challenge-window evidence; retain only certified compact anchors/MMR/rotation commitments permanently. | Proof-size, rolling-history, plateau, and permanent-growth tests. |
 | Celestia is DA, not forever archive. | Phase 068 separates DA reference from archive manifest; Celestia-style DA availability does not imply indefinite historical retrieval. | Config has `archive_retention.is_celestia_da_only: true` and a 1,555,200-block challenge window from DA readiness. | DA publication starts challenge timing; the Z00Z challenge ring owns exact-byte retrieval until authorized expiry, while compact certified notary history remains permanent. | Celestia-as-archive, window-start, and expiry-ticket tests. |
@@ -554,7 +554,7 @@ MUST update this ledger and add a test that proves the new boundary.
 | `RCP-INV-008 PQ Honesty` | PQ material is an audit/evaluation envelope only in Phase 069. | Red-line tests and docs audit. |
 | `RCP-INV-009 Retention` | Canonical raw transaction packages, non-derivable witness/delta material, exact transaction-proof bytes, and archive material MUST remain available through configured windows. A Nova compressed proof body is separate non-authoritative evidence and follows `NovaRetentionStateV2`; retiring it MUST NOT shorten any canonical challenge obligation. | Retention tests and fixture checks. |
 | `RCP-INV-010 No SDK Leakage` | Provider SDK types MUST NOT enter recursive statement or public input bytes. | Digest input tests. |
-| `RCP-INV-011 PQ Cadence` | Every positive height divisible by configured `cadence_blocks` MUST close an epoch canonically without waiting for proof work; once live cadence enforcement is active, the asynchronous evidence lane MUST later produce a complete Plonky3 epoch/history proof and PQ anchor before evidence promotion or pruning. | Config tests, prover-unavailable height-1000 test, later-attachment test, cadence audit packet. |
+| `RCP-INV-011 PQ Cadence` | Every positive height divisible by configured `cadence_blocks` MUST close an epoch canonically without waiting for proof work; once live cadence enforcement is active, the asynchronous evidence lane MUST later produce a complete Plonky3 epoch/history proof and PQ anchor before evidence promotion or pruning. | Config tests, prover-unavailable height-2000 test, later-attachment test, cadence audit packet. |
 | `RCP-INV-012 Recursive Docs` | Phase 069 MUST leave enough stable docs, vectors, and rejection evidence for a future backend review without re-reading research chats. | Documentation packet and source audit. |
 | `RCP-INV-013 Nova Classical Only` | Nova compressed proofs MUST NOT be described or enforced as PQ authority. | Config tests, backend manifest tests, docs audit. |
 | `RCP-INV-014 Plonky3 Canonical Range` | A Plonky3 epoch proof MUST prove the canonical transition range, not only Nova verifier acceptance. | Epoch statement tests and negative backend manifest tests. |
@@ -1129,7 +1129,7 @@ recursive_checkpoint_witness_v2:
 | Lane | Cadence | Backend | Security role | Storage role |
 | --- | --- | --- | --- | --- |
 | Nova block lane | Fold every block; recovery snapshot SHOULD default to 100 blocks; compress/publish SHOULD default to 1000 blocks after measurement | `nova_streaming_compressed_v2` proof family with `fast_classical_streaming_v2` mode | Fast classical recursion and local proof continuity. Not PQ. | Prover-local PP/PK and fold state; bounded recovery/compressed snapshots. Compressed proof bodies follow `NovaRetentionStateV2`; the longer canonical challenge-data clock MUST NOT implicitly extend their lifetime. |
-| Plonky3 epoch/history lane | Exact epoch proof and rolling-history successor every `post_quantum.cadence_blocks`, default `1000`, asynchronously after epoch close | `plonky3_stark_epoch_v2` using `p3_recursion` | PQ-oriented outer proof evidence under declared STARK/FRI/hash assumptions; not end-to-end PQ authority. | Current plus two prior verified proof/history bodies and challenge-window references; permanent compact epoch/history/rotation anchors only. |
+| Plonky3 epoch/history lane | Exact epoch proof and rolling-history successor every `post_quantum.cadence_blocks`, default `2000`, asynchronously after epoch close | `plonky3_stark_epoch_v2` using `p3_recursion` | PQ-oriented outer proof evidence under declared STARK/FRI/hash assumptions; not end-to-end PQ authority. | Current plus two prior verified proof/history bodies and challenge-window references; permanent compact epoch/history/rotation anchors only. |
 
 📌 Architecture rules:
 
@@ -1142,13 +1142,13 @@ recursive_checkpoint_witness_v2:
 - The canonical checkpoint artifact remains the source of state-transition
   truth.
 - Nova proofs MUST bind canonical statement digests and checkpoint links.
-- Plonky3 epoch proofs MUST bind an ordered 1000-block canonical transition
+- Plonky3 epoch proofs MUST bind an ordered 2000-block canonical transition
   range when default cadence is used.
 - Plonky3 MAY bind `nova_chain_root` as a consistency/audit input.
 - Plonky3 MUST NOT rely only on Nova proof verification for epoch evidence.
 - A block inside an open epoch has canonical replay plus Nova evidence, but no
   completed Plonky3 epoch evidence until the epoch proof lands.
-- After the height-1000 canonical block satisfies its inherited DA-ready/QC
+- After the height-2000 canonical block satisfies its inherited DA-ready/QC
   gates, epoch close MUST enqueue proof work without waiting for Nova
   compression, Plonky3 proving, PQ, or additional evidence publication.
 - Exact-epoch and rolling-history proofs MUST remain separate typed statements.
@@ -1177,7 +1177,7 @@ recursive_checkpoint_witness_v2:
   challenge material, current state, or Plonky3 inputs.
 - A permanent anchor SHOULD target 1 KiB and MUST be <= 4 KiB. Excluding current
   live state, permanent compact historical growth MUST be <= 100 KiB/day under
-  the default 5-second block and 1000-block epoch cadence.
+  the default 5-second block and 2000-block epoch cadence.
 - Anchor/MMR commitment MUST be non-circular: compute a domain-separated typed
   leaf over canonical anchor leaf fields plus prior MMR state while excluding
   the new MMR root and final anchor digest, append at the exact checked index,
@@ -1198,7 +1198,7 @@ The following replaces any linear diagram that ends with one ambiguous
 finalized canonical checkpoint
     |-- shadow Nova fold on every block
     |      `-- local recovery snapshot at its independent cadence
-    `-- canonical epoch close every 1000 blocks (does not wait for proofs)
+    `-- canonical epoch close every 2000 blocks (does not wait for proofs)
            |-- enqueue scheduled Nova compression/publication
            |-- enqueue independent Plonky3 exact-epoch proof
            `-- seal canonical challenge-pack commitment
@@ -1361,8 +1361,8 @@ epoch_range_statement_v2:
   mode: pq_epoch_evidence_async
   epoch_index: 0
   start_height: 1
-  end_height: 1000
-  cadence_blocks: 1000
+  end_height: 2000
+  cadence_blocks: 2000
   epoch_close_anchor_digest: "0x..."
   start_root: "0x..."
   end_root: "0x..."
@@ -1391,8 +1391,8 @@ plonky3_epoch_proof_v2:
   public_inputs_digest: "0x..."
   epoch_index: 0
   start_height: 1
-  end_height: 1000
-  cadence_blocks: 1000
+  end_height: 2000
+  cadence_blocks: 2000
   is_transition_range_proven: true
   is_nova_only: false
   has_nova_chain_bind: true
@@ -1444,10 +1444,22 @@ plonky3_epoch_proof_v2:
 
 | Quantity | Target | Hard cap |
 | --- | --- | --- |
-| Final Plonky3 epoch/history proof body for 1000 blocks | 0.5 MiB to 4 MiB imported planning target pending Z00Z measurement | 16 MiB via `max_plonky3_epoch_proof_bytes`; this is a transient/window cap, not permanent-growth allowance |
+| Complete canonical Plonky3 epoch/history payload for exactly 2000 finalized blocks | Target at most 2 MiB via `target_plonky3_epoch_proof_bytes`, measured before transport compression and including every proof body, root/replica, public input, manifest field, and framing byte | Verified `(2 MiB, 4 MiB]` publishes as `TargetMissed`; 4 MiB via `max_plonky3_epoch_proof_bytes` is the hard publication cap; 16 MiB is ingress-only |
 | Compact certified epoch/history/rotation anchor | <= 1 KiB preferred | 4 KiB encoded object; a multi-MiB proof body MUST NOT be embedded |
-| Permanent compact historical growth, excluding current state | 17.28 closed epochs/day; at 1 KiB each, close anchor + close certificate + evidence anchor is about 51.84 KiB/day before MMR/rotation overhead | 100 KiB/day aggregate; individual 4 KiB caps do not waive this stricter cadence budget |
+| Permanent compact historical growth, excluding current state | 8.64 closed epochs/day; at 1 KiB each, close anchor + close certificate + evidence anchor is about 25.92 KiB/day before MMR/rotation overhead | 100 KiB/day aggregate; individual 4 KiB caps do not waive this stricter cadence budget |
 | Challenge-pack bytes | Measured from real traffic and lossless deduplication | Bounded by anti-amplification object caps and the 1,555,200-block window; retained bytes MUST plateau after expiry |
+
+📌 The `2 MiB` target applies only to the one complete exported epoch/history
+payload. A bounded internal chunk or recursion node may be larger and undergo
+another sound compaction layer; it cannot be published or retained as the
+epoch result. A verified final payload in `(2 MiB, 4 MiB]` is published as
+`Plonky3ProofSizeStatusV2::TargetMissed` so recursion/history liveness
+continues, but it does not satisfy Phase-069 size acceptance. A final payload
+above `4 MiB` rejects as `ProofSizeBudgetExceeded`, stays in the bounded
+pending-PQ workflow, and does not panic the node or invalidate canonical
+finality. At the pending-PQ limit, the live action is
+`stop_compression_publication_keep_fold_finality`; splitting one epoch across
+final envelopes or weakening security remains forbidden.
 
 ## 📦 Epoch Manifest Contract
 
@@ -1458,8 +1470,8 @@ epoch_manifest_v2:
   version: 2
   epoch_index: 0
   start_height: 1
-  end_height: 1000
-  cadence_blocks: 1000
+  end_height: 2000
+  cadence_blocks: 2000
   statement_digest_root: "0x..."
   checkpoint_artifact_root: "0x..."
   checkpoint_link_root: "0x..."
@@ -2066,7 +2078,7 @@ retrieval_audit_v1:
 state_snapshot_v1:
   version: 1
   height: 10000
-  cadence_epochs: 10
+  cadence_epochs: 5
   cadence_blocks: 10000
   state_root: "0x..."
   settlement_root: "0x..."
@@ -2082,7 +2094,9 @@ state_snapshot_v1:
 
 - `StateSnapshotV1` is bootstrap data, not a trust root.
 - Snapshot cadence MUST be a positive multiple of PQ cadence.
-- The default profile uses `cadence_epochs: 10` and `cadence_blocks: 10000`.
+- The default profile uses `cadence_epochs: 5` and `cadence_blocks: 10000`,
+  giving one bootstrap snapshot every 13 hours 53 minutes 20 seconds at the
+  five-second finalized-block target.
 - A snapshot MUST bind state root and settlement root.
 - A snapshot MUST bind the latest completed Plonky3 epoch proof digest.
 - A snapshot MUST bind the latest epoch manifest root.
@@ -2166,8 +2180,8 @@ bytes, the current state, or `NovaAccumulatorSnapshotV2` recovery images:
    challenge archive, or deleted by a Nova proof-body ticket.
 
 The eight-pending-epoch value is a hard anti-amplification planning default, not
-a throughput/capacity promise. At five-second blocks and 1000-block epochs it is
-about 11.1 hours of pending epochs. Plan 11 MUST measure the actual running
+a throughput/capacity promise. At five-second blocks and 2000-block epochs it is
+about 22.2 hours of pending epochs. Plan 11 MUST measure the actual running
 accumulator/recovery-snapshot bytes and select a separate positive finite hot-
 recovery byte cap before production activation; a count-only or host-RAM-derived
 cap is insufficient. If Plonky3 remains unavailable, the much larger canonical
@@ -2536,7 +2550,7 @@ trigger and never serializes or re-exports a private operational error.
 | `PqCadenceDisabled` | PQ policy is disabled under the recursive-ready checkpoint profile. |
 | `PqCadenceInvalid` | Cadence is zero, overflows, or is not representable by the config type. |
 | `PqLiveCadenceStageMismatch` | Live cadence enforcement is enabled before `pq_anchor_writer` or disabled at/after it. |
-| `PqAnchorMissing` | A closed positive-cadence epoch lacks `PostQuantumCheckpointAnchorV2` when asynchronous evidence promotion or retention deletion is evaluated. It MUST NOT reject canonical checkpoint admission or height-1000 epoch closure. |
+| `PqAnchorMissing` | A closed positive-cadence epoch lacks `PostQuantumCheckpointAnchorV2` when asynchronous evidence promotion or retention deletion is evaluated. It MUST NOT reject canonical checkpoint admission or height-2000 epoch closure. |
 | `PqAnchorDigestMismatch` | PQ anchor statement, delta, witness, close/challenge/DA, archive-availability, proof, or generation binding mismatches the joined epoch evidence. |
 | `PqAnchorIncomplete` | A required PQ anchor artifact field is missing. |
 | `RecursiveDocumentationIncomplete` | Closeout lacks required schemas, vectors, reject matrix, measurements, or PQ cadence evidence. |
@@ -2682,7 +2696,7 @@ branches:
     proof_body_retention: nova_retention_state_v2
   plonky3_epoch:
     is_enabled: true
-    cadence_blocks: 1000
+    cadence_blocks: 2000
     is_authoritative: false
     has_pq_epoch_evidence: true
     mode: pq_epoch_evidence_async
@@ -2820,7 +2834,7 @@ archive_retention:
 
 post_quantum:
   is_enabled: true
-  cadence_blocks: 1000
+  cadence_blocks: 2000
   mode: plonky3_epoch_evidence_async
   enforcement_stage: pq_anchor_writer
   is_live_cadence_enforced: false
@@ -2839,7 +2853,7 @@ post_quantum:
 
 snapshots:
   is_enabled: true
-  cadence_epochs: 10
+  cadence_epochs: 5
   cadence_blocks: 10000
   object_type: state_snapshot_v1
   is_snapshot_bootstrap_allowed: true
@@ -2924,14 +2938,15 @@ limits:
   max_batch_ops: 1000
   max_batch_bytes: 8388608
   max_witness_bytes: 67108864
-  max_recursive_proof_envelope_bytes: 17825792
+  max_recursive_proof_envelope_bytes: 16777216
   max_recursive_sidecar_bytes: 25165824
   max_nova_block_proof_bytes: 131072
   max_nova_retained_proof_bodies: 16
   max_nova_retained_body_bytes: 2097152
   max_nova_hot_recovery_bytes: 0
   max_epoch_nova_archive_bytes: 134217728
-  max_plonky3_epoch_proof_bytes: 16777216
+  target_plonky3_epoch_proof_bytes: 2097152
+  max_plonky3_epoch_proof_bytes: 4194304
   max_plonky3_epoch_sidecar_bytes: 25165824
   max_pq_anchor_bytes: 4096
   max_archive_manifest_bytes: 8388608
@@ -2994,7 +3009,7 @@ branches:
     proof_body_retention: nova_retention_state_v2
   plonky3_epoch:
     is_enabled: true
-    cadence_blocks: 1000
+    cadence_blocks: 2000
     is_authoritative: false
     has_pq_epoch_evidence: true
     mode: pq_epoch_evidence_async
@@ -3105,7 +3120,7 @@ archive_retention:
 
 post_quantum:
   is_enabled: true
-  cadence_blocks: 1000
+  cadence_blocks: 2000
   mode: plonky3_epoch_evidence_async
   enforcement_stage: pq_anchor_writer
   is_live_cadence_enforced: false
@@ -3124,7 +3139,7 @@ post_quantum:
 
 snapshots:
   is_enabled: true
-  cadence_epochs: 10
+  cadence_epochs: 5
   cadence_blocks: 10000
   object_type: state_snapshot_v1
   is_snapshot_bootstrap_allowed: true
@@ -3198,14 +3213,15 @@ paths:
   history_rotation_bridges: artifacts/checkpoints/history_rotation_bridge
 
 limits:
-  max_recursive_proof_envelope_bytes: 17825792
+  max_recursive_proof_envelope_bytes: 16777216
   max_recursive_sidecar_bytes: 25165824
   max_nova_block_proof_bytes: 131072
   max_nova_retained_proof_bodies: 16
   max_nova_retained_body_bytes: 2097152
   max_nova_hot_recovery_bytes: 0
   max_epoch_nova_archive_bytes: 134217728
-  max_plonky3_epoch_proof_bytes: 16777216
+  target_plonky3_epoch_proof_bytes: 2097152
+  max_plonky3_epoch_proof_bytes: 4194304
   max_plonky3_epoch_sidecar_bytes: 25165824
   max_pq_anchor_bytes: 4096
   max_archive_manifest_bytes: 8388608
@@ -3235,13 +3251,21 @@ limits:
   non-authoritative prover is a valid degraded mode and MUST NOT block canonical
   checkpoint admission. Promotion evidence requires both selected backends live,
   healthy, and fully verified.
-- Config V3 resolves generic/backend cap ambiguity by separating body, envelope, and
-  sidecar limits. The selected backend body cap applies first; the complete
-  canonically encoded proof envelope MUST fit `max_recursive_proof_envelope_bytes`, and
-  the complete attachment MUST fit `max_recursive_sidecar_bytes`. The default
-  16 MiB Plonky3 body therefore has a 17 MiB envelope and 24 MiB sidecar ceiling;
-  Nova still has its stricter 128 KiB body ceiling. Legacy 8 MiB generic/12 MiB
-  sidecar fields are migration input only and MUST NOT silently truncate V2.
+- Config V3 resolves generic/backend cap ambiguity by separating production
+  payload, untrusted ingress, and sidecar limits. One complete canonical
+  Plonky3 payload for exactly 2000 finalized blocks targets
+  `target_plonky3_epoch_proof_bytes = 2,097,152`; the measurement includes every
+  proof body, root/replica, public input, manifest field, and framing byte and
+  cannot be multiplied or split. Verified target misses no larger than
+  `max_plonky3_epoch_proof_bytes = 4,194,304` publish with degraded-size
+  evidence but cannot satisfy the Phase-069 size acceptance gate.
+  `max_recursive_proof_envelope_bytes = 16,777,216` is only the pre-dispatch
+  parser/allocation and DoS ceiling. Payloads in `(4 MiB, 16 MiB]` reject as
+  `ProofSizeBudgetExceeded` before proof-specific allocation or verification.
+  The complete attachment also
+  fits `max_recursive_sidecar_bytes`; Nova retains its stricter 128 KiB body
+  ceiling. Legacy schema-2 generic/body values are immutable migration input
+  only and MUST NOT drive V3 writes.
 - `max_close_evidence_appends` MUST be positive, checked before work,
   and authority-pinned to a measured close-preparation CPU/latency budget. `64`
   is the planning candidate, not a throughput promise; excess ready entries
@@ -3521,7 +3545,8 @@ limits:
   that red line in code and docs.
 - Plonky3 proofs are larger and proving is more expensive, so they run at
   epoch cadence by default instead of every block.
-- The 1000-block cadence is a configurable compromise: recent open-epoch blocks
+- The 2000-block cadence is a configurable compromise (`10,000` seconds, or
+  `2 h 46 min 40 s`, at five-second finalization): recent open-epoch blocks
   keep fast classical proofs and full replay material, while completed epochs
   gain Plonky3/STARK outer proof evidence.
 
@@ -3558,8 +3583,8 @@ field. Neither version certifies end-to-end PQ validity.
 ```yaml
 post_quantum_checkpoint_anchor_v2:
   version: 2
-  height: 1000
-  cadence_blocks: 1000
+  height: 2000
+  cadence_blocks: 2000
   statement_digest: "0x..."
   pq_statement_digest: "0x..."
   pq_delta_root: "0x..."
@@ -3578,12 +3603,12 @@ post_quantum_checkpoint_anchor_v2:
 
 📌 Cadence rules:
 
-- Default cadence is exactly `1000` blocks.
+- Default cadence is exactly `2000` blocks.
 - Cadence applies to positive non-genesis heights.
 - `is_pq_cadence_height(height)` MUST return true when
   `height % cadence_blocks == 0` and `height > 0`.
-- With default cadence, height `999` is an open epoch and height `1000` MUST
-  atomically commit `EpochCloseAnchorV2` plus an outbox job. Height `1000` MUST
+- With default cadence, height `1999` is an open epoch and height `2000` MUST
+  atomically commit `EpochCloseAnchorV2` plus an outbox job. Height `2000` MUST
   remain canonical when Nova/Plonky3/PQ/evidence-publication workers are
   unavailable; the inherited canonical block DA-ready gate is still required.
 - Before `pq_anchor_writer`, the policy is declared-only: fixtures and docs MAY
@@ -3637,7 +3662,7 @@ post_quantum_checkpoint_anchor_v2:
 📌 Required PQ documentation:
 
 - The closeout packet MUST contain at least one default-cadence fixture proving
-  height `999` remains open, height `1000` closes canonically while all proof/PQ
+  height `1999` remains open, height `2000` closes canonically while all proof/PQ
   workers are stopped, and the same closed epoch later receives a complete
   exact-epoch/history/PQ evidence set in live-enforcement mode.
 - The packet MUST include a rejected-claim register for any source text that
@@ -3723,7 +3748,7 @@ recursive_checkpoint_documentation_packet_v2:
   tamper-case IDs.
 - It MUST include measurement IDs and state that measurements are local spike
   evidence only.
-- It MUST include default cadence evidence for heights `999` and `1000`, the
+- It MUST include default cadence evidence for heights `1999` and `2000`, the
   proof-worker-unavailable canonical-close result, and later Plonky3 exact-epoch,
   rolling-history, rotation, and PQ evidence IDs.
 - It MUST include challenge-retention evidence proving Celestia is DA-only,
@@ -3946,7 +3971,7 @@ flowchart LR
     LinkStore[CheckpointLink Store\nSnapshot and exec binding]
     SidecarCodec[RecursiveCheckpointSidecarV2\nShadow proof evidence]
     NovaProof[NovaCompressedSnapshotV2\nPer-block classical IVC]
-    EpochStmt[EpochRangeStatementV2\nCanonical 1000-block range]
+    EpochStmt[EpochRangeStatementV2\nCanonical 2000-block range]
     PlonkyProof[Plonky3EpochProofV2\nRecursive STARK epoch proof]
     HistoryProof[Plonky3HistoryProofV2\nVerified successor / rotation]
     EpochClose[EpochCloseAnchorV2\nCanonical compact anchor]
@@ -4796,9 +4821,9 @@ backend verifier.
 | PQ cadence is zero or overflows cadence arithmetic | Reject config fail-closed. |
 | Live PQ cadence is enabled before `pq_anchor_writer` | Reject config fail-closed. |
 | Live PQ cadence is disabled at or after `pq_anchor_writer` | Reject config fail-closed. |
-| Height 1000 lacks Plonky3 epoch proof, epoch manifest, or PQ anchor when asynchronous evidence promotion or deletion is evaluated | Keep canonical epoch closure/finality unchanged; reject evidence completeness or deletion with the scoped cadence reason. |
-| Height 1000 is rejected because a recursive/PQ/evidence-publication worker is unavailable after canonical DA readiness | Reject implementation as `CanonicalAdmissionAttempt`; canonical epoch closure must succeed and enqueue retryable work. |
-| Height 999 requires a PQ anchor under default cadence | Reject cadence calculator. |
+| Height 2000 lacks Plonky3 epoch proof, epoch manifest, or PQ anchor when asynchronous evidence promotion or deletion is evaluated | Keep canonical epoch closure/finality unchanged; reject evidence completeness or deletion with the scoped cadence reason. |
+| Height 2000 is rejected because a recursive/PQ/evidence-publication worker is unavailable after canonical DA readiness | Reject implementation as `CanonicalAdmissionAttempt`; canonical epoch closure must succeed and enqueue retryable work. |
+| Height 1999 requires a PQ anchor under default cadence | Reject cadence calculator. |
 | PQ anchor statement digest mismatches checkpoint statement | Reject PQ anchor. |
 | PQ anchor challenge/DA commitment or archive-availability manifest root mismatches its exact epoch/close evidence | Reject PQ anchor. |
 | PQ anchor omits required PQ commitment field | Reject PQ anchor. |
@@ -4887,7 +4912,7 @@ Phase 069 MUST add unit tests for:
 - PQ policy disabled rejects under the recursive-ready profile.
 - PQ cadence `0` rejects.
 - `is_pq_cadence_height(999)` is false for default cadence.
-- `is_pq_cadence_height(1000)` is true for default cadence.
+- `is_pq_cadence_height(2000)` is true for default cadence.
 - Live PQ cadence before `pq_anchor_writer` rejects.
 - Non-live PQ cadence at or after `pq_anchor_writer` rejects.
 - Missing required PQ anchor artifacts reject.
@@ -4976,13 +5001,13 @@ Phase 069 MUST add integration tests for:
 - Nova block proof binds the same statement digest and checkpoint link as the
   canonical artifact.
 - Nova block proof chain root matches ordered per-block proof digests.
-- Plonky3 epoch statement binds the full canonical 1000-block statement range;
+- Plonky3 epoch statement binds the full canonical 2000-block statement range;
   rolling-history base/successor/rotation verify real predecessor/epoch proofs,
   and digest-only or unbridged generation transitions reject.
 - Plonky3 epoch proof cannot pass when it only proves Nova verifier acceptance.
 - Epoch manifest binds canonical artifacts, checkpoint links, challenge-content
   root, canonical DA payload commitment, separate archive-availability root,
-  Nova chain root, and Plonky3 proof digest; height 1000 closes canonically with
+  Nova chain root, and Plonky3 proof digest; height 2000 closes canonically with
   proof/PQ/evidence-publication workers stopped after canonical DA readiness;
   later attachment cannot change root/finality.
 - V2 archive-availability manifest binds the challenge content root, raw
@@ -5014,7 +5039,7 @@ Phase 069 MUST add integration tests for:
   manifest root.
 - Cadence-height evidence audit fails when the required asynchronous anchor is
   missing under live enforcement and passes when the full anchor is present;
-  canonical height-1000 admission passes in both cases.
+  canonical height-2000 admission passes in both cases.
 - Cadence-height audit fails when the Plonky3 epoch proof or epoch manifest is
   missing under live enforcement.
 - The existing storage shape verifier cannot produce a cryptographic backend
@@ -5057,15 +5082,15 @@ Phase 069 MUST add local simulator evidence for:
 - A deterministic-input 3-step recursive sidecar run.
 - A deterministic-input 5-step recursive sidecar run.
 - A deterministic-input Nova per-block fold/proof run with real verification.
-- A deterministic-input Plonky3 epoch proof fixture at height 1000 with real
+- A deterministic-input Plonky3 epoch proof fixture at height 2000 with real
   verification. Production prover randomness remains non-deterministic CSPRNG
   input under a separate profile.
 - Tampered middle proof rejection.
 - Tampered witness package rejection.
 - Canonical checkpoint admission unchanged before and after sidecar emission.
 - Measurement artifact emission with local-spike scope.
-- Default cadence evidence for height 999 and height 1000, including open epoch
-  status at 999, canonical close with workers stopped at 1000, and later
+- Default cadence evidence for height 1999 and height 2000, including open epoch
+  status at 1999, canonical close with workers stopped at 2000, and later
   Plonky3 exact-epoch/history/PQ attachment.
 - Challenge-retention evidence with one measured/reconstructible versioned
   RS(10,16) shard set and explicit proof that no full-replica fallback exists.
@@ -5073,7 +5098,8 @@ Phase 069 MUST add local simulator evidence for:
   quorum placement, root-verified membership and seed-recovery scans, plus
   reshard crash/partition/restart coverage through the existing HJMT owners.
 - Retrieval audit evidence at height 1000.
-- State snapshot evidence at height 10000.
+- State snapshot evidence at height 10000 after five complete Plonky3/PQ
+  epochs.
 - Full-node and `window_archive_watcher_v2` retention-ticket positive fixtures
   after all gates; negative early/held/stale-CAS/legacy/ticketless fixtures.
 - 100-day accelerated retention plateau, permanent compact-growth caps, wallet
@@ -5130,16 +5156,16 @@ Phase 069 MUST add source or documentation guards proving:
 | `RCP-AC-011` | A backend manifest claims PQ safety without evidence | Audit guard runs | The claim rejects. |
 | `RCP-AC-012` | A provider SDK receipt is included in digest input | Public input digest is built | Digest construction rejects. |
 | `RCP-AC-013` | Default PQ cadence is configured | Height 999 is evaluated | No PQ anchor is required. |
-| `RCP-AC-014` | Default cadence and live evidence enforcement are active | After canonical DA readiness, height 1000 is evaluated with proof/PQ/evidence-publication workers stopped, then workers recover | `EpochCloseAnchorV2` commits canonically immediately; a complete exact-epoch/history/`PostQuantumCheckpointAnchorV2` set is required only for later evidence completeness or deletion. |
+| `RCP-AC-014` | Default cadence and live evidence enforcement are active | After canonical DA readiness, height 2000 is evaluated with proof/PQ/evidence-publication workers stopped, then workers recover | `EpochCloseAnchorV2` commits canonically immediately; a complete exact-epoch/history/`PostQuantumCheckpointAnchorV2` set is required only for later evidence completeness or deletion. |
 | `RCP-AC-015` | A PQ anchor binds the wrong challenge-content, DA payload, or archive-availability root | The anchor is validated | Validation rejects with `PqAnchorDigestMismatch`. |
 | `RCP-AC-016` | A V1 canonical artifact contains `pq_anchor_root` | The artifact or statement is decoded | Validation rejects with `PqInlineAnchorUnsupported`. |
 | `RCP-AC-017` | Phase 069 closeout is evaluated | Recursive docs packet is missing PQ cadence evidence | Closeout rejects with `RecursiveDocumentationIncomplete`. |
 | `RCP-AC-018` | Active config is loaded | Nova branch is marked PQ authoritative | Config rejects with `NovaPqAuthorityUnsupported` or equivalent fail-closed config error. |
 | `RCP-AC-019` | Active config is loaded | Plonky3 cadence differs from PQ cadence | Config rejects with `HybridCadenceMismatch` or equivalent fail-closed config error. |
-| `RCP-AC-020` | A completed 1000-block epoch exists | `EpochRangeStatementV2` is built | It binds the certified close-anchor digest, every canonical statement/link, witness/delta roots, challenge-content root, canonical DA payload commitment, and optional Nova chain root—never future provider-availability evidence. |
+| `RCP-AC-020` | A completed 2000-block epoch exists | `EpochRangeStatementV2` is built | It binds the certified close-anchor digest, every canonical statement/link, witness/delta roots, challenge-content root, canonical DA payload commitment, and optional Nova chain root—never future provider-availability evidence. |
 | `RCP-AC-021` | A Plonky3 proof only verifies Nova proofs | Epoch proof is validated | Validation rejects with `Plonky3DependsOnlyOnNova`. |
 | `RCP-AC-022` | A Plonky3 epoch proof omits canonical range binding | Epoch proof is validated | Validation rejects with `Plonky3CanonicalRangeMissing`. |
-| `RCP-AC-023` | A valid height-1000 epoch proof exists | PQ anchor is built | Anchor binds Plonky3 epoch statement/proof/public-input digests, challenge/DA commitments, matching later archive-availability root, and Nova chain root. |
+| `RCP-AC-023` | A valid height-2000 epoch proof exists | PQ anchor is built | Anchor binds Plonky3 epoch statement/proof/public-input digests, challenge/DA commitments, matching later archive-availability root, and Nova chain root. |
 | `RCP-AC-024` | Nova or Plonky3 proof bytes exceed configured cap | Proof is decoded or written | Validation rejects with `ProofSizeBudgetExceeded` before write. |
 | `RCP-AC-025` | Active config is loaded | `archive_retention.is_celestia_da_only` is false | Config rejects with `CelestiaPermanentStorageUnsupported` or equivalent fail-closed config error. |
 | `RCP-AC-026` | An archive manifest uses IPFS | The IPFS entry is not pinned or receipt-bound | Validation rejects with `IpfsPinningMissing`. |
@@ -5183,7 +5209,7 @@ Phase 069 MUST add source or documentation guards proving:
 | `069-09` | Bind verified receipts into sidecar/epoch/history/PQ evidence; implement challenge packs, compact anchors, retention tickets, wallet receipts, 16-shard seed recovery; reserve the Phase-071 mailbox handoff with no online path. | Actual backend/history verification governs evidence/deletion; current-unspent seed recovery works with no mailbox; reserved registry/config rows reject every online mailbox operation. |
 | `069-10` | Add bounded prover lifecycle and independent canonical/evidence/wallet durable state machines with restart, timeout, reorg, backup, plus an extension-safe three-transaction/outbox handoff for Phase 071. | No mailbox saga or fourth authority ships in Phase 069; the Phase-071 ACK/GC atomicity contract is exact and generic current outboxes remain idempotent. |
 | `069-11` | Benchmark proof size, fold/compression/prover/verifier time, peak memory, witness, retention, live-shard, seed-scan, and wallet-backup costs. | Mailbox metrics remain explicitly Phase-071/unmeasured and cap zero; no imported estimate, positive cap, or activation survives. |
-| `069-12` | Add real-backend simulator, asynchronous cadence, accelerated challenge retention, mailbox-absent seed recovery, wallet restore, and crash evidence. | Height 1000 closes without workers; archive retention plateaus; reserved mailbox paths stay unreachable; all three authority state machines recover. |
+| `069-12` | Add real-backend simulator, asynchronous cadence, accelerated challenge retention, mailbox-absent seed recovery, wallet restore, and crash evidence. | Height 2000 closes without workers; archive retention plateaus; reserved mailbox paths stay unreachable; all three authority state machines recover. |
 | `069-13` | Close documentation, security, dependency, retention, wallet, atomicity, capacity, 069→071 handoff, and overclaim audits. | Packet records pins, receipts, limitations, client custody, no Phase-069 mailbox implementation/activation claim, and no finality/PQ/production overclaim. |
 
 ## 🧾 Required Artifacts
@@ -5211,7 +5237,7 @@ Phase 069 MUST add source or documentation guards proving:
 | Plonky3 base and epoch proofs | `artifacts/checkpoints/plonky3_epoch` in local runs | Real base proof of the accepted predicate and recursive epoch proof with exact leaf count/tree shape, backend receipts, Nova-only rejection evidence, and a generation-pinned `RecursiveSecurityBudgetManifestV2` whose finite horizon preserves the residual target. |
 | Measurements and capacity ledger | Simulator or benchmark output | `RecursiveCheckpointMeasurementV2` with local-spike label plus static PP/PK/VK, transient proofs, bounded challenge ring, permanent compact history, live state, role traffic, wallet backups, day-100 archive plateau, 4 KiB anchor and 100 KiB/day caps. Mailbox rows are `not_measured_phase071`, cap remains zero, and no capacity/activation claim is made. |
 | PQ anchor object | `artifacts/checkpoints/pq_anchor` in local runs | Asynchronous `PostQuantumCheckpointAnchorV2` for closed default-cadence ranges binding Plonky3 epoch/history proof, V2 evidence commitment, and Nova root when evidence enforcement is active; V1 is migration-only. |
-| PQ cadence vectors | Storage, recursive proof, or simulator tests | Height 999 open fixture, height 1000 canonical-close-with-workers-down fixture, later exact-epoch/history/PQ attachment, and stage-gate positive/negative cases. |
+| PQ cadence vectors | Storage, recursive proof, or simulator tests | Height 1999 open fixture, height 2000 canonical-close-with-workers-down fixture, later exact-epoch/history/PQ attachment, and stage-gate positive/negative cases. |
 | Recursive docs packet | Phase 069 closeout | Schemas, vectors, sidecar/chain/history IDs, measurements, asynchronous cadence evidence, retention/wallet/atomicity/capacity matrices, backend manifest, rejected-claim register. |
 | Reject report | Test output or closeout | Stable reject reason matrix. |
 | Audit report | Phase 069 closeout | Overclaim, PQ, DA, and canonical-admission guard results. |
@@ -5365,7 +5391,7 @@ Phase 069 is complete only when:
   passes registry completeness, cross-type, downgrade, bounded-decode,
   dual-read/single-write migration, and atomic-crash tests with zero
   unclassified recursive V1/V2 or config V1/V2/V3 suffix occurrence.
-- PQ cadence gates commit height 1000 canonically without proof workers and
+- PQ cadence gates commit height 2000 canonically without proof workers and
   enforce later exact-epoch/history/PQ evidence only at/after `pq_anchor_writer`
   for evidence completeness/deletion.
 - `PostQuantumCheckpointAnchorV2` is specified, tested, and documented as a
@@ -5427,7 +5453,7 @@ the following checklist:
   notary history; no parallel storage authority is created.
 - [ ] Phase closure requires real Nova and real Plonky3 verification; a failed
   feasibility gate produces a stop/split packet, never a mock-backed success.
-- [ ] No plan enables `CheckpointProofSystem::VERIFIED`, makes height-1000
+- [ ] No plan enables `CheckpointProofSystem::VERIFIED`, makes height-2000
   canonical close wait for proof/PQ/additional evidence publication after the
   inherited DA-ready/QC gates, or claims end-to-end PQ validity.
 - [ ] Mailbox ownership is Phase 071: Phase 069 implements only seed recovery,

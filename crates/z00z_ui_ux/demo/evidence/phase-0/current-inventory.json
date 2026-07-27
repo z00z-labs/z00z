@@ -1,0 +1,1689 @@
+{
+  "schemaVersion": 1,
+  "capturedOn": "2026-07-26",
+  "sources": {
+    "app.js": "85161b6c006e489d848c42d25cc8ebdc37dff99a88a33ac195f587c393ccb5a7",
+    "help/topics.yaml": "a50eb6d98c3019d5190a82a373e4ff5024cac3147c1e8c6fbd59f3bd675ca13e",
+    "scripts/port/contracts.js": "d16b1740c274d7c38e37ace18c549ba4823a380c006b8392465a3d0fa63d9dd5",
+    "scripts/port/fixtures.js": "827ee3cfb23d5599a11bae9ed294b1f992ecce564d752eed09c1b225961f41c1",
+    "scripts/port/help-registry.js": "3d34326dbdb37adbb0f6826406aff39b46f83490590931c6fda054cedfcf7deb",
+    "scripts/port/icon-registry.js": "4e7a3922df261aca0dae45660d13df501a0b84265dd8d3b3ab771b7f8fd87740",
+    "scripts/port/locale-registry.js": "dae757e04c947862e731d31d79bdb3b56d5502be48ea7095b94eff40dd6f083b",
+    "scripts/port/mock-wallet-gateway.js": "7cdc29153efd2a7ebbd1cf0880609eb6c9dab18585981963acd4db2153b10bbb",
+    "scripts/port/presentation-state.js": "b9b37678a70a825337048b6945b4de2652501174a3803cfc2bdef87c5553c784",
+    "smoke.spec.js": "aaa68c1117ab8e45fc020a7091dba427ef2495ab6500591ab943c26ceaedccf6",
+    "styles/colors.css": "23dcbf4eda769079fc68afd2f5615223f7607c7e160e52456d3492d3f753cf6f"
+  },
+  "routes": {
+    "contractVersion": "1.2.0",
+    "viewIds": [
+      "home",
+      "wallet",
+      "wallet-send",
+      "wallet-receive",
+      "activity",
+      "swap",
+      "exchange",
+      "staking",
+      "wallet-backup",
+      "wallet-settings",
+      "settings",
+      "telemetry"
+    ],
+    "walletSectionIds": [
+      "assets",
+      "vouchers",
+      "permissions"
+    ],
+    "walletSettingsSectionIds": [
+      "general",
+      "security",
+      "backup",
+      "policies",
+      "advanced"
+    ],
+    "settingsSectionIds": [
+      "general",
+      "reticulum",
+      "onionnet",
+      "appearance"
+    ],
+    "networkSectionIds": [
+      "overview",
+      "reticulum",
+      "onionnet"
+    ],
+    "telemetrySourceIds": [
+      "onionnet",
+      "reticulum",
+      "aggregators"
+    ],
+    "telemetryTabIds": {
+      "reticulum": [
+        "overview",
+        "node",
+        "interfaces",
+        "radio",
+        "entrypoints",
+        "paths",
+        "probes",
+        "links"
+      ],
+      "onionnet": [
+        "overview",
+        "epoch",
+        "privacy",
+        "transport",
+        "queues",
+        "probation",
+        "ingress"
+      ],
+      "aggregators": [
+        "overview"
+      ]
+    },
+    "resolvedStates": [
+      {
+        "view": "home"
+      },
+      {
+        "view": "wallet",
+        "walletSection": "assets"
+      },
+      {
+        "view": "wallet",
+        "walletSection": "vouchers"
+      },
+      {
+        "view": "wallet",
+        "walletSection": "permissions"
+      },
+      {
+        "view": "wallet-send"
+      },
+      {
+        "view": "wallet-receive"
+      },
+      {
+        "view": "activity"
+      },
+      {
+        "view": "swap"
+      },
+      {
+        "view": "exchange"
+      },
+      {
+        "view": "staking"
+      },
+      {
+        "view": "wallet-backup"
+      },
+      {
+        "view": "wallet-settings",
+        "walletSettingsSection": "general"
+      },
+      {
+        "view": "wallet-settings",
+        "walletSettingsSection": "security"
+      },
+      {
+        "view": "wallet-settings",
+        "walletSettingsSection": "backup"
+      },
+      {
+        "view": "wallet-settings",
+        "walletSettingsSection": "policies"
+      },
+      {
+        "view": "wallet-settings",
+        "walletSettingsSection": "advanced"
+      },
+      {
+        "view": "settings",
+        "settingsSection": "general"
+      },
+      {
+        "view": "settings",
+        "settingsSection": "reticulum"
+      },
+      {
+        "view": "settings",
+        "settingsSection": "onionnet"
+      },
+      {
+        "view": "settings",
+        "settingsSection": "appearance"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "onionnet",
+        "onionnetTelemetryTab": "overview"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "onionnet",
+        "onionnetTelemetryTab": "epoch"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "onionnet",
+        "onionnetTelemetryTab": "privacy"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "onionnet",
+        "onionnetTelemetryTab": "transport"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "onionnet",
+        "onionnetTelemetryTab": "queues"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "onionnet",
+        "onionnetTelemetryTab": "probation"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "onionnet",
+        "onionnetTelemetryTab": "ingress"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "overview"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "node"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "interfaces"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "radio"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "entrypoints"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "paths"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "probes"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "reticulum",
+        "reticulumTelemetryTab": "links"
+      },
+      {
+        "view": "telemetry",
+        "telemetrySource": "aggregators",
+        "aggregatorsTelemetryTab": "overview"
+      }
+    ]
+  },
+  "help": {
+    "topicCount": 38,
+    "topics": [
+      {
+        "id": "app",
+        "group": "app",
+        "file": "app",
+        "scope": "global",
+        "match": {
+          "global": "true"
+        }
+      },
+      {
+        "id": "app.home",
+        "group": "app",
+        "file": "app-home",
+        "scope": "context",
+        "match": {
+          "view": "home"
+        }
+      },
+      {
+        "id": "wallet.assets",
+        "group": "wallets",
+        "file": "wallet-assets",
+        "scope": "context",
+        "match": {
+          "view": "wallet",
+          "walletSection": "assets"
+        }
+      },
+      {
+        "id": "wallet.vouchers",
+        "group": "wallets",
+        "file": "wallet-vouchers",
+        "scope": "context",
+        "match": {
+          "view": "wallet",
+          "walletSection": "vouchers"
+        }
+      },
+      {
+        "id": "wallet.permissions",
+        "group": "wallets",
+        "file": "wallet-permissions",
+        "scope": "context",
+        "match": {
+          "view": "wallet",
+          "walletSection": "permissions"
+        }
+      },
+      {
+        "id": "wallet.send",
+        "group": "wallets",
+        "file": "wallet-send",
+        "scope": "context",
+        "match": {
+          "view": "wallet-send"
+        }
+      },
+      {
+        "id": "wallet.receive",
+        "group": "wallets",
+        "file": "wallet-receive",
+        "scope": "context",
+        "match": {
+          "view": "wallet-receive"
+        }
+      },
+      {
+        "id": "wallet.swap",
+        "group": "wallets",
+        "file": "wallet-swap",
+        "scope": "context",
+        "match": {
+          "view": "swap"
+        }
+      },
+      {
+        "id": "wallet.exchange",
+        "group": "wallets",
+        "file": "wallet-exchange",
+        "scope": "context",
+        "match": {
+          "view": "exchange"
+        }
+      },
+      {
+        "id": "wallet.staking",
+        "group": "wallets",
+        "file": "wallet-staking",
+        "scope": "context",
+        "match": {
+          "view": "staking"
+        }
+      },
+      {
+        "id": "wallet.backup",
+        "group": "wallets",
+        "file": "wallet-backup",
+        "scope": "context",
+        "match": {
+          "view": "wallet-backup"
+        }
+      },
+      {
+        "id": "wallet.history",
+        "group": "wallets",
+        "file": "wallet-history",
+        "scope": "context",
+        "match": {
+          "view": "activity"
+        }
+      },
+      {
+        "id": "wallet.settings.general",
+        "group": "wallets",
+        "file": "wallet-settings-general",
+        "scope": "context",
+        "match": {
+          "view": "wallet-settings",
+          "walletSettingsSection": "general"
+        }
+      },
+      {
+        "id": "wallet.settings.security",
+        "group": "wallets",
+        "file": "wallet-settings-security",
+        "scope": "context",
+        "match": {
+          "view": "wallet-settings",
+          "walletSettingsSection": "security"
+        }
+      },
+      {
+        "id": "wallet.settings.backup",
+        "group": "wallets",
+        "file": "wallet-settings-backup",
+        "scope": "context",
+        "match": {
+          "view": "wallet-settings",
+          "walletSettingsSection": "backup"
+        }
+      },
+      {
+        "id": "wallet.settings.policies",
+        "group": "wallets",
+        "file": "wallet-settings-policies",
+        "scope": "context",
+        "match": {
+          "view": "wallet-settings",
+          "walletSettingsSection": "policies"
+        }
+      },
+      {
+        "id": "wallet.settings.advanced",
+        "group": "wallets",
+        "file": "wallet-settings-advanced",
+        "scope": "context",
+        "match": {
+          "view": "wallet-settings",
+          "walletSettingsSection": "advanced"
+        }
+      },
+      {
+        "id": "settings.general",
+        "group": "settings",
+        "file": "settings-general",
+        "scope": "context",
+        "match": {
+          "view": "settings",
+          "settingsSection": "general"
+        }
+      },
+      {
+        "id": "settings.appearance",
+        "group": "settings",
+        "file": "settings-appearance",
+        "scope": "context",
+        "match": {
+          "view": "settings",
+          "settingsSection": "appearance"
+        }
+      },
+      {
+        "id": "settings.reticulum",
+        "group": "settings",
+        "file": "settings-reticulum",
+        "scope": "context",
+        "match": {
+          "view": "settings",
+          "settingsSection": "reticulum"
+        }
+      },
+      {
+        "id": "settings.onionnet",
+        "group": "settings",
+        "file": "settings-onionnet",
+        "scope": "context",
+        "match": {
+          "view": "settings",
+          "settingsSection": "onionnet"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.overview",
+        "group": "network",
+        "file": "telemetry-reticulum-overview",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "overview"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.node",
+        "group": "network",
+        "file": "telemetry-reticulum-node",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "node"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.interfaces",
+        "group": "network",
+        "file": "telemetry-reticulum-interfaces",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "interfaces"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.radio",
+        "group": "network",
+        "file": "telemetry-reticulum-radio",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "radio"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.entrypoints",
+        "group": "network",
+        "file": "telemetry-reticulum-entrypoints",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "entrypoints"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.paths",
+        "group": "network",
+        "file": "telemetry-reticulum-paths",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "paths"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.probes",
+        "group": "network",
+        "file": "telemetry-reticulum-probes",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "probes"
+        }
+      },
+      {
+        "id": "telemetry.reticulum.links",
+        "group": "network",
+        "file": "telemetry-reticulum-links",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "reticulum",
+          "reticulumTelemetryTab": "links"
+        }
+      },
+      {
+        "id": "telemetry.onionnet.overview",
+        "group": "network",
+        "file": "telemetry-onionnet-overview",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "onionnet",
+          "onionnetTelemetryTab": "overview"
+        }
+      },
+      {
+        "id": "telemetry.onionnet.epoch",
+        "group": "network",
+        "file": "telemetry-onionnet-epoch",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "onionnet",
+          "onionnetTelemetryTab": "epoch"
+        }
+      },
+      {
+        "id": "telemetry.onionnet.privacy",
+        "group": "network",
+        "file": "telemetry-onionnet-privacy",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "onionnet",
+          "onionnetTelemetryTab": "privacy"
+        }
+      },
+      {
+        "id": "telemetry.onionnet.transport",
+        "group": "network",
+        "file": "telemetry-onionnet-transport",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "onionnet",
+          "onionnetTelemetryTab": "transport"
+        }
+      },
+      {
+        "id": "telemetry.onionnet.queues",
+        "group": "network",
+        "file": "telemetry-onionnet-queues",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "onionnet",
+          "onionnetTelemetryTab": "queues"
+        }
+      },
+      {
+        "id": "telemetry.onionnet.probation",
+        "group": "network",
+        "file": "telemetry-onionnet-probation",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "onionnet",
+          "onionnetTelemetryTab": "probation"
+        }
+      },
+      {
+        "id": "telemetry.onionnet.ingress",
+        "group": "network",
+        "file": "telemetry-onionnet-ingress",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "onionnet",
+          "onionnetTelemetryTab": "ingress"
+        }
+      },
+      {
+        "id": "telemetry.aggregators.overview",
+        "group": "network",
+        "file": "telemetry-aggregators-overview",
+        "scope": "context",
+        "match": {
+          "view": "telemetry",
+          "telemetrySource": "aggregators",
+          "aggregatorsTelemetryTab": "overview"
+        }
+      },
+      {
+        "id": "asset.details",
+        "group": "wallets",
+        "file": "asset-details",
+        "scope": "dialog",
+        "match": {
+          "dialog": "asset-detail"
+        }
+      }
+    ],
+    "localeTrees": {
+      "en": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "ru": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "fr": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "de": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "es": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "pt": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "ko": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "tr": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "ja": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      },
+      "zh-Hans": {
+        "directories": [
+          "app",
+          "network",
+          "settings",
+          "wallets"
+        ],
+        "looseMarkdown": [],
+        "topicFiles": [
+          "app/app.md",
+          "app/app-home.md",
+          "wallets/wallet-assets.md",
+          "wallets/wallet-vouchers.md",
+          "wallets/wallet-permissions.md",
+          "wallets/wallet-send.md",
+          "wallets/wallet-receive.md",
+          "wallets/wallet-swap.md",
+          "wallets/wallet-exchange.md",
+          "wallets/wallet-staking.md",
+          "wallets/wallet-backup.md",
+          "wallets/wallet-history.md",
+          "wallets/wallet-settings-general.md",
+          "wallets/wallet-settings-security.md",
+          "wallets/wallet-settings-backup.md",
+          "wallets/wallet-settings-policies.md",
+          "wallets/wallet-settings-advanced.md",
+          "settings/settings-general.md",
+          "settings/settings-appearance.md",
+          "settings/settings-reticulum.md",
+          "settings/settings-onionnet.md",
+          "network/telemetry-reticulum-overview.md",
+          "network/telemetry-reticulum-node.md",
+          "network/telemetry-reticulum-interfaces.md",
+          "network/telemetry-reticulum-radio.md",
+          "network/telemetry-reticulum-entrypoints.md",
+          "network/telemetry-reticulum-paths.md",
+          "network/telemetry-reticulum-probes.md",
+          "network/telemetry-reticulum-links.md",
+          "network/telemetry-onionnet-overview.md",
+          "network/telemetry-onionnet-epoch.md",
+          "network/telemetry-onionnet-privacy.md",
+          "network/telemetry-onionnet-transport.md",
+          "network/telemetry-onionnet-queues.md",
+          "network/telemetry-onionnet-probation.md",
+          "network/telemetry-onionnet-ingress.md",
+          "network/telemetry-aggregators-overview.md",
+          "wallets/asset-details.md"
+        ]
+      }
+    }
+  },
+  "locales": {
+    "ids": [
+      "en",
+      "ru",
+      "fr",
+      "de",
+      "es",
+      "pt",
+      "ko",
+      "tr",
+      "ja",
+      "zh-Hans"
+    ],
+    "englishKeyCount": 257,
+    "englishKeys": [
+      "aggregators.localCapability",
+      "aggregators.localCapabilityHelp",
+      "aggregators.summary",
+      "aggregators.tabs.overview",
+      "aggregators.title",
+      "app.addWallet",
+      "app.decimalBitrate",
+      "app.documentTitle",
+      "app.general",
+      "app.home",
+      "app.homeContext",
+      "app.language",
+      "app.languageChanged",
+      "app.languageHelp",
+      "app.logOut",
+      "app.menu",
+      "app.network",
+      "app.networkUnits",
+      "app.networkUnitsHelp",
+      "app.notifications",
+      "app.notificationsHelp",
+      "app.regionalFormat",
+      "app.regionalFormatHelp",
+      "app.removeWallet",
+      "app.settings",
+      "app.settingsContext",
+      "app.timeZone",
+      "app.timeZoneHelp",
+      "app.translationCoverage",
+      "app.translationCoverageHelp",
+      "app.walletContext",
+      "app.wallets",
+      "assets.all",
+      "assets.available",
+      "assets.balance",
+      "assets.createPermission",
+      "assets.createVoucher",
+      "assets.declaredDomain",
+      "assets.description",
+      "assets.excludedNotice",
+      "assets.family",
+      "assets.filterCoins",
+      "assets.filterNfts",
+      "assets.filterTokens",
+      "assets.filters",
+      "assets.kindCoin",
+      "assets.kindCollectible",
+      "assets.kindToken",
+      "assets.moneyTotals",
+      "assets.name",
+      "assets.nativeCatalog",
+      "assets.needsReview",
+      "assets.noMarketFeed",
+      "assets.noPermissions",
+      "assets.noPermissionsHelp",
+      "assets.noVouchers",
+      "assets.noVouchersHelp",
+      "assets.owned",
+      "assets.ownedHelp",
+      "assets.price",
+      "assets.readyToUse",
+      "assets.receive",
+      "assets.receiveAsset",
+      "assets.receiving",
+      "assets.sectionAssets",
+      "assets.sectionAssetsHelp",
+      "assets.sectionPermissions",
+      "assets.sectionPermissionsHelp",
+      "assets.sectionVouchers",
+      "assets.sectionVouchersHelp",
+      "assets.sections",
+      "assets.send",
+      "assets.sendAsset",
+      "assets.sending",
+      "assets.title",
+      "assets.uniqueCollectible",
+      "assets.value",
+      "assets.viewDetails",
+      "assets.waitingToSettle",
+      "assets.wallet",
+      "common.back",
+      "common.chain",
+      "common.chainLocked",
+      "common.close",
+      "common.off",
+      "common.on",
+      "common.readOnly",
+      "common.unavailable",
+      "help.close",
+      "help.contents",
+      "help.openContext",
+      "help.openGlobal",
+      "help.section",
+      "help.title",
+      "help.unavailable",
+      "history.active",
+      "history.all",
+      "history.allocationClaimed",
+      "history.assets",
+      "history.carrierChain",
+      "history.carrierChainValue",
+      "history.copyReceipt",
+      "history.dataAccessUsesRemain",
+      "history.deliveryReceiptAccess",
+      "history.description",
+      "history.details",
+      "history.done",
+      "history.fee",
+      "history.feeIncluded",
+      "history.feeNotApplicable",
+      "history.filters",
+      "history.honestSettlement",
+      "history.idLabel",
+      "history.integrityPassed",
+      "history.jul10",
+      "history.jul12",
+      "history.jul21",
+      "history.jul3",
+      "history.jun30",
+      "history.lifecycleConfirmed",
+      "history.lifecycleLabel",
+      "history.lifecyclePending",
+      "history.localBackupCreated",
+      "history.localVerificationPassed",
+      "history.minutesAgo",
+      "history.needsAttention",
+      "history.noMatching",
+      "history.offeredReviewBefore",
+      "history.paymentTo",
+      "history.permissions",
+      "history.privacy",
+      "history.privacyValue",
+      "history.ready",
+      "history.receiptLabel",
+      "history.receivedFrom",
+      "history.recoveryCheckCompleted",
+      "history.results",
+      "history.search",
+      "history.sentWaiting",
+      "history.settled",
+      "history.settling",
+      "history.status",
+      "history.system",
+      "history.technicalDetails",
+      "history.title",
+      "history.transferFrom",
+      "history.travelRefundVoucher",
+      "history.tryAnother",
+      "history.uses",
+      "history.verifiedClaimWaiting",
+      "history.vouchers",
+      "history.waitingToSettle",
+      "history.when",
+      "history.yesterday",
+      "nav.assets",
+      "nav.backup",
+      "nav.exchange",
+      "nav.history",
+      "nav.home",
+      "nav.settings",
+      "nav.staking",
+      "nav.swap",
+      "network.carrierTelemetry",
+      "network.publicationTelemetry",
+      "network.routeTelemetry",
+      "onionnet.localCapability",
+      "onionnet.localCapabilityHelp",
+      "onionnet.summary",
+      "onionnet.tabs.epoch",
+      "onionnet.tabs.ingress",
+      "onionnet.tabs.overview",
+      "onionnet.tabs.privacy",
+      "onionnet.tabs.probation",
+      "onionnet.tabs.queues",
+      "onionnet.tabs.transport",
+      "onionnet.title",
+      "reticulum.localCapability",
+      "reticulum.localCapabilityHelp",
+      "reticulum.summary",
+      "reticulum.tabs.entrypoints",
+      "reticulum.tabs.interfaces",
+      "reticulum.tabs.links",
+      "reticulum.tabs.node",
+      "reticulum.tabs.overview",
+      "reticulum.tabs.paths",
+      "reticulum.tabs.probes",
+      "reticulum.tabs.radio",
+      "reticulum.title",
+      "settings.appearance",
+      "settings.appearanceHelp",
+      "settings.application",
+      "settings.connectivity",
+      "settings.general",
+      "settings.generalHelp",
+      "settings.networkPrivacy",
+      "settings.networkPrivacyHelp",
+      "settings.networkSections",
+      "settings.overview",
+      "settings.sections",
+      "staking.accrualNotSimulated",
+      "staking.amount",
+      "staking.availableBalance",
+      "staking.availableToStake",
+      "staking.badge",
+      "staking.description",
+      "staking.eyebrow",
+      "staking.heading",
+      "staking.notProjected",
+      "staking.notSelected",
+      "staking.nothingDelegated",
+      "staking.notice",
+      "staking.prepare",
+      "staking.prepareHelp",
+      "staking.review",
+      "staking.rewards",
+      "staking.safeguards",
+      "staking.staked",
+      "staking.totals",
+      "staking.unlockPeriod",
+      "staking.validator",
+      "staking.validatorPlaceholder",
+      "staking.validatorStatus",
+      "staking.walletValueBefore",
+      "status.connecting",
+      "status.degraded",
+      "status.down",
+      "status.up",
+      "units.bitPerSecond",
+      "units.kilobitPerSecond",
+      "units.megabitPerSecond",
+      "walletSettings.changePassword",
+      "walletSettings.changePasswordSubmit",
+      "walletSettings.changePasswordSubtitle",
+      "walletSettings.changePasswordTitle",
+      "walletSettings.confirmNewPassword",
+      "walletSettings.currentPassword",
+      "walletSettings.newPassword",
+      "walletSettings.password",
+      "walletSettings.passwordChangeHint",
+      "walletSettings.passwordChangedResult",
+      "walletSettings.passwordChangedTitle",
+      "walletSettings.passwordCurrentError",
+      "walletSettings.passwordHelp",
+      "walletSettings.passwordMismatchError",
+      "walletSettings.passwordNewError",
+      "walletSettings.passwordSameError",
+      "walletShell.available",
+      "walletShell.balanceAvailable",
+      "walletShell.copyAddress",
+      "walletShell.current",
+      "walletShell.identityAria",
+      "walletShell.lockLabel",
+      "walletShell.locked",
+      "walletShell.pendingIn",
+      "walletShell.pendingOut",
+      "walletShell.routeTelemetry",
+      "walletShell.scanning"
+    ]
+  },
+  "icons": {
+    "navigationAndContent": [
+      "home",
+      "menu",
+      "wallet",
+      "assets",
+      "spark",
+      "activity",
+      "swap",
+      "exchange",
+      "staking",
+      "settings",
+      "advanced",
+      "send",
+      "receive",
+      "coin",
+      "token",
+      "nft",
+      "voucher",
+      "right",
+      "claim",
+      "permission",
+      "eye",
+      "eye-off",
+      "lock",
+      "shield",
+      "bell",
+      "user",
+      "question",
+      "chevron",
+      "copy",
+      "check",
+      "close",
+      "moon",
+      "sun",
+      "more",
+      "alert",
+      "search",
+      "backup",
+      "restore",
+      "network",
+      "overview",
+      "reticulum-node",
+      "reticulum-interface",
+      "entry",
+      "reticulum-paths",
+      "queue",
+      "probe",
+      "reticulum-link",
+      "plus",
+      "logout",
+      "remove"
+    ],
+    "objectFamilies": [
+      "right",
+      "voucher"
+    ],
+    "objectTypes": {
+      "asset": [
+        "coin",
+        "nft",
+        "token"
+      ],
+      "voucher": [
+        "community",
+        "deposit",
+        "gift",
+        "redeemed",
+        "refund",
+        "restricted",
+        "service",
+        "travel"
+      ],
+      "right": [
+        "approve",
+        "audit",
+        "deploy",
+        "device",
+        "emergency",
+        "publish",
+        "receipt",
+        "view"
+      ]
+    }
+  },
+  "appearance": {
+    "themeIds": [
+      "dark",
+      "light"
+    ],
+    "paletteIds": [
+      "z00z-default",
+      "black-gold-elegance",
+      "moonlit-stroll",
+      "walking-at-night"
+    ],
+    "codeThemeIds": [
+      "atom-one-light",
+      "xcode",
+      "atom-one-dark",
+      "night-owl"
+    ]
+  },
+  "badges": {
+    "cssModifiers": [
+      "is-active",
+      "is-attention",
+      "is-ready",
+      "is-settled",
+      "is-settling"
+    ],
+    "literalLabels": [
+      "As needed",
+      "Done",
+      "Local",
+      "Locked",
+      "Preview",
+      "Read-only",
+      "Separate",
+      "Stub",
+      "Target",
+      "Target floor",
+      "Target simulation"
+    ],
+    "fixtureStatuses": [
+      "Accepted",
+      "Held",
+      "Needs review",
+      "Offered",
+      "Pending release",
+      "Redeemable",
+      "Redeemed",
+      "active",
+      "attention",
+      "settled",
+      "settling"
+    ],
+    "fixtureTones": [
+      "active",
+      "attention",
+      "ready",
+      "settled"
+    ]
+  },
+  "gateway": {
+    "queryIds": [
+      "load_home",
+      "list_wallets",
+      "load_wallet",
+      "list_assets",
+      "list_vouchers",
+      "list_permissions",
+      "list_activity",
+      "load_effective_config",
+      "load_network_telemetry",
+      "reconcile_operation"
+    ],
+    "commandIds": [
+      "create_wallet",
+      "open_wallet",
+      "restore_wallet",
+      "remove_wallet_profiles",
+      "rename_wallet",
+      "change_wallet_password",
+      "lock_wallet",
+      "create_payment_draft",
+      "approve_payment",
+      "submit_payment",
+      "create_voucher",
+      "create_permission",
+      "transfer_voucher",
+      "transfer_permission",
+      "create_backup",
+      "apply_wallet_policy"
+    ],
+    "errorCodes": [
+      "validation",
+      "authentication",
+      "authorization",
+      "unavailable_capability",
+      "conflict",
+      "timeout_unknown_outcome",
+      "integrity",
+      "internal"
+    ],
+    "forbiddenRendererState": [
+      "password",
+      "seed_phrase",
+      "private_key",
+      "session_token",
+      "raw_signed_package",
+      "arbitrary_filesystem_path"
+    ]
+  },
+  "fixtures": {
+    "exportIds": [
+      "ASSET_CATALOG",
+      "ASSET_ICON_LUT",
+      "DEFAULT_FRIENDLY_ASSET_KEYS",
+      "INITIAL_WALLET_FIXTURES",
+      "createEmptyWallet",
+      "createInitialWallets",
+      "createWalletPreferences",
+      "createWalletProfile"
+    ],
+    "walletCount": 3,
+    "assetCount": 16,
+    "ids": [
+      "approve",
+      "audit",
+      "claim-014",
+      "deploy",
+      "device",
+      "emergency",
+      "everyday",
+      "publish",
+      "receipt",
+      "right-221",
+      "saving-100",
+      "saving-101",
+      "savings",
+      "security-4",
+      "travel",
+      "travel-100",
+      "travel-101",
+      "tx-7d12",
+      "tx-7e88",
+      "tx-7f31",
+      "view",
+      "voucher-221",
+      "voucher-community",
+      "voucher-deposit",
+      "voucher-gift",
+      "voucher-restricted",
+      "voucher-service",
+      "voucher-settled",
+      "voucher-travel"
+    ]
+  },
+  "smoke": {
+    "assertionCount": 48,
+    "assertions": [
+      "object families and claim/voucher/permission flows remain distinct",
+      "wallet context rails share a compact width",
+      "wallet navigation scopes history and wallet tools to the selected wallet",
+      "every routed view starts on the shared content baseline",
+      "the current workspace tabs live in the single topbar on wide screens",
+      "history exposes only object-type filters",
+      "history rows use a compact desktop measure and remain fluid on mobile",
+      "filters and row hovers use the shared neutral interaction state",
+      "backup action is separated from the backup status card",
+      "selected wallet settings are scoped, re-authenticated, and capability-labelled",
+      "wallet settings tabs start directly with their controls",
+      "wallet backup settings keep scheduling controls while backup actions stay in the Backup tab",
+      "every modal flow centers its footer actions on desktop and mobile",
+      "secure-entry fields do not activate browser password-manager overlays",
+      "every form field suppresses password-manager overlays",
+      "left navigation has exactly one active destination",
+      "network shortcuts open read-only telemetry rather than setup",
+      "wallet address copy stays next to the address and uses the shared native title tooltip",
+      "remove wallet selects one or more wallet cards before changing local profiles",
+      "send opens one compact inline form and receive shows only the receiver card",
+      "send, swap, exchange, staking, and backup share one responsive card width",
+      "send keeps object families distinct and swap remains asset-only",
+      "exchange branches between NEAR Intents and Hyperliquid Spot without inventing a quote",
+      "context navigation uses one content-gap token across wallet workspaces",
+      "mobile Exchange chooses its provider from the top-tab popup",
+      "swap and staking form labels use the standard readable Geist treatment",
+      "log out clears the application shell before unlock",
+      "add wallet dialog creates and restores wallet cards",
+      "assets show table values and expose per-asset details",
+      "wallet object rows stay consistent while receive uses a single responsive receiver card",
+      "typography LUT assigns Geist and Geist Mono to their semantic roles",
+      "common settings and selected-wallet settings keep their scopes separate",
+      "global and contextual Help are local, multilingual, focus-safe, and state-aware",
+      "mobile Help is a standalone page with an accordion drawer",
+      "asset detail key and value remain one mobile row with full values accessible",
+      "common Settings uses the same topbar typography as OnionNet",
+      "target-only capabilities are disclosed",
+      "telemetry tabs use the assigned icon LUT",
+      "appearance palettes and YAML highlighting stay application-wide",
+      "colors.css is the single source for palette, semantic, and YAML preview colours",
+      "mobile wallet accordion keeps wallet actions reachable when the drawer overflows",
+      "responsive navigation, hover, focus, and overflow contract",
+      "language catalogues stay complete and relocalize the shell without changing wallet data",
+      "settings tabs share the standard single-topbar tab treatment",
+      "all app settings sections share one centered compact card",
+      "all wallet settings sections share the Assets rail gap and one compact card width",
+      "appearance starts without a redundant horizontal divider",
+      "wallet sections omit redundant introductory headers"
+    ]
+  }
+}

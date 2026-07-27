@@ -32,10 +32,37 @@ echo "=== foundational units ==="
 cargo test --release --lib \
   -p z00z_crypto \
   -p z00z_core \
-  -p z00z_storage \
   -p z00z_utils \
-  --features "$WALLET_FEATURES" \
   -- --test-threads "$THREADS"
+echo "=== storage units: non-Nova/non-Plonky3 ==="
+cargo test --release --lib -p z00z_storage \
+  --features "$WALLET_FEATURES" \
+  -- --test-threads "$THREADS" \
+  --skip checkpoint::nova::tests:: \
+  --skip checkpoint::plonky3::tests::
+echo "=== storage units: Nova owner ==="
+cargo test --release --lib -p z00z_storage \
+  --features "$WALLET_FEATURES" \
+  checkpoint::nova::tests:: \
+  -- --nocapture --test-threads 1
+echo "=== storage units: Plonky3 owner ==="
+PLONKY3_UNIT_TESTS=(
+  test_complete_transition_air_enables_backend_evidence
+  test_poseidon_vector_hash_binds_order_and_length
+  test_real_batch_stark_roundtrip_small
+  test_security_budget_derivation_rejects_every_input_drift
+  test_security_budget_is_upward_rounded_and_finite
+  test_source_sha_binding
+  test_trace_precommit_sha_binding
+  test_uniqueness_list_sha_binding
+  test_uniqueness_transcript_binding
+)
+for test_name in "${PLONKY3_UNIT_TESTS[@]}"; do
+  cargo test --release --lib -p z00z_storage \
+    --features "$WALLET_FEATURES" \
+    "checkpoint::plonky3::tests::$test_name" \
+    -- --exact --nocapture --test-threads 1
+done
 cargo test --release -p z00z_storage \
   --features "$WALLET_FEATURES" \
   --test test_recursive_v2_nova_step \

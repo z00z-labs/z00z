@@ -22,9 +22,9 @@ fn root(byte: u8) -> [u8; 32] {
 fn test_pq_cadence_distinguishes_heights() {
     let cfg = cfg();
 
-    assert!(!cfg.has_pq_checkpoint(999));
-    assert!(cfg.has_pq_checkpoint(1000));
+    assert!(!cfg.has_pq_checkpoint(1_999));
     assert!(cfg.has_pq_checkpoint(2000));
+    assert!(cfg.has_pq_checkpoint(4000));
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn test_pq_writer_stays_shadow() {
 
     assert!(cfg
         .build_pq_anchor(
-            1000,
+            2000,
             root(1),
             root(2),
             root(3),
@@ -81,7 +81,7 @@ fn test_pq_writer_stays_shadow() {
         .expect("non-authoritative pq anchor build")
         .is_none());
 
-    cfg.validate_pq_anchor(1000, root(1), root(2), root(3), root(4), None)
+    cfg.validate_pq_anchor(2000, root(1), root(2), root(3), root(4), None)
         .expect("non-authoritative cadence remains declared-only");
 }
 
@@ -94,14 +94,14 @@ fn test_pq_stage_rejects_unbound() {
     cfg.post_quantum.is_live_cadence_enforced = true;
 
     let missing = cfg
-        .validate_pq_anchor(1000, root(1), root(2), root(3), root(4), None)
+        .validate_pq_anchor(2000, root(1), root(2), root(3), root(4), None)
         .expect_err("unbound PQ writer stage must reject");
 
     assert!(matches!(missing, CheckpointError::ContractConfig(_)));
 
     let build = cfg
         .build_pq_anchor(
-            1000,
+            2000,
             root(1),
             root(2),
             root(3),
@@ -117,7 +117,7 @@ fn test_pq_stage_rejects_unbound() {
 
     let anchor = retained_phase068_anchor();
     let validate = cfg
-        .validate_pq_anchor(1000, root(1), root(2), root(3), root(4), Some(&anchor))
+        .validate_pq_anchor(2000, root(1), root(2), root(3), root(4), Some(&anchor))
         .expect_err("an unbound backend must not validate a live PQ anchor");
     assert!(matches!(validate, CheckpointError::ContractConfig(_)));
 }
@@ -131,7 +131,7 @@ fn test_pq_ingress_rejects_disabled() {
 
     let build_err = cfg
         .build_pq_anchor(
-            1000,
+            2000,
             root(1),
             root(2),
             root(3),
@@ -146,7 +146,7 @@ fn test_pq_ingress_rejects_disabled() {
     assert!(matches!(build_err, CheckpointError::ContractConfig(_)));
 
     let validate_err = cfg
-        .validate_pq_anchor(1000, root(1), root(2), root(3), root(4), None)
+        .validate_pq_anchor(2000, root(1), root(2), root(3), root(4), None)
         .expect_err("live PQ validation must reject disabled cadence");
     assert!(matches!(validate_err, CheckpointError::ContractConfig(_)));
 }
@@ -185,7 +185,7 @@ fn test_pq_rejects_unbound_backend() {
     let anchor = retained_phase068_anchor();
 
     let err = cfg
-        .validate_pq_anchor(1000, root(1), root(2), root(3), root(99), Some(&anchor))
+        .validate_pq_anchor(2000, root(1), root(2), root(3), root(99), Some(&anchor))
         .expect_err("live PQ anchor validation requires a bound backend");
 
     assert!(matches!(err, CheckpointError::ContractConfig(_)));

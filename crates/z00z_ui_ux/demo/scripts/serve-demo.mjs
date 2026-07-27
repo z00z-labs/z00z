@@ -84,12 +84,15 @@ const server = createServer(async (request, response) => {
 await rebuildHelp();
 server.listen(port, "127.0.0.1", () => {
   console.log(`Z00Z wallet demo: http://127.0.0.1:${port}`);
-  console.log("Watching help/en/**/*.md; translated Help rebuilds and reloads the page automatically.");
+  console.log("Watching help/en/**/*.{md,yaml,yml}; all Help locales rebuild and reload automatically.");
 });
 
 let debounce;
-const watcher = watch(resolve(demoRoot, "help"), { recursive: true }, (_event, filename = "") => {
-  if (!filename.endsWith(".md") || !filename.startsWith(`en${sep}`)) return;
+const watcher = watch(resolve(demoRoot, "help", "en"), { recursive: true }, (_event, filename = "") => {
+  if (
+    ![".md", ".yaml", ".yml"].includes(extname(filename))
+    || filename.split(sep).includes("_drafts")
+  ) return;
   clearTimeout(debounce);
   debounce = setTimeout(() => {
     rebuildHelp().catch((error) => console.error(`Help rebuild failed: ${error.message}`));

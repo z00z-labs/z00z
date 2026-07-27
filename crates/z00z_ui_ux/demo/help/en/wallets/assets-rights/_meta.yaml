@@ -1,0 +1,8 @@
+title: "Assets"
+icon: assets
+order:
+  - index
+  - assets
+  - vouchers
+  - permissions
+  - asset-details

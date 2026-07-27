@@ -1,0 +1,7 @@
+title: "Настройки"
+icon: settings
+order:
+  - index
+  - general
+  - notifications
+  - appearance

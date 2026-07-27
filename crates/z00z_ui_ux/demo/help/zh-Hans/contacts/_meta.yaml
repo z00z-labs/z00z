@@ -1,0 +1,7 @@
+title: "联系人"
+icon: user
+order:
+  - index
+  - contacts
+  - detail
+  - identity-review

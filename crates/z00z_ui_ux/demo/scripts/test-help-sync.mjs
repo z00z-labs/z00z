@@ -42,17 +42,77 @@ try {
     helpDocument("Anwendungshilfe", "## Bestehender Abschnitt\n- Bestehender Hinweis."),
     "utf8"
   );
+  await writeFile(
+    resolve(fixtureRoot, "help/en/app/_meta.yaml"),
+    'title: "Application"\nicon: question\norder:\n  - app\n',
+    "utf8"
+  );
+  await writeFile(
+    resolve(fixtureRoot, "help/de/app/_meta.yaml"),
+    'title: "Anwendung"\nicon: wallet\norder:\n  - app\n',
+    "utf8"
+  );
+  await writeFile(
+    resolve(fixtureRoot, "help/en/app/index.md"),
+    '---\ntitle: "Application"\ndescription: "Application Help"\ndifficulty: basic\nicon: mdi:alphabet-a-box-outline\ntoc: true\n---\n',
+    "utf8"
+  );
+  await writeFile(
+    resolve(fixtureRoot, "help/de/app/index.md"),
+    '---\ntitle: "Anwendung"\ndescription: "Anwendungshilfe"\ndifficulty: basic\nicon: mdi:alphabet-a-box-outline\ntoc: true\n---\n',
+    "utf8"
+  );
   await recordReviewedHelpState(fixtureRoot);
   await assertHelpSynchronized(fixtureRoot);
 
   await writeFile(
-    resolve(fixtureRoot, "help/en/app/app.md"),
+    resolve(fixtureRoot, "help/topics.yaml"),
+    "version: 1\ntopics:\n  - id: app\n    group: app\n    file: app\n    source: root\n    scope: global\n    match: global\n",
+    "utf8"
+  );
+  await writeFile(
+    resolve(fixtureRoot, "help/en/app.md"),
+    helpDocument("Application help", "## Existing section\n- Existing guidance."),
+    "utf8"
+  );
+  const relocated = await synchronizeHelp(fixtureRoot);
+  assert.deepEqual([...relocated], ["app"]);
+  assert.match(await readFile(resolve(fixtureRoot, "help/de/app.md"), "utf8"), /Application help/);
+  await assertHelpSynchronized(fixtureRoot);
+
+  await writeFile(
+    resolve(fixtureRoot, "help/en/app.md"),
     helpDocument("Application help", "## Existing section\n- Existing guidance.\n\n## New section\n- New guidance."),
     "utf8"
   );
   await assert.rejects(
     synchronizeHelp(fixtureRoot, { translatorCommand: "" }),
     /English Help changed for app/
+  );
+
+  const bundledChanged = await synchronizeHelp(fixtureRoot);
+  assert.deepEqual([...bundledChanged], ["app"]);
+  assert.equal(bundledChanged.fallbacks.length, 1);
+  assert.deepEqual(
+    [...bundledChanged.fallbacks[0].keys],
+    [
+      "sections.1.title",
+      "sections.1.blocks.0.items.0"
+    ]
+  );
+  await assertHelpSynchronized(fixtureRoot);
+  const bundledGerman = await readFile(resolve(fixtureRoot, "help/de/app.md"), "utf8");
+  const bundledGermanMeta = await readFile(resolve(fixtureRoot, "help/de/app/_meta.yaml"), "utf8");
+  assert.match(bundledGerman, /## Existing section/);
+  assert.match(bundledGerman, /## New section/);
+  assert.match(bundledGerman, /- New guidance\./);
+  assert.match(bundledGermanMeta, /title: "Anwendung"/);
+  assert.match(bundledGermanMeta, /icon: question/);
+
+  await writeFile(
+    resolve(fixtureRoot, "help/en/app.md"),
+    helpDocument("Application help", "## Existing section\n- Existing guidance.\n\n## New section\n- Revised guidance."),
+    "utf8"
   );
 
   const translatorPath = resolve(fixtureRoot, "translate.mjs");
@@ -72,9 +132,25 @@ process.stdin.on("end", () => {
   const changed = await synchronizeHelp(fixtureRoot, { translatorCommand: translatorPath });
   assert.deepEqual([...changed], ["app"]);
   await assertHelpSynchronized(fixtureRoot);
-  const german = await readFile(resolve(fixtureRoot, "help/de/app/app.md"), "utf8");
+  const german = await readFile(resolve(fixtureRoot, "help/de/app.md"), "utf8");
   assert.match(german, /## \[de\] New section/);
-  assert.match(german, /- \[de\] New guidance\./);
+  assert.match(german, /- \[de\] Revised guidance\./);
+
+  await writeFile(
+    resolve(fixtureRoot, "help/topics.yaml"),
+    "version: 1\ntopics:\n  - id: app\n    group: app\n    file: app\n    source: root\n    scope: global\n    match: global\n  - id: app.new\n    group: app\n    file: new\n    source: root\n    scope: article\n    match: article=new\n",
+    "utf8"
+  );
+  await writeFile(
+    resolve(fixtureRoot, "help/en/new.md"),
+    helpDocument("New topic", "## New topic section\n- New topic guidance.").replace("id: app", "id: app.new").replace("scope: global", "scope: article"),
+    "utf8"
+  );
+  const addedTopic = await synchronizeHelp(fixtureRoot, { translatorCommand: translatorPath });
+  assert.deepEqual([...addedTopic], ["app.new"]);
+  const addedGerman = await readFile(resolve(fixtureRoot, "help/de/new.md"), "utf8");
+  assert.match(addedGerman, /title: \[de\] New topic/);
+  await assertHelpSynchronized(fixtureRoot);
   console.log("Help hash synchronization test passed.");
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });

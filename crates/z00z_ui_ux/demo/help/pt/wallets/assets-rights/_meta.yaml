@@ -1,0 +1,8 @@
+title: "Ativos"
+icon: assets
+order:
+  - index
+  - assets
+  - vouchers
+  - permissions
+  - asset-details

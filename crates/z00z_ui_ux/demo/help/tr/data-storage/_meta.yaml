@@ -1,0 +1,6 @@
+title: "Veri ve Depolama"
+icon: storage
+order:
+  - index
+  - disk-usage
+  - network-usage

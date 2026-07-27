@@ -1,0 +1,7 @@
+title: "Contactos"
+icon: user
+order:
+  - index
+  - contacts
+  - detail
+  - identity-review

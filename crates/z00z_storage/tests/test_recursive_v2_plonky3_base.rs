@@ -1,10 +1,13 @@
+use std::sync::Once;
+use tracing_subscriber::fmt::format::FmtSpan;
 use z00z_core::assets::{AssetLeaf, AssetPackPlain};
 use z00z_crypto::{sha256_256, ZkPackEncrypted};
 use z00z_storage::{
     checkpoint::recursive_v2::{
         CanonicalCheckpointTransitionV2, CheckpointVersionRegistryV2, Plonky3BaseAdapterV2,
-        Plonky3BaseProofV2, RecursiveBoundedObjectV2, RecursiveCircuitProfileV2,
-        RecursiveSecurityBudgetManifestV2, RegistryLifecycleV2,
+        Plonky3BaseProofV2, RecursiveBoundedObjectV2, RecursiveCheckpointRejectReasonV2,
+        RecursiveCircuitProfileV2, RecursiveSecurityBudgetManifestV2, RegistryLifecycleV2,
+        PLONKY3_PUBLISH_BYTES_V2, PLONKY3_TARGET_BYTES_V2, RECURSIVE_INGRESS_BYTES_V2,
         RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
     },
     checkpoint::{
@@ -20,7 +23,82 @@ use z00z_storage::{
         SettlementStateRoot, SettlementStore, StoreItem, StoreOp, TerminalId, TerminalLeaf,
     },
     snapshot::{build_snapshot_v2, PrepFsStore, PrepSnapshotStore},
+    CheckpointError,
 };
+
+fn digest_hex(digest: [u8; 32]) -> String {
+    use std::fmt::Write as _;
+
+    let mut encoded = String::with_capacity(64);
+    for byte in digest {
+        write!(&mut encoded, "{byte:02x}").expect("write digest hex");
+    }
+    encoded
+}
+
+fn resource_phase(phase: &str) {
+    init_resource_tracing();
+    println!("Z00Z_PLONKY3_PHASE_V1 {phase}");
+}
+
+fn init_resource_tracing() {
+    static INIT: Once = Once::new();
+    if std::env::var_os("Z00Z_PLONKY3_RESOURCE_TELEMETRY").is_none() {
+        return;
+    }
+    INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_thread_ids(true)
+            .with_thread_names(true)
+            .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+            .with_env_filter(tracing_subscriber::EnvFilter::new(
+                "p3_batch_stark=info,p3_circuit_prover=info,p3_fri=info,p3_dft=info",
+            ))
+            .try_init()
+            .expect("install bounded Plonky3 resource tracing subscriber");
+    });
+}
+
+fn resource_telemetry(proof: &Plonky3BaseProofV2) {
+    let dimensions = proof
+        .trace_dimensions()
+        .expect("locally produced proof trace dimensions");
+    println!(
+        concat!(
+            "Z00Z_PLONKY3_TELEMETRY_V1 ",
+            "{{\"parameter_digest\":\"{}\",\"air_binding_digest\":\"{}\",",
+            "\"canonical_proof_bytes\":{},\"size_status\":\"{}\",",
+            "\"trace_dimensions\":{{\"chunk_count\":{},\"predicate_words\":{},",
+            "\"event_vector_bytes\":{},",
+            "\"circuit_witnesses\":{},\"circuit_operations\":{},\"private_inputs\":{},",
+            "\"witness_rows\":{},\"constant_rows\":{},\"public_rows\":{},",
+            "\"alu_rows\":{},\"non_primitive_tables\":{},\"non_primitive_rows\":{},",
+            "\"max_chunk_witnesses\":{},\"max_chunk_operations\":{},",
+            "\"max_chunk_alu_rows\":{},\"max_chunk_npo_rows\":{}}}}}"
+        ),
+        digest_hex(proof.parameter_digest()),
+        digest_hex(proof.air_binding_digest()),
+        proof.canonical_bytes().len(),
+        proof.size_status().name(),
+        dimensions.chunk_count(),
+        dimensions.predicate_words(),
+        dimensions.event_vector_bytes(),
+        dimensions.circuit_witnesses(),
+        dimensions.circuit_operations(),
+        dimensions.private_inputs(),
+        dimensions.witness_rows(),
+        dimensions.constant_rows(),
+        dimensions.public_rows(),
+        dimensions.alu_rows(),
+        dimensions.non_primitive_tables(),
+        dimensions.non_primitive_rows(),
+        dimensions.max_chunk_witnesses(),
+        dimensions.max_chunk_operations(),
+        dimensions.max_chunk_alu_rows(),
+        dimensions.max_chunk_npo_rows(),
+    );
+}
 
 fn profile() -> RecursiveCircuitProfileV2 {
     ensure_test_process_chain_identity().expect("canonical test process chain identity");
@@ -198,8 +276,10 @@ fn transition<'a>(
 }
 
 #[test]
+#[ignore = "real Plonky3 prover acceptance runs only through plonky3_resource_worker.sh"]
 fn predicate_differential() {
     let (temp, mut store, checkpoint_store, prep_store, checkpoint_id, handoff) = fixture();
+    resource_phase("fixture_ready");
     let mut transition = transition(
         &temp,
         &mut store,
@@ -208,8 +288,20 @@ fn predicate_differential() {
         checkpoint_id,
         handoff,
     );
-    let (proof, receipt) = Plonky3BaseAdapterV2::prove_and_verify(&mut transition, &store)
-        .expect("real Plonky3 base proof and verifier");
+    resource_phase("proving");
+    let proof =
+        Plonky3BaseAdapterV2::prove(&mut transition, &store).expect("real Plonky3 base proof");
+    resource_phase("proof_ready");
+    resource_telemetry(&proof);
+    assert!(
+        proof.canonical_bytes().len() <= PLONKY3_TARGET_BYTES_V2,
+        "complete canonical proof envelope is {} bytes and exceeds the 2 MiB production target",
+        proof.canonical_bytes().len(),
+    );
+    resource_phase("verifying");
+    let receipt = Plonky3BaseAdapterV2::verify(&mut transition, &store, &proof)
+        .expect("real Plonky3 base verifier");
+    resource_phase("verify_complete");
     assert_eq!(receipt.height(), 1);
     assert_eq!(receipt.statement_digest(), proof.statement().digest());
     assert_eq!(receipt.proof_digest(), proof.proof_digest());
@@ -245,8 +337,10 @@ fn predicate_differential() {
 }
 
 #[test]
+#[ignore = "real Plonky3 prover acceptance runs only through plonky3_resource_worker.sh"]
 fn transcript_and_actual_proof_mutations_reject() {
     let (temp, mut store, checkpoint_store, prep_store, checkpoint_id, handoff) = fixture();
+    resource_phase("fixture_ready");
     let mut transition = transition(
         &temp,
         &mut store,
@@ -255,8 +349,11 @@ fn transcript_and_actual_proof_mutations_reject() {
         checkpoint_id,
         handoff,
     );
+    resource_phase("proving");
     let proof =
         Plonky3BaseAdapterV2::prove(&mut transition, &store).expect("real Plonky3 base proof");
+    resource_phase("proof_ready");
+    resource_telemetry(&proof);
     let original = proof.canonical_bytes();
     let payload_start = RECURSIVE_OBJECT_PREHEADER_BYTES_V2;
     let statement_len = usize::try_from(u32::from_le_bytes(
@@ -330,22 +427,50 @@ fn transcript_and_actual_proof_mutations_reject() {
         "reordered authority roles must reject at verifier ingress"
     );
 
-    let mut actual_proof_mutation = original.to_vec();
-    actual_proof_mutation[proof_start + 32] ^= 1;
-    let mutated_proof_digest = sha256_256(
-        "z00z.storage.checkpoint.plonky3.base-proof.v2",
-        "proof",
-        &[&actual_proof_mutation[proof_start..]],
-    );
+    let proof_len = usize::try_from(u32::from_le_bytes(
+        original[proof_len_offset..proof_start]
+            .try_into()
+            .expect("proof length"),
+    ))
+    .expect("proof length fits");
+    assert_eq!(proof_start + proof_len, original.len());
+    const ROOT_ENVELOPE_HEADER_BYTES: usize = 8 + 2 + 1 + 1 + 32;
+    const ROOT_ENTRY_HEADER_BYTES: usize = 1 + 2 + 2 + 4;
+    let first_root_len_offset = proof_start + ROOT_ENVELOPE_HEADER_BYTES + 1 + 2 + 2;
+    let first_root_start = proof_start + ROOT_ENVELOPE_HEADER_BYTES + ROOT_ENTRY_HEADER_BYTES;
+    let first_root_len = usize::try_from(u32::from_le_bytes(
+        original[first_root_len_offset..first_root_start]
+            .try_into()
+            .expect("first root length"),
+    ))
+    .expect("first root length fits");
     let proof_digest_offset = digest_block_start + 32 * 4;
-    actual_proof_mutation[proof_digest_offset..proof_digest_offset + 32]
-        .copy_from_slice(&mutated_proof_digest);
-    let mutated = Plonky3BaseProofV2::decode_local_with_source(&actual_proof_mutation, &proof)
-        .expect("well-framed cryptographically mutated proof with local verifier material");
+    let mut mutated = None;
+    for relative in [32_usize, 33, 34, 35, 64, 65, 96, 128, 192, 256, 512, 1_024] {
+        if relative >= first_root_len {
+            continue;
+        }
+        let mut candidate = original.to_vec();
+        candidate[first_root_start + relative] ^= 1;
+        let mutated_proof_digest = sha256_256(
+            "z00z.storage.checkpoint.plonky3.base-proof.v2",
+            "proof",
+            &[&candidate[proof_start..proof_start + proof_len]],
+        );
+        candidate[proof_digest_offset..proof_digest_offset + 32]
+            .copy_from_slice(&mutated_proof_digest);
+        if let Ok(decoded) = Plonky3BaseProofV2::decode_local_with_source(&candidate, &proof) {
+            mutated = Some(decoded);
+            break;
+        }
+    }
+    let mutated = mutated.expect("canonical recursive-root mutation candidate");
+    resource_phase("verifying");
     assert!(
         Plonky3BaseAdapterV2::verify(&mut transition, &store, &mutated).is_err(),
         "the actual verifier must reject a proof mutation with a repaired outer digest"
     );
+    resource_phase("verify_complete");
 }
 
 #[test]
@@ -376,7 +501,8 @@ fn security_budget_mutations_reject() {
         manifest
     );
     for relative_offset in [
-        8_usize, 10, 14, 16, 17, 18, 20, 21, 22, 24, 26, 28, 30, 32, 34, 42, 44, 46,
+        8_usize, 10, 14, 16, 17, 18, 20, 21, 22, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45,
+        49, 53, 55, 57, 65, 67, 69,
     ] {
         let offset = RECURSIVE_OBJECT_PREHEADER_BYTES_V2 + relative_offset;
         let mut mutated = bytes.clone();
@@ -389,6 +515,45 @@ fn security_budget_mutations_reject() {
     assert!(
         RecursiveSecurityBudgetManifestV2::decode_canonical(&bytes[..bytes.len() - 1]).is_err()
     );
+}
+
+#[test]
+fn test_base_proof_size_budget_rejects_before_decode() {
+    let registry = CheckpointVersionRegistryV2::authority_pinned().expect("pinned registry");
+    let row = registry
+        .row(RecursiveBoundedObjectV2::Plonky3BaseProof)
+        .expect("Plonky3 proof registry row");
+    assert_eq!(
+        usize::try_from(row.max_encoded_len).expect("registry cap fits usize")
+            + RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
+        PLONKY3_PUBLISH_BYTES_V2
+    );
+
+    let target_miss = vec![0_u8; PLONKY3_TARGET_BYTES_V2 + 1];
+    assert!(!matches!(
+        Plonky3BaseProofV2::decode_local(&target_miss),
+        Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::ProofSizeBudgetExceeded
+        ))
+    ));
+    drop(target_miss);
+
+    let over_production = vec![0_u8; PLONKY3_PUBLISH_BYTES_V2 + 1];
+    assert!(matches!(
+        Plonky3BaseProofV2::decode_local(&over_production),
+        Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::ProofSizeBudgetExceeded
+        ))
+    ));
+    drop(over_production);
+
+    let over_ingress = vec![0_u8; RECURSIVE_INGRESS_BYTES_V2 + 1];
+    assert!(matches!(
+        Plonky3BaseProofV2::decode_local(&over_ingress),
+        Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::ProofBytesTooLarge
+        ))
+    ));
 }
 
 #[test]

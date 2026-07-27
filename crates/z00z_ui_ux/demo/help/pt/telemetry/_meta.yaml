@@ -1,0 +1,9 @@
+title: "Telemetria"
+icon: network
+order:
+  - index
+  - reticulum
+  - onionnet
+  - aggregators
+  - watchers
+  - explorer

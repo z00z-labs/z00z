@@ -15,6 +15,11 @@ fn test_contract_apply_best_effort() {
 }
 
 #[test]
+fn test_contract_trim_process_heap_best_effort() {
+    let _ = trim_process_heap_best_effort as fn() -> bool;
+}
+
+#[test]
 fn test_api_contract_lock_bytes() {
     assert_lock_api_shape(lock_bytes_best_effort);
 }
