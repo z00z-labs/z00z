@@ -210,6 +210,118 @@ function openLanguagePicker(picker) {
   });
 }
 
+let selectPickerSequence = 0;
+
+function selectPickerLabel(select) {
+  const explicitLabel = select.getAttribute("aria-label")?.trim();
+  if (explicitLabel) return explicitLabel;
+  const label = select.labels?.[0];
+  const labelText = label?.querySelector(".field-label, :scope > span, :scope > strong")?.textContent?.trim();
+  return labelText || select.name || "Choose an option";
+}
+
+function selectOptionLabel(option) {
+  return option.label?.trim() || option.textContent?.trim() || option.value;
+}
+
+function syncSelectPicker(select) {
+  const picker = select.closest("[data-select-picker]");
+  if (!picker) return;
+  const trigger = picker.querySelector("[data-select-picker-trigger]");
+  const menu = picker.querySelector("[data-select-picker-menu]");
+  const selected = select.selectedOptions[0] || select.options[0];
+  if (!trigger || !menu || !selected) return;
+  trigger.disabled = select.disabled;
+  trigger.innerHTML = `<span>${escapeHtml(selectOptionLabel(selected))}</span>${icon("chevron")}`;
+  menu.replaceChildren(...[...select.options].map((option, index) => {
+    const optionButton = document.createElement("button");
+    optionButton.className = `select-picker-option${option.selected ? " is-selected" : ""}`;
+    optionButton.type = "button";
+    optionButton.role = "option";
+    optionButton.disabled = option.disabled;
+    optionButton.tabIndex = option.selected ? 0 : -1;
+    optionButton.dataset.selectPickerIndex = String(index);
+    optionButton.setAttribute("aria-selected", String(option.selected));
+    optionButton.textContent = selectOptionLabel(option);
+    return optionButton;
+  }));
+}
+
+function closeSelectPicker(picker, { restoreFocus = false } = {}) {
+  if (!picker?.classList.contains("is-open")) return;
+  picker.classList.remove("is-open");
+  const menu = picker.querySelector("[data-select-picker-menu]");
+  if (menu) {
+    menu.hidden = true;
+    menu.removeAttribute("style");
+  }
+  const trigger = picker.querySelector("[data-select-picker-trigger]");
+  trigger?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) trigger?.focus();
+}
+
+function closeSelectPickers({ restoreFocus = false } = {}) {
+  document.querySelectorAll("[data-select-picker].is-open").forEach((picker) => {
+    closeSelectPicker(picker, { restoreFocus });
+  });
+}
+
+function openSelectPicker(picker) {
+  closeLanguagePickers();
+  closeSelectPickers();
+  const trigger = picker.querySelector("[data-select-picker-trigger]");
+  const menu = picker.querySelector("[data-select-picker-menu]");
+  if (!trigger || !menu || trigger.disabled) return;
+  picker.classList.add("is-open");
+  trigger.setAttribute("aria-expanded", "true");
+  menu.hidden = false;
+  requestAnimationFrame(() => {
+    if (!picker.classList.contains("is-open")) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const viewportPadding = 12;
+    const menuHeight = Math.min(menu.scrollHeight, 360);
+    const spaceAbove = triggerRect.top - viewportPadding;
+    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+    const opensUpward = spaceBelow < Math.min(menuHeight, 224) && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(128, opensUpward ? spaceAbove : spaceBelow);
+    const width = Math.min(Math.max(triggerRect.width, 220), window.innerWidth - viewportPadding * 2);
+    const left = Math.max(viewportPadding, Math.min(triggerRect.right - width, window.innerWidth - width - viewportPadding));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.width = `${Math.round(width)}px`;
+    menu.style.maxHeight = `${Math.floor(availableHeight)}px`;
+    if (opensUpward) {
+      menu.style.top = "auto";
+      menu.style.bottom = `${Math.max(viewportPadding, Math.round(window.innerHeight - triggerRect.top + 6))}px`;
+    } else {
+      menu.style.top = `${Math.round(triggerRect.bottom + 6)}px`;
+      menu.style.bottom = "auto";
+    }
+    menu.querySelector(".select-picker-option.is-selected:not([disabled])")?.focus();
+  });
+}
+
+function enhanceNativeSelects(scope = document) {
+  const selects = scope instanceof HTMLSelectElement
+    ? [scope]
+    : [...scope.querySelectorAll("select:not([multiple]):not([data-select-picker-native])")];
+  selects.forEach((select) => {
+    if (select.size > 1 || select.closest("[data-language-picker]")) return;
+    const picker = document.createElement("span");
+    const pickerId = `select-picker-${select.id || ++selectPickerSequence}`;
+    picker.className = `select-picker ${select.className}`.trim();
+    picker.dataset.selectPicker = "";
+    picker.innerHTML = `<button class="select-picker-trigger" type="button" data-select-picker-trigger aria-haspopup="listbox" aria-expanded="false" aria-controls="${pickerId}"></button><span class="select-picker-menu" id="${pickerId}" data-select-picker-menu role="listbox" aria-label="${escapeHtml(selectPickerLabel(select))}" hidden></span>`;
+    select.parentNode.insertBefore(picker, select);
+    picker.prepend(select);
+    select.classList.add("select-picker-native");
+    select.tabIndex = -1;
+    select.setAttribute("aria-hidden", "true");
+    select.addEventListener("change", () => syncSelectPicker(select));
+    select.addEventListener("focus", () => picker.querySelector("[data-select-picker-trigger]")?.focus({ preventScroll: true }));
+    syncSelectPicker(select);
+  });
+}
+
 function selectLanguage(languageId) {
   const nextLanguage = i18n.resolveLanguage(languageId);
   const languageChanged = state.language !== nextLanguage;
@@ -1566,6 +1678,7 @@ function openMobilePopup(type = "menu", trigger = mobileMenuButton) {
   mobilePopupType = type;
   mobilePopupTrigger = trigger;
   mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
+  enhanceNativeSelects(mobilePopupMenu);
   mobilePopupMenu.dataset.popupType = "menu";
   mobilePopupMenu.setAttribute("role", "dialog");
   mobilePopupMenu.setAttribute("aria-modal", "true");
@@ -3368,6 +3481,7 @@ function renderActiveWorkspace(renderer) {
 }
 
 function render(options = {}) {
+  closeSelectPickers();
   synchronizeShellRoute();
   applyAppearancePreferences();
   renderWalletShell();
@@ -3419,9 +3533,13 @@ function render(options = {}) {
   help.configure({ language: state.language, palette: state.palette });
   help.mountContextButton(state, main.firstElementChild);
   suppressPasswordManagerUI(document);
+  enhanceNativeSelects(main);
 
   syncBalanceButtons();
-  if (!mobilePopupMenu.hidden && mobilePopupType === "menu") mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
+  if (!mobilePopupMenu.hidden && mobilePopupType === "menu") {
+    mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
+    enhanceNativeSelects(mobilePopupMenu);
+  }
   requestAnimationFrame(() => {
     const activeContext = isMobileNavigation()
       ? mobileTopbarContext.querySelector(".context-nav-child.is-active, .context-nav-item.is-active")
@@ -4066,6 +4184,7 @@ function openWalletDialog() {
 
 function renderDialog() {
   if (!state.flow) return;
+  closeSelectPickers();
   const type = state.flow.type;
   const content = type === "asset-claim" ? assetClaimDialog()
     : type === "create-voucher" ? createVoucherDialog()
@@ -4089,6 +4208,7 @@ function renderDialog() {
     : notificationsDialog();
   dialogContent.innerHTML = content;
   suppressPasswordManagerUI(dialogContent);
+  enhanceNativeSelects(dialogContent);
   persistDialogHistoryState();
 }
 
@@ -4117,7 +4237,7 @@ function persistDialogHistoryState() {
 
 function focusDialogPrimaryControl() {
   requestAnimationFrame(() => {
-    const target = dialog.querySelector("input:not([type='hidden']), select, button:not([data-dialog-close])");
+    const target = dialog.querySelector("input:not([type='hidden']), [data-select-picker-trigger], button:not([data-dialog-close])");
     target?.focus();
   });
 }
@@ -5531,6 +5651,11 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.querySelector("[data-select-picker].is-open")) {
+    event.preventDefault();
+    closeSelectPickers({ restoreFocus: true });
+    return;
+  }
   if (event.key === "Escape" && document.querySelector("[data-language-picker].is-open")) {
     event.preventDefault();
     closeLanguagePickers({ restoreFocus: true });
@@ -5558,6 +5683,7 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("resize", () => {
   closeLanguagePickers();
+  closeSelectPickers();
   const mobileNavigation = isMobileNavigation();
   if (!mobileNavigation) {
     closeMobilePopup();
@@ -5980,6 +6106,32 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  const selectPickerOption = event.target.closest("[data-select-picker-index]");
+  if (selectPickerOption) {
+    event.preventDefault();
+    const picker = selectPickerOption.closest("[data-select-picker]");
+    const select = picker?.querySelector("select");
+    const optionIndex = Number(selectPickerOption.dataset.selectPickerIndex);
+    const option = Number.isInteger(optionIndex) ? select?.options[optionIndex] : null;
+    if (!select || !option || option.disabled) return;
+    closeSelectPicker(picker);
+    select.selectedIndex = optionIndex;
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
+  const selectPickerTrigger = event.target.closest("[data-select-picker-trigger]");
+  if (selectPickerTrigger) {
+    event.preventDefault();
+    const picker = selectPickerTrigger.closest("[data-select-picker]");
+    if (picker?.classList.contains("is-open")) closeSelectPicker(picker);
+    else if (picker) openSelectPicker(picker);
+    return;
+  }
+
+  if (!event.target.closest("[data-select-picker]")) closeSelectPickers();
+
   const languageOption = event.target.closest("[data-language-picker-option]");
   if (languageOption) {
     event.preventDefault();

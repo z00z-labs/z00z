@@ -91,6 +91,7 @@
 
   /* Active semantic tokens — default dark */
   --bg-canvas: var(--lut-z00z-dark-canvas);
+  --bg-popup-menu: var(--bg-canvas);
   --bg-sidebar: var(--lut-z00z-dark-sidebar);
   --bg-surface: var(--lut-z00z-dark-surface);
   --bg-raised: var(--lut-z00z-dark-raised);
@@ -147,6 +148,7 @@ html[data-code-theme="night-owl"] {
 
 html[data-palette="z00z-corporate"] {
   --bg-canvas: var(--lut-z00z-corporate-base-100);
+  --bg-popup-menu: var(--bg-canvas);
   --bg-sidebar: var(--lut-z00z-corporate-base-100);
   --bg-surface: var(--lut-z00z-corporate-base-100);
   --bg-raised: var(--lut-z00z-corporate-base-200);

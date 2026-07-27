@@ -3134,7 +3134,8 @@ button.permission-row:hover {
 }
 
 .setting-line input,
-.setting-line select {
+.setting-line select,
+.setting-line .select-picker {
   width: 100%;
 }
 
@@ -3201,7 +3202,8 @@ button.permission-row:hover {
   white-space: nowrap;
 }
 
-.compact-row > select.compact-value {
+.compact-row > select.compact-value,
+.compact-row > .select-picker.compact-value {
   grid-column: 2 / 4;
 }
 
@@ -3282,7 +3284,7 @@ button.permission-row:hover {
   padding: 5px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-control);
-  background: var(--bg-canvas);
+  background: var(--bg-popup-menu);
   box-shadow: var(--shadow-float);
   scrollbar-color: color-mix(in srgb, var(--brand) 58%, var(--border)) transparent;
 }
@@ -3325,6 +3327,132 @@ button.permission-row:hover {
   width: 17px;
   height: 17px;
   color: var(--brand-strong);
+}
+
+.select-picker {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+}
+
+.select-picker.compact-value {
+  overflow: visible;
+  color: inherit;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.select-picker-native {
+  position: absolute !important;
+  width: 1px !important;
+  min-width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.select-picker-trigger {
+  display: grid;
+  width: 100%;
+  min-height: 46px;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--text-primary);
+  background: var(--bg-canvas);
+  font: inherit;
+  font-size: var(--type-control);
+  text-align: left;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.select-picker-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-picker-trigger > .icon {
+  width: 17px;
+  height: 17px;
+  color: var(--text-secondary);
+  transform: rotate(90deg);
+  transition: transform var(--ease), color var(--ease);
+}
+
+.select-picker-trigger:hover,
+.select-picker.is-open .select-picker-trigger {
+  border-color: var(--interaction-hover-border);
+  background: var(--interaction-hover-bg);
+}
+
+.select-picker-trigger:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.select-picker.is-open .select-picker-trigger > .icon {
+  color: var(--brand-strong);
+  transform: rotate(-90deg);
+}
+
+.select-picker-menu {
+  position: fixed;
+  z-index: 160;
+  display: grid;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg-popup-menu);
+  box-shadow: var(--shadow-float);
+  scrollbar-color: color-mix(in srgb, var(--brand) 58%, var(--border)) transparent;
+}
+
+.select-picker-menu[hidden] {
+  display: none;
+}
+
+.select-picker-option {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-control) - 3px);
+  color: var(--text-primary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--type-control);
+  text-align: left;
+}
+
+.select-picker-option:hover,
+.select-picker-option:focus-visible {
+  border-color: var(--interaction-hover-border);
+  background: var(--interaction-hover-bg);
+  outline: 0;
+}
+
+.select-picker-option.is-selected {
+  border-color: color-mix(in srgb, var(--brand) 48%, var(--border));
+  background: color-mix(in srgb, var(--brand) 14%, var(--bg-raised));
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.watcher-toolbar .select-picker-trigger {
+  min-height: 42px;
+  border-color: var(--border);
+  background: var(--bg-surface);
+  font-size: var(--type-control);
+  font-weight: 600;
 }
 
 .compact-action {
@@ -5653,7 +5781,7 @@ button.connection-option:hover,
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sheet);
     color: var(--text-primary);
-    background: var(--bg-surface);
+    background: var(--bg-popup-menu);
     box-shadow: var(--shadow-float);
   }
 
@@ -5691,7 +5819,7 @@ button.connection-option:hover,
     overflow: hidden;
     border-width: 0 1px 0 0;
     border-radius: 0 var(--radius-sheet) var(--radius-sheet) 0;
-    background: var(--bg-sidebar);
+    background: var(--bg-popup-menu);
     box-shadow: var(--shadow);
     animation: mobile-drawer-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
     grid-template-rows: auto minmax(0, 1fr);
@@ -5706,14 +5834,14 @@ button.connection-option:hover,
     align-items: center;
     padding: 4px 6px;
     border-bottom: 1px solid var(--border);
-    background: var(--bg-surface);
+    background: var(--bg-popup-menu);
     grid-template-columns: 38px minmax(0, 1fr) 38px;
   }
 
   .mobile-popup-menu[data-popup-type="menu"] .mobile-popup-header {
     min-height: 64px;
     padding: 8px 12px;
-    background: var(--bg-sidebar);
+    background: var(--bg-popup-menu);
   }
 
   .mobile-popup-header strong {
@@ -6130,7 +6258,8 @@ button.connection-option:hover,
   }
 
   .settings-heading > .button,
-  .settings-heading > select {
+  .settings-heading > select,
+  .settings-heading > .select-picker {
     width: 100%;
   }
 
@@ -6350,7 +6479,8 @@ button.connection-option:hover,
     grid-row: 2;
   }
 
-  .wallet-settings-view .compact-row > select.compact-value {
+  .wallet-settings-view .compact-row > select.compact-value,
+  .wallet-settings-view .compact-row > .select-picker.compact-value {
     grid-column: 1 / -1;
   }
 
@@ -7195,7 +7325,7 @@ button.connection-option:hover,
     align-items: center;
     justify-content: space-between;
     padding: 7px 12px 7px 16px;
-    background: var(--bg-sidebar);
+    background: var(--bg-popup-menu);
   }
 
   .mobile-navigation-scroll-region {
@@ -7262,7 +7392,7 @@ button.connection-option:hover,
     margin-top: 10px;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
-    background: var(--bg-sidebar);
+    background: var(--bg-popup-menu);
   }
 
   .mobile-popup-menu .navigation-tree-item {

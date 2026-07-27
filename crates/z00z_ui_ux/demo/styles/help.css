@@ -144,7 +144,7 @@
   padding: 5px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-control);
-  background: var(--bg-canvas);
+  background: var(--bg-popup-menu);
   box-shadow: var(--shadow-float);
   scrollbar-color: color-mix(in srgb, var(--brand) 58%, var(--border)) transparent;
 }
@@ -680,6 +680,7 @@
     width: min(88vw, 340px);
     height: auto;
     border-inline-end: 1px solid var(--border-strong);
+    background: var(--bg-popup-menu);
     box-shadow: var(--shadow-float);
     transform: translateX(-101%);
     transition: transform var(--ease);
@@ -700,7 +701,7 @@
     z-index: 1;
     top: 0;
     padding: 14px 16px;
-    background: var(--bg-sidebar);
+    background: var(--bg-popup-menu);
   }
 
   .help-sidebar-close {

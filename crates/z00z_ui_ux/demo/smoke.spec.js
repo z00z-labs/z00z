@@ -946,6 +946,64 @@ test("Help reuses App section icons, language flags, and searchable localized co
   await helpPage.close();
 });
 
+test("all popup menus use the main canvas surface on desktop and mobile", async ({ page }) => {
+  const popupColors = async (selector) => page.evaluate((popupSelector) => {
+    const popup = document.querySelector(popupSelector);
+    return {
+      popup: getComputedStyle(popup).backgroundColor,
+      canvas: getComputedStyle(document.body).backgroundColor,
+    };
+  }, selector);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=settings.notifications`);
+  const vibrate = page.locator('[data-config-control="vibrate"]');
+  const nativeControls = page.locator("#main-content select");
+  expect(await nativeControls.count()).toBeGreaterThan(0);
+  expect(await nativeControls.evaluateAll((controls) => controls.every((control) => (
+    control.classList.contains("select-picker-native")
+    && control.parentElement?.dataset.selectPicker === ""
+  )))).toBe(true);
+  await vibrate.locator("xpath=..").locator("[data-select-picker-trigger]").click();
+  await expect(page.locator(".select-picker-menu:not([hidden])")).toBeVisible();
+  expect(await popupColors(".select-picker-menu:not([hidden])")).toEqual({
+    popup: "rgb(8, 16, 25)",
+    canvas: "rgb(8, 16, 25)",
+  });
+  await page.locator(".select-picker-menu:not([hidden]) .select-picker-option", { hasText: "Important alerts only" }).click();
+  await expect(vibrate).toHaveValue("alerts-only");
+
+  await page.goto(`${demoUrl}?route=settings.appearance`);
+  await page.locator('[data-palette="z00z-corporate"]').click();
+  await page.goto(`${demoUrl}?route=settings.notifications`);
+  await page.locator('[data-config-control="ringtone"]').locator("xpath=..").locator("[data-select-picker-trigger]").click();
+  const corporateColors = await popupColors(".select-picker-menu:not([hidden])");
+  expect(corporateColors.popup).toBe(corporateColors.canvas);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=settings.notifications`);
+  await page.locator('[data-config-control="ringtone"]').locator("xpath=..").locator("[data-select-picker-trigger]").click();
+  const mobilePickerColors = await popupColors(".select-picker-menu:not([hidden])");
+  expect(mobilePickerColors.popup).toBe(mobilePickerColors.canvas);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".select-picker-menu:not([hidden])")).toHaveCount(0);
+
+  await page.locator("#mobile-menu-button").click();
+  const mobileDrawerColors = await popupColors("#mobile-popup-menu");
+  expect(mobileDrawerColors.popup).toBe(mobileDrawerColors.canvas);
+  await page.locator("#mobile-menu-button").click();
+
+  await page.goto(new URL("help.html", demoUrl).toString());
+  await page.locator("#help-language").click();
+  const helpPickerColors = await popupColors(".help-language-menu:not([hidden])");
+  expect(helpPickerColors.popup).toBe(helpPickerColors.canvas);
+  await page.keyboard.press("Escape");
+  await page.locator("#help-menu-button").click();
+  const helpDrawerColors = await popupColors("#help-sidebar");
+  expect(helpDrawerColors.popup).toBe(helpDrawerColors.canvas);
+  await expectNoViewportOverflow(page);
+});
+
 test("all root Help articles are selectable on desktop and mobile", async ({ page }) => {
   const articles = [
     ["about", "About Z00Z"],
