@@ -31,6 +31,8 @@ window.Z00ZI18n.registerLocale("en", {
     notificationsHelp: "Show wallet updates and required actions",
     regionalFormat: "Regional format",
     regionalFormatHelp: "Controls dates, numbers, and decimal separators independently from language",
+    currency: "Currency",
+    currencyHelp: "Currency used to display coin values",
     timeZone: "Time zone",
     timeZoneHelp: "Timestamps are stored in UTC and displayed in this time zone",
     networkUnits: "Network units",
@@ -141,7 +143,7 @@ window.Z00ZI18n.registerLocale("en", {
   },
   help: {
     title: "Help", openGlobal: "Open application help", openContext: "Help for this view",
-    close: "Close help", contents: "Contents", section: "Help section {current} of {total}",
+    close: "Close help", contents: "Contents", drawerTitle: "Help Content", section: "Help section {current} of {total}",
     unavailable: "Help is unavailable for this view."
   },
   status: {

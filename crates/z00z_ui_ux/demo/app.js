@@ -68,6 +68,30 @@ const uiLanguages = i18n.languages();
 const paletteOptions = demoRuntime.PALETTE_OPTIONS;
 const codeThemeOptions = demoRuntime.CODE_THEME_OPTIONS;
 const walletChainOptions = demoRuntime.WALLET_CHAIN_OPTIONS;
+const valuationCurrencyOptions = Object.freeze([
+  Object.freeze({ id: "USD", flags: "🇺🇸" }),
+  Object.freeze({ id: "GBP", languageIds: ["en"] }),
+  Object.freeze({ id: "EUR", languageIds: ["fr", "de", "es", "pt"] }),
+  Object.freeze({ id: "RUB", languageIds: ["ru"] }),
+  Object.freeze({ id: "KRW", languageIds: ["ko"] }),
+  Object.freeze({ id: "TRY", languageIds: ["tr"] }),
+  Object.freeze({ id: "JPY", languageIds: ["ja"] }),
+  Object.freeze({ id: "CNY", languageIds: ["zh-Hans"] })
+].map((entry) => Object.freeze({
+  ...entry,
+  flags: entry.flags || entry.languageIds
+    .map((languageId) => uiLanguages.find(({ id }) => id === languageId)?.flag)
+    .filter(Boolean)
+    .join(" ")
+})));
+
+function synchronizePalettePreference(paletteId) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("palette", paletteId);
+  url.searchParams.delete("theme");
+  window.history.replaceState(window.history.state, "", url);
+}
+
 const state = demoRuntime.createInitialState({
   search: window.location.search
 });
@@ -133,6 +157,7 @@ const headings = {
   wallet: ["Wallet", "Assets, vouchers, and permissions stay distinct"],
   "wallet-send": ["assets.send", "Assets, vouchers, and permissions stay distinct"],
   "wallet-receive": ["assets.receive", "Assets, vouchers, and permissions stay distinct"],
+  "wallet-import": ["navigation.import", "Claim a verified public asset package from disk"],
   activity: ["History", "Asset, voucher, permission, policy, and security events"],
   swap: ["Swap", "Move value between assets in this wallet"],
   exchange: ["Exchange", "Compare external exchange routes for this wallet"],
@@ -366,6 +391,21 @@ function regionalLocaleOptionsMarkup() {
   return uiLanguages.map(({ locale, nativeName }) => `<option value="${locale}"${state.regionalLocale === locale ? " selected" : ""}>${nativeName} · ${locale}</option>`).join("");
 }
 
+function valuationCurrencyName(currencyId) {
+  try {
+    return new Intl.DisplayNames([state.regionalLocale], { type: "currency" }).of(currencyId) || currencyId;
+  } catch {
+    return currencyId;
+  }
+}
+
+function valuationCurrencyOptionsMarkup() {
+  return valuationCurrencyOptions.map(({ id, flags }) => {
+    const label = `${flags} ${id} · ${valuationCurrencyName(id)}`;
+    return `<option value="${id}"${state.valuationCurrency === id ? " selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
 function applyDocumentTranslations() {
   document.documentElement.lang = state.language;
   document.documentElement.dir = uiLanguages.find((language) => language.id === state.language)?.direction ?? "ltr";
@@ -385,6 +425,16 @@ function formatLocalizedDateTime(value, options) {
 
 function formatLocalizedBitrate(bitsPerSecond) {
   return i18n.formatBitrate(bitsPerSecond, state.language, state.regionalLocale);
+}
+
+function formatValuation(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  return formatLocalizedNumber(amount, {
+    style: "currency",
+    currency: state.valuationCurrency,
+    currencyDisplay: "code"
+  });
 }
 
 function activeWallet() {
@@ -409,6 +459,7 @@ function effectiveDemoConfigYaml() {
     "  general:",
     `    language: \"${yamlScalar(state.language)}\"`,
     `    regional_locale: \"${yamlScalar(state.regionalLocale)}\"`,
+    `    valuation_currency: ${state.valuationCurrency}`,
     `    time_zone: \"${yamlScalar(state.timeZone)}\"`,
     `    network_units: ${state.networkUnits}`,
     `    notifications: ${state.notifications}`,
@@ -469,6 +520,7 @@ function applyPalette(paletteId) {
   const palette = paletteForId(paletteId);
   state.palette = palette.id;
   mergeShellState({ type: "set_palette", palette: palette.id });
+  synchronizePalettePreference(palette.id);
   return palette;
 }
 
@@ -500,6 +552,7 @@ function validateAndApplyDemoConfig(source, apply = false) {
   const palette = readYamlScalar(source, "palette");
   const language = readYamlScalar(source, "language");
   const regionalLocale = readYamlScalar(source, "regional_locale");
+  const valuationCurrency = readYamlScalar(source, "valuation_currency");
   const timeZone = readYamlScalar(source, "time_zone");
   const networkUnits = readYamlScalar(source, "network_units");
   const textScale = readYamlScalar(source, "text_scale");
@@ -514,6 +567,7 @@ function validateAndApplyDemoConfig(source, apply = false) {
 
   if (language && !uiLanguages.some((entry) => entry.id === language)) return { valid: false, message: "language must be a supported UI language code." };
   if (regionalLocale && !uiLanguages.some((entry) => entry.locale === regionalLocale)) return { valid: false, message: "regional_locale must use a supported locale." };
+  if (valuationCurrency && !valuationCurrencyOptions.some((entry) => entry.id === valuationCurrency)) return { valid: false, message: "valuation_currency must use a supported ISO 4217 code." };
   if (timeZone && !["UTC", "Asia/Jerusalem", "Europe/Berlin", "America/New_York", "Asia/Tokyo", "Asia/Shanghai"].includes(timeZone)) return { valid: false, message: "time_zone must use a supported IANA identifier." };
   if (networkUnits && networkUnits !== "decimal-bps") return { valid: false, message: "network_units must be decimal-bps." };
   if (textScale && !["100", "110", "125"].includes(textScale)) return { valid: false, message: "text_scale must be 100, 110, or 125." };
@@ -530,6 +584,7 @@ function validateAndApplyDemoConfig(source, apply = false) {
     if (theme || palette) applyPalette(demoRuntime.resolvePalettePreference({ palette, theme }));
     if (language) state.language = language;
     if (regionalLocale) state.regionalLocale = regionalLocale;
+    if (valuationCurrency) state.valuationCurrency = valuationCurrency;
     if (timeZone) state.timeZone = timeZone;
     if (networkUnits) state.networkUnits = networkUnits;
     if (textScale) state.textScale = textScale;
@@ -623,6 +678,7 @@ function advancedConfigContent() {
     <div class="config-form-grid">
       <div class="config-field"><span>${t("app.language")}</span>${languagePickerMarkup()}</div>
       <label><span>${t("app.regionalFormat")}</span><select data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select></label>
+      <label><span>${t("app.currency")}</span><select aria-label="${escapeHtml(t("app.currency"))}" title="${escapeHtml(t("app.currencyHelp"))}" data-config-control="valuation-currency">${valuationCurrencyOptionsMarkup()}</select></label>
       <label><span>${t("app.timeZone")}</span><select data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select></label>
       <label><span>${escapeHtml(t("plan2.palette.label"))}</span><select data-config-control="palette">${paletteOptions.map((palette) => `<option value="${palette.id}"${state.palette === palette.id ? " selected" : ""}>${escapeHtml(paletteName(palette))}</option>`).join("")}</select></label>
       <label><span>Text scale</span><select data-config-control="text-scale"><option value="100"${state.textScale === "100" ? " selected" : ""}>100%</option><option value="110"${state.textScale === "110" ? " selected" : ""}>110%</option><option value="125"${state.textScale === "125" ? " selected" : ""}>125%</option></select></label>
@@ -651,7 +707,7 @@ function advancedConfigContent() {
 }
 
 function isWalletView() {
-  return ["wallet", "wallet-send", "wallet-receive", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings"].includes(state.view);
+  return ["wallet", "wallet-send", "wallet-receive", "wallet-import", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings"].includes(state.view);
 }
 
 function hasSelectedWalletContext() {
@@ -699,6 +755,7 @@ function legacyStateForRoute(routeId) {
   if (routeId === "wallet.quarantine") return { view: "wallet", walletSection: "permissions" };
   if (routeId === "wallet.send") return { view: "wallet-send" };
   if (routeId === "wallet.receive") return { view: "wallet-receive" };
+  if (routeId === "wallet.import") return { view: "wallet-import" };
   if (routeId === "wallet.history") return { view: "activity" };
   if (["wallet.swap", "wallet.exchange"].includes(routeId)) return { view: routeId.slice("wallet.".length) };
   if (routeId.startsWith("wallet.staking.")) return { view: "staking" };
@@ -1314,7 +1371,7 @@ function moneyView() {
               <span class="asset-info"><strong><span class="object-label">${escapeHtml(asset.label)}</span><span class="object-kind">${t(asset.kindKey)}</span></strong></span>
             </button>
             <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.balance")}</small><strong>${sensitive(asset.balanceLabel)}</strong></div>
-            <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.value")}</small><strong>${asset.value === "—" ? asset.value : sensitive(asset.value)}</strong></div>
+            <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.value")}</small><strong>${asset.value === "—" ? asset.value : sensitive(formatValuation(asset.value))}</strong></div>
             <div class="asset-number" role="cell"><small class="asset-number-label">${t("assets.price")}</small><strong>${t(asset.priceKey)}</strong></div>
           </article>`).join("")}
       </div>
@@ -1330,8 +1387,8 @@ function sendStepIndicator(activeStep) {
   return `<div class="step-indicator" aria-label="Step ${activeStep + 1} of 3">${Array.from({ length: 3 }, (_, index) => `<span class="${index < activeStep ? "is-done" : index === activeStep ? "is-active" : ""}"></span>`).join("")}</div>`;
 }
 
-function sendPanelFrame({ title, subtitle, step, body, footer }) {
-  return `<section class="send-panel" aria-labelledby="send-panel-title">
+function sendPanelFrame({ title, subtitle, step, body, footer, panelClass = "" }) {
+  return `<section class="send-panel${panelClass ? ` ${panelClass}` : ""}" aria-labelledby="send-panel-title">
     <header class="wallet-action-header send-panel-header">
       <div><h2 id="send-panel-title">${escapeHtml(title)}</h2><p>${escapeHtml(subtitle)}</p></div>
       ${sendStepIndicator(step)}
@@ -1440,8 +1497,9 @@ function walletSendView() {
             title: t("send.reviewTitle"),
             subtitle: t("send.reviewSubtitle"),
             step: 1,
-            body: `<div class="review-card review-hero">${sendItemIcon(item, "list-icon")}<strong>${escapeHtml(amountLabel)}</strong><span>${escapeHtml(item.label)} · ${escapeHtml(draft.recipientLabel)}</span></div>
-              <div class="review-card">
+            panelClass: "send-review-panel",
+            body: `<div class="review-card review-hero send-review-hero">${sendItemIcon(item, "list-icon")}<strong>${escapeHtml(amountLabel)}</strong><span>${escapeHtml(item.label)} · ${escapeHtml(draft.recipientLabel)}</span></div>
+              <div class="review-card send-review-facts">
                 <div class="summary-row"><span>${t("send.family")}</span><strong>${t(`send.familyName.${item.family}`)}</strong></div>
                 <div class="summary-row"><span>${t("send.item")}</span><strong>${escapeHtml(item.label)}</strong></div>
                 <div class="summary-row"><span>${t("send.recipientShort")}</span><strong>${escapeHtml(draft.recipientLabel)}</strong></div>
@@ -1449,7 +1507,7 @@ function walletSendView() {
                 <div class="summary-row"><span>${t("send.fee")}</span><strong>${item.family === "asset" ? t("send.feeAtAuthorization") : t("send.notApplicable")}</strong></div>
                 ${draft.memo ? `<div class="summary-row"><span>${t("send.noteShort")}</span><strong>${escapeHtml(draft.memo)}</strong></div>` : ""}
               </div>
-              <div class="confirmation-note">${icon("shield")} ${t(`send.confirmation.${item.family}`)}</div>`,
+              <div class="confirmation-note send-review-confirmation">${icon("shield")} ${t(`send.confirmation.${item.family}`)}</div>`,
             footer: `<button class="button" type="button" data-send-action="back">${t("common.back")}</button><button class="button button-primary" type="button" data-send-action="submit">${t(`send.submit.${item.family}`)}</button>`
           });
         })()
@@ -1501,11 +1559,32 @@ function walletSendView() {
 
 function walletReceiveView() {
   const wallet = activeWallet();
-  const fullAddress = wallet.fullAddress || wallet.address;
-  const addressLabel = fullAddress.length > 28
-    ? `${fullAddress.slice(0, 12)}…${fullAddress.slice(-10)}`
-    : fullAddress;
-  const copyLabel = t("walletShell.copyAddress", { wallet: wallet.name });
+  const response = walletGateway.getReceiverCard({ walletId: wallet.id });
+  if (!response.ok) {
+    return `<div class="view-enter receiver-view">
+      <section class="receiver-card receiver-card-unavailable" aria-labelledby="receiver-card-title">
+        <header class="wallet-action-header receiver-card-header">
+          <div><h2 id="receiver-card-title">${escapeHtml(t("receive.title"))}</h2><p>${escapeHtml(t("receive.subtitle"))}</p></div>
+        </header>
+        <div class="receiver-card-error" role="status">${icon("alert")}<strong>${escapeHtml(t("receive.unavailable"))}</strong></div>
+      </section>
+    </div>`;
+  }
+
+  const card = response.data;
+  const shortValue = (value, start = 12, end = 10) => (
+    value.length > start + end + 1 ? `${value.slice(0, start)}…${value.slice(-end)}` : value
+  );
+  const cardLabel = shortValue(card.card_compact, 14, 10);
+  const cardFields = [
+    [t("receive.receiverHandle"), card.owner_handle_display],
+    [t("receive.ownerHandle"), card.owner_handle],
+    [t("receive.viewKey"), card.view_key],
+    [t("receive.identityKey"), card.identity_key],
+    [t("receive.registryEntry"), card.registry_entry_id],
+    [t("receive.cardEpoch"), String(card.card_epoch)],
+    [t("receive.signature"), card.signature]
+  ];
 
   return `
     <div class="view-enter receiver-view">
@@ -1517,14 +1596,185 @@ function walletReceiveView() {
           </div>
         </header>
         <div class="receiver-card-body">
-          <div class="mock-qr receiver-card-qr" aria-label="${escapeHtml(`${t("assets.receive")} QR`)}">${qrCells(fullAddress)}</div>
-          <div class="receiver-address-control" title="${escapeHtml(fullAddress)}">
-            <code class="receiver-card-address">${escapeHtml(addressLabel)}</code>
-            <button class="icon-button receiver-card-copy" type="button" data-demo-action="copy-wallet-address" aria-label="${escapeHtml(copyLabel)}" title="${escapeHtml(fullAddress)}">${icon("copy")}</button>
+          <div class="receiver-card-share">
+            <div class="mock-qr receiver-card-qr" data-qr-payload="${escapeHtml(card.card_compact)}" aria-label="${escapeHtml(`${t("receive.verifiedCard")} QR`)}">${qrCells(card.card_compact)}</div>
+            <div class="receiver-card-verification">
+              <span>${icon("shield")}</span>
+              <span><strong>${escapeHtml(t("receive.verifiedCard"))}</strong><small>${escapeHtml(t("receive.shareHint"))}</small></span>
+              <span class="status-badge is-ready">${escapeHtml(t("receive.verified"))}</span>
+            </div>
           </div>
+          <div class="receiver-address-control" title="${escapeHtml(card.card_compact)}">
+            <span class="receiver-card-address">
+              <small>${escapeHtml(t("receive.compactRecord"))}</small>
+              <code>${escapeHtml(cardLabel)}</code>
+            </span>
+            <button class="icon-button receiver-card-copy" type="button" data-demo-action="copy-receiver-card" data-copy-value="${escapeHtml(card.card_compact)}" aria-label="${escapeHtml(t("receive.copyCard"))}" title="${escapeHtml(t("receive.copyCard"))}">${icon("copy")}</button>
+          </div>
+          <dl class="receiver-card-fields">
+            ${cardFields.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd><code title="${escapeHtml(value)}">${escapeHtml(shortValue(value))}</code></dd></div>`).join("")}
+          </dl>
         </div>
       </section>
     </div>`;
+}
+
+function resetAssetImportState() {
+  state.assetImport = {
+    walletId: activeWallet().id,
+    status: "idle",
+    fileName: "",
+    fileSize: 0,
+    reviewToken: "",
+    preview: null,
+    error: null,
+    result: null
+  };
+  return state.assetImport;
+}
+
+function activeAssetImportState() {
+  const wallet = activeWallet();
+  if (!state.assetImport || state.assetImport.walletId !== wallet.id) return resetAssetImportState();
+  return state.assetImport;
+}
+
+function assetImportFlagMarkup(label, active, danger = false) {
+  const tone = active ? (danger ? "is-attention" : "is-ready") : "";
+  return `<span class="status-badge ${tone}">${escapeHtml(label)}: ${active ? "Yes" : "No"}</span>`;
+}
+
+function assetImportPanel({ body, footer = "" }) {
+  return `<section class="asset-import-panel" aria-labelledby="asset-import-title">
+    <header class="wallet-action-header asset-import-header">
+      <span class="asset-import-header-icon">${icon("import")}</span>
+      <div>
+        <h2 id="asset-import-title">Import asset</h2>
+        <p>Claim a public asset package from disk into ${escapeHtml(activeWallet().name)}.</p>
+      </div>
+    </header>
+    <div class="asset-import-body">${body}</div>
+    ${footer ? `<footer class="asset-import-footer">${footer}</footer>` : ""}
+  </section>`;
+}
+
+function assetImportIdleView(importState) {
+  const error = importState.error
+    ? `<div class="asset-import-error" role="alert">${icon("alert")}<span><strong>Package rejected</strong><small>${escapeHtml(importState.error.message)}</small><code>${escapeHtml(importState.error.reason || "IMPORT_MALFORMED_JSON")}</code></span></div>`
+    : "";
+  return assetImportPanel({
+    body: `${error}
+      <label class="asset-import-picker" for="asset-import-file">
+        <input class="visually-hidden" id="asset-import-file" name="assetPackage" type="file" accept=".json,application/json">
+        <span class="asset-import-picker-icon">${icon("backup")}</span>
+        <span><strong>Choose asset package</strong><small>AssetPkgWire JSON · maximum 64 KiB</small></span>
+        <span class="button button-primary" aria-hidden="true">Choose file</span>
+      </label>
+      <div class="asset-import-target">
+        <span>${icon("wallet")}</span>
+        <span><small>Claim target</small><strong>${escapeHtml(activeWallet().name)}</strong></span>
+        ${walletChainBadgeMarkup(activeWallet().chainId)}
+      </div>
+      <ul class="asset-import-boundaries">
+        <li>${icon("check")} Public package only; a top-level <code>secret</code> field is rejected.</li>
+        <li>${icon("check")} The wallet verifies cryptography, ownership, replay, and claim conflicts.</li>
+        <li>${icon("check")} The local file path is never stored or sent to the wallet RPC.</li>
+      </ul>`
+  });
+}
+
+function assetImportReviewView(importState) {
+  const { preview } = importState;
+  const { asset, ownership, cryptography } = preview;
+  const amount = Number.isSafeInteger(asset.amount)
+    ? `${asset.amount} atomic unit${asset.amount === 1 ? "" : "s"}`
+    : "Exact u64 value checked by native wallet";
+  const nominal = Number.isSafeInteger(asset.nominal)
+    ? `${asset.nominal} atomic unit${asset.nominal === 1 ? "" : "s"}`
+    : "Exact u64 value checked by native wallet";
+  const lockHeight = asset.lockHeight === null
+    ? "None"
+    : Number.isSafeInteger(asset.lockHeight)
+      ? asset.lockHeight
+      : "Exact u64 value checked by native wallet";
+  const stateFlags = [
+    assetImportFlagMarkup("Burned", asset.flags.burned, true),
+    assetImportFlagMarkup("Frozen", asset.flags.frozen, true),
+    assetImportFlagMarkup("Slashed", asset.flags.slashed, true)
+  ].join("");
+
+  return assetImportPanel({
+    body: `<div class="asset-import-file-row">
+        <span>${icon("import")}</span>
+        <span><small>Selected package</small><strong>${escapeHtml(preview.file.name)}</strong><small>${escapeHtml(`${preview.file.bytes.toLocaleString("en-US")} bytes`)}</small></span>
+        <button class="button button-quiet" type="button" data-asset-import-action="reset">Change</button>
+      </div>
+      <div class="asset-import-hero">
+        <span class="asset-import-class-icon">${icon(asset.class === "Coin" ? "coin" : asset.class === "Token" ? "token" : asset.class === "Nft" ? "nft" : "claim")}</span>
+        <span><small>${escapeHtml(asset.class)}</small><strong>${escapeHtml(asset.name)}</strong><code>${escapeHtml(asset.symbol)}</code></span>
+        <span class="status-badge is-attention">Review</span>
+      </div>
+      <dl class="asset-import-facts">
+        <div><dt>Amount</dt><dd>${escapeHtml(amount)}</dd></div>
+        <div><dt>Decimals</dt><dd>${escapeHtml(asset.decimals)}</dd></div>
+        <div><dt>Serial ID</dt><dd>${escapeHtml(asset.serialId)}</dd></div>
+        <div><dt>Domain</dt><dd title="${escapeHtml(asset.domainName)}">${escapeHtml(asset.domainName)}</dd></div>
+        <div><dt>Definition ID</dt><dd class="mono">${escapeHtml(asset.definitionId)}</dd></div>
+        <div><dt>Lock height</dt><dd>${escapeHtml(lockHeight)}</dd></div>
+      </dl>
+      <div class="asset-import-flags" aria-label="Asset state flags">${stateFlags}</div>
+      <div class="asset-import-checks">
+        <h3>Wallet verification</h3>
+        <div><span>${icon("check")}</span><span><strong>Public DTO schema</strong><small>Known fields, JSON types, size limit, and no secret field.</small></span></div>
+        <div><span>${icon("shield")}</span><span><strong>Cryptography and ownership</strong><small>${escapeHtml(ownership.mode)} · verified only by the native wallet.</small></span></div>
+        <div><span>${icon("activity")}</span><span><strong>Claim and replay state</strong><small>Reserve nullifier, persist claim, then finalize or quarantine.</small></span></div>
+      </div>
+      <details class="technical asset-import-technical">
+        <summary>Technical package fields</summary>
+        <div class="technical-content">
+          <span><strong>Commitment</strong><code>${escapeHtml(cryptography.commitment)}</code></span>
+          <span><strong>Nonce</strong><code>${escapeHtml(cryptography.nonce)}</code></span>
+          <span><strong>Range proof</strong><code>${cryptography.rangeProofPresent ? "Present" : "Not present"}</code></span>
+          <span><strong>Owner reference</strong><code>${escapeHtml(ownership.ownerReference)}</code></span>
+          ${ownership.leafAdId ? `<span><strong>Leaf AD ID</strong><code>${escapeHtml(ownership.leafAdId)}</code></span>` : ""}
+          <span><strong>Declared serials</strong><code>${escapeHtml(asset.serials)}</code></span>
+          <span><strong>Nominal amount</strong><code>${escapeHtml(nominal)}</code></span>
+          <span><strong>Metadata entries</strong><code>${escapeHtml(asset.metadataEntryCount)}</code></span>
+          <span><strong>Tag 16</strong><code>${asset.tag16 === null ? "None" : escapeHtml(asset.tag16)}</code></span>
+          <span><strong>Versions</strong><code>definition ${escapeHtml(cryptography.definitionVersion)} · crypto ${escapeHtml(cryptography.cryptoVersion)}</code></span>
+          <span><strong>Policy flags</strong><code>${escapeHtml(cryptography.policyFlags)}</code></span>
+        </div>
+      </details>`,
+    footer: `<button class="button" type="button" data-asset-import-action="reset">Cancel</button>
+      <button class="button button-primary" type="button" data-asset-import-action="prepare">${icon("import")} Import asset</button>`
+  });
+}
+
+function assetImportPreparedView(importState) {
+  return assetImportPanel({
+    body: `<div class="asset-import-result" role="status">
+        <span class="result-icon is-settling">${icon("shield")}</span>
+        <h3>Ready for native verification</h3>
+        <p>The public package is prepared for <code>wallet.asset.import_asset</code>. This JavaScript design demo does not sign or mutate wallet state.</p>
+      </div>
+      <dl class="asset-import-result-fields">
+        <div><dt>Native result</dt><dd><code>asset_id</code>, <code>serial_id</code>, <code>symbol</code>, <code>class</code></dd></div>
+        <div><dt>Status</dt><dd><code>success</code> and <code>message</code></dd></div>
+        <div><dt>Claim outcome</dt><dd><code>is_inserted</code> or <code>asset_already_exists</code></dd></div>
+        <div><dt>Rejection</dt><dd>Explicit <code>IMPORT_*</code> reason; no partial success.</dd></div>
+      </dl>`,
+    footer: `<button class="button button-primary" type="button" data-asset-import-action="reset">${icon("backup")} Choose another package</button>`
+  });
+}
+
+function walletImportView() {
+  const importState = activeAssetImportState();
+  const panel = importState.status === "ready" && importState.preview
+    ? assetImportReviewView(importState)
+    : importState.status === "prepared"
+      ? assetImportPreparedView(importState)
+      : assetImportIdleView(importState);
+  return `<div class="view-enter asset-import-view">${panel}</div>`;
 }
 
 const walletSections = [
@@ -1826,7 +2076,6 @@ function stakingView() {
         <article class="card wallet-tool-card staking-card">
           <div class="tool-card-heading"><span class="list-icon">${icon("restore")}</span><div><h2>${t("navigation.unstake")}</h2></div></div>
           <div class="staking-summary" aria-label="${t("staking.totals")}">
-            <div class="staking-metric"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong></div>
             <div class="staking-metric"><span>${t("staking.staked")}</span><strong>${t("common.unavailable")}</strong></div>
             <div class="staking-metric"><span>${t("staking.rewards")}</span><strong>${t("common.unavailable")}</strong></div>
           </div>
@@ -1842,7 +2091,6 @@ function stakingView() {
         <article class="card wallet-tool-card staking-card">
           <div class="tool-card-heading"><span class="list-icon">${icon("staking")}</span><div><h2>${t("staking.prepare")}</h2></div></div>
           <div class="staking-summary" aria-label="${t("staking.totals")}">
-            <div class="staking-metric"><span>${t("staking.availableToStake")}</span><strong>${sensitive(`${summary.available} Z00Z`)}</strong></div>
             <div class="staking-metric"><span>${t("staking.staked")}</span><strong>${t("common.unavailable")}</strong></div>
             <div class="staking-metric"><span>${t("staking.rewards")}</span><strong>${t("common.unavailable")}</strong></div>
           </div>
@@ -2150,6 +2398,7 @@ function settingsDetail() {
       <div class="setting-group settings-first-group">
         <div class="setting-line compact-row app-select-setting" data-help-anchor="language"><strong class="compact-row-label">${t("app.language")}</strong>${languagePickerMarkup("compact-value")}<span class="compact-action"></span></div>
         <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.regionalFormat")}</strong><select class="compact-value" aria-label="${t("app.regionalFormat")}" data-config-control="regional-locale">${regionalLocaleOptionsMarkup()}</select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting" title="${escapeHtml(t("app.currencyHelp"))}"><strong class="compact-row-label">${t("app.currency")}</strong><select class="compact-value" aria-label="${escapeHtml(t("app.currency"))}" data-config-control="valuation-currency">${valuationCurrencyOptionsMarkup()}</select><span class="compact-action"></span></div>
         <div class="setting-line compact-row app-select-setting"><strong class="compact-row-label">${t("app.timeZone")}</strong><select class="compact-value" aria-label="${t("app.timeZone")}" data-config-control="time-zone"><option value="UTC"${state.timeZone === "UTC" ? " selected" : ""}>UTC</option><option value="Asia/Jerusalem"${state.timeZone === "Asia/Jerusalem" ? " selected" : ""}>Asia/Jerusalem</option><option value="Europe/Berlin"${state.timeZone === "Europe/Berlin" ? " selected" : ""}>Europe/Berlin</option><option value="America/New_York"${state.timeZone === "America/New_York" ? " selected" : ""}>America/New_York</option><option value="Asia/Tokyo"${state.timeZone === "Asia/Tokyo" ? " selected" : ""}>Asia/Tokyo</option><option value="Asia/Shanghai"${state.timeZone === "Asia/Shanghai" ? " selected" : ""}>Asia/Shanghai</option></select><span class="compact-action"></span></div>
       </div>`;
   }
@@ -3800,6 +4049,9 @@ function renderActiveWorkspace(renderer) {
 }
 
 function render(options = {}) {
+  const mobileNavigationScrollTop = !mobilePopupMenu.hidden && mobilePopupType === "menu"
+    ? mobilePopupMenu.querySelector(".mobile-navigation-scroll-region")?.scrollTop
+    : null;
   closeSelectPickers();
   synchronizeShellRoute();
   applyAppearancePreferences();
@@ -3832,6 +4084,7 @@ function render(options = {}) {
     wallet: walletView,
     "wallet-send": walletSendView,
     "wallet-receive": walletReceiveView,
+    "wallet-import": walletImportView,
     activity: activityView,
     swap: swapView,
     exchange: exchangeView,
@@ -3859,6 +4112,9 @@ function render(options = {}) {
   if (!mobilePopupMenu.hidden && mobilePopupType === "menu") {
     mobilePopupMenu.innerHTML = mobileNavigationDrawerMarkup();
     enhanceNativeSelects(mobilePopupMenu);
+    if (Number.isFinite(mobileNavigationScrollTop)) {
+      mobilePopupMenu.querySelector(".mobile-navigation-scroll-region").scrollTop = mobileNavigationScrollTop;
+    }
   }
   if (!walletPickerPopup.hidden) {
     walletPickerPopup.innerHTML = walletPickerPopupMarkup();
@@ -5120,11 +5376,15 @@ function handleDemoAction(action, button) {
     openFlow("networks", button);
   } else if (action === "notifications") {
     openFlow("notifications", button);
-  } else if (["copy-receipt", "copy-wallet-address"].includes(action)) {
+  } else if (["copy-receipt", "copy-wallet-address", "copy-receiver-card"].includes(action)) {
     const messages = {
       "copy-receipt": "Public receipt copied.",
-      "copy-wallet-address": "Wallet address copied."
+      "copy-wallet-address": "Wallet address copied.",
+      "copy-receiver-card": "Receiver Card copied."
     };
+    if (action === "copy-receiver-card" && button.dataset.copyValue) {
+      navigator.clipboard?.writeText(button.dataset.copyValue).catch(() => {});
+    }
     showToast(messages[action]);
   } else if (action === "wallet-auto-backup") {
     const preferences = activeWalletPreferences();
@@ -5530,10 +5790,13 @@ document.addEventListener("click", (event) => {
   const navigationBranch = event.target.closest("[data-navigation-branch]");
   if (navigationBranch) {
     const nodeId = navigationBranch.dataset.navigationBranch;
+    const branchWasMobile = Boolean(navigationBranch.closest("#mobile-popup-menu"));
     mergeShellState({ type: "toggle_branch", nodeId });
     render();
     requestAnimationFrame(() => document.querySelectorAll(`[data-navigation-branch="${CSS.escape(nodeId)}"]`).forEach((button) => {
-      if (button.closest("#mobile-popup-menu") === navigationBranch.closest("#mobile-popup-menu")) button.focus();
+      if (Boolean(button.closest("#mobile-popup-menu")) === branchWasMobile) {
+        button.focus({ preventScroll: true });
+      }
     }));
     return;
   }
@@ -5636,6 +5899,36 @@ document.addEventListener("click", (event) => {
       clearExternalReviewHandoffs();
       resetActiveSendDraft();
       render({ focusMain: true });
+    }
+    return;
+  }
+
+  const assetImportActionButton = event.target.closest("[data-asset-import-action]");
+  if (assetImportActionButton) {
+    const action = assetImportActionButton.dataset.assetImportAction;
+    if (action === "reset") {
+      resetAssetImportState();
+      render({ focusMain: true });
+      requestAnimationFrame(() => document.querySelector("#asset-import-file")?.focus());
+    } else if (action === "prepare") {
+      const importState = activeAssetImportState();
+      const result = walletGateway.prepareAssetImport({
+        walletId: activeWallet().id,
+        reviewToken: importState.reviewToken
+      });
+      if (!result.ok) {
+        importState.status = "idle";
+        importState.preview = null;
+        importState.reviewToken = "";
+        importState.error = result.error;
+        render({ focusMain: true });
+        return;
+      }
+      importState.status = "prepared";
+      importState.result = result.data;
+      importState.error = null;
+      render({ focusMain: true });
+      showToast("Asset package is ready for native wallet verification.");
     }
     return;
   }
@@ -6623,7 +6916,55 @@ document.addEventListener("scroll", (event) => {
   if (event.target instanceof HTMLTextAreaElement && event.target.classList.contains("yaml-editor")) syncYamlHighlight(event.target);
 }, true);
 
-document.addEventListener("change", (event) => {
+document.addEventListener("change", async (event) => {
+  if (event.target.id === "asset-import-file") {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const walletId = activeWallet().id;
+    let result;
+    if (file.size > 64 * 1024) {
+      result = {
+        ok: false,
+        error: {
+          code: "validation",
+          reason: "IMPORT_MALFORMED_JSON",
+          message: `Asset package exceeds the 64 KiB public JSON limit (${file.size} bytes).`
+        }
+      };
+    } else {
+      try {
+        result = walletGateway.inspectAssetPackage({
+          walletId,
+          fileName: file.name,
+          assetData: await file.text()
+        });
+      } catch {
+        result = {
+          ok: false,
+          error: {
+            code: "validation",
+            reason: "IMPORT_MALFORMED_JSON",
+            message: "The selected asset package could not be read."
+          }
+        };
+      }
+    }
+    if (activeWallet().id !== walletId) return;
+    const importState = resetAssetImportState();
+    importState.fileName = file.name;
+    importState.fileSize = file.size;
+    if (!result.ok) {
+      importState.error = result.error;
+      render({ focusMain: true });
+      return;
+    }
+    importState.status = "ready";
+    importState.reviewToken = result.data.reviewToken;
+    importState.preview = result.data.preview;
+    render({ focusMain: true });
+    requestAnimationFrame(() => document.querySelector('[data-asset-import-action="prepare"]')?.focus({ preventScroll: true }));
+    return;
+  }
   if (event.target.matches("[data-contact-sort]")) {
     state.contactsSort = event.target.value;
     render();
@@ -6718,6 +7059,7 @@ document.addEventListener("change", (event) => {
       return;
     }
     if (configControl === "regional-locale") state.regionalLocale = event.target.value;
+    if (configControl === "valuation-currency") state.valuationCurrency = event.target.value;
     if (configControl === "time-zone") state.timeZone = event.target.value;
     if (configControl === "network-units") state.networkUnits = event.target.value;
     if (configControl === "vibrate") state.vibrate = event.target.value;

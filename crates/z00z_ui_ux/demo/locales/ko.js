@@ -6,7 +6,7 @@ window.Z00ZI18n.registerLocale("ko", {
     documentTitle: "Z00Z Wallet", menu: "메뉴", wallets: "지갑", network: "네트워크", addWallet: "지갑 추가", removeWallet: "지갑 제거", settings: "설정", home: "홈",
     homeContext: "개인 자산을 한눈에", settingsContext: "애플리케이션 환경설정", walletContext: "{wallet} 지갑", logOut: "로그아웃",
     general: "일반", language: "언어", languageHelp: "이 지갑 애플리케이션 전체에 적용되는 언어", notifications: "알림", notificationsHelp: "지갑 업데이트와 필요한 작업 표시",
-    regionalFormat: "지역 형식", regionalFormatHelp: "언어와 별개로 날짜, 숫자 및 소수점 구분자를 제어합니다", timeZone: "시간대", timeZoneHelp: "타임스탬프는 UTC로 저장되고 이 시간대로 표시됩니다",
+    regionalFormat: "지역 형식", regionalFormatHelp: "언어와 별개로 날짜, 숫자 및 소수점 구분자를 제어합니다", currency: "통화", currencyHelp: "코인 가치를 표시하는 통화", timeZone: "시간대", timeZoneHelp: "타임스탬프는 UTC로 저장되고 이 시간대로 표시됩니다",
     networkUnits: "네트워크 단위", networkUnitsHelp: "네트워크 속도는 초당 십진 비트를 사용합니다", decimalBitrate: "초당 십진 비트", translationCoverage: "번역 적용 범위", translationCoverageHelp: "{count}개 언어 카탈로그가 영어 원본 키와 동기화되었습니다", languageChanged: "언어가 로컬에서 변경되었습니다."
   },
   nav: { home: "홈", assets: "자산", history: "기록", swap: "스왑", exchange: "거래소", staking: "스테이킹", backup: "백업", settings: "설정" },
@@ -36,7 +36,7 @@ window.Z00ZI18n.registerLocale("ko", {
   reticulum: { title: "Reticulum 텔레메트리", summary: "전송 및 전달 근거를 보여 주는 로컬 전용 보기입니다. 전송 메타데이터를 사용자 분석으로 바꾸지 않고 가용성 판단을 지원합니다.", localCapability: "로컬 기능을 사용할 수 없음", localCapabilityHelp: "이 지갑 데모에는 등록된 로컬 Reticulum 상태 브리지가 없습니다. 실제처럼 보이는 전송 데이터를 만들지 않습니다.", tabs: { overview: "개요", node: "노드", interfaces: "인터페이스", radio: "라디오", entrypoints: "진입점", paths: "경로", probes: "프로브", links: "링크" } },
   aggregators: { title: "애그리게이터 텔레메트리", summary: "집계 작업을 위한 읽기 전용 서비스 및 발행 근거입니다. 지갑 키, 시드 또는 정책 비밀을 절대 받지 않습니다.", localCapability: "로컬 기능을 사용할 수 없음", localCapabilityHelp: "지갑에 애그리게이터 상태 스냅샷용 등록 브리지가 없으므로 이 페이지는 올바르게 사용할 수 없음을 표시합니다.", tabs: { overview: "개요" } },
   onionnet: { title: "OnionNet 텔레메트리", summary: "결정론적 제어 평면 상태, 로컬 근거 및 집계된 합성 상태를 경계에 맞게 보여 줍니다. 이 작업 공간은 경로나 프라이버시 정책을 변경하지 않습니다.", localCapability: "로컬 기능을 사용할 수 없음", localCapabilityHelp: "이 지갑 데모에는 등록된 OnionNet 상태 브리지가 없습니다. 실제처럼 보이는 경로, 토폴로지 또는 프라이버시 값을 만들지 않습니다.", tabs: { overview: "개요", epoch: "에포크", privacy: "프라이버시", transport: "전송", queues: "큐 및 재생", probation: "검증 기간", ingress: "수신 경계" } },
-  help: { title: "도움말", openGlobal: "애플리케이션 도움말 열기", openContext: "이 화면의 도움말", close: "도움말 닫기", contents: "목차", section: "도움말 섹션 {current}/{total}", unavailable: "이 화면의 도움말을 사용할 수 없습니다." },
+  help: { title: "도움말", openGlobal: "애플리케이션 도움말 열기", openContext: "이 화면의 도움말", close: "도움말 닫기", contents: "목차", drawerTitle: "도움말 내용", section: "도움말 섹션 {current}/{total}", unavailable: "이 화면의 도움말을 사용할 수 없습니다." },
   status: { up: "정상", down: "중지", connecting: "연결 중", degraded: "성능 저하" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

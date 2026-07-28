@@ -9,6 +9,7 @@ window.Z00ZI18n.registerLocale("ja", {
     general: "一般", language: "言語", languageHelp: "このウォレットアプリケーション全体で使用する言語",
     notifications: "通知", notificationsHelp: "ウォレットの更新と必要な操作を表示します",
     regionalFormat: "地域形式", regionalFormatHelp: "言語とは別に日付、数字、小数点区切りを制御します",
+    currency: "通貨", currencyHelp: "コインの価値表示に使用する通貨",
     timeZone: "タイムゾーン", timeZoneHelp: "タイムスタンプは UTC で保存され、このタイムゾーンで表示されます",
     networkUnits: "ネットワーク単位", networkUnitsHelp: "ネットワーク速度には十進ビット毎秒を使用します",
     decimalBitrate: "十進ビット/秒", translationCoverage: "翻訳カバレッジ",
@@ -59,7 +60,7 @@ window.Z00ZI18n.registerLocale("ja", {
     localCapabilityHelp: "このウォレットデモには OnionNet ステータスブリッジが登録されていません。本物らしい経路、トポロジー、プライバシー値は作成しません。",
     tabs: { overview: "概要", epoch: "エポック", privacy: "プライバシー下限", transport: "転送", queues: "キューと再生", probation: "試用", ingress: "入口境界" }
   },
-  help: { title: "ヘルプ", openGlobal: "アプリケーションヘルプを開く", openContext: "この画面のヘルプ", close: "ヘルプを閉じる", contents: "目次", section: "ヘルプセクション {current}/{total}", unavailable: "この画面のヘルプは利用できません。" },
+  help: { title: "ヘルプ", openGlobal: "アプリケーションヘルプを開く", openContext: "この画面のヘルプ", close: "ヘルプを閉じる", contents: "目次", drawerTitle: "ヘルプ内容", section: "ヘルプセクション {current}/{total}", unavailable: "この画面のヘルプは利用できません。" },
   status: { up: "稼働中", down: "停止", connecting: "接続中", degraded: "低下" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

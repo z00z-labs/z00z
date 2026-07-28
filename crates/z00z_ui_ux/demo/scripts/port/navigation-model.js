@@ -81,7 +81,8 @@
     node({ id: "wallet.quarantine", parentId: "wallet.assets-rights", order: 40, labelKey: "navigation.quarantine", iconId: "alert", target: routeTarget("wallet.quarantine"), capabilityId: "wallet.quarantine", helpTopicId: "wallet.quarantine", isVisible: false }),
     node({ id: "wallet.send", parentId: "wallet", order: 60, labelKey: "navigation.send", iconId: "send", target: routeTarget("wallet.send"), helpTopicId: "wallet.send" }),
     node({ id: "wallet.receive", parentId: "wallet", order: 70, labelKey: "navigation.receive", iconId: "receive", target: routeTarget("wallet.receive"), helpTopicId: "wallet.receive" }),
-    node({ id: "wallet.history", parentId: "wallet", order: 80, labelKey: "navigation.history", iconId: "activity", target: routeTarget("wallet.history"), helpTopicId: "wallet.history" }),
+    node({ id: "wallet.import", parentId: "wallet", order: 80, labelKey: "navigation.import", iconId: "import", target: routeTarget("wallet.import"), helpTopicId: "wallet.import" }),
+    node({ id: "wallet.history", parentId: "wallet", order: 90, labelKey: "navigation.history", iconId: "activity", target: routeTarget("wallet.history"), helpTopicId: "wallet.history" }),
     node({ id: "wallet.staking", parentId: "wallet", order: 110, labelKey: "navigation.staking", iconId: "staking", target: workspaceTarget("wallet.staking.stake", "navigation.stake", "staking"), capabilityId: "wallet.staking", helpTopicId: "wallet.staking.stake" }),
     node({ id: "wallet.staking.unstake", parentId: "wallet.staking", order: 20, labelKey: "navigation.unstake", iconId: "restore", target: routeTarget("wallet.staking.unstake"), capabilityId: "wallet.staking", helpTopicId: "wallet.staking.unstake" }),
     node({ id: "wallet.backup", parentId: "wallet", order: 120, labelKey: "navigation.backup", iconId: "backup", target: routeTarget("wallet.backup"), helpTopicId: "wallet.backup" }),
@@ -215,6 +216,7 @@
     if (route.view === "wallet") return `wallet.${route.walletSection || "assets"}`;
     if (route.view === "wallet-send") return "wallet.send";
     if (route.view === "wallet-receive") return "wallet.receive";
+    if (route.view === "wallet-import") return "wallet.import";
     if (route.view === "activity") return "wallet.history";
     if (["swap", "exchange"].includes(route.view)) return `wallet.${route.view}`;
     if (route.view === "staking") return "wallet.staking.stake";

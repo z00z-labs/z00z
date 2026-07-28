@@ -629,7 +629,7 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
       ));
       const drawerBox = await page.locator("#mobile-popup-menu").boundingBox();
       expect(drawerBox.x).toBeGreaterThanOrEqual(0);
-      expect(drawerBox.width).toBeGreaterThanOrEqual(viewport.width - 20);
+      expect(drawerBox.width).toBeCloseTo(Math.min(18.5 * 16, viewport.width - 14), 0);
     }
     const terminal = viewport.width <= 768
       ? page.locator(".mobile-navigation-terminal")
@@ -642,7 +642,7 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
     if (viewport.width <= 768) await page.keyboard.press("Escape");
 
     await page.goto(`${demoUrl}?route=about`);
-    await expect(page.locator(".about-surface a")).toHaveCount(4);
+    await expect(page.locator(".about-surface a")).toHaveCount(3);
     await expect(page.locator(".about-surface > :last-child")).toHaveAttribute("data-demo-action", "check-for-updates");
     await reviewState(viewport, "about");
   }
@@ -757,10 +757,12 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
     if (viewport.width <= 768) {
       await helpPage.locator("#help-menu-button").click();
       await expect(helpPage.locator("#help-search")).toBeHidden();
-      await expect(helpPage.locator(".help-mobile-menu-title")).toHaveText("Menu");
+      await expect(helpPage.locator(".help-mobile-menu-title")).toHaveText("Help Content");
+      await expect(helpPage.locator("#help-sidebar-close, [data-mobile-popup-close]")).toHaveCount(0);
       await expect(helpPage.locator(".mobile-wallet-selector")).toHaveCount(0);
       await reviewHelp(helpPage, viewport, "app-menu-parity");
-      await helpPage.locator("#help-sidebar-close").click();
+      await helpPage.keyboard.press("Escape");
+      await expect(helpPage.locator("#help-sidebar")).toBeHidden();
     }
     await helpPage.locator("#help-search-trigger").click();
     await expect(helpPage.locator("#help-search-overlay")).toBeVisible();

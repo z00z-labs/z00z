@@ -4,10 +4,10 @@
     "button|type=button",
     "button|type=button|aria-label=Automatic wallet backup|data-demo-action=wallet-auto-backup"
   ],
-  "presentation_sha256": "26f9bdc95976aab169f96722f1f0682c2cdebaa321787047b3d8037298635481",
+  "presentation_sha256": "3ed01268ed6a1b757f93463f2cdbdbd319fa8908449d0ad6e094e78b2a7fffab",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-settings-backup.png",
-  "screenshot_sha256": "c2ce721872e674dce840ad6449bf9e02a86d004989e420c757ff50813d32fbb9",
+  "screenshot_sha256": "ef37a421bdce6e77e0029c60dc4659cbb3b8a6a69534d5bb0e5594ce60fb7941",
   "sections": [],
   "terms": [
     "10 Jul 2026 \u00b7 09:42",

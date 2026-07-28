@@ -7,7 +7,20 @@
   const english = {
     receive: {
       title: "Receive privately",
-      subtitle: "Assets, Vouchers and Permissions"
+      subtitle: "Assets, Vouchers and Permissions",
+      verifiedCard: "Verified Receiver Card",
+      shareHint: "Share the QR or compact card record",
+      compactRecord: "Compact card",
+      copyCard: "Copy Receiver Card",
+      receiverHandle: "Receiver handle",
+      ownerHandle: "Owner handle",
+      viewKey: "View key",
+      identityKey: "Identity key",
+      registryEntry: "Registry entry",
+      cardEpoch: "Card epoch",
+      signature: "Signature",
+      verified: "Verified",
+      unavailable: "Receiver Card unavailable"
     },
     send: {
       familyNavigation: "Send object family",

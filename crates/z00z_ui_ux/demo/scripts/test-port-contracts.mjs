@@ -6,6 +6,7 @@ import vm from "node:vm";
 
 const demoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const context = vm.createContext({
+  TextEncoder,
   URLSearchParams,
   structuredClone,
   window: {}
@@ -45,7 +46,7 @@ assert.equal(demo.PORT_CONTRACT.walletBackendRuntime, "native-rust");
 assert.ok(demo.PORT_CONTRACT.rendererForbiddenState.includes("session_token"));
 assert.ok(demo.PORT_CONTRACT.forbiddenTransports.includes("websocket"));
 assert.equal(demo.PORT_CONTRACT.capabilityStates, undefined);
-assert.equal(demo.PORT_CONTRACT.routes.length, 63);
+assert.equal(demo.PORT_CONTRACT.routes.length, 64);
 assert.equal(demo.APP_VERSION, "0.1.0");
 assert.equal(demo.PORT_CONTRACT.appVersion, demo.APP_VERSION);
 assert.match(
@@ -640,6 +641,7 @@ const state = demo.createInitialState({ search: "?view=activity" });
 assert.equal(state.view, "activity");
 assert.equal(state.wallets.length, 3);
 assert.equal(demo.activeWallet(state).id, "everyday");
+assert.equal(state.valuationCurrency, "USD");
 const preferences = demo.ensureWalletPreferences(state);
 assert.equal(preferences.defaultFee, "0.001");
 assert.equal(preferences.lockAfterMinutes, "15");
@@ -648,6 +650,25 @@ const gateway = demo.createMockWalletGateway(state);
 assert.equal(gateway.contractVersion, demo.PORT_CONTRACT.version);
 assert.equal(typeof gateway.submitPayment, "function");
 assert.equal(typeof gateway.reconcileOperation, "function");
+assert.equal(typeof gateway.inspectAssetPackage, "function");
+assert.equal(typeof gateway.prepareAssetImport, "function");
+assert.equal(typeof gateway.getReceiverCard, "function");
+assert.ok(demo.PORT_CONTRACT.gatewayQueries.includes("get_receiver_card"));
+const receiverCard = gateway.getReceiverCard({ walletId: "everyday" });
+assert.equal(receiverCard.ok, true);
+assert.equal(receiverCard.data.owner_handle.length, 64);
+assert.equal(receiverCard.data.view_key.length, 64);
+assert.equal(receiverCard.data.identity_key.length, 64);
+assert.equal(receiverCard.data.signature.length, 128);
+assert.equal(receiverCard.data.registry_entry_id.length, 64);
+assert.equal(receiverCard.data.card_epoch, 0);
+assert.match(receiverCard.data.card_compact, /^z00zrc1:[A-Za-z0-9_-]+$/);
+assert.match(receiverCard.data.owner_handle_display, /^z00z1/);
+assert.deepEqual(
+  gateway.getReceiverCard({ walletId: "everyday" }).data,
+  receiverCard.data,
+);
+assert.equal(gateway.getReceiverCard({ walletId: "missing" }).error.code, "validation");
 assert.equal(gateway.createProfile({ name: "x" }).error.code, "validation");
 assert.equal(gateway.createProfile({ name: "Valid wallet", chainId: "unknown" }).error.code, "validation");
 assert.equal(gateway.removeProfiles({ walletIds: [] }).error.code, "validation");
@@ -663,6 +684,74 @@ assert.equal(state.wallets.at(-1).chainId, "devnet-2");
 const renamed = gateway.renameWallet({ walletId: created.data.wallet.id, name: "Field savings" });
 assert.equal(renamed.ok, true);
 assert.equal(state.wallets.at(-1).initials, "F");
+
+const importPackage = JSON.stringify({
+  definition: {
+    id: "11".repeat(32),
+    class: "Token",
+    name: "Imported fixture",
+    symbol: "IMP",
+    decimals: 2,
+    serials: 10,
+    nominal: 1000,
+    domain_name: "fixture.z00z",
+    version: 1,
+    crypto_version: 1,
+    policy_flags: 0,
+    metadata: { origin: "fixture" }
+  },
+  serial_id: 3,
+  amount: 2500,
+  commitment: "22".repeat(32),
+  range_proof: "33".repeat(64),
+  nonce: "44".repeat(32),
+  lock_height: null,
+  is_burned: false,
+  tag16: 7,
+  owner_pub: "55".repeat(32),
+  owner_signature: "66".repeat(64)
+});
+const inspectedImport = gateway.inspectAssetPackage({
+  walletId: "everyday",
+  fileName: "/private/path/claim.json",
+  assetData: importPackage
+});
+assert.equal(inspectedImport.ok, true);
+assert.equal(inspectedImport.data.preview.file.name, "claim.json");
+assert.equal(inspectedImport.data.preview.asset.serialId, 3);
+assert.equal(inspectedImport.data.preview.asset.metadataEntryCount, 1);
+assert.equal(inspectedImport.data.preview.asset.tag16, 7);
+assert.equal(inspectedImport.data.preview.asset.definitionId.includes("…"), true);
+assert.equal(inspectedImport.data.preview.ownership.mode, "Direct owner signature");
+assert.equal(gateway.prepareAssetImport({
+  walletId: "savings",
+  reviewToken: inspectedImport.data.reviewToken
+}).error.reason, "IMPORT_SESSION_INVALID");
+const preparedImport = gateway.prepareAssetImport({
+  walletId: "everyday",
+  reviewToken: inspectedImport.data.reviewToken
+});
+assert.equal(preparedImport.ok, true);
+assert.equal(preparedImport.data.rpcMethod, "wallet.asset.import_asset");
+assert.equal(preparedImport.data.walletMutation, false);
+assert.deepEqual(
+  Array.from(preparedImport.data.resultFields),
+  ["asset_id", "serial_id", "symbol", "class", "success", "message", "is_inserted", "asset_already_exists"]
+);
+const secretImport = gateway.inspectAssetPackage({
+  walletId: "everyday",
+  fileName: "forbidden.json",
+  assetData: JSON.stringify({ ...JSON.parse(importPackage), secret: "forbidden" })
+});
+assert.equal(secretImport.ok, false);
+assert.equal(secretImport.error.reason, "IMPORT_SECRET_FIELD_FORBIDDEN");
+const packageWithoutMetadata = JSON.parse(importPackage);
+delete packageWithoutMetadata.definition.metadata;
+assert.equal(gateway.inspectAssetPackage({
+  walletId: "everyday",
+  fileName: "metadata-optional.json",
+  assetData: JSON.stringify(packageWithoutMetadata)
+}).ok, true);
 
 const operationState = demo.createInitialState({
   search: "?operationScenario=timeout_unknown_outcome"

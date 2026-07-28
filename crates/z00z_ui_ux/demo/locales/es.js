@@ -9,6 +9,7 @@ window.Z00ZI18n.registerLocale("es", {
     general: "General", language: "Idioma", languageHelp: "Idioma utilizado en toda esta aplicación de cartera",
     notifications: "Notificaciones", notificationsHelp: "Mostrar actualizaciones de la cartera y acciones necesarias",
     regionalFormat: "Formato regional", regionalFormatHelp: "Controla fechas, números y separadores decimales independientemente del idioma",
+    currency: "Moneda", currencyHelp: "Moneda utilizada para mostrar el valor de las monedas",
     timeZone: "Zona horaria", timeZoneHelp: "Las marcas de tiempo se guardan en UTC y se muestran en esta zona horaria",
     networkUnits: "Unidades de red", networkUnitsHelp: "Las tasas de red usan bits decimales por segundo",
     decimalBitrate: "Bits decimales por segundo", translationCoverage: "Cobertura de traducción",
@@ -59,7 +60,7 @@ window.Z00ZI18n.registerLocale("es", {
     localCapabilityHelp: "Esta demo de cartera no tiene un puente de estado OnionNet registrado. No se inventan valores de ruta, topología o privacidad que parezcan reales.",
     tabs: { overview: "Resumen", epoch: "Época", privacy: "Umbral de privacidad", transport: "Transporte", queues: "Colas y repeticiones", probation: "Período de prueba", ingress: "Límite de entrada" }
   },
-  help: { title: "Ayuda", openGlobal: "Abrir la ayuda de la aplicación", openContext: "Ayuda para esta vista", close: "Cerrar ayuda", contents: "Contenido", section: "Sección de ayuda {current} de {total}", unavailable: "La ayuda no está disponible para esta vista." },
+  help: { title: "Ayuda", openGlobal: "Abrir la ayuda de la aplicación", openContext: "Ayuda para esta vista", close: "Cerrar ayuda", contents: "Contenido", drawerTitle: "Contenido de ayuda", section: "Sección de ayuda {current} de {total}", unavailable: "La ayuda no está disponible para esta vista." },
   status: { up: "Activo", down: "Inactivo", connecting: "Conectando", degraded: "Degradado" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

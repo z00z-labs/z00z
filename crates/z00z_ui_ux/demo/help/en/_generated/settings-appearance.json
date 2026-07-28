@@ -4,10 +4,10 @@
     "button|type=button",
     "button|type=button|aria-label=Use reduced motion|data-demo-action=motion"
   ],
-  "presentation_sha256": "befd902e6c4dabc24309499cce64946e9986b2056f5ab2c443c60760dfc748e1",
+  "presentation_sha256": "99171155d02ab30a84dda4b6d81c78d80984baad895f7d77784d05afd6dcf2cc",
   "scope": "context",
   "screenshot": "help/assets/en/settings-appearance.png",
-  "screenshot_sha256": "79f29e9f6d62aad262b77d66f7e3db224ae45aea61e4b859042b3b6df6bb7e81",
+  "screenshot_sha256": "a1d52cbb64ee23cc857dc6c447d48213cc7c76f002d78381c70572202a869013",
   "sections": [],
   "terms": [
     "100%",

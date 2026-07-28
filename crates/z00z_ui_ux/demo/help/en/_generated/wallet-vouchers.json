@@ -1,12 +1,13 @@
 {
   "capture_route": "wallet.vouchers",
   "components": [
-    "button|type=button"
+    "button|type=button",
+    "button|type=button|role=tab"
   ],
-  "presentation_sha256": "54c549b027ae2bfa9979059ed6ad93f1447a0de70b54d7cd6c74b39681ab6321",
+  "presentation_sha256": "9e2cac355ba68e7ef9060db687e649a97dc95f16c3639eaea7808be078bd5d58",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-vouchers.png",
-  "screenshot_sha256": "69d4ba664268aa1bc8e2894deba9e08ac0ed63a45c0656229f9b783c6ed9deb9",
+  "screenshot_sha256": "777aea7f87b9f4ae45a2b2f6714b8a65436d45d5b9e9918ee436bcfb05c94c39",
   "sections": [],
   "terms": [
     "10.00 Z00Z",

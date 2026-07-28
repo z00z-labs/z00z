@@ -1,22 +1,44 @@
 {
   "capture_route": "wallet.receive",
   "components": [
-    "button|type=button|aria-label=Copy full address for Everyday wallet|data-demo-action=copy-wallet-address"
+    "button|type=button|aria-label=Copy Receiver Card|data-demo-action=copy-receiver-card"
   ],
-  "presentation_sha256": "f3643a5caa504691c9e65d4dedd1df4010714d7f9c8ffade569bc0795a6bb716",
+  "presentation_sha256": "54cd898305954426c01bca5b92661ac408cba0df1743964c0cfa143abfc0845e",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-receive.png",
-  "screenshot_sha256": "e6094ead650ddf7d9aed4782328cb1a6a4d660bf7521a2b93d52aed0d63f600a",
+  "screenshot_sha256": "15dfcbb675504976f38f481ece52513228cb030cecf27fec8dfcf0cffebae5a2",
   "sections": [
     "Receive privately"
   ],
   "terms": [
+    "408fa84700dbb7dec59798957dcbd2106d9fd8819c085304ed53816f084633e7",
+    "408fa84700db\u20266f084633e7",
+    "7a0bf38f12efba55512e15b71d9f5ca8e2424203e4f6cdddd16c7beca1edfc35",
+    "7a0bf38f12ef\u2026eca1edfc35",
+    "92bb4a10f28c541035074362be0e490f6360a38d1c2e8041ae97f0d36634ef5ffbd2a77189cd33a9cd08c779d10fbc82047df89b3d4426ab0a0bb504e6ee98e7",
+    "92bb4a10f28c\u202604e6ee98e7",
     "Assets, Vouchers and Permissions",
-    "Copy full address for Everyday wallet",
-    "Receive QR",
+    "Card epoch",
+    "Compact card",
+    "Copy Receiver Card",
+    "Identity key",
+    "Owner handle",
     "Receive privately",
-    "ZxChpoioBEFR1PRJPamJxh5aWdEb94ek8J52PmT8PYAEa8RKVtSs9X3UPgaSaHvMMZKcQoiyVFhEE256vcyGPeFV23d2Mj8Pt",
-    "ZxChpoioBEFR\u2026V23d2Mj8Pt"
+    "Receiver handle",
+    "Registry entry",
+    "Share the QR or compact card record",
+    "Signature",
+    "Verified",
+    "Verified Receiver Card",
+    "Verified Receiver Card QR",
+    "View key",
+    "b154dd615863759bf858bf2ed538a10c5443f7cac7c02a4c37f0e59da2801ff1",
+    "b154dd615863\u20269da2801ff1",
+    "c0ff7177fd041cd03723392a9dd9090ec88da1452f35946f766ea39d4f568eaa",
+    "c0ff7177fd04\u20269d4f568eaa",
+    "z00z10g9l8rcja7a925fwzkm3m86u4r3yyssrunmvmhw3d3a7eg0dls6s83t50r",
+    "z00z10g9l8rc\u2026ls6s83t50r",
+    "z00zrc1:ebc080\u2026ed14871bc5"
   ],
   "topic_id": "wallet.receive",
   "version": 3

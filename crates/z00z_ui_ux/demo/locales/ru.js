@@ -31,6 +31,8 @@ window.Z00ZI18n.registerLocale("ru", {
     notificationsHelp: "Показывать обновления кошелька и необходимые действия",
     regionalFormat: "Региональный формат",
     regionalFormatHelp: "Независимо от языка задаёт формат дат, чисел и десятичных разделителей",
+    currency: "Валюта",
+    currencyHelp: "Валюта для отображения стоимости монет",
     timeZone: "Часовой пояс",
     timeZoneHelp: "Метки времени хранятся в UTC и показываются в этом часовом поясе",
     networkUnits: "Сетевые единицы",
@@ -141,7 +143,7 @@ window.Z00ZI18n.registerLocale("ru", {
   },
   help: {
     title: "Справка", openGlobal: "Открыть справку приложения", openContext: "Справка по этому экрану",
-    close: "Закрыть справку", contents: "Содержание", section: "Раздел справки {current} из {total}",
+    close: "Закрыть справку", contents: "Содержание", drawerTitle: "Содержание справки", section: "Раздел справки {current} из {total}",
     unavailable: "Справка для этого экрана недоступна."
   },
   status: {

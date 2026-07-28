@@ -7,18 +7,16 @@
     "button|type=button|data-workspace-route=wallet.staking.unstake",
     "input|type=number|placeholder=0.00"
   ],
-  "presentation_sha256": "896b7a4331e4cf8e96440dad627c134ca57f8d796b2551744af5d0a788c40da8",
+  "presentation_sha256": "6dd97c15dea5c296b9a8caa8e6a0077206887f34c45c90a3fc67cc3c4dcd4e0d",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-staking-unstake.png",
-  "screenshot_sha256": "61f5dc72cd01ff2a64d753e51150964a96a02a605e05dfb4ea4c1dc42d64d901",
+  "screenshot_sha256": "e25a55b5e4c297d9da86b15d78d313c670e60e07d5b5b8d7b369f4f20b7fccd2",
   "sections": [
     "Unstake"
   ],
   "terms": [
     "0.00",
-    "12,480.75 Z00Z",
     "Amount",
-    "Available to stake",
     "Nothing delegated in this concept",
     "Rewards",
     "Stake",

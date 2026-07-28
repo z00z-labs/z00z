@@ -15,7 +15,281 @@
   function createMockWalletGateway(state) {
     const operations = new Map();
     const operationIdByIdempotencyKey = new Map();
+    const pendingAssetImports = new Map();
     let operationSequence = 0;
+    let assetImportSequence = 0;
+
+    const assetPackageMaxBytes = 64 * 1024;
+    const assetPackageFields = new Set([
+      "definition",
+      "serial_id",
+      "amount",
+      "commitment",
+      "range_proof",
+      "nonce",
+      "lock_height",
+      "is_burned",
+      "is_frozen",
+      "is_slashed",
+      "owner_pub",
+      "owner_signature",
+      "r_pub",
+      "owner_tag",
+      "enc_pack",
+      "tag16",
+      "leaf_ad_id"
+    ]);
+    const assetDefinitionFields = new Set([
+      "id",
+      "class",
+      "name",
+      "symbol",
+      "decimals",
+      "serials",
+      "nominal",
+      "domain_name",
+      "version",
+      "crypto_version",
+      "policy_flags",
+      "metadata"
+    ]);
+    const requiredAssetPackageFields = [
+      "definition",
+      "serial_id",
+      "amount",
+      "commitment",
+      "nonce",
+      "is_burned"
+    ];
+    const requiredAssetDefinitionFields = [...assetDefinitionFields].filter((field) => field !== "metadata");
+    const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+    const isOptionalString = (value) => value === undefined || value === null || typeof value === "string";
+    const isOptionalInteger = (value) => value === undefined || value === null
+      || (Number.isInteger(value) && value >= 0);
+    const isHex = (value, bytes) => typeof value === "string"
+      && value.length === bytes * 2
+      && /^[0-9a-f]+$/i.test(value);
+    const shortIdentifier = (value) => {
+      const text = String(value ?? "");
+      return text.length > 22 ? `${text.slice(0, 12)}…${text.slice(-8)}` : text;
+    };
+    const bech32Alphabet = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
+    function stablePublicHex(seed, byteLength) {
+      let stateValue = 0x811c9dc5;
+      for (const character of String(seed)) {
+        stateValue = Math.imul(stateValue ^ character.charCodeAt(0), 0x01000193) >>> 0;
+      }
+      return Array.from({ length: byteLength }, (_, index) => {
+        stateValue ^= stateValue << 13;
+        stateValue ^= stateValue >>> 17;
+        stateValue ^= stateValue << 5;
+        stateValue = (stateValue + Math.imul(index + 1, 0x9e3779b1)) >>> 0;
+        return (stateValue & 0xff).toString(16).padStart(2, "0");
+      }).join("");
+    }
+
+    function bech32Polymod(values) {
+      const generators = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+      let checksum = 1;
+      for (const value of values) {
+        const top = checksum >>> 25;
+        checksum = ((checksum & 0x1ffffff) << 5) ^ value;
+        generators.forEach((generator, index) => {
+          if ((top >>> index) & 1) checksum ^= generator;
+        });
+      }
+      return checksum >>> 0;
+    }
+
+    function bech32mOwnerHandle(ownerHandle) {
+      const hrp = "z00z";
+      const bytes = ownerHandle.match(/.{2}/g).map((part) => Number.parseInt(part, 16));
+      const words = [];
+      let accumulator = 0;
+      let bitCount = 0;
+      for (const byte of bytes) {
+        accumulator = (accumulator << 8) | byte;
+        bitCount += 8;
+        while (bitCount >= 5) {
+          bitCount -= 5;
+          words.push((accumulator >>> bitCount) & 31);
+        }
+      }
+      if (bitCount > 0) words.push((accumulator << (5 - bitCount)) & 31);
+      const hrpValues = [
+        ...Array.from(hrp, (character) => character.charCodeAt(0) >>> 5),
+        0,
+        ...Array.from(hrp, (character) => character.charCodeAt(0) & 31)
+      ];
+      const checksumBase = [...hrpValues, ...words, 0, 0, 0, 0, 0, 0];
+      const checksumValue = bech32Polymod(checksumBase) ^ 0x2bc830a3;
+      const checksumWords = Array.from({ length: 6 }, (_, index) => (
+        (checksumValue >>> (5 * (5 - index))) & 31
+      ));
+      return `${hrp}1${[...words, ...checksumWords].map((value) => bech32Alphabet[value]).join("")}`;
+    }
+
+    function importValidation(message, reason = "IMPORT_MALFORMED_JSON") {
+      return fail("validation", message, { reason });
+    }
+
+    function unknownFields(record, allowed) {
+      return Object.keys(record).filter((field) => !allowed.has(field));
+    }
+
+    function inspectAssetPackageImpl({ walletId, fileName, assetData }) {
+      const wallet = walletById(walletId);
+      if (!wallet) return importValidation("Wallet profile no longer exists.", "IMPORT_SESSION_INVALID");
+      const source = String(assetData ?? "");
+      const byteLength = new TextEncoder().encode(source).byteLength;
+      if (!source || byteLength > assetPackageMaxBytes) {
+        return importValidation(
+          byteLength > assetPackageMaxBytes
+            ? `Asset package exceeds the 64 KiB public JSON limit (${byteLength} bytes).`
+            : "Choose a non-empty public asset package.",
+        );
+      }
+
+      let pkg;
+      try {
+        pkg = JSON.parse(source);
+      } catch {
+        return importValidation("Asset package is not valid JSON.");
+      }
+      if (!isRecord(pkg)) return importValidation("Asset package must be a JSON object.");
+      if (Object.hasOwn(pkg, "secret")) {
+        return importValidation(
+          "Public asset packages must not contain a secret field.",
+          "IMPORT_SECRET_FIELD_FORBIDDEN",
+        );
+      }
+      const packageUnknown = unknownFields(pkg, assetPackageFields);
+      if (packageUnknown.length) {
+        return importValidation(`Unknown asset package field: ${packageUnknown[0]}.`);
+      }
+      const missingPackageField = requiredAssetPackageFields.find((field) => !Object.hasOwn(pkg, field));
+      if (missingPackageField) return importValidation(`Missing asset package field: ${missingPackageField}.`);
+
+      const definition = pkg.definition;
+      if (!isRecord(definition)) return importValidation("definition must be a JSON object.");
+      const definitionUnknown = unknownFields(definition, assetDefinitionFields);
+      if (definitionUnknown.length) {
+        return importValidation(`Unknown asset definition field: ${definitionUnknown[0]}.`);
+      }
+      const missingDefinitionField = requiredAssetDefinitionFields.find((field) => !Object.hasOwn(definition, field));
+      if (missingDefinitionField) return importValidation(`Missing asset definition field: ${missingDefinitionField}.`);
+
+      if (!isHex(definition.id, 32)) return importValidation("definition.id must be a 32-byte hexadecimal identifier.");
+      if (!["Coin", "Token", "Nft", "Void"].includes(definition.class)) {
+        return importValidation("definition.class must be Coin, Token, Nft, or Void.");
+      }
+      if (typeof definition.name !== "string" || !definition.name.trim()
+        || typeof definition.symbol !== "string" || !definition.symbol.trim()
+        || typeof definition.domain_name !== "string") {
+        return importValidation("Asset name, symbol, and domain_name must be strings.");
+      }
+      for (const field of ["decimals", "version", "crypto_version", "policy_flags"]) {
+        if (!Number.isSafeInteger(definition[field]) || definition[field] < 0 || definition[field] > 0xff) {
+          return importValidation(`definition.${field} must be an unsigned 8-bit integer.`);
+        }
+      }
+      if (!Number.isSafeInteger(definition.serials) || definition.serials < 0 || definition.serials > 0xffffffff) {
+        return importValidation("definition.serials must be an unsigned 32-bit integer.");
+      }
+      if (!Number.isInteger(definition.nominal) || definition.nominal < 0) {
+        return importValidation("definition.nominal must be a non-negative integer.");
+      }
+      if (definition.metadata !== undefined && definition.metadata !== null
+        && (!isRecord(definition.metadata)
+          || Object.values(definition.metadata).some((value) => typeof value !== "string"))) {
+        return importValidation("definition.metadata must be a string map or null.");
+      }
+      if (!Number.isSafeInteger(pkg.serial_id) || pkg.serial_id < 0 || pkg.serial_id > 0xffffffff
+        || !Number.isInteger(pkg.amount) || pkg.amount < 0
+        || !isHex(pkg.commitment, 32)
+        || !isHex(pkg.nonce, 32)
+        || typeof pkg.is_burned !== "boolean") {
+        return importValidation("serial_id, amount, commitment, nonce, or is_burned has an invalid public DTO type.");
+      }
+      if (!isOptionalInteger(pkg.lock_height)
+        || !isOptionalInteger(pkg.tag16) || (pkg.tag16 !== undefined && pkg.tag16 !== null && pkg.tag16 > 0xffff)
+        || (pkg.is_frozen !== undefined && typeof pkg.is_frozen !== "boolean")
+        || (pkg.is_slashed !== undefined && typeof pkg.is_slashed !== "boolean")
+        || !["range_proof", "owner_pub", "owner_signature", "r_pub", "owner_tag", "enc_pack", "leaf_ad_id"]
+          .every((field) => isOptionalString(pkg[field]))) {
+        return importValidation("An optional asset package field has an invalid public DTO type.");
+      }
+
+      const hasDirectOwner = Boolean(pkg.owner_pub && pkg.owner_signature);
+      const stealthParts = ["r_pub", "owner_tag", "enc_pack"].filter((field) => Boolean(pkg[field]));
+      const hasStealthOwner = stealthParts.length === 3 && Boolean(pkg.leaf_ad_id);
+      if (!hasDirectOwner && !hasStealthOwner) {
+        return importValidation(
+          "Package needs a complete direct owner signature or a complete stealth owner binding.",
+          stealthParts.length ? "IMPORT_STEALTH_INCONSISTENT" : "IMPORT_CRYPTO_VERIFY_FAILED",
+        );
+      }
+
+      const reviewToken = `asset-import-review-${wallet.id}-${++assetImportSequence}`;
+      const preview = Object.freeze({
+        schemaVersion: "asset-package-review-v1",
+        file: Object.freeze({
+          name: String(fileName || "asset-package.json").split(/[\\/]/).at(-1),
+          bytes: byteLength
+        }),
+        target: Object.freeze({
+          walletId: wallet.id,
+          walletName: wallet.name,
+          chainId: wallet.chainId
+        }),
+        asset: Object.freeze({
+          definitionId: shortIdentifier(definition.id),
+          name: definition.name.trim(),
+          symbol: definition.symbol.trim(),
+          class: definition.class,
+          serialId: pkg.serial_id,
+          amount: pkg.amount,
+          decimals: definition.decimals,
+          serials: definition.serials,
+          nominal: definition.nominal,
+          metadataEntryCount: definition.metadata ? Object.keys(definition.metadata).length : 0,
+          domainName: definition.domain_name || "Not declared",
+          lockHeight: pkg.lock_height ?? null,
+          tag16: pkg.tag16 ?? null,
+          flags: Object.freeze({
+            burned: pkg.is_burned,
+            frozen: Boolean(pkg.is_frozen),
+            slashed: Boolean(pkg.is_slashed)
+          })
+        }),
+        ownership: Object.freeze({
+          mode: hasStealthOwner ? "Stealth receiver binding" : "Direct owner signature",
+          ownerReference: shortIdentifier(hasStealthOwner ? pkg.owner_tag : pkg.owner_pub),
+          leafAdId: shortIdentifier(pkg.leaf_ad_id || "")
+        }),
+        cryptography: Object.freeze({
+          commitment: shortIdentifier(pkg.commitment),
+          nonce: shortIdentifier(pkg.nonce),
+          rangeProofPresent: Boolean(pkg.range_proof),
+          definitionVersion: definition.version,
+          cryptoVersion: definition.crypto_version,
+          policyFlags: definition.policy_flags
+        }),
+        checks: Object.freeze({
+          schemaAccepted: true,
+          withinSizeLimit: true,
+          secretFieldAbsent: true,
+          ownershipShapeComplete: true
+        })
+      });
+      pendingAssetImports.set(reviewToken, Object.freeze({
+        walletId: wallet.id,
+        assetData: source,
+        preview
+      }));
+      return ok({ reviewToken, preview });
+    }
 
     function walletById(walletId) {
       return state.wallets.find((wallet) => wallet.id === walletId);
@@ -120,6 +394,37 @@
       contractVersion: demo.PORT_CONTRACT.version,
       revalidateExternalReviewHandoff,
 
+      inspectAssetPackage({ walletId, fileName, assetData }) {
+        return inspectAssetPackageImpl({ walletId, fileName, assetData });
+      },
+
+      prepareAssetImport({ walletId, reviewToken }) {
+        const pending = pendingAssetImports.get(String(reviewToken ?? ""));
+        if (!pending || pending.walletId !== walletId) {
+          return importValidation(
+            "The reviewed package is stale or belongs to another wallet.",
+            "IMPORT_SESSION_INVALID",
+          );
+        }
+        pendingAssetImports.delete(reviewToken);
+        return ok(Object.freeze({
+          rpcMethod: "wallet.asset.import_asset",
+          status: "native_verification_required",
+          walletId,
+          walletMutation: false,
+          resultFields: Object.freeze([
+            "asset_id",
+            "serial_id",
+            "symbol",
+            "class",
+            "success",
+            "message",
+            "is_inserted",
+            "asset_already_exists"
+          ])
+        }));
+      },
+
       listWallets() {
         return ok({
           wallets: state.wallets.map((wallet) => ({
@@ -130,6 +435,26 @@
             activities: [...wallet.activities]
           }))
         });
+      },
+
+      getReceiverCard({ walletId }) {
+        const wallet = walletById(walletId);
+        if (!wallet) return fail("validation", "Wallet profile no longer exists.");
+        const ownerHandle = stablePublicHex(`${wallet.id}:receiver-owner`, 32);
+        const viewKey = stablePublicHex(`${wallet.id}:receiver-view`, 32);
+        const identityKey = stablePublicHex(`${wallet.id}:receiver-identity`, 32);
+        const signature = stablePublicHex(`${wallet.id}:receiver-signature`, 64);
+        const registryEntryId = stablePublicHex(`${wallet.id}:receiver-registry`, 32);
+        return ok(Object.freeze({
+          owner_handle: ownerHandle,
+          view_key: viewKey,
+          identity_key: identityKey,
+          signature,
+          card_compact: `z00zrc1:${stablePublicHex(`${wallet.id}:receiver-record`, 192)}`,
+          registry_entry_id: registryEntryId,
+          card_epoch: 0,
+          owner_handle_display: bech32mOwnerHandle(ownerHandle)
+        }));
       },
 
       createProfile({ name, chainId = "mainnet", scan = "Scanning" }) {

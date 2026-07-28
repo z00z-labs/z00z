@@ -43,6 +43,12 @@ topics:
     label_key: navigation.receive
     route: wallet.receive
     scope: context
+  - id: wallet.import
+    title: Wallet: Import
+    file: wallet/import.md
+    label_key: navigation.import
+    route: wallet.import
+    scope: context
   - id: wallet.history
     title: Wallet: History
     file: wallet/history.md

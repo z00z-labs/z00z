@@ -319,6 +319,7 @@
       shellPreferences: shell.shellPreferences,
       language: "en",
       regionalLocale: "en-US",
+      valuationCurrency: "USD",
       timeZone: "UTC",
       networkUnits: "decimal-bps",
       notifications: true,
@@ -334,6 +335,16 @@
       configStatus: "Local draft is in sync with the visible controls.",
       walletPreferences: {},
       sendDrafts: {},
+      assetImport: {
+        walletId: "",
+        status: "idle",
+        fileName: "",
+        fileSize: 0,
+        reviewToken: "",
+        preview: null,
+        error: null,
+        result: null
+      },
       exchangeDrafts: {},
       demoOperationScenario: requestedOperationScenario === "timeout_unknown_outcome"
         ? requestedOperationScenario

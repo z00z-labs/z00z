@@ -7,7 +7,7 @@
   // These labels are intentionally separate from the navigation model: the
   // model owns stable IDs, while every renderer receives localised copy.
   const english = Object.freeze({
-    wallet: "Wallet", overview: "Overview", assets: "Assets", vouchers: "Vouchers", permissions: "Permissions", quarantine: "Quarantine", send: "Send", receive: "Receive", history: "History", swap: "Swap", exchange: "Exchange", staking: "Staking", stake: "Stake", unstake: "Unstake", backup: "Backup", walletSettings: "Wallet Settings", general: "General", security: "Security", policies: "Policies", advanced: "Advanced",
+    wallet: "Wallet", overview: "Overview", assets: "Assets", vouchers: "Vouchers", permissions: "Permissions", quarantine: "Quarantine", send: "Send", receive: "Receive", import: "Import", history: "History", swap: "Swap", exchange: "Exchange", staking: "Staking", stake: "Stake", unstake: "Unstake", backup: "Backup", walletSettings: "Wallet Settings", general: "General", security: "Security", policies: "Policies", advanced: "Advanced",
     telemetry: "Telemetry", telemetryContext: "Read-only local observation and publication evidence", reticulum: "Reticulum", onionnet: "OnionNet", aggregators: "Aggregators", node: "Node", interfaces: "Interfaces", radio: "Radio", entrypoints: "Entrypoints", paths: "Paths", probes: "Probes", links: "Links", epoch: "Epoch", privacy: "Privacy", transport: "Transport", queues: "Queues", probation: "Probation", ingress: "Ingress", planning: "Planning", placement: "Placement", publication: "Publication", recovery: "Recovery", watchers: "Watchers", alerts: "Alerts", publicationChecks: "Publication checks", daProviders: "DA providers", censorship: "Censorship signals", evidenceExport: "Evidence export", explorer: "Explorer", search: "Search", checkpoints: "Checkpoints", batches: "Batches", publicEvidence: "Public evidence",
     dapps: "dApps", discover: "Discover", installed: "Installed", connections: "Connections", activity: "Activity", messenger: "Messenger", inbox: "Inbox", sent: "Sent", requests: "Requests", conversations: "Conversations", outbox: "Outbox", receipts: "Receipts", contacts: "Contacts", dataStorage: "Data & Storage", diskUsage: "Disk Usage", networkUsage: "Network Usage", settings: "Settings", notifications: "Notifications", appearance: "Appearance", help: "Help", about: "About", logOut: "Log out", roadmap: "Roadmap"
   });
@@ -25,15 +25,15 @@
   });
 
   const supplementalTranslations = Object.freeze({
-    ru: { stake: "Стейкинг", unstake: "Вывести из стейкинга", dataStorage: "Данные и хранилище", diskUsage: "Использование диска", networkUsage: "Использование сети", notifications: "Уведомления", about: "О приложении" },
-    fr: { stake: "Staker", unstake: "Retirer du staking", dataStorage: "Données et stockage", diskUsage: "Utilisation du disque", networkUsage: "Utilisation du réseau", notifications: "Notifications", about: "À propos" },
-    de: { stake: "Staken", unstake: "Unstaken", dataStorage: "Daten und Speicher", diskUsage: "Speichernutzung", networkUsage: "Netzwerknutzung", notifications: "Benachrichtigungen", about: "Über" },
-    es: { stake: "Hacer staking", unstake: "Retirar staking", dataStorage: "Datos y almacenamiento", diskUsage: "Uso del disco", networkUsage: "Uso de red", notifications: "Notificaciones", about: "Acerca de" },
-    pt: { stake: "Fazer staking", unstake: "Retirar staking", dataStorage: "Dados e armazenamento", diskUsage: "Utilização do disco", networkUsage: "Utilização da rede", notifications: "Notificações", about: "Sobre" },
-    ko: { stake: "스테이킹", unstake: "언스테이킹", dataStorage: "데이터 및 저장 공간", diskUsage: "디스크 사용량", networkUsage: "네트워크 사용량", notifications: "알림", about: "정보" },
-    tr: { stake: "Stake et", unstake: "Stake’den çıkar", dataStorage: "Veri ve Depolama", diskUsage: "Disk Kullanımı", networkUsage: "Ağ Kullanımı", notifications: "Bildirimler", about: "Hakkında" },
-    ja: { stake: "ステーク", unstake: "アンステーク", dataStorage: "データとストレージ", diskUsage: "ディスク使用量", networkUsage: "ネットワーク使用量", notifications: "通知", about: "このアプリについて" },
-    "zh-Hans": { stake: "质押", unstake: "解除质押", dataStorage: "数据与存储", diskUsage: "磁盘使用情况", networkUsage: "网络使用情况", notifications: "通知", about: "关于" }
+    ru: { import: "Импорт", stake: "Стейкинг", unstake: "Вывести из стейкинга", dataStorage: "Данные и хранилище", diskUsage: "Использование диска", networkUsage: "Использование сети", notifications: "Уведомления", about: "О приложении" },
+    fr: { import: "Importer", stake: "Staker", unstake: "Retirer du staking", dataStorage: "Données et stockage", diskUsage: "Utilisation du disque", networkUsage: "Utilisation du réseau", notifications: "Notifications", about: "À propos" },
+    de: { import: "Importieren", stake: "Staken", unstake: "Unstaken", dataStorage: "Daten und Speicher", diskUsage: "Speichernutzung", networkUsage: "Netzwerknutzung", notifications: "Benachrichtigungen", about: "Über" },
+    es: { import: "Importar", stake: "Hacer staking", unstake: "Retirar staking", dataStorage: "Datos y almacenamiento", diskUsage: "Uso del disco", networkUsage: "Uso de red", notifications: "Notificaciones", about: "Acerca de" },
+    pt: { import: "Importar", stake: "Fazer staking", unstake: "Retirar staking", dataStorage: "Dados e armazenamento", diskUsage: "Utilização do disco", networkUsage: "Utilização da rede", notifications: "Notificações", about: "Sobre" },
+    ko: { import: "가져오기", stake: "스테이킹", unstake: "언스테이킹", dataStorage: "데이터 및 저장 공간", diskUsage: "디스크 사용량", networkUsage: "네트워크 사용량", notifications: "알림", about: "정보" },
+    tr: { import: "İçe aktar", stake: "Stake et", unstake: "Stake’den çıkar", dataStorage: "Veri ve Depolama", diskUsage: "Disk Kullanımı", networkUsage: "Ağ Kullanımı", notifications: "Bildirimler", about: "Hakkında" },
+    ja: { import: "インポート", stake: "ステーク", unstake: "アンステーク", dataStorage: "データとストレージ", diskUsage: "ディスク使用量", networkUsage: "ネットワーク使用量", notifications: "通知", about: "このアプリについて" },
+    "zh-Hans": { import: "导入", stake: "质押", unstake: "解除质押", dataStorage: "数据与存储", diskUsage: "磁盘使用情况", networkUsage: "网络使用情况", notifications: "通知", about: "关于" }
   });
 
   i18n.extendLocale("en", { navigation: english });

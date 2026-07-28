@@ -33,6 +33,15 @@
   --lut-z00z-corporate-base-200: #e8e8e8;
   --lut-z00z-corporate-base-300: #d1d1d1;
   --lut-z00z-corporate-base-content: #181a2a;
+  --lut-z00z-corporate-content-82: rgb(24 26 42 / 82%);
+  --lut-z00z-corporate-content-78: rgb(24 26 42 / 78%);
+  --lut-z00z-corporate-content-72: rgb(24 26 42 / 72%);
+  --lut-z00z-corporate-content-60: rgb(24 26 42 / 60%);
+  --lut-z00z-corporate-table-head: #eeeeee;
+  --lut-z00z-corporate-table-row-alt: #f3f4f6;
+  --lut-z00z-corporate-table-code-bg: #f5f6f7;
+  --lut-z00z-corporate-table-code-border: #d9dce1;
+  --lut-z00z-corporate-table-code-fg: #1f2937;
   --lut-z00z-corporate-primary: #0082c4;
   --lut-z00z-corporate-secondary: #61738d;
   --lut-z00z-corporate-accent: #009588;
@@ -122,6 +131,11 @@
   --interaction-selected-bg: var(--bg-raised);
   --interaction-selected-border: var(--border);
   --interaction-selected-text: var(--text-primary);
+  /* Help tables use an opaque three-level reading hierarchy. */
+  --help-table-header-bg: color-mix(in srgb, var(--bg-raised) 88%, var(--text-secondary) 12%);
+  --help-table-row-bg: var(--bg-canvas);
+  --help-table-row-alt-bg: var(--bg-raised);
+  --help-table-border: var(--border);
   --ambient-rail: color-mix(in srgb, var(--rail) 6%, transparent);
   --ambient-rail-mobile: color-mix(in srgb, var(--rail) 10%, transparent);
   --logo-glow: drop-shadow(0 5px 12px color-mix(in srgb, var(--brand) 18%, transparent));
@@ -158,12 +172,12 @@ html[data-palette="z00z-corporate"] {
   --bg-raised: var(--lut-z00z-corporate-base-200);
   --bg-overlay: var(--lut-z00z-corporate-overlay);
   --text-primary: var(--lut-z00z-corporate-base-content);
-  --text-secondary: var(--lut-z00z-corporate-secondary);
-  --text-tertiary: var(--lut-z00z-corporate-secondary);
+  --text-secondary: var(--lut-z00z-corporate-content-78);
+  --text-tertiary: var(--lut-z00z-corporate-content-60);
   --border: var(--lut-z00z-corporate-base-300);
   --border-strong: var(--lut-z00z-corporate-base-300);
   --brand: var(--lut-z00z-corporate-primary-contrast);
-  --brand-strong: var(--lut-z00z-corporate-accent-contrast);
+  --brand-strong: var(--lut-z00z-corporate-primary-contrast);
   --brand-ink: var(--lut-z00z-corporate-base-100);
   --button-primary-bg: var(--lut-z00z-corporate-primary-contrast);
   --button-primary-bg-strong: var(--lut-z00z-corporate-primary-contrast);
@@ -175,6 +189,9 @@ html[data-palette="z00z-corporate"] {
   --network-mainnet: var(--success);
   --network-testnet: var(--warning);
   --network-devnet: var(--focus);
+  --help-table-header-bg: var(--lut-z00z-corporate-table-head);
+  --help-table-row-bg: var(--lut-z00z-corporate-base-100);
+  --help-table-row-alt-bg: var(--lut-z00z-corporate-table-row-alt);
   --shadow: 0 20px 60px rgb(24 26 42 / 18%);
   --elevation-highlight-subtle: rgb(24 26 42 / 8%);
   --elevation-highlight-medium: rgb(24 26 42 / 14%);

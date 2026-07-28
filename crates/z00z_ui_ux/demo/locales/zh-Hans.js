@@ -9,6 +9,7 @@ window.Z00ZI18n.registerLocale("zh-Hans", {
     general: "常规", language: "语言", languageHelp: "整个钱包应用程序使用的语言",
     notifications: "通知", notificationsHelp: "显示钱包更新和需要处理的操作",
     regionalFormat: "区域格式", regionalFormatHelp: "独立于语言控制日期、数字和小数分隔符",
+    currency: "货币", currencyHelp: "用于显示币值的货币",
     timeZone: "时区", timeZoneHelp: "时间戳以 UTC 存储，并按此时区显示",
     networkUnits: "网络单位", networkUnitsHelp: "网络速率使用十进制每秒比特数",
     decimalBitrate: "十进制位/秒", translationCoverage: "翻译覆盖率",
@@ -59,7 +60,7 @@ window.Z00ZI18n.registerLocale("zh-Hans", {
     localCapabilityHelp: "此钱包演示未注册 OnionNet 状态桥接。不会伪造看似实时的路由、拓扑或隐私数值。",
     tabs: { overview: "概览", epoch: "纪元", privacy: "隐私下限", transport: "传输", queues: "队列与重放", probation: "观察期", ingress: "入口边界" }
   },
-  help: { title: "帮助", openGlobal: "打开应用帮助", openContext: "此视图的帮助", close: "关闭帮助", contents: "目录", section: "帮助章节 {current}/{total}", unavailable: "此视图暂无帮助。" },
+  help: { title: "帮助", openGlobal: "打开应用帮助", openContext: "此视图的帮助", close: "关闭帮助", contents: "目录", drawerTitle: "帮助内容", section: "帮助章节 {current}/{total}", unavailable: "此视图暂无帮助。" },
   status: { up: "运行中", down: "离线", connecting: "正在连接", degraded: "受限" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

@@ -1,12 +1,13 @@
 {
   "capture_route": "wallet.quarantine",
   "components": [
-    "button|type=button"
+    "button|type=button",
+    "button|type=button|role=tab"
   ],
-  "presentation_sha256": "b47157c7d9aabb998fa4b49c0f2b0b58c5d538854806a80b78d97f7c193fa170",
+  "presentation_sha256": "0bd36d062ec11fe235019f518355c9eadb7f58ec3e5d555600d90e5175d27210",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-quarantine.png",
-  "screenshot_sha256": "191380241a38ae62309b797bd49ac7f3fc6f6b115ae892c2573433196034cdbd",
+  "screenshot_sha256": "7084b8a2261f9e9eaec12c2b7e4b5d1aa98235b8b04defb128ef1cc462ce1921",
   "sections": [],
   "terms": [
     "1 use",

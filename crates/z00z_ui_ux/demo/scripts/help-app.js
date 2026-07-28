@@ -28,7 +28,6 @@
   const siteHeader = document.querySelector(".help-site-header");
   const mobileTopbarContext = document.querySelector("#help-mobile-topbar-context");
   const menuButton = document.querySelector("#help-menu-button");
-  const closeButton = document.querySelector("#help-sidebar-close");
   const backdrop = document.querySelector("#help-sidebar-backdrop");
   const homeLink = document.querySelector("#help-home-link");
   const languagePicker = document.querySelector("#help-language-picker");
@@ -483,14 +482,13 @@
     document.documentElement.lang = language;
     document.documentElement.dir = languageMetadata().direction || "ltr";
     document.querySelector("#help-product-label").textContent = translate("navigation.help");
-    document.querySelector("#help-mobile-menu-title").textContent = translate("app.menu");
+    document.querySelector("#help-mobile-menu-title").textContent = translate("help.drawerTitle");
     document.querySelector("#help-search-label").textContent = searchLabel;
     searchDialogTitle.textContent = searchLabel;
     searchTriggerLabel.textContent = searchLabel;
     searchTrigger.setAttribute("aria-label", searchLabel);
     searchShortcut.textContent = navigator.platform.toLocaleLowerCase().includes("mac") ? "⌘K" : "Ctrl K";
     menuButton.setAttribute("aria-label", translate("app.menu"));
-    closeButton.setAttribute("aria-label", translate("common.close"));
     backdrop.setAttribute("aria-label", translate("common.close"));
     searchClose.setAttribute("aria-label", translate("common.close"));
     searchInput.placeholder = `${searchLabel}…`;
@@ -534,8 +532,10 @@
     main.inert = true;
     menuButton.setAttribute("aria-expanded", "true");
     requestAnimationFrame(() => {
-      sidebar.querySelector("[aria-current='page']")?.scrollIntoView({ block: "nearest" });
-      closeButton.focus();
+      const focusTarget = sidebar.querySelector("[aria-current='page']")
+        || sidebar.querySelector('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
+      focusTarget?.scrollIntoView({ block: "nearest" });
+      focusTarget?.focus();
     });
   }
 
@@ -613,7 +613,7 @@
       if (expandedBranchIds.has(nodeId)) expandedBranchIds.delete(nodeId);
       else expandedBranchIds.add(nodeId);
       renderTree();
-      requestAnimationFrame(() => tree.querySelector(`[data-help-navigation-branch="${CSS.escape(nodeId)}"]`)?.focus());
+      requestAnimationFrame(() => tree.querySelector(`[data-help-navigation-branch="${CSS.escape(nodeId)}"]`)?.focus({ preventScroll: true }));
       return;
     }
     const link = event.target.closest("[data-help-topic-link]");
@@ -630,7 +630,7 @@
       if (expandedBranchIds.has(nodeId)) expandedBranchIds.delete(nodeId);
       else expandedBranchIds.add(nodeId);
       renderTree();
-      requestAnimationFrame(() => navigationTerminal.querySelector(`[data-help-navigation-branch="${CSS.escape(nodeId)}"]`)?.focus());
+      requestAnimationFrame(() => navigationTerminal.querySelector(`[data-help-navigation-branch="${CSS.escape(nodeId)}"]`)?.focus({ preventScroll: true }));
       return;
     }
     const link = event.target.closest("[data-help-topic-link]");
@@ -681,7 +681,6 @@
     renderSearch();
   });
   menuButton.addEventListener("click", openSidebar);
-  closeButton.addEventListener("click", () => closeSidebar({ restoreFocus: true }));
   backdrop.addEventListener("click", () => closeSidebar({ restoreFocus: true }));
   homeLink.addEventListener("click", (event) => {
     event.preventDefault();

@@ -9,6 +9,7 @@ window.Z00ZI18n.registerLocale("de", {
     general: "Allgemein", language: "Sprache", languageHelp: "Sprache, die in dieser Wallet-Anwendung verwendet wird",
     notifications: "Benachrichtigungen", notificationsHelp: "Wallet-Aktualisierungen und erforderliche Aktionen anzeigen",
     regionalFormat: "Regionales Format", regionalFormatHelp: "Steuert Datums-, Zahlen- und Dezimaltrennzeichen unabhängig von der Sprache",
+    currency: "Währung", currencyHelp: "Währung zur Anzeige von Münzwerten",
     timeZone: "Zeitzone", timeZoneHelp: "Zeitstempel werden in UTC gespeichert und in dieser Zeitzone angezeigt",
     networkUnits: "Netzwerkeinheiten", networkUnitsHelp: "Netzwerkraten verwenden dezimale Bits pro Sekunde",
     decimalBitrate: "Dezimale Bits pro Sekunde", translationCoverage: "Übersetzungsabdeckung",
@@ -59,7 +60,7 @@ window.Z00ZI18n.registerLocale("de", {
     localCapabilityHelp: "In dieser Wallet-Demo ist keine OnionNet-Statusbrücke registriert. Es werden keine scheinbar echten Routen-, Topologie- oder Datenschutzwerte erfunden.",
     tabs: { overview: "Überblick", epoch: "Epoche", privacy: "Datenschutzschwelle", transport: "Transport", queues: "Warteschlangen und Wiederholungen", probation: "Bewährung", ingress: "Eingangsgrenze" }
   },
-  help: { title: "Hilfe", openGlobal: "Anwendungshilfe öffnen", openContext: "Hilfe für diese Ansicht", close: "Hilfe schließen", contents: "Inhalt", section: "Hilfeabschnitt {current} von {total}", unavailable: "Für diese Ansicht ist keine Hilfe verfügbar." },
+  help: { title: "Hilfe", openGlobal: "Anwendungshilfe öffnen", openContext: "Hilfe für diese Ansicht", close: "Hilfe schließen", contents: "Inhalt", drawerTitle: "Hilfeinhalt", section: "Hilfeabschnitt {current} von {total}", unavailable: "Für diese Ansicht ist keine Hilfe verfügbar." },
   status: { up: "Aktiv", down: "Inaktiv", connecting: "Verbindung", degraded: "Eingeschränkt" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });
