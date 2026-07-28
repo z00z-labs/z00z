@@ -1431,13 +1431,86 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
 
     for (const dappId of dappIds) {
       await page.goto(`${demoUrl}?route=dapps.${dappId}`);
-      await expect(page.locator(`[data-dapp-proposal="${dappId}"]`)).toBeVisible();
-      await expect(page.locator(`[data-dapp-proposal="${dappId}"] .dapp-architecture-boundary`)).toContainText("dApp proposes; Wallet decides");
-      await expect(page.locator(`[data-dapp-proposal="${dappId}"] .dapp-proposal-stages > li`)).toHaveCount(5);
-      await expect(page.locator(`[data-dapp-proposal="${dappId}"] .dapp-creation-summary > div`)).toHaveCount(2);
-      await expect(page.locator(`[data-dapp-proposal="${dappId}"] .dapp-creation-summary`)).toContainText("What this creates");
-      await expect(page.locator(`[data-dapp-proposal="${dappId}"] .dapp-creation-summary`)).toContainText("Why create it");
-      await expect(page.locator(`[data-dapp-proposal="${dappId}"] form`)).toHaveAttribute("autocomplete", "off");
+      const proposal = page.locator(`[data-dapp-proposal="${dappId}"]`);
+      await expect(proposal).toBeVisible();
+      await expect(proposal.locator(".dapp-architecture-boundary")).toContainText("dApp proposes; Wallet decides");
+      await expect(proposal.locator(".dapp-proposal-stages > li")).toHaveCount(5);
+      await expect(proposal.locator(".dapp-creation-summary > div")).toHaveCount(2);
+      await expect(proposal.locator(".dapp-creation-summary")).toContainText("What this creates");
+      await expect(proposal.locator(".dapp-creation-summary")).toContainText("Why create it");
+      await expect(proposal.locator("form")).toHaveAttribute("autocomplete", "off");
+      const proposalGeometry = await proposal.locator(".dapp-proposal-fields").evaluate((grid) => {
+        const tolerance = 1;
+        const rounded = (value) => Math.round(value * 10) / 10;
+        const visible = (element) => {
+          const style = getComputedStyle(element);
+          const bounds = element.getBoundingClientRect();
+          return style.display !== "none"
+            && style.visibility !== "hidden"
+            && bounds.width > 0
+            && bounds.height > 0;
+        };
+        const groups = [...grid.querySelectorAll(":scope > .field-group")];
+        const issues = [];
+        const controlSizes = [];
+
+        if (getComputedStyle(grid).alignItems !== "start") {
+          issues.push("proposal grid must align field groups to the start");
+        }
+
+        for (const group of groups) {
+          const bounds = group.getBoundingClientRect();
+          const children = [...group.children].filter(visible);
+          const control = group.querySelector(
+            "input:not([type='hidden']), textarea, .select-picker-trigger"
+          );
+          if (!control) {
+            issues.push(`missing visible control in ${group.querySelector(".field-label")?.textContent || "field"}`);
+            continue;
+          }
+
+          const controlBounds = control.getBoundingClientRect();
+          const contentBottom = Math.max(...children.map(
+            (element) => element.getBoundingClientRect().bottom
+          ));
+          controlSizes.push({
+            height: rounded(controlBounds.height),
+            width: rounded(controlBounds.width),
+          });
+
+          if (Math.abs(controlBounds.left - bounds.left) > tolerance
+            || Math.abs(controlBounds.right - bounds.right) > tolerance) {
+            issues.push(`control is not aligned to its field group: ${group.querySelector(".field-label")?.textContent || "field"}`);
+          }
+          if (bounds.bottom - contentBottom > tolerance) {
+            issues.push(`field group is vertically stretched: ${group.querySelector(".field-label")?.textContent || "field"}`);
+          }
+        }
+
+        for (let firstIndex = 0; firstIndex < groups.length; firstIndex += 1) {
+          const first = groups[firstIndex].getBoundingClientRect();
+          for (let secondIndex = firstIndex + 1; secondIndex < groups.length; secondIndex += 1) {
+            const second = groups[secondIndex].getBoundingClientRect();
+            const overlapWidth = Math.min(first.right, second.right) - Math.max(first.left, second.left);
+            const overlapHeight = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
+            if (overlapWidth > tolerance && overlapHeight > tolerance) {
+              issues.push(`field groups overlap at indexes ${firstIndex} and ${secondIndex}`);
+            }
+          }
+        }
+
+        return { issues, controlSizes };
+      });
+      expect(proposalGeometry.issues, `${dappId} field alignment at ${viewport.width}px`).toEqual([]);
+      expect(
+        [...new Set(proposalGeometry.controlSizes.map(({ height }) => height))],
+        `${dappId} control heights at ${viewport.width}px`
+      ).toEqual([46]);
+      expect(
+        Math.max(...proposalGeometry.controlSizes.map(({ width }) => width))
+          - Math.min(...proposalGeometry.controlSizes.map(({ width }) => width)),
+        `${dappId} control widths at ${viewport.width}px`
+      ).toBeLessThanOrEqual(1);
       await expectNoViewportOverflow(page, `dApps ${dappId} at ${viewport.width}px`);
     }
 

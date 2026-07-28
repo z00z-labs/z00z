@@ -26,6 +26,23 @@ const dappMenuLabels = [
   "Discover",
   "Installed",
 ];
+const dappReviewRoutes = [
+  ["dapps.agents-budget", "dapps-agents-budget"],
+  ["dapps.assets-locker", "dapps-assets-locker"],
+  ["dapps.bounties", "dapps-bounties"],
+  ["dapps.create-permission", "dapps-create-permission"],
+  ["dapps.create-voucher", "dapps-create-voucher"],
+  ["dapps.digital-goods", "dapps-digital-goods"],
+  ["dapps.donation", "dapps-donation"],
+  ["dapps.escrow", "dapps-escrow"],
+  ["dapps.pay", "dapps-pay"],
+  ["dapps.payroll", "dapps-payroll"],
+  ["dapps.request", "dapps-request"],
+  ["dapps.service-credits", "dapps-service-credits"],
+  ["dapps.subscription", "dapps-subscription"],
+  ["dapps.tickets-passes", "dapps-tickets-passes"],
+  ["dapps.wbold-gateway", "dapps-wbold-gateway"],
+];
 const reviewRoot = path.resolve(process.env.Z00Z_VISUAL_REVIEW_DIR || path.join(
   __dirname,
   "../../z00z_storage/outputs/checkpoint/phase-110/ui-help-review",
@@ -498,11 +515,11 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
   ];
   const layoutAudit = [];
 
-  const reviewState = async (viewport, name) => {
+  const reviewState = async (viewport, name, { fullPage = viewport.width <= 768 } = {}) => {
     const route = { name };
     await expect(page.locator(".capability-boundary")).toHaveCount(0);
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, route));
-    await capture(page, `${viewport.name}-phase-6-${name}`, { fullPage: viewport.width <= 768 });
+    await capture(page, `${viewport.name}-phase-6-${name}`, { fullPage });
   };
 
   for (const viewport of phaseViewports) {
@@ -522,12 +539,12 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
       ["telemetry.watchers.overview", "watchers-overview"],
       ["telemetry.explorer.overview", "explorer-overview"],
       ["dapps.discover", "dapps-discover"],
-      ["dapps.pay", "dapps-pay"],
-      ["dapps.agents-budget", "dapps-agents-budget"],
-      ["dapps.assets-locker", "dapps-assets-locker"],
+      ...dappReviewRoutes,
     ]) {
       await page.goto(`${demoUrl}?route=${route}`);
-      await reviewState(viewport, name);
+      await reviewState(viewport, name, {
+        fullPage: viewport.width <= 768 || (route.startsWith("dapps.") && route !== "dapps.discover"),
+      });
     }
 
     if (viewport.width > 768) {
