@@ -1,17 +1,17 @@
 ---
 id: wallet.staking.stake
-title: Wallet Staking: Stake
+title: Wallet Earn: Stake
 route: wallet.staking.stake
 scope: context
 ---
 
-# Wallet Staking: Stake
+# Wallet Earn: Stake
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Staking: Stake application view](help/assets/en/wallet-staking-stake.png)
+![Wallet Earn: Stake application view](help/assets/en/wallet-staking-stake.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

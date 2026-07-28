@@ -3,10 +3,10 @@
   "components": [
     "button|type=button"
   ],
-  "presentation_sha256": "793119effcb60e4802c9f1d7272e48edd2f4c7c9647ad900a2d2563a02dec6c7",
+  "presentation_sha256": "6955b10bcec6b821999d8118377d5263266d61935b0f4b3e13300e657a099fe2",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-settings-policies.png",
-  "screenshot_sha256": "2f1882a9ef0a8c3512718f3967bb3773f13781ab63bfefedbdcd6ad1cca26bc9",
+  "screenshot_sha256": "97f04a738addc31b8a6fd655830e784e03f036a1c57600d3d7d78197d1fcc1e0",
   "sections": [],
   "terms": [
     "2500 / 5000 Z00Z",

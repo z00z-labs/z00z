@@ -2,9 +2,13 @@
 
 ((root) => {
   const ICON_NAMES = Object.freeze([
-    "home", "menu", "wallet", "assets", "spark", "activity", "swap", "exchange", "staking", "aggregate",
+    "home", "menu", "wallet", "assets", "spark", "activity", "swap", "earn",
+    "dapp-pay", "dapp-request", "dapp-agents-budget",
+    "dapp-wbold-gateway", "dapp-subscription", "dapp-donation", "dapp-escrow", "dapp-bounties",
+    "dapp-tickets-passes", "dapp-service-credits", "dapp-digital-goods", "dapp-payroll", "dapp-assets-locker",
+    "aggregate",
     "settings", "advanced", "send", "receive", "inbox", "sent", "coin", "token", "nft", "voucher",
-    "right", "claim", "import", "permission", "eye", "eye-off", "lock", "shield", "bell", "user", "message", "question",
+    "right", "claim", "import", "merge-split", "permission", "eye", "eye-off", "lock", "shield", "bell", "user", "message", "question",
     "chevron", "copy", "check", "close", "moon", "sun", "more", "alert", "search",
     "backup", "restore", "network", "overview", "reticulum-node", "reticulum-interface", "entry",
     "reticulum-paths", "queue", "probe", "reticulum-link", "plus", "logout", "remove",

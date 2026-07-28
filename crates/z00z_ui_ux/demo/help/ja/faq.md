@@ -4,9 +4,9 @@ title: Frequently asked questions
 summary: Find short answers about the Z00Z wallet demo, roadmap screens, and local data.
 scope: article
 ---
-## Can I buy or sell Z00Z here?
-- No live exchange, fiat provider, bridge, or settlement service is connected to this demo.
-- Swap and Exchange show a proposed roadmap flow only; unavailable actions remain blocked.
+## Can a dApp spend from my Wallet?
+- No. A dApp can only prepare a typed proposal; it never receives Wallet keys or generic signing authority.
+- Wallet independently checks scope, value, fees, disclosures, confirmation, and the settlement path.
 
 ## Does the demo use real wallet data?
 - The demo uses deterministic local fixtures and does not request a seed phrase or private key.

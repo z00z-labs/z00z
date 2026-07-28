@@ -9,10 +9,10 @@
     "button|type=button|data-messenger-action=relay-unavailable",
     "button|type=button|data-messenger-action=report"
   ],
-  "presentation_sha256": "ce2c779599084e85900728c092a4e6549dc6a1c52faf0456608857a93b5f6aca",
+  "presentation_sha256": "9dd94641a93e1559cc294d21732378831a178e8ed1bb603b549388a2e8240110",
   "scope": "dialog",
   "screenshot": "help/assets/en/messenger-detail.png",
-  "screenshot_sha256": "8f54df1ee5c8d45823b72f6ac7af6b67751a130150aac31ba2b43d5617a76c1d",
+  "screenshot_sha256": "4c471a77f0bf9a616003cba0854601c51ae1d6bc5cadf452f2145985800b6a28",
   "sections": [
     "Backup check reminder"
   ],

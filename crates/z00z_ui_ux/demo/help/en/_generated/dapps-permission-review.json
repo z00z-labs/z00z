@@ -1,5 +1,5 @@
 {
-  "capture_route": "dapps.connections",
+  "capture_route": "dapps.discover",
   "components": [
     "button|type=button|data-dapp-action=back",
     "button|type=button|data-dapp-action=decide",
@@ -7,12 +7,12 @@
     "input|type=checkbox|name=reauthAcknowledged",
     "input|type=checkbox|name=scopeConfirmed"
   ],
-  "presentation_sha256": "d92e4e27091102b7d70200b936f117888c1d48d6bf0bdd7be39497a8fae88e1b",
+  "presentation_sha256": "ffe0209da0393262f5e459f4aeabad4e970e4e7eaa5a2755f0fa4060eaae9ec0",
   "scope": "dialog",
   "screenshot": "help/assets/en/dapps-permission-review.png",
-  "screenshot_sha256": "24281e08090146f2daee0619e6290bd0ce92fe4466bb9f36bec9b00aac734611",
+  "screenshot_sha256": "42750a284b07b9d75e296de7046c97dac15e090e55eafd29b6d749a3fd8cf878",
   "sections": [
-    "Offline Pay"
+    "Pay"
   ],
   "terms": [
     "0.001 Z00Z \u00b7 Separate wallet review",
@@ -36,8 +36,8 @@
     "Native Z00Z asset \u00b7 one prepared handoff",
     "Not allowed",
     "Object family",
-    "Offline Pay",
-    "Offline Pay \u00b7 Z00Z curated demo \u00b7 unverified",
+    "Pay",
+    "Pay \u00b7 Z00Z curated demo \u00b7 unverified",
     "Permission review",
     "Permission review confirmations",
     "Prepare one offline payment package for later recipient handoff.",

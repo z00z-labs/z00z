@@ -7,21 +7,21 @@
     "button|type=button|data-workspace-route=wallet.staking.unstake",
     "input|type=number|placeholder=0.00"
   ],
-  "presentation_sha256": "6dd97c15dea5c296b9a8caa8e6a0077206887f34c45c90a3fc67cc3c4dcd4e0d",
+  "presentation_sha256": "83ce7e367b7ccb683ad706c8f58e85fe90d57c6cbdbfbcbd9250cca036652f7e",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-staking-unstake.png",
-  "screenshot_sha256": "e25a55b5e4c297d9da86b15d78d313c670e60e07d5b5b8d7b369f4f20b7fccd2",
+  "screenshot_sha256": "340718ee8a26c40cc489e3004fbb9c4f9eb23d212adcc81a8932bcdbdc2cfdc5",
   "sections": [
     "Unstake"
   ],
   "terms": [
     "0.00",
     "Amount",
+    "Earn",
     "Nothing delegated in this concept",
     "Rewards",
     "Stake",
     "Staked",
-    "Staking",
     "Staking totals",
     "The concept never estimates yield or hides lock-up risk. A stake remains pending until chain settlement.",
     "Unavailable",

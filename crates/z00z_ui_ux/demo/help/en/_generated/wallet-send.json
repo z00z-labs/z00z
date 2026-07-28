@@ -7,10 +7,10 @@
     "input|name=recipient|placeholder=Paste or scan a private request",
     "input|type=number|name=amount|placeholder=0.00"
   ],
-  "presentation_sha256": "a84ebbe5fe39880ba7062d5bffff317be23af7ab68df7f1ac5714c3e0f92f87e",
+  "presentation_sha256": "553743f1a8e02154352d41c2a561628327bbd38a6605a6cda5d92eb20ed3ca9c",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-send.png",
-  "screenshot_sha256": "0c0626e9ed066a068153600ac9d445b0523df111ffc50e617c592bb6b3449e29",
+  "screenshot_sha256": "26c90091babdec68045612f06e889eb7da71f4f299c78a34e8506398c61e723a",
   "sections": [
     "Send privately"
   ],

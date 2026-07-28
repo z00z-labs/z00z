@@ -158,10 +158,10 @@ const headings = {
   "wallet-send": ["assets.send", "Assets, vouchers, and permissions stay distinct"],
   "wallet-receive": ["assets.receive", "Assets, vouchers, and permissions stay distinct"],
   "wallet-import": ["navigation.import", "Claim a verified public asset package from disk"],
+  "wallet-merge-split": ["navigation.mergeSplit", "Recompose fragments without changing their base series"],
   activity: ["History", "Asset, voucher, permission, policy, and security events"],
   swap: ["Swap", "Move value between assets in this wallet"],
-  exchange: ["Exchange", "Compare external exchange routes for this wallet"],
-  staking: ["Staking", "Put selected wallet value to work with clear terms"],
+  staking: ["Earn", "Put selected wallet value to work with clear terms"],
   "wallet-backup": ["Backup", "Protect the selected wallet with a verified local backup"],
   "wallet-settings": ["Wallet settings", "Configure this wallet without changing other local profiles"],
   settings: ["app.settings", "app.settingsContext"],
@@ -707,7 +707,7 @@ function advancedConfigContent() {
 }
 
 function isWalletView() {
-  return ["wallet", "wallet-send", "wallet-receive", "wallet-import", "activity", "swap", "exchange", "staking", "wallet-backup", "wallet-settings"].includes(state.view);
+  return ["wallet", "wallet-send", "wallet-receive", "wallet-import", "wallet-merge-split", "activity", "swap", "staking", "wallet-backup", "wallet-settings"].includes(state.view);
 }
 
 function hasSelectedWalletContext() {
@@ -756,8 +756,9 @@ function legacyStateForRoute(routeId) {
   if (routeId === "wallet.send") return { view: "wallet-send" };
   if (routeId === "wallet.receive") return { view: "wallet-receive" };
   if (routeId === "wallet.import") return { view: "wallet-import" };
+  if (routeId === "wallet.merge-split") return { view: "wallet-merge-split" };
   if (routeId === "wallet.history") return { view: "activity" };
-  if (["wallet.swap", "wallet.exchange"].includes(routeId)) return { view: routeId.slice("wallet.".length) };
+  if (routeId === "wallet.swap") return { view: "swap" };
   if (routeId.startsWith("wallet.staking.")) return { view: "staking" };
   if (routeId === "wallet.backup") return { view: "wallet-backup" };
   if (routeId.startsWith("wallet.settings.")) return { view: "wallet-settings", walletSettingsSection: routeId.split(".").at(-1) };
@@ -988,11 +989,12 @@ function navigationNodeMarkup(node, { prefix, depth = 0, terminal = false } = {}
   const activeBranch = ["branch", "group"].includes(node.target.kind)
     && demoRuntime.ancestorContainerIdsForNode(selectedRouteNode?.id || "").includes(node.id);
   const depthClass = `is-depth-${depth}`;
+  const sectionBreakClass = node.sectionBreakBefore ? " navigation-tree-section-break" : "";
   if (node.target.kind === "branch") {
     const expanded = state.expandedBranchIds.includes(node.id);
     const controlId = `${prefix}-${node.id.replaceAll(".", "-")}-toggle`;
     const panelId = `${prefix}-${node.id.replaceAll(".", "-")}-children`;
-    return `<section class="navigation-tree-branch ${depthClass}${expanded ? " is-expanded" : ""}${activeBranch ? " has-active-descendant" : ""}">
+    return `<section class="navigation-tree-branch ${depthClass}${sectionBreakClass}${expanded ? " is-expanded" : ""}${activeBranch ? " has-active-descendant" : ""}">
       <button id="${controlId}" class="navigation-tree-item navigation-tree-branch-toggle" type="button" data-navigation-branch="${escapeHtml(node.id)}" aria-expanded="${expanded}" aria-controls="${panelId}">
         ${icon(node.iconId, "navigation-tree-icon")}
         <span class="navigation-tree-label">${nodeLabel}</span>
@@ -1005,7 +1007,7 @@ function navigationNodeMarkup(node, { prefix, depth = 0, terminal = false } = {}
   }
   if (node.target.kind === "group") {
     const groupId = `${prefix}-${node.id.replaceAll(".", "-")}-group`;
-    return `<section class="navigation-tree-group ${depthClass}${activeBranch ? " has-active-descendant" : ""}" data-navigation-group="${escapeHtml(node.id)}" aria-labelledby="${groupId}">
+    return `<section class="navigation-tree-group ${depthClass}${sectionBreakClass}${activeBranch ? " has-active-descendant" : ""}" data-navigation-group="${escapeHtml(node.id)}" aria-labelledby="${groupId}">
       <p id="${groupId}" class="navigation-tree-group-label">
         ${icon(node.iconId, "navigation-tree-icon")}
         <span class="navigation-tree-label">${nodeLabel}</span>
@@ -1016,7 +1018,7 @@ function navigationNodeMarkup(node, { prefix, depth = 0, terminal = false } = {}
     </section>`;
   }
   if (["route", "workspace"].includes(node.target.kind)) {
-    return `<button class="navigation-tree-item navigation-tree-leaf${terminal ? " navigation-tree-terminal" : ""} ${depthClass}${activeRouteNode ? " is-active" : ""}" type="button" data-navigation-route="${escapeHtml(node.target.routeId)}"${node.target.kind === "workspace" ? ` data-navigation-workspace="${escapeHtml(node.id)}"` : ""}${activeRouteNode ? ' aria-current="page"' : ""}>
+    return `<button class="navigation-tree-item navigation-tree-leaf${terminal ? " navigation-tree-terminal" : ""} ${depthClass}${sectionBreakClass}${activeRouteNode ? " is-active" : ""}" type="button" data-navigation-route="${escapeHtml(node.target.routeId)}"${node.target.kind === "workspace" ? ` data-navigation-workspace="${escapeHtml(node.id)}"` : ""}${activeRouteNode ? ' aria-current="page"' : ""}>
       ${icon(node.iconId, "navigation-tree-icon")}
       <span class="navigation-tree-label">${nodeLabel}</span>
     </button>`;
@@ -1777,6 +1779,205 @@ function walletImportView() {
   return `<div class="view-enter asset-import-view">${panel}</div>`;
 }
 
+const MERGE_SPLIT_ASSET_FIXTURES = Object.freeze([
+  Object.freeze({ id: "z42-a18f", definitionId: "z00z:main:coin", serialId: 42, amountAtomic: 1850, decimals: 2, symbol: "Z00Z", label: "Z00Z", status: "available" }),
+  Object.freeze({ id: "z42-b72c", definitionId: "z00z:main:coin", serialId: 42, amountAtomic: 3225, decimals: 2, symbol: "Z00Z", label: "Z00Z", status: "available" }),
+  Object.freeze({ id: "z42-c09d", definitionId: "z00z:main:coin", serialId: 42, amountAtomic: 475, decimals: 2, symbol: "Z00Z", label: "Z00Z", status: "available" }),
+  Object.freeze({ id: "z42-lock", definitionId: "z00z:main:coin", serialId: 42, amountAtomic: 900, decimals: 2, symbol: "Z00Z", label: "Z00Z", status: "locked" }),
+  Object.freeze({ id: "z43-f11a", definitionId: "z00z:main:coin", serialId: 43, amountAtomic: 12500, decimals: 2, symbol: "Z00Z", label: "Z00Z", status: "available" }),
+  Object.freeze({ id: "b7-a410", definitionId: "external:ethereum:bold", serialId: 7, amountAtomic: 4000, decimals: 2, symbol: "BOLD", label: "wBOLD", status: "available" }),
+  Object.freeze({ id: "b7-d299", definitionId: "external:ethereum:bold", serialId: 7, amountAtomic: 6000, decimals: 2, symbol: "BOLD", label: "wBOLD", status: "available" })
+]);
+
+function formatAtomicAmount(amountAtomic, decimals = 2, symbol = "") {
+  const factor = 10 ** decimals;
+  const whole = Math.floor(amountAtomic / factor);
+  const fraction = String(amountAtomic % factor).padStart(decimals, "0");
+  return `${whole.toLocaleString("en-US")}.${fraction}${symbol ? ` ${symbol}` : ""}`;
+}
+
+function parseAtomicAmount(value, decimals = 2) {
+  const normalized = String(value || "").trim();
+  const match = normalized.match(new RegExp(`^(\\d+)(?:\\.(\\d{0,${decimals}}))?$`));
+  if (!match) return null;
+  const factor = 10 ** decimals;
+  const whole = Number(match[1]);
+  const fraction = Number(String(match[2] || "").padEnd(decimals, "0"));
+  const amount = whole * factor + fraction;
+  return Number.isSafeInteger(amount) ? amount : null;
+}
+
+function mergeSplitGroups() {
+  const groups = new Map();
+  MERGE_SPLIT_ASSET_FIXTURES.forEach((asset) => {
+    const key = `${asset.definitionId}:${asset.serialId}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(asset);
+  });
+  return [...groups.entries()]
+    .map(([key, assets]) => ({
+      key,
+      assets,
+      available: assets.filter(({ status }) => status === "available")
+    }))
+    .filter(({ available }) => available.length >= 2);
+}
+
+function resetMergeSplitState(mode = "merge") {
+  const firstGroup = mergeSplitGroups()[0];
+  const splitSource = MERGE_SPLIT_ASSET_FIXTURES.find(({ id }) => id === "z43-f11a")
+    || MERGE_SPLIT_ASSET_FIXTURES.find(({ status }) => status === "available");
+  state.assetMergeSplit = {
+    walletId: activeWallet().id,
+    mode,
+    selectedMergeIds: firstGroup?.available.slice(0, 2).map(({ id }) => id) || [],
+    selectedSplitId: splitSource?.id || "",
+    splitAmounts: splitSource
+      ? [
+          formatAtomicAmount(Math.floor(splitSource.amountAtomic / 2), splitSource.decimals),
+          formatAtomicAmount(splitSource.amountAtomic - Math.floor(splitSource.amountAtomic / 2), splitSource.decimals)
+        ]
+      : ["", ""],
+    preview: null,
+    error: ""
+  };
+  return state.assetMergeSplit;
+}
+
+function activeMergeSplitState() {
+  if (!state.assetMergeSplit || state.assetMergeSplit.walletId !== activeWallet().id) {
+    return resetMergeSplitState();
+  }
+  return state.assetMergeSplit;
+}
+
+function mergeSplitTabs(mode) {
+  return `<div class="merge-split-tabs" role="tablist" aria-label="Merge or split assets">
+    <button class="merge-split-tab${mode === "merge" ? " is-active" : ""}" type="button" role="tab" aria-selected="${mode === "merge"}" data-merge-split-mode="merge">${icon("merge-split")} <span><strong>Merge</strong><small>Many fragments → one</small></span></button>
+    <button class="merge-split-tab${mode === "split" ? " is-active" : ""}" type="button" role="tab" aria-selected="${mode === "split"}" data-merge-split-mode="split">${icon("merge-split")} <span><strong>Split</strong><small>One fragment → many</small></span></button>
+  </div>`;
+}
+
+function mergeSplitCompatibilityKey(asset) {
+  return `<span class="merge-split-key"><span><small>Definition</small><code title="${escapeHtml(asset.definitionId)}">${escapeHtml(asset.definitionId)}</code></span><span><small>Serial ID</small><code>${asset.serialId}</code></span></span>`;
+}
+
+function mergeSplitPreviewMarkup(mergeSplitState) {
+  const preview = mergeSplitState.preview;
+  if (!preview) return "";
+  const direction = preview.mode === "merge"
+    ? `${preview.inputs.length} inputs → 1 output`
+    : `1 input → ${preview.outputs.length} outputs`;
+  const rows = preview.mode === "merge"
+    ? preview.inputs.map((asset) => `<li><code>${escapeHtml(asset.id)}</code><strong>${escapeHtml(formatAtomicAmount(asset.amountAtomic, asset.decimals, asset.symbol))}</strong></li>`).join("")
+    : preview.outputs.map((amountAtomic, index) => `<li><code>Output ${index + 1}</code><strong>${escapeHtml(formatAtomicAmount(amountAtomic, preview.asset.decimals, preview.asset.symbol))}</strong></li>`).join("");
+  const asset = preview.mode === "merge" ? preview.inputs[0] : preview.asset;
+  return `<section class="merge-split-preview" aria-labelledby="merge-split-preview-title">
+    <div class="merge-split-preview-icon">${icon("shield")}</div>
+    <p class="eyebrow">Wallet review</p>
+    <h3 id="merge-split-preview-title">${preview.mode === "merge" ? "Merge" : "Split"} preview ready</h3>
+    <p>${escapeHtml(direction)} · total ${escapeHtml(formatAtomicAmount(preview.totalAtomic, asset.decimals, asset.symbol))}</p>
+    ${mergeSplitCompatibilityKey(asset)}
+    <ul class="merge-split-preview-rows">${rows}</ul>
+    <div class="confirmation-note">${icon("alert")} This demo prepares intent only. A native wallet must re-check ownership, availability, conservation, fees, authorization, submission, and reconciliation.</div>
+    <footer class="merge-split-actions">
+      <button class="button" type="button" data-merge-split-action="edit">Back</button>
+      <button class="button button-primary" type="button" disabled aria-disabled="true">Native confirmation unavailable</button>
+    </footer>
+  </section>`;
+}
+
+function mergeModeMarkup(mergeSplitState) {
+  const groups = mergeSplitGroups();
+  const selectedAssets = MERGE_SPLIT_ASSET_FIXTURES.filter(({ id }) => mergeSplitState.selectedMergeIds.includes(id));
+  const compatible = selectedAssets.length >= 2
+    && selectedAssets.every(({ definitionId, serialId, status }) => (
+      definitionId === selectedAssets[0].definitionId
+      && serialId === selectedAssets[0].serialId
+      && status === "available"
+    ));
+  const totalAtomic = selectedAssets.reduce((sum, { amountAtomic }) => sum + amountAtomic, 0);
+  return `<section class="merge-split-mode-panel" role="tabpanel" aria-labelledby="merge-mode-title">
+    <div class="merge-split-mode-heading">
+      <div><p class="eyebrow">Compatible fragments</p><h3 id="merge-mode-title">Choose at least two inputs</h3><p>Only wallet-owned, available fragments with the same definition and base serial can be combined.</p></div>
+      <span class="status-badge is-ready">${groups.length} groups</span>
+    </div>
+    <div class="merge-group-list">
+      ${groups.map(({ key, assets, available }) => {
+        const lead = available[0];
+        return `<fieldset class="merge-group" data-merge-group="${escapeHtml(key)}">
+          <legend><span><strong>${escapeHtml(lead.label)}</strong><small>${available.length} available fragment${available.length === 1 ? "" : "s"}</small></span>${mergeSplitCompatibilityKey(lead)}</legend>
+          <div class="merge-fragment-list">
+            ${assets.map((asset) => {
+              const unavailable = asset.status !== "available";
+              const checked = mergeSplitState.selectedMergeIds.includes(asset.id);
+              return `<label class="merge-fragment${unavailable ? " is-unavailable" : ""}">
+                <input type="checkbox" data-merge-fragment-id="${escapeHtml(asset.id)}"${checked ? " checked" : ""}${unavailable ? " disabled" : ""}>
+                <span class="merge-fragment-check">${icon("check")}</span>
+                <span><strong>${escapeHtml(formatAtomicAmount(asset.amountAtomic, asset.decimals, asset.symbol))}</strong><code>${escapeHtml(asset.id)}</code></span>
+                <small>${unavailable ? "Locked" : "Available"}</small>
+              </label>`;
+            }).join("")}
+          </div>
+        </fieldset>`;
+      }).join("")}
+    </div>
+    <div class="merge-split-summary" aria-live="polite">
+      <span><small>Selected</small><strong>${selectedAssets.length} input${selectedAssets.length === 1 ? "" : "s"}</strong></span>
+      <span><small>Total output</small><strong>${selectedAssets[0] ? escapeHtml(formatAtomicAmount(totalAtomic, selectedAssets[0].decimals, selectedAssets[0].symbol)) : "—"}</strong></span>
+      <span><small>Series</small><strong>${compatible ? `#${selectedAssets[0].serialId} preserved` : "Select one compatible group"}</strong></span>
+    </div>
+    ${mergeSplitState.error ? `<p class="merge-split-error" role="alert">${icon("alert")} ${escapeHtml(mergeSplitState.error)}</p>` : ""}
+    <div class="merge-split-actions"><button class="button button-primary" type="button" data-merge-split-action="preview-merge"${compatible ? "" : " disabled"}>Preview merge</button></div>
+  </section>`;
+}
+
+function splitModeMarkup(mergeSplitState) {
+  const sources = MERGE_SPLIT_ASSET_FIXTURES.filter(({ status, amountAtomic }) => status === "available" && amountAtomic > 1);
+  const source = sources.find(({ id }) => id === mergeSplitState.selectedSplitId) || sources[0];
+  const parsed = source
+    ? mergeSplitState.splitAmounts.map((value) => parseAtomicAmount(value, source.decimals))
+    : [];
+  const validParts = parsed.length >= 2 && parsed.every((value) => Number.isSafeInteger(value) && value > 0);
+  const sum = validParts ? parsed.reduce((total, value) => total + value, 0) : 0;
+  const exact = Boolean(source && validParts && sum === source.amountAtomic);
+  return `<section class="merge-split-mode-panel" role="tabpanel" aria-labelledby="split-mode-title">
+    <div class="merge-split-mode-heading">
+      <div><p class="eyebrow">Source fragment</p><h3 id="split-mode-title">Allocate the full amount</h3><p>Every output keeps the source definition and base serial. Amounts must be positive and sum exactly to the input.</p></div>
+    </div>
+    <label class="split-source-control"><span>Source asset</span><select data-split-source aria-label="Source asset">${sources.map((asset) => `<option value="${escapeHtml(asset.id)}"${asset.id === source?.id ? " selected" : ""}>${escapeHtml(`${asset.label} · serial #${asset.serialId} · ${formatAtomicAmount(asset.amountAtomic, asset.decimals, asset.symbol)}`)}</option>`).join("")}</select></label>
+    ${source ? `<div class="split-source-card"><span class="merge-split-asset-icon">${icon("coin")}</span><span><small>Available input</small><strong>${escapeHtml(formatAtomicAmount(source.amountAtomic, source.decimals, source.symbol))}</strong><code>${escapeHtml(source.id)}</code></span>${mergeSplitCompatibilityKey(source)}</div>` : ""}
+    <div class="split-allocation-heading"><span><strong>Outputs</strong><small>2–8 positive amounts</small></span><button class="button button-quiet" type="button" data-merge-split-action="add-output"${mergeSplitState.splitAmounts.length >= 8 ? " disabled" : ""}>${icon("plus")} Add output</button></div>
+    <div class="split-allocation-list">
+      ${mergeSplitState.splitAmounts.map((value, index) => `<label class="split-allocation"><span>Output ${index + 1}</span><span class="amount-input"><input inputmode="decimal" autocomplete="off" value="${escapeHtml(value)}" data-split-amount-index="${index}" aria-label="Output ${index + 1} amount"><span>${escapeHtml(source?.symbol || "")}</span></span><button class="icon-button" type="button" aria-label="Remove output ${index + 1}" data-merge-split-action="remove-output" data-output-index="${index}"${mergeSplitState.splitAmounts.length <= 2 ? " disabled" : ""}>${icon("close")}</button></label>`).join("")}
+    </div>
+    <div class="merge-split-summary" aria-live="polite">
+      <span><small>Input</small><strong>${source ? escapeHtml(formatAtomicAmount(source.amountAtomic, source.decimals, source.symbol)) : "—"}</strong></span>
+      <span><small>Outputs</small><strong>${validParts && source ? escapeHtml(formatAtomicAmount(sum, source.decimals, source.symbol)) : "Check amounts"}</strong></span>
+      <span><small>Conservation</small><strong class="${exact ? "is-valid" : "is-invalid"}">${exact ? "Exact" : "Must equal input"}</strong></span>
+    </div>
+    ${mergeSplitState.error ? `<p class="merge-split-error" role="alert">${icon("alert")} ${escapeHtml(mergeSplitState.error)}</p>` : ""}
+    <div class="merge-split-actions"><button class="button button-primary" type="button" data-merge-split-action="preview-split"${exact ? "" : " disabled"}>Preview split</button></div>
+  </section>`;
+}
+
+function walletMergeSplitView() {
+  const mergeSplitState = activeMergeSplitState();
+  const content = mergeSplitState.preview
+    ? mergeSplitPreviewMarkup(mergeSplitState)
+    : `${mergeSplitTabs(mergeSplitState.mode)}${mergeSplitState.mode === "merge" ? mergeModeMarkup(mergeSplitState) : splitModeMarkup(mergeSplitState)}`;
+  return `<div class="view-enter merge-split-view">
+    <section class="merge-split-shell" aria-labelledby="merge-split-title">
+      <header class="wallet-action-header merge-split-header">
+        <span class="asset-import-header-icon">${icon("merge-split")}</span>
+        <div><h2 id="merge-split-title">Merge/Split assets</h2><p>Recompose spendable fragments in ${escapeHtml(activeWallet().name)} without changing their definition or base serial.</p></div>
+      </header>
+      <div class="merge-split-body">${content}</div>
+      <div class="capability-note merge-split-boundary">${icon("alert")} <span><strong>Compatibility boundary</strong><small>The current <code>wallet.asset.merge_assets</code> and <code>split_asset</code> helpers do not claim canonical ledger reconciliation authority. This screen stops at review.</small></span></div>
+    </section>
+  </div>`;
+}
+
 const walletSections = [
   { key: "assets", labelKey: "assets.sectionAssets", iconName: "assets" },
   { key: "vouchers", labelKey: "assets.sectionVouchers", iconName: "voucher" },
@@ -2089,7 +2290,7 @@ function stakingView() {
     : `
       <section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
         <article class="card wallet-tool-card staking-card">
-          <div class="tool-card-heading"><span class="list-icon">${icon("staking")}</span><div><h2>${t("staking.prepare")}</h2></div></div>
+          <div class="tool-card-heading"><span class="list-icon">${icon("earn")}</span><div><h2>${t("staking.prepare")}</h2></div></div>
           <div class="staking-summary" aria-label="${t("staking.totals")}">
             <div class="staking-metric"><span>${t("staking.staked")}</span><strong>${t("common.unavailable")}</strong></div>
             <div class="staking-metric"><span>${t("staking.rewards")}</span><strong>${t("common.unavailable")}</strong></div>
@@ -2097,7 +2298,7 @@ function stakingView() {
           <div class="form-grid">
             <div class="field-group"><label class="field-label" for="stake-amount">${t("staking.amount")}</label><div class="input-with-affix"><input id="stake-amount" type="number" min="0.01" max="${escapeHtml(summary.available.replaceAll(",", ""))}" step="0.01" inputmode="decimal" placeholder="0.00"><span class="input-affix">Z00Z</span></div><p class="field-hint">${t("staking.availableBalance", { value: sensitive(`${summary.available} Z00Z`) })}</p></div>
             <div class="field-group"><label class="field-label" for="stake-validator">${t("staking.validator")}</label><select id="stake-validator"><option>${t("staking.validatorPlaceholder")}</option></select></div>
-            <button class="button button-primary" type="button" data-demo-action="prepare-stake">${icon("staking")} ${t("staking.review")}</button>
+            <button class="button button-primary" type="button" data-demo-action="prepare-stake">${icon("earn")} ${t("staking.review")}</button>
           </div>
         </article>
       </section>`;
@@ -3496,7 +3697,8 @@ function dappCard(entry, { installed = false } = {}) {
     <div class="dapp-card-section"><strong>Offline behavior</strong><p>${escapeHtml(entry.offlineBehavior.summary)}</p></div>
     <div class="dapp-card-section"><strong>Data disclosed</strong><p>${escapeHtml(entry.disclosures.map(dappTitleCase).join(" · "))}</p></div>
     <div class="dapp-card-actions">
-      <button class="button button-primary" type="button" data-dapp-action="open" data-dapp-id="${escapeHtml(entry.id)}">${escapeHtml(t("plan2.actions.openDetails"))}</button>
+      <button class="button button-primary" type="button" data-dapp-action="route" data-dapp-route="${escapeHtml(entry.routeId)}">Open interface</button>
+      <button class="button button-quiet" type="button" data-dapp-action="open" data-dapp-id="${escapeHtml(entry.id)}">${escapeHtml(t("plan2.actions.openDetails"))}</button>
       <button class="button button-quiet" type="button" data-help-topic="${escapeHtml(entry.helpTopicId)}">Help ↗</button>
     </div>
   </article>`;
@@ -3507,7 +3709,7 @@ function dappScreenHeading(title, copy, meta = "") {
 }
 
 function dappDiscoverScreen() {
-  return `${dappScreenHeading("Discover", "Six curated Z00Z use cases. Every card is a bundled descriptor, never remotely executed application code.", `<span class="status-badge">${demoRuntime.DAPP_CATALOG.length} descriptors</span>`)}
+  return `${dappScreenHeading("Discover", "Fifteen curated Z00Z typed-action interfaces. Every card is a bundled local descriptor, never remotely executed application code.", `<span class="status-badge">${demoRuntime.DAPP_CATALOG.length} descriptors</span>`)}
     <section class="dapp-catalog-grid" aria-label="${escapeHtml(t("plan2.aria.dappCatalogue"))}">${demoRuntime.DAPP_CATALOG.map((entry) => dappCard(entry)).join("")}</section>`;
 }
 
@@ -3518,53 +3720,104 @@ function dappInstalledScreen() {
     <section class="dapp-catalog-grid" aria-label="${escapeHtml(t("plan2.aria.dappCatalogue"))}">${installed.map((entry) => dappCard(entry, { installed: true })).join("")}</section>`;
 }
 
-function dappConnectionStatus(connection) {
-  if (state.dappReviewDecision?.connectionId !== connection.id) return connection.status;
-  return state.dappReviewDecision.decision === "accepted" ? "active" : "rejected";
+function dappProposalField(entry, field) {
+  const controlId = `dapp-${entry.id}-${field.id}`;
+  const required = field.required ? " required" : "";
+  const describedBy = field.suffix ? ` aria-describedby="${escapeHtml(`${controlId}-hint`)}"` : "";
+  const control = field.type === "select"
+    ? `<select id="${escapeHtml(controlId)}" name="${escapeHtml(field.id)}"${describedBy}${required}>${field.options.map((option) => `<option>${escapeHtml(option)}</option>`).join("")}</select>`
+    : `<input id="${escapeHtml(controlId)}" name="${escapeHtml(field.id)}" type="${field.type === "number" ? "number" : "text"}"${field.type === "number" ? ` min="${escapeHtml(field.min ?? "0")}" step="${escapeHtml(field.step || "any")}" inputmode="${field.integer ? "numeric" : "decimal"}"` : ""}${field.placeholder ? ` placeholder="${escapeHtml(field.placeholder)}"` : ""}${describedBy}${required}>`;
+  return `<div class="field-group"><label class="field-label" for="${escapeHtml(controlId)}">${escapeHtml(field.label)}</label>${control}${field.suffix ? `<p class="field-hint" id="${escapeHtml(`${controlId}-hint`)}">${escapeHtml(field.suffix)}</p>` : ""}</div>`;
 }
 
-function dappConnectionsScreen() {
-  const cards = demoRuntime.DAPP_CONNECTION_FIXTURES.map((connection) => {
-    const descriptor = demoRuntime.dappDescriptor(connection.descriptorId);
-    const status = dappConnectionStatus(connection);
-    const reviewLabel = status === "pending" ? "Review request" : status === "rejected" ? "Review again" : "Inspect scope";
-    return `<article class="dapp-record-card" data-dapp-connection="${escapeHtml(connection.id)}">
-      <div class="dapp-record-heading"><span class="dapp-card-icon">${icon(descriptor.iconName)}</span><div><h3>${escapeHtml(descriptor.label)}</h3><p>${escapeHtml(connection.humanIntent)}</p></div>${dappStatusBadge(status)}</div>
-      <dl class="dapp-record-metadata">
-        <div><dt>Action</dt><dd>${escapeHtml(connection.action)}</dd></div>
-        <div><dt>Scope</dt><dd>${escapeHtml(connection.exactScope)}</dd></div>
-        <div><dt>Uses</dt><dd>${escapeHtml(connection.uses)}</dd></div>
-        <div><dt>Expiry</dt><dd>${escapeHtml(dappDateTime(connection.expiry))}</dd></div>
-      </dl>
-      <div class="dapp-card-actions"><button class="button ${status === "pending" || status === "rejected" ? "button-primary" : ""}" type="button" data-dapp-action="review" data-connection-id="${escapeHtml(connection.id)}">${reviewLabel}</button><button class="button button-quiet" type="button" data-dapp-action="open" data-dapp-id="${escapeHtml(descriptor.id)}">App details</button></div>
-    </article>`;
-  }).join("");
-  return `${dappScreenHeading("Connections", "Pending, active, rejected, and expired intent-level relationships from deterministic local fixtures.")}
-    <section class="dapp-record-list" aria-label="${escapeHtml(t("plan2.aria.dappConnections"))}">${cards}</section>`;
+function dappProposalFormValues(form) {
+  return Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, String(value).trim()]));
 }
 
-function dappPermissionStatus(permission) {
-  return state.dappRevokedPermissionIds.includes(permission.id) ? "revoked" : permission.status;
+function validateDappProposalForm(form, descriptor) {
+  const error = form.querySelector("#dapp-proposal-error");
+  const controls = [...form.elements].filter((control) => control instanceof HTMLInputElement || control instanceof HTMLSelectElement);
+  controls.forEach((control) => control.setCustomValidity(""));
+  if (error) error.textContent = "";
+
+  const invalidControl = controls.find((control) => control.willValidate && !control.checkValidity());
+  if (invalidControl) {
+    invalidControl.focus();
+    invalidControl.reportValidity();
+    return false;
+  }
+
+  const values = dappProposalFormValues(form);
+  const fail = (fieldId, message) => {
+    const control = form.elements.namedItem(fieldId);
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+      control.setCustomValidity(message);
+      control.focus();
+      control.reportValidity();
+    }
+    if (error) error.textContent = message;
+    return false;
+  };
+
+  if (descriptor.id === "agents-budget") {
+    const periodLimit = Number(values["period-limit"]);
+    const actionLimit = Number(values["action-limit"]);
+    const approvalThreshold = Number(values.approval);
+    if (actionLimit > periodLimit) {
+      return fail("action-limit", "Maximum per action cannot exceed the daily budget.");
+    }
+    if (approvalThreshold > actionLimit) {
+      return fail("approval", "Human approval threshold cannot exceed the per-action ceiling.");
+    }
+  }
+  if (descriptor.id === "wbold-gateway"
+    && values.direction.startsWith("Redeem")
+    && !values["external-recipient"]) {
+    return fail("external-recipient", "External recipient is required for a wBOLD redemption.");
+  }
+  if (descriptor.id === "assets-locker"
+    && values.action.startsWith("Consume")
+    && !values["external-recipient"]) {
+    return fail("external-recipient", "External recipient is required when consuming a right to redeem.");
+  }
+  return true;
 }
 
-function dappPermissionsScreen() {
-  const cards = demoRuntime.DAPP_PERMISSION_FIXTURES.map((permission) => {
-    const descriptor = demoRuntime.dappDescriptor(permission.descriptorId);
-    const status = dappPermissionStatus(permission);
-    const canRevoke = ["active", "expiring"].includes(status);
-    return `<article class="dapp-record-card" data-dapp-permission="${escapeHtml(permission.id)}">
-      <div class="dapp-record-heading"><span class="dapp-card-icon">${icon("permission")}</span><div><h3>${escapeHtml(descriptor.label)}</h3><p>${escapeHtml(permission.scope)}</p></div>${dappStatusBadge(status)}</div>
-      <dl class="dapp-record-metadata">
-        <div><dt>Uses</dt><dd>${escapeHtml(permission.uses)}</dd></div>
-        <div><dt>Expires</dt><dd>${escapeHtml(dappDateTime(permission.expiresAt))}</dd></div>
-        <div><dt>Delegation</dt><dd>${escapeHtml(permission.delegation)}</dd></div>
-        <div><dt>On revoke</dt><dd>${escapeHtml(permission.revokeBehavior)}</dd></div>
-      </dl>
-      <div class="dapp-card-actions">${canRevoke ? `<button class="button button-danger" type="button" data-dapp-action="revoke" data-permission-id="${escapeHtml(permission.id)}">Revoke permission</button>` : `<span class="dapp-static-outcome">${status === "expired" ? "Expiry enforced locally" : "No usable authority remains"}</span>`}<button class="button button-quiet" type="button" data-dapp-action="open" data-dapp-id="${escapeHtml(descriptor.id)}">App details</button></div>
-    </article>`;
-  }).join("");
-  return `${dappScreenHeading("Permissions", "Displayed grants are bounded local fixtures. Revocation blocks future app proposals and never rewrites a prior wallet outcome.")}
-    <section class="dapp-record-list" aria-label="${escapeHtml(t("plan2.aria.dappPermissions"))}">${cards}</section>`;
+function dappProposalScreen(entry) {
+  const stages = [
+    ["Typed proposal", entry.intentType],
+    ["Scope check", entry.walletChecks.join(" · ")],
+    ["Package build", "Wallet selects eligible objects and constructs the package"],
+    ["Confirmation", "Wallet shows value, fee, disclosure, and settlement assumptions"],
+    ["Settlement path", entry.settlementPath]
+  ];
+  return `<section class="dapp-proposal" data-dapp-proposal="${escapeHtml(entry.id)}" data-intent-type="${escapeHtml(entry.intentType)}">
+    <header class="dapp-detail-heading">
+      <span class="dapp-card-icon is-large">${icon(entry.iconName)}</span>
+      <div><p class="eyebrow">${escapeHtml(dappTitleCase(entry.useCaseFamily))}</p><h2>${escapeHtml(entry.label)}</h2><p>${escapeHtml(entry.summary)}</p></div>
+      ${dappStatusBadge(entry.maturity)}
+    </header>
+    <div class="dapp-architecture-boundary">${icon("shield")}<span><strong>dApp proposes; Wallet decides</strong><small>A Z00Z dApp does not control the wallet. It proposes a typed action. Wallet checks scope, builds the package, requests confirmation, and only then passes it to the settlement path.</small></span></div>
+    <div class="dapp-proposal-layout">
+      <form class="dapp-proposal-form" id="dapp-action-proposal-form" data-dapp-id="${escapeHtml(entry.id)}" autocomplete="off" novalidate>
+        <div class="dapp-proposal-form-heading"><div><p class="eyebrow">Typed action</p><h3>Prepare proposal</h3></div><code>${escapeHtml(entry.intentType)}</code></div>
+        <dl class="dapp-creation-summary">
+          <div><dt>What this creates</dt><dd>${escapeHtml(entry.createdArtifact)}</dd></div>
+          <div><dt>Why create it</dt><dd>${escapeHtml(entry.purpose)}</dd></div>
+        </dl>
+        <div class="dapp-proposal-fields">${entry.proposalFields.map((field) => dappProposalField(entry, field)).join("")}</div>
+        <p class="field-error dapp-proposal-error" id="dapp-proposal-error" role="alert"></p>
+        <div class="capability-note">${icon("alert")}<span><strong>Review boundary</strong><small>${escapeHtml(entry.reviewBoundary)}</small></span></div>
+        <button class="button button-primary dapp-proposal-submit" type="submit">${icon(entry.iconName)} ${escapeHtml(entry.actionLabel)}</button>
+      </form>
+      <aside class="dapp-proposal-review" aria-label="Wallet review boundary">
+        <div><p class="eyebrow">Wallet boundary</p><h3>What happens next</h3></div>
+        <ol class="dapp-proposal-stages">${stages.map(([label, detail], index) => `<li><span>${index + 1}</span><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></div></li>`).join("")}</ol>
+        <dl class="dapp-proposal-output"><div><dt>Requested objects</dt><dd>${escapeHtml(entry.requestedObjectFamilies.map(dappTitleCase).join(", "))}</dd></div><div><dt>Evidence output</dt><dd>${escapeHtml(entry.evidenceOutput)}</dd></div><div><dt>Remote code</dt><dd>Never loaded</dd></div></dl>
+        <button class="button button-quiet" type="button" data-help-topic="${escapeHtml(entry.helpTopicId)}">Open Help ↗</button>
+      </aside>
+    </div>
+  </section>`;
 }
 
 function dappDetailScreen() {
@@ -3584,7 +3837,7 @@ function dappDetailScreen() {
       <section class="dapp-detail-panel"><h3>Offline behavior</h3><p>${escapeHtml(entry.offlineBehavior.summary)}</p><p class="dapp-detail-key">${escapeHtml(dappTitleCase(entry.offlineBehavior.mode))}</p></section>
       <section class="dapp-detail-panel"><h3>Data disclosed</h3>${dappObjectFamilyChips(entry.disclosures)}<p>No raw wallet object, seed, key, session, or arbitrary local path is shared.</p></section>
     </div>
-    <div class="dapp-card-actions">${reviewableConnection ? `<button class="button button-primary" type="button" data-dapp-action="review" data-connection-id="${escapeHtml(reviewableConnection.id)}">Review pending connection</button>` : ""}<button class="button button-quiet" type="button" data-help-topic="${escapeHtml(entry.helpTopicId)}">Help ↗</button></div>
+    <div class="dapp-card-actions">${reviewableConnection ? `<button class="button button-primary" type="button" data-dapp-action="review" data-connection-id="${escapeHtml(reviewableConnection.id)}">Review pending request</button>` : ""}<button class="button button-quiet" type="button" data-help-topic="${escapeHtml(entry.helpTopicId)}">Help ↗</button></div>
   </section>`;
 }
 
@@ -3594,7 +3847,7 @@ function dappReviewScreen() {
   const descriptor = review ? demoRuntime.dappDescriptor(review.descriptorId) : null;
   if (!review || !descriptor) {
     state.dappScreen = "list";
-    return dappConnectionsScreen();
+    return dappDiscoverScreen();
   }
   const acknowledgements = state.dappReviewAcknowledgements || {
     scopeConfirmed: false,
@@ -3633,10 +3886,10 @@ function dappOutcomeScreen() {
   const outcome = state.dappLastOutcome;
   if (!outcome) {
     state.dappScreen = "list";
-    return dappConnectionsScreen();
+    return dappDiscoverScreen();
   }
-  const accepted = outcome.kind === "intent_accepted";
-  const iconName = accepted ? "check" : outcome.kind === "permission_revoked" ? "remove" : "close";
+  const accepted = ["intent_accepted", "intent_proposed"].includes(outcome.kind);
+  const iconName = accepted ? "check" : "close";
   const walletReviewAction = accepted && state.dappReviewDecision?.decision === "accepted"
     ? `<button class="button button-primary" type="button" data-dapp-action="wallet-review">Continue in Wallet review</button>`
     : "";
@@ -3658,8 +3911,7 @@ function dappsView() {
   else if (state.dappScreen === "review") content = dappReviewScreen();
   else if (state.dappScreen === "outcome") content = dappOutcomeScreen();
   else if (routeSection === "installed") content = dappInstalledScreen();
-  else if (routeSection === "connections") content = dappConnectionsScreen();
-  else if (routeSection === "permissions") content = dappPermissionsScreen();
+  else if (demoRuntime.dappDescriptor(routeSection)) content = dappProposalScreen(demoRuntime.dappDescriptor(routeSection));
   else content = dappDiscoverScreen();
   const helpTopicOverride = state.dappScreen === "detail"
     ? "dapps.detail"
@@ -3996,7 +4248,7 @@ function completeDappPermissionReview(decision, acknowledgements = {}) {
     summary: decision === "accepted"
       ? "The typed request passed app-level review. No Wallet operation was created and no wallet object changed."
       : "The local request was rejected before any Wallet review, signing, object mutation, or settlement path.",
-    returnRoute: "dapps.connections",
+    returnRoute: "dapps.discover",
     descriptorId: result.data.descriptorId
   };
   state.dappScreen = "outcome";
@@ -4085,9 +4337,9 @@ function render(options = {}) {
     "wallet-send": walletSendView,
     "wallet-receive": walletReceiveView,
     "wallet-import": walletImportView,
+    "wallet-merge-split": walletMergeSplitView,
     activity: activityView,
     swap: swapView,
-    exchange: exchangeView,
     staking: stakingView,
     "wallet-backup": walletBackupView,
     "wallet-settings": walletSettingsView,
@@ -5933,6 +6185,72 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const mergeSplitModeButton = event.target.closest("[data-merge-split-mode]");
+  if (mergeSplitModeButton) {
+    const mergeSplitState = activeMergeSplitState();
+    mergeSplitState.mode = mergeSplitModeButton.dataset.mergeSplitMode === "split" ? "split" : "merge";
+    mergeSplitState.preview = null;
+    mergeSplitState.error = "";
+    render({ focusMain: true });
+    requestAnimationFrame(() => document.querySelector(`[data-merge-split-mode="${mergeSplitState.mode}"]`)?.focus({ preventScroll: true }));
+    return;
+  }
+
+  const mergeSplitActionButton = event.target.closest("[data-merge-split-action]");
+  if (mergeSplitActionButton) {
+    const action = mergeSplitActionButton.dataset.mergeSplitAction;
+    const mergeSplitState = activeMergeSplitState();
+    mergeSplitState.error = "";
+    if (action === "edit") {
+      mergeSplitState.preview = null;
+    } else if (action === "add-output" && mergeSplitState.splitAmounts.length < 8) {
+      mergeSplitState.splitAmounts.push("");
+    } else if (action === "remove-output" && mergeSplitState.splitAmounts.length > 2) {
+      const index = Number(mergeSplitActionButton.dataset.outputIndex);
+      if (Number.isInteger(index) && index >= 0 && index < mergeSplitState.splitAmounts.length) {
+        mergeSplitState.splitAmounts.splice(index, 1);
+      }
+    } else if (action === "preview-merge") {
+      const inputs = MERGE_SPLIT_ASSET_FIXTURES.filter(({ id }) => mergeSplitState.selectedMergeIds.includes(id));
+      const compatible = inputs.length >= 2
+        && inputs.every(({ definitionId, serialId, status }) => (
+          definitionId === inputs[0].definitionId
+          && serialId === inputs[0].serialId
+          && status === "available"
+        ));
+      if (!compatible) {
+        mergeSplitState.error = "Select at least two available fragments from one definition and one serial.";
+      } else {
+        mergeSplitState.preview = {
+          mode: "merge",
+          inputs,
+          totalAtomic: inputs.reduce((sum, { amountAtomic }) => sum + amountAtomic, 0)
+        };
+      }
+    } else if (action === "preview-split") {
+      const source = MERGE_SPLIT_ASSET_FIXTURES.find(({ id, status }) => id === mergeSplitState.selectedSplitId && status === "available");
+      const outputs = source
+        ? mergeSplitState.splitAmounts.map((value) => parseAtomicAmount(value, source.decimals))
+        : [];
+      const valid = Boolean(source)
+        && outputs.length >= 2
+        && outputs.every((value) => Number.isSafeInteger(value) && value > 0)
+        && outputs.reduce((sum, value) => sum + value, 0) === source.amountAtomic;
+      if (!valid) {
+        mergeSplitState.error = "Every output must be positive and the output sum must equal the source amount exactly.";
+      } else {
+        mergeSplitState.preview = {
+          mode: "split",
+          asset: source,
+          outputs,
+          totalAtomic: source.amountAtomic
+        };
+      }
+    }
+    render({ focusMain: true });
+    return;
+  }
+
   const walletSectionButton = event.target.closest("[data-wallet-section]");
   if (walletSectionButton) {
     selectCanonicalRoute(`wallet.${walletSectionButton.dataset.walletSection}`);
@@ -6152,7 +6470,15 @@ document.addEventListener("click", (event) => {
   const dappActionButton = event.target.closest("[data-dapp-action]");
   if (dappActionButton) {
     const action = dappActionButton.dataset.dappAction;
-    if (action === "open") {
+    if (action === "route") {
+      const routeId = dappActionButton.dataset.dappRoute;
+      if (!demoRuntime.PORT_CONTRACT.dappRoutes.includes(routeId)) {
+        showToast("Unknown local dApp route.", "alert");
+        return;
+      }
+      selectCanonicalRoute(routeId);
+      render({ focusMain: true });
+    } else if (action === "open") {
       const descriptor = demoRuntime.dappDescriptor(dappActionButton.dataset.dappId);
       if (!descriptor) {
         showToast("Unknown local dApp descriptor.", "alert");
@@ -6225,23 +6551,6 @@ document.addEventListener("click", (event) => {
       }
       render({ focusMain: true });
       showToast("Typed dApp intent opened in Wallet review.");
-    } else if (action === "revoke") {
-      const permission = demoRuntime.DAPP_PERMISSION_FIXTURES.find(({ id }) => id === dappActionButton.dataset.permissionId);
-      if (!permission || !["active", "expiring"].includes(dappPermissionStatus(permission))) {
-        showToast("No active local permission can be revoked.", "alert");
-        return;
-      }
-      state.dappRevokedPermissionIds = [...new Set([...state.dappRevokedPermissionIds, permission.id])];
-      state.dappLastOutcome = {
-        kind: "permission_revoked",
-        label: "Permission revoked",
-        summary: "Future app proposals under this local fixture are blocked. Prior Wallet outcomes remain independent and unchanged.",
-        returnRoute: "dapps.permissions",
-        descriptorId: permission.descriptorId
-      };
-      state.dappScreen = "outcome";
-      render({ focusMain: true });
-      showToast("Local dApp permission revoked.");
     } else if (action === "outcome-back") {
       selectCanonicalRoute(dappActionButton.dataset.returnRoute);
       render({ focusMain: true });
@@ -6637,7 +6946,25 @@ window.addEventListener("popstate", (event) => {
 
 document.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (event.target.id === "dapp-permission-review-form") {
+  if (event.target.id === "dapp-action-proposal-form") {
+    const descriptor = demoRuntime.dappDescriptor(event.target.dataset.dappId);
+    if (!descriptor) {
+      showToast("Unknown local dApp descriptor.", "alert");
+      return;
+    }
+    if (!validateDappProposalForm(event.target, descriptor)) return;
+    state.dappSelectedId = descriptor.id;
+    state.dappLastOutcome = {
+      kind: "intent_proposed",
+      label: `${descriptor.label} proposal prepared`,
+      summary: "The typed proposal is local presentation state only. Wallet has not selected objects, built or signed a package, charged a fee, or submitted anything for settlement.",
+      returnRoute: descriptor.routeId,
+      descriptorId: descriptor.id
+    };
+    state.dappScreen = "outcome";
+    render({ focusMain: true });
+    showToast("Typed proposal prepared for Wallet review.");
+  } else if (event.target.id === "dapp-permission-review-form") {
     const acknowledgements = {
       scopeConfirmed: Boolean(event.target.elements.scopeConfirmed.checked),
       reauthAcknowledged: Boolean(event.target.elements.reauthAcknowledged.checked)
@@ -6886,6 +7213,14 @@ document.addEventListener("input", (event) => {
     if (event.target.id === "send-memo") draft.memo = event.target.value;
   } else if (event.target.closest("#exchange-entry")) {
     captureExchangeDraft(event.target.form);
+  } else if (event.target.matches("[data-split-amount-index]")) {
+    const index = Number(event.target.dataset.splitAmountIndex);
+    const mergeSplitState = activeMergeSplitState();
+    if (Number.isInteger(index) && index >= 0 && index < mergeSplitState.splitAmounts.length) {
+      mergeSplitState.splitAmounts[index] = event.target.value;
+      mergeSplitState.preview = null;
+      mergeSplitState.error = "";
+    }
   } else if (event.target.id === "activity-search") {
     const term = event.target.value.trim().toLowerCase();
     const items = activeWallet().activities.filter((item) => {
@@ -6917,6 +7252,57 @@ document.addEventListener("scroll", (event) => {
 }, true);
 
 document.addEventListener("change", async (event) => {
+  if (event.target.matches("[data-merge-fragment-id]")) {
+    const mergeSplitState = activeMergeSplitState();
+    const assetId = event.target.dataset.mergeFragmentId;
+    const asset = MERGE_SPLIT_ASSET_FIXTURES.find(({ id }) => id === assetId);
+    if (asset?.status === "available") {
+      if (event.target.checked) {
+        mergeSplitState.selectedMergeIds = [
+          ...mergeSplitState.selectedMergeIds.filter((id) => {
+            const selected = MERGE_SPLIT_ASSET_FIXTURES.find((candidate) => candidate.id === id);
+            return selected?.definitionId === asset.definitionId && selected?.serialId === asset.serialId;
+          }),
+          asset.id
+        ].filter((id, index, values) => values.indexOf(id) === index);
+      } else {
+        mergeSplitState.selectedMergeIds = mergeSplitState.selectedMergeIds.filter((id) => id !== asset.id);
+      }
+    }
+    mergeSplitState.preview = null;
+    mergeSplitState.error = "";
+    render();
+    return;
+  }
+  if (event.target.matches("[data-split-source]")) {
+    const mergeSplitState = activeMergeSplitState();
+    const source = MERGE_SPLIT_ASSET_FIXTURES.find(({ id, status }) => id === event.target.value && status === "available");
+    if (source) {
+      const first = Math.floor(source.amountAtomic / 2);
+      mergeSplitState.selectedSplitId = source.id;
+      mergeSplitState.splitAmounts = [
+        formatAtomicAmount(first, source.decimals),
+        formatAtomicAmount(source.amountAtomic - first, source.decimals)
+      ];
+      mergeSplitState.preview = null;
+      mergeSplitState.error = "";
+    }
+    render();
+    requestAnimationFrame(() => document.querySelector("[data-split-source]")?.focus({ preventScroll: true }));
+    return;
+  }
+  if (event.target.matches("[data-split-amount-index]")) {
+    const index = Number(event.target.dataset.splitAmountIndex);
+    const mergeSplitState = activeMergeSplitState();
+    if (Number.isInteger(index) && index >= 0 && index < mergeSplitState.splitAmounts.length) {
+      mergeSplitState.splitAmounts[index] = event.target.value;
+      mergeSplitState.preview = null;
+      mergeSplitState.error = "";
+    }
+    render();
+    requestAnimationFrame(() => document.querySelector(`[data-split-amount-index="${index}"]`)?.focus({ preventScroll: true }));
+    return;
+  }
   if (event.target.id === "asset-import-file") {
     const file = event.target.files?.[0];
     if (!file) return;

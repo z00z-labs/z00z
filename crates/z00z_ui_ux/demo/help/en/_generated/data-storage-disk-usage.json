@@ -1,10 +1,10 @@
 {
   "capture_route": "data-storage.disk-usage",
   "components": [],
-  "presentation_sha256": "271dfef6b02cdd223d94f99200fee2d78639530986671232ba3662c2749ee4e0",
+  "presentation_sha256": "4a8276a6e2fa0504d3b348b1f9ff8ca6e66df85a0f1dc20b9e7e52ee49a5c2e1",
   "scope": "context",
   "screenshot": "help/assets/en/data-storage-disk-usage.png",
-  "screenshot_sha256": "ed639090c39be08d5773bcbeac447c8d68580da91c45a168649d282e37716480",
+  "screenshot_sha256": "baac6453bd1cb019bf554112051447aff670611160ee1e1a6284e0aabb242457",
   "sections": [
     "Disk Usage"
   ],

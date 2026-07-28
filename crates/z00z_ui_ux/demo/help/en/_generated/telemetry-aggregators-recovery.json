@@ -8,10 +8,10 @@
     "button|type=button|data-workspace-route=telemetry.aggregators.publication",
     "button|type=button|data-workspace-route=telemetry.aggregators.recovery"
   ],
-  "presentation_sha256": "dc6613fc16b61faf642a0d07321c98f215872a6f9c297af011707e5b93daa69c",
+  "presentation_sha256": "4e66790d290b3913c7c1a3ded01df15009842ebaa13572f6c8159a8c41bbb065",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-aggregators-recovery.png",
-  "screenshot_sha256": "895269fb52a6b0c58381a46c0601470fcbb58441273cad7b17d4488f0b64dc6b",
+  "screenshot_sha256": "2f530f21a4015f1ebb014cc2578d02a41036240c58172c011196b0f612123d18",
   "sections": [
     "Fail-closed boundaries",
     "Recovery",

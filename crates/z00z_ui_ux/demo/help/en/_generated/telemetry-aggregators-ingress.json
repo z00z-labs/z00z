@@ -8,10 +8,10 @@
     "button|type=button|data-workspace-route=telemetry.aggregators.publication",
     "button|type=button|data-workspace-route=telemetry.aggregators.recovery"
   ],
-  "presentation_sha256": "dd975f4322280e4faa0a176fd27174dafd7223d62902d5644d7faaa96176eb18",
+  "presentation_sha256": "fd96f5434b0e36dce128e1a661a87c7d3a00af0d1f85ee9ec0e1da64bdf5569d",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-aggregators-ingress.png",
-  "screenshot_sha256": "a9d434ac21ace411624f6dfed55b0f213ea249e1509988dc21053e81a20ffd6a",
+  "screenshot_sha256": "4b76f6713fb28dfc5693b42b84f6b9e9f63b5ab2f21ae4a70643294fcbd6c627",
   "sections": [
     "Fail-closed boundaries",
     "Ingress",

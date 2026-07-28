@@ -3,10 +3,10 @@
   "components": [
     "button|type=button|aria-label=Copy Receiver Card|data-demo-action=copy-receiver-card"
   ],
-  "presentation_sha256": "54cd898305954426c01bca5b92661ac408cba0df1743964c0cfa143abfc0845e",
+  "presentation_sha256": "a28fdee501edf0e36365c4164d16ac77d770c4fbb84c666779d309f84439abdb",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-receive.png",
-  "screenshot_sha256": "15dfcbb675504976f38f481ece52513228cb030cecf27fec8dfcf0cffebae5a2",
+  "screenshot_sha256": "434877c4914a3c7087bb682bb94af67782bab9c896165d238e34a91e6c006d4b",
   "sections": [
     "Receive privately"
   ],

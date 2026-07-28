@@ -7,9 +7,9 @@
   // These labels are intentionally separate from the navigation model: the
   // model owns stable IDs, while every renderer receives localised copy.
   const english = Object.freeze({
-    wallet: "Wallet", overview: "Overview", assets: "Assets", vouchers: "Vouchers", permissions: "Permissions", quarantine: "Quarantine", send: "Send", receive: "Receive", import: "Import", history: "History", swap: "Swap", exchange: "Exchange", staking: "Staking", stake: "Stake", unstake: "Unstake", backup: "Backup", walletSettings: "Wallet Settings", general: "General", security: "Security", policies: "Policies", advanced: "Advanced",
+    wallet: "Wallet", overview: "Overview", assets: "Assets", vouchers: "Vouchers", permissions: "Permissions", quarantine: "Quarantine", send: "Send", receive: "Receive", import: "Import", mergeSplit: "Merge/Split", history: "History", swap: "Swap", earn: "Earn", stake: "Stake", unstake: "Unstake", backup: "Backup", walletSettings: "Wallet Settings", general: "General", security: "Security", policies: "Policies", advanced: "Advanced",
     telemetry: "Telemetry", telemetryContext: "Read-only local observation and publication evidence", reticulum: "Reticulum", onionnet: "OnionNet", aggregators: "Aggregators", node: "Node", interfaces: "Interfaces", radio: "Radio", entrypoints: "Entrypoints", paths: "Paths", probes: "Probes", links: "Links", epoch: "Epoch", privacy: "Privacy", transport: "Transport", queues: "Queues", probation: "Probation", ingress: "Ingress", planning: "Planning", placement: "Placement", publication: "Publication", recovery: "Recovery", watchers: "Watchers", alerts: "Alerts", publicationChecks: "Publication checks", daProviders: "DA providers", censorship: "Censorship signals", evidenceExport: "Evidence export", explorer: "Explorer", search: "Search", checkpoints: "Checkpoints", batches: "Batches", publicEvidence: "Public evidence",
-    dapps: "dApps", discover: "Discover", installed: "Installed", connections: "Connections", activity: "Activity", messenger: "Messenger", inbox: "Inbox", sent: "Sent", requests: "Requests", conversations: "Conversations", outbox: "Outbox", receipts: "Receipts", contacts: "Contacts", dataStorage: "Data & Storage", diskUsage: "Disk Usage", networkUsage: "Network Usage", settings: "Settings", notifications: "Notifications", appearance: "Appearance", help: "Help", about: "About", logOut: "Log out", roadmap: "Roadmap"
+    dapps: "dApps", discover: "Discover", installed: "Installed", pay: "Pay", request: "Request", createVoucher: "Create Voucher", createPermission: "Create Permission", agentsBudget: "Agents Budget", wboldGateway: "wBOLD Gateway", subscription: "Subscription", donation: "Donation", escrow: "Escrow", bounties: "Bounties", ticketsPasses: "Tickets & Passes", serviceCredits: "Service Credits", digitalGoods: "Digital Goods", payroll: "Payroll", assetsLocker: "Assets Locker", activity: "Activity", messenger: "Messenger", inbox: "Inbox", sent: "Sent", requests: "Requests", conversations: "Conversations", outbox: "Outbox", receipts: "Receipts", contacts: "Contacts", dataStorage: "Data & Storage", diskUsage: "Disk Usage", networkUsage: "Network Usage", settings: "Settings", notifications: "Notifications", appearance: "Appearance", help: "Help", about: "About", logOut: "Log out", roadmap: "Roadmap"
   });
 
   const translations = Object.freeze({
@@ -25,7 +25,7 @@
   });
 
   const supplementalTranslations = Object.freeze({
-    ru: { import: "Импорт", stake: "Стейкинг", unstake: "Вывести из стейкинга", dataStorage: "Данные и хранилище", diskUsage: "Использование диска", networkUsage: "Использование сети", notifications: "Уведомления", about: "О приложении" },
+    ru: { import: "Импорт", mergeSplit: "Объединить/разделить", stake: "Стейкинг", unstake: "Вывести из стейкинга", dataStorage: "Данные и хранилище", diskUsage: "Использование диска", networkUsage: "Использование сети", notifications: "Уведомления", about: "О приложении" },
     fr: { import: "Importer", stake: "Staker", unstake: "Retirer du staking", dataStorage: "Données et stockage", diskUsage: "Utilisation du disque", networkUsage: "Utilisation du réseau", notifications: "Notifications", about: "À propos" },
     de: { import: "Importieren", stake: "Staken", unstake: "Unstaken", dataStorage: "Daten und Speicher", diskUsage: "Speichernutzung", networkUsage: "Netzwerknutzung", notifications: "Benachrichtigungen", about: "Über" },
     es: { import: "Importar", stake: "Hacer staking", unstake: "Retirar staking", dataStorage: "Datos y almacenamiento", diskUsage: "Uso del disco", networkUsage: "Uso de red", notifications: "Notificaciones", about: "Acerca de" },
@@ -38,6 +38,9 @@
 
   i18n.extendLocale("en", { navigation: english });
   Object.entries(translations).forEach(([language, labels]) => {
-    i18n.extendLocale(language, { navigation: { ...english, ...labels, ...supplementalTranslations[language] } });
+    const activeLabels = Object.fromEntries(
+      Object.entries(labels).filter(([key]) => key !== "connections")
+    );
+    i18n.extendLocale(language, { navigation: { ...english, ...activeLabels, ...supplementalTranslations[language] } });
   });
 })();

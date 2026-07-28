@@ -12,10 +12,10 @@
     "button|type=submit",
     "input|name=query|placeholder=Nickname"
   ],
-  "presentation_sha256": "dea5f5a66ea8bfe4b60b096c5a366fd4c9c8022d5edaef545e2000a23843c31f",
+  "presentation_sha256": "37fdbd8ee20549d01b9119e8df840225b5e8539b2b7f74d1346d7a019f05f3b3",
   "scope": "context",
   "screenshot": "help/assets/en/contacts-list.png",
-  "screenshot_sha256": "4bf2f9f8b2604ca7a4781cbb6d2d3985e906d7a60c46087aeb00ce6d0e5f477a",
+  "screenshot_sha256": "035aa14f84c7762fac0cfea61079a7451ed978b5a83325fa070998243cd301d3",
   "sections": [
     "Address book"
   ],

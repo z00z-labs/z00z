@@ -4,10 +4,10 @@
     "button|type=button|data-messenger-action=relay-recover",
     "button|type=button|data-messenger-action=relay-unavailable"
   ],
-  "presentation_sha256": "22882a44bd050923355a849660b215768cac076f2bb1c79ceb5ce37f0ed98568",
+  "presentation_sha256": "3ba0718ab30572158a234951d098aee125178eefbd444900e1c4a2773dd1eefe",
   "scope": "context",
   "screenshot": "help/assets/en/messenger-sent.png",
-  "screenshot_sha256": "09297041dee780ebef8a2396dd301828196702814a5ef23fec7c574bae5b8edf",
+  "screenshot_sha256": "a87a4d1e7cec1ee71ea8f0bbf4e85ce1ce3929fcaaae0301bff4824bfd728991",
   "sections": [
     "Sent"
   ],

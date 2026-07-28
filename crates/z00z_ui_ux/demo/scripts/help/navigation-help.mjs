@@ -128,7 +128,7 @@ function localizedLegacyMarkdown(source, record, language, sourceName) {
   const copy = LOCALIZED_TEMPLATE_COPY[language];
   if (!copy) throw new Error(`Unsupported Help locale: ${language}`);
   const { body, frontmatter } = parseFrontmatter(source, sourceName);
-  const sections = splitLegacyBody(body);
+  const sections = splitLegacyBody(body.replace(/<!-- help-sync:source \{.+\} -->/u, ""));
   const screenshot = `help/assets/en/${record.id.replaceAll(".", "-")}.png`;
   const provenance = JSON.stringify({
     localized_source: sourceName,
@@ -187,9 +187,15 @@ async function loadLegacyLocalizedHelp(root, language, records) {
     sourcesById.set(frontmatter.id, [...(sourcesById.get(frontmatter.id) || []), Object.freeze({ path, source })]);
   }
 
-  return Object.freeze(records.map((record) => {
+  return Object.freeze(await Promise.all(records.map(async (record) => {
     const candidates = sourcesById.get(record.id) || [];
-    if (!candidates.length) throw new Error(`${language}: missing localized Help source for ${record.id}.`);
+    if (!candidates.length) {
+      const fallbackPath = resolve(root, "help", "en", pageFile(record));
+      const source = await readFile(fallbackPath, "utf8");
+      const sourceName = relative(root, fallbackPath);
+      const localized = localizedLegacyMarkdown(source, record, language, sourceName);
+      return documentFromMarkdown(localized.markdown, record, sourceName, localized.title);
+    }
     if (new Set(candidates.map(({ source }) => source)).size !== 1) {
       throw new Error(`${language}: conflicting localized Help sources for ${record.id}.`);
     }
@@ -197,7 +203,7 @@ async function loadLegacyLocalizedHelp(root, language, records) {
     const sourceName = relative(root, candidate.path);
     const localized = localizedLegacyMarkdown(candidate.source, record, language, sourceName);
     return documentFromMarkdown(localized.markdown, record, sourceName, localized.title);
-  }));
+  })));
 }
 
 export async function loadNavigationHelp(root, language = "en") {

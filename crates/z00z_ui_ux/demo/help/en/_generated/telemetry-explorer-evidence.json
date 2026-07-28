@@ -8,10 +8,10 @@
     "button|type=button|data-workspace-route=telemetry.explorer.overview",
     "button|type=button|data-workspace-route=telemetry.explorer.search"
   ],
-  "presentation_sha256": "f65c47db89c717aa0dede2b704e5702d927953dcb4d8a334767f9d70f5b0d08f",
+  "presentation_sha256": "4656392733c01f3e741330d7c661396e1821d6be4e9c5c1272d0992ec84b542a",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-explorer-evidence.png",
-  "screenshot_sha256": "2f154b8e076fc7788218a8758c174951f0cd6eeaa5b0f8225d77eb094636b9b3",
+  "screenshot_sha256": "2de06a5ad45c67fbc4ea6817d8fb496c16e6891e3157a46fdd2421de4133e493",
   "sections": [
     "Public evidence"
   ],

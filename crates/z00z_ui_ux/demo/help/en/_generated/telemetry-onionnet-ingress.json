@@ -9,10 +9,10 @@
     "button|type=button|data-workspace-route=telemetry.onionnet.queues",
     "button|type=button|data-workspace-route=telemetry.onionnet.transport"
   ],
-  "presentation_sha256": "ffddb01725a1d1761c3dca725268e5cad7a925f07d039641b20b4f9cbb4dfdb5",
+  "presentation_sha256": "51595a0c96ae6ab4161f83e00b2e3643371a9e1bf3aef00f8c413d604c43576c",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-onionnet-ingress.png",
-  "screenshot_sha256": "7ba0dc9ebdd8a6f1ceb19b6e84d31342bb8426f12d4bdd861b771d74af9c42f5",
+  "screenshot_sha256": "7011201dd307389b4df0ea74feb6c77fad8b79227b8ed237e56fb304f8683cf4",
   "sections": [
     "Ingress",
     "OnionNet telemetry"

@@ -1,11 +1,31 @@
 const { mkdir, readFile, writeFile } = require("node:fs/promises");
 const path = require("node:path");
 const vm = require("node:vm");
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("playwright/test");
 
 test.setTimeout(1_200_000);
 
 const demoUrl = process.env.Z00Z_WALLET_DEMO_URL;
+const dappMenuLabels = [
+  "Agents Budget",
+  "Assets Locker",
+  "Bounties",
+  "Create Permission",
+  "Create Voucher",
+  "Digital Goods",
+  "Donation",
+  "Escrow",
+  "Pay",
+  "Payroll",
+  "Request",
+  "Service Credits",
+  "Subscription",
+  "Swap",
+  "Tickets & Passes",
+  "wBOLD Gateway",
+  "Discover",
+  "Installed",
+];
 const reviewRoot = path.resolve(process.env.Z00Z_VISUAL_REVIEW_DIR || path.join(
   __dirname,
   "../../z00z_storage/outputs/checkpoint/phase-110/ui-help-review",
@@ -311,14 +331,15 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-discover" }));
     await capture(page, `${viewport.name}-dapps-discover`, { fullPage: viewport.width <= 768 });
 
-    await page.locator('[data-dapp-card="external-asset-locker"] [data-dapp-action="open"]').click();
+    await page.locator('[data-dapp-card="assets-locker"] [data-dapp-action="open"]').click();
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
     await settleMainAnimations(page);
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-detail" }));
     await capture(page, `${viewport.name}-dapps-detail`, { fullPage: viewport.width <= 768 });
 
-    await page.goto(`${demoUrl}?route=dapps.connections`);
-    await page.locator('[data-dapp-connection="connection_offline_pay"] [data-dapp-action="review"]').click();
+    await page.goto(`${demoUrl}?route=dapps.discover`);
+    await page.locator('[data-dapp-card="pay"] [data-dapp-action="open"]').click();
+    await page.locator('[data-dapp-action="review"]').click();
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
     await settleMainAnimations(page);
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-permission-review" }));
@@ -331,8 +352,9 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-rejected-outcome" }));
     await capture(page, `${viewport.name}-dapps-rejected-outcome`, { fullPage: viewport.width <= 768 });
 
-    await page.goto(`${demoUrl}?route=dapps.connections`);
-    await page.locator('[data-dapp-connection="connection_offline_pay"] [data-dapp-action="review"]').click();
+    await page.goto(`${demoUrl}?route=dapps.discover`);
+    await page.locator('[data-dapp-card="pay"] [data-dapp-action="open"]').click();
+    await page.locator('[data-dapp-action="review"]').click();
     await page.locator('input[name="scopeConfirmed"]').check();
     await page.locator('input[name="reauthAcknowledged"]').check();
     await page.getByRole("button", { name: "Accept bounded intent" }).click();
@@ -343,17 +365,6 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
     await settleMainAnimations(page);
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-wallet-handoff-send" }));
     await capture(page, `${viewport.name}-dapps-wallet-handoff-send`, { fullPage: viewport.width <= 768 });
-
-    await page.goto(`${demoUrl}?route=dapps.permissions`);
-    layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-permissions-expiry" }));
-    await capture(page, `${viewport.name}-dapps-permissions-expiry`, { fullPage: viewport.width <= 768 });
-
-    await page.locator('[data-dapp-permission="permission_scoped_expenses"] [data-dapp-action="revoke"]').click();
-    await page.locator("#toast-region .toast").last().getByRole("button", { name: "Dismiss notification" }).click();
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-    await settleMainAnimations(page);
-    layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-revoked-outcome" }));
-    await capture(page, `${viewport.name}-dapps-revoked-outcome`, { fullPage: viewport.width <= 768 });
 
     await page.goto(`${demoUrl}?route=dapps.installed`);
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-installed" }));
@@ -506,12 +517,14 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
 
     for (const [route, name] of [
       ["wallet.swap", "wallet-swap"],
-      ["wallet.exchange", "wallet-exchange"],
       ["wallet.staking.stake", "wallet-staking"],
       ["telemetry.aggregators.overview", "aggregators-overview"],
       ["telemetry.watchers.overview", "watchers-overview"],
       ["telemetry.explorer.overview", "explorer-overview"],
       ["dapps.discover", "dapps-discover"],
+      ["dapps.pay", "dapps-pay"],
+      ["dapps.agents-budget", "dapps-agents-budget"],
+      ["dapps.assets-locker", "dapps-assets-locker"],
     ]) {
       await page.goto(`${demoUrl}?route=${route}`);
       await reviewState(viewport, name);
@@ -607,7 +620,7 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
     const dapps = navigation.locator('[data-navigation-branch="dapps"]');
     await expect(dapps).toHaveAttribute("aria-expanded", "true");
     const dappRoutes = navigation.locator('[data-navigation-branch="dapps"] + .navigation-tree-children > [data-navigation-route]');
-    await expect(dappRoutes).toHaveText(["Discover", "Installed", "Connections", "Permissions", "Swap", "Exchange"]);
+    await expect(dappRoutes).toHaveText(dappMenuLabels);
     await expect(navigation.locator('[data-navigation-route="wallet.swap"]')).toHaveAttribute("aria-current", "page");
     const wallet = navigation.locator('[data-navigation-branch="wallet"]');
     if (await wallet.getAttribute("aria-expanded") === "true") await wallet.click();
@@ -618,7 +631,8 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
     await navigationScrollRegion.evaluate((region) => {
       region.scrollTop = Math.max(0, region.scrollTop - 28);
     });
-    await capture(page, `${viewport.name}-phase-6-dapps-swap-exchange-navigation`);
+    await page.mouse.move(viewport.width - 1, 1);
+    await capture(page, `${viewport.name}-phase-6-dapps-navigation`);
     if (viewport.width <= 768) await page.keyboard.press("Escape");
 
     await page.goto(`${demoUrl}?route=settings.general`);
@@ -727,6 +741,12 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
     await expect(helpPage.locator("#help-tree")).not.toContainText(/Help|About|Log out/);
     await expect(helpPage.locator("#help-navigation-terminal")).not.toContainText(/Help|About|Log out/);
     await reviewHelp(helpPage, viewport, "dapps-local-navigation");
+
+    await helpPage.goto(new URL("help.html?topic=dapps.pay&lang=en", demoUrl).toString());
+    await expect(helpPage.locator("#help-title")).toHaveText("dApps: Pay");
+    await expect(helpPage.locator("#help-document")).toContainText("dApp does not control the wallet");
+    await expect(helpPage.locator('[data-help-topic-link="dapps.pay"]')).toHaveAttribute("aria-current", "page");
+    await reviewHelp(helpPage, viewport, "dapps-pay");
 
     if (viewport.width <= 768) await helpPage.locator("#help-menu-button").click();
     for (const branchId of ["wallet", "telemetry", "dapps"]) {

@@ -9,10 +9,10 @@
     "button|type=button|data-workspace-route=telemetry.onionnet.queues",
     "button|type=button|data-workspace-route=telemetry.onionnet.transport"
   ],
-  "presentation_sha256": "cd310780b585c04b063c26d866a41419e063696869f5a6839e8c24e4274df6cb",
+  "presentation_sha256": "06a339ff8d31b9b057e164794203b10f5a3a3a195f6309bd8f2231efb6594623",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-onionnet-overview.png",
-  "screenshot_sha256": "ed56f8cd2e731d35c0b87c0e0e489d742259af0b471d878478e1b5df39e3dd23",
+  "screenshot_sha256": "87bf3016206878851a1bf9fe904eb04114252290d934761afe8b000b60afa609",
   "sections": [
     "OnionNet telemetry",
     "Overview"

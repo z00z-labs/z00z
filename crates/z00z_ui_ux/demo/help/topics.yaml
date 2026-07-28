@@ -49,6 +49,12 @@ topics:
     label_key: navigation.import
     route: wallet.import
     scope: context
+  - id: wallet.merge-split
+    title: Wallet: Merge/Split
+    file: wallet/merge-split.md
+    label_key: navigation.mergeSplit
+    route: wallet.merge-split
+    scope: context
   - id: wallet.history
     title: Wallet: History
     file: wallet/history.md
@@ -61,20 +67,14 @@ topics:
     label_key: navigation.swap
     route: wallet.swap
     scope: context
-  - id: wallet.exchange
-    title: Wallet: Exchange
-    file: dapps/exchange.md
-    label_key: navigation.exchange
-    route: wallet.exchange
-    scope: context
   - id: wallet.staking.stake
-    title: Wallet Staking: Stake
+    title: Wallet Earn: Stake
     file: wallet/staking/index.md
-    label_key: navigation.staking
+    label_key: navigation.earn
     route: wallet.staking.stake
     scope: context
   - id: wallet.staking.unstake
-    title: Wallet Staking: Unstake
+    title: Wallet Earn: Unstake
     file: wallet/staking/unstake.md
     label_key: navigation.unstake
     route: wallet.staking.unstake
@@ -319,17 +319,95 @@ topics:
     label_key: navigation.installed
     route: dapps.installed
     scope: context
-  - id: dapps.connections
-    title: dApps: Connections
-    file: dapps/connections.md
-    label_key: navigation.connections
-    route: dapps.connections
+  - id: dapps.pay
+    title: dApps: Pay
+    file: dapps/pay.md
+    label_key: navigation.pay
+    route: dapps.pay
     scope: context
-  - id: dapps.permissions
-    title: dApps: Permissions
-    file: dapps/permissions.md
-    label_key: navigation.permissions
-    route: dapps.permissions
+  - id: dapps.request
+    title: dApps: Request
+    file: dapps/request.md
+    label_key: navigation.request
+    route: dapps.request
+    scope: context
+  - id: dapps.create-voucher
+    title: dApps: Create Voucher
+    file: dapps/create-voucher.md
+    label_key: navigation.createVoucher
+    route: dapps.create-voucher
+    scope: context
+  - id: dapps.create-permission
+    title: dApps: Create Permission
+    file: dapps/create-permission.md
+    label_key: navigation.createPermission
+    route: dapps.create-permission
+    scope: context
+  - id: dapps.agents-budget
+    title: dApps: Agents Budget
+    file: dapps/agents-budget.md
+    label_key: navigation.agentsBudget
+    route: dapps.agents-budget
+    scope: context
+  - id: dapps.wbold-gateway
+    title: dApps: wBOLD Gateway
+    file: dapps/wbold-gateway.md
+    label_key: navigation.wboldGateway
+    route: dapps.wbold-gateway
+    scope: context
+  - id: dapps.subscription
+    title: dApps: Subscription
+    file: dapps/subscription.md
+    label_key: navigation.subscription
+    route: dapps.subscription
+    scope: context
+  - id: dapps.donation
+    title: dApps: Donation
+    file: dapps/donation.md
+    label_key: navigation.donation
+    route: dapps.donation
+    scope: context
+  - id: dapps.escrow
+    title: dApps: Escrow
+    file: dapps/escrow.md
+    label_key: navigation.escrow
+    route: dapps.escrow
+    scope: context
+  - id: dapps.bounties
+    title: dApps: Bounties
+    file: dapps/bounties.md
+    label_key: navigation.bounties
+    route: dapps.bounties
+    scope: context
+  - id: dapps.tickets-passes
+    title: dApps: Tickets & Passes
+    file: dapps/tickets-passes.md
+    label_key: navigation.ticketsPasses
+    route: dapps.tickets-passes
+    scope: context
+  - id: dapps.service-credits
+    title: dApps: Service Credits
+    file: dapps/service-credits.md
+    label_key: navigation.serviceCredits
+    route: dapps.service-credits
+    scope: context
+  - id: dapps.digital-goods
+    title: dApps: Digital Goods
+    file: dapps/digital-goods.md
+    label_key: navigation.digitalGoods
+    route: dapps.digital-goods
+    scope: context
+  - id: dapps.payroll
+    title: dApps: Payroll
+    file: dapps/payroll.md
+    label_key: navigation.payroll
+    route: dapps.payroll
+    scope: context
+  - id: dapps.assets-locker
+    title: dApps: Assets Locker
+    file: dapps/assets-locker.md
+    label_key: navigation.assetsLocker
+    route: dapps.assets-locker
     scope: context
   - id: messenger.inbox
     title: Messenger: Inbox

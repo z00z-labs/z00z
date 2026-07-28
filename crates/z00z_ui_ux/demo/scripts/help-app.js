@@ -127,12 +127,13 @@
   function navigationNodeMarkup(node, { prefix, depth = 0, terminal = false } = {}) {
     const label = escapeHtml(nodeLabel(node));
     const depthClass = `is-depth-${depth}`;
+    const sectionBreakClass = node.sectionBreakBefore ? " navigation-tree-section-break" : "";
     const activeDescendant = hasActiveDescendant(node);
     if (node.target.kind === "branch") {
       const expanded = expandedBranchIds.has(node.id);
       const controlId = `${prefix}-${node.id.replaceAll(".", "-")}-toggle`;
       const panelId = `${prefix}-${node.id.replaceAll(".", "-")}-children`;
-      return `<section class="navigation-tree-branch ${depthClass}${expanded ? " is-expanded" : ""}${activeDescendant ? " has-active-descendant" : ""}" data-help-navigation-node="${escapeHtml(node.id)}">
+      return `<section class="navigation-tree-branch ${depthClass}${sectionBreakClass}${expanded ? " is-expanded" : ""}${activeDescendant ? " has-active-descendant" : ""}" data-help-navigation-node="${escapeHtml(node.id)}">
         <button id="${controlId}" class="navigation-tree-item navigation-tree-branch-toggle" type="button" data-help-navigation-branch="${escapeHtml(node.id)}" aria-expanded="${expanded}" aria-controls="${panelId}">
           ${navigationIcon(node)}
           <span class="navigation-tree-label">${label}</span>
@@ -145,7 +146,7 @@
     }
     if (node.target.kind === "group") {
       const groupId = `${prefix}-${node.id.replaceAll(".", "-")}-group`;
-      return `<section class="navigation-tree-group ${depthClass}${activeDescendant ? " has-active-descendant" : ""}" data-help-navigation-node="${escapeHtml(node.id)}" aria-labelledby="${groupId}">
+      return `<section class="navigation-tree-group ${depthClass}${sectionBreakClass}${activeDescendant ? " has-active-descendant" : ""}" data-help-navigation-node="${escapeHtml(node.id)}" aria-labelledby="${groupId}">
         <p id="${groupId}" class="navigation-tree-group-label">
           ${navigationIcon(node)}
           <span class="navigation-tree-label">${label}</span>
@@ -158,7 +159,7 @@
     const topicId = topicIdForNode(node);
     if (!topicId || !registry.hasTopic(topicId)) return "";
     const active = isActiveNavigationNode(node);
-    return `<a class="navigation-tree-item navigation-tree-leaf${terminal ? " navigation-tree-terminal" : ""} ${depthClass}${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(topicId).href)}" data-help-navigation-node="${escapeHtml(node.id)}" data-help-topic-link="${escapeHtml(topicId)}"${node.target.kind === "workspace" ? ` data-navigation-workspace="${escapeHtml(node.id)}"` : ""}${active ? ' aria-current="page"' : ""}>
+    return `<a class="navigation-tree-item navigation-tree-leaf${terminal ? " navigation-tree-terminal" : ""} ${depthClass}${sectionBreakClass}${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(topicId).href)}" data-help-navigation-node="${escapeHtml(node.id)}" data-help-topic-link="${escapeHtml(topicId)}"${node.target.kind === "workspace" ? ` data-navigation-workspace="${escapeHtml(node.id)}"` : ""}${active ? ' aria-current="page"' : ""}>
       ${navigationIcon(node)}
       <span class="navigation-tree-label">${label}</span>
     </a>`;

@@ -5,10 +5,10 @@
     "button|type=button|data-demo-action=preview-swap",
     "input|type=number|placeholder=0.00"
   ],
-  "presentation_sha256": "8a6b094706159bfb00e38f8c11b7683061abb79b76ab7101a4adb4762cb32438",
+  "presentation_sha256": "9223621325b3c7f5fe988182fad837293e52df4512d4be1ce973fc264d3cf045",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-swap.png",
-  "screenshot_sha256": "16af1d6dc94c4581e6e97a370a09c424ac90ad80e3041a337c4dc88e2f1f59a4",
+  "screenshot_sha256": "2c1733cb61e1686be8f8752082805762375892d12f7dce83ddc4ebd564f2bf32",
   "sections": [
     "Build a swap"
   ],

@@ -4,10 +4,10 @@
     "a",
     "button|type=button|data-demo-action=check-for-updates"
   ],
-  "presentation_sha256": "76009bcf098a182a8321bb0ed0ce916a43beb64babada3df349389a735e970d8",
+  "presentation_sha256": "8045860fff36c201b17252206337cc1b4819d3307e1d51050379043ed417e9b3",
   "scope": "context",
   "screenshot": "help/assets/en/about.png",
-  "screenshot_sha256": "7527c4b5d43da00eb6abcd4f4d9962b133be5f42ede2d91915b5e21a7819ec2a",
+  "screenshot_sha256": "21dfa4aba7d5c5ded2aabefd3c84b3f654d065be5f92e2bda64cec2dffd80b61",
   "sections": [
     "Z00Z Wallet v0.1.0"
   ],

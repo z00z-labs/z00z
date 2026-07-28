@@ -34,7 +34,7 @@ CAPTURE_HEIGHT = 960
 DIALOG_ROUTES = {
     "asset.details": "wallet.assets",
     "dapps.detail": "dapps.discover",
-    "dapps.permission-review": "dapps.connections",
+    "dapps.permission-review": "dapps.discover",
     "messenger.detail": "messenger.inbox",
     "messenger.request-review": "messenger.inbox",
     "contacts.detail": "contacts.list",
@@ -45,7 +45,10 @@ DIALOG_ROUTES = {
 DIALOG_STEPS = {
     "asset.details": ["[data-open-flow='asset-detail']"],
     "dapps.detail": ["[data-dapp-card] [data-dapp-action='open']"],
-    "dapps.permission-review": ["[data-dapp-connection] [data-dapp-action='review']"],
+    "dapps.permission-review": [
+        "[data-dapp-card='pay'] [data-dapp-action='open']",
+        "[data-dapp-action='review']",
+    ],
     "messenger.detail": ["[data-messenger-message] [data-messenger-action='open']"],
     "messenger.request-review": [
         "[data-messenger-message='message_payment_001'] [data-messenger-action='open']",

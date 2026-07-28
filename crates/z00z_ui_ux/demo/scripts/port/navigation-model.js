@@ -28,7 +28,8 @@
     capabilityId = null,
     presentationMode = "product",
     helpTopicId = null,
-    isVisible = true
+    isVisible = true,
+    sectionBreakBefore = false
   }) => freeze({
     id,
     parentId,
@@ -40,7 +41,8 @@
     capabilityId,
     presentationMode,
     helpTopicId,
-    isVisible
+    isVisible,
+    sectionBreakBefore
   });
   const profile = ({
     id,
@@ -61,7 +63,6 @@
   const CAPABILITY_PROFILES = freeze([
     profile({ id: "wallet.quarantine", maturity: "target", availability: "unavailable", evidenceSource: "none", freshness: "not_applicable", presentationMode: "product" }),
     profile({ id: "wallet.swap", maturity: "live", availability: "unavailable", evidenceSource: "fixture", freshness: "not_applicable", presentationMode: "product" }),
-    profile({ id: "wallet.exchange", maturity: "target", availability: "unavailable", evidenceSource: "none", freshness: "not_applicable", presentationMode: "product" }),
     profile({ id: "wallet.staking", maturity: "live", availability: "unavailable", evidenceSource: "fixture", freshness: "not_applicable", presentationMode: "product" }),
     profile({ id: "telemetry.reticulum", maturity: "live", availability: "unavailable", evidenceSource: "none", freshness: "unknown", presentationMode: "product" }),
     profile({ id: "telemetry.onionnet", maturity: "target", availability: "unavailable", evidenceSource: "none", freshness: "unknown", presentationMode: "product" }),
@@ -82,8 +83,9 @@
     node({ id: "wallet.send", parentId: "wallet", order: 60, labelKey: "navigation.send", iconId: "send", target: routeTarget("wallet.send"), helpTopicId: "wallet.send" }),
     node({ id: "wallet.receive", parentId: "wallet", order: 70, labelKey: "navigation.receive", iconId: "receive", target: routeTarget("wallet.receive"), helpTopicId: "wallet.receive" }),
     node({ id: "wallet.import", parentId: "wallet", order: 80, labelKey: "navigation.import", iconId: "import", target: routeTarget("wallet.import"), helpTopicId: "wallet.import" }),
+    node({ id: "wallet.merge-split", parentId: "wallet", order: 85, labelKey: "navigation.mergeSplit", iconId: "merge-split", target: routeTarget("wallet.merge-split"), helpTopicId: "wallet.merge-split" }),
     node({ id: "wallet.history", parentId: "wallet", order: 90, labelKey: "navigation.history", iconId: "activity", target: routeTarget("wallet.history"), helpTopicId: "wallet.history" }),
-    node({ id: "wallet.staking", parentId: "wallet", order: 110, labelKey: "navigation.staking", iconId: "staking", target: workspaceTarget("wallet.staking.stake", "navigation.stake", "staking"), capabilityId: "wallet.staking", helpTopicId: "wallet.staking.stake" }),
+    node({ id: "wallet.staking", parentId: "wallet", order: 110, labelKey: "navigation.earn", iconId: "earn", target: workspaceTarget("wallet.staking.stake", "navigation.stake", "earn"), capabilityId: "wallet.staking", helpTopicId: "wallet.staking.stake" }),
     node({ id: "wallet.staking.unstake", parentId: "wallet.staking", order: 20, labelKey: "navigation.unstake", iconId: "restore", target: routeTarget("wallet.staking.unstake"), capabilityId: "wallet.staking", helpTopicId: "wallet.staking.unstake" }),
     node({ id: "wallet.backup", parentId: "wallet", order: 120, labelKey: "navigation.backup", iconId: "backup", target: routeTarget("wallet.backup"), helpTopicId: "wallet.backup" }),
     node({ id: "wallet.settings", parentId: "wallet", order: 130, labelKey: "navigation.walletSettings", iconId: "settings", target: workspaceTarget("wallet.settings.general", "navigation.general", "overview"), helpTopicId: "wallet.settings.general" }),
@@ -92,7 +94,7 @@
     node({ id: "wallet.settings.policies", parentId: "wallet.settings", order: 40, labelKey: "navigation.policies", iconId: "check", target: routeTarget("wallet.settings.policies"), helpTopicId: "wallet.settings.policies" }),
     node({ id: "wallet.settings.advanced", parentId: "wallet.settings", order: 50, labelKey: "navigation.advanced", iconId: "advanced", target: routeTarget("wallet.settings.advanced"), helpTopicId: "wallet.settings.advanced" }),
 
-    node({ id: "telemetry", order: 20, labelKey: "navigation.telemetry", iconId: "network", target: branchTarget(), helpTopicId: "telemetry.reticulum.overview" }),
+    node({ id: "telemetry", order: 51, labelKey: "navigation.telemetry", iconId: "network", target: branchTarget(), helpTopicId: "telemetry.reticulum.overview" }),
     node({ id: "telemetry.reticulum", parentId: "telemetry", order: 10, labelKey: "navigation.reticulum", iconId: "reticulum-node", target: workspaceTarget("telemetry.reticulum.overview"), capabilityId: "telemetry.reticulum", helpTopicId: "telemetry.reticulum.overview" }),
     node({ id: "telemetry.reticulum.node", parentId: "telemetry.reticulum", order: 20, labelKey: "navigation.node", iconId: "reticulum-node", target: routeTarget("telemetry.reticulum.node"), capabilityId: "telemetry.reticulum", helpTopicId: "telemetry.reticulum.node" }),
     node({ id: "telemetry.reticulum.interfaces", parentId: "telemetry.reticulum", order: 30, labelKey: "navigation.interfaces", iconId: "reticulum-interface", target: routeTarget("telemetry.reticulum.interfaces"), capabilityId: "telemetry.reticulum", helpTopicId: "telemetry.reticulum.interfaces" }),
@@ -123,16 +125,28 @@
     node({ id: "telemetry.explorer", parentId: "telemetry", order: 50, labelKey: "navigation.explorer", iconId: "search", target: workspaceTarget("telemetry.explorer.overview"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.overview" }),
     node({ id: "telemetry.explorer.search", parentId: "telemetry.explorer", order: 20, labelKey: "navigation.search", iconId: "search", target: routeTarget("telemetry.explorer.search"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.search" }),
     node({ id: "telemetry.explorer.checkpoints", parentId: "telemetry.explorer", order: 30, labelKey: "navigation.checkpoints", iconId: "check", target: routeTarget("telemetry.explorer.checkpoints"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.checkpoints" }),
-    node({ id: "telemetry.explorer.batches", parentId: "telemetry.explorer", order: 40, labelKey: "navigation.batches", iconId: "staking", target: routeTarget("telemetry.explorer.batches"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.batches" }),
+    node({ id: "telemetry.explorer.batches", parentId: "telemetry.explorer", order: 40, labelKey: "navigation.batches", iconId: "queue", target: routeTarget("telemetry.explorer.batches"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.batches" }),
     node({ id: "telemetry.explorer.evidence", parentId: "telemetry.explorer", order: 50, labelKey: "navigation.publicEvidence", iconId: "copy", target: routeTarget("telemetry.explorer.evidence"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.evidence" }),
 
     node({ id: "dapps", order: 30, labelKey: "navigation.dapps", iconId: "spark", target: branchTarget(), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.discover" }),
-    node({ id: "dapps.discover", parentId: "dapps", order: 10, labelKey: "navigation.discover", iconId: "search", target: routeTarget("dapps.discover"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.discover" }),
-    node({ id: "dapps.installed", parentId: "dapps", order: 20, labelKey: "navigation.installed", iconId: "check", target: routeTarget("dapps.installed"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.installed" }),
-    node({ id: "dapps.connections", parentId: "dapps", order: 30, labelKey: "navigation.connections", iconId: "reticulum-link", target: routeTarget("dapps.connections"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.connections" }),
-    node({ id: "dapps.permissions", parentId: "dapps", order: 40, labelKey: "navigation.permissions", iconId: "permission", target: routeTarget("dapps.permissions"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.permissions" }),
-    node({ id: "wallet.swap", parentId: "dapps", order: 50, labelKey: "navigation.swap", iconId: "swap", target: routeTarget("wallet.swap"), capabilityId: "wallet.swap", helpTopicId: "wallet.swap" }),
-    node({ id: "wallet.exchange", parentId: "dapps", order: 60, labelKey: "navigation.exchange", iconId: "exchange", target: routeTarget("wallet.exchange"), capabilityId: "wallet.exchange", helpTopicId: "wallet.exchange" }),
+    node({ id: "dapps.agents-budget", parentId: "dapps", order: 10, labelKey: "navigation.agentsBudget", iconId: "dapp-agents-budget", target: routeTarget("dapps.agents-budget"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.agents-budget" }),
+    node({ id: "dapps.assets-locker", parentId: "dapps", order: 20, labelKey: "navigation.assetsLocker", iconId: "dapp-assets-locker", target: routeTarget("dapps.assets-locker"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.assets-locker" }),
+    node({ id: "dapps.bounties", parentId: "dapps", order: 30, labelKey: "navigation.bounties", iconId: "dapp-bounties", target: routeTarget("dapps.bounties"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.bounties" }),
+    node({ id: "dapps.create-permission", parentId: "dapps", order: 40, labelKey: "navigation.createPermission", iconId: "permission", target: routeTarget("dapps.create-permission"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.create-permission" }),
+    node({ id: "dapps.create-voucher", parentId: "dapps", order: 50, labelKey: "navigation.createVoucher", iconId: "voucher", target: routeTarget("dapps.create-voucher"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.create-voucher" }),
+    node({ id: "dapps.digital-goods", parentId: "dapps", order: 60, labelKey: "navigation.digitalGoods", iconId: "dapp-digital-goods", target: routeTarget("dapps.digital-goods"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.digital-goods" }),
+    node({ id: "dapps.donation", parentId: "dapps", order: 70, labelKey: "navigation.donation", iconId: "dapp-donation", target: routeTarget("dapps.donation"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.donation" }),
+    node({ id: "dapps.escrow", parentId: "dapps", order: 80, labelKey: "navigation.escrow", iconId: "dapp-escrow", target: routeTarget("dapps.escrow"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.escrow" }),
+    node({ id: "dapps.pay", parentId: "dapps", order: 90, labelKey: "navigation.pay", iconId: "dapp-pay", target: routeTarget("dapps.pay"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.pay" }),
+    node({ id: "dapps.payroll", parentId: "dapps", order: 100, labelKey: "navigation.payroll", iconId: "dapp-payroll", target: routeTarget("dapps.payroll"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.payroll" }),
+    node({ id: "dapps.request", parentId: "dapps", order: 120, labelKey: "navigation.request", iconId: "dapp-request", target: routeTarget("dapps.request"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.request" }),
+    node({ id: "dapps.service-credits", parentId: "dapps", order: 130, labelKey: "navigation.serviceCredits", iconId: "dapp-service-credits", target: routeTarget("dapps.service-credits"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.service-credits" }),
+    node({ id: "dapps.subscription", parentId: "dapps", order: 140, labelKey: "navigation.subscription", iconId: "dapp-subscription", target: routeTarget("dapps.subscription"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.subscription" }),
+    node({ id: "wallet.swap", parentId: "dapps", order: 150, labelKey: "navigation.swap", iconId: "swap", target: routeTarget("wallet.swap"), capabilityId: "wallet.swap", helpTopicId: "wallet.swap" }),
+    node({ id: "dapps.tickets-passes", parentId: "dapps", order: 160, labelKey: "navigation.ticketsPasses", iconId: "dapp-tickets-passes", target: routeTarget("dapps.tickets-passes"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.tickets-passes" }),
+    node({ id: "dapps.wbold-gateway", parentId: "dapps", order: 170, labelKey: "navigation.wboldGateway", iconId: "dapp-wbold-gateway", target: routeTarget("dapps.wbold-gateway"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.wbold-gateway" }),
+    node({ id: "dapps.discover", parentId: "dapps", order: 180, labelKey: "navigation.discover", iconId: "search", target: routeTarget("dapps.discover"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.discover", sectionBreakBefore: true }),
+    node({ id: "dapps.installed", parentId: "dapps", order: 190, labelKey: "navigation.installed", iconId: "check", target: routeTarget("dapps.installed"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.installed" }),
     node({ id: "messenger", order: 40, labelKey: "navigation.messenger", iconId: "message", target: branchTarget(), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.inbox" }),
     node({ id: "messenger.inbox", parentId: "messenger", order: 10, labelKey: "navigation.inbox", iconId: "inbox", target: routeTarget("messenger.inbox"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.inbox" }),
     node({ id: "messenger.sent", parentId: "messenger", order: 20, labelKey: "navigation.sent", iconId: "sent", target: routeTarget("messenger.sent"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.sent" }),
@@ -217,8 +231,9 @@
     if (route.view === "wallet-send") return "wallet.send";
     if (route.view === "wallet-receive") return "wallet.receive";
     if (route.view === "wallet-import") return "wallet.import";
+    if (route.view === "wallet-merge-split") return "wallet.merge-split";
     if (route.view === "activity") return "wallet.history";
-    if (["swap", "exchange"].includes(route.view)) return `wallet.${route.view}`;
+    if (route.view === "swap") return "wallet.swap";
     if (route.view === "staking") return "wallet.staking.stake";
     if (route.view === "wallet-backup") return "wallet.backup";
     if (route.view === "wallet-settings") return `wallet.settings.${route.walletSettingsSection || "general"}`;

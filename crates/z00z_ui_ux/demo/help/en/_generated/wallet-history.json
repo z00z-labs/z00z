@@ -4,10 +4,10 @@
     "button|type=button",
     "input|type=search|placeholder=Search history"
   ],
-  "presentation_sha256": "12efd6a7b6eefd87d155378b02b3eaf226c048d0826bddde97ccb396eda8df6e",
+  "presentation_sha256": "8bc8842afcc23ff084f3407fcb0204fc26a62c187c14d252f503a9c05a6bf489",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-history.png",
-  "screenshot_sha256": "f1b9c500e3671fb881bab3727efc07fb4b817299d6661fad78561d9215325acf",
+  "screenshot_sha256": "13ac5ea7b225c4456cf1a91c427623121e5c51f09266ddf9760575aa416462d4",
   "sections": [],
   "terms": [
     "+ 1,200.00 Z00Z",

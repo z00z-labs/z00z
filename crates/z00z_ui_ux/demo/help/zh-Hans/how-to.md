@@ -8,9 +8,9 @@ scope: article
 - Open a first-level accordion in the main menu, then select a workspace such as Wallet, Telemetry, or dApps.
 - Use the inner vertical navigation on desktop and the same workspace options as top tabs on mobile.
 
-## Explore roadmap exchange flows
-- Open dApps, then choose Swap or Exchange to review the proposed non-custodial flow.
-- The demo does not execute a trade, connect a provider, move funds, or accept wallet secrets.
+## Explore typed dApp proposals
+- Open dApps, then choose one of the bundled typed-action interfaces.
+- A dApp proposes an action; Wallet checks scope, builds the package, asks for confirmation, and only then may use a settlement path.
 
 ## Keep the boundary clear
 - A future packaged wallet must revalidate every quote, permission, signature, fee, and destination.

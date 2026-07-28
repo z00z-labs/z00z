@@ -10,10 +10,10 @@
     "button|type=button|data-workspace-route=telemetry.reticulum.probes",
     "button|type=button|data-workspace-route=telemetry.reticulum.radio"
   ],
-  "presentation_sha256": "5c4ce380a3449e2ed848d54a1b8f571a6dab609b669d45f0af24df950cb95080",
+  "presentation_sha256": "f8bbdfec116dccc688352cb5d4165641a01d786832a2a6158a12064d0d51d07a",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-reticulum-interfaces.png",
-  "screenshot_sha256": "8104417767996bdf52511ea5dcb85ce8b97b4dcdecdd478e19272baa0d5485f7",
+  "screenshot_sha256": "c148e84bb0c02fade355e7c41c2bd87ae305031b389be8fc21777876b22a95ef",
   "sections": [
     "Interfaces",
     "Reticulum telemetry"

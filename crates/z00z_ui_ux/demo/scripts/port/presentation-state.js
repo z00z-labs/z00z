@@ -282,7 +282,6 @@
       },
       dappLastOutcome: null,
       dappWalletReviewHandoff: null,
-      dappRevokedPermissionIds: [],
       messengerSection: "inbox",
       messengerScreen: "list",
       messengerQuery: "",
@@ -344,6 +343,15 @@
         preview: null,
         error: null,
         result: null
+      },
+      assetMergeSplit: {
+        walletId: "",
+        mode: "merge",
+        selectedMergeIds: [],
+        selectedSplitId: "",
+        splitAmounts: ["", ""],
+        preview: null,
+        error: ""
       },
       exchangeDrafts: {},
       demoOperationScenario: requestedOperationScenario === "timeout_unknown_outcome"

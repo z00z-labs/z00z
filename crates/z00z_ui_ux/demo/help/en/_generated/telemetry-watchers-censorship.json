@@ -9,10 +9,10 @@
     "button|type=button|data-workspace-route=telemetry.watchers.providers",
     "button|type=button|data-workspace-route=telemetry.watchers.publication"
   ],
-  "presentation_sha256": "c71bd0b9a2bd72fd26dbdb859a2df0b443081ad5c5dda2c49719e7dd67461bbd",
+  "presentation_sha256": "13725ed53fe3983d18a5e06fd090e6147c7e55e6802a6523d1e487c047fb0835",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-watchers-censorship.png",
-  "screenshot_sha256": "13fcbc63b01d4061724ded1d6bc75c7d114c1845ba230c4b351574c90bcbff45",
+  "screenshot_sha256": "8fc60428e9ecf656ce16ee788dd543f35f42f4d0bb7442a4654b41398885309d",
   "sections": [
     "Censorship signals"
   ],

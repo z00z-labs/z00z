@@ -23,6 +23,10 @@ const TITLE_SEGMENTS = Object.freeze({
   dapps: "dApps",
   "data-storage": "Data & Storage",
   onionnet: "OnionNet",
+  staking: "Earn",
+  "merge-split": "Merge/Split",
+  "wbold-gateway": "wBOLD Gateway",
+  "tickets-passes": "Tickets & Passes",
 });
 
 function segment(value) {

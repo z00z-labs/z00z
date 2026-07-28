@@ -15,13 +15,13 @@
       family: "asset",
       itemKey: "z00z"
     },
-    authorize_scoped_expense: {
+    propose_agent_budget: {
       routeId: "wallet.send",
       flow: "send",
       family: "asset",
       itemKey: "z00z"
     },
-    redeem_service_credit: {
+    issue_service_credit: {
       routeId: "wallet.permissions",
       flow: "permission_inspection",
       family: "permission",

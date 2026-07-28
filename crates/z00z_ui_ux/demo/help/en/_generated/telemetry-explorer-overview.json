@@ -8,10 +8,10 @@
     "button|type=button|data-workspace-route=telemetry.explorer.overview",
     "button|type=button|data-workspace-route=telemetry.explorer.search"
   ],
-  "presentation_sha256": "3e90278e8e6a502b3d2ec12d59f4bb6c08c2023dffca43ddc043ff2e75768c83",
+  "presentation_sha256": "a63105f8261b89ed41fb1c7217df33c345fa6854b059e0194fd81028e3d4fa26",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-explorer-overview.png",
-  "screenshot_sha256": "ff52526dd24df839a7150f2fc870e10e47597a923ab2e50ce816667b3f15b5ca",
+  "screenshot_sha256": "124b88ecb4c476bed24f0bca8a323548117648ec5cb0cf05c4f4f7d0bd87f60d",
   "sections": [
     "Explorer"
   ],

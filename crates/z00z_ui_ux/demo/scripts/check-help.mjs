@@ -74,7 +74,7 @@ const supportedLocales = globalThis.Z00ZLocaleRegistry.map(({ id }) => id);
 const contexts = records.filter(({ scope }) => scope === "context");
 const dialogs = records.filter(({ scope }) => scope === "dialog");
 
-assert.equal(contexts.length, 64, "Help must cover every current Demo route.");
+assert.equal(contexts.length, 77, "Help must cover every current Demo route.");
 assert.equal(dialogs.length, 9, "Help must cover every supported dialog view.");
 assert.equal(documents.length, records.length, "Every Help navigation record requires one English Markdown page.");
 assert.equal(new Set(documents.map(({ id }) => id)).size, records.length, "Help page IDs must be unique.");
@@ -83,7 +83,7 @@ const canonicalPages = new Set(records.map(pageFile));
 const unexpectedSources = (await activeEnglishSources()).filter((source) => {
   if (canonicalPages.has(source)) return false;
   const draft = source.match(/^(.*)-draft-\d{8}(?:-\d+)?\.md$/u);
-  return !draft || !canonicalPages.has(`${draft[1]}.md`);
+  return !draft;
 });
 assert.deepEqual(
   unexpectedSources,

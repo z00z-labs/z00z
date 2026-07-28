@@ -46,7 +46,14 @@ assert.equal(demo.PORT_CONTRACT.walletBackendRuntime, "native-rust");
 assert.ok(demo.PORT_CONTRACT.rendererForbiddenState.includes("session_token"));
 assert.ok(demo.PORT_CONTRACT.forbiddenTransports.includes("websocket"));
 assert.equal(demo.PORT_CONTRACT.capabilityStates, undefined);
-assert.equal(demo.PORT_CONTRACT.routes.length, 64);
+assert.equal(demo.PORT_CONTRACT.routes.length, 77);
+assert.ok(demo.PORT_CONTRACT.walletRoutes.includes("wallet.merge-split"));
+assert.equal(demo.navigationNode("wallet.merge-split").iconId, "merge-split");
+assert.equal(demo.navigationNode("wallet.merge-split").helpTopicId, "wallet.merge-split");
+assert.equal(
+  demo.navigationChildren("wallet").findIndex(({ id }) => id === "wallet.merge-split"),
+  demo.navigationChildren("wallet").findIndex(({ id }) => id === "wallet.import") + 1
+);
 assert.equal(demo.APP_VERSION, "0.1.0");
 assert.equal(demo.PORT_CONTRACT.appVersion, demo.APP_VERSION);
 assert.match(
@@ -101,38 +108,96 @@ assert.deepEqual(Array.from(demo.exchangeDestinations("hyperliquid"), ({ id }) =
 ]);
 assert.ok(Object.isFrozen(demo.EXCHANGE_PROVIDER_LUT));
 assert.deepEqual(Array.from(demo.DAPP_DESCRIPTOR_IDS), [
-  "offline-pay",
-  "private-voucher",
-  "external-asset-locker",
-  "scoped-expenses",
+  "pay",
+  "request",
+  "create-voucher",
+  "create-permission",
+  "agents-budget",
+  "wbold-gateway",
+  "subscription",
+  "donation",
+  "escrow",
+  "bounties",
+  "tickets-passes",
   "service-credits",
-  "agent-budget"
+  "digital-goods",
+  "payroll",
+  "assets-locker"
 ]);
-assert.equal(demo.DAPP_CATALOG.length, 6);
+assert.equal(demo.DAPP_CATALOG.length, 15);
 assert.equal(demo.assertDappCatalog(), true);
+const expectedDappInterfaces = {
+  pay: ["recipient", "asset", "amount", "expiry", "connectivity"],
+  request: ["asset", "amount", "amount-rule", "payment-mode", "expiry", "business-reference", "attachment-digest", "memo"],
+  "create-voucher": ["class", "asset", "value", "scope", "uses", "partial", "expiry", "transferability", "refund"],
+  "create-permission": ["recipient", "scope", "uses", "expiry", "delegation"],
+  "agents-budget": ["agent", "services", "asset", "period-limit", "action-limit", "max-actions", "approval", "expiry"],
+  "wbold-gateway": ["direction", "amount", "external-recipient", "operator", "max-fee"],
+  subscription: ["provider", "plan", "asset", "amount", "period", "periods", "expiry"],
+  donation: ["beneficiary", "asset", "amount", "schedule", "disclosure"],
+  escrow: ["counterparty", "asset", "amount", "condition", "timeout", "fallback", "arbitrator"],
+  bounties: ["task", "verifier", "asset", "reward", "deadline", "evidence"],
+  "tickets-passes": ["service", "uses", "validity", "transferability", "offline"],
+  "service-credits": ["provider", "service", "quota", "unit", "expiry", "delegation"],
+  "digital-goods": ["provider", "item", "uses", "expiry", "transferability"],
+  payroll: ["batch", "asset", "recipient-set", "recipients", "total", "schedule", "audit"],
+  "assets-locker": ["asset", "action", "amount", "route", "external-recipient", "risk", "max-fee"]
+};
+for (const [descriptorId, fieldIds] of Object.entries(expectedDappInterfaces)) {
+  assert.deepEqual(
+    Array.from(demo.dappDescriptor(descriptorId).proposalFields, ({ id }) => id),
+    fieldIds,
+    `${descriptorId} proposal fields must preserve the reviewed dApps.md interface contract.`
+  );
+}
 assert.ok(Object.isFrozen(demo.DAPP_CATALOG));
 assert.ok(demo.DAPP_CATALOG.every((entry) => Object.isFrozen(entry)));
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ id }) => id)).size, 6);
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ iconName }) => iconName)).size, 6);
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ intentType }) => intentType)).size, 6);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ id }) => id)).size, 15);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ iconName }) => iconName)).size, 15);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ intentType }) => intentType)).size, 15);
+assert.equal(
+  demo.dappDescriptor("create-voucher").iconName,
+  demo.navigationNode("wallet.vouchers").iconId
+);
+assert.equal(
+  demo.dappDescriptor("create-permission").iconName,
+  demo.navigationNode("wallet.permissions").iconId
+);
+assert.equal(demo.navigationNode("dapps.create-voucher").iconId, "voucher");
+assert.equal(demo.navigationNode("dapps.create-permission").iconId, "permission");
+assert.ok(!demo.ICON_NAMES.includes("dapp-create-voucher"));
+assert.ok(!demo.ICON_NAMES.includes("dapp-create-permission"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.availability === "unavailable"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.presentationMode === "roadmap_preview"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.publisher.verified === false));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.executionBoundary === "typed_intent_only"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => !entry.remoteCodeAllowed && !entry.walletBridgeAllowed));
+assert.ok(demo.DAPP_CATALOG.every((entry) => entry.createdArtifact && entry.purpose));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.requestedObjectFamilies.every(
   (family) => demo.DAPP_OBJECT_FAMILIES.includes(family)
 )));
+assert.equal(demo.dappDescriptor("service-credits").intentType, "issue_service_credit");
+assert.equal(
+  demo.dappDescriptor("agents-budget").proposalFields.find(({ id }) => id === "max-actions").integer,
+  true
+);
+assert.equal(
+  demo.dappDescriptor("assets-locker").proposalFields.find(({ id }) => id === "external-recipient").required,
+  undefined
+);
+assert.ok(demo.DAPP_CATALOG.flatMap(({ proposalFields }) => proposalFields)
+  .filter(({ type, id }) => type === "number" && id !== "max-fee")
+  .every(({ min }) => Number(min) > 0));
 assert.equal(demo.dappDescriptor("unknown"), null);
-assert.equal(demo.dappDescriptor("agent-budget").maturity, "concept");
-assert.equal(demo.dappDescriptor("agent-budget").valuePath, "separate_wallet_review");
-assert.equal(demo.dappDescriptor("agent-budget").feePath, "separate_wallet_review");
-assert.match(demo.dappDescriptor("agent-budget").reviewBoundary, /No autonomous execution/);
+assert.equal(demo.dappDescriptor("agents-budget").maturity, "concept");
+assert.equal(demo.dappDescriptor("agents-budget").valuePath, "separate_wallet_review");
+assert.equal(demo.dappDescriptor("agents-budget").feePath, "separate_wallet_review");
+assert.match(demo.dappDescriptor("agents-budget").reviewBoundary, /No private key/);
 assert.deepEqual(
   Array.from(demo.DAPP_CONNECTION_FIXTURES, ({ id, descriptorId, status }) => ({ id, descriptorId, status })),
   [
-    { id: "connection_offline_pay", descriptorId: "offline-pay", status: "pending" },
-    { id: "connection_scoped_expenses", descriptorId: "scoped-expenses", status: "active" },
+    { id: "connection_offline_pay", descriptorId: "pay", status: "pending" },
+    { id: "connection_scoped_expenses", descriptorId: "agents-budget", status: "active" },
     { id: "connection_service_credits", descriptorId: "service-credits", status: "expired" }
   ]
 );
@@ -151,6 +216,32 @@ assert.doesNotMatch(
   JSON.stringify(demo.DAPP_CATALOG),
   /((?:https?:)?\/\/)|\b(?:url|domain|iframe|bundle|executable|sourceCode)\b/i
 );
+for (const shellFile of ["index.html", "help.html"]) {
+  const shellSource = await readFile(resolve(demoRoot, shellFile), "utf8");
+  const mergeSplitSymbol = shellSource.match(/<symbol id="i-merge-split"[\s\S]*?<\/symbol>/)?.[0] || "";
+  const earnSymbol = shellSource.match(/<symbol id="i-earn"[\s\S]*?<\/symbol>/)?.[0] || "";
+  const navigationIcons = new Set(demo.NAVIGATION_NODES
+    .filter(({ id }) => shellFile === "index.html" || !["help", "about", "logout"].includes(id))
+    .map(({ iconId }) => iconId));
+  assert.match(
+    mergeSplitSymbol,
+    /M9 3h5v5h-2v4h5a3 3 0 0 1 3 3v2h2v5h-5v-5h2v-2/,
+    `${shellFile} Merge/Split must use mdi-light:sitemap.`
+  );
+  assert.match(earnSymbol, /viewBox="0 0 24 24"/, `${shellFile} Earn must use the shared icon canvas.`);
+  assert.match(earnSymbol, /stroke-width="1\.5"/, `${shellFile} Earn must use the light outline stroke.`);
+  assert.doesNotMatch(earnSymbol, /icon-fill/, `${shellFile} Earn must not use a filled glyph.`);
+  assert.doesNotMatch(shellSource, /i-dapp-create-(?:voucher|permission)/);
+  for (const iconName of navigationIcons) {
+    const symbol = shellSource.match(new RegExp(`<symbol id="i-${iconName}"[\\s\\S]*?</symbol>`))?.[0] || "";
+    assert.match(symbol, /viewBox="0 0 24 24"/, `${shellFile} ${iconName} must use the shared navigation canvas.`);
+  }
+  for (const { iconName } of demo.DAPP_CATALOG) {
+    const symbol = shellSource.match(new RegExp(`<symbol id="i-${iconName}"[\\s\\S]*?</symbol>`))?.[0] || "";
+    assert.match(symbol, /stroke-width="1\.5"/, `${shellFile} ${iconName} must use the light outline stroke.`);
+    assert.doesNotMatch(symbol, /icon-fill/, `${shellFile} ${iconName} must not use a filled glyph.`);
+  }
+}
 const walletFixturesBeforeDappReview = JSON.stringify(demo.INITIAL_WALLET_FIXTURES);
 const dappGateway = demo.createMockDappGateway();
 const offlinePayReviewResult = dappGateway.readPermissionReview({
@@ -221,7 +312,7 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(acceptedDappReview.data.intentReference)),
   {
     type: "prepare_offline_payment",
-    descriptorId: "offline-pay",
+    descriptorId: "pay",
     reviewId: "review_connection_offline_pay"
   }
 );
@@ -267,7 +358,7 @@ assert.equal(
 );
 assert.equal(
   dappGateway.prepareWalletReview({
-    decision: { ...acceptedDappReview.data, descriptorId: "agent-budget" }
+    decision: { ...acceptedDappReview.data, descriptorId: "agents-budget" }
   }).error.code,
   "invalid_decision"
 );
@@ -914,7 +1005,7 @@ for (const [workspaceId, defaultRoute, childCount] of [
 assert.equal(demo.NAVIGATION_NODES.filter(({ target }) => target.kind === "group").length, 0);
 assert.deepEqual(
   Array.from(demo.navigationChildren(), ({ id }) => id),
-  ["wallet", "telemetry", "dapps", "messenger", "data-storage", "contacts.list", "settings", "help", "about", "logout"]
+  ["wallet", "dapps", "messenger", "data-storage", "telemetry", "contacts.list", "settings", "help", "about", "logout"]
 );
 assert.ok(demo.ICON_NAMES.includes("message"));
 assert.ok(demo.ICON_NAMES.includes("inbox"));
@@ -942,10 +1033,34 @@ assert.ok(Array.from(demo.navigationChildren("wallet"), ({ id }) => id).every(
 ));
 assert.deepEqual(
   Array.from(demo.navigationChildren("dapps"), ({ target }) => target.routeId),
-  ["dapps.discover", "dapps.installed", "dapps.connections", "dapps.permissions", "wallet.swap", "wallet.exchange"]
+  [
+    "dapps.agents-budget",
+    "dapps.assets-locker",
+    "dapps.bounties",
+    "dapps.create-permission",
+    "dapps.create-voucher",
+    "dapps.digital-goods",
+    "dapps.donation",
+    "dapps.escrow",
+    "dapps.pay",
+    "dapps.payroll",
+    "dapps.request",
+    "dapps.service-credits",
+    "dapps.subscription",
+    "wallet.swap",
+    "dapps.tickets-passes",
+    "dapps.wbold-gateway",
+    "dapps.discover",
+    "dapps.installed"
+  ]
 );
+assert.equal(demo.navigationNode("dapps.discover").sectionBreakBefore, true);
+assert.equal(demo.navigationNode("dapps.installed").sectionBreakBefore, false);
+assert.equal(demo.navigationNode("dapps.permissions"), null);
+assert.equal(demo.PORT_CONTRACT.routes.includes("dapps.permissions"), false);
 assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.swap").pagePath.join("/"), "dapps/swap");
-assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.exchange").pagePath.join("/"), "dapps/exchange");
+assert.equal(context.window.Z00ZHelpRegistry.hasTopic("wallet.exchange"), false);
+assert.equal(context.window.Z00ZHelpRegistry.hasTopic("dapps.connections"), false);
 assert.deepEqual(
   Array.from(demo.navigationChildren("messenger"), ({ target }) => target.routeId),
   ["messenger.inbox", "messenger.sent", "messenger.conversations"]
@@ -1236,7 +1351,6 @@ for (const forbiddenValue of ["Everyday", "Savings", "Travel", "receiver", "coun
 }
 for (const [capabilityId, expected] of Object.entries({
   "wallet.swap": ["live", "unavailable", "fixture", "not_applicable", "product"],
-  "wallet.exchange": ["target", "unavailable", "none", "not_applicable", "product"],
   "wallet.staking": ["live", "unavailable", "fixture", "not_applicable", "product"],
 })) {
   const capability = demo.capabilityProfile(capabilityId);

@@ -9,10 +9,10 @@
     "button|type=button|data-contact-action=remove",
     "button|type=button|data-contact-action=request"
   ],
-  "presentation_sha256": "afbf10e7ef3e4443f2c57ce004a7e8bc7e609ad6a0c3bb1f2f546cf1f06b711d",
+  "presentation_sha256": "8a80c15305796af0434724f23c57bfb85e2075121463589cf723b4578b1e488e",
   "scope": "dialog",
   "screenshot": "help/assets/en/contacts-detail.png",
-  "screenshot_sha256": "0bebe2bb0cf99520234a4d04a05163dbd8a4b55a10ea6685d622b5e7791ced8b",
+  "screenshot_sha256": "b478fa73e78727ba5f51c86361acac23c1d5c3ed0ac4675974960dd4452ff885",
   "sections": [
     "Ada"
   ],

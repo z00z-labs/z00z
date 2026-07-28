@@ -20,13 +20,12 @@
     "button|type=button|aria-label=View details for wZcash",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "a03eba901a5e8d870043bc4fb55f48c086039ef44e7cfabfd3664e5419a77675",
+  "presentation_sha256": "4bb18061742ef47996db311c4214a6fb236349cad1d251a60f78b48aa5cecb93",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-assets.png",
-  "screenshot_sha256": "4e51ac52468ce4f34c52265cf858030c80eede1733b2b43f4663425cb331d95c",
+  "screenshot_sha256": "e809618f4d815900e8a802f5cb222371ed7d7d0ea1c7f3797e8b07c25c39b36d",
   "sections": [],
   "terms": [
-    "0.00",
     "0.00 ADA",
     "0.00 ALGO",
     "0.00 AVAX",
@@ -58,6 +57,7 @@
     "Sky",
     "Token",
     "Tokens",
+    "USD 0.00",
     "Unavailable",
     "Value",
     "View details for BCAP",

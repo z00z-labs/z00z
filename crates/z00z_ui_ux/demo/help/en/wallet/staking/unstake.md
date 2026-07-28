@@ -1,17 +1,17 @@
 ---
 id: wallet.staking.unstake
-title: Wallet Staking: Unstake
+title: Wallet Earn: Unstake
 route: wallet.staking.unstake
 scope: context
 ---
 
-# Wallet Staking: Unstake
+# Wallet Earn: Unstake
 
 [TOC]
 
 ## App View {#current-view}
 
-![Wallet Staking: Unstake application view](help/assets/en/wallet-staking-unstake.png)
+![Wallet Earn: Unstake application view](help/assets/en/wallet-staking-unstake.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 

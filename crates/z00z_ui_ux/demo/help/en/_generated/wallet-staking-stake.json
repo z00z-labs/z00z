@@ -7,10 +7,10 @@
     "button|type=button|data-workspace-route=wallet.staking.unstake",
     "input|type=number|placeholder=0.00"
   ],
-  "presentation_sha256": "a1bce67ef52c196520dbdff44f5c3fd02a0a88161cc3079954bd76ab47317853",
+  "presentation_sha256": "bc89c65b8fcb5a018162a82c4c71fe2eaf519cfa5f8a38d785609ceff1586b97",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-staking-stake.png",
-  "screenshot_sha256": "42064003f9f4bc4d8876ffc157ddae11006c4362f3688648acecd19df7952e5a",
+  "screenshot_sha256": "7a68480a20543d19e15e5550b943ec2c973fa67eb30bad3f9b39234d24026a75",
   "sections": [
     "Prepare a stake"
   ],
@@ -20,12 +20,12 @@
     "Amount",
     "Available:",
     "Choose after chain verification",
+    "Earn",
     "Prepare a stake",
     "Review stake",
     "Rewards",
     "Stake",
     "Staked",
-    "Staking",
     "Staking totals",
     "Unavailable",
     "Unstake",
