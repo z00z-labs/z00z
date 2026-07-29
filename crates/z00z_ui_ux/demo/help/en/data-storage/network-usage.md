@@ -1,6 +1,6 @@
 ---
 id: data-storage.network-usage
-title: Data & Storage: Network Usage
+title: "Data & Storage: Network Usage"
 route: data-storage.network-usage
 scope: context
 ---

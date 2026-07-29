@@ -1,6 +1,6 @@
 ---
 id: wallet.backup
-title: Wallet: Backup
+title: "Wallet: Backup"
 route: wallet.backup
 scope: context
 ---

@@ -1,6 +1,6 @@
 ---
 id: dapps.detail
-title: dApps: Detail
+title: "dApps: Detail"
 route: none
 scope: dialog
 ---

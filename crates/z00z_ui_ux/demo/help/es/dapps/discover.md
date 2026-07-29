@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
 title: Descubrir dApps
-summary: Descubrir dApps: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.
+summary: "Descubrir dApps: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos."
 scope: context
 ---
 ## Usar esta vista {#current-view}

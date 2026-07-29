@@ -1,6 +1,6 @@
 ---
 id: telemetry.aggregators.ingress
-title: Telemetry Aggregators: Ingress
+title: "Telemetry Aggregators: Ingress"
 route: telemetry.aggregators.ingress
 scope: context
 ---

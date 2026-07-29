@@ -9,10 +9,10 @@
     "input|type=text|name=result|placeholder=Exact asset and amount, service outcome, or publication handle",
     "input|type=text|name=source|placeholder=Exact asset, amount, held right, or public artifact commitment"
   ],
-  "presentation_sha256": "dd3e6d573254070c00a2542a0fec9443ebd996348914c400ab49cfab732c1f37",
+  "presentation_sha256": "0c69099bc276a9887368e7f56fc8010de2f009271d589faa48299e55285e1640",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-xchain-integration.png",
-  "screenshot_sha256": "3c6a7e6efa398a6263a5ec921dbbed2d6686c81a74bd262ebea73ecbe0a5266b",
+  "screenshot_sha256": "e4635100ed8b59dd4dcc4934aaf288df74abc2527d92045c78bd4a8d1960d654",
   "sections": [
     "Ethereum",
     "Every plan uses one transparent quote contract",

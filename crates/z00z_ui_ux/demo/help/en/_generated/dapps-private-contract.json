@@ -9,10 +9,10 @@
     "input|type=text|name=subject|placeholder=Exact private relationship or deliverable",
     "input|type=text|name=terms-digest|placeholder=Canonical digest of the reviewed terms"
   ],
-  "presentation_sha256": "8b0335a2a14de55abc7fd018daa481de5a1dd138a837e7f7a0972b6486b89daf",
+  "presentation_sha256": "2241c996d02bf9bfcc9880b3ea0c422d90cd338a721c6ec475dea26ec0e47519",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-private-contract.png",
-  "screenshot_sha256": "2a04af10ca612394d35dcf906d20fab6f14399c0463027d98f4792c8d7eb1982",
+  "screenshot_sha256": "0bacc6e37cfeb1bf16bb1d3b652dd129a690c152bb488e21ca1cb56b362d3baa",
   "sections": [
     "Prepare proposal",
     "Private Agreement",

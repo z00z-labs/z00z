@@ -15,13 +15,26 @@
 }
 
 :root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
   --radius-control: 10px;
   --radius-card: 14px;
   --radius-sheet: 20px;
+  --icon-size: 20px;
+  --icon-control-size: 18px;
+  --icon-context-size: 21px;
+  --icon-context-mobile-size: 20px;
+  --control-min-height: 44px;
   --sidebar-width: 288px;
   --context-rail-width: 192px;
   --context-nav-content-gap: 24px;
   --topbar-height: 80px;
+  --workspace-sticky-offset: 34px;
   --wallet-statusbar-height: 54px;
   --content-max: 1075px;
   --wallet-action-card-max: 640px;

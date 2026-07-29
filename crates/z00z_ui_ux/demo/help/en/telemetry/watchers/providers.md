@@ -1,6 +1,6 @@
 ---
 id: telemetry.watchers.providers
-title: Telemetry Watchers: Providers
+title: "Telemetry Watchers: Providers"
 route: telemetry.watchers.providers
 scope: context
 ---

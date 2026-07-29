@@ -1,6 +1,6 @@
 ---
 id: contacts.detail
-title: Contacts: Detail
+title: "Contacts: Detail"
 route: none
 scope: dialog
 ---

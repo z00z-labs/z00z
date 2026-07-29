@@ -9,10 +9,10 @@
     "button|type=button|data-workspace-route=telemetry.watchers.providers",
     "button|type=button|data-workspace-route=telemetry.watchers.publication"
   ],
-  "presentation_sha256": "6bcb1b0e17c10253801d8950e528623b4ffdbcce336a301a43b45016285445d9",
+  "presentation_sha256": "88141df5fd11d67f2fad8b5751d9b09081a905514d2f20a70a329790ec2fb4ab",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-watchers-overview.png",
-  "screenshot_sha256": "848b2708c65c895380af5ccf5580d355ea91a0d700b672bf234fadf4636b5952",
+  "screenshot_sha256": "73f0e977f9f14af87e31155d1932e663c1048ef393510ef14f61323a16b7bf0a",
   "sections": [
     "Watchers"
   ],

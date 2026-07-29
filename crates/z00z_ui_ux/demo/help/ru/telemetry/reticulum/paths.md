@@ -1,7 +1,7 @@
 ---
 id: telemetry.reticulum.paths
 title: Маршруты Reticulum
-summary: Маршруты Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum.
+summary: "Маршруты Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum."
 scope: context
 ---
 ## Как использовать экран {#current-view}

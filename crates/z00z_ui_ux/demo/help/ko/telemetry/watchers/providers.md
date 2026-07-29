@@ -1,13 +1,36 @@
 ---
 id: telemetry.watchers.providers
-title: 감시자 · DA 제공자
-summary: 감시자 · DA 제공자: 읽기 전용 Watchers 로드맵 미리보기와 공개 증거 경계에 대한 도움말입니다.
+title: "Telemetry Watchers: Providers"
+route: telemetry.watchers.providers
 scope: context
 ---
-## 이 화면 사용 {#current-view}
-- 네트워크 상태를 변경하지 않고 결정론적 게시 데이터를 검토하세요.
-- 사용 불가, 오래됨, 잘못된 형식, 오류 상태는 명확하게 표시되고 안전하게 차단됩니다.
 
-## 로컬 및 안전 동작
-- Watchers는 로컬 픽스처 기반 로드맵 미리보기이며 출시된 프로토콜 기능이 아닙니다.
-- 지갑 레이블, 상대방, 경로, 메시지, 비밀 정보는 노출되지 않습니다.
+# Telemetry Watchers: Providers
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Watchers: Providers application view](help/assets/en/telemetry-watchers-providers.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/watchers/providers.md","route_id":"telemetry.watchers.providers","screenshot":"help/assets/en/telemetry-watchers-providers.png","topic_id":"telemetry.watchers.providers"} -->

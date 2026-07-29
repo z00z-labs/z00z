@@ -8,7 +8,7 @@ if (!demo?.PORT_CONTRACT || !demo.navigationChildren || !demo.navigationNodeForR
 }
 
 const DIALOG_PATHS = Object.freeze({
-  "asset.details": { dialog: "asset-detail", path: ["wallet", "assets-rights", "asset-details"] },
+  "asset.details": { dialog: "asset-detail", path: ["wallet", "assets", "asset-details"] },
   "dapps.detail": { dialog: "dapps-detail", path: ["dapps", "detail"] },
   "dapps.permission-review": { dialog: "dapps-permission-review", path: ["dapps", "permission-review"] },
   "messenger.detail": { dialog: "messenger-detail", path: ["messenger", "detail"] },
@@ -35,13 +35,19 @@ const TITLE_SEGMENTS = Object.freeze({
   "tickets-passes": "Ticket & Pass",
   "private-contract": "Private Agreement",
   discover: "Discover dApps",
+  faq: "Frequently Asked Questions",
+  "how-to": "How to Use Z00Z",
+  "report-issues": "Report Issues",
+  "tips-and-tricks": "Tips and Tricks",
+  "video-tutorials": "Video Tutorials",
 });
 
 const PAGE_PATH_OVERRIDES = Object.freeze({
+  "wallet.merge": Object.freeze(["wallet", "merge-split", "index"]),
   "settings.general": Object.freeze(["settings", "index"]),
-  "settings.reticulum": Object.freeze(["settings", "reticulum"]),
-  "settings.onionnet": Object.freeze(["settings", "onionnet"]),
-  "settings.quic": Object.freeze(["settings", "quic"]),
+  "settings.reticulum": Object.freeze(["settings", "network", "reticulum"]),
+  "settings.onionnet": Object.freeze(["settings", "network", "onionnet"]),
+  "settings.quic": Object.freeze(["settings", "network", "quic"]),
 });
 
 function segment(value) {
@@ -90,7 +96,9 @@ function pagePath(node) {
 
   const parts = chain.flatMap((entry, index) => {
     if (entry.target.kind === "branch") return [entry.id];
-    if (entry.target.kind === "workspace") return [segment(entry.id)];
+    if (entry.target.kind === "workspace") {
+      return [entry.id === "wallet.assets-rights" ? "assets" : segment(entry.id)];
+    }
     if (entry.target.kind === "route") return [segment(entry.id)];
     if (entry.target.kind === "help") return ["app", "index"];
     return index === chain.length - 1 ? [segment(entry.id)] : [];
@@ -129,25 +137,12 @@ function dialogRecords() {
   }));
 }
 
-function guideRecords() {
-  return [
-    Object.freeze({
-      id: "dapps.security-model",
-      labelKey: "help.title",
-      nodeId: "",
-      pagePath: Object.freeze(["dapps", "security-model"]),
-      routeId: "",
-      scope: "guide",
-    }),
-  ];
-}
-
 function appRecord() {
   return Object.freeze({
     id: "app",
     labelKey: "help.title",
     nodeId: "help",
-    pagePath: Object.freeze(["app", "index"]),
+    pagePath: Object.freeze(["index"]),
     routeId: "",
     scope: "global",
   });
@@ -175,7 +170,6 @@ export function helpRecords() {
     appRecord(),
     ...demo.PORT_CONTRACT.routes.map(recordForRoute),
     ...dialogRecords(),
-    ...guideRecords(),
   ]);
   assertRecords(records);
   return records;

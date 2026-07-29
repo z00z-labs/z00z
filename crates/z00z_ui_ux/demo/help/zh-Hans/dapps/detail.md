@@ -1,13 +1,36 @@
 ---
 id: dapps.detail
-title: dApps：详情
-summary: dApps：详情：受限本地 dApps 预览及其权限边界的帮助。
+title: "dApps: Detail"
+route: none
 scope: dialog
 ---
-## 使用此视图 {#current-view}
-- 查看本地描述、范围受限的意图和明确结果。
-- 接受前请检查范围、使用次数、期限、金额、费用、披露和撤销条件。
 
-## 本地和安全行为
-- dApps 是路线图预览，不会执行远程代码、任意网址或通用签名。
-- 钱包会重新验证已接受的意图；此视图不能更改钱包对象。
+# dApps: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![dApps: Detail application view](help/assets/en/dapps-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"dapps/detail.md","route_id":"none","screenshot":"help/assets/en/dapps-detail.png","topic_id":"dapps.detail"} -->

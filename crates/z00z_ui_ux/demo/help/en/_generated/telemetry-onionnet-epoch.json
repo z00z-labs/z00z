@@ -9,10 +9,10 @@
     "button|type=button|data-workspace-route=telemetry.onionnet.queues",
     "button|type=button|data-workspace-route=telemetry.onionnet.transport"
   ],
-  "presentation_sha256": "b34aa3c624dfedbf85b164e583d6a6b9906ecbc3625b0ce3c6ab54c479bca5e7",
+  "presentation_sha256": "4e84db9e47abdbc298b997f4b3518397f3f356fd278b12988652c9c0655fde29",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-onionnet-epoch.png",
-  "screenshot_sha256": "2f9fb401e91db0c8fa6eb54bbdbaba622d2b7890bc0d05ea4fe1f149dc363366",
+  "screenshot_sha256": "258450b7187859da43b0e4ee62f6dbb7e99cc4889307f8de86f484246af68de5",
   "sections": [
     "Epoch",
     "OnionNet telemetry"

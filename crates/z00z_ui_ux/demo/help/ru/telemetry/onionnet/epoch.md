@@ -1,7 +1,7 @@
 ---
 id: telemetry.onionnet.epoch
 title: Эпоха OnionNet
-summary: Эпоха OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий.
+summary: "Эпоха OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий."
 scope: context
 ---
 ## Как использовать экран {#current-view}

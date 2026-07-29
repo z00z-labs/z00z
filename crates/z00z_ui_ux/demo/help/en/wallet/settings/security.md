@@ -1,6 +1,6 @@
 ---
 id: wallet.settings.security
-title: Wallet Settings: Security
+title: "Wallet Settings: Security"
 route: wallet.settings.security
 scope: context
 ---

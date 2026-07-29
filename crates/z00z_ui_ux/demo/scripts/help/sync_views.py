@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture English Demo views and create non-destructive Help review drafts."""
+"""Capture English Demo views without generating parallel Help articles."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
 from html.parser import HTMLParser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -459,58 +458,6 @@ def changes(previous: dict[str, Any] | None, current: dict[str, Any]) -> dict[st
     return result
 
 
-def draft_path(page: Path) -> Path:
-    base = page.with_name(f"{page.stem}-draft-{date.today():%Y%m%d}.md")
-    if not base.exists():
-        return base
-    sequence = 2
-    while True:
-        candidate = page.with_name(f"{page.stem}-draft-{date.today():%Y%m%d}-{sequence}.md")
-        if not candidate.exists():
-            return candidate
-        sequence += 1
-
-
-def draft_source(view: dict[str, Any], snapshot: dict[str, Any], change_set: dict[str, list[str]]) -> str:
-    items = []
-    for section, values in change_set.items():
-        if not values:
-            continue
-        items.extend(f"- **{section.replace('_', ' ').capitalize()}**: `{value}`" for value in values)
-    term_rows = snapshot["terms"] or ["Review all captured terms"]
-    rows = "\n".join(
-        "| `{}` | Add an accurate user-facing explanation. |".format(term.replace("|", "\\|"))
-        for term in term_rows
-    )
-    return f"""---
-id: {view['id']}-draft-{date.today():%Y%m%d}
-title: {view['id']} Help update draft
-route: {view['routeId'] or 'none'}
-scope: draft
----
-
-# {view['id']} Help update draft
-
-## App View {{#current-view}}
-
-![Current application view]({view['screenshot']})
-
-## Required updates
-
-{chr(10).join(items) if items else '- Review the updated interface capture.'}
-
-## Terms and controls
-
-| Term or control | Required explanation |
-| --- | --- |
-{rows}
-
-## Review note
-
-Merge only reviewed explanations into `{view['pagePath']}`. This draft never replaces the canonical Help page.
-"""
-
-
 def write_result(view: dict[str, Any], snapshot: dict[str, Any], image: bytes, check_only: bool) -> tuple[int, int]:
     page = page_path(view)
     state = state_path(view)
@@ -526,7 +473,9 @@ def write_result(view: dict[str, Any], snapshot: dict[str, Any], image: bytes, c
             raise ValueError(f"Captured App View asset does not match state for {view['id']}")
         change_set = changes(recorded, snapshot)
         if any(change_set.values()):
-            raise ValueError(f"Stale Help capture state for {view['id']}; run sync_views.py to create a review draft")
+            raise ValueError(
+                f"Stale Help capture state for {view['id']}; run sync_views.py and update the canonical article if its explanation changed"
+            )
         return 0, 0
     previous = load_state(state)
     change_set = changes(previous, snapshot)
@@ -543,8 +492,6 @@ def write_result(view: dict[str, Any], snapshot: dict[str, Any], image: bytes, c
     state.write_text(f"{json.dumps(snapshot, indent=2, sort_keys=True)}\n", encoding="utf-8")
     if not any(change_set.values()):
         return 0, 0
-    draft = draft_path(page)
-    draft.write_text(draft_source(view, snapshot, change_set), encoding="utf-8")
     return 1, 0
 
 
@@ -596,16 +543,17 @@ def main() -> None:
 
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             captures = [capture for batch in executor.map(capture_batch, batches) for capture in batch]
-        drafts = 0
-        preserved = 0
+        changed_views = 0
         for view, snapshot, image in captures:
-            created, retained = write_result(view, snapshot, image, arguments.verify_current)
-            drafts += created
-            preserved += retained
+            changed, _ = write_result(view, snapshot, image, arguments.verify_current)
+            changed_views += changed
         if arguments.verify_current:
             print(f"English Help capture state current: {len(views)} views")
         else:
-            print(f"English Help synchronized: views={len(views)}, drafts={drafts}, existing_drafts={preserved}")
+            print(
+                f"English Help synchronized: views={len(views)}, changed_views={changed_views}. "
+                "Update canonical Markdown directly when explanatory content changed."
+            )
     finally:
         server.shutdown()
         server.server_close()

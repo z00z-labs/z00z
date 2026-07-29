@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.checkpoints
-title: 浏览器：检查点
-summary: 浏览器：检查点：面向受支持公开标识符、受隐私约束的 Explorer 预览帮助。
+title: "Telemetry Explorer: Checkpoints"
+route: telemetry.explorer.checkpoints
 scope: context
 ---
-## 使用此视图 {#current-view}
-- 仅使用受支持的公开检查点、批次、警报或证据标识符。
-- 未知、私密、格式错误或不可用的标识符不会查询钱包，并会安全失败。
 
-## 本地和安全行为
-- Explorer 是基于本地样本的路线图预览，并非钱包数据服务。
-- 本地余额、联系人、消息、备注、路径和机密不会进入 Explorer。
+# Telemetry Explorer: Checkpoints
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer: Checkpoints application view](help/assets/en/telemetry-explorer-checkpoints.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/checkpoints.md","route_id":"telemetry.explorer.checkpoints","screenshot":"help/assets/en/telemetry-explorer-checkpoints.png","topic_id":"telemetry.explorer.checkpoints"} -->

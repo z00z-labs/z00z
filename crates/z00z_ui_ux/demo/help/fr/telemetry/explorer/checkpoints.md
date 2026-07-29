@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.checkpoints
-title: Explorateur — Points de contrôle
-summary: Explorateur — Points de contrôle : aide sur l’aperçu Explorer respectueux de la vie privée pour les identifiants publics pris en charge.
+title: "Telemetry Explorer: Checkpoints"
+route: telemetry.explorer.checkpoints
 scope: context
 ---
-## Utiliser cette vue {#current-view}
-- N’utilisez que les identifiants publics pris en charge pour les points de contrôle, lots, alertes ou preuves.
-- Les identifiants inconnus, privés, malformés ou indisponibles échouent sans consulter le portefeuille.
 
-## Comportement local et sûr
-- Explorer est un aperçu de feuille de route fondé sur des données locales, pas un service de données du portefeuille.
-- Soldes locaux, contacts, messages, notes, routes et secrets n’entrent jamais dans Explorer.
+# Telemetry Explorer: Checkpoints
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer: Checkpoints application view](help/assets/en/telemetry-explorer-checkpoints.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/checkpoints.md","route_id":"telemetry.explorer.checkpoints","screenshot":"help/assets/en/telemetry-explorer-checkpoints.png","topic_id":"telemetry.explorer.checkpoints"} -->

@@ -26,6 +26,7 @@ const modules = [
   "scripts/port/mock-dapp-gateway.js",
   "scripts/port/mock-messenger-gateway.js",
   "scripts/port/mock-contacts-gateway.js",
+  "scripts/port/icon-sprite.js",
   "scripts/port/icon-registry.js",
   "scripts/port/locale-registry.js",
   "scripts/generated/help-catalog.js",
@@ -78,8 +79,11 @@ assert.ok(demo.PORT_CONTRACT.forbiddenTransports.includes("websocket"));
 assert.equal(demo.PORT_CONTRACT.capabilityStates, undefined);
 assert.equal(demo.PORT_CONTRACT.routes.length, 88);
 assert.ok(demo.PORT_CONTRACT.walletRoutes.includes("wallet.merge-split"));
+assert.ok(demo.PORT_CONTRACT.helpTopics.includes("wallet.merge"));
+assert.ok(demo.PORT_CONTRACT.helpTopics.includes("wallet.split"));
+assert.ok(!demo.PORT_CONTRACT.helpTopics.includes("wallet.merge-split"));
 assert.equal(demo.navigationNode("wallet.merge-split").iconId, "merge-split");
-assert.equal(demo.navigationNode("wallet.merge-split").helpTopicId, "wallet.merge-split");
+assert.equal(demo.navigationNode("wallet.merge-split").helpTopicId, "wallet.merge");
 assert.equal(
   demo.navigationChildren("wallet").findIndex(({ id }) => id === "wallet.merge-split"),
   demo.navigationChildren("wallet").findIndex(({ id }) => id === "wallet.import") + 1

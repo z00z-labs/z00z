@@ -1,7 +1,6 @@
-title: "Контакты"
+title: Контакты
 icon: user
 order:
-  - index
-  - contacts
+  - list
   - detail
   - identity-review

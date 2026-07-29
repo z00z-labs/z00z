@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit coverage for the non-destructive English Help view synchronizer."""
+"""Unit coverage for the canonical-only English Help view synchronizer."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class ViewSynchronizerTests(unittest.TestCase):
 
         self.assertEqual(SYNC.changes(previous, current)["presentation"], ["App View layout or presentation changed"])
 
-    def test_write_result_never_overwrites_canonical_page(self) -> None:
+    def test_write_result_updates_capture_state_without_creating_markdown(self) -> None:
         original_roots = (SYNC.DEMO_ROOT, SYNC.HELP_ROOT, SYNC.STATE_ROOT)
         try:
             with tempfile.TemporaryDirectory() as temporary_directory:
@@ -93,21 +93,18 @@ class ViewSynchronizerTests(unittest.TestCase):
                     "topic_id": view["id"],
                 }
 
-                created, preserved = SYNC.write_result(view, snapshot, image, False)
+                changed, preserved = SYNC.write_result(view, snapshot, image, False)
 
-                self.assertEqual((created, preserved), (1, 0))
+                self.assertEqual((changed, preserved), (1, 0))
                 self.assertEqual(canonical.read_text(encoding="utf-8"), "authored canonical content\n")
-                draft = canonical.with_name(f"assets-draft-{SYNC.date.today():%Y%m%d}.md")
-                self.assertTrue(draft.is_file())
-                self.assertIn("Balance", draft.read_text(encoding="utf-8"))
+                self.assertEqual(list(canonical.parent.glob("*.md")), [canonical])
+                self.assertEqual(SYNC.load_state(SYNC.state_path(view))["terms"], ["Balance"])
 
                 updated_snapshot = {**snapshot, "terms": ["Balance", "Available"]}
-                created, preserved = SYNC.write_result(view, updated_snapshot, image, False)
-                self.assertEqual((created, preserved), (1, 0))
-                updated_draft = canonical.with_name(f"assets-draft-{SYNC.date.today():%Y%m%d}-2.md")
-                self.assertTrue(updated_draft.is_file())
-                self.assertIn("Balance", updated_draft.read_text(encoding="utf-8"))
-                self.assertIn("Available", updated_draft.read_text(encoding="utf-8"))
+                changed, preserved = SYNC.write_result(view, updated_snapshot, image, False)
+                self.assertEqual((changed, preserved), (1, 0))
+                self.assertEqual(list(canonical.parent.glob("*.md")), [canonical])
+                self.assertEqual(SYNC.load_state(SYNC.state_path(view))["terms"], ["Balance", "Available"])
                 self.assertEqual(canonical.read_text(encoding="utf-8"), "authored canonical content\n")
         finally:
             SYNC.DEMO_ROOT, SYNC.HELP_ROOT, SYNC.STATE_ROOT = original_roots

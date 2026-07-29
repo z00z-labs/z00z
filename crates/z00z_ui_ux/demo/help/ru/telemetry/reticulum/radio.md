@@ -1,7 +1,7 @@
 ---
 id: telemetry.reticulum.radio
 title: Радио Reticulum
-summary: Радио Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum.
+summary: "Радио Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum."
 scope: context
 ---
 ## Как использовать экран {#current-view}

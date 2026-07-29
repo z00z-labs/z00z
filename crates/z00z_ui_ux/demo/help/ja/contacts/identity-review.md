@@ -1,13 +1,36 @@
 ---
 id: contacts.identity-review
-title: 連絡先：本人情報の確認
-summary: 連絡先：本人情報の確認：ローカル連絡先ラベル、受取カード、明示的な本人情報変更確認のヘルプです。
+title: "Contacts: Identity Review"
+route: none
 scope: dialog
 ---
-## この画面の使い方 {#current-view}
-- ローカルデータ、有効期限、失効、本人情報変更の証拠を確認します。
-- 保存したラベルは本人確認や信頼の証明ではなく、変更されたデータは確認が必要です。
 
-## ローカルで安全な動作
-- 連絡先はローカルに保持され、住所や在席状況のグラフとして送信されません。
-- ローカル連絡先の削除は外部権限を失効させず、ウォレット決済も変更しません。
+# Contacts: Identity Review
+
+[TOC]
+
+## App View {#current-view}
+
+![Contacts: Identity Review application view](help/assets/en/contacts-identity-review.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"contacts/identity-review.md","route_id":"none","screenshot":"help/assets/en/contacts-identity-review.png","topic_id":"contacts.identity-review"} -->

@@ -1,10 +1,10 @@
 {
   "capture_route": "data-storage.network-usage",
   "components": [],
-  "presentation_sha256": "e6110f4c7a47f07775c083cbb21b629e8534ba852edea936fdf363d6dfbd686c",
+  "presentation_sha256": "90143c75c47075b1d5301a8c2f7bdb2c9962fcce0b68c811f7af4d5910c6a7df",
   "scope": "context",
   "screenshot": "help/assets/en/data-storage-network-usage.png",
-  "screenshot_sha256": "11f3fdac5c7a5a4a1caf63cbf704dfdaf1d6b525f093f87addee8a05f4ea78cc",
+  "screenshot_sha256": "9020b9713af947e3c3b8b8f9c4b2357f4cd4e9981e9addc96f867d616861454f",
   "sections": [
     "Network Usage"
   ],

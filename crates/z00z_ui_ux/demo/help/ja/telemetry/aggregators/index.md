@@ -1,7 +1,13 @@
 ---
-title: "Aggregators"
-description: "Aggregators · 目次"
-difficulty: basic
-icon: mdi:alphabet-a-box-outline
-toc: true
+id: telemetry.aggregators.overview
+title: アグリゲーター概要
+summary: アグリゲーター概要は、ローカルブリッジからの読み取り専用の公開・配置証拠を表示します。
+scope: context
 ---
+## この画面の使い方 {#current-view}
+- ローカルブリッジが提供する公開、配置、検証、ライフサイクルの証拠を確認します。
+- 利用不可は新しいローカルスナップショットがないことを示し、デモはネットワーク状態を推測しません。
+
+## ローカルで安全な動作
+- ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。
+- このヘルプはアプリに同梱され、オフラインで動作します。

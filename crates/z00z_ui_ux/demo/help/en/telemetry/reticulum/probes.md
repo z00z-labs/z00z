@@ -1,6 +1,6 @@
 ---
 id: telemetry.reticulum.probes
-title: Telemetry Reticulum: Probes
+title: "Telemetry Reticulum: Probes"
 route: telemetry.reticulum.probes
 scope: context
 ---

@@ -4,7 +4,8 @@
   const registry = root.Z00ZHelpRegistry;
   const i18n = root.Z00ZI18n;
   const demo = root.Z00ZDemo;
-  if (!registry || !i18n || !demo?.navigationChildren || !demo.createNavigationSession) {
+  if (!registry?.navigation || !i18n || !demo?.navigationChildren || !demo.createNavigationSession
+    || !demo.iconMarkup || !demo.positionFloatingPanel) {
     throw new Error("Standalone Help dependencies are missing.");
   }
 
@@ -24,10 +25,19 @@
   const searchStatus = document.querySelector("#help-search-status");
   const article = document.querySelector("#help-document");
   const main = document.querySelector("#help-main");
+  const pageShell = document.querySelector(".help-page-shell");
   const sidebar = document.querySelector("#help-sidebar");
   const navigationScrollRegion = sidebar.querySelector(".help-navigation-scroll-region");
   const siteHeader = document.querySelector(".help-site-header");
   const mobileTopbarContext = document.querySelector("#help-mobile-topbar-context");
+  const tocAside = document.querySelector("#help-on-this-page");
+  const tocNavigation = document.querySelector("#help-toc-navigation");
+  const tocTrigger = document.querySelector("#help-toc-trigger");
+  const tocOverlay = document.querySelector("#help-toc-overlay");
+  const tocBackdrop = document.querySelector("#help-toc-backdrop");
+  const tocDrawer = document.querySelector("#help-toc-drawer");
+  const tocDrawerNavigation = document.querySelector("#help-toc-drawer-navigation");
+  const tocClose = document.querySelector("#help-toc-close");
   const menuButton = document.querySelector("#help-menu-button");
   const backdrop = document.querySelector("#help-sidebar-backdrop");
   const homeLink = document.querySelector("#help-home-link");
@@ -36,7 +46,11 @@
   let activeTopicId = registry.globalTopic();
   let sectionTarget = "";
   let searchQuery = "";
-  let mobileNavigationLayout = root.matchMedia("(max-width: 768px)").matches;
+  let mobileNavigationLayout = demo.matchesViewport("mobileNavigation");
+  let desktopTocLayout = demo.matchesViewport("helpDesktopToc");
+  let tocItems = [];
+  let activeTocId = "";
+  let tocUpdateFrame = 0;
   const navigationSession = demo.createNavigationSession("help");
   const restoredNavigationSnapshot = navigationSession.read();
   const navigationScrollPositions = {
@@ -45,8 +59,8 @@
   };
   const expandedBranchIds = new Set(restoredNavigationSnapshot?.expandedBranchIds || ["wallet"]);
   let navigationSessionReady = false;
-  const terminalNodeIds = new Set(["settings", "help", "about", "logout"]);
-  const excludedNodeIds = new Set(["help", "about", "logout"]);
+  const terminalContentNodeIds = new Set(["settings", "about"]);
+  const topicAliases = new Map([["wallet.merge-split", "wallet.merge"]]);
   const mobileDrawerSwipe = {
     pointerId: null,
     source: "",
@@ -54,20 +68,24 @@
     startY: 0,
     direction: ""
   };
-  const mobileDrawerSwipeEdge = 48;
-  const mobileDrawerSwipeDistance = 56;
+  const {
+    edge: mobileDrawerSwipeEdge,
+    distance: mobileDrawerSwipeDistance
+  } = demo.DRAWER_GESTURE_LUT;
 
   root.name = "z00z-help";
 
-  const escapeHtml = (value) => String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-  const icon = (name, extraClass = "") => `<svg class="icon${extraClass ? ` ${extraClass}` : ""}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  const escapeHtml = demo.escapeHtml;
+  const icon = demo.iconMarkup;
   const navigationIcon = (node, extraClass = "") => `<svg class="icon navigation-tree-icon help-tree-navigation-icon${extraClass ? ` ${extraClass}` : ""}" aria-hidden="true" data-help-navigation-icon="${escapeHtml(node.id)}"><use href="#i-${node.iconId}"/></svg>`;
   const translate = (key, values) => i18n.translate(language, key, values);
+  const hashTarget = () => {
+    try {
+      return decodeURIComponent(root.location.hash.replace(/^#/, ""));
+    } catch {
+      return "";
+    }
+  };
 
   function persistNavigationState() {
     if (!navigationSessionReady) return;
@@ -94,32 +112,29 @@
   }
 
   function languagePickerMarkup() {
-    const selected = languageMetadata();
-    const label = translate("app.language");
-    return `<div class="language-picker help-language-picker" data-help-language-picker>
-      <button class="language-picker-trigger" type="button" data-help-language-trigger aria-label="${escapeHtml(label)}" aria-haspopup="listbox" aria-expanded="false" aria-controls="help-language-options">
-        <span class="language-picker-value"><span aria-hidden="true">${escapeHtml(selected.flag)}</span><span>${escapeHtml(selected.nativeName)}</span></span>
-        ${icon("chevron")}
-      </button>
-      <div class="language-picker-menu" id="help-language-options" data-help-language-options role="listbox" aria-label="${escapeHtml(label)}" hidden>
-        ${i18n.languages().map(({ id, nativeName, flag }) => `<button class="language-picker-option${id === language ? " is-selected" : ""}" type="button" role="option" aria-selected="${id === language}" tabindex="${id === language ? "0" : "-1"}" data-help-language-option="${escapeHtml(id)}"><span aria-hidden="true">${escapeHtml(flag)}</span><span>${escapeHtml(nativeName)}</span>${id === language ? icon("check") : ""}</button>`).join("")}
-      </div>
-    </div>`;
+    return demo.languagePickerMarkup({
+      languages: i18n.languages(),
+      language,
+      label: translate("app.language"),
+      variant: "help",
+      className: "help-language-picker"
+    });
   }
 
-  function readRoute({ preserveExpansion = false } = {}) {
+  function readRoute() {
     const parameters = new URLSearchParams(root.location.search);
     language = i18n.resolveLanguage(parameters.get("lang"));
-    const requestedTopicId = parameters.get("topic");
+    const requestedTopicId = topicAliases.get(parameters.get("topic")) || parameters.get("topic");
     const restoredTopicId = restoredNavigationSnapshot?.activeRoute
       ? registry.topics().find(({ routeId }) => routeId === restoredNavigationSnapshot.activeRoute)?.id
       : null;
     activeTopicId = topicIds.has(requestedTopicId)
       ? requestedTopicId
       : topicIds.has(restoredTopicId) ? restoredTopicId : registry.globalTopic();
-    sectionTarget = /^[a-z][a-z0-9-]*$/u.test(parameters.get("section") || "") ? parameters.get("section") : "";
+    const requestedSection = parameters.get("section") || hashTarget();
+    sectionTarget = /^[a-z][a-z0-9-]*$/u.test(requestedSection) ? requestedSection : "";
     document.documentElement.dataset.palette = parameters.get("palette") === "z00z-corporate" ? "z00z-corporate" : "z00z-default";
-    if (!preserveExpansion) expandActiveBranch();
+    expandActiveBranch();
   }
 
   function routeUrl(topicId, target = "") {
@@ -146,73 +161,74 @@
     return record?.routeId ? demo.navigationNodeForRoute(record.routeId) : null;
   }
 
-  function hasActiveDescendant(node) {
-    const routeNode = activeRouteNode();
-    return demo.ancestorContainerIdsForNode(routeNode?.id || "").includes(node.id);
+  function articleIconId(item) {
+    if (item.iconId) return item.iconId;
+    const topic = registry.topic(item.topicId);
+    const node = topic?.nodeId ? demo.navigationNode(topic.nodeId) : null;
+    if (node?.iconId) return node.iconId;
+    if (topic?.scope === "guide") return "shield";
+    if (topic?.scope === "dialog") return "eye";
+    if (topic?.scope === "article") return "info";
+    return "info";
   }
 
-  function isActiveNavigationNode(node) {
-    const routeNode = activeRouteNode();
-    if (!routeNode || !["route", "workspace"].includes(node.target.kind)) return false;
-    return node.target.routeId === routeNode.target.routeId
-      || (node.target.kind === "workspace" && hasActiveDescendant(node));
+  function containsActiveTopic(item) {
+    return item.relatedTopicIds?.includes(activeTopicId)
+      || (item.type === "section" && item.children.some(containsActiveTopic));
   }
 
-  function navigationNodeMarkup(node, { prefix, depth = 0, terminal = false } = {}) {
-    const label = escapeHtml(nodeLabel(node));
+  function contentNavigationMarkup(item, { prefix, depth = 0, terminal = false } = {}) {
+    const label = escapeHtml(item.type === "article"
+      ? item.title.replace(/^[^:]{1,48}:\s+/u, "")
+      : item.title);
     const depthClass = `is-depth-${depth}`;
-    const sectionBreakClass = node.sectionBreakBefore ? " navigation-tree-section-break" : "";
-    const activeDescendant = hasActiveDescendant(node);
-    if (node.target.kind === "branch") {
-      const expanded = expandedBranchIds.has(node.id);
-      const controlId = `${prefix}-${node.id.replaceAll(".", "-")}-toggle`;
-      const panelId = `${prefix}-${node.id.replaceAll(".", "-")}-children`;
-      return `<section class="navigation-tree-branch ${depthClass}${sectionBreakClass}${expanded ? " is-expanded" : ""}${activeDescendant ? " has-active-descendant" : ""}" data-help-navigation-node="${escapeHtml(node.id)}">
-        <button id="${controlId}" class="navigation-tree-item navigation-tree-branch-toggle" type="button" data-help-navigation-branch="${escapeHtml(node.id)}" aria-expanded="${expanded}" aria-controls="${panelId}">
-          ${navigationIcon(node)}
+    const sectionBreakClass = item.sectionBreakBefore ? " navigation-tree-section-break" : "";
+    if (item.type === "section") {
+      const expanded = expandedBranchIds.has(item.id);
+      const activeDescendant = containsActiveTopic(item);
+      const controlId = `${prefix}-${item.id.replaceAll(".", "-")}-toggle`;
+      const panelId = `${prefix}-${item.id.replaceAll(".", "-")}-children`;
+      return `<section class="navigation-tree-branch ${depthClass}${sectionBreakClass}${expanded ? " is-expanded" : ""}${activeDescendant ? " has-active-descendant" : ""}" data-help-navigation-node="${escapeHtml(item.id)}">
+        <button id="${controlId}" class="navigation-tree-item navigation-tree-branch-toggle" type="button" data-help-navigation-branch="${escapeHtml(item.id)}" aria-expanded="${expanded}" aria-controls="${panelId}">
+          ${navigationIcon({ id: item.id, iconId: item.iconId })}
           <span class="navigation-tree-label">${label}</span>
           ${icon("chevron", "navigation-tree-chevron")}
         </button>
         <div id="${panelId}" class="navigation-tree-children" role="group" aria-labelledby="${controlId}"${expanded ? "" : " hidden"}>
-          ${demo.navigationChildren(node.id).map((child) => navigationNodeMarkup(child, { prefix, depth: depth + 1 })).join("")}
+          ${item.children.map((child) => contentNavigationMarkup(child, { prefix, depth: depth + 1 })).join("")}
         </div>
       </section>`;
     }
-    if (node.target.kind === "group") {
-      const groupId = `${prefix}-${node.id.replaceAll(".", "-")}-group`;
-      return `<section class="navigation-tree-group ${depthClass}${sectionBreakClass}${activeDescendant ? " has-active-descendant" : ""}" data-help-navigation-node="${escapeHtml(node.id)}" aria-labelledby="${groupId}">
-        <p id="${groupId}" class="navigation-tree-group-label">
-          ${navigationIcon(node)}
-          <span class="navigation-tree-label">${label}</span>
-        </p>
-        <div class="navigation-tree-group-children" role="group" aria-labelledby="${groupId}">
-          ${demo.navigationChildren(node.id).map((child) => navigationNodeMarkup(child, { prefix, depth: depth + 1 })).join("")}
-        </div>
-      </section>`;
-    }
-    const topicId = topicIdForNode(node);
-    if (!topicId || !registry.hasTopic(topicId)) return "";
-    const active = isActiveNavigationNode(node);
-    return `<a class="navigation-tree-item navigation-tree-leaf${terminal ? " navigation-tree-terminal" : ""} ${depthClass}${sectionBreakClass}${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(topicId).href)}" data-help-navigation-node="${escapeHtml(node.id)}" data-help-topic-link="${escapeHtml(topicId)}"${node.target.kind === "workspace" ? ` data-navigation-workspace="${escapeHtml(node.id)}"` : ""}${active ? ' aria-current="page"' : ""}>
-      ${navigationIcon(node)}
+    if (!registry.hasTopic(item.topicId)) return "";
+    const active = item.relatedTopicIds?.includes(activeTopicId) || item.topicId === activeTopicId;
+    return `<a class="navigation-tree-item navigation-tree-leaf${terminal ? " navigation-tree-terminal" : ""} ${depthClass}${sectionBreakClass}${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(item.topicId).href)}" data-help-navigation-node="${escapeHtml(item.id)}" data-help-topic-link="${escapeHtml(item.topicId)}"${active ? ' aria-current="page"' : ""}>
+      ${navigationIcon({ id: item.id, iconId: articleIconId(item) })}
       <span class="navigation-tree-label">${label}</span>
     </a>`;
   }
 
   function expandActiveBranch() {
-    const routeNode = activeRouteNode();
-    demo.ancestorBranchIdsForNode(routeNode?.id || "").forEach((nodeId) => expandedBranchIds.add(nodeId));
+    const visit = (item, parents = []) => {
+      if (item.type === "article") {
+        if (item.relatedTopicIds?.includes(activeTopicId) || item.topicId === activeTopicId) {
+          parents.forEach((nodeId) => expandedBranchIds.add(nodeId));
+        }
+        return;
+      }
+      item.children.forEach((child) => visit(child, [...parents, item.id]));
+    };
+    registry.navigation(language).items.forEach((item) => visit(item));
   }
 
   function renderTree() {
-    const rootNodes = demo.navigationChildren().filter((node) => !excludedNodeIds.has(node.id));
-    tree.innerHTML = rootNodes
-      .filter((node) => !terminalNodeIds.has(node.id))
-      .map((node) => navigationNodeMarkup(node, { prefix: "help-navigation" }))
+    const rootItems = registry.navigation(language).items;
+    tree.innerHTML = rootItems
+      .filter((item) => !terminalContentNodeIds.has(item.id))
+      .map((item) => contentNavigationMarkup(item, { prefix: "help-navigation" }))
       .join("");
-    navigationTerminal.innerHTML = rootNodes
-      .filter((node) => terminalNodeIds.has(node.id))
-      .map((node) => navigationNodeMarkup(node, { prefix: "help-terminal", terminal: true }))
+    navigationTerminal.innerHTML = rootItems
+      .filter((item) => terminalContentNodeIds.has(item.id))
+      .map((item) => contentNavigationMarkup(item, { prefix: "help-terminal", terminal: true }))
       .join("")
       + `<p class="app-version">Version ${escapeHtml(demo.APP_VERSION)}</p>`;
   }
@@ -226,44 +242,102 @@
     return null;
   }
 
-  function workspaceDestinations(workspace, { includeHidden = false } = {}) {
-    return demo.workspaceLocalDestinations(workspace.id, { includeHidden })
+  function findContentNavigationItem(itemId) {
+    const visit = (items) => {
+      for (const item of items) {
+        if (item.id === itemId) return item;
+        const child = item.children ? visit(item.children) : null;
+        if (child) return child;
+      }
+      return null;
+    };
+    return visit(registry.navigation(language).items);
+  }
+
+  function activeContentContext() {
+    const contexts = registry.navigation(language).contexts || {};
+    for (const [id, items] of Object.entries(contexts)) {
+      if (!items.some(({ relatedTopicIds, topicId }) => (
+        topicId === activeTopicId || relatedTopicIds?.includes(activeTopicId)
+      ))) continue;
+      return {
+        id,
+        item: findContentNavigationItem(id),
+        node: demo.navigationNode(id),
+      };
+    }
+    return null;
+  }
+
+  function workspaceDestinations(owner, { includeHidden = false } = {}) {
+    const ownerId = owner?.id || owner;
+    const contentDestinations = registry.navigation(language).contexts?.[ownerId] || [];
+    if (contentDestinations.length) {
+      return contentDestinations
+        .filter(({ topicId }) => registry.hasTopic(topicId))
+        .map(({ iconId, id, title, topicId }) => ({
+          iconId,
+          id,
+          routeId: registry.topic(topicId)?.routeId || "",
+          title,
+          topicId,
+        }));
+    }
+    const workspace = demo.navigationNode(ownerId);
+    if (workspace?.target.kind !== "workspace") return [];
+    const appDestinations = demo.workspaceLocalDestinations(workspace.id, { includeHidden })
       .map(({ nodeId, routeId, labelKey, iconId }) => {
         const node = demo.navigationNode(nodeId) || demo.navigationNodeForRoute(routeId);
         const topicId = node ? topicIdForNode(node) : "";
         return topicId && registry.hasTopic(topicId) ? { iconId, labelKey, routeId, topicId } : null;
       })
       .filter(Boolean);
+    return appDestinations;
   }
 
   function walletAssetsContext(workspace) {
-    const sections = [
-      { id: "assets", topicId: "wallet.assets", routeId: "wallet.assets", labelKey: "assets.sectionAssets", iconId: "assets" },
-      { id: "vouchers", topicId: "wallet.vouchers", routeId: "wallet.vouchers", labelKey: "assets.sectionVouchers", iconId: "voucher-list" },
-      { id: "permissions", topicId: "wallet.permissions", routeId: "wallet.permissions", labelKey: "assets.sectionPermissions", iconId: "permission-list" }
-    ];
-    const destinations = sections.filter(({ topicId }) => registry.hasTopic(topicId));
+    const sectionIds = {
+      "wallet.assets": "assets",
+      "wallet.vouchers": "vouchers",
+      "wallet.permissions": "permissions",
+    };
+    const destinations = workspaceDestinations(workspace)
+      .map((destination) => ({ ...destination, id: sectionIds[destination.topicId] || "" }));
     if (!destinations.length) return null;
     const navigation = `<nav class="context-nav context-tab-list" role="tablist" aria-label="${escapeHtml(translate("assets.sections"))}">${destinations.map((destination) => {
       const active = destination.topicId === activeTopicId;
-      return `<a id="help-wallet-section-${destination.id}" class="context-nav-item${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" role="tab" aria-selected="${active}" aria-controls="help-document" tabindex="${active ? "0" : "-1"}" data-wallet-section="${destination.id}" data-help-context-topic="${escapeHtml(destination.topicId)}"${active ? ' aria-current="page"' : ""}>${icon(destination.iconId)}<span><strong>${escapeHtml(translate(destination.labelKey))}</strong></span></a>`;
+      const label = destination.title || translate(destination.labelKey);
+      return `<a id="help-wallet-section-${escapeHtml(destination.id || destination.topicId)}" class="context-nav-item${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" role="tab" aria-selected="${active}" aria-controls="help-document" tabindex="${active ? "0" : "-1"}"${destination.id ? ` data-wallet-section="${escapeHtml(destination.id)}"` : ""} data-help-context-topic="${escapeHtml(destination.topicId)}"${active ? ' aria-current="page"' : ""}>${icon(destination.iconId)}<span><strong>${escapeHtml(label)}</strong></span></a>`;
     }).join("")}</nav>`;
     return { workspace, layoutClass: "wallet-assets-layout", navigation, usesWorkspaceAttribute: false, frame: "workspace" };
   }
 
   function walletSettingsContext(workspace) {
-    const sections = [
-      { id: "general", topicId: "wallet.settings.general", labelKey: "navigation.general", iconId: "settings" },
-      { id: "security", topicId: "wallet.settings.security", labelKey: "navigation.security", iconId: "shield" },
-      { id: "backup", topicId: "wallet.settings.backup", labelKey: "navigation.backup", iconId: "backup" },
-      { id: "policies", topicId: "wallet.settings.policies", labelKey: "navigation.policies", iconId: "permission" },
-      { id: "advanced", topicId: "wallet.settings.advanced", labelKey: "navigation.advanced", iconId: "advanced" }
-    ];
-    const destinations = sections.filter(({ topicId }) => registry.hasTopic(topicId));
+    const sectionIds = {
+      "wallet.settings.general": "general",
+      "wallet.settings.security": "security",
+      "wallet.settings.backup": "backup",
+      "wallet.settings.policies": "policies",
+      "wallet.settings.advanced": "advanced",
+    };
+    const sectionIcons = {
+      "wallet.settings.general": "settings",
+      "wallet.settings.security": "shield",
+      "wallet.settings.backup": "backup",
+      "wallet.settings.policies": "permission",
+      "wallet.settings.advanced": "advanced",
+    };
+    const destinations = workspaceDestinations(workspace)
+      .map((destination) => ({
+        ...destination,
+        iconId: sectionIcons[destination.topicId] || destination.iconId,
+        id: sectionIds[destination.topicId] || "",
+      }));
     if (!destinations.length) return null;
     const navigation = `<nav class="context-nav context-tab-list wallet-settings-context" aria-label="${escapeHtml(translate("navigation.walletSettings"))}">${destinations.map((destination) => {
       const active = destination.topicId === activeTopicId;
-      return `<a class="context-nav-item${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" data-wallet-settings-section="${destination.id}" data-help-context-topic="${escapeHtml(destination.topicId)}"${active ? ' aria-current="page"' : ""}>${icon(destination.iconId)}<span><strong>${escapeHtml(translate(destination.labelKey))}</strong></span></a>`;
+      const label = destination.title || translate(destination.labelKey);
+      return `<a class="context-nav-item${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}"${destination.id ? ` data-wallet-settings-section="${escapeHtml(destination.id)}"` : ""} data-help-context-topic="${escapeHtml(destination.topicId)}"${active ? ' aria-current="page"' : ""}>${icon(destination.iconId)}<span><strong>${escapeHtml(label)}</strong></span></a>`;
     }).join("")}</nav>`;
     return { workspace, navigation, usesWorkspaceAttribute: false, frame: "wallet-settings" };
   }
@@ -273,7 +347,8 @@
     if (!destinations.length) return null;
     const navigation = `<nav class="context-nav context-tab-list settings-network-tabs help-settings-network-tabs" role="tablist" aria-label="${escapeHtml(translate("navigation.network"))}">${destinations.map((destination) => {
       const active = destination.topicId === activeTopicId;
-      return `<a class="context-nav-item settings-network-tab${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" role="tab" aria-selected="${active}" tabindex="${active ? "0" : "-1"}" data-help-context-topic="${escapeHtml(destination.topicId)}">${icon(destination.iconId)}<span><strong>${escapeHtml(translate(destination.labelKey))}</strong></span></a>`;
+      const label = destination.title || translate(destination.labelKey);
+      return `<a class="context-nav-item settings-network-tab${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" role="tab" aria-selected="${active}" tabindex="${active ? "0" : "-1"}" data-help-context-topic="${escapeHtml(destination.topicId)}">${icon(destination.iconId)}<span><strong>${escapeHtml(label)}</strong></span></a>`;
     }).join("")}</nav>`;
     return {
       workspace,
@@ -283,26 +358,57 @@
     };
   }
 
+  function mergeSplitContext(owner) {
+    const destinations = workspaceDestinations(owner).map((destination) => ({
+      ...destination,
+      iconId: destination.topicId === "wallet.split" ? "split" : "merge",
+    }));
+    if (!destinations.length) return null;
+    const navigation = `<nav class="context-nav context-tab-list merge-split-context-nav" role="tablist" aria-label="${escapeHtml(translate("navigation.mergeSplit"))}">${destinations.map((destination) => {
+      const active = destination.topicId === activeTopicId;
+      const label = destination.title || translate(destination.labelKey);
+      return `<a class="context-nav-item${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" role="tab" aria-selected="${active}" aria-controls="help-document" tabindex="${active ? "0" : "-1"}" data-help-context-topic="${escapeHtml(destination.topicId)}"${active ? ' aria-current="page"' : ""}>${icon(destination.iconId)}<span><strong>${escapeHtml(label)}</strong></span></a>`;
+    }).join("")}</nav>`;
+    return {
+      workspace: owner,
+      layoutClass: "workspace-local-layout merge-split-help-layout",
+      navigation,
+      usesWorkspaceAttribute: false,
+      frame: "workspace"
+    };
+  }
+
   function workspaceContext() {
+    const contentContext = activeContentContext();
     const workspace = activeWorkspaceNode();
-    if (workspace?.id === "wallet.assets-rights") return walletAssetsContext(workspace);
-    if (workspace?.id === "wallet.settings") return walletSettingsContext(workspace);
-    if (workspace?.id === "settings.network") return settingsContext(workspace);
-    const destinations = workspace ? workspaceDestinations(workspace) : [];
-    if (!workspace || !destinations.length) return null;
-    const workspaceClass = workspace.id.startsWith("telemetry.") ? " telemetry-workspace-context" : "";
-    const label = escapeHtml(nodeLabel(workspace));
+    const owner = contentContext?.node || contentContext?.item || workspace;
+    if (contentContext?.id === "wallet.merge-split") return mergeSplitContext(owner);
+    if (contentContext?.id === "wallet.assets-rights") return walletAssetsContext(owner);
+    if (contentContext?.id === "wallet.settings") return walletSettingsContext(owner);
+    if (contentContext?.id === "settings.network") return settingsContext(owner);
+    const destinations = owner ? workspaceDestinations(owner) : [];
+    if (!owner || !destinations.length) return null;
+    const ownerId = contentContext?.id || owner.id;
+    const workspaceClass = ownerId.startsWith("telemetry.") ? " telemetry-workspace-context" : "";
+    const label = escapeHtml(contentContext?.item?.title || (contentContext?.node ? nodeLabel(contentContext.node) : nodeLabel(owner)));
     const navigation = `<nav class="context-nav context-tab-list workspace-local-context${workspaceClass}" aria-label="${label}">${destinations.map((destination) => {
       const active = destination.topicId === activeTopicId;
-      return `<a class="context-nav-item${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" data-workspace-route="${escapeHtml(destination.routeId)}" data-help-context-topic="${escapeHtml(destination.topicId)}"${active ? ' aria-current="page"' : ""}>${icon(destination.iconId)}<span><strong>${escapeHtml(translate(destination.labelKey))}</strong></span></a>`;
+      const label = destination.title || translate(destination.labelKey);
+      return `<a class="context-nav-item${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}"${destination.routeId ? ` data-workspace-route="${escapeHtml(destination.routeId)}"` : ""} data-help-context-topic="${escapeHtml(destination.topicId)}"${active ? ' aria-current="page"' : ""}>${icon(destination.iconId)}<span><strong>${escapeHtml(label)}</strong></span></a>`;
     }).join("")}</nav>`;
-    return { workspace, layoutClass: `workspace-local-layout${workspace.id.startsWith("telemetry.") ? " telemetry-workspace-layout" : ""}`, navigation, usesWorkspaceAttribute: true, frame: "workspace" };
+    return {
+      workspace: owner,
+      layoutClass: `workspace-local-layout${ownerId.startsWith("telemetry.") ? " telemetry-workspace-layout" : ""}`,
+      navigation,
+      usesWorkspaceAttribute: true,
+      frame: "workspace",
+    };
   }
 
   function renderMobileTopbarContext() {
     mobileTopbarContext.replaceChildren();
     const source = article.querySelector(".workspace-layout > .context-rail > .context-nav");
-    const mobile = root.matchMedia("(max-width: 768px)").matches;
+    const mobile = demo.matchesViewport("mobileNavigation");
     if (!mobile || !source) {
       mobileTopbarContext.hidden = true;
       siteHeader.classList.remove("has-mobile-context");
@@ -421,6 +527,7 @@
       searchInput.focus();
       return;
     }
+    closeTocDrawer();
     closeSidebar();
     closeLanguagePicker();
     searchOverlay.hidden = false;
@@ -465,19 +572,7 @@
     menu.hidden = false;
     requestAnimationFrame(() => {
       if (!picker.classList.contains("is-open")) return;
-      const triggerRect = trigger.getBoundingClientRect();
-      const viewportPadding = 12;
-      const menuHeight = Math.min(menu.scrollHeight, 360);
-      const spaceAbove = triggerRect.top - viewportPadding;
-      const spaceBelow = root.innerHeight - triggerRect.bottom - viewportPadding;
-      const opensUpward = spaceBelow < Math.min(menuHeight, 224) && spaceAbove > spaceBelow;
-      const width = Math.min(Math.max(triggerRect.width, 220), root.innerWidth - viewportPadding * 2);
-      const left = Math.max(viewportPadding, Math.min(triggerRect.right - width, root.innerWidth - width - viewportPadding));
-      menu.style.left = `${Math.round(left)}px`;
-      menu.style.width = `${Math.round(width)}px`;
-      menu.style.maxHeight = `${Math.floor(Math.max(128, opensUpward ? spaceAbove : spaceBelow))}px`;
-      menu.style.top = opensUpward ? "auto" : `${Math.round(triggerRect.bottom + 6)}px`;
-      menu.style.bottom = opensUpward ? `${Math.max(viewportPadding, Math.round(root.innerHeight - triggerRect.top + 6))}px` : "auto";
+      demo.positionFloatingPanel(menu, trigger);
     });
   }
 
@@ -493,10 +588,163 @@
     requestAnimationFrame(() => languagePicker.querySelector("[data-help-language-trigger]")?.focus());
   }
 
+  function tocListMarkup() {
+    return `<ul class="help-toc-list">${tocItems.map(({ depth, id, text }) => `
+      <li class="help-toc-item${depth === 3 ? " is-depth-3" : ""}">
+        <a class="help-toc-link${id === activeTocId ? " is-active" : ""}" href="#${encodeURIComponent(id)}" data-help-toc-link="${escapeHtml(id)}"${id === activeTocId ? ' aria-current="location"' : ""}>${escapeHtml(text)}</a>
+      </li>`).join("")}</ul>`;
+  }
+
+  function setActiveTocId(nextActiveId) {
+    if (!nextActiveId || activeTocId === nextActiveId) return;
+    activeTocId = nextActiveId;
+    [tocNavigation, tocDrawerNavigation].forEach((navigation) => {
+      navigation.querySelectorAll("[data-help-toc-link]").forEach((link) => {
+        const active = link.dataset.helpTocLink === activeTocId;
+        link.classList.toggle("is-active", active);
+        if (active) link.setAttribute("aria-current", "location");
+        else link.removeAttribute("aria-current");
+      });
+    });
+  }
+
+  function tocAnchorOffset(target) {
+    const headerOffset = Math.ceil(siteHeader.getBoundingClientRect().height) + 12;
+    const scrollMargin = Number.parseFloat(root.getComputedStyle(target).scrollMarginTop) || 0;
+    return Math.max(96, headerOffset, Math.ceil(scrollMargin));
+  }
+
+  function updateActiveTocId() {
+    tocUpdateFrame = 0;
+    if (!tocItems.length) return;
+
+    const itemIds = new Set(tocItems.map(({ id }) => id));
+    const hashId = hashTarget();
+    if (hashId && itemIds.has(hashId)) {
+      const hashHeading = document.getElementById(hashId);
+      if (hashHeading) {
+        const top = hashHeading.getBoundingClientRect().top;
+        if (top >= 0 && top <= tocAnchorOffset(hashHeading) + 24) {
+          setActiveTocId(hashId);
+          return;
+        }
+      }
+    }
+
+    const documentHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    if (root.scrollY + root.innerHeight >= documentHeight - 2) {
+      setActiveTocId(tocItems.at(-1).id);
+      return;
+    }
+
+    let nextActiveId = tocItems[0].id;
+    for (const item of tocItems) {
+      const heading = document.getElementById(item.id);
+      if (!heading) continue;
+      if (heading.getBoundingClientRect().top <= tocAnchorOffset(heading)) {
+        nextActiveId = item.id;
+        continue;
+      }
+      break;
+    }
+    setActiveTocId(nextActiveId);
+  }
+
+  function requestTocUpdate() {
+    if (tocUpdateFrame) return;
+    tocUpdateFrame = root.requestAnimationFrame(updateActiveTocId);
+  }
+
+  function renderOnThisPage() {
+    tocItems = [...article.querySelectorAll(".help-markdown h2, .help-markdown h3")]
+      .map((heading) => ({
+        depth: heading.tagName === "H3" ? 3 : 2,
+        id: heading.id,
+        text: heading.textContent.trim()
+      }))
+      .filter(({ id, text }) => id && text);
+
+    if (!tocItems.length) {
+      const title = article.querySelector("#help-title");
+      if (title?.textContent.trim()) {
+        tocItems = [{ depth: 2, id: title.id, text: title.textContent.trim() }];
+      }
+    }
+
+    activeTocId = tocItems[0]?.id || "";
+    const hasItems = tocItems.length > 0;
+    const markup = hasItems ? tocListMarkup() : "";
+    tocNavigation.innerHTML = markup;
+    tocDrawerNavigation.innerHTML = markup;
+    tocAside.hidden = !hasItems;
+    tocTrigger.hidden = !hasItems;
+    if (!hasItems) closeTocDrawer();
+    requestTocUpdate();
+  }
+
+  function tocDrawerIsOpen() {
+    return !tocOverlay.hidden;
+  }
+
+  function setTocBackgroundInert(inert) {
+    siteHeader.inert = inert;
+    pageShell.inert = inert;
+  }
+
+  function openTocDrawer() {
+    if (desktopTocLayout || !tocItems.length) return;
+    closeSidebar();
+    closeLanguagePicker();
+    tocOverlay.hidden = false;
+    document.body.classList.add("has-help-toc-drawer");
+    tocTrigger.setAttribute("aria-expanded", "true");
+    setTocBackgroundInert(true);
+    requestAnimationFrame(() => tocClose.focus());
+  }
+
+  function closeTocDrawer({ restoreFocus = false } = {}) {
+    const wasOpen = tocDrawerIsOpen();
+    tocOverlay.hidden = true;
+    document.body.classList.remove("has-help-toc-drawer");
+    tocTrigger.setAttribute("aria-expanded", "false");
+    setTocBackgroundInert(false);
+    if (restoreFocus && wasOpen) tocTrigger.focus();
+  }
+
+  function navigateToTocItem(id, { closeDrawer = false } = {}) {
+    const target = document.getElementById(id);
+    if (!target) return;
+    if (closeDrawer) closeTocDrawer();
+
+    sectionTarget = "";
+    const url = new URL(root.location.href);
+    url.searchParams.delete("section");
+    url.hash = id;
+    root.history.pushState({}, "", url);
+
+    const rootElement = document.documentElement;
+    const previousRootScrollBehavior = rootElement.style.scrollBehavior;
+    const previousBodyScrollBehavior = document.body.style.scrollBehavior;
+    rootElement.style.scrollBehavior = "auto";
+    document.body.style.scrollBehavior = "auto";
+    root.scrollTo({
+      left: root.scrollX,
+      top: Math.max(0, root.scrollY + target.getBoundingClientRect().top - tocAnchorOffset(target))
+    });
+    target.setAttribute("tabindex", "-1");
+    target.focus({ preventScroll: true });
+    setActiveTocId(id);
+    root.requestAnimationFrame(() => {
+      rootElement.style.scrollBehavior = previousRootScrollBehavior;
+      document.body.style.scrollBehavior = previousBodyScrollBehavior;
+    });
+  }
+
   function renderDocument(focusHeading = false) {
     const documentData = registry.resolveDocument(language, activeTopicId);
     if (!documentData) {
       article.innerHTML = `<header class="help-document-header"><h1 id="help-title" tabindex="-1">${escapeHtml(translate("help.unavailable"))}</h1></header>`;
+      renderOnThisPage();
       renderMobileTopbarContext();
       return;
     }
@@ -524,6 +772,7 @@
       tableOfContents.setAttribute("aria-label", label);
     });
     root.Z00ZHelpMarkdownEnhancer?.enhance(article);
+    renderOnThisPage();
     document.title = `${documentData.title} · Z00Z Help`;
     const target = sectionTarget ? article.querySelector(`#${CSS.escape(sectionTarget)}`) : undefined;
     if (target) {
@@ -538,6 +787,7 @@
 
   function renderChrome() {
     const searchLabel = translate("navigation.search");
+    const onThisPageLabel = translate("help.onThisPage");
     document.documentElement.lang = language;
     document.documentElement.dir = languageMetadata().direction || "ltr";
     document.querySelector("#help-product-label").textContent = translate("navigation.help");
@@ -552,8 +802,19 @@
     searchClose.setAttribute("aria-label", translate("common.close"));
     searchInput.placeholder = `${searchLabel}…`;
     searchInput.setAttribute("aria-label", searchLabel);
+    document.querySelectorAll(".help-toc-title, .help-toc-trigger-label")
+      .forEach((element) => {
+        element.textContent = onThisPageLabel;
+      });
+    tocNavigation.setAttribute("aria-label", onThisPageLabel);
+    tocDrawerNavigation.setAttribute("aria-label", onThisPageLabel);
+    tocDrawer.setAttribute("aria-label", onThisPageLabel);
+    tocTrigger.setAttribute("aria-label", translate("help.openOnThisPage"));
+    tocClose.setAttribute("aria-label", translate("help.closeOnThisPage"));
+    homeLink.href = routeUrl(registry.globalTopic()).href;
+    homeLink.dataset.helpTopicLink = registry.globalTopic();
     tree.setAttribute("aria-label", translate("help.contents"));
-    navigationTerminal.setAttribute("aria-label", translate("navigation.settings"));
+    navigationTerminal.setAttribute("aria-label", translate("navigation.about"));
     languagePicker.innerHTML = languagePickerMarkup();
   }
 
@@ -569,6 +830,7 @@
 
   function openTopic(topicId) {
     if (!registry.hasTopic(topicId)) return;
+    closeTocDrawer();
     activeTopicId = topicId;
     sectionTarget = "";
     expandActiveBranch();
@@ -584,6 +846,7 @@
       closeSidebar({ restoreFocus: true });
       return;
     }
+    closeTocDrawer();
     closeLanguagePicker();
     sidebar.dataset.popupType = "menu";
     sidebar.setAttribute("role", "dialog");
@@ -717,11 +980,31 @@
     const link = event.target.closest("[data-help-context-topic]");
     if (!link) return;
     event.preventDefault();
+    const target = link.dataset.helpContextSection;
+    if (target) {
+      activeTopicId = link.dataset.helpContextTopic;
+      sectionTarget = target;
+      expandActiveBranch();
+      persistNavigationState();
+      root.history.pushState({}, "", routeUrl(activeTopicId, sectionTarget).href);
+      render({ focusHeading: true });
+      return;
+    }
     openTopic(link.dataset.helpContextTopic);
   }
 
   article.addEventListener("click", openContextTopic);
   mobileTopbarContext.addEventListener("click", openContextTopic);
+  const handleTocNavigation = (event) => {
+    const link = event.target.closest("[data-help-toc-link]");
+    if (!link) return;
+    event.preventDefault();
+    navigateToTocItem(link.dataset.helpTocLink, {
+      closeDrawer: Boolean(link.closest("#help-toc-drawer"))
+    });
+  };
+  tocNavigation.addEventListener("click", handleTocNavigation);
+  tocDrawerNavigation.addEventListener("click", handleTocNavigation);
 
   languagePicker.addEventListener("click", (event) => {
     const option = event.target.closest("[data-help-language-option]");
@@ -753,6 +1036,9 @@
     searchQuery = searchInput.value;
     renderSearch();
   });
+  tocTrigger.addEventListener("click", openTocDrawer);
+  tocBackdrop.addEventListener("pointerdown", () => closeTocDrawer({ restoreFocus: true }));
+  tocClose.addEventListener("click", () => closeTocDrawer({ restoreFocus: true }));
   navigationScrollRegion.addEventListener("scroll", captureNavigationScrollPosition, { passive: true });
   menuButton.addEventListener("click", openSidebar);
   backdrop.addEventListener("click", () => closeSidebar({ restoreFocus: true }));
@@ -761,22 +1047,54 @@
     openTopic(registry.globalTopic());
   });
   root.addEventListener("popstate", () => {
+    closeTocDrawer();
     closeSearch();
     closeSidebar();
     readRoute();
     render();
   });
+  root.addEventListener("scroll", requestTocUpdate, { passive: true });
+  root.addEventListener("hashchange", requestTocUpdate);
   root.addEventListener("resize", () => {
-    const mobile = root.matchMedia("(max-width: 768px)").matches;
-    if (mobile === mobileNavigationLayout) return;
-    mobileNavigationLayout = mobile;
-    closeSidebar();
-    render();
+    const mobile = demo.matchesViewport("mobileNavigation");
+    const nextDesktopTocLayout = demo.matchesViewport("helpDesktopToc");
+    if (nextDesktopTocLayout !== desktopTocLayout) {
+      desktopTocLayout = nextDesktopTocLayout;
+      if (desktopTocLayout) closeTocDrawer();
+      requestTocUpdate();
+    }
+    if (mobile !== mobileNavigationLayout) {
+      mobileNavigationLayout = mobile;
+      closeSidebar();
+      render();
+    }
   });
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "k") {
       event.preventDefault();
       openSearch();
+      return;
+    }
+    if (tocDrawerIsOpen()) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeTocDrawer({ restoreFocus: true });
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusable = [...tocDrawer.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+          .filter((element) => element.getClientRects().length > 0);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
       return;
     }
     if (searchIsOpen()) {

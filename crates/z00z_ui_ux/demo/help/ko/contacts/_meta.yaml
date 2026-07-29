@@ -1,7 +1,6 @@
-title: "연락처"
+title: 연락처
 icon: user
 order:
-  - index
-  - contacts
+  - list
   - detail
   - identity-review

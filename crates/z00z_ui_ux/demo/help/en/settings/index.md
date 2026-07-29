@@ -1,6 +1,6 @@
 ---
 id: settings.general
-title: Settings: General
+title: "Settings: General"
 route: settings.general
 scope: context
 ---

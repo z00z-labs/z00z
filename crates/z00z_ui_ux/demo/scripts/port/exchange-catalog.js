@@ -17,7 +17,7 @@
       id: "hyperliquid",
       labelKey: "exchange.providerHyperliquid",
       executionKey: "exchange.executionOrderBook",
-      iconName: "exchange",
+      iconName: "swap",
       defaultDestination: "hyperliquid-usdc",
       orderTypes: ["market", "limit"],
       destinationIds: ["hyperliquid-usdc", "hyperliquid-btc"]

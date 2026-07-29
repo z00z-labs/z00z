@@ -1,9 +1,0 @@
-title: "지갑 설정"
-icon: settings
-order:
-  - index
-  - general
-  - security
-  - backup
-  - policies
-  - advanced

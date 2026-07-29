@@ -1,7 +1,6 @@
-title: "連絡先"
+title: 連絡先
 icon: user
 order:
-  - index
-  - contacts
+  - list
   - detail
   - identity-review

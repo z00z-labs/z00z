@@ -1,7 +1,7 @@
 ---
 id: data-storage.disk-usage
 title: Disk Kullanımı
-summary: Disk Kullanımı: özel veri içermeyen toplu yerel sayaçlar.
+summary: "Disk Kullanımı: özel veri içermeyen toplu yerel sayaçlar."
 scope: context
 ---
 ## Bu görünümü kullanma {#current-view}

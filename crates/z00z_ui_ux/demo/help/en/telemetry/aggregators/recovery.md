@@ -1,6 +1,6 @@
 ---
 id: telemetry.aggregators.recovery
-title: Telemetry Aggregators: Recovery
+title: "Telemetry Aggregators: Recovery"
 route: telemetry.aggregators.recovery
 scope: context
 ---

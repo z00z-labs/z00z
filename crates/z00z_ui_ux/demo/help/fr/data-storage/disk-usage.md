@@ -1,7 +1,7 @@
 ---
 id: data-storage.disk-usage
 title: Utilisation du disque
-summary: Utilisation du disque : compteurs locaux agrégés sans données privées.
+summary: "Utilisation du disque : compteurs locaux agrégés sans données privées."
 scope: context
 ---
 ## Utiliser cette vue {#current-view}

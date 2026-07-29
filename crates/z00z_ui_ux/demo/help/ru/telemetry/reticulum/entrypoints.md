@@ -1,7 +1,7 @@
 ---
 id: telemetry.reticulum.entrypoints
 title: Точки входа Reticulum
-summary: Точки входа Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum.
+summary: "Точки входа Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum."
 scope: context
 ---
 ## Как использовать экран {#current-view}

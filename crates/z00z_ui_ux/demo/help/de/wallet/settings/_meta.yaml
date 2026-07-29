@@ -1,0 +1,8 @@
+title: Wallet-Einstellungen
+icon: settings
+order:
+  - index
+  - security
+  - backup
+  - policies
+  - advanced

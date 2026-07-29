@@ -1,13 +1,36 @@
 ---
 id: data-storage.network-usage
-title: 网络使用情况
-summary: 网络使用情况：不含私密数据的本地汇总计数。
+title: "Data & Storage: Network Usage"
+route: data-storage.network-usage
 scope: context
 ---
-## 使用此视图 {#current-view}
-- 无需打开钱包记录即可查看资源使用情况。
-- 显示值为确定性的演示数据。
 
-## 本地和安全行为
-- 联系人、消息、路径、活动和机密均被排除。
-- 正式应用只能通过受限原生能力获取汇总值。
+# Data & Storage: Network Usage
+
+[TOC]
+
+## App View {#current-view}
+
+![Data & Storage: Network Usage application view](help/assets/en/data-storage-network-usage.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"data-storage/network-usage.md","route_id":"data-storage.network-usage","screenshot":"help/assets/en/data-storage-network-usage.png","topic_id":"data-storage.network-usage"} -->

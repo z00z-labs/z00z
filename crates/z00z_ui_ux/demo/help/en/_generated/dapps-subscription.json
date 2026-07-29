@@ -9,10 +9,10 @@
     "input|type=text|name=plan|placeholder=Plan or service class",
     "input|type=text|name=provider|placeholder=Exact service provider"
   ],
-  "presentation_sha256": "58335779f82eb57b5a12c2d514dff8a5075c072a647f58a01a415b5b345ec040",
+  "presentation_sha256": "8c1753ea45ca4eb74309750b33e7d535f73a9acf07cf13d12db612e1f5fe61d9",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-subscription.png",
-  "screenshot_sha256": "c9cb7da888aecd9c535226d34d55af27a74e240b1fddc259984c4f58509cb0a1",
+  "screenshot_sha256": "469e049424bd663df36e17df1a27b8e1b1e042424729b98341a3145af1bfb890",
   "sections": [
     "Prepare proposal",
     "Subscription",

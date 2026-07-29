@@ -1,7 +1,7 @@
 ---
 id: settings.notifications
 title: Notifications
-summary: Notifications : préférences locales de notification, vibration et sonnerie.
+summary: "Notifications : préférences locales de notification, vibration et sonnerie."
 scope: context
 ---
 ## Utiliser cette vue {#current-view}

@@ -5,7 +5,7 @@
     "button|type=button|aria-label=OnionNet fail closed|data-demo-action=onionnet-fail-closed",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "6ff76dd27f279af32ed47f318409d54f4b9feb92a801f5c1a42b85d4a928bc98",
+  "presentation_sha256": "5b2c4233c26e5fa57b1182b0ce0cc8d5254e49504a3e369ba2f8cfd7b2538698",
   "scope": "context",
   "screenshot": "help/assets/en/settings-onionnet.png",
   "screenshot_sha256": "6f60584f17cb14d77a715c45805ff69b77dfeca0be3cc418159ccc1345b29d1d",

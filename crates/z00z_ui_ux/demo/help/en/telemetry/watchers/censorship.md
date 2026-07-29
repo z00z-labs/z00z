@@ -1,6 +1,6 @@
 ---
 id: telemetry.watchers.censorship
-title: Telemetry Watchers: Censorship
+title: "Telemetry Watchers: Censorship"
 route: telemetry.watchers.censorship
 scope: context
 ---

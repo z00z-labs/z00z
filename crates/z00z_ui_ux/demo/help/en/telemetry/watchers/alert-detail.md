@@ -1,6 +1,6 @@
 ---
 id: telemetry.watchers.alert-detail
-title: Telemetry Watchers: Alert Detail
+title: "Telemetry Watchers: Alert Detail"
 route: none
 scope: dialog
 ---

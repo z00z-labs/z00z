@@ -1,13 +1,36 @@
 ---
 id: dapps.detail
-title: dApps：詳細
-summary: dApps：詳細：制限されたローカル dApps プレビューと権限境界のヘルプです。
+title: "dApps: Detail"
+route: none
 scope: dialog
 ---
-## この画面の使い方 {#current-view}
-- ローカル記述、範囲限定インテント、明示された結果を確認します。
-- 承認前に範囲、利用回数、有効期限、金額、手数料、開示、取り消しを確認してください。
 
-## ローカルで安全な動作
-- dApps はロードマッププレビューであり、外部コード、任意 URL、汎用署名を実行しません。
-- 承認したインテントはウォレットが再検証し、この画面はウォレット対象を変更しません。
+# dApps: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![dApps: Detail application view](help/assets/en/dapps-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"dapps/detail.md","route_id":"none","screenshot":"help/assets/en/dapps-detail.png","topic_id":"dapps.detail"} -->

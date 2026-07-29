@@ -1,6 +1,6 @@
 ---
 id: telemetry.aggregators.publication
-title: Telemetry Aggregators: Publication
+title: "Telemetry Aggregators: Publication"
 route: telemetry.aggregators.publication
 scope: context
 ---

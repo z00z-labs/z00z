@@ -1,6 +1,6 @@
 ---
 id: messenger.sent
-title: Messenger: Sent
+title: "Messenger: Sent"
 route: messenger.sent
 scope: context
 ---

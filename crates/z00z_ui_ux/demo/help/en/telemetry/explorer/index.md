@@ -1,6 +1,6 @@
 ---
 id: telemetry.explorer.overview
-title: Telemetry Explorer: Overview
+title: "Telemetry Explorer: Overview"
 route: telemetry.explorer.overview
 scope: context
 ---

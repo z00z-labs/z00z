@@ -1,6 +1,6 @@
 ---
 id: wallet.receive
-title: Wallet: Receive
+title: "Wallet: Receive"
 route: wallet.receive
 scope: context
 ---

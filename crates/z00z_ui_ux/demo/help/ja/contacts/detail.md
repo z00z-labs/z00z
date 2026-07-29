@@ -1,13 +1,36 @@
 ---
 id: contacts.detail
-title: 連絡先：詳細
-summary: 連絡先：詳細：ローカル連絡先ラベル、受取カード、明示的な本人情報変更確認のヘルプです。
+title: "Contacts: Detail"
+route: none
 scope: dialog
 ---
-## この画面の使い方 {#current-view}
-- ローカルデータ、有効期限、失効、本人情報変更の証拠を確認します。
-- 保存したラベルは本人確認や信頼の証明ではなく、変更されたデータは確認が必要です。
 
-## ローカルで安全な動作
-- 連絡先はローカルに保持され、住所や在席状況のグラフとして送信されません。
-- ローカル連絡先の削除は外部権限を失効させず、ウォレット決済も変更しません。
+# Contacts: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Contacts: Detail application view](help/assets/en/contacts-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"contacts/detail.md","route_id":"none","screenshot":"help/assets/en/contacts-detail.png","topic_id":"contacts.detail"} -->

@@ -11,6 +11,8 @@ const context = vm.createContext({ URLSearchParams, structuredClone, window: {} 
 
 for (const modulePath of [
   "scripts/port/contracts.js",
+  "scripts/port/icon-sprite.js",
+  "scripts/port/ui-primitives.js",
   "scripts/port/icon-registry.js",
   "scripts/port/locale-registry.js"
 ]) {
@@ -33,6 +35,9 @@ const expectedScripts = [
   "scripts/port/help-registry.js",
   "scripts/help-controller.js",
   "scripts/port/contracts.js",
+  "scripts/port/icon-sprite.js",
+  "scripts/port/ui-primitives.js",
+  "scripts/port/icon-registry.js",
   "scripts/port/navigation-model.js",
   "scripts/port/navigation-session.js",
   "scripts/port/exchange-catalog.js",
@@ -46,7 +51,6 @@ const expectedScripts = [
   "scripts/port/mock-dapp-gateway.js",
   "scripts/port/mock-messenger-gateway.js",
   "scripts/port/mock-contacts-gateway.js",
-  "scripts/port/icon-registry.js",
   "app.js"
 ];
 assert.deepEqual(scriptSources, expectedScripts, "index.html script order must follow the canonical registries and bootstrap contract");
@@ -58,6 +62,8 @@ assert.deepEqual(
     ...localeRegistry.map(({ catalogue }) => catalogue),
     "locales/navigation.js",
     "scripts/port/contracts.js",
+    "scripts/port/icon-sprite.js",
+    "scripts/port/ui-primitives.js",
     "scripts/port/navigation-model.js",
     "scripts/port/navigation-session.js",
     "scripts/generated/help-catalog.js",
@@ -110,9 +116,11 @@ for (const appIcon of [
   assert.ok(iconInfo.size > 0, `${appIcon} must exist and be non-empty`);
 }
 
-const symbolBlocks = [...index.matchAll(/<symbol\s+id="i-([^"]+)"\s+viewBox="([^"]+)"[^>]*>([\s\S]*?)<\/symbol>/g)];
+assert.doesNotMatch(index, /<symbol\b/, "index.html must not duplicate the canonical icon sprite");
+assert.doesNotMatch(helpPage, /<symbol\b/, "help.html must not duplicate the canonical icon sprite");
+const symbolBlocks = [...demo.ICON_SPRITE_MARKUP.matchAll(/<symbol\s+id="i-([^"]+)"\s+viewBox="([^"]+)"[^>]*>([\s\S]*?)<\/symbol>/g)];
 const symbolNames = symbolBlocks.map((match) => match[1]);
-assert.deepEqual(symbolNames, Array.from(demo.ICON_NAMES), "inline SVG symbols must match the canonical icon registry order");
+assert.deepEqual(symbolNames, Array.from(demo.ICON_NAMES), "icon names must derive from the canonical SVG sprite");
 for (const [, name, viewBox] of symbolBlocks) {
   assert.equal(viewBox, "0 0 24 24", `icon ${name} must use the normalized viewBox`);
 }
@@ -177,6 +185,8 @@ const runtimeFiles = [
   "app.js",
   "i18n.js",
   "scripts/port/contracts.js",
+  "scripts/port/icon-sprite.js",
+  "scripts/port/ui-primitives.js",
   "scripts/port/navigation-model.js",
   "scripts/port/navigation-session.js",
   "scripts/port/exchange-catalog.js",

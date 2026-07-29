@@ -81,15 +81,35 @@ machine-translation bridge, and required checks.
 
 ## ❔ Local contextual Help
 
-English is the capture and review source. `help/topics.yaml` is generated from the
-Demo navigation contract: every navigable view has one Markdown page under the
-same root and workspace folders as the app. Help reuses the App branch/leaf
-menu and accordion behavior while omitting the separate `WALLETS` selector and
-the `Help`, `About`, and `Log out` terminal items. The navigable `Wallet` branch
-and `Settings` remain available. On mobile, Help reuses the App topbar-leading,
-context-tab, popup-drawer, backdrop, focus, and edge-swipe contracts in the same
-positions. Search lives in the topbar before Languages on desktop and mobile,
-opens a dedicated results modal, and never replaces the navigation tree.
+Every locale uses the same folder metadata contract as `z00z-website`.
+`_meta.yaml` accepts the Website metadata surface. Help navigation applies
+`title`, `order`, and `icon`; page headings and link text remain owned by the
+article front matter. A missing directory `title` falls back to the directory
+name. Listed `order` entries come first; missing entries are ignored and
+unlisted content is appended alphabetically, matching the Website loader.
+
+The Demo navigation model remains authoritative for the primary Help navbar:
+root branches and their first-level App destinations are projected unchanged,
+so the navbar never nests more than once. A workspace directory such as
+`wallet/assets/` represents one primary destination. When one topic needs more
+than one article, create a directory for that topic and place its complete
+Markdown pages there. Every direct page in that directory becomes Main View
+navigation, in `_meta.yaml` order, while the directory itself remains one
+primary-navbar item. Route, contextual, and dialog articles follow the same
+folder rule and are never repeated in the primary navbar. Folder metadata may
+override a displayed Help title without changing this App-owned structure.
+`guides/` is the explicit standalone Help section.
+
+Additional Markdown with `route: none` and `scope: article` or `scope: guide`
+is discovered without editing a JavaScript registry. Put it directly inside an
+App branch directory to add a first-level Help article, or inside a workspace
+directory to add it to that workspace's Main View navigation. Dialog Help stays
+contextual. `help/topics.yaml` contains the generated App route/topic contract;
+content placement comes from the filesystem and `_meta.yaml`.
+
+On mobile, Help reuses the App popup-drawer, backdrop, focus, and edge-swipe
+contracts. Search lives in the topbar before Languages, opens a dedicated
+results modal, and never replaces the navigation tree.
 
 `scripts/help/markdown-renderer.mjs` imports an exact synchronized snapshot of
 the sibling `z00z-website` renderer. Thus Help Markdown uses the same MarkdownIt
@@ -97,9 +117,11 @@ pipeline, sanitization, anchors, extensions, figure handling, and external-link
 policy as the website without a runtime Website checkout. The resulting network-free catalogue is
 `scripts/generated/help-catalog.js`.
 
-Every canonical page follows [help/TEMPLATE.md](help/TEMPLATE.md): front matter,
-an `App View` screenshot, overview, workflow, terms and controls, and safety
-limits. The global and contextual Help actions both open the named standalone
+Route articles contain front matter, an `App View` screenshot, overview,
+workflow, terms and controls, and safety limits. General guides contain
+front matter, overview, usage guidance, and safety limits. Missing topics must
+be authored as complete canonical articles; the capture synchronizer never
+creates parallel review Markdown. The global and contextual Help actions both open the named standalone
 `help.html` tab at the exact topic and `#current-view` anchor without changing
 the application page.
 
@@ -109,13 +131,14 @@ Run the non-destructive view sync after a UI change:
 python3 scripts/help/sync_views.py
 ```
 
-It captures all English views, extracts visible terms, sections, and component
-signatures, settled presentation signatures, and compares them with
-`help/en/_generated/`. It never changes a
-canonical page. A UI difference creates a same-folder review draft named
-`<page>-draft-YYYYMMDD.md` (with a numeric suffix only if another draft already
-exists that day). The development server watches view sources and runs this
-sync automatically. Use `python3 scripts/help/sync_views.py --check` for
+It captures all English views, extracts visible terms, sections, component
+signatures, and settled presentation signatures, then compares them with
+`help/en/_generated/`. A changed view updates only its screenshot and generated
+capture state; it never creates or changes Markdown. Review the reported topic
+and update its canonical article directly when its explanation must change. The
+development server watches view sources and Help Markdown/YAML, rebuilds the
+catalogue, and reloads open Help pages automatically. Use
+`python3 scripts/help/sync_views.py --check` for
 portable baseline integrity and `python3 scripts/help/sync_views.py --verify-current`
 for a live Chromium drift gate, then run `node scripts/compile-help.mjs` and
 `node scripts/check-help.mjs`.
@@ -170,7 +193,8 @@ evidence; localized Markdown is never machine-translated or overwritten.
 - Left sidebar/mobile drawer labels match the approved reference typography:
   Geist 16 px, weight 700, line-height 1.25. Workspace-local desktop rails and
   mobile top tabs retain the original 16 px/700 tab typography.
-- Inline SVG symbols provide icons.
+- `scripts/port/icon-sprite.js` is the sole SVG geometry source for App and
+  Help; HTML pages mount that shared local sprite instead of copying symbols.
 - CSS tokens are intended to seed the Leptos production design system.
 - Claim intake RPC, network detail, compliance-profile loading, and runtime YAML write/watch controls are simulated target capabilities, not claims about the live backend. Selected-wallet settings stay concept-local until a revisioned settings bridge exists; advanced settings can apply a safe YAML draft only to the in-browser concept state.
 - The demo is a development-only visual reference. Production is the packaged standalone Tauri application with local-only IPC; it has no browser, container, or wallet HTTP/WebSocket profile and does not connect the demo to a wallet backend.
@@ -186,12 +210,16 @@ dependency. See [RUST-PORTING.md](RUST-PORTING.md) and
 
 The CSS entry imports `styles/colors.css`, `styles/foundation.css`, and
 `styles/components.css` in that order. Literal application colours remain
-centralized in `styles/colors.css`.
+centralized in `styles/colors.css`. Shared breakpoints, drawer gestures,
+floating-panel geometry, language-picker structure, and icon rendering live in
+`scripts/port/ui-primitives.js`; App and Help consume those LUTs.
 
 Run the deterministic gates independently with:
 
 ```bash
 node scripts/check-locales.mjs
+node scripts/check-design-system.mjs
+node scripts/check-menu-icons.mjs
 node scripts/test-port-contracts.mjs
 node scripts/check-port-readiness.mjs
 node scripts/test-pages-release.mjs

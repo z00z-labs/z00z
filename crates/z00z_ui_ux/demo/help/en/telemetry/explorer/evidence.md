@@ -1,6 +1,6 @@
 ---
 id: telemetry.explorer.evidence
-title: Telemetry Explorer: Evidence
+title: "Telemetry Explorer: Evidence"
 route: telemetry.explorer.evidence
 scope: context
 ---

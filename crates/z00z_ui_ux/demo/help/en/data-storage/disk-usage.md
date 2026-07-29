@@ -1,6 +1,6 @@
 ---
 id: data-storage.disk-usage
-title: Data & Storage: Disk Usage
+title: "Data & Storage: Disk Usage"
 route: data-storage.disk-usage
 scope: context
 ---

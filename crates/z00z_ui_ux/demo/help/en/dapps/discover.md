@@ -1,6 +1,6 @@
 ---
 id: dapps.discover
-title: dApps: Discover dApps
+title: "dApps: Discover dApps"
 route: dapps.discover
 scope: context
 ---

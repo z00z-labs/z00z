@@ -4,10 +4,10 @@
     "button|type=button",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "24d1271230de9e756fa4cdc3d9f673fb2f90a2a934b9ad48d5ebb5e19806b6fb",
+  "presentation_sha256": "62ba2ce86105803cf3240243ed0d6ad8a603c6ac0691d3bf22303a1713ce3fdb",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-permissions.png",
-  "screenshot_sha256": "4aebf6fa341285887d35e3437ee5aa0a413bf3931c8434189e318c4d5266f570",
+  "screenshot_sha256": "af0eb6c701ff8561b6ee4cbb7da32683b3351c8a2ea754f709b0b5f0a2b34213",
   "sections": [],
   "terms": [
     "1 use",

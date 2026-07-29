@@ -1,18 +1,12 @@
-title: "Z00Z Ayuda"
+title: Z00Z Ayuda
 order:
   - index
-  - about
-  - faq
-  - how-to
-  - report-issues
-  - tips-and-tricks
-  - video-tutorials
-  - app
-  - wallets
-  - telemetry
+  - wallet
   - dapps
   - messenger
   - data-storage
+  - telemetry
   - contacts
   - settings
-  - privacy
+  - guides
+  - about

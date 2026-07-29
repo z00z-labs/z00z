@@ -5,10 +5,10 @@
     "button|type=button|data-contact-action=identity-accept",
     "button|type=button|data-contact-action=identity-reject"
   ],
-  "presentation_sha256": "012b865b0457f6f88e192a993f145a568a35c37ed5c6c3f934b088aeeec4cf21",
+  "presentation_sha256": "b236f72da89e3f3842f8b541ec0984c2972753f4eac413adde15fac5f50fc768",
   "scope": "dialog",
   "screenshot": "help/assets/en/contacts-identity-review.png",
-  "screenshot_sha256": "4a964ccacd8a688ab1d8fa31580a26d3f521c56ef53b2c18035eff05b5235878",
+  "screenshot_sha256": "041b59c1cb373e6344cf9a1db0ad38ab96125d2a5dbcea47d20118dfeee3bec2",
   "sections": [
     "Operations"
   ],

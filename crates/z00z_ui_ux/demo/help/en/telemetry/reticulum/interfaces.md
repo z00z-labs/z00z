@@ -1,6 +1,6 @@
 ---
 id: telemetry.reticulum.interfaces
-title: Telemetry Reticulum: Interfaces
+title: "Telemetry Reticulum: Interfaces"
 route: telemetry.reticulum.interfaces
 scope: context
 ---

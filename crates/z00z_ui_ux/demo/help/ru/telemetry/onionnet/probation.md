@@ -1,7 +1,7 @@
 ---
 id: telemetry.onionnet.probation
 title: Проверка OnionNet
-summary: Проверка OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий.
+summary: "Проверка OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий."
 scope: context
 ---
 ## Как использовать экран {#current-view}

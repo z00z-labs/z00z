@@ -1,6 +1,6 @@
 ---
 id: telemetry.explorer.checkpoints
-title: Telemetry Explorer: Checkpoints
+title: "Telemetry Explorer: Checkpoints"
 route: telemetry.explorer.checkpoints
 scope: context
 ---

@@ -1,7 +1,7 @@
 ---
 id: messenger.inbox
 title: Bandeja de entrada
-summary: Bandeja de entrada: ayuda sobre la vista previa privada de coordinación de solicitudes y su entrega a la cartera.
+summary: "Bandeja de entrada: ayuda sobre la vista previa privada de coordinación de solicitudes y su entrega a la cartera."
 scope: context
 ---
 ## Usar esta vista {#current-view}

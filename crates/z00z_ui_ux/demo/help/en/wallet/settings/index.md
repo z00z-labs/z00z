@@ -1,6 +1,6 @@
 ---
 id: wallet.settings.general
-title: Wallet Settings: General
+title: "Wallet Settings: General"
 route: wallet.settings.general
 scope: context
 ---

@@ -3,31 +3,31 @@ source_locale: en
 topics:
   - id: app
     title: App: Help
-    file: app/index.md
+    file: index.md
     label_key: help.title
     route: none
     scope: global
   - id: wallet.assets
     title: Wallet: Assets
-    file: wallet/assets-rights/index.md
+    file: wallet/assets/index.md
     label_key: navigation.assets
     route: wallet.assets
     scope: context
   - id: wallet.vouchers
     title: Wallet: Vouchers
-    file: wallet/assets-rights/vouchers.md
+    file: wallet/assets/vouchers.md
     label_key: navigation.vouchers
     route: wallet.vouchers
     scope: context
   - id: wallet.permissions
     title: Wallet: Permissions
-    file: wallet/assets-rights/permissions.md
+    file: wallet/assets/permissions.md
     label_key: navigation.permissions
     route: wallet.permissions
     scope: context
   - id: wallet.quarantine
     title: Wallet: Quarantine
-    file: wallet/assets-rights/quarantine.md
+    file: wallet/assets/quarantine.md
     label_key: navigation.quarantine
     route: wallet.quarantine
     scope: context
@@ -49,9 +49,9 @@ topics:
     label_key: navigation.import
     route: wallet.import
     scope: context
-  - id: wallet.merge-split
-    title: Wallet: Merge/Split
-    file: wallet/merge-split.md
+  - id: wallet.merge
+    title: Wallet: Merge
+    file: wallet/merge-split/index.md
     label_key: navigation.mergeSplit
     route: wallet.merge-split
     scope: context
@@ -501,19 +501,19 @@ topics:
     scope: context
   - id: settings.reticulum
     title: Settings: Reticulum
-    file: settings/reticulum.md
+    file: settings/network/reticulum.md
     label_key: navigation.network
     route: settings.reticulum
     scope: context
   - id: settings.onionnet
     title: Settings: OnionNet
-    file: settings/onionnet.md
+    file: settings/network/onionnet.md
     label_key: navigation.onionnet
     route: settings.onionnet
     scope: context
   - id: settings.quic
     title: Settings: QUIC
-    file: settings/quic.md
+    file: settings/network/quic.md
     label_key: navigation.quic
     route: settings.quic
     scope: context
@@ -537,7 +537,7 @@ topics:
     scope: context
   - id: asset.details
     title: Asset: Details
-    file: wallet/assets-rights/asset-details.md
+    file: wallet/assets/asset-details.md
     label_key: help.title
     route: none
     scope: dialog
@@ -589,9 +589,3 @@ topics:
     label_key: help.title
     route: none
     scope: dialog
-  - id: dapps.security-model
-    title: dApps: How dApps Work Safely
-    file: dapps/security-model.md
-    label_key: help.title
-    route: none
-    scope: guide

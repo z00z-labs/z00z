@@ -1,6 +1,6 @@
 ---
 id: telemetry.onionnet.epoch
-title: Telemetry OnionNet: Epoch
+title: "Telemetry OnionNet: Epoch"
 route: telemetry.onionnet.epoch
 scope: context
 ---

@@ -1,7 +1,7 @@
 ---
 id: settings.notifications
 title: 알림
-summary: 알림: 알림, 진동 및 벨소리의 로컬 설정입니다.
+summary: "알림: 알림, 진동 및 벨소리의 로컬 설정입니다."
 scope: context
 ---
 ## 이 화면 사용 {#current-view}

@@ -7,10 +7,10 @@
     "button|type=button|data-workspace-route=wallet.staking.unstake",
     "input|type=number|placeholder=0.00"
   ],
-  "presentation_sha256": "83ce7e367b7ccb683ad706c8f58e85fe90d57c6cbdbfbcbd9250cca036652f7e",
+  "presentation_sha256": "c116bbf776003a735882f9524ac148bd9a92cc871f0a521394ffb82f5b30580d",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-staking-unstake.png",
-  "screenshot_sha256": "340718ee8a26c40cc489e3004fbb9c4f9eb23d212adcc81a8932bcdbdc2cfdc5",
+  "screenshot_sha256": "3e58ddec70ccdfcec357ebca10cdd218d1e7d728d5b673cae0c2fc5e423913fd",
   "sections": [
     "Unstake"
   ],

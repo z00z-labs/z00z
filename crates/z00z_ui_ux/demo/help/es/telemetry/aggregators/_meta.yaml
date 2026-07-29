@@ -1,8 +1,7 @@
-title: "Aggregators"
+title: Aggregators
 icon: aggregate
 order:
   - index
-  - overview
   - ingress
   - planning
   - placement

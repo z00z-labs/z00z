@@ -12,11 +12,17 @@ const MENU_ICON_STANDARD = Object.freeze({
   minimumWeight: 1.5,
   maximumWeight: 1.8
 });
+const MERGE_SPLIT_CONTEXT_STANDARD = Object.freeze({
+  desktopSize: 21,
+  mobileSize: 20
+});
 const HELP_OMITTED_NODE_IDS = new Set(["help", "about", "logout"]);
+const CONTEXT_ICON_NAMES = new Set(["merge", "split"]);
 
 const context = vm.createContext({ URLSearchParams, structuredClone, window: {} });
 for (const modulePath of [
   "scripts/port/contracts.js",
+  "scripts/port/icon-sprite.js",
   "scripts/port/icon-registry.js",
   "scripts/port/navigation-model.js",
   "scripts/port/dapp-catalog.js"
@@ -25,11 +31,17 @@ for (const modulePath of [
 }
 
 const demo = context.window.Z00ZDemo;
+const index = await read("index.html");
+const helpPage = await read("help.html");
+assert.doesNotMatch(index, /<symbol\b/, "Demo HTML must not own a private icon sprite");
+assert.doesNotMatch(helpPage, /<symbol\b/, "Help HTML must not own a private icon sprite");
 const sources = new Map([
-  ["index.html", await read("index.html")],
-  ["help.html", await read("help.html")]
+  ["index.html", demo.ICON_SPRITE_MARKUP],
+  ["help.html", demo.ICON_SPRITE_MARKUP]
 ]);
 const componentsCss = await read("styles/components.css");
+const helpCss = await read("styles/help.css");
+const foundationCss = await read("styles/foundation.css");
 const baseIconRule = componentsCss.match(/\.icon\s*\{([\s\S]*?)\}/)?.[1] ?? "";
 const baseIconStrokeWidth = Number(baseIconRule.match(/\bstroke-width:\s*([0-9.]+)\s*;/)?.[1]);
 assert.equal(
@@ -37,6 +49,17 @@ assert.equal(
   MENU_ICON_STANDARD.maximumWeight,
   "ordinary outline icons must inherit the shared 1.8 light stroke"
 );
+for (const [token, value] of [
+  ["icon-control-size", MENU_ICON_STANDARD.renderedSize],
+  ["icon-context-size", MERGE_SPLIT_CONTEXT_STANDARD.desktopSize],
+  ["icon-context-mobile-size", MERGE_SPLIT_CONTEXT_STANDARD.mobileSize]
+]) {
+  assert.match(
+    foundationCss,
+    new RegExp(`--${token}:\\s*${value}px\\s*;`),
+    `foundation.css must own the ${token} design token`
+  );
+}
 
 function attributes(source) {
   return Object.fromEntries(
@@ -152,6 +175,24 @@ const ADAPTED_ICON_CONTRACTS = Object.freeze({
       "M17.5 3.5h-4a3 3 0 0 0-3 3v7"
     ]
   }),
+  merge: Object.freeze({
+    source: "material-symbols-light:merge",
+    mode: "normalized-fill",
+    baseWeight: 1,
+    weight: 1.5,
+    paths: [
+      "m6.4 20l-.688-.688l4.69-4.697q.633-.632.865-1.165t.233-1.429V5.883L9.38 7.996l-.688-.688L12 4l3.308 3.308l-.689.688L12.5 5.883v6.138q0 .896.252 1.448t.885 1.185l4.652 4.658L17.6 20L12 14.4z"
+    ]
+  }),
+  split: Object.freeze({
+    source: "material-symbols-light:call-split",
+    mode: "normalized-fill",
+    baseWeight: 1,
+    weight: 1.5,
+    paths: [
+      "M11.5 19v-6.792L6 6.708V10H5V5h5v1H6.708l5.792 5.792V19zm2.658-8.439l-.72-.719L17.293 6H14V5h5v5h-1V6.708z"
+    ]
+  }),
   "merge-split": Object.freeze({
     source: "mdi-light:sitemap",
     mode: "source-fill",
@@ -175,10 +216,12 @@ const helpMenuIcons = new Set(
     .filter(({ id, isVisible }) => isVisible && !HELP_OMITTED_NODE_IDS.has(id))
     .map(({ iconId }) => iconId)
 );
+const demoInterfaceIcons = new Set([...demoMenuIcons, ...CONTEXT_ICON_NAMES]);
+const helpInterfaceIcons = new Set([...helpMenuIcons, ...CONTEXT_ICON_NAMES]);
 
 for (const [file, menuIcons] of [
-  ["index.html", demoMenuIcons],
-  ["help.html", helpMenuIcons]
+  ["index.html", demoInterfaceIcons],
+  ["help.html", helpInterfaceIcons]
 ]) {
   const sprite = spriteByFile.get(file);
   for (const iconName of menuIcons) {
@@ -211,7 +254,7 @@ for (const [file, menuIcons] of [
   }
 }
 
-for (const iconName of helpMenuIcons) {
+for (const iconName of helpInterfaceIcons) {
   assert.equal(
     normalizedDefinition(spriteByFile.get("help.html").get(iconName)),
     normalizedDefinition(spriteByFile.get("index.html").get(iconName)),
@@ -223,7 +266,7 @@ for (const [file, sprite] of spriteByFile) {
   const adaptedNames = [...sprite]
     .filter(([, symbol]) => symbol.attributes["data-menu-icon-mode"])
     .map(([name]) => name)
-    .filter((name) => (file === "index.html" ? demoMenuIcons : helpMenuIcons).has(name));
+    .filter((name) => (file === "index.html" ? demoInterfaceIcons : helpInterfaceIcons).has(name));
   assert.deepEqual(
     adaptedNames.sort(),
     Object.keys(ADAPTED_ICON_CONTRACTS).sort(),
@@ -296,13 +339,40 @@ for (const { iconName } of demo.DAPP_CATALOG) {
 const navigationIconRule = componentsCss.match(/\.navigation-tree-icon\s*\{([\s\S]*?)\}/)?.[1] ?? "";
 assert.match(
   navigationIconRule,
-  new RegExp(`\\bwidth:\\s*${MENU_ICON_STANDARD.renderedSize}px\\s*;`),
+  /\bwidth:\s*var\(--icon-control-size\)\s*;/,
   "menu icons must use the shared rendered width"
 );
 assert.match(
   navigationIconRule,
-  new RegExp(`\\bheight:\\s*${MENU_ICON_STANDARD.renderedSize}px\\s*;`),
+  /\bheight:\s*var\(--icon-control-size\)\s*;/,
   "menu icons must use the shared rendered height"
+);
+
+const mergeSplitDesktopRule = componentsCss.match(
+  /\.merge-split-context-nav \.context-nav-item > \.icon\s*\{([\s\S]*?)\}/
+)?.[1] ?? "";
+for (const dimension of ["width", "height"]) {
+  assert.match(
+    mergeSplitDesktopRule,
+    new RegExp(`\\b${dimension}:\\s*var\\(--icon-context-size\\)\\s*;`),
+    `Merge/Split desktop context icons must use the ${MERGE_SPLIT_CONTEXT_STANDARD.desktopSize}px optical size`
+  );
+}
+
+const mergeSplitMobileRule = componentsCss.match(
+  /\.mobile-topbar-context \.merge-split-context-nav \.context-nav-item > \.icon\s*\{([\s\S]*?)\}/
+)?.[1] ?? "";
+for (const dimension of ["width", "height"]) {
+  assert.match(
+    mergeSplitMobileRule,
+    new RegExp(`\\b${dimension}:\\s*var\\(--icon-context-mobile-size\\)\\s*;`),
+    `Demo and Help mobile Merge/Split icons must share the ${MERGE_SPLIT_CONTEXT_STANDARD.mobileSize}px optical size`
+  );
+}
+assert.doesNotMatch(
+  helpCss,
+  /\.help-mobile-topbar-context [^{]*merge-split-context-nav[\s\S]*?\{/,
+  "Help must inherit the Demo Merge/Split icon sizing instead of overriding it"
 );
 
 console.log(

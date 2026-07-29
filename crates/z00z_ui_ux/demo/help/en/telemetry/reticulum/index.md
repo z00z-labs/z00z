@@ -1,6 +1,6 @@
 ---
 id: telemetry.reticulum.overview
-title: Telemetry Reticulum: Overview
+title: "Telemetry Reticulum: Overview"
 route: telemetry.reticulum.overview
 scope: context
 ---

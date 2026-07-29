@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.batches
-title: 탐색기 · 배치
-summary: 탐색기 · 배치: 지원되는 공개 식별자만 다루는 개인정보 보호형 Explorer 미리보기 도움말입니다.
+title: "Telemetry Explorer: Batches"
+route: telemetry.explorer.batches
 scope: context
 ---
-## 이 화면 사용 {#current-view}
-- 지원되는 공개 검사점, 배치, 알림 또는 증거 식별자만 사용하세요.
-- 알 수 없거나 비공개이거나 잘못되었거나 사용할 수 없는 식별자는 지갑 조회 없이 차단됩니다.
 
-## 로컬 및 안전 동작
-- Explorer는 로컬 픽스처 기반 로드맵 미리보기이며 지갑 데이터 서비스가 아닙니다.
-- 로컬 잔액, 연락처, 메시지, 메모, 경로, 비밀 정보는 Explorer에 포함되지 않습니다.
+# Telemetry Explorer: Batches
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer: Batches application view](help/assets/en/telemetry-explorer-batches.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/batches.md","route_id":"telemetry.explorer.batches","screenshot":"help/assets/en/telemetry-explorer-batches.png","topic_id":"telemetry.explorer.batches"} -->

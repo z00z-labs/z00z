@@ -84,7 +84,7 @@
     node({ id: "wallet.send", parentId: "wallet", order: 60, labelKey: "navigation.send", iconId: "send", target: routeTarget("wallet.send"), helpTopicId: "wallet.send" }),
     node({ id: "wallet.receive", parentId: "wallet", order: 70, labelKey: "navigation.receive", iconId: "receive", target: routeTarget("wallet.receive"), helpTopicId: "wallet.receive" }),
     node({ id: "wallet.import", parentId: "wallet", order: 80, labelKey: "navigation.import", iconId: "import", target: routeTarget("wallet.import"), helpTopicId: "wallet.import" }),
-    node({ id: "wallet.merge-split", parentId: "wallet", order: 85, labelKey: "navigation.mergeSplit", iconId: "merge-split", target: routeTarget("wallet.merge-split"), helpTopicId: "wallet.merge-split" }),
+    node({ id: "wallet.merge-split", parentId: "wallet", order: 85, labelKey: "navigation.mergeSplit", iconId: "merge-split", target: routeTarget("wallet.merge-split"), helpTopicId: "wallet.merge" }),
     node({ id: "wallet.history", parentId: "wallet", order: 90, labelKey: "navigation.history", iconId: "activity", target: routeTarget("wallet.history"), helpTopicId: "wallet.history" }),
     node({ id: "wallet.staking", parentId: "wallet", order: 110, labelKey: "navigation.earn", iconId: "earn", target: workspaceTarget("wallet.staking.stake", "navigation.stake", "earn"), capabilityId: "wallet.staking", helpTopicId: "wallet.staking.stake" }),
     node({ id: "wallet.staking.unstake", parentId: "wallet.staking", order: 20, labelKey: "navigation.unstake", iconId: "restore", target: routeTarget("wallet.staking.unstake"), capabilityId: "wallet.staking", helpTopicId: "wallet.staking.unstake" }),

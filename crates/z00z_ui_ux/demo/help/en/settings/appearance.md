@@ -1,6 +1,6 @@
 ---
 id: settings.appearance
-title: Settings: Appearance
+title: "Settings: Appearance"
 route: settings.appearance
 scope: context
 ---

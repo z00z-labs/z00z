@@ -1,6 +1,6 @@
 ---
 id: dapps.permission-review
-title: dApps: Permission Review
+title: "dApps: Permission Review"
 route: none
 scope: dialog
 ---

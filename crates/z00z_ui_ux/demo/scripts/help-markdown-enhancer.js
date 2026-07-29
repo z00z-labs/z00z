@@ -1,52 +1,64 @@
 "use strict";
 
 ((root) => {
-  const MERMAID_KEYBOARD_PAN_DISTANCE = 48;
-  const MERMAID_THEME_CONFIG = {
-    fontFamily: "Trebuchet MS, Verdana, Arial, sans-serif",
-    startOnLoad: false,
-    theme: "base",
-    themeVariables: {
-      activationBkgColor: "#FFF3E0",
-      activationBorderColor: "#FB8C00",
-      actorBkg: "#E3F2FD",
-      actorBorder: "#1E88E5",
-      actorLineColor: "#000000",
-      actorTextColor: "#0D47A1",
-      altSectionBkgColor: "#ECEFF1",
-      background: "#FFFFFF",
-      clusterBkg: "#ECEFF1",
-      clusterBorder: "#546E7A",
-      critBkgColor: "#FFE0E0",
-      critBorderColor: "#D32F2F",
-      doneTaskBkgColor: "#E8F5E9",
-      doneTaskBorderColor: "#43A047",
-      edgeLabelBackground: "#FFFFFF",
-      gridColor: "#D0D7DE",
-      labelBoxBkgColor: "#FFFFFF",
-      labelTextColor: "#263238",
-      lineColor: "#000000",
-      mainBkg: "#F3E5F5",
-      nodeBorder: "#8E24AA",
-      noteBkgColor: "#E8F5E9",
-      noteTextColor: "#1B5E20",
-      primaryBorderColor: "#8E24AA",
-      primaryColor: "#F3E5F5",
-      primaryTextColor: "#4A148C",
-      secondaryBorderColor: "#1E88E5",
-      secondaryColor: "#E3F2FD",
-      secondaryTextColor: "#0D47A1",
-      sectionBkgColor: "#F3E5F5",
-      signalColor: "#000000",
-      signalTextColor: "#263238",
-      tertiaryBorderColor: "#FB8C00",
-      tertiaryColor: "#FFF3E0",
-      tertiaryTextColor: "#E65100",
-      titleColor: "#263238",
-    },
-  };
+  const demo = root.Z00ZDemo;
+  if (!demo?.MERMAID_INTERACTION_LUT) {
+    throw new Error("Shared UI primitives must load before the Help Markdown enhancer.");
+  }
+  const MERMAID_KEYBOARD_PAN_DISTANCE = demo.MERMAID_INTERACTION_LUT.keyboardPanDistance;
+  const MERMAID_THEME_VARIABLE_LUT = Object.freeze({
+    activationBkgColor: "--mermaid-activation-bg",
+    activationBorderColor: "--mermaid-activation-border",
+    actorBkg: "--mermaid-actor-bg",
+    actorBorder: "--mermaid-actor-border",
+    actorLineColor: "--mermaid-actor-line",
+    actorTextColor: "--mermaid-actor-text",
+    altSectionBkgColor: "--mermaid-alt-section-bg",
+    background: "--mermaid-background",
+    clusterBkg: "--mermaid-cluster-bg",
+    clusterBorder: "--mermaid-cluster-border",
+    critBkgColor: "--mermaid-critical-bg",
+    critBorderColor: "--mermaid-critical-border",
+    doneTaskBkgColor: "--mermaid-done-bg",
+    doneTaskBorderColor: "--mermaid-done-border",
+    edgeLabelBackground: "--mermaid-background",
+    gridColor: "--mermaid-grid",
+    labelBoxBkgColor: "--mermaid-background",
+    labelTextColor: "--mermaid-label-text",
+    lineColor: "--mermaid-actor-line",
+    mainBkg: "--mermaid-main-bg",
+    nodeBorder: "--mermaid-node-border",
+    noteBkgColor: "--mermaid-done-bg",
+    noteTextColor: "--mermaid-note-text",
+    primaryBorderColor: "--mermaid-node-border",
+    primaryColor: "--mermaid-main-bg",
+    primaryTextColor: "--mermaid-primary-text",
+    secondaryBorderColor: "--mermaid-actor-border",
+    secondaryColor: "--mermaid-actor-bg",
+    secondaryTextColor: "--mermaid-actor-text",
+    sectionBkgColor: "--mermaid-main-bg",
+    signalColor: "--mermaid-actor-line",
+    signalTextColor: "--mermaid-label-text",
+    tertiaryBorderColor: "--mermaid-activation-border",
+    tertiaryColor: "--mermaid-activation-bg",
+    tertiaryTextColor: "--mermaid-tertiary-text",
+    titleColor: "--mermaid-label-text"
+  });
   const mermaidPanzoomBindings = new Map();
   let mermaidSequence = 0;
+
+  function mermaidThemeConfig() {
+    const styles = root.getComputedStyle(root.document.documentElement);
+    return {
+      fontFamily: styles.getPropertyValue("--font-sans").trim(),
+      startOnLoad: false,
+      theme: "base",
+      themeVariables: Object.fromEntries(
+        Object.entries(MERMAID_THEME_VARIABLE_LUT)
+          .map(([name, token]) => [name, styles.getPropertyValue(token).trim()])
+      )
+    };
+  }
 
   function readMermaidSource(node) {
     const value = node.dataset.mermaidDefinition || node.dataset.mermaidSource || node.textContent || "";
@@ -308,7 +320,7 @@
     if (!nodes.length || !root.mermaid) return;
     cleanupDetachedMermaidPanzoom();
     await waitForDocumentFonts();
-    root.mermaid.initialize(MERMAID_THEME_CONFIG);
+    root.mermaid.initialize(mermaidThemeConfig());
 
     for (const node of nodes) {
       const source = readMermaidSource(node);

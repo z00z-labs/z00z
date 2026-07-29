@@ -12,10 +12,10 @@
     "input|type=text|name=name|placeholder=Human-readable immutable name",
     "input|type=text|name=symbol|placeholder=Short display symbol"
   ],
-  "presentation_sha256": "c2c898d0f8f472910b66f99614c0cca13d667040b7be9443a59d06643fbb8356",
+  "presentation_sha256": "754b731b0ae77bc9916820999703c6025e4fdeaac12e020fd0bf0709d6b2366d",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-create-asset.png",
-  "screenshot_sha256": "dc91642d5acd27ba132cce741f2edf682a9509096e76a0f5aca7c80e7f4f43e3",
+  "screenshot_sha256": "12562592c3f58e2273afd8c0a3a36ac29586a07f89d8de193ce63ef674030f9e",
   "sections": [
     "Create Asset",
     "Prepare proposal",

@@ -1,6 +1,6 @@
 ---
 id: telemetry.explorer.detail
-title: Telemetry Explorer: Detail
+title: "Telemetry Explorer: Detail"
 route: none
 scope: dialog
 ---

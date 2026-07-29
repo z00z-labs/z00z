@@ -61,7 +61,7 @@ window.Z00ZI18n.registerLocale("fr", {
     tabs: { overview: "Vue d’ensemble", epoch: "Époque", privacy: "Seuil de confidentialité", transport: "Transport", queues: "Files et relectures", probation: "Probation", ingress: "Frontière d’entrée" }
   },
   quic: { title: "Télémétrie QUIC", summary: "Données en lecture seule sur les sessions de transport sécurisées et multiplexées, les flux et la migration de chemin.", localCapability: "Fonctionnalité QUIC locale indisponible", localCapabilityHelp: "Cette démo de portefeuille ne dispose d’aucun pont d’état QUIC enregistré. Elle n’invente pas de données de négociation, de flux ou de chemin ayant l’apparence de données réelles.", tabs: { overview: "Aperçu", connections: "Connexions", paths: "Chemins", streams: "Flux", recovery: "Récupération", security: "Sécurité" } },
-  help: { title: "Aide", openGlobal: "Ouvrir l’aide de l’application", openContext: "Aide pour cette vue", close: "Fermer l’aide", contents: "Sommaire", drawerTitle: "Contenu de l’aide", section: "Section d’aide {current} sur {total}", unavailable: "L’aide est indisponible pour cette vue." },
+  help: { title: "Aide", openGlobal: "Ouvrir l’aide de l’application", openContext: "Aide pour cette vue", close: "Fermer l’aide", contents: "Sommaire", drawerTitle: "Contenu de l’aide", onThisPage: "Sur cette page", openOnThisPage: "Ouvrir le sommaire de cette page", closeOnThisPage: "Fermer le sommaire de cette page", section: "Section d’aide {current} sur {total}", unavailable: "L’aide est indisponible pour cette vue." },
   status: { up: "Actif", down: "Inactif", connecting: "Connexion", degraded: "Dégradé" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

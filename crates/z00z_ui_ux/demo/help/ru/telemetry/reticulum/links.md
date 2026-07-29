@@ -1,7 +1,7 @@
 ---
 id: telemetry.reticulum.links
 title: Связи Reticulum
-summary: Связи Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum.
+summary: "Связи Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum."
 scope: context
 ---
 ## Как использовать экран {#current-view}

@@ -1,6 +1,6 @@
 ---
 id: wallet.swap
-title: Wallet: Swap
+title: "Wallet: Swap"
 route: wallet.swap
 scope: context
 ---

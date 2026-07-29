@@ -1,13 +1,36 @@
 ---
 id: dapps.detail
-title: dApps — detalles
-summary: dApps — detalles: ayuda sobre la vista previa local y limitada de dApps y su límite de permisos.
+title: "dApps: Detail"
+route: none
 scope: dialog
 ---
-## Usar esta vista {#current-view}
-- Revise descriptores locales, intenciones limitadas y resultados explícitos.
-- Antes de aceptar, revise alcance, usos, caducidad, valor, comisión, divulgación y revocación.
 
-## Comportamiento local y seguro
-- dApps es una vista previa de la hoja de ruta: no ejecuta código remoto, URL arbitrarias ni firmas genéricas.
-- La cartera vuelve a validar cada intención aceptada; esta vista no modifica sus objetos.
+# dApps: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![dApps: Detail application view](help/assets/en/dapps-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"dapps/detail.md","route_id":"none","screenshot":"help/assets/en/dapps-detail.png","topic_id":"dapps.detail"} -->

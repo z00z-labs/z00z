@@ -4,10 +4,10 @@
     "button|type=button|data-demo-action=backup",
     "button|type=button|data-demo-action=restore"
   ],
-  "presentation_sha256": "205a8168163532904659dbf7104d2ab96de4e75bbcf690b9f4a75a265edeb2f1",
+  "presentation_sha256": "1c7b60cf337247993553b79a4e011d89f340e68a09115ea0ed71ad71c2971fb7",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-backup.png",
-  "screenshot_sha256": "e72708ca15a598c3a8abdfa4f35358e4ae3be130f77e29332cbeb094fadf7278",
+  "screenshot_sha256": "f23ce0eca197502af0e50fabae2581b341763982576fc59aab05ea9e02417817",
   "sections": [
     "Backup status"
   ],

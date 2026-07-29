@@ -1,13 +1,36 @@
 ---
 id: telemetry.watchers.alerts
-title: 監視：アラート
-summary: 監視：アラート：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。
+title: "Telemetry Watchers: Alerts"
+route: telemetry.watchers.alerts
 scope: context
 ---
-## この画面の使い方 {#current-view}
-- ネットワーク状態を変更せず、決定的な公開データを確認します。
-- 利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。
 
-## ローカルで安全な動作
-- Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。
-- ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。
+# Telemetry Watchers: Alerts
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Watchers: Alerts application view](help/assets/en/telemetry-watchers-alerts.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/watchers/alerts.md","route_id":"telemetry.watchers.alerts","screenshot":"help/assets/en/telemetry-watchers-alerts.png","topic_id":"telemetry.watchers.alerts"} -->

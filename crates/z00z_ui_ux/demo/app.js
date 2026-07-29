@@ -35,7 +35,7 @@ let mobilePopupType = "";
 let mobilePopupTrigger = null;
 let desktopWalletPickerTrigger = null;
 let menuSearchQuery = "";
-let mobileNavigationLayout = window.matchMedia("(max-width: 768px)").matches;
+let mobileNavigationLayout = window.Z00ZDemo.matchesViewport("mobileNavigation");
 const mobileDrawerSwipe = {
   pointerId: null,
   source: "",
@@ -46,8 +46,10 @@ const mobileDrawerSwipe = {
   offsetX: 0,
   opacity: 0
 };
-const mobileDrawerSwipeEdge = 48;
-const mobileDrawerSwipeDistance = 56;
+const {
+  edge: mobileDrawerSwipeEdge,
+  distance: mobileDrawerSwipeDistance
+} = window.Z00ZDemo.DRAWER_GESTURE_LUT;
 let mobileDrawerAnimations = [];
 let mobileDrawerMotionId = 0;
 
@@ -232,17 +234,12 @@ function walletChainBadgeMarkup(chainId) {
 }
 
 function languagePickerMarkup(className = "") {
-  const selected = uiLanguages.find(({ id }) => id === state.language) || uiLanguages[0];
-  const label = t("app.language");
-  return `<div class="language-picker${className ? ` ${className}` : ""}" data-language-picker>
-    <button class="language-picker-trigger" type="button" data-language-picker-trigger aria-label="${escapeHtml(label)}" aria-haspopup="listbox" aria-expanded="false" aria-controls="language-picker-options">
-      <span class="language-picker-value"><span aria-hidden="true">${escapeHtml(selected.flag)}</span><span>${escapeHtml(selected.nativeName)}</span></span>
-      ${icon("chevron")}
-    </button>
-    <div class="language-picker-menu" id="language-picker-options" data-language-picker-menu role="listbox" aria-label="${escapeHtml(label)}" hidden>
-      ${uiLanguages.map(({ id, nativeName, flag }) => `<button class="language-picker-option${id === state.language ? " is-selected" : ""}" type="button" role="option" aria-selected="${id === state.language}" tabindex="${id === state.language ? "0" : "-1"}" data-language-picker-option="${escapeHtml(id)}"><span aria-hidden="true">${escapeHtml(flag)}</span><span>${escapeHtml(nativeName)}</span>${id === state.language ? icon("check") : ""}</button>`).join("")}
-    </div>
-  </div>`;
+  return demoRuntime.languagePickerMarkup({
+    languages: uiLanguages,
+    language: state.language,
+    label: t("app.language"),
+    className
+  });
 }
 
 function closeLanguagePicker(picker, { restoreFocus = false } = {}) {
@@ -274,25 +271,7 @@ function openLanguagePicker(picker) {
   menu.hidden = false;
   requestAnimationFrame(() => {
     if (!picker.classList.contains("is-open")) return;
-    const triggerRect = trigger.getBoundingClientRect();
-    const viewportPadding = 12;
-    const menuHeight = Math.min(menu.scrollHeight, 360);
-    const spaceAbove = triggerRect.top - viewportPadding;
-    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
-    const opensUpward = spaceBelow < Math.min(menuHeight, 224) && spaceAbove > spaceBelow;
-    const availableHeight = Math.max(128, opensUpward ? spaceAbove : spaceBelow);
-    const width = Math.min(Math.max(triggerRect.width, 220), window.innerWidth - viewportPadding * 2);
-    const left = Math.max(viewportPadding, Math.min(triggerRect.right - width, window.innerWidth - width - viewportPadding));
-    menu.style.left = `${Math.round(left)}px`;
-    menu.style.width = `${Math.round(width)}px`;
-    menu.style.maxHeight = `${Math.floor(availableHeight)}px`;
-    if (opensUpward) {
-      menu.style.top = "auto";
-      menu.style.bottom = `${Math.max(viewportPadding, Math.round(window.innerHeight - triggerRect.top + 6))}px`;
-    } else {
-      menu.style.top = `${Math.round(triggerRect.bottom + 6)}px`;
-      menu.style.bottom = "auto";
-    }
+    demoRuntime.positionFloatingPanel(menu, trigger);
   });
 }
 
@@ -363,25 +342,7 @@ function openSelectPicker(picker) {
   menu.hidden = false;
   requestAnimationFrame(() => {
     if (!picker.classList.contains("is-open")) return;
-    const triggerRect = trigger.getBoundingClientRect();
-    const viewportPadding = 12;
-    const menuHeight = Math.min(menu.scrollHeight, 360);
-    const spaceAbove = triggerRect.top - viewportPadding;
-    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
-    const opensUpward = spaceBelow < Math.min(menuHeight, 224) && spaceAbove > spaceBelow;
-    const availableHeight = Math.max(128, opensUpward ? spaceAbove : spaceBelow);
-    const width = Math.min(Math.max(triggerRect.width, 220), window.innerWidth - viewportPadding * 2);
-    const left = Math.max(viewportPadding, Math.min(triggerRect.right - width, window.innerWidth - width - viewportPadding));
-    menu.style.left = `${Math.round(left)}px`;
-    menu.style.width = `${Math.round(width)}px`;
-    menu.style.maxHeight = `${Math.floor(availableHeight)}px`;
-    if (opensUpward) {
-      menu.style.top = "auto";
-      menu.style.bottom = `${Math.max(viewportPadding, Math.round(window.innerHeight - triggerRect.top + 6))}px`;
-    } else {
-      menu.style.top = `${Math.round(triggerRect.bottom + 6)}px`;
-      menu.style.bottom = "auto";
-    }
+    demoRuntime.positionFloatingPanel(menu, trigger);
     menu.querySelector(".select-picker-option.is-selected:not([disabled])")?.focus();
   });
 }
@@ -1214,7 +1175,7 @@ function renderMobileTopbarContext() {
 }
 
 function icon(name, className = "") {
-  return `<svg class="icon ${className}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  return demoRuntime.iconMarkup(name, className);
 }
 
 function objectIconDefinition(definition, className = "") {
@@ -1244,12 +1205,7 @@ function assetIcon(asset, className = "") {
 }
 
 function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return demoRuntime.escapeHtml(value);
 }
 
 function sensitive(value) {
@@ -1884,11 +1840,12 @@ function activeMergeSplitState() {
   return state.assetMergeSplit;
 }
 
-function mergeSplitTabs(mode) {
-  return `<div class="merge-split-tabs" role="tablist" aria-label="Merge or split assets">
-    <button class="merge-split-tab${mode === "merge" ? " is-active" : ""}" type="button" role="tab" aria-selected="${mode === "merge"}" data-merge-split-mode="merge">${icon("merge-split")} <span><strong>Merge</strong><small>Many fragments → one</small></span></button>
-    <button class="merge-split-tab${mode === "split" ? " is-active" : ""}" type="button" role="tab" aria-selected="${mode === "split"}" data-merge-split-mode="split">${icon("merge-split")} <span><strong>Split</strong><small>One fragment → many</small></span></button>
-  </div>`;
+function mergeSplitContextNav(mode) {
+  const item = (id, label) => {
+    const active = mode === id;
+    return `<button id="merge-split-mode-${id}" class="context-nav-item${active ? " is-active" : ""}" type="button" role="tab" aria-selected="${active}" aria-controls="merge-split-panel" tabindex="${active ? "0" : "-1"}" ${active ? 'aria-current="page"' : ""} data-merge-split-mode="${id}">${icon(id)}<span><strong>${label}</strong></span></button>`;
+  };
+  return `<nav class="context-nav context-tab-list merge-split-context-nav" role="tablist" aria-label="Merge or split assets">${item("merge", "Merge")}${item("split", "Split")}</nav>`;
 }
 
 function mergeSplitCompatibilityKey(asset) {
@@ -1905,7 +1862,7 @@ function mergeSplitPreviewMarkup(mergeSplitState) {
     ? preview.inputs.map((asset) => `<li><code>${escapeHtml(asset.id)}</code><strong>${escapeHtml(formatAtomicAmount(asset.amountAtomic, asset.decimals, asset.symbol))}</strong></li>`).join("")
     : preview.outputs.map((amountAtomic, index) => `<li><code>Output ${index + 1}</code><strong>${escapeHtml(formatAtomicAmount(amountAtomic, preview.asset.decimals, preview.asset.symbol))}</strong></li>`).join("");
   const asset = preview.mode === "merge" ? preview.inputs[0] : preview.asset;
-  return `<section class="merge-split-preview" aria-labelledby="merge-split-preview-title">
+  return `<section id="merge-split-panel" class="merge-split-preview" aria-labelledby="merge-split-mode-${preview.mode} merge-split-preview-title">
     <div class="merge-split-preview-icon">${icon("shield")}</div>
     <p class="eyebrow">Wallet review</p>
     <h3 id="merge-split-preview-title">${preview.mode === "merge" ? "Merge" : "Split"} preview ready</h3>
@@ -1930,7 +1887,7 @@ function mergeModeMarkup(mergeSplitState) {
       && status === "available"
     ));
   const totalAtomic = selectedAssets.reduce((sum, { amountAtomic }) => sum + amountAtomic, 0);
-  return `<section class="merge-split-mode-panel" role="tabpanel" aria-labelledby="merge-mode-title">
+  return `<section id="merge-split-panel" class="merge-split-mode-panel" role="tabpanel" aria-labelledby="merge-split-mode-merge">
     <div class="merge-split-mode-heading">
       <div><p class="eyebrow">Compatible fragments</p><h3 id="merge-mode-title">Choose at least two inputs</h3><p>Only wallet-owned, available fragments with the same definition and base serial can be combined.</p></div>
       <span class="status-badge is-ready">${groups.length} groups</span>
@@ -1974,7 +1931,7 @@ function splitModeMarkup(mergeSplitState) {
   const validParts = parsed.length >= 2 && parsed.every((value) => Number.isSafeInteger(value) && value > 0);
   const sum = validParts ? parsed.reduce((total, value) => total + value, 0) : 0;
   const exact = Boolean(source && validParts && sum === source.amountAtomic);
-  return `<section class="merge-split-mode-panel" role="tabpanel" aria-labelledby="split-mode-title">
+  return `<section id="merge-split-panel" class="merge-split-mode-panel" role="tabpanel" aria-labelledby="merge-split-mode-split">
     <div class="merge-split-mode-heading">
       <div><p class="eyebrow">Source fragment</p><h3 id="split-mode-title">Allocate the full amount</h3><p>Every output keeps the source definition and base serial. Amounts must be positive and sum exactly to the input.</p></div>
     </div>
@@ -1996,18 +1953,26 @@ function splitModeMarkup(mergeSplitState) {
 
 function walletMergeSplitView() {
   const mergeSplitState = activeMergeSplitState();
+  const modeLabel = mergeSplitState.mode === "split" ? "Split" : "Merge";
+  const helpTopicId = mergeSplitState.mode === "split" ? "wallet.split" : "wallet.merge";
+  const description = mergeSplitState.mode === "split"
+    ? `Divide one spendable fragment in ${escapeHtml(activeWallet().name)} without changing its definition or base serial.`
+    : `Combine compatible spendable fragments in ${escapeHtml(activeWallet().name)} without changing their definition or base serial.`;
   const content = mergeSplitState.preview
     ? mergeSplitPreviewMarkup(mergeSplitState)
-    : `${mergeSplitTabs(mergeSplitState.mode)}${mergeSplitState.mode === "merge" ? mergeModeMarkup(mergeSplitState) : splitModeMarkup(mergeSplitState)}`;
-  return `<div class="view-enter merge-split-view">
-    <section class="merge-split-shell" aria-labelledby="merge-split-title">
-      <header class="wallet-action-header merge-split-header">
-        <span class="asset-import-header-icon">${icon("merge-split")}</span>
-        <div><h2 id="merge-split-title">Merge/Split assets</h2><p>Recompose spendable fragments in ${escapeHtml(activeWallet().name)} without changing their definition or base serial.</p></div>
-      </header>
-      <div class="merge-split-body">${content}</div>
-      <div class="capability-note merge-split-boundary">${icon("alert")} <span><strong>Compatibility boundary</strong><small>The current <code>wallet.asset.merge_assets</code> and <code>split_asset</code> helpers do not claim canonical ledger reconciliation authority. This screen stops at review.</small></span></div>
-    </section>
+    : mergeSplitState.mode === "merge" ? mergeModeMarkup(mergeSplitState) : splitModeMarkup(mergeSplitState);
+  return `<div class="view-enter workspace-layout workspace-local-layout merge-split-workspace-layout" data-workspace-id="wallet.merge-split" data-help-topic-override="${helpTopicId}">
+    <aside class="context-rail">${mergeSplitContextNav(mergeSplitState.mode)}</aside>
+    <div class="workspace-panel merge-split-view">
+      <section class="merge-split-shell" aria-labelledby="merge-split-title">
+        <header class="wallet-action-header merge-split-header">
+          <span class="asset-import-header-icon">${icon(mergeSplitState.mode)}</span>
+          <div><h2 id="merge-split-title">${modeLabel} assets</h2><p>${description}</p></div>
+        </header>
+        <div class="merge-split-body">${content}</div>
+        <div class="capability-note merge-split-boundary">${icon("alert")} <span><strong>Compatibility boundary</strong><small>The current <code>wallet.asset.merge_assets</code> and <code>split_asset</code> helpers do not claim canonical ledger reconciliation authority. This screen stops at review.</small></span></div>
+      </section>
+    </div>
   </div>`;
 }
 
@@ -2281,14 +2246,14 @@ function exchangeView() {
     ? `<section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">${exchangeReview(draft)}</section>`
     : `<section class="wallet-tool-grid wallet-tool-grid-single wallet-tool-grid-centered">
         <article class="card wallet-tool-card exchange-card">
-          <div class="tool-card-heading"><span class="list-icon">${icon("exchange")}</span><div><h2>${t("exchange.title")}</h2></div></div>
+          <div class="tool-card-heading"><span class="list-icon">${icon("swap")}</span><div><h2>${t("exchange.title")}</h2></div></div>
           <form class="form-grid" id="exchange-entry" autocomplete="off" novalidate>
             <div class="field-group"><label class="field-label" for="exchange-source">${t("exchange.sourceAsset")}</label><select id="exchange-source" name="sourceAssetKey">${assetOptions(draft.sourceAssetKey)}</select><p class="field-hint">${t("send.available", { value: sensitive(`${asset.balance} ${asset.unit}`) })}</p></div>
             <div class="field-group"><label class="field-label" for="exchange-amount">${t("exchange.amount")}</label><div class="input-with-affix"><input id="exchange-amount" name="amount" type="number" min="${asset.divisible ? "0.01" : "1"}" max="${escapeHtml(asset.balance.replaceAll(",", ""))}" step="${asset.divisible ? "0.01" : "1"}" inputmode="decimal" value="${escapeHtml(draft.amount)}" placeholder="0.00" aria-describedby="exchange-error" required><span class="input-affix">${escapeHtml(asset.unit)}</span></div></div>
             <div class="field-group"><label class="field-label" for="exchange-destination">${t("exchange.destinationAsset")}</label><select id="exchange-destination" name="destinationId">${exchangeDestinationOptions(draft)}</select></div>
             ${exchangeProviderFields(draft)}
             <p class="field-error" id="exchange-error" role="alert"></p>
-            <button class="button button-primary" type="submit">${icon("exchange")} Review target request</button>
+            <button class="button button-primary" type="submit">${icon("swap")} Review target request</button>
           </form>
         </article>
       </section>`;
@@ -2365,7 +2330,7 @@ const walletSettingsMeta = {
 };
 
 function isMobileNavigation() {
-  return window.matchMedia("(max-width: 768px)").matches;
+  return demoRuntime.matchesViewport("mobileNavigation");
 }
 
 function closeDesktopWalletPicker({ restoreFocus = false } = {}) {
@@ -2415,28 +2380,11 @@ function openDesktopWalletPicker(trigger) {
   walletPickerPopup.hidden = false;
   trigger.setAttribute("aria-expanded", "true");
   requestAnimationFrame(() => {
-    const triggerRect = trigger.getBoundingClientRect();
-    const anchorRect = trigger.closest(".mobile-wallet-selector, .wallet-nav-viewport")?.getBoundingClientRect() || triggerRect;
-    const viewportPadding = isMobileNavigation() ? 8 : 12;
-    const maxWidth = isMobileNavigation() ? 300 : 288;
-    const minWidth = isMobileNavigation() ? 240 : 252;
-    const width = Math.min(Math.max(anchorRect.width, minWidth), maxWidth, window.innerWidth - viewportPadding * 2);
-    const left = Math.max(viewportPadding, Math.min(triggerRect.left, window.innerWidth - width - viewportPadding));
-    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
-    const spaceAbove = triggerRect.top - viewportPadding;
-    const popupHeight = Math.min(walletPickerPopup.scrollHeight, 280);
-    const opensUpward = spaceBelow < Math.min(popupHeight, 176) && spaceAbove > spaceBelow;
-    const availableHeight = Math.max(156, opensUpward ? spaceAbove : spaceBelow);
-    walletPickerPopup.style.left = `${Math.round(left)}px`;
-    walletPickerPopup.style.width = `${Math.round(width)}px`;
-    walletPickerPopup.style.maxHeight = `${Math.floor(availableHeight)}px`;
-    if (opensUpward) {
-      walletPickerPopup.style.top = "auto";
-      walletPickerPopup.style.bottom = `${Math.max(viewportPadding, Math.round(window.innerHeight - triggerRect.top + 8))}px`;
-    } else {
-      walletPickerPopup.style.top = `${Math.round(triggerRect.bottom + 8)}px`;
-      walletPickerPopup.style.bottom = "auto";
-    }
+    const anchor = trigger.closest(".mobile-wallet-selector, .wallet-nav-viewport") || trigger;
+    demoRuntime.positionFloatingPanel(walletPickerPopup, trigger, {
+      profile: isMobileNavigation() ? "walletMobile" : "walletDesktop",
+      anchor
+    });
     walletPickerPopup.querySelector(".wallet-picker-choice.is-active")?.focus();
   });
 }
@@ -4653,7 +4601,7 @@ function render(options = {}) {
   });
   if (options.focusMain) {
     main.focus({ preventScroll: true });
-    window.scrollTo({ top: 0, behavior: state.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: state.reducedMotion || demoRuntime.matchesViewport("reducedMotion") ? "auto" : "smooth" });
   }
 }
 
@@ -6048,7 +5996,7 @@ function settleMobileDrawerSwipe(shouldOpen, { offsetX, opacity }) {
   const targetX = shouldOpen ? 0 : -drawerWidth;
   const targetOpacity = shouldOpen ? 1 : 0;
   const remaining = Math.min(1, Math.abs(targetX - offsetX) / drawerWidth);
-  const reduceMotion = state.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduceMotion = state.reducedMotion || demoRuntime.matchesViewport("reducedMotion");
   const duration = reduceMotion ? 1 : Math.max(90, Math.round(220 * remaining));
   const motionId = ++mobileDrawerMotionId;
 

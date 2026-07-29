@@ -7,10 +7,10 @@
     "input|type=number|name=amount|placeholder=0.00",
     "input|type=text|name=beneficiary|placeholder=Verified recipient commitment"
   ],
-  "presentation_sha256": "e181231e6f3796e09382435780eb584a9c1c75a3b3faaa2dd291dbff0316b7c3",
+  "presentation_sha256": "3234f3d12c4831523d262b63865201c9332c57e6ec99bdb021554bf703f4bbee",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-donation.png",
-  "screenshot_sha256": "f21f1edb146c77356c18751197ba61e708f1e4fc8859e81113faeab993ab1423",
+  "screenshot_sha256": "9349a11371488be25d6c26529af0b111cd29896f1749e0ecfd017f969e25eaf5",
   "sections": [
     "Donation",
     "Prepare proposal",

@@ -1,13 +1,36 @@
 ---
 id: contacts.detail
-title: Kişiler — ayrıntılar
-summary: Kişiler — ayrıntılar: yerel kişi etiketleri, alıcı kartları ve açık kimlik değişikliği incelemesi hakkında yardım.
+title: "Contacts: Detail"
+route: none
 scope: dialog
 ---
-## Bu görünümü kullanma {#current-view}
-- Yerel kişi verilerini, süreyi, iptali ve kimlik değişikliği kanıtını inceleyin.
-- Kaydedilmiş etiket kimliği veya güveni kanıtlamaz; değişen veriler açıkça incelenmelidir.
 
-## Yerel ve güvenli davranış
-- Kişiler yerel kalır ve adres ya da çevrim içi durum grafiği olarak yüklenmez.
-- Yerel kişiyi kaldırmak dış hakları iptal etmez veya Cüzdan ödemesini değiştirmez.
+# Contacts: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Contacts: Detail application view](help/assets/en/contacts-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"contacts/detail.md","route_id":"none","screenshot":"help/assets/en/contacts-detail.png","topic_id":"contacts.detail"} -->

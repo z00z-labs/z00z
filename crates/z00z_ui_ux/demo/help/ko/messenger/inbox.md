@@ -1,7 +1,7 @@
 ---
 id: messenger.inbox
 title: 받은편지함
-summary: 받은편지함: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다.
+summary: "받은편지함: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다."
 scope: context
 ---
 ## 이 화면 사용 {#current-view}

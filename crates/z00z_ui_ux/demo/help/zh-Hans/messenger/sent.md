@@ -1,13 +1,36 @@
 ---
 id: messenger.sent
-title: 已发送
-summary: 已发送：私密请求协调预览及其钱包交接的帮助。
+title: "Messenger: Sent"
+route: messenger.sent
 scope: context
 ---
-## 使用此视图 {#current-view}
-- 查看本地消息、请求、回执、到期和恢复状态。
-- 接受请求只会创建钱包审核意图，不会结算或更改钱包状态。
 
-## 本地和安全行为
-- Messenger 是短期中继的路线图预览，并非永久链上聊天。
-- 打开、删除、屏蔽或举报内容不会更改钱包结算状态。
+# Messenger: Sent
+
+[TOC]
+
+## App View {#current-view}
+
+![Messenger: Sent application view](help/assets/en/messenger-sent.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"messenger/sent.md","route_id":"messenger.sent","screenshot":"help/assets/en/messenger-sent.png","topic_id":"messenger.sent"} -->

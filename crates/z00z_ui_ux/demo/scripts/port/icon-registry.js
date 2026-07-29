@@ -1,20 +1,10 @@
 "use strict";
 
 ((root) => {
-  const ICON_NAMES = Object.freeze([
-    "home", "menu", "wallet", "assets", "spark", "activity", "swap", "earn",
-    "dapp-pay", "dapp-request", "voucher-list", "permission-list", "dapp-agents-budget",
-    "dapp-wbold-gateway", "dapp-subscription", "dapp-donation", "dapp-escrow", "dapp-bounties",
-    "dapp-tickets-passes", "dapp-service-credits", "dapp-digital-goods", "dapp-payroll", "dapp-private-contract",
-    "dapp-assets-locker", "dapp-xchain-integration",
-    "aggregate",
-    "settings", "advanced", "send", "receive", "inbox", "sent", "coin", "token", "nft", "voucher",
-    "right", "claim", "import", "merge-split", "permission", "eye", "eye-off", "lock", "shield", "bell", "user", "message", "question",
-    "chevron", "copy", "check", "close", "moon", "sun", "more", "alert", "search",
-    "backup", "restore", "network", "overview", "reticulum-node", "reticulum-interface", "entry",
-    "reticulum-paths", "queue", "probe", "reticulum-link", "plus", "logout", "remove",
-    "storage", "bar-chart", "line-chart", "info"
-  ]);
+  const demo = root.Z00ZDemo ||= {};
+  if (!demo.ICON_NAMES) {
+    throw new Error("The canonical icon sprite must load before the object icon registry.");
+  }
 
   const OBJECT_FAMILY_ICON_LUT = Object.freeze({
     voucher: Object.freeze({
@@ -61,8 +51,7 @@
     right: PERMISSION_ICON_LUT
   });
 
-  Object.assign(root.Z00ZDemo ||= {}, {
-    ICON_NAMES,
+  Object.assign(demo, {
     OBJECT_FAMILY_ICON_LUT,
     OBJECT_TYPE_ICON_LUT,
     VOUCHER_ICON_LUT,

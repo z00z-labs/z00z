@@ -1,6 +1,6 @@
 ---
 id: telemetry.onionnet.probation
-title: Telemetry OnionNet: Probation
+title: "Telemetry OnionNet: Probation"
 route: telemetry.onionnet.probation
 scope: context
 ---

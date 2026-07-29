@@ -1,7 +1,7 @@
 ---
 id: settings.notifications
 title: Bildirimler
-summary: Bildirimler: yerel bildirim, titreşim ve zil sesi tercihleri.
+summary: "Bildirimler: yerel bildirim, titreşim ve zil sesi tercihleri."
 scope: context
 ---
 ## Bu görünümü kullanma {#current-view}

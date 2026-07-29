@@ -1,13 +1,36 @@
 ---
 id: telemetry.watchers.providers
-title: 监测器：DA 提供商
-summary: 监测器：DA 提供商：只读 Watchers 路线图预览及其公开证据边界的帮助。
+title: "Telemetry Watchers: Providers"
+route: telemetry.watchers.providers
 scope: context
 ---
-## 使用此视图 {#current-view}
-- 查看确定性的发布数据，而不更改网络状态。
-- 不可用、过期、格式错误和异常状态均会明确显示并安全失败。
 
-## 本地和安全行为
-- Watchers 是基于本地样本的路线图预览，并非已交付的协议功能。
-- 钱包标签、交易对手、路径、消息和机密不会暴露。
+# Telemetry Watchers: Providers
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Watchers: Providers application view](help/assets/en/telemetry-watchers-providers.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/watchers/providers.md","route_id":"telemetry.watchers.providers","screenshot":"help/assets/en/telemetry-watchers-providers.png","topic_id":"telemetry.watchers.providers"} -->

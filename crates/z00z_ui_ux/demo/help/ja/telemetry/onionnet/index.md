@@ -1,7 +1,13 @@
 ---
-title: "OnionNet"
-description: "OnionNet · 目次"
-difficulty: basic
-icon: mdi:alphabet-a-box-outline
-toc: true
+id: telemetry.onionnet.overview
+title: OnionNet概要
+summary: OnionNet概要は、経路やセッションを公開しないプライバシー保護OnionNet集約を表示します。
+scope: context
 ---
+## この画面の使い方 {#current-view}
+- ローカルブリッジが提供するOnionNet概要の集約を確認します。この画面からOnionNetは変更できません。
+- 利用不可は新しいローカルスナップショットがないことを示し、経路、エンドポイント、セッションID、ペイロードは非表示のままです。
+
+## ローカルで安全な動作
+- ウォレットの秘密情報と非公開の通信データはヘルプに含まれません。
+- このヘルプはアプリに同梱され、オフラインで動作します。

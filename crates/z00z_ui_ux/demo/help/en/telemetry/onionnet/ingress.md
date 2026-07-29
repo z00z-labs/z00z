@@ -1,6 +1,6 @@
 ---
 id: telemetry.onionnet.ingress
-title: Telemetry OnionNet: Ingress
+title: "Telemetry OnionNet: Ingress"
 route: telemetry.onionnet.ingress
 scope: context
 ---

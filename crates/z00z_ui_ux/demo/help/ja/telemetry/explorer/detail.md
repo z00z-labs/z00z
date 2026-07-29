@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.detail
-title: エクスプローラー：詳細
-summary: エクスプローラー：詳細：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。
+title: "Telemetry Explorer: Detail"
+route: none
 scope: dialog
 ---
-## この画面の使い方 {#current-view}
-- 対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。
-- 不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。
 
-## ローカルで安全な動作
-- Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。
-- ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。
+# Telemetry Explorer: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer: Detail application view](help/assets/en/telemetry-explorer-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/detail.md","route_id":"none","screenshot":"help/assets/en/telemetry-explorer-detail.png","topic_id":"telemetry.explorer.detail"} -->

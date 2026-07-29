@@ -1,6 +1,6 @@
 ---
 id: telemetry.reticulum.entrypoints
-title: Telemetry Reticulum: Entrypoints
+title: "Telemetry Reticulum: Entrypoints"
 route: telemetry.reticulum.entrypoints
 scope: context
 ---

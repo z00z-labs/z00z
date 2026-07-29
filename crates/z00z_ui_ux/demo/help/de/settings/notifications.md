@@ -1,7 +1,7 @@
 ---
 id: settings.notifications
 title: Benachrichtigungen
-summary: Benachrichtigungen: lokale Einstellungen für Benachrichtigung, Vibration und Klingelton.
+summary: "Benachrichtigungen: lokale Einstellungen für Benachrichtigung, Vibration und Klingelton."
 scope: context
 ---
 ## Diese Ansicht verwenden {#current-view}

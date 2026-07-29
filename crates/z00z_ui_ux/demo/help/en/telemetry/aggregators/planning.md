@@ -1,6 +1,6 @@
 ---
 id: telemetry.aggregators.planning
-title: Telemetry Aggregators: Planning
+title: "Telemetry Aggregators: Planning"
 route: telemetry.aggregators.planning
 scope: context
 ---

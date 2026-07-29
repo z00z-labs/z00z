@@ -1,7 +1,7 @@
 ---
 id: messenger.inbox
 title: Boîte de réception
-summary: Boîte de réception : aide sur l’aperçu privé de coordination des demandes et son transfert vers le portefeuille.
+summary: "Boîte de réception : aide sur l’aperçu privé de coordination des demandes et son transfert vers le portefeuille."
 scope: context
 ---
 ## Utiliser cette vue {#current-view}

@@ -1,9 +1,9 @@
-title: "遥测"
+title: 遥测
 icon: network
 order:
-  - index
   - reticulum
   - onionnet
+  - quic
   - aggregators
   - watchers
   - explorer

@@ -1,7 +1,6 @@
-title: "Mensajero"
+title: Mensajero
 icon: message
 order:
-  - index
   - inbox
   - sent
   - conversations

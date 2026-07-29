@@ -1,6 +1,6 @@
 ---
 id: messenger.detail
-title: Messenger: Detail
+title: "Messenger: Detail"
 route: none
 scope: dialog
 ---

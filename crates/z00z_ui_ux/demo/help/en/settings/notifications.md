@@ -1,6 +1,6 @@
 ---
 id: settings.notifications
-title: Settings: Notifications
+title: "Settings: Notifications"
 route: settings.notifications
 scope: context
 ---

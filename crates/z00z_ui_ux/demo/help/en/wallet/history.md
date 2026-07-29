@@ -1,6 +1,6 @@
 ---
 id: wallet.history
-title: Wallet: History
+title: "Wallet: History"
 route: wallet.history
 scope: context
 ---

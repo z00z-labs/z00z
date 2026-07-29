@@ -22,7 +22,7 @@
     "button|type=button|data-help-topic=dapps.wbold-gateway",
     "button|type=button|data-help-topic=dapps.xchain-integration"
   ],
-  "presentation_sha256": "4a7a4213144ceaedb963773bd868df81f11dab4c180a38e6806218f8c06c074b",
+  "presentation_sha256": "517898319cea64f968e4f2208cb0c9a8ef72bac14148fd7fd272acf008f3d07c",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-discover.png",
   "screenshot_sha256": "14a8dca432f50ff2f4e7f876d57156d91cf0d67108a23ec538358f83a3fe17f1",

@@ -1,7 +1,7 @@
 ---
 id: telemetry.onionnet.transport
 title: Транспорт OnionNet
-summary: Транспорт OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий.
+summary: "Транспорт OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий."
 scope: context
 ---
 ## Как использовать экран {#current-view}

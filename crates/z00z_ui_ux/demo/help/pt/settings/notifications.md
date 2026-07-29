@@ -1,7 +1,7 @@
 ---
 id: settings.notifications
 title: Notificações
-summary: Notificações: preferências locais de notificação, vibração e toque.
+summary: "Notificações: preferências locais de notificação, vibração e toque."
 scope: context
 ---
 ## Utilizar esta vista {#current-view}

@@ -3,7 +3,7 @@
   "components": [
     "button|type=button"
   ],
-  "presentation_sha256": "9c4d071c7012510d27a1b4d26557cc50c93d1688a525c0cc80ccfa141c8627da",
+  "presentation_sha256": "b3e9c27796c709c306d51e88d5028ee09edadff32b45d4594d9cfa5b0faf9d53",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-settings-general.png",
   "screenshot_sha256": "42108742fdf51b0898bbe87bc8d0f39cfd71fa396aec6ebfc71aeaea0192ec70",

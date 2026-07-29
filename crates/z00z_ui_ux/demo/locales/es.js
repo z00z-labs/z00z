@@ -61,7 +61,7 @@ window.Z00ZI18n.registerLocale("es", {
     tabs: { overview: "Resumen", epoch: "Época", privacy: "Umbral de privacidad", transport: "Transporte", queues: "Colas y repeticiones", probation: "Período de prueba", ingress: "Límite de entrada" }
   },
   quic: { title: "Telemetría QUIC", summary: "Evidencia de solo lectura para sesiones de transporte seguras y multiplexadas, flujos y migración de ruta.", localCapability: "Capacidad QUIC local no disponible", localCapabilityHelp: "Esta demo de cartera no tiene un puente de estado QUIC registrado. No inventa datos de negociación, flujos o rutas con apariencia real.", tabs: { overview: "Resumen", connections: "Conexiones", paths: "Rutas", streams: "Flujos", recovery: "Recuperación", security: "Seguridad" } },
-  help: { title: "Ayuda", openGlobal: "Abrir la ayuda de la aplicación", openContext: "Ayuda para esta vista", close: "Cerrar ayuda", contents: "Contenido", drawerTitle: "Contenido de ayuda", section: "Sección de ayuda {current} de {total}", unavailable: "La ayuda no está disponible para esta vista." },
+  help: { title: "Ayuda", openGlobal: "Abrir la ayuda de la aplicación", openContext: "Ayuda para esta vista", close: "Cerrar ayuda", contents: "Contenido", drawerTitle: "Contenido de ayuda", onThisPage: "En esta página", openOnThisPage: "Abrir el contenido de esta página", closeOnThisPage: "Cerrar el contenido de esta página", section: "Sección de ayuda {current} de {total}", unavailable: "La ayuda no está disponible para esta vista." },
   status: { up: "Activo", down: "Inactivo", connecting: "Conectando", degraded: "Degradado" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

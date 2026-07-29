@@ -1,6 +1,6 @@
 ---
 id: telemetry.explorer.batches
-title: Telemetry Explorer: Batches
+title: "Telemetry Explorer: Batches"
 route: telemetry.explorer.batches
 scope: context
 ---

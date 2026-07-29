@@ -158,7 +158,7 @@ window.Z00ZI18n.registerLocale("ru", {
   },
   help: {
     title: "Справка", openGlobal: "Открыть справку приложения", openContext: "Справка по этому экрану",
-    close: "Закрыть справку", contents: "Содержание", drawerTitle: "Содержание справки", section: "Раздел справки {current} из {total}",
+    close: "Закрыть справку", contents: "Содержание", drawerTitle: "Содержание справки", onThisPage: "На этой странице", openOnThisPage: "Открыть содержание этой страницы", closeOnThisPage: "Закрыть содержание этой страницы", section: "Раздел справки {current} из {total}",
     unavailable: "Справка для этого экрана недоступна."
   },
   status: {

@@ -1,7 +1,7 @@
 ---
 id: data-storage.disk-usage
 title: 디스크 사용량
-summary: 디스크 사용량: 비공개 데이터가 없는 집계 로컬 카운터입니다.
+summary: "디스크 사용량: 비공개 데이터가 없는 집계 로컬 카운터입니다."
 scope: context
 ---
 ## 이 화면 사용 {#current-view}

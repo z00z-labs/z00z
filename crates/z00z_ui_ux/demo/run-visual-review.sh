@@ -9,6 +9,7 @@ cd "$demo_dir"
 node scripts/check-locales.mjs
 node scripts/help/sync-markdown-runtime.mjs
 node scripts/check-help.mjs
+node scripts/check-design-system.mjs
 node scripts/test-palette-contrast.mjs
 mkdir -p "$output_dir"
 find "$output_dir" -maxdepth 1 -type f -name '*.png' -delete

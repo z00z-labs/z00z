@@ -5,10 +5,10 @@
     "button|type=button|aria-label=Close",
     "button|type=button|aria-label=Help for this view|data-help-topic=asset.details"
   ],
-  "presentation_sha256": "a5dbc12f535ae928ba5d49bca34a7e525ff1cea30b13f046754109029502ea84",
+  "presentation_sha256": "002a2e209506d4cb4f0c96657a1a26e6cadd3ba29fc930675f0171e9d3449718",
   "scope": "dialog",
   "screenshot": "help/assets/en/asset-details.png",
-  "screenshot_sha256": "001650ed30782bccd369adb044330967fe488c4e278996544ae6319ff752ad0d",
+  "screenshot_sha256": "6f4f7b87c320ed71960deed97bc070d1ad79ffcb5346634d886ca97cc2e19755",
   "sections": [
     "Asset details"
   ],

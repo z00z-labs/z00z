@@ -1,8 +1,7 @@
-title: "OnionNet"
+title: OnionNet
 icon: shield
 order:
   - index
-  - overview
   - epoch
   - privacy
   - transport

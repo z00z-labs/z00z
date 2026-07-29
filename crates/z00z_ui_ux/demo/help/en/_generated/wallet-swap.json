@@ -5,7 +5,7 @@
     "button|type=button|data-demo-action=preview-swap",
     "input|type=number|placeholder=0.00"
   ],
-  "presentation_sha256": "4ae6b7399dbf13e47dd22115ee497c9a9648760444d39ccc9e7567e58346bbc6",
+  "presentation_sha256": "8459277881070e3964d60501f011effe26fdfeb8a0d108003be986ff959ec1d7",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-swap.png",
   "screenshot_sha256": "a6b33699514063d94386c8de338d8e67c171687527d55818a65d36f958cd3d2a",

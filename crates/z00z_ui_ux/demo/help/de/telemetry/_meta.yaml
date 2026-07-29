@@ -1,9 +1,9 @@
-title: "Telemetrie"
+title: Telemetrie
 icon: network
 order:
-  - index
   - reticulum
   - onionnet
+  - quic
   - aggregators
   - watchers
   - explorer

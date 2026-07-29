@@ -158,7 +158,7 @@ window.Z00ZI18n.registerLocale("en", {
   },
   help: {
     title: "Help", openGlobal: "Open application help", openContext: "Help for this view",
-    close: "Close help", contents: "Contents", drawerTitle: "Help Content", section: "Help section {current} of {total}",
+    close: "Close help", contents: "Contents", drawerTitle: "Help Content", onThisPage: "On This Page", openOnThisPage: "Open On This Page", closeOnThisPage: "Close On This Page", section: "Help section {current} of {total}",
     unavailable: "Help is unavailable for this view."
   },
   status: {

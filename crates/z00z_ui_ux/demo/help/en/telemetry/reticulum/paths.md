@@ -1,6 +1,6 @@
 ---
 id: telemetry.reticulum.paths
-title: Telemetry Reticulum: Paths
+title: "Telemetry Reticulum: Paths"
 route: telemetry.reticulum.paths
 scope: context
 ---

@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.batches
-title: エクスプローラー：バッチ
-summary: エクスプローラー：バッチ：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。
+title: "Telemetry Explorer: Batches"
+route: telemetry.explorer.batches
 scope: context
 ---
-## この画面の使い方 {#current-view}
-- 対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。
-- 不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。
 
-## ローカルで安全な動作
-- Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。
-- ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。
+# Telemetry Explorer: Batches
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer: Batches application view](help/assets/en/telemetry-explorer-batches.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/batches.md","route_id":"telemetry.explorer.batches","screenshot":"help/assets/en/telemetry-explorer-batches.png","topic_id":"telemetry.explorer.batches"} -->

@@ -1,0 +1,8 @@
+title: Definições da carteira
+icon: settings
+order:
+  - index
+  - security
+  - backup
+  - policies
+  - advanced

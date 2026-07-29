@@ -1,8 +1,7 @@
-title: "Reticulum"
-icon: reticulum-node
+title: Reticulum
+icon: network
 order:
   - index
-  - overview
   - node
   - interfaces
   - radio

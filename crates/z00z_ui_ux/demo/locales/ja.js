@@ -61,7 +61,7 @@ window.Z00ZI18n.registerLocale("ja", {
     tabs: { overview: "概要", epoch: "エポック", privacy: "プライバシー下限", transport: "転送", queues: "キューと再生", probation: "試用", ingress: "入口境界" }
   },
   quic: { title: "QUIC テレメトリー", summary: "安全な多重化トランスポートセッション、ストリーム、パスマイグレーションの読み取り専用エビデンスです。", localCapability: "ローカル QUIC 機能は利用できません", localCapabilityHelp: "このウォレットデモには QUIC ステータスブリッジが登録されていません。実データのように見えるハンドシェイク、ストリーム、パス情報は生成しません。", tabs: { overview: "概要", connections: "接続", paths: "経路", streams: "ストリーム", recovery: "復旧", security: "セキュリティ" } },
-  help: { title: "ヘルプ", openGlobal: "アプリケーションヘルプを開く", openContext: "この画面のヘルプ", close: "ヘルプを閉じる", contents: "目次", drawerTitle: "ヘルプ内容", section: "ヘルプセクション {current}/{total}", unavailable: "この画面のヘルプは利用できません。" },
+  help: { title: "ヘルプ", openGlobal: "アプリケーションヘルプを開く", openContext: "この画面のヘルプ", close: "ヘルプを閉じる", contents: "目次", drawerTitle: "ヘルプ内容", onThisPage: "このページ", openOnThisPage: "このページの目次を開く", closeOnThisPage: "このページの目次を閉じる", section: "ヘルプセクション {current}/{total}", unavailable: "この画面のヘルプは利用できません。" },
   status: { up: "稼働中", down: "停止", connecting: "接続中", degraded: "低下" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

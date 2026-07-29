@@ -1,8 +1,7 @@
-title: "浏览器"
+title: 浏览器
 icon: search
 order:
   - index
-  - overview
   - search
   - checkpoints
   - batches

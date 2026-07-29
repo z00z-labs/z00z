@@ -46,9 +46,6 @@ async function rebuildHelp({ syncViews = false } = {}) {
 
 function safeFilePath(pathname) {
   const relativePath = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
-  if (relativePath.split("/").includes(".temp")) {
-    throw new Error("Historical Help reference is not served");
-  }
   const filePath = resolve(demoRoot, relativePath);
   if (filePath !== demoRoot && !filePath.startsWith(`${demoRoot}${sep}`)) {
     throw new Error("Path escapes the demo root");
@@ -91,7 +88,7 @@ const server = createServer(async (request, response) => {
 await rebuildHelp({ syncViews: true });
 server.listen(port, "127.0.0.1", () => {
   console.log(`Z00Z wallet demo: http://127.0.0.1:${port}`);
-  console.log("Watching localized Help and Demo view files; English UI changes create non-destructive Help drafts automatically.");
+  console.log("Watching localized Help and Demo view files; English UI changes refresh capture baselines without creating parallel Markdown.");
 });
 
 let debounce;
@@ -110,7 +107,6 @@ const helpWatcher = watch(resolve(demoRoot, "help"), { recursive: true }, (_even
   const segments = filename.split(sep);
   if (
     ![".md", ".yaml", ".yml"].includes(extname(filename))
-    || segments.includes(".temp")
     || segments.includes("_generated")
   ) return;
   scheduleHelpRebuild(false);

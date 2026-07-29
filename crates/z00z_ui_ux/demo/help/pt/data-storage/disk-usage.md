@@ -1,7 +1,7 @@
 ---
 id: data-storage.disk-usage
 title: Utilização do disco
-summary: Utilização do disco: contadores locais agregados sem dados privados.
+summary: "Utilização do disco: contadores locais agregados sem dados privados."
 scope: context
 ---
 ## Utilizar esta vista {#current-view}

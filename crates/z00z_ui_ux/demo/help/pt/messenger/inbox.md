@@ -1,7 +1,7 @@
 ---
 id: messenger.inbox
 title: Caixa de entrada
-summary: Caixa de entrada: ajuda sobre a pré-visualização privada de coordenação de pedidos e passagem para a carteira.
+summary: "Caixa de entrada: ajuda sobre a pré-visualização privada de coordenação de pedidos e passagem para a carteira."
 scope: context
 ---
 ## Utilizar esta vista {#current-view}

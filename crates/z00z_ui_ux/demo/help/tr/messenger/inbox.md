@@ -1,7 +1,7 @@
 ---
 id: messenger.inbox
 title: Gelen kutusu
-summary: Gelen kutusu: özel istek eşgüdümü önizlemesi ve Cüzdan aktarımı hakkında yardım.
+summary: "Gelen kutusu: özel istek eşgüdümü önizlemesi ve Cüzdan aktarımı hakkında yardım."
 scope: context
 ---
 ## Bu görünümü kullanma {#current-view}

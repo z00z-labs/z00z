@@ -3,10 +3,10 @@
   "components": [
     "input|type=file|name=assetPackage"
   ],
-  "presentation_sha256": "d9f8fdfd9e0fec80d9bdf2868bac1e697236c8350788d2e79d7c13b2f53f91bc",
+  "presentation_sha256": "7def6a7b1b9903059cda3ad1c8b1c03cfc75bc3b81a461298642c6f2c9829b4a",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-import.png",
-  "screenshot_sha256": "47a80d6aa9466e45bb70e8c4ee190d9579d84ee264823d2bf9fa1408ecaaaecd",
+  "screenshot_sha256": "a7ba4d1e08b170aede5e986f208aed439411156b5bc0d48d93ee99aa100ccd44",
   "sections": [
     "Import asset"
   ],

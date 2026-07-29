@@ -1,7 +1,6 @@
-title: "Messagerie"
+title: Messagerie
 icon: message
 order:
-  - index
   - inbox
   - sent
   - conversations

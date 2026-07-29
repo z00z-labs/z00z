@@ -191,7 +191,10 @@
     "telemetry.watchers.alert-detail",
     "telemetry.explorer.detail"
   ]);
-  const HELP_TOPIC_IDS = freezeList(["app", ...APP_ROUTE_IDS, ...DIALOG_HELP_TOPIC_IDS]);
+  const ROUTE_HELP_TOPIC_IDS = APP_ROUTE_IDS.flatMap((routeId) => (
+    routeId === "wallet.merge-split" ? ["wallet.merge", "wallet.split"] : [routeId]
+  ));
+  const HELP_TOPIC_IDS = freezeList(["app", ...ROUTE_HELP_TOPIC_IDS, ...DIALOG_HELP_TOPIC_IDS]);
   const APP_VERSION = "0.1.0";
   const PALETTE_IDS = freezeList(["z00z-default", "z00z-corporate"]);
   const MATURITY_IDS = freezeList(["live", "target", "concept"]);

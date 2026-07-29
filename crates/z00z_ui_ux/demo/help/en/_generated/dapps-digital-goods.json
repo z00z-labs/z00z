@@ -8,10 +8,10 @@
     "input|type=text|name=item|placeholder=Exact digital entitlement",
     "input|type=text|name=provider|placeholder=Publisher or service provider"
   ],
-  "presentation_sha256": "6545c4c08cc22b47a5a975d0db522222aa508af4d9979bffb4fe994a61b35d83",
+  "presentation_sha256": "93a403a066014e60ed7fb47c60b5671c126fcac98bc330bdbf888460d0d29fd6",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-digital-goods.png",
-  "screenshot_sha256": "bcbf7ecc8b3e81a2b4f7b070ac066445d813ed6dfabbe9268811d18d06abf436",
+  "screenshot_sha256": "d1713ae8fbe788c861175918cdb0f19ea7a186daa4b5d42c9199eaf4c70ca8c5",
   "sections": [
     "Digital Goods",
     "Prepare proposal",

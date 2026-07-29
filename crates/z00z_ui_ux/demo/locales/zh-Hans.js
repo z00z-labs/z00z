@@ -61,7 +61,7 @@ window.Z00ZI18n.registerLocale("zh-Hans", {
     tabs: { overview: "概览", epoch: "纪元", privacy: "隐私下限", transport: "传输", queues: "队列与重放", probation: "观察期", ingress: "入口边界" }
   },
   quic: { title: "QUIC 遥测", summary: "安全多路复用传输会话、数据流和路径迁移的只读证据。", localCapability: "本地 QUIC 功能不可用", localCapabilityHelp: "此钱包演示未注册 QUIC 状态桥接，不会伪造看似实时的握手、数据流或路径数据。", tabs: { overview: "概览", connections: "连接", paths: "路径", streams: "数据流", recovery: "恢复", security: "安全" } },
-  help: { title: "帮助", openGlobal: "打开应用帮助", openContext: "此视图的帮助", close: "关闭帮助", contents: "目录", drawerTitle: "帮助内容", section: "帮助章节 {current}/{total}", unavailable: "此视图暂无帮助。" },
+  help: { title: "帮助", openGlobal: "打开应用帮助", openContext: "此视图的帮助", close: "关闭帮助", contents: "目录", drawerTitle: "帮助内容", onThisPage: "本页内容", openOnThisPage: "打开本页内容", closeOnThisPage: "关闭本页内容", section: "帮助章节 {current}/{total}", unavailable: "此视图暂无帮助。" },
   status: { up: "运行中", down: "离线", connecting: "正在连接", degraded: "受限" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

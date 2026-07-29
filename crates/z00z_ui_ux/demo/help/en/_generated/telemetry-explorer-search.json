@@ -10,10 +10,10 @@
     "button|type=submit",
     "input|name=publicId|placeholder=checkpoint_000184"
   ],
-  "presentation_sha256": "1b8812cd7f6194bd027e0399a5ad1716a47657845488195d0dadc0173be67043",
+  "presentation_sha256": "f31a80eefbc8e9bb35e9d6a251f86adb3c274340177cbac87007837cd47ab136",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-explorer-search.png",
-  "screenshot_sha256": "9fab5b5a69bf3aa78ef58ff47adb55263712fb4ed6edb109806fbc7acff0d679",
+  "screenshot_sha256": "07cdb0a65a62384336e6027da8cffcebe82521270ce7960432fba7bd4b4a7adf",
   "sections": [
     "Search"
   ],

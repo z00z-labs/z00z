@@ -1,6 +1,6 @@
 ---
 id: telemetry.onionnet.overview
-title: Telemetry OnionNet: Overview
+title: "Telemetry OnionNet: Overview"
 route: telemetry.onionnet.overview
 scope: context
 ---

@@ -1,13 +1,36 @@
 ---
 id: messenger.request-review
-title: 信使：请求审核
-summary: 信使：请求审核：私密请求协调预览及其钱包交接的帮助。
+title: "Messenger: Request Review"
+route: none
 scope: dialog
 ---
-## 使用此视图 {#current-view}
-- 查看本地消息、请求、回执、到期和恢复状态。
-- 接受请求只会创建钱包审核意图，不会结算或更改钱包状态。
 
-## 本地和安全行为
-- Messenger 是短期中继的路线图预览，并非永久链上聊天。
-- 打开、删除、屏蔽或举报内容不会更改钱包结算状态。
+# Messenger: Request Review
+
+[TOC]
+
+## App View {#current-view}
+
+![Messenger: Request Review application view](help/assets/en/messenger-request-review.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"messenger/request-review.md","route_id":"none","screenshot":"help/assets/en/messenger-request-review.png","topic_id":"messenger.request-review"} -->

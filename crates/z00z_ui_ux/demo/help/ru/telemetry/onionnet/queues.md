@@ -1,7 +1,7 @@
 ---
 id: telemetry.onionnet.queues
 title: Очереди и повтор OnionNet
-summary: Очереди и повтор OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий.
+summary: "Очереди и повтор OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий."
 scope: context
 ---
 ## Как использовать экран {#current-view}

@@ -1,6 +1,6 @@
 ---
 id: telemetry.watchers.alerts
-title: Telemetry Watchers: Alerts
+title: "Telemetry Watchers: Alerts"
 route: telemetry.watchers.alerts
 scope: context
 ---

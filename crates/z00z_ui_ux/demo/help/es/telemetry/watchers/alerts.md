@@ -1,13 +1,36 @@
 ---
 id: telemetry.watchers.alerts
-title: Observadores — Alertas
-summary: Observadores — Alertas: ayuda sobre la vista previa de solo lectura de Watchers y su límite de pruebas públicas.
+title: "Telemetry Watchers: Alerts"
+route: telemetry.watchers.alerts
 scope: context
 ---
-## Usar esta vista {#current-view}
-- Revise datos deterministas de publicación sin cambiar el estado de la red.
-- Los estados no disponibles, obsoletos, mal formados y de error siguen explícitos y fallan de forma segura.
 
-## Comportamiento local y seguro
-- Watchers es una vista previa de la hoja de ruta con datos locales, no una función de protocolo disponible.
-- No se exponen etiquetas de cartera, contrapartes, rutas, mensajes ni secretos.
+# Telemetry Watchers: Alerts
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Watchers: Alerts application view](help/assets/en/telemetry-watchers-alerts.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/watchers/alerts.md","route_id":"telemetry.watchers.alerts","screenshot":"help/assets/en/telemetry-watchers-alerts.png","topic_id":"telemetry.watchers.alerts"} -->

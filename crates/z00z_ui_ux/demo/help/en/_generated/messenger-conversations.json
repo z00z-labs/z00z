@@ -6,10 +6,10 @@
     "button|type=submit",
     "input|name=query|placeholder=Search conversations"
   ],
-  "presentation_sha256": "7a475778d1313f34b0d57ec5bae92e18cac6b9c5155bc28cf985e5c1c35343f1",
+  "presentation_sha256": "a07149bd2ee98addee6b06cafbc73fd356a9f1d0108f0630a34b525b72187973",
   "scope": "context",
   "screenshot": "help/assets/en/messenger-conversations.png",
-  "screenshot_sha256": "09fdc29d6821f7dc86422017f6ab45edfe65efc55d846455499d3b53777be674",
+  "screenshot_sha256": "dfb7a475fd3f587c57b72f68be7b3eee0dbc04333c72abefc9589ff1f1d51558",
   "sections": [
     "Conversations"
   ],

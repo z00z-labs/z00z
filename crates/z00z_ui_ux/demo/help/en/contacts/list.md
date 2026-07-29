@@ -1,6 +1,6 @@
 ---
 id: contacts.list
-title: Contacts: List
+title: "Contacts: List"
 route: contacts.list
 scope: context
 ---

@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
 title: dApps 찾아보기
-summary: dApps 찾아보기: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.
+summary: "dApps 찾아보기: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다."
 scope: context
 ---
 ## 이 화면 사용 {#current-view}

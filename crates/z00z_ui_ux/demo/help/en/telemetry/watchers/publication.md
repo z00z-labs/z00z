@@ -1,6 +1,6 @@
 ---
 id: telemetry.watchers.publication
-title: Telemetry Watchers: Publication
+title: "Telemetry Watchers: Publication"
 route: telemetry.watchers.publication
 scope: context
 ---

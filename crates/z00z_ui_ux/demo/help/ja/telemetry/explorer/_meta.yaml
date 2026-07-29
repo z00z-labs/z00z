@@ -1,8 +1,7 @@
-title: "エクスプローラー"
+title: エクスプローラー
 icon: search
 order:
   - index
-  - overview
   - search
   - checkpoints
   - batches

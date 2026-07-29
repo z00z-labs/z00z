@@ -1,13 +1,36 @@
 ---
 id: telemetry.explorer.detail
-title: Explorador — detalles
-summary: Explorador — detalles: ayuda sobre la vista previa privada de Explorer para identificadores públicos compatibles.
+title: "Telemetry Explorer: Detail"
+route: none
 scope: dialog
 ---
-## Usar esta vista {#current-view}
-- Use solo identificadores públicos compatibles de puntos de control, lotes, alertas o pruebas.
-- Los identificadores desconocidos, privados, mal formados o no disponibles fallan sin consultar la cartera.
 
-## Comportamiento local y seguro
-- Explorer es una vista previa de la hoja de ruta con datos locales, no un servicio de datos de cartera.
-- Los saldos, contactos, mensajes, notas, rutas y secretos locales nunca entran en Explorer.
+# Telemetry Explorer: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Explorer: Detail application view](help/assets/en/telemetry-explorer-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/explorer/detail.md","route_id":"none","screenshot":"help/assets/en/telemetry-explorer-detail.png","topic_id":"telemetry.explorer.detail"} -->

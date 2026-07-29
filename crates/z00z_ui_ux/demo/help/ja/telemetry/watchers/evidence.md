@@ -1,13 +1,36 @@
 ---
 id: telemetry.watchers.evidence
-title: 監視：証拠をエクスポート
-summary: 監視：証拠をエクスポート：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。
+title: "Telemetry Watchers: Evidence"
+route: telemetry.watchers.evidence
 scope: context
 ---
-## この画面の使い方 {#current-view}
-- ネットワーク状態を変更せず、決定的な公開データを確認します。
-- 利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。
 
-## ローカルで安全な動作
-- Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。
-- ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。
+# Telemetry Watchers: Evidence
+
+[TOC]
+
+## App View {#current-view}
+
+![Telemetry Watchers: Evidence application view](help/assets/en/telemetry-watchers-evidence.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"telemetry/watchers/evidence.md","route_id":"telemetry.watchers.evidence","screenshot":"help/assets/en/telemetry-watchers-evidence.png","topic_id":"telemetry.watchers.evidence"} -->

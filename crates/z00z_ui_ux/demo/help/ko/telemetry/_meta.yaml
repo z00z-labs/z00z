@@ -1,9 +1,9 @@
-title: "텔레메트리"
+title: 텔레메트리
 icon: network
 order:
-  - index
   - reticulum
   - onionnet
+  - quic
   - aggregators
   - watchers
   - explorer

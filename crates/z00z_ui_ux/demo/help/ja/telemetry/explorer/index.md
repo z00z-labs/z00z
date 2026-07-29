@@ -1,7 +1,13 @@
 ---
-title: "エクスプローラー"
-description: "エクスプローラー · 目次"
-difficulty: basic
-icon: mdi:alphabet-a-box-outline
-toc: true
+id: telemetry.explorer.overview
+title: エクスプローラー：概要
+summary: エクスプローラー：概要：対応する公開 ID のみを扱うプライバシー制限付き Explorer プレビューのヘルプです。
+scope: context
 ---
+## この画面の使い方 {#current-view}
+- 対応する公開チェックポイント、バッチ、アラート、証拠 ID のみを使用してください。
+- 不明、非公開、不正、利用不可の ID はウォレットを参照せず安全側に失敗します。
+
+## ローカルで安全な動作
+- Explorer はローカルデータによるロードマッププレビューであり、ウォレットデータサービスではありません。
+- ローカル残高、連絡先、メッセージ、メモ、経路、秘密情報は Explorer に入りません。

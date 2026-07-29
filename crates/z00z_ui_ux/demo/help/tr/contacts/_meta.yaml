@@ -1,7 +1,6 @@
-title: "Kişiler"
+title: Kişiler
 icon: user
 order:
-  - index
-  - contacts
+  - list
   - detail
   - identity-review

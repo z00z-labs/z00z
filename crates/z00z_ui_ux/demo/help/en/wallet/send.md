@@ -1,6 +1,6 @@
 ---
 id: wallet.send
-title: Wallet: Send
+title: "Wallet: Send"
 route: wallet.send
 scope: context
 ---

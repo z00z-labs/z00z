@@ -1,6 +1,6 @@
 ---
 id: telemetry.aggregators.placement
-title: Telemetry Aggregators: Placement
+title: "Telemetry Aggregators: Placement"
 route: telemetry.aggregators.placement
 scope: context
 ---

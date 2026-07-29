@@ -1,7 +1,7 @@
 ---
 id: telemetry.onionnet.ingress
 title: Входящий трафик OnionNet
-summary: Входящий трафик OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий.
+summary: "Входящий трафик OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий."
 scope: context
 ---
 ## Как использовать экран {#current-view}

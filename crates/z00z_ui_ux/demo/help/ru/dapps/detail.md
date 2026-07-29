@@ -1,13 +1,36 @@
 ---
 id: dapps.detail
-title: dApps — сведения
-summary: dApps — сведения: справка об ограниченном локальном демо dApps и его разрешениях.
+title: "dApps: Detail"
+route: none
 scope: dialog
 ---
-## Использование этого экрана {#current-view}
-- Проверьте локальные описания, ограниченные намерения и явный результат операции.
-- Перед принятием проверьте область, число использований, срок, сумму, комиссию, раскрытие и отзыв.
 
-## Локальное и безопасное поведение
-- dApps — интерактивная дорожная карта: удалённый код, произвольные URL и универсальная подпись не выполняются.
-- Принятое намерение заново проверяет Кошелёк; этот экран не изменяет объекты кошелька.
+# dApps: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![dApps: Detail application view](help/assets/en/dapps-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"dapps/detail.md","route_id":"none","screenshot":"help/assets/en/dapps-detail.png","topic_id":"dapps.detail"} -->

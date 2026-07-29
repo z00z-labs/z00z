@@ -1,6 +1,6 @@
 ---
 id: contacts.identity-review
-title: Contacts: Identity Review
+title: "Contacts: Identity Review"
 route: none
 scope: dialog
 ---

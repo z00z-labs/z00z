@@ -2,7 +2,7 @@
 
 ((root) => {
   const catalogue = root.Z00ZHelpCatalog;
-  if (!catalogue?.records || !catalogue?.catalogues?.en) {
+  if (!catalogue?.records || !catalogue?.catalogues?.en || !catalogue?.navigations?.en) {
     throw new Error("Navigation-derived Help catalogue must load before the Help registry.");
   }
 
@@ -25,6 +25,10 @@
   root.Z00ZHelpRegistry = Object.freeze({
     globalTopic: () => "app",
     hasTopic: (topicId) => topicsById.has(topicId),
+    navigation: (language) => {
+      const resolvedLanguage = root.Z00ZI18n?.resolveLanguage(language) || "en";
+      return catalogue.navigations[resolvedLanguage] || catalogue.navigations.en;
+    },
     resolveDocument,
     resolveTopicId,
     topic: (topicId) => topicsById.get(topicId) || null,

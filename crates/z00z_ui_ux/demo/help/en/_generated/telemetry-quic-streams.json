@@ -8,10 +8,10 @@
     "button|type=button|data-workspace-route=telemetry.quic.security",
     "button|type=button|data-workspace-route=telemetry.quic.streams"
   ],
-  "presentation_sha256": "1748bd790def29bf51293ca4e11b3f535b61faaede771d7d16026acfc9738ded",
+  "presentation_sha256": "a86f03c3cf598013ed23b3f62b85c87c6c12a6835bf74fe0baeee14987595d8c",
   "scope": "context",
   "screenshot": "help/assets/en/telemetry-quic-streams.png",
-  "screenshot_sha256": "c25b6f4a29becce32faa36981b7c089cdab4d4c223fc5a51f67bebb42d2639fd",
+  "screenshot_sha256": "c5f5fb2ddba0ef87efb3e1792254736e44894a8013814e26757b6e9b6497fd2d",
   "sections": [
     "QUIC telemetry",
     "Streams"

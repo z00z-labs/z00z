@@ -1,7 +1,6 @@
-title: "信使"
+title: 信使
 icon: message
 order:
-  - index
   - inbox
   - sent
   - conversations

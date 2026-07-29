@@ -1,0 +1,7 @@
+title: Settings
+icon: settings
+order:
+  - index
+  - network
+  - notifications
+  - appearance

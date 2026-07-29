@@ -1,7 +1,6 @@
-title: "Mesajlaşma"
+title: Mesajlaşma
 icon: message
 order:
-  - index
   - inbox
   - sent
   - conversations

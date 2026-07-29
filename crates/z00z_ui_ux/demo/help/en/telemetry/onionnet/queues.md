@@ -1,6 +1,6 @@
 ---
 id: telemetry.onionnet.queues
-title: Telemetry OnionNet: Queues
+title: "Telemetry OnionNet: Queues"
 route: telemetry.onionnet.queues
 scope: context
 ---

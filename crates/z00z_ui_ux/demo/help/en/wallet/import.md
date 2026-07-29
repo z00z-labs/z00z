@@ -1,6 +1,6 @@
 ---
 id: wallet.import
-title: Wallet: Import
+title: "Wallet: Import"
 route: wallet.import
 scope: context
 ---

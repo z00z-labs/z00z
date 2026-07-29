@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
 title: dApps entdecken
-summary: dApps entdecken: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze.
+summary: "dApps entdecken: Hilfe zur begrenzten lokalen dApps-Vorschau und ihrer Berechtigungsgrenze."
 scope: context
 ---
 ## Diese Ansicht verwenden {#current-view}

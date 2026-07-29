@@ -61,7 +61,7 @@ window.Z00ZI18n.registerLocale("de", {
     tabs: { overview: "Überblick", epoch: "Epoche", privacy: "Datenschutzschwelle", transport: "Transport", queues: "Warteschlangen und Wiederholungen", probation: "Bewährung", ingress: "Eingangsgrenze" }
   },
   quic: { title: "QUIC-Telemetrie", summary: "Schreibgeschützte Nachweise für sichere, multiplexierte Transportsitzungen, Streams und Pfadmigration.", localCapability: "Lokale QUIC-Funktion nicht verfügbar", localCapabilityHelp: "In dieser Wallet-Demo ist keine QUIC-Statusbrücke registriert. Es werden keine echt wirkenden Handshake-, Stream- oder Pfaddaten erfunden.", tabs: { overview: "Übersicht", connections: "Verbindungen", paths: "Pfade", streams: "Streams", recovery: "Wiederherstellung", security: "Sicherheit" } },
-  help: { title: "Hilfe", openGlobal: "Anwendungshilfe öffnen", openContext: "Hilfe für diese Ansicht", close: "Hilfe schließen", contents: "Inhalt", drawerTitle: "Hilfeinhalt", section: "Hilfeabschnitt {current} von {total}", unavailable: "Für diese Ansicht ist keine Hilfe verfügbar." },
+  help: { title: "Hilfe", openGlobal: "Anwendungshilfe öffnen", openContext: "Hilfe für diese Ansicht", close: "Hilfe schließen", contents: "Inhalt", drawerTitle: "Hilfeinhalt", onThisPage: "Auf dieser Seite", openOnThisPage: "Inhalt dieser Seite öffnen", closeOnThisPage: "Inhalt dieser Seite schließen", section: "Hilfeabschnitt {current} von {total}", unavailable: "Für diese Ansicht ist keine Hilfe verfügbar." },
   status: { up: "Aktiv", down: "Inaktiv", connecting: "Verbindung", degraded: "Eingeschränkt" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }
 });

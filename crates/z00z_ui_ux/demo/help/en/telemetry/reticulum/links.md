@@ -1,6 +1,6 @@
 ---
 id: telemetry.reticulum.links
-title: Telemetry Reticulum: Links
+title: "Telemetry Reticulum: Links"
 route: telemetry.reticulum.links
 scope: context
 ---

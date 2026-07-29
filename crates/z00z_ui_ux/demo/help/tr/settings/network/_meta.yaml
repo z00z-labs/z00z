@@ -1,0 +1,6 @@
+title: Ağ
+icon: network
+order:
+  - reticulum
+  - onionnet
+  - quic

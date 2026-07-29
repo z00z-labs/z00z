@@ -1,6 +1,6 @@
 ---
 id: telemetry.aggregators.overview
-title: Telemetry Aggregators: Overview
+title: "Telemetry Aggregators: Overview"
 route: telemetry.aggregators.overview
 scope: context
 ---

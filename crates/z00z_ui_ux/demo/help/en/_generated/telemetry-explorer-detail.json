@@ -10,10 +10,10 @@
     "button|type=button|data-workspace-route=telemetry.explorer.overview",
     "button|type=button|data-workspace-route=telemetry.explorer.search"
   ],
-  "presentation_sha256": "ca3f94f05463f9cb0b47262d7e03bd8bb3ae64c7248eec1fcee396e606734122",
+  "presentation_sha256": "c0cfbb4e80df7d51d44aefa0a0499c9052008a0262155a1ada3685e2f0a08a1e",
   "scope": "dialog",
   "screenshot": "help/assets/en/telemetry-explorer-detail.png",
-  "screenshot_sha256": "b4dd96ed28cdc5cc0e478c1878c653090fc9c56d7d9dfbbe0262caf7373a9e78",
+  "screenshot_sha256": "a2b60c1b5af100c40e39e175b3719c4e181b8eb9502a7c013ab689accf9c7762",
   "sections": [
     "Checkpoints",
     "checkpoint_000184"

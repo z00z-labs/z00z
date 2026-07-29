@@ -1,8 +1,7 @@
-title: "Обозреватель"
+title: Обозреватель
 icon: search
 order:
   - index
-  - overview
   - search
   - checkpoints
   - batches

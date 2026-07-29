@@ -1,16 +1,37 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
+import YAML from "yaml";
+
 import "../port/locale-registry.js";
+import { discoverAdditionalRecords, loadHelpContent } from "./content-metadata.mjs";
 import { helpRecords, pageFile } from "./navigation-contract.mjs";
 import { renderHelpMarkdown } from "./markdown-renderer.mjs";
+import { buildPrimaryNavigation } from "./primary-navigation.mjs";
 
-const REQUIRED_HEADINGS = Object.freeze([
+const REQUIRED_VIEW_HEADINGS = Object.freeze([
   "## App View {#current-view}",
   "## Overview",
   "## How to use this view",
   "## Terms and controls",
   "## Safety and limits",
+]);
+const REQUIRED_ARTICLE_HEADINGS = Object.freeze([
+  "## Overview",
+  "## How to use this guide",
+  "## Safety and limits",
+]);
+const REQUIRED_VIEW_SECTION_IDS = Object.freeze([
+  "current-view",
+  "overview",
+  "how-to-use-this-view",
+  "terms-and-controls",
+  "safety-and-limits",
+]);
+const REQUIRED_ARTICLE_SECTION_IDS = Object.freeze([
+  "overview",
+  "how-to-use-this-guide",
+  "safety-and-limits",
 ]);
 
 const SUPPORTED_LOCALES = Object.freeze(globalThis.Z00ZLocaleRegistry.map(({ id }) => id));
@@ -32,11 +53,10 @@ function parseFrontmatter(source, sourceName) {
   const closing = source.indexOf("\n---\n", 4);
   if (closing < 0) throw new Error(`${sourceName}: unterminated YAML front matter.`);
 
-  const frontmatter = Object.fromEntries(source.slice(4, closing).split("\n").map((line) => {
-    const separator = line.indexOf(": ");
-    if (separator < 1) throw new Error(`${sourceName}: malformed front matter line.`);
-    return [line.slice(0, separator), line.slice(separator + 2)];
-  }));
+  const frontmatter = YAML.parse(source.slice(4, closing));
+  if (!frontmatter || typeof frontmatter !== "object" || Array.isArray(frontmatter)) {
+    throw new Error(`${sourceName}: front matter must be a YAML mapping.`);
+  }
   return { body: source.slice(closing + 5), frontmatter };
 }
 
@@ -73,12 +93,26 @@ function documentFromMarkdown(markdown, record, sourceName, title) {
   });
 }
 
-export function parseHelpPage(source, record, sourceName) {
+function hasLocalizedSectionStructure(body, scope) {
+  const requiredSectionIds = scope === "article"
+    ? REQUIRED_ARTICLE_SECTION_IDS
+    : REQUIRED_VIEW_SECTION_IDS;
+  return requiredSectionIds.every((sectionId) => (
+    new RegExp(`^##\\s+.+\\s+\\{#${sectionId}\\}\\s*$`, "mu").test(body)
+  ));
+}
+
+export function parseHelpPage(source, record, sourceName, { allowLocalizedHeadings = false } = {}) {
   const { body, frontmatter } = parseFrontmatter(source, sourceName);
   const expectedPath = pageFile(record);
 
-  for (const heading of REQUIRED_HEADINGS) {
-    if (!body.includes(heading)) throw new Error(`${sourceName}: missing required section ${heading}.`);
+  const requiredHeadings = record.scope === "article"
+    ? REQUIRED_ARTICLE_HEADINGS
+    : REQUIRED_VIEW_HEADINGS;
+  if (!(allowLocalizedHeadings && hasLocalizedSectionStructure(body, record.scope))) {
+    for (const heading of requiredHeadings) {
+      if (!body.includes(heading)) throw new Error(`${sourceName}: missing required section ${heading}.`);
+    }
   }
   if (frontmatter.id !== record.id) throw new Error(`${sourceName}: topic ID does not match navigation.`);
   if (frontmatter.route !== (record.routeId || "none")) throw new Error(`${sourceName}: route does not match navigation.`);
@@ -96,17 +130,6 @@ export function parseHelpPage(source, record, sourceName) {
 
   const renderedSource = body.replace(/<!-- help-sync:source \{.+\} -->/u, "");
   return documentFromMarkdown(renderedSource, record, sourceName, frontmatter.title);
-}
-
-async function markdownFiles(directory) {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(entries.map(async (entry) => {
-    const path = resolve(directory, entry.name);
-    if (entry.isDirectory() && entry.name.startsWith("_")) return [];
-    if (entry.isDirectory()) return markdownFiles(path);
-    return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
-  }));
-  return nested.flat();
 }
 
 function splitLegacyBody(body) {
@@ -175,43 +198,40 @@ function localizedLegacyMarkdown(source, record, language, sourceName) {
   });
 }
 
-async function loadLegacyLocalizedHelp(root, language, records) {
-  const localeRoot = resolve(root, "help", language);
-  const expectedIds = new Set(records.map(({ id }) => id));
-  const sourcesById = new Map();
-
-  for (const path of await markdownFiles(localeRoot)) {
-    const source = await readFile(path, "utf8");
-    const id = source.match(/^id: ([^\n]+)$/mu)?.[1];
-    if (!id || !expectedIds.has(id)) continue;
-    const { frontmatter } = parseFrontmatter(source, path);
-    sourcesById.set(frontmatter.id, [...(sourcesById.get(frontmatter.id) || []), Object.freeze({ path, source })]);
-  }
-
+async function loadLocalizedHelp(root, language, records) {
   return Object.freeze(await Promise.all(records.map(async (record) => {
-    const candidates = sourcesById.get(record.id) || [];
-    if (!candidates.length) {
-      const fallbackPath = resolve(root, "help", "en", pageFile(record));
-      const source = await readFile(fallbackPath, "utf8");
-      const sourceName = relative(root, fallbackPath);
-      const localized = localizedLegacyMarkdown(source, record, language, sourceName);
-      return documentFromMarkdown(localized.markdown, record, sourceName, localized.title);
+    const path = resolve(root, "help", language, pageFile(record));
+    const source = await readFile(path, "utf8");
+    const sourceName = relative(root, path);
+    const { frontmatter } = parseFrontmatter(source, sourceName);
+    if (
+      frontmatter.route === (record.routeId || "none")
+      && frontmatter.scope === record.scope
+      && (
+        record.scope === "article"
+        || REQUIRED_VIEW_HEADINGS.every((heading) => source.includes(heading))
+        || hasLocalizedSectionStructure(source, record.scope)
+      )
+    ) {
+      return parseHelpPage(source, record, sourceName, { allowLocalizedHeadings: true });
     }
-    if (new Set(candidates.map(({ source }) => source)).size !== 1) {
-      throw new Error(`${language}: conflicting localized Help sources for ${record.id}.`);
-    }
-    const candidate = candidates[0];
-    const sourceName = relative(root, candidate.path);
-    const localized = localizedLegacyMarkdown(candidate.source, record, language, sourceName);
+    const localized = localizedLegacyMarkdown(source, record, language, sourceName);
     return documentFromMarkdown(localized.markdown, record, sourceName, localized.title);
   })));
 }
 
-export async function loadNavigationHelp(root, language = "en") {
-  const records = helpRecords();
+export async function loadNavigationHelp(root, language = "en", expectedRecords = null) {
+  const baseRecords = helpRecords();
+  const records = expectedRecords || Object.freeze([
+    ...baseRecords,
+    ...await discoverAdditionalRecords(root, language, baseRecords),
+  ]);
+  const content = await loadHelpContent(root, language, records, pageFile);
+  const navigation = buildPrimaryNavigation(content, records);
   if (language !== "en") {
     return Object.freeze({
-      documents: await loadLegacyLocalizedHelp(root, language, records),
+      documents: await loadLocalizedHelp(root, language, records),
+      navigation,
       records,
     });
   }
@@ -220,26 +240,32 @@ export async function loadNavigationHelp(root, language = "en") {
     const source = await readFile(path, "utf8");
     return parseHelpPage(source, record, path);
   }));
-  return Object.freeze({ documents: Object.freeze(documents), records });
+  return Object.freeze({ documents: Object.freeze(documents), navigation, records });
 }
 
 export async function compileNavigationHelp(root) {
-  const { documents, records } = await loadNavigationHelp(root, "en");
-  const catalogues = {
-    en: Object.fromEntries(documents.map((document) => [document.id, document])),
-  };
-  const localizedCatalogues = await Promise.all(SUPPORTED_LOCALES
-    .filter((language) => language !== "en")
-    .map(async (language) => {
-      const localized = await loadNavigationHelp(root, language);
-      return [language, Object.fromEntries(localized.documents.map((document) => [document.id, document]))];
-    }));
-  Object.assign(catalogues, Object.fromEntries(localizedCatalogues));
+  const english = await loadNavigationHelp(root, "en");
+  const records = english.records;
+  const loadedLocales = [
+    ["en", english],
+    ...await Promise.all(SUPPORTED_LOCALES
+      .filter((language) => language !== "en")
+      .map(async (language) => [language, await loadNavigationHelp(root, language, records)])),
+  ];
+  const catalogues = Object.fromEntries(loadedLocales.map(([language, loaded]) => [
+    language,
+    Object.fromEntries(loaded.documents.map((document) => [document.id, document])),
+  ]));
+  const navigations = Object.fromEntries(loadedLocales.map(([language, loaded]) => [
+    language,
+    loaded.navigation,
+  ]));
   const payload = {
     catalogues,
     locales: SUPPORTED_LOCALES,
+    navigations,
     records,
-    version: 3,
+    version: 4,
   };
   return `"use strict";\n\n((root) => {\n  root.Z00ZHelpCatalog = Object.freeze(${JSON.stringify(payload, null, 2)});\n})(typeof window === "undefined" ? globalThis : window);\n`;
 }

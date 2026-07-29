@@ -1,7 +1,13 @@
 ---
-title: "監視"
-description: "監視 · 目次"
-difficulty: basic
-icon: mdi:alphabet-a-box-outline
-toc: true
+id: telemetry.watchers.overview
+title: 監視：概要
+summary: 監視：概要：読み取り専用の Watchers ロードマッププレビューと公開証拠の境界に関するヘルプです。
+scope: context
 ---
+## この画面の使い方 {#current-view}
+- ネットワーク状態を変更せず、決定的な公開データを確認します。
+- 利用不可、古い、不正な形式、エラーの状態は明示され、安全側に失敗します。
+
+## ローカルで安全な動作
+- Watchers はローカルデータによるロードマッププレビューであり、提供済みのプロトコル機能ではありません。
+- ウォレット名、取引相手、経路、メッセージ、秘密情報は公開されません。

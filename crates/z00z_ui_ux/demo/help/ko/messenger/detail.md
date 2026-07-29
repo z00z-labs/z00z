@@ -1,13 +1,36 @@
 ---
 id: messenger.detail
-title: 메신저 · 세부 정보
-summary: 메신저 · 세부 정보: 비공개 요청 조정 미리보기와 지갑 전달에 대한 도움말입니다.
+title: "Messenger: Detail"
+route: none
 scope: dialog
 ---
-## 이 화면 사용 {#current-view}
-- 로컬 메시지, 요청, 영수증, 만료, 복구 상태를 검토하세요.
-- 요청 수락은 지갑 검토 인텐트를 만들 뿐 결제하거나 지갑 상태를 변경하지 않습니다.
 
-## 로컬 및 안전 동작
-- Messenger는 단기 릴레이용 로드맵 미리보기이며 영구 온체인 채팅이 아닙니다.
-- 열기, 삭제, 차단, 신고는 지갑 결제 상태를 변경하지 않습니다.
+# Messenger: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Messenger: Detail application view](help/assets/en/messenger-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"messenger/detail.md","route_id":"none","screenshot":"help/assets/en/messenger-detail.png","topic_id":"messenger.detail"} -->

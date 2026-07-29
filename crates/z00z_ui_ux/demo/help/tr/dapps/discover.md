@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
 title: dApps keşfet
-summary: dApps keşfet: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım.
+summary: "dApps keşfet: sınırlı yerel dApps önizlemesi ve izin sınırı hakkında yardım."
 scope: context
 ---
 ## Bu görünümü kullanma {#current-view}

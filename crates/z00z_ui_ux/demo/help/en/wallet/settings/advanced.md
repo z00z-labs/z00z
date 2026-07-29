@@ -1,6 +1,6 @@
 ---
 id: wallet.settings.advanced
-title: Wallet Settings: Advanced
+title: "Wallet Settings: Advanced"
 route: wallet.settings.advanced
 scope: context
 ---

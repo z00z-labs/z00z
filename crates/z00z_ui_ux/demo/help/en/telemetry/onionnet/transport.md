@@ -1,6 +1,6 @@
 ---
 id: telemetry.onionnet.transport
-title: Telemetry OnionNet: Transport
+title: "Telemetry OnionNet: Transport"
 route: telemetry.onionnet.transport
 scope: context
 ---

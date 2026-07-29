@@ -1,13 +1,36 @@
 ---
 id: contacts.detail
-title: Contactos — detalles
-summary: Contactos — detalles: ayuda sobre etiquetas locales, tarjetas receptoras y revisión explícita de identidad.
+title: "Contacts: Detail"
+route: none
 scope: dialog
 ---
-## Usar esta vista {#current-view}
-- Revise los datos locales, la caducidad, la revocación y las pruebas de cambio de identidad.
-- Una etiqueta guardada no demuestra identidad ni confianza; los datos modificados requieren revisión.
 
-## Comportamiento local y seguro
-- Los contactos permanecen locales y nunca se publican como un grafo de direcciones o presencia.
-- Eliminar un contacto local no revoca derechos externos ni cambia la liquidación de la cartera.
+# Contacts: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![Contacts: Detail application view](help/assets/en/contacts-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"contacts/detail.md","route_id":"none","screenshot":"help/assets/en/contacts-detail.png","topic_id":"contacts.detail"} -->

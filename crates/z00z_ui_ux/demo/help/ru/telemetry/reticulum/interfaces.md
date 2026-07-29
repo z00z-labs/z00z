@@ -1,7 +1,7 @@
 ---
 id: telemetry.reticulum.interfaces
 title: Интерфейсы Reticulum
-summary: Интерфейсы Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum.
+summary: "Интерфейсы Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum."
 scope: context
 ---
 ## Как использовать экран {#current-view}

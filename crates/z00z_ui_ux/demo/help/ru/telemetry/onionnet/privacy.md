@@ -1,7 +1,7 @@
 ---
 id: telemetry.onionnet.privacy
 title: Конфиденциальность OnionNet
-summary: Конфиденциальность OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий.
+summary: "Конфиденциальность OnionNet: безопасные агрегаты телеметрии OnionNet без раскрытия маршрутов и сессий."
 scope: context
 ---
 ## Как использовать экран {#current-view}

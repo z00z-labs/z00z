@@ -4,7 +4,7 @@
     "button|type=button",
     "button|type=button|aria-label=Language"
   ],
-  "presentation_sha256": "8ac736d0608138232dd83ea4b7cff8839ec2ba8240341092bde6fb7643fa1634",
+  "presentation_sha256": "b957977be1b8690de53450baa11e36c7a111b69679f2531cc6817bc1b364e2ea",
   "scope": "context",
   "screenshot": "help/assets/en/settings-general.png",
   "screenshot_sha256": "504988299fd8c98c9a47aa9942f2db9c8471a195cad52ee72e98c08ff072237c",

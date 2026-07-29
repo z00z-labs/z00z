@@ -1,6 +1,6 @@
 ---
 id: wallet.settings.policies
-title: Wallet Settings: Policies
+title: "Wallet Settings: Policies"
 route: wallet.settings.policies
 scope: context
 ---

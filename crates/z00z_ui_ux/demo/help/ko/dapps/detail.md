@@ -1,13 +1,36 @@
 ---
 id: dapps.detail
-title: dApps · 세부 정보
-summary: dApps · 세부 정보: 제한된 로컬 dApps 미리보기와 권한 경계에 대한 도움말입니다.
+title: "dApps: Detail"
+route: none
 scope: dialog
 ---
-## 이 화면 사용 {#current-view}
-- 로컬 설명자, 범위가 제한된 인텐트, 명시적 결과를 검토하세요.
-- 수락 전에 범위, 사용 횟수, 만료, 금액, 수수료, 공개, 취소 조건을 확인하세요.
 
-## 로컬 및 안전 동작
-- dApps는 로드맵 미리보기이며 원격 코드, 임의 URL, 범용 서명을 실행하지 않습니다.
-- 수락한 인텐트는 지갑이 다시 검증하며 이 화면은 지갑 객체를 변경할 수 없습니다.
+# dApps: Detail
+
+[TOC]
+
+## App View {#current-view}
+
+![dApps: Detail application view](help/assets/en/dapps-detail.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"dapps/detail.md","route_id":"none","screenshot":"help/assets/en/dapps-detail.png","topic_id":"dapps.detail"} -->

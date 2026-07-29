@@ -722,7 +722,23 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
       const articleImages = [...document.querySelectorAll("#help-document img")]
         .filter((image) => image.getBoundingClientRect().width > 0);
       const languageControlCount = document.querySelectorAll("[data-help-language-picker]").length;
-      const treeText = `${document.querySelector("#help-tree")?.textContent || ""} ${document.querySelector("#help-navigation-terminal")?.textContent || ""}`;
+      const metadataBranchCount = window.Z00ZHelpCatalog.navigations.en.items
+        .filter(({ id, type }) => type === "section" && !["settings", "about"].includes(id))
+        .length;
+      const secondLevelBranchCount = document.querySelectorAll(
+        "#help-tree .navigation-tree-children .navigation-tree-children"
+      ).length;
+      const expectedRootNodeCount = window.Z00ZHelpCatalog.navigations.en.items
+        .filter(({ id }) => !["settings", "about"].includes(id)).length;
+      const expectedTerminalNodeCount = window.Z00ZHelpCatalog.navigations.en.items
+        .filter(({ id }) => ["settings", "about"].includes(id)).length;
+      const excludedRootNodeCount = document.querySelectorAll(
+        '#help-tree > [data-help-navigation-node="help"], '
+        + '#help-tree > [data-help-navigation-node="about"], '
+        + '#help-tree > [data-help-navigation-node="logout"], '
+        + '#help-navigation-terminal > [data-help-navigation-node="help"], '
+        + '#help-navigation-terminal > [data-help-navigation-node="logout"]'
+      ).length;
       return {
         viewport: viewportName,
         state: stateName,
@@ -737,13 +753,14 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
         languageControlCount,
         issues: [
           ...(document.documentElement.scrollWidth > window.innerWidth + 1 ? ["viewport-overflow"] : []),
-          ...(rootNodes.length !== 6 ? ["root-node-count"] : []),
-          ...(terminalNodes.length !== 1 ? ["terminal-node-count"] : []),
-          ...(document.querySelectorAll("#help-tree .navigation-tree-children").length !== 5 ? ["branch-tree-count"] : []),
+          ...(rootNodes.length !== expectedRootNodeCount ? ["root-node-count"] : []),
+          ...(terminalNodes.length !== expectedTerminalNodeCount ? ["terminal-node-count"] : []),
+          ...(document.querySelectorAll("#help-tree .navigation-tree-children").length !== metadataBranchCount ? ["branch-tree-count"] : []),
+          ...(secondLevelBranchCount ? ["second-level-navigation-present"] : []),
           ...(activeLinks.length > 1 ? ["multiple-active-links"] : []),
           ...(articleImages.length !== 1 ? ["app-view-image-count"] : []),
           ...(languageControlCount !== 1 ? ["language-control-missing"] : []),
-          ...(/\b(?:Help|About|Log out)\b/.test(treeText) ? ["excluded-navigation-present"] : []),
+          ...(excludedRootNodeCount ? ["excluded-navigation-present"] : []),
           ...(!document.querySelector(".help-brand img")?.getBoundingClientRect().width ? ["logo-hidden"] : []),
         ],
       };
@@ -759,11 +776,12 @@ test("capture Phase 7 standalone Help on desktop and mobile", async ({ page }) =
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto(`${demoUrl}?route=dapps.discover`);
     const helpPage = await openHelp(page.locator(".context-help-button"), viewport);
-    await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
-    await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
+    await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(7);
+    await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(2);
     await expect(helpPage.locator("[data-help-language-picker]")).toHaveCount(1);
-    await expect(helpPage.locator("#help-tree")).not.toContainText(/Help|About|Log out/);
-    await expect(helpPage.locator("#help-navigation-terminal")).not.toContainText(/Help|About|Log out/);
+    await expect(helpPage.locator('#help-tree > [data-help-navigation-node="help"], #help-tree > [data-help-navigation-node="about"], #help-tree > [data-help-navigation-node="logout"]')).toHaveCount(0);
+    await expect(helpPage.locator('#help-navigation-terminal > [data-help-navigation-node="about"]')).toHaveCount(1);
+    await expect(helpPage.locator('#help-navigation-terminal > [data-help-navigation-node="help"], #help-navigation-terminal > [data-help-navigation-node="logout"]')).toHaveCount(0);
     await reviewHelp(helpPage, viewport, "dapps-local-navigation");
 
     await helpPage.goto(new URL("help.html?topic=dapps.pay&lang=en", demoUrl).toString());

@@ -14,10 +14,10 @@
     "button|type=button|aria-label=View details for wEthereum",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "f365e06ffdde4578d352c32ea48d4891735fe3c7c191a4ff4c69688c694a218d",
+  "presentation_sha256": "567964322f7a7f0d4b383d199710540880ed86b10ec2d633f6ec4f27add24438",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-assets.png",
-  "screenshot_sha256": "d6b372e35c7e37adb550f68b1fc2bca68f48cbb06ec8e76c46125302861e0e44",
+  "screenshot_sha256": "d0a49df69ad1f3d6b38e239203ee5bebb83a6df17735dafa90ff36550e10c683",
   "sections": [],
   "terms": [
     "0.00 BOLD",

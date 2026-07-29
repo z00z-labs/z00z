@@ -7,10 +7,10 @@
     "input|type=number|name=uses|placeholder=1",
     "input|type=text|name=service|placeholder=Event, transport, membership, or venue"
   ],
-  "presentation_sha256": "8d0521414f309f07297accf04902068e7dc5f95c12be30ccfb04021c0c11cf21",
+  "presentation_sha256": "2381675b8d42ea39f7ead37d02ea6d29e0bea70a899368dbbddcb666bcabebfd",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-tickets-passes.png",
-  "screenshot_sha256": "de6ab8c232f8a18cefb58827958f48c0975307b5a51d0b1660e0964ca3d43008",
+  "screenshot_sha256": "a4f8d9997740ace7b22ce34b580f3cd778d6febd948805c09431c6e9a6b3bce1",
   "sections": [
     "Prepare proposal",
     "Ticket & Pass",

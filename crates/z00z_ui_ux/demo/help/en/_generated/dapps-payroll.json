@@ -9,10 +9,10 @@
     "input|type=text|name=batch|placeholder=Private batch label",
     "input|type=text|name=recipient-set|placeholder=Imported encrypted batch or local batch ID"
   ],
-  "presentation_sha256": "5386be2940c3f2c8be9141ccc42df6df186e7d5854e9a1004a67f88ceb8a73dc",
+  "presentation_sha256": "37899372933bab1e72261ca2d31627e353333074728c5901572a1dca67e0c0aa",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-payroll.png",
-  "screenshot_sha256": "c324b286b4feb0a1412340dbeb8e0d258d97f7498b32c3fca365e0fb3c957edf",
+  "screenshot_sha256": "f1cb69d5a46b7dfde2f8b3cf25dcb9108ea809edcd1ad98a71daac5a2f145c00",
   "sections": [
     "Payroll",
     "Prepare proposal",

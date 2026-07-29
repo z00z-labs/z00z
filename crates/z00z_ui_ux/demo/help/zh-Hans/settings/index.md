@@ -1,7 +1,13 @@
 ---
-title: "设置"
-description: "设置 · 目录"
-difficulty: basic
-icon: mdi:alphabet-a-box-outline
-toc: true
+id: settings.general
+title: 常规设置
+summary: 常规设置说明此视图中的控件和状态。
+scope: context
 ---
+## 使用此视图 {#current-view}
+- 选择应用语言、区域格式、显示时区和通知偏好。
+- 不可用、只读和待处理状态会明确显示。
+
+## 本地和安全行为
+- 钱包机密和私有传输数据不会进入帮助内容。
+- 此帮助随应用打包，可离线使用。

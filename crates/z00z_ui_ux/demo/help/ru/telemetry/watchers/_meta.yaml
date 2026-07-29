@@ -1,8 +1,7 @@
-title: "Наблюдатели"
+title: Наблюдатели
 icon: eye
 order:
   - index
-  - overview
   - alerts
   - publication
   - providers

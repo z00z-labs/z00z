@@ -4,10 +4,10 @@
     "button|type=button",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "a79515ff54669bf14cfe18333edc005dc3f5013b2863445c3206b78209a9eba5",
+  "presentation_sha256": "544120d31dba6cac89f3c35fd1dd450de4670734d0945ecb69c5000917ace280",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-vouchers.png",
-  "screenshot_sha256": "742d250e6ba8a2be81847601f8e2b360a0738f6230176bf06fe4a03e7c78ba30",
+  "screenshot_sha256": "10dbeef439088ff3b10aec90cd14b65854df3d22d97d3f615cdc804646b9a733",
   "sections": [],
   "terms": [
     "10.00 Z00Z",

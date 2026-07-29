@@ -1,6 +1,6 @@
 ---
 id: messenger.inbox
-title: Messenger: Inbox
+title: "Messenger: Inbox"
 route: messenger.inbox
 scope: context
 ---

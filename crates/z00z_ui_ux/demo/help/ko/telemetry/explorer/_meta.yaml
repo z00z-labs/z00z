@@ -1,8 +1,7 @@
-title: "탐색기"
+title: 탐색기
 icon: search
 order:
   - index
-  - overview
   - search
   - checkpoints
   - batches

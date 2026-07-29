@@ -1,6 +1,6 @@
 ---
 id: messenger.request-review
-title: Messenger: Request Review
+title: "Messenger: Request Review"
 route: none
 scope: dialog
 ---

@@ -1,7 +1,7 @@
 ---
 id: telemetry.reticulum.node
 title: Узел Reticulum
-summary: Узел Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum.
+summary: "Узел Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum."
 scope: context
 ---
 ## Как использовать экран {#current-view}

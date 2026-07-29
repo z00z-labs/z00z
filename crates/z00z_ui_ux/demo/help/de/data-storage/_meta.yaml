@@ -1,6 +1,5 @@
-title: "Daten und Speicher"
+title: Daten und Speicher
 icon: storage
 order:
-  - index
   - disk-usage
   - network-usage

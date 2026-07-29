@@ -1,6 +1,6 @@
 ---
 id: telemetry.onionnet.privacy
-title: Telemetry OnionNet: Privacy
+title: "Telemetry OnionNet: Privacy"
 route: telemetry.onionnet.privacy
 scope: context
 ---

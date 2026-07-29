@@ -1,6 +1,6 @@
 ---
 id: telemetry.reticulum.radio
-title: Telemetry Reticulum: Radio
+title: "Telemetry Reticulum: Radio"
 route: telemetry.reticulum.radio
 scope: context
 ---

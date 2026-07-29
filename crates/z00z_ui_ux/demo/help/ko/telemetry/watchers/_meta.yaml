@@ -1,8 +1,7 @@
-title: "감시자"
+title: 감시자
 icon: eye
 order:
   - index
-  - overview
   - alerts
   - publication
   - providers

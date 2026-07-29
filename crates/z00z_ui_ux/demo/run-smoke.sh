@@ -14,6 +14,7 @@ python3 scripts/help/test_sync_views.py
 python3 scripts/help/sync_views.py --verify-current --workers 1
 node scripts/compile-help.mjs
 node scripts/check-help.mjs
+node scripts/check-design-system.mjs
 node scripts/check-menu-icons.mjs
 node scripts/test-port-contracts.mjs
 node scripts/check-port-readiness.mjs

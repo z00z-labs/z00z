@@ -1,6 +1,6 @@
 ---
 id: wallet.settings.backup
-title: Wallet Settings: Backup
+title: "Wallet Settings: Backup"
 route: wallet.settings.backup
 scope: context
 ---

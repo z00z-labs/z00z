@@ -1,7 +1,7 @@
 ---
 id: messenger.inbox
 title: Posteingang
-summary: Posteingang: Hilfe zur privaten Vorschau für Anfragekoordination und Wallet-Übergabe.
+summary: "Posteingang: Hilfe zur privaten Vorschau für Anfragekoordination und Wallet-Übergabe."
 scope: context
 ---
 ## Diese Ansicht verwenden {#current-view}

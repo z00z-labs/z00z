@@ -1,7 +1,7 @@
 ---
 id: telemetry.reticulum.probes
 title: Пробы Reticulum
-summary: Пробы Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum.
+summary: "Пробы Reticulum: данные carrier-телеметрии только для чтения от зарегистрированного локального моста Reticulum."
 scope: context
 ---
 ## Как использовать экран {#current-view}

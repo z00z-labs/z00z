@@ -8,10 +8,10 @@
     "input|type=number|name=max-fee|placeholder=0.00",
     "input|type=text|name=external-recipient|placeholder=Required for redemption"
   ],
-  "presentation_sha256": "14ad6894c7ac8b9732672c1961db3ebea432901ad8e9a0ca5a38083f44d8482a",
+  "presentation_sha256": "13583c2e18ff5c56ccf9c6ab15b97f83b4d1a3eba5e75811c0b3bca2b523c12e",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-wbold-gateway.png",
-  "screenshot_sha256": "5147dffaa770ab0c40ccbfffcf8546fa7f3251bdf976785e30457d3744427a95",
+  "screenshot_sha256": "3efe9a70d7cf420cfd9cb1fba2cb60553646228ddc91ee079efa7080441c8a34",
   "sections": [
     "Gateway control model",
     "Prepare proposal",

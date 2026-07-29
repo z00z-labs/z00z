@@ -8,10 +8,10 @@
     "input|type=text|name=provider|placeholder=Exact service provider",
     "input|type=text|name=service|placeholder=API, compute, storage, or access"
   ],
-  "presentation_sha256": "fb537c8d01c159676e30ba698371292abb9c077fc3dd5a6bba9f9c9f60a3a9da",
+  "presentation_sha256": "b20054b50ab2e6f619e1bad13dc8f3daff9e0455ff12fb8caf0a46098e75b60a",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-service-credits.png",
-  "screenshot_sha256": "0802ed42410aeee045c37d2a52c6e29003b1755b884ed5f4858fb0ba992eecd7",
+  "screenshot_sha256": "b03538601e949b83753fadddc155f783f013dd5dd75bf88f4a41726812162934",
   "sections": [
     "Prepare proposal",
     "Service Credit",

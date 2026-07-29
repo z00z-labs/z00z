@@ -1,6 +1,6 @@
 ---
 id: telemetry.explorer.search
-title: Telemetry Explorer: Search
+title: "Telemetry Explorer: Search"
 route: telemetry.explorer.search
 scope: context
 ---

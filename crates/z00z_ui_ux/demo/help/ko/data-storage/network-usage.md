@@ -1,13 +1,36 @@
 ---
 id: data-storage.network-usage
-title: 네트워크 사용량
-summary: 네트워크 사용량: 비공개 데이터가 없는 집계 로컬 카운터입니다.
+title: "Data & Storage: Network Usage"
+route: data-storage.network-usage
 scope: context
 ---
-## 이 화면 사용 {#current-view}
-- 지갑 기록을 열지 않고 리소스 사용량을 확인하세요.
-- 표시 값은 결정적 데모 데이터입니다.
 
-## 로컬 및 안전 동작
-- 연락처, 메시지, 경로, 활동 및 비밀은 제외됩니다.
-- 패키지 앱은 제한된 네이티브 기능으로 집계 값만 가져와야 합니다.
+# Data & Storage: Network Usage
+
+[TOC]
+
+## App View {#current-view}
+
+![Data & Storage: Network Usage application view](help/assets/en/data-storage-network-usage.png)
+
+This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
+
+## Overview
+
+Explain the purpose of this view, its expected outcome, and its relationship to the current wallet or application state.
+
+## How to use this view
+
+Describe the safe user workflow and the result that the interface can show.
+
+## Terms and controls
+
+| Term or control | Explanation |
+| --- | --- |
+| Authoring required | Explain every visible term, setting, status, and control captured for this view. |
+
+## Safety and limits
+
+Describe confirmations, local-only boundaries, unavailable capabilities, and states that require user attention.
+
+<!-- help-sync:source {"page_path":"data-storage/network-usage.md","route_id":"data-storage.network-usage","screenshot":"help/assets/en/data-storage-network-usage.png","topic_id":"data-storage.network-usage"} -->

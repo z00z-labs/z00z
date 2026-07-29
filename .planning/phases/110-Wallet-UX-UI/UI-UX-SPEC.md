@@ -1131,6 +1131,37 @@ The relationship to `z00z.io` is structural and tonal:
 - The wallet remains dark-first because private desktop/mobile sessions benefit from reduced glare, while the light theme uses the site's neutral corporate surfaces.
 - Do not import the site's marketing/documentation density, web links, or browse hierarchy into transactional review screens.
 
+### 🧭 Single-source ownership contract
+
+The design system has one editable owner per concern. A derived catalogue,
+mounted sprite, preview, or rendered view is never an alternative authoring
+surface.
+
+| Concern | Canonical editable source | Consumers / derived output |
+| --- | --- | --- |
+| Design intent and acceptance | `UI-UX-SPEC.md` | Implementation gates and review matrix |
+| Literal colors and semantic color roles | `demo/styles/colors.css` | App, Help, code themes, QR, and Mermaid |
+| Typography, spacing, radius, icon size, shell geometry, motion | `demo/styles/foundation.css` | Shared component and Help CSS |
+| Reusable visual structures and states | `demo/styles/components.css` | App and Help; `help.css` adds Help-only document layout, not common controls |
+| SVG icon geometry and icon IDs | `demo/scripts/port/icon-sprite.js` | One mounted local sprite shared by `index.html` and `help.html` |
+| Object-family artwork lookup | `demo/scripts/port/icon-registry.js` | Asset, voucher, and permission renderers |
+| Breakpoints, drawer gestures, floating-panel geometry, language-picker markup | `demo/scripts/port/ui-primitives.js` | App and Help runtime |
+| Primary navigation IDs, hierarchy, order, labels, and icons | `demo/scripts/port/navigation-model.js` | App navigation and projected Help navigation |
+| Palette IDs, code-theme IDs, and presentation defaults | `demo/scripts/port/presentation-state.js` | Appearance settings and shell state |
+| Locale metadata and catalogue load order | `demo/scripts/port/locale-registry.js` | App, Help, checks, and build |
+| Help content and local ordering | `demo/help/<locale>/` Markdown plus directory `_meta.yaml` | `help/topics.yaml` route contract and generated `scripts/generated/help-catalog.js` |
+
+Rules:
+
+1. Add a new value to the matching LUT or registry; do not copy it into a
+   view, HTML page, Help script, or responsive override.
+2. Common App/Help controls use the same markup generator, component class, and
+   behavior primitive. Page-specific CSS owns layout only.
+3. Generated files are checked, never edited as a second source.
+4. `node scripts/check-design-system.mjs` enforces color, font, token, icon,
+   shared-structure, and runtime-geometry ownership before smoke or visual
+   review runs.
+
 ### 🎨 Color Lookup Table (LUT)
 
 **Canonical editable source:** [`crates/z00z_ui_ux/demo/styles/colors.css`](../../../crates/z00z_ui_ux/demo/styles/colors.css). It is the only file permitted to contain literal application colours (`#…`, `rgb()`, `hsl()`, or named colours). Component CSS and JavaScript consume semantic variables only. This prevents a new yellow, red, blue, or green variant from silently appearing in one screen while remaining absent from the rest of the application.
@@ -1309,11 +1340,14 @@ Rules:
 
 ### 📐 Spacing, shape, elevation
 
-- Base spacing unit: 4 px.
-- Common gaps: 8, 12, 16, 24, 32 px.
+- Base spacing unit: `--space-1` (4 px).
+- Common gaps: `--space-2` (8 px), `--space-3` (12 px),
+  `--space-4` (16 px), `--space-5` (20 px), `--space-6` (24 px), and
+  `--space-8` (32 px).
 - Card padding: 20 px desktop, 16 px mobile.
 - Control height: 44 px minimum; primary mobile actions 48–52 px.
-- Radius: 10 px controls, 14 px cards, 20 px sheets; pills only for status/chips.
+- Radius: `--radius-control` (10 px), `--radius-card` (14 px), and
+  `--radius-sheet` (20 px); pills only for status/chips.
 - Border: 1 px; primary action may use a subtle inner highlight.
 - Shadow: low blur and opacity; distinguish surfaces primarily with tone and border.
 
@@ -1330,7 +1364,12 @@ Rules:
 
 ### 🧿 Icons and imagery
 
-- 20/24 px outline icons with 1.75–2 px stroke.
+- `demo/scripts/port/icon-sprite.js` owns every SVG symbol and derives the
+  allowed icon ID list from that geometry. App and Help mount this one sprite;
+  neither HTML page may contain a private copy.
+- Navigation icons use `--icon-control-size` (18 px) on the normalized 24 px
+  canvas. Context icons use `--icon-context-size` (21 px) and
+  `--icon-context-mobile-size` (20 px); outline weight stays 1.5–1.8 px.
 - Every unlabeled icon button has an accessible name and tooltip on pointer platforms.
 - QR codes retain a quiet zone and high contrast; do not place the logo over data modules.
 - No decorative cryptocurrency coins in asset lists.
@@ -1554,6 +1593,13 @@ Required reusable components:
 
 Every component documents keyboard behavior, accessible name, loading state, error state, empty state, and responsive behavior before implementation is considered complete.
 
+Repeated structure is part of the component contract: common App/Help language
+pickers, icons, floating panels, navigation trees, buttons, fields, cards,
+dialogs, rows, and context navigation consume the shared primitive or component
+class. A page-specific renderer or stylesheet may arrange a component but may
+not recreate its tokens, SVG geometry, interaction states, or responsive
+behavior.
+
 ### ❔ Contextual Help contract
 
 Global Help and the contextual `?` action open or reuse the same standalone
@@ -1561,9 +1607,9 @@ Help application at either its root or the resolved topic. Help is never an
 in-app component or modal; Wallet and Help remain open, independent, and
 switchable on desktop and mobile.
 
-- Editable Help source is
-  `demo/help/<locale>/{app,wallets,telemetry,dapps,messenger,contacts,settings}/<topic>.md`;
-  each locale has the exact 71-topic set declared by
+- Editable Help source is `demo/help/<locale>/` Markdown. Directory placement
+  and `_meta.yaml` own local Help grouping, titles, icons, and order; every
+  locale implements the exact route/topic contract declared by
   `demo/help/topics.yaml`.
 - Locale IDs come from the same canonical locale registry as the application;
   Help compile/check/scaffold tooling must not own a duplicated language list.

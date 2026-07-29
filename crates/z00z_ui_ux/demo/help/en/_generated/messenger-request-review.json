@@ -7,10 +7,10 @@
     "button|type=button|data-messenger-action=relay-recover",
     "button|type=button|data-messenger-action=relay-unavailable"
   ],
-  "presentation_sha256": "8f3e81690407e60c32efb10b30ff2fc16d127a16f50d085c81c99f5703d43b0c",
+  "presentation_sha256": "b98694233aa6c7f4b20d37c2403072e36829e6da47511024a4d6fa46739bd190",
   "scope": "dialog",
   "screenshot": "help/assets/en/messenger-request-review.png",
-  "screenshot_sha256": "5e0603b211888acb1bda178607f6a445baaf1520f623f8d88726c6b05c261345",
+  "screenshot_sha256": "dc285e372bc29431cc23be3ac21e98330a299ce93c266eb5f76d5376bfbc581e",
   "sections": [
     "Payment request"
   ],

@@ -1,7 +1,7 @@
 ---
 id: data-storage.disk-usage
 title: Speichernutzung
-summary: Speichernutzung: aggregierte lokale Zähler ohne private Daten.
+summary: "Speichernutzung: aggregierte lokale Zähler ohne private Daten."
 scope: context
 ---
 ## Diese Ansicht verwenden {#current-view}
