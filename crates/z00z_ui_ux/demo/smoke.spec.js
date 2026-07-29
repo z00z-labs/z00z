@@ -2733,7 +2733,7 @@ test("Settings is a navbar accordion and Network alone owns one main-view submen
   await expectNoViewportOverflow(page);
 });
 
-test("Settings views stay centered and cards remain bounded on desktop and mobile", async ({ page }) => {
+test("Settings cards stay bounded and Network reuses the shared Assets workspace anchors", async ({ page }) => {
   const standaloneRoutes = ["settings.general", "settings.notifications", "settings.appearance"];
   const networkRoutes = ["settings.reticulum", "settings.onionnet", "settings.quic"];
   const geometry = () => page.evaluate(() => {
@@ -2754,7 +2754,8 @@ test("Settings views stay centered and cards remain bounded on desktop and mobil
       documentWidth: document.documentElement.scrollWidth,
       view: box(".app-settings-view"),
       workspace: box(".settings-network-workspace"),
-      rail: box(".settings-network-rail"),
+      rail: box(".workspace-layout > .context-rail"),
+      panel: box(".workspace-layout > .workspace-panel"),
       card: box(".app-settings-view .settings-detail"),
     };
   });
@@ -2764,6 +2765,9 @@ test("Settings views stay centered and cards remain bounded on desktop and mobil
     { width: 1167, height: 753 },
   ]) {
     await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+    const assets = await geometry();
+
     for (const route of standaloneRoutes) {
       await page.goto(`${demoUrl}?route=${route}`);
       const standalone = await geometry();
@@ -2775,8 +2779,11 @@ test("Settings views stay centered and cards remain bounded on desktop and mobil
     for (const route of networkRoutes) {
       await page.goto(`${demoUrl}?route=${route}`);
       const network = await geometry();
-      expect(network.workspace.width).toBeLessThanOrEqual(857);
-      expect(network.workspace.center).toBeCloseTo(network.view.center, 0);
+      expect(network.workspace.x).toBeCloseTo(assets.panel.x - assets.rail.width - 24, 0);
+      expect(network.workspace.width).toBeCloseTo(assets.panel.right - assets.rail.x, 0);
+      expect(network.rail.x).toBeCloseTo(assets.rail.x, 0);
+      expect(network.rail.width).toBeCloseTo(assets.rail.width, 0);
+      expect(network.card.x).toBeCloseTo(assets.panel.x, 0);
       expect(network.card.width).toBeLessThanOrEqual(641);
       expect(network.card.y).toBeCloseTo(network.rail.y, 0);
       expect(network.card.x - network.rail.right).toBeCloseTo(24, 0);
@@ -3560,9 +3567,16 @@ test("every desktop workspace keeps the same menu-to-window gap as Assets", asyn
     ];
     const surface = selectors.map((selector) => layout.querySelector(selector)).find(Boolean);
     const panel = layout.children[1];
+    const layoutRect = layout.getBoundingClientRect();
     const railRect = rail.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
     return {
-      gridGap: panel.getBoundingClientRect().left - railRect.right,
+      layoutLeft: layoutRect.left,
+      layoutWidth: layoutRect.width,
+      railLeft: railRect.left,
+      railWidth: railRect.width,
+      panelLeft: panelRect.left,
+      gridGap: panelRect.left - railRect.right,
       surfaceGap: surface.getBoundingClientRect().left - railRect.right,
       surfaceClass: surface.className,
     };
@@ -3581,6 +3595,26 @@ test("every desktop workspace keeps the same menu-to-window gap as Assets", asyn
       const geometry = await workspaceGeometry();
       if (!geometry) continue;
       expect(
+        geometry.layoutLeft,
+        `${route} workspace left anchor at ${width}px`,
+      ).toBeCloseTo(assets.layoutLeft, 0);
+      expect(
+        geometry.layoutWidth,
+        `${route} workspace width at ${width}px`,
+      ).toBeCloseTo(assets.layoutWidth, 0);
+      expect(
+        geometry.railLeft,
+        `${route} rail left anchor at ${width}px`,
+      ).toBeCloseTo(assets.railLeft, 0);
+      expect(
+        geometry.railWidth,
+        `${route} rail width at ${width}px`,
+      ).toBeCloseTo(assets.railWidth, 0);
+      expect(
+        geometry.panelLeft,
+        `${route} panel left anchor at ${width}px`,
+      ).toBeCloseTo(assets.panelLeft, 0);
+      expect(
         geometry.gridGap,
         `${route} grid gap at ${width}px`,
       ).toBeCloseTo(assets.gridGap, 0);
@@ -3590,6 +3624,79 @@ test("every desktop workspace keeps the same menu-to-window gap as Assets", asyn
       ).toBeCloseTo(assets.surfaceGap, 0);
     }
   }
+});
+
+test("workspace anchors stay fixed when local tabs are added or removed", async ({ page }) => {
+  const desktopAnchors = () => page.evaluate(() => {
+    const layout = document.querySelector(".settings-network-workspace");
+    const rail = layout.querySelector(":scope > .context-rail");
+    const panel = layout.querySelector(":scope > .workspace-panel");
+    const layoutRect = layout.getBoundingClientRect();
+    const railRect = rail.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    return {
+      layoutLeft: layoutRect.left,
+      layoutWidth: layoutRect.width,
+      railLeft: railRect.left,
+      railWidth: railRect.width,
+      panelLeft: panelRect.left,
+      panelWidth: panelRect.width,
+      gap: panelRect.left - railRect.right,
+    };
+  });
+  const mobileAnchors = () => page.evaluate(() => {
+    const context = document.querySelector("#mobile-topbar-context");
+    const panel = document.querySelector(".settings-network-workspace > .workspace-panel");
+    const contextRect = context.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    return {
+      contextLeft: contextRect.left,
+      contextTop: contextRect.top,
+      contextWidth: contextRect.width,
+      contextHeight: contextRect.height,
+      panelLeft: panelRect.left,
+      panelWidth: panelRect.width,
+    };
+  });
+  const expectSameAnchors = (actual, expected, label) => {
+    for (const [name, value] of Object.entries(expected)) {
+      expect(actual[name], `${label}: ${name}`).toBeCloseTo(value, 0);
+    }
+  };
+  const varyTabs = async (selector, mode) => {
+    await page.locator(selector).evaluate((nav, change) => {
+      const tabs = [...nav.children];
+      if (change === "add") {
+        for (let index = 0; index < 5; index += 1) {
+          const clone = tabs[index % tabs.length].cloneNode(true);
+          clone.removeAttribute("id");
+          clone.removeAttribute("aria-current");
+          clone.removeAttribute("aria-selected");
+          clone.removeAttribute("data-settings-network-section");
+          nav.append(clone);
+        }
+      } else {
+        [...nav.children].slice(1).forEach((tab) => tab.remove());
+      }
+    }, mode);
+  };
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${demoUrl}?route=settings.reticulum`);
+  const desktopBase = await desktopAnchors();
+  await varyTabs(".settings-network-rail .settings-network-tabs", "add");
+  expectSameAnchors(await desktopAnchors(), desktopBase, "desktop added tabs");
+  await varyTabs(".settings-network-rail .settings-network-tabs", "remove");
+  expectSameAnchors(await desktopAnchors(), desktopBase, "desktop removed tabs");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=settings.reticulum`);
+  const mobileBase = await mobileAnchors();
+  await varyTabs("#mobile-topbar-context .settings-network-tabs", "add");
+  expectSameAnchors(await mobileAnchors(), mobileBase, "mobile added tabs");
+  await varyTabs("#mobile-topbar-context .settings-network-tabs", "remove");
+  expectSameAnchors(await mobileAnchors(), mobileBase, "mobile removed tabs");
+  await expectNoViewportOverflow(page);
 });
 
 test("Watchers roadmap completes typed alert to sanitized evidence across desktop and mobile states", async ({ page }) => {

@@ -5356,10 +5356,16 @@ button.permission-row:hover {
 
 .workspace-layout {
   display: grid;
+  width: 100%;
+  min-width: 0;
   align-items: start;
   column-gap: var(--context-nav-content-gap);
   row-gap: 0;
   grid-template-columns: var(--context-rail-width) minmax(0, 1fr);
+}
+
+.workspace-layout > .context-rail {
+  width: 100%;
 }
 
 .workspace-layout > .workspace-panel {
@@ -5398,21 +5404,13 @@ button.permission-row:hover {
 }
 
 .settings-network-workspace {
-  display: grid;
-  width: min(
-    100%,
-    calc(var(--context-rail-width) + var(--context-nav-content-gap) + var(--settings-card-max))
-  );
-  min-width: 0;
-  align-items: start;
-  margin-inline: auto;
-  column-gap: var(--context-nav-content-gap);
-  grid-template-columns: var(--context-rail-width) minmax(0, var(--settings-card-max));
+  margin-inline: 0;
 }
 
 .settings-network-workspace > .settings-detail {
   width: 100%;
   max-width: var(--settings-card-max);
+  justify-self: start;
 }
 
 .settings-network-tabs {

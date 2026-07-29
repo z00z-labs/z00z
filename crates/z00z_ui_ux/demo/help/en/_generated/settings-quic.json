@@ -5,10 +5,10 @@
     "button|type=button|aria-label=QUIC path migration|data-demo-action=quic-path-migration",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "a7cf08a35bb917ebfdad8ad7ddfbec16d1c2f5a6a56fa8da5e8dba0e91aaf3e8",
+  "presentation_sha256": "c458970ae12e6eba44de21f9f610e914c1945848a5a3095c34467babd90bac8e",
   "scope": "context",
   "screenshot": "help/assets/en/settings-quic.png",
-  "screenshot_sha256": "a36336633945e338f61ecfb0ee6d51fd8eba7ae4a372aa194c23de2850f9d9fd",
+  "screenshot_sha256": "f5b59a5f6edd818a214eaf4508d3f0f3c184e37891e0131a5277ce434bc5d063",
   "sections": [
     "QUIC"
   ],

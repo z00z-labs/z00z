@@ -5,10 +5,10 @@
     "button|type=button|aria-label=Reticulum peer discovery|data-demo-action=reticulum-peer-discovery",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "2a7450b9f5eb1b0b4a9416baef3643d589b28c886fbad1461d7e51f357567fd3",
+  "presentation_sha256": "be077e2203c4c796bf15227f5837c6982a761e07125ac325546c9f29d5b43e2f",
   "scope": "context",
   "screenshot": "help/assets/en/settings-reticulum.png",
-  "screenshot_sha256": "deade4fa65305a55941a5eb9eeb524c2d07eb62aefc6a33b4db09be6e1346b84",
+  "screenshot_sha256": "8bfe9b7ff826e720eca5addb5c8663ca7a21618e35067e94e14dcbbae877a431",
   "sections": [
     "Reticulum"
   ],

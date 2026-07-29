@@ -5,10 +5,10 @@
     "button|type=button|aria-label=OnionNet fail closed|data-demo-action=onionnet-fail-closed",
     "button|type=button|role=tab"
   ],
-  "presentation_sha256": "372e91ac07f99302c43b5ba9109ca73c65e44e646f9539db5d013d16ee8524fc",
+  "presentation_sha256": "6ff76dd27f279af32ed47f318409d54f4b9feb92a801f5c1a42b85d4a928bc98",
   "scope": "context",
   "screenshot": "help/assets/en/settings-onionnet.png",
-  "screenshot_sha256": "c1b14161a19ee3c515c7501c2ec64f149ae23b49f70ab252c7e280c7719b9f9a",
+  "screenshot_sha256": "6f60584f17cb14d77a715c45805ff69b77dfeca0be3cc418159ccc1345b29d1d",
   "sections": [
     "OnionNet"
   ],
