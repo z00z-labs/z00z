@@ -1,23 +1,23 @@
 ---
 id: dapps.bounties
-title: dApps: Bounties
+title: dApps: Bounty
 route: dapps.bounties
 scope: context
 ---
 
-# dApps: Bounties
+# dApps: Bounty
 
 [TOC]
 
 ## App View {#current-view}
 
-![dApps: Bounties application view](help/assets/en/dapps-bounties.png)
+![dApps: Bounty application view](help/assets/en/dapps-bounties.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 
 ## Overview
 
-Bounties proposes a reward claim whose payout depends on a named verifier and
+Bounty proposes a reward claim whose payout depends on a named verifier and
 explicit evidence. Publishing the bounty does not validate a submission.
 
 **Boundary:** a Z00Z dApp does not control the wallet. It proposes a typed

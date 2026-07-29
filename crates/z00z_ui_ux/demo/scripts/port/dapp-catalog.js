@@ -26,6 +26,7 @@
     "create_payment_request",
     "issue_private_voucher",
     "create_bounded_permission",
+    "create_asset_definition",
     "propose_agent_budget",
     "prepare_wbold_gateway",
     "create_bounded_subscription",
@@ -36,6 +37,7 @@
     "issue_service_credit",
     "issue_digital_entitlement",
     "prepare_private_payroll",
+    "propose_private_contract",
     "prepare_external_asset_lock"
   ]);
 
@@ -170,7 +172,7 @@
       createdArtifact: "A fixed-policy voucher definition and issuance proposal.",
       purpose: "Create conditional value whose backing, redemption scope, uses, expiry, transfer, and refund policy remain inspectable.",
       useCaseFamily: "voucher_issuance",
-      iconName: "voucher",
+      iconName: "voucher-list",
       intentType: "issue_private_voucher",
       requestedObjectFamilies: ["voucher", "claim"],
       offlineMode: "local_handoff",
@@ -203,7 +205,7 @@
       createdArtifact: "A bounded permission definition for one recipient and exact scope.",
       purpose: "Delegate limited authority without sharing a private key or generic signing capability.",
       useCaseFamily: "bounded_authority",
-      iconName: "permission",
+      iconName: "permission-list",
       intentType: "create_bounded_permission",
       requestedObjectFamilies: ["permission"],
       offlineMode: "policy_snapshot",
@@ -225,8 +227,39 @@
       evidenceOutput: "Permission digest and issuance receipt"
     }),
     descriptor({
+      id: "create-asset",
+      label: "Create Asset",
+      summary: "Propose an immutable asset definition with explicit class, denomination, serial, and policy bounds.",
+      createdArtifact: "A typed immutable asset-definition and initial-issuance proposal.",
+      purpose: "Define a coin, token, or NFT family without granting the dApp registry, signing, issuance, or settlement authority.",
+      useCaseFamily: "asset_issuance",
+      iconName: "assets",
+      intentType: "create_asset_definition",
+      requestedObjectFamilies: ["asset"],
+      offlineMode: "definition_draft",
+      offlineSummary: "The unsigned definition draft can be reviewed offline; registry acceptance and issuance still require Wallet and protocol checks.",
+      disclosures: ["asset_family", "definition_fields", "issuance_bounds", "policy_flags"],
+      feePath: "separate_wallet_review",
+      reviewBoundary: "The dApp cannot register the definition, issue assets, select Wallet objects, sign, or claim settlement.",
+      actionLabel: "Review asset in Wallet",
+      proposalFields: [
+        { id: "class", label: "Asset class", type: "select", options: ["Coin", "Token", "NFT"] },
+        { id: "name", label: "Asset name", type: "text", placeholder: "Human-readable immutable name", required: true },
+        { id: "symbol", label: "Symbol", type: "text", placeholder: "Short display symbol", required: true },
+        { id: "decimals", label: "Decimals", type: "number", placeholder: "0", required: true, min: "0", step: "1", integer: true, suffix: "NFT definitions require zero decimals" },
+        { id: "serials", label: "Declared serials", type: "number", placeholder: "1", required: true, min: "1", step: "1", integer: true, suffix: "Number of serial instances declared by the definition" },
+        { id: "nominal", label: "Nominal units per serial", type: "number", placeholder: "1", required: true, min: "1", step: "1", integer: true },
+        { id: "namespace", label: "Issuer namespace", type: "text", placeholder: "Issuer or organization namespace", required: true },
+        { id: "policy", label: "Supply policy", type: "select", options: ["Fixed supply", "Fixed supply · burnable", "Bounded additional issuance"] },
+        { id: "metadata-digest", label: "Metadata digest", type: "text", placeholder: "Optional canonical metadata digest, never a local file path" }
+      ],
+      walletChecks: ["Asset-class constraints", "Immutable definition fields", "Issuer authority", "Supply and policy bounds"],
+      settlementPath: "Definition review → registry proposal → issuance package → checkpoint",
+      evidenceOutput: "Definition digest, registry decision, and issuance receipt"
+    }),
+    descriptor({
       id: "agents-budget",
-      label: "Agents Budget",
+      label: "Agent Budget",
       summary: "Give an agent a bounded spending right instead of wallet credentials.",
       createdArtifact: "A revocable agent-budget permission with provider, value, action-count, and time ceilings.",
       purpose: "Let one named agent propose approved service expenses without receiving Wallet credentials.",
@@ -375,7 +408,7 @@
     }),
     descriptor({
       id: "bounties",
-      label: "Bounties",
+      label: "Bounty",
       summary: "Propose a reward claim whose payout requires an explicit verifier decision.",
       createdArtifact: "A backed bounty definition with verifier, deadline, and evidence requirements.",
       purpose: "Offer a bounded reward whose payout remains dependent on a separate verifier decision and Wallet confirmation.",
@@ -405,7 +438,7 @@
     }),
     descriptor({
       id: "tickets-passes",
-      label: "Tickets & Passes",
+      label: "Ticket & Pass",
       summary: "Issue a private event, transport, membership, or access pass with bounded use.",
       createdArtifact: "A bounded private access-pass definition.",
       purpose: "Grant a declared event, transport, membership, or venue right with explicit uses, validity, transfer, and offline policy.",
@@ -433,7 +466,7 @@
     }),
     descriptor({
       id: "service-credits",
-      label: "Service Credits",
+      label: "Service Credit",
       summary: "Model bounded API, data, compute, or access rights as explicit service credits.",
       createdArtifact: "A bounded provider-specific service-credit definition.",
       purpose: "Issue metered service rights that are neither money nor proof that the external service was delivered.",
@@ -517,6 +550,37 @@
       walletChecks: ["Treasury authority", "Recipient commitments", "Aggregate total and fees", "Disclosure scope"],
       settlementPath: "Payroll batch → per-recipient packages → publication → aggregate evidence",
       evidenceOutput: "Employee receipts and aggregate batch proof"
+    }),
+    descriptor({
+      id: "private-contract",
+      label: "Private Agreement",
+      summary: "Propose a typed private agreement with explicit party, obligation, validity, disclosure, and decision bounds.",
+      createdArtifact: "A typed private-agreement proposal with canonical terms and acceptance boundaries.",
+      purpose: "Commit reviewed agreement terms without installing runtime code or granting the dApp legal, signing, adjudication, or value-transfer authority.",
+      useCaseFamily: "private_agreement",
+      maturity: "concept",
+      iconName: "dapp-private-contract",
+      intentType: "propose_private_contract",
+      requestedObjectFamilies: ["claim", "permission"],
+      offlineMode: "agreement_draft",
+      offlineSummary: "A terms digest and draft can be reviewed offline; both-party acceptance and every later action remain separate evidence stages.",
+      disclosures: ["counterparty", "agreement_subject", "obligation_scope", "validity_window", "disclosure_policy"],
+      reviewBoundary: "The dApp cannot bind a party, determine enforceability, interpret terms, adjudicate a dispute, or transfer value.",
+      actionLabel: "Review private agreement in Wallet",
+      proposalFields: [
+        { id: "template", label: "Agreement template", type: "select", options: ["Service agreement", "Supply agreement", "Mutual confidentiality", "Licence terms", "Custom typed agreement"] },
+        { id: "counterparty", label: "Counterparty", type: "text", placeholder: "Counterparty commitment", required: true },
+        { id: "subject", label: "Agreement subject", type: "text", placeholder: "Exact private relationship or deliverable", required: true },
+        { id: "obligations", label: "Bounded obligations", type: "text", placeholder: "Declared duties or deliverables", required: true },
+        { id: "terms-digest", label: "Terms digest", type: "text", placeholder: "Canonical digest of the reviewed terms", required: true, suffix: "Never a filesystem path or runnable payload" },
+        { id: "effective", label: "Effective rule", type: "select", options: ["After both parties accept", "At declared checkpoint", "At scheduled time"] },
+        { id: "expiry", label: "Expiry", type: "select", options: ["No automatic expiry", "30 days", "90 days", "1 year"] },
+        { id: "disclosure", label: "Disclosure", type: "select", options: ["Parties only", "Named verifier", "Selective proof"] },
+        { id: "decision", label: "Decision path", type: "select", options: ["Mutual acceptance only", "Named mediator", "External authority"] }
+      ],
+      walletChecks: ["Party commitments", "Terms digest and obligations", "Validity and disclosure", "Decision authority"],
+      settlementPath: "Agreement proposal → both-party acceptance → evidence receipt → optional scoped action",
+      evidenceOutput: "Agreement digest, acceptance receipts, and any later scoped-action receipt"
     }),
     descriptor({
       id: "assets-locker",
@@ -697,8 +761,8 @@
     const seenIntentTypes = new Set();
     const seenIcons = new Set();
 
-    if (DAPP_CATALOG.length !== 15) {
-      throw new Error("The local dApp catalogue must contain exactly fifteen descriptors.");
+    if (DAPP_CATALOG.length !== 17) {
+      throw new Error("The local dApp catalogue must contain exactly seventeen descriptors.");
     }
 
     for (const entry of DAPP_CATALOG) {

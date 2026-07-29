@@ -11,7 +11,7 @@ node scripts/check-locales.mjs
 node scripts/help/sync-markdown-runtime.mjs
 node scripts/test-help-markdown-parity.mjs
 python3 scripts/help/test_sync_views.py
-python3 scripts/help/sync_views.py --verify-current
+python3 scripts/help/sync_views.py --verify-current --workers 1
 node scripts/compile-help.mjs
 node scripts/check-help.mjs
 node scripts/test-port-contracts.mjs

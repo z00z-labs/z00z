@@ -33,6 +33,7 @@ const expectedScripts = [
   "scripts/help-controller.js",
   "scripts/port/contracts.js",
   "scripts/port/navigation-model.js",
+  "scripts/port/navigation-session.js",
   "scripts/port/exchange-catalog.js",
   "scripts/port/dapp-catalog.js",
   "scripts/port/messenger-catalog.js",
@@ -57,6 +58,7 @@ assert.deepEqual(
     "locales/navigation.js",
     "scripts/port/contracts.js",
     "scripts/port/navigation-model.js",
+    "scripts/port/navigation-session.js",
     "scripts/generated/help-catalog.js",
     "scripts/port/help-registry.js",
     "scripts/vendor/markdown/mermaid.min.js",
@@ -109,10 +111,15 @@ for (const appIcon of [
 
 const symbolBlocks = [...index.matchAll(/<symbol\s+id="i-([^"]+)"\s+viewBox="([^"]+)"[^>]*>([\s\S]*?)<\/symbol>/g)];
 const symbolNames = symbolBlocks.map((match) => match[1]);
+const normalizedFilledIconNames = new Set(["dapp-request", "dapp-private-contract"]);
 assert.deepEqual(symbolNames, Array.from(demo.ICON_NAMES), "inline SVG symbols must match the canonical icon registry order");
 for (const [, name, viewBox, body] of symbolBlocks) {
   assert.equal(viewBox, "0 0 24 24", `icon ${name} must use the normalized viewBox`);
-  assert.equal(/fill="currentColor"/i.test(body), false, `icon ${name} must use the shared outline stroke contract`);
+  assert.equal(
+    /fill="currentColor"/i.test(body),
+    normalizedFilledIconNames.has(name),
+    `icon ${name} must follow its declared normalized fill or outline contract`,
+  );
 }
 
 for (const family of Object.values(demo.OBJECT_TYPE_ICON_LUT)) {
@@ -155,6 +162,7 @@ const runtimeFiles = [
   "i18n.js",
   "scripts/port/contracts.js",
   "scripts/port/navigation-model.js",
+  "scripts/port/navigation-session.js",
   "scripts/port/exchange-catalog.js",
   "scripts/port/dapp-catalog.js",
   "scripts/port/messenger-catalog.js",
@@ -190,9 +198,13 @@ const forbiddenRuntimePatterns = [
   ["service worker", /\bserviceWorker\b/],
   ["generic RPC dispatcher", /\brpc\s*\.\s*call\s*\(/i]
 ];
+const presentationStorageExceptions = new Map([
+  ["sessionStorage", new Set(["scripts/port/navigation-session.js"])],
+]);
 for (const runtimeFile of runtimeFiles) {
   const source = await read(runtimeFile);
   for (const [label, pattern] of forbiddenRuntimePatterns) {
+    if (presentationStorageExceptions.get(label)?.has(runtimeFile)) continue;
     assert.equal(pattern.test(source), false, `${runtimeFile} must not use ${label}`);
   }
 }
@@ -242,7 +254,7 @@ for (const fontFile of [
   assert.ok(info.size > 1000, `${fontFile} must be vendored and non-empty`);
 }
 
-const porting = await read("PORTING.md");
+const porting = await read("RUST-PORTING.md");
 for (const requiredStatement of [
   "Leptos CSR/WASM",
   "not a browser product",
@@ -252,7 +264,7 @@ for (const requiredStatement of [
   "iOS",
   "must never be imported by production"
 ]) {
-  assert.ok(porting.includes(requiredStatement), `PORTING.md must declare: ${requiredStatement}`);
+  assert.ok(porting.includes(requiredStatement), `RUST-PORTING.md must declare: ${requiredStatement}`);
 }
 
 assert.equal(demo.PORT_CONTRACT.browserProduct, false);

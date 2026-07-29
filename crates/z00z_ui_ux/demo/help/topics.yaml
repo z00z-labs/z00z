@@ -308,16 +308,10 @@ topics:
     route: telemetry.explorer.evidence
     scope: context
   - id: dapps.discover
-    title: dApps: Discover
+    title: dApps: Discover dApps
     file: dapps/discover.md
     label_key: navigation.discover
     route: dapps.discover
-    scope: context
-  - id: dapps.installed
-    title: dApps: Installed
-    file: dapps/installed.md
-    label_key: navigation.installed
-    route: dapps.installed
     scope: context
   - id: dapps.pay
     title: dApps: Pay
@@ -343,8 +337,14 @@ topics:
     label_key: navigation.createPermission
     route: dapps.create-permission
     scope: context
+  - id: dapps.create-asset
+    title: dApps: Create Asset
+    file: dapps/create-asset.md
+    label_key: navigation.createAsset
+    route: dapps.create-asset
+    scope: context
   - id: dapps.agents-budget
-    title: dApps: Agents Budget
+    title: dApps: Agent Budget
     file: dapps/agents-budget.md
     label_key: navigation.agentsBudget
     route: dapps.agents-budget
@@ -374,19 +374,19 @@ topics:
     route: dapps.escrow
     scope: context
   - id: dapps.bounties
-    title: dApps: Bounties
+    title: dApps: Bounty
     file: dapps/bounties.md
     label_key: navigation.bounties
     route: dapps.bounties
     scope: context
   - id: dapps.tickets-passes
-    title: dApps: Tickets & Passes
+    title: dApps: Ticket & Pass
     file: dapps/tickets-passes.md
     label_key: navigation.ticketsPasses
     route: dapps.tickets-passes
     scope: context
   - id: dapps.service-credits
-    title: dApps: Service Credits
+    title: dApps: Service Credit
     file: dapps/service-credits.md
     label_key: navigation.serviceCredits
     route: dapps.service-credits
@@ -402,6 +402,12 @@ topics:
     file: dapps/payroll.md
     label_key: navigation.payroll
     route: dapps.payroll
+    scope: context
+  - id: dapps.private-contract
+    title: dApps: Private Agreement
+    file: dapps/private-contract.md
+    label_key: navigation.privateContract
+    route: dapps.private-contract
     scope: context
   - id: dapps.assets-locker
     title: dApps: Assets Locker

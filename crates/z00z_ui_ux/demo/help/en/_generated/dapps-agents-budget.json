@@ -11,12 +11,12 @@
     "input|type=text|name=agent|placeholder=Local agent commitment",
     "input|type=text|name=services|placeholder=Compute, storage, or exact provider"
   ],
-  "presentation_sha256": "2acba2a6bbf2c7d6252fea80d56ac89ca805cff75767c3a18bb1d6895ad18dec",
+  "presentation_sha256": "2b29b87a01734a3378389fa12f85a4e624b30106e7da38325fff2e2874c88754",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-agents-budget.png",
-  "screenshot_sha256": "a9d6346c4f6ce74b2527c907a2dc9be07e61ab76e2c6eebcb84d58240b558914",
+  "screenshot_sha256": "9a17535b8b333125822e3327801923897b4be7e3a209f24b035f5d9a84cf0e91",
   "sections": [
-    "Agents Budget",
+    "Agent Budget",
     "Prepare proposal",
     "What happens next"
   ],
@@ -24,9 +24,9 @@
     "0.00",
     "30 minutes",
     "A revocable agent-budget permission with provider, value, action-count, and time ceilings.",
+    "Agent Budget",
     "Agent identity",
     "Agent identity \u00b7 Provider allowlist \u00b7 Value and fee ceilings \u00b7 Emergency revoke",
-    "Agents Budget",
     "Asset, Permission",
     "Bounded Agent Action",
     "Budget asset",

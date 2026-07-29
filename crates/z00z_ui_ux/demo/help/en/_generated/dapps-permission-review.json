@@ -7,10 +7,10 @@
     "input|type=checkbox|name=reauthAcknowledged",
     "input|type=checkbox|name=scopeConfirmed"
   ],
-  "presentation_sha256": "ffe0209da0393262f5e459f4aeabad4e970e4e7eaa5a2755f0fa4060eaae9ec0",
+  "presentation_sha256": "60ed4cf7d0e0bd656ee89c7ccbdda1f27cea4386e845b74eda8cc47c8d3d0bc9",
   "scope": "dialog",
   "screenshot": "help/assets/en/dapps-permission-review.png",
-  "screenshot_sha256": "42750a284b07b9d75e296de7046c97dac15e090e55eafd29b6d749a3fd8cf878",
+  "screenshot_sha256": "cd6fb0923f14d00e995fdab6c23b584a13fd44d2768aca9838bb9d96b2085747",
   "sections": [
     "Pay"
   ],

@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
-title: Обзор
-summary: Обзор: справка об ограниченном локальном демо dApps и его разрешениях.
+title: Найти dApps
+summary: Найти dApps: справка об ограниченном локальном демо dApps и его разрешениях.
 scope: context
 ---
 ## Использование этого экрана {#current-view}

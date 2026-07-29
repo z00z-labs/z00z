@@ -8,10 +8,10 @@
     "input|type=text|name=recipient|placeholder=Receiver or agent commitment",
     "input|type=text|name=scope|placeholder=Action, object family, and service"
   ],
-  "presentation_sha256": "b51f2f3c8739eb8ff5f464c053ed0a65c376640d1dc80399afafa9ed355be1c2",
+  "presentation_sha256": "b997dcac5ac06bcb612d4ffdfa1b646f7706a7bcc539b8887fbb4f746205f0ce",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-create-permission.png",
-  "screenshot_sha256": "7161053a7c65e861d5359e40291cf1e9cfbf3813b755f4333c775d40a31a187f",
+  "screenshot_sha256": "e7631511c69af23b769b97360b572f9c60a039e8f59ebbc1139a317312ac0fe0",
   "sections": [
     "Create Permission",
     "Prepare proposal",

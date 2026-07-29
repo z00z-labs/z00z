@@ -96,11 +96,11 @@
   ]);
   const DAPP_ROUTE_IDS = freezeList([
     "dapps.discover",
-    "dapps.installed",
     "dapps.pay",
     "dapps.request",
     "dapps.create-voucher",
     "dapps.create-permission",
+    "dapps.create-asset",
     "dapps.agents-budget",
     "dapps.wbold-gateway",
     "dapps.subscription",
@@ -111,6 +111,7 @@
     "dapps.service-credits",
     "dapps.digital-goods",
     "dapps.payroll",
+    "dapps.private-contract",
     "dapps.assets-locker"
   ]);
   const MESSENGER_ROUTE_IDS = freezeList([

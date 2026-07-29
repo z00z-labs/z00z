@@ -7,10 +7,10 @@
     "input|type=number|name=amount|placeholder=0.00",
     "input|type=text|name=recipient|placeholder=Receiver card or request ID"
   ],
-  "presentation_sha256": "934152147a6a67ff12116e71e4217fffe12636cc0ea8b8acf0f30ca3870eca0f",
+  "presentation_sha256": "9b76477b2e2ce8fba7fa53aaacb6f7db0a53507032fb31c4d7ea04354c215b59",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-pay.png",
-  "screenshot_sha256": "9d03a8220fee042117d5b90910b0460665d3a86c0d46516d7403660186e3e8b1",
+  "screenshot_sha256": "c76fde568bbcf3f093d8a63d111be8824e7f953c458359d01552d983ca587d05",
   "sections": [
     "Pay",
     "Prepare proposal",

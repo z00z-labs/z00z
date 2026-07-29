@@ -10,10 +10,10 @@
   "presentation_sha256": "8d0521414f309f07297accf04902068e7dc5f95c12be30ccfb04021c0c11cf21",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-tickets-passes.png",
-  "screenshot_sha256": "2db152df595a19f3e5083bde9a86a4f7883d268d6eff4709eb1374a272c8b5c6",
+  "screenshot_sha256": "de6ab8c232f8a18cefb58827958f48c0975307b5a51d0b1660e0964ca3d43008",
   "sections": [
     "Prepare proposal",
-    "Tickets & Passes",
+    "Ticket & Pass",
     "What happens next"
   ],
   "terms": [
@@ -45,7 +45,7 @@
     "Settlement path",
     "Single day",
     "Target",
-    "Tickets & Passes",
+    "Ticket & Pass",
     "Transferability",
     "Typed action",
     "Typed proposal",

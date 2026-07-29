@@ -1,23 +1,23 @@
 ---
 id: dapps.service-credits
-title: dApps: Service Credits
+title: dApps: Service Credit
 route: dapps.service-credits
 scope: context
 ---
 
-# dApps: Service Credits
+# dApps: Service Credit
 
 [TOC]
 
 ## App View {#current-view}
 
-![dApps: Service Credits application view](help/assets/en/dapps-service-credits.png)
+![dApps: Service Credit application view](help/assets/en/dapps-service-credits.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 
 ## Overview
 
-Service Credits models bounded API, data, compute, storage, or access rights as
+Service Credit models bounded API, data, compute, storage, or access rights as
 explicit service entitlements rather than money.
 
 **Boundary:** a Z00Z dApp does not control the wallet. It proposes a typed

@@ -6,10 +6,10 @@
     "button|type=button|data-demo-action=wallet-config-validate",
     "textarea"
   ],
-  "presentation_sha256": "21c9d41369d0dcba356d4e90877f04d6b3f39819061a23389de92c603e801455",
+  "presentation_sha256": "753bdddcb3502fe6c390536157717e8385a8fffe4e842b1e802e8e82a4e23b3a",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-settings-advanced.png",
-  "screenshot_sha256": "d4364b629e873fb660825f90b71eea792130eb1ab16ab6182bddf9f691c3977a",
+  "screenshot_sha256": "b49b99d779a6b13e40988324bcb9fa34a9069aca2ad867b5a2d636f6950c072a",
   "sections": [],
   "terms": [
     "Advanced",

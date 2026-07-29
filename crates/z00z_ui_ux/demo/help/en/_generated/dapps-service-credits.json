@@ -8,13 +8,13 @@
     "input|type=text|name=provider|placeholder=Exact service provider",
     "input|type=text|name=service|placeholder=API, compute, storage, or access"
   ],
-  "presentation_sha256": "1b9a4431df4519f6be0e90d50846f4c3b672c2dc69231ae7292e08c030fb4c8e",
+  "presentation_sha256": "fb537c8d01c159676e30ba698371292abb9c077fc3dd5a6bba9f9c9f60a3a9da",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-service-credits.png",
-  "screenshot_sha256": "9844c25fb62b9489c14ad83fe87366ce1855a76e19f261273f960b2b79a3fd86",
+  "screenshot_sha256": "0802ed42410aeee045c37d2a52c6e29003b1755b884ed5f4858fb0ba992eecd7",
   "sections": [
     "Prepare proposal",
-    "Service Credits",
+    "Service Credit",
     "What happens next"
   ],
   "terms": [
@@ -48,7 +48,7 @@
     "Review credit issuance in Wallet",
     "Scope check",
     "Service Access",
-    "Service Credits",
+    "Service Credit",
     "Service Right, Permission",
     "Service class",
     "Service-right definition \u2192 issuance \u2192 later presentation \u2192 provider decision",

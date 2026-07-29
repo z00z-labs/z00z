@@ -10,6 +10,7 @@ const routeBreadcrumb = document.querySelector("#route-breadcrumb");
 const walletNav = document.querySelector("#wallet-nav");
 const walletNavViewport = document.querySelector(".wallet-nav-viewport");
 const sidebarWalletsLabel = document.querySelector(".sidebar-label");
+const sidebarNavigationScrollRegion = document.querySelector(".sidebar-navigation-scroll-region");
 const navigationTree = document.querySelector("#app-navigation-tree");
 const navigationTerminal = document.querySelector("#app-navigation-terminal");
 const walletIdentity = document.querySelector("#wallet-identity");
@@ -61,7 +62,7 @@ if (!i18n) throw new Error("Z00Z i18n must load before the wallet demo.");
 const help = window.Z00ZHelp;
 if (!help) throw new Error("Z00Z Help must load before the wallet demo.");
 const demoRuntime = window.Z00ZDemo;
-if (!demoRuntime?.APP_VERSION || !demoRuntime.PORT_CONTRACT || !demoRuntime.WALLET_CHAIN_OPTIONS || !demoRuntime.ASSET_CATALOG || !demoRuntime.DAPP_CATALOG || !demoRuntime.MESSENGER_MESSAGES || !demoRuntime.CONTACT_FIXTURES || !demoRuntime.createInitialState || !demoRuntime.createMockWalletGateway || !demoRuntime.createMockTelemetryGateway || !demoRuntime.createMockDappGateway || !demoRuntime.createMockMessengerGateway || !demoRuntime.createMockContactsGateway) {
+if (!demoRuntime?.APP_VERSION || !demoRuntime.PORT_CONTRACT || !demoRuntime.WALLET_CHAIN_OPTIONS || !demoRuntime.ASSET_CATALOG || !demoRuntime.DAPP_CATALOG || !demoRuntime.MESSENGER_MESSAGES || !demoRuntime.CONTACT_FIXTURES || !demoRuntime.createInitialState || !demoRuntime.createNavigationSession || !demoRuntime.createMockWalletGateway || !demoRuntime.createMockTelemetryGateway || !demoRuntime.createMockDappGateway || !demoRuntime.createMockMessengerGateway || !demoRuntime.createMockContactsGateway) {
   throw new Error("Z00Z production-port modules must load before the wallet demo.");
 }
 const uiLanguages = i18n.languages();
@@ -84,6 +85,13 @@ const valuationCurrencyOptions = Object.freeze([
     .filter(Boolean)
     .join(" ")
 })));
+const navigationSession = demoRuntime.createNavigationSession("app");
+const restoredNavigationSnapshot = navigationSession.read();
+const navigationScrollPositions = {
+  desktop: restoredNavigationSnapshot?.scrollPositions.desktop || 0,
+  mobile: restoredNavigationSnapshot?.scrollPositions.mobile || 0
+};
+let navigationSessionReady = false;
 
 function synchronizePalettePreference(paletteId) {
   const url = new URL(window.location.href);
@@ -100,6 +108,28 @@ const telemetryGateway = demoRuntime.createMockTelemetryGateway();
 const dappGateway = demoRuntime.createMockDappGateway();
 const messengerGateway = demoRuntime.createMockMessengerGateway();
 const contactsGateway = demoRuntime.createMockContactsGateway(state);
+
+function persistNavigationState() {
+  if (!navigationSessionReady) return;
+  navigationSession.write({
+    activeRoute: state.activeRoute,
+    expandedBranchIds: state.expandedBranchIds,
+    scrollPositions: navigationScrollPositions,
+    drawerOpen: Boolean(state.drawerOpen && isMobileNavigation())
+  });
+}
+
+function captureNavigationScrollPosition(layout, scrollTop) {
+  const value = Number(scrollTop);
+  if (!Number.isFinite(value) || value < 0) return;
+  navigationScrollPositions[layout] = Math.round(value);
+  persistNavigationState();
+}
+
+function restoreNavigationScrollPosition(element, layout) {
+  if (!element) return;
+  element.scrollTop = navigationScrollPositions[layout] || 0;
+}
 
 function clearExternalReviewHandoffs() {
   state.dappWalletReviewHandoff = null;
@@ -724,6 +754,7 @@ function addWalletProfile(name, chainId = "mainnet", scan = "Scanning") {
 function mergeShellState(action) {
   Object.assign(state, demoRuntime.reduceShellState(state, action));
   if (state.activeWalletId) state.selectedWalletId = state.activeWalletId;
+  persistNavigationState();
 }
 
 function routeFromCurrentLegacyState() {
@@ -1261,8 +1292,8 @@ function walletObjectEntry(family, objectId) {
 
 const sendFamilies = Object.freeze([
   Object.freeze({ id: "asset", labelKey: "assets.sectionAssets", iconName: "assets", createFlow: "" }),
-  Object.freeze({ id: "voucher", labelKey: "assets.sectionVouchers", iconName: "voucher", createFlow: "create-voucher" }),
-  Object.freeze({ id: "permission", labelKey: "assets.sectionPermissions", iconName: "permission", createFlow: "create-permission" })
+  Object.freeze({ id: "voucher", labelKey: "assets.sectionVouchers", iconName: "voucher-list", createFlow: "create-voucher" }),
+  Object.freeze({ id: "permission", labelKey: "assets.sectionPermissions", iconName: "permission-list", createFlow: "create-permission" })
 ]);
 
 function sendOptionEntries(family = "") {
@@ -1980,8 +2011,8 @@ function walletMergeSplitView() {
 
 const walletSections = [
   { key: "assets", labelKey: "assets.sectionAssets", iconName: "assets" },
-  { key: "vouchers", labelKey: "assets.sectionVouchers", iconName: "voucher" },
-  { key: "permissions", labelKey: "assets.sectionPermissions", iconName: "permission" }
+  { key: "vouchers", labelKey: "assets.sectionVouchers", iconName: "voucher-list" },
+  { key: "permissions", labelKey: "assets.sectionPermissions", iconName: "permission-list" }
 ];
 
 function walletContextNav() {
@@ -2348,6 +2379,10 @@ function closeDesktopWalletPicker({ restoreFocus = false } = {}) {
 
 function closeMobilePopup({ restoreFocus = false } = {}) {
   if (!mobilePopupMenu || mobilePopupMenu.hidden) return;
+  const navigationScrollRegion = mobilePopupMenu.querySelector(".mobile-navigation-scroll-region");
+  if (navigationScrollRegion) {
+    captureNavigationScrollPosition("mobile", navigationScrollRegion.scrollTop);
+  }
   clearMobileDrawerMotion();
   const trigger = mobilePopupTrigger;
   mobilePopupMenu.hidden = true;
@@ -2420,10 +2455,10 @@ function selectWalletFromPicker(walletId) {
   render({ focusMain: true });
 }
 
-function focusMobileDrawer() {
+function focusMobileDrawer({ preventScroll = false } = {}) {
   mobilePopupMenu.querySelector(
     "[data-wallet-picker-trigger], [data-wallet-picker-action='add-wallet'], button:not([disabled])"
-  )?.focus();
+  )?.focus({ preventScroll });
 }
 
 function openMobilePopup(trigger = mobileMenuButton, { isSwipePreview = false } = {}) {
@@ -2454,9 +2489,15 @@ function openMobilePopup(trigger = mobileMenuButton, { isSwipePreview = false } 
     return;
   }
   requestAnimationFrame(() => {
-    mobilePopupMenu.querySelector(".mobile-wallet-picker-trigger")?.scrollIntoView({ block: "nearest" });
-    mobilePopupMenu.querySelector(".mobile-navigation-tree [aria-current='page']")?.scrollIntoView({ block: "nearest" });
-    focusMobileDrawer();
+    const navigationScrollRegion = mobilePopupMenu.querySelector(".mobile-navigation-scroll-region");
+    const restoredScrollTop = navigationScrollPositions.mobile || 0;
+    if (restoredScrollTop > 0) {
+      restoreNavigationScrollPosition(navigationScrollRegion, "mobile");
+    } else {
+      mobilePopupMenu.querySelector(".mobile-wallet-picker-trigger")?.scrollIntoView({ block: "nearest" });
+      mobilePopupMenu.querySelector(".mobile-navigation-tree [aria-current='page']")?.scrollIntoView({ block: "nearest" });
+    }
+    focusMobileDrawer({ preventScroll: restoredScrollTop > 0 });
   });
 }
 
@@ -3680,12 +3721,11 @@ function dappObjectFamilyChips(families) {
   return `<div class="dapp-chip-list">${families.map((family) => `<span class="dapp-chip">${escapeHtml(dappTitleCase(family))}</span>`).join("")}</div>`;
 }
 
-function dappCard(entry, { installed = false } = {}) {
+function dappCard(entry) {
   return `<article class="dapp-card" data-dapp-card="${escapeHtml(entry.id)}">
     <div class="dapp-card-heading">
       <span class="dapp-card-icon" aria-hidden="true">${icon(entry.iconName)}</span>
       <div><p class="eyebrow">${escapeHtml(dappTitleCase(entry.useCaseFamily))}</p><h3>${escapeHtml(entry.label)}</h3></div>
-      ${installed ? dappStatusBadge("approved") : ""}
     </div>
     <p>${escapeHtml(entry.summary)}</p>
     <dl class="dapp-card-metadata">
@@ -3709,15 +3749,8 @@ function dappScreenHeading(title, copy, meta = "") {
 }
 
 function dappDiscoverScreen() {
-  return `${dappScreenHeading("Discover", "Fifteen curated Z00Z typed-action interfaces. Every card is a bundled local descriptor, never remotely executed application code.", `<span class="status-badge">${demoRuntime.DAPP_CATALOG.length} descriptors</span>`)}
+  return `${dappScreenHeading("Discover dApps", "Seventeen curated Z00Z typed-action interfaces. Every card is a bundled local descriptor, never remotely executed application code.", `<span class="status-badge">${demoRuntime.DAPP_CATALOG.length} descriptors</span>`)}
     <section class="dapp-catalog-grid" aria-label="${escapeHtml(t("plan2.aria.dappCatalogue"))}">${demoRuntime.DAPP_CATALOG.map((entry) => dappCard(entry)).join("")}</section>`;
-}
-
-function dappInstalledScreen() {
-  const installed = demoRuntime.DAPP_CATALOG.filter(({ catalogueState }) => catalogueState === "approved");
-  return `${dappScreenHeading("Installed", "Locally approved descriptors remain unavailable as protocol capabilities; approval only makes their typed review fixtures accessible.", `<span class="status-badge">${installed.length} local approvals</span>`)}
-    <div class="notice">${icon("alert")} “Installed” means a bundled descriptor was approved locally. No third-party executable or remote service was loaded.</div>
-    <section class="dapp-catalog-grid" aria-label="${escapeHtml(t("plan2.aria.dappCatalogue"))}">${installed.map((entry) => dappCard(entry, { installed: true })).join("")}</section>`;
 }
 
 function dappProposalField(entry, field) {
@@ -3769,6 +3802,11 @@ function validateDappProposalForm(form, descriptor) {
     if (approvalThreshold > actionLimit) {
       return fail("approval", "Human approval threshold cannot exceed the per-action ceiling.");
     }
+  }
+  if (descriptor.id === "create-asset"
+    && values.class === "NFT"
+    && Number(values.decimals) !== 0) {
+    return fail("decimals", "NFT definitions must use zero decimals.");
   }
   if (descriptor.id === "wbold-gateway"
     && values.direction.startsWith("Redeem")
@@ -3910,7 +3948,6 @@ function dappsView() {
   if (state.dappScreen === "detail") content = dappDetailScreen();
   else if (state.dappScreen === "review") content = dappReviewScreen();
   else if (state.dappScreen === "outcome") content = dappOutcomeScreen();
-  else if (routeSection === "installed") content = dappInstalledScreen();
   else if (demoRuntime.dappDescriptor(routeSection)) content = dappProposalScreen(demoRuntime.dappDescriptor(routeSection));
   else content = dappDiscoverScreen();
   const helpTopicOverride = state.dappScreen === "detail"
@@ -4366,12 +4403,14 @@ function render(options = {}) {
     enhanceNativeSelects(mobilePopupMenu);
     if (Number.isFinite(mobileNavigationScrollTop)) {
       mobilePopupMenu.querySelector(".mobile-navigation-scroll-region").scrollTop = mobileNavigationScrollTop;
+      captureNavigationScrollPosition("mobile", mobileNavigationScrollTop);
     }
   }
   if (!walletPickerPopup.hidden) {
     walletPickerPopup.innerHTML = walletPickerPopupMarkup();
   }
   requestAnimationFrame(() => {
+    restoreNavigationScrollPosition(sidebarNavigationScrollRegion, "desktop");
     const activeContext = isMobileNavigation()
       ? mobileTopbarContext.querySelector(".context-nav-child.is-active, .context-nav-item.is-active")
       : main.querySelector(".context-nav-child.is-active, .context-nav-item.is-active");
@@ -7249,6 +7288,12 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("scroll", (event) => {
   if (event.target instanceof HTMLTextAreaElement && event.target.classList.contains("yaml-editor")) syncYamlHighlight(event.target);
+  if (event.target === sidebarNavigationScrollRegion) {
+    captureNavigationScrollPosition("desktop", event.target.scrollTop);
+  } else if (event.target instanceof Element
+    && event.target.matches("#mobile-popup-menu .mobile-navigation-scroll-region")) {
+    captureNavigationScrollPosition("mobile", event.target.scrollTop);
+  }
 }, true);
 
 document.addEventListener("change", async (event) => {
@@ -7539,11 +7584,21 @@ dialog.addEventListener("close", () => {
 
 syncConfigDraftFromState();
 const requestedInitialRoute = new URLSearchParams(window.location.search).get("route");
-const initialCanonicalRoute = requestedInitialRoute === "wallet.staking"
+const initialRouteCandidate = requestedInitialRoute || restoredNavigationSnapshot?.activeRoute;
+const initialCanonicalRoute = initialRouteCandidate === "wallet.staking"
   ? "wallet.staking.stake"
-  : requestedInitialRoute;
+  : initialRouteCandidate;
 if (demoRuntime.PORT_CONTRACT.routes.includes(initialCanonicalRoute)) {
   selectCanonicalRoute(initialCanonicalRoute, { pushHistory: false });
 }
+if (restoredNavigationSnapshot) {
+  state.expandedBranchIds = [...restoredNavigationSnapshot.expandedBranchIds];
+  state.drawerOpen = Boolean(restoredNavigationSnapshot.drawerOpen && isMobileNavigation());
+}
+navigationSessionReady = true;
 applyAppearancePreferences();
 render();
+persistNavigationState();
+if (state.drawerOpen) {
+  requestAnimationFrame(() => openMobilePopup(mobileMenuButton));
+}

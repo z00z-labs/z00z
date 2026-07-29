@@ -5,10 +5,10 @@
     "button|type=button|data-dapp-action=review",
     "button|type=button|data-help-topic=dapps.pay"
   ],
-  "presentation_sha256": "52c1aa462ee76edf7285cb0ac91b4cc8f2c4308dcf848382cb72910e9913f7bd",
+  "presentation_sha256": "4a1a9687f0c8f4aa93b7150f4e1bdbe27c3145f6c64c455c99f204e5e3447c0b",
   "scope": "dialog",
   "screenshot": "help/assets/en/dapps-detail.png",
-  "screenshot_sha256": "b37077340a587617357b2ff9997a2c0176e1473ace97c1c55dd5360bd425c19e",
+  "screenshot_sha256": "5d96c24f68ba5874a1785b0c085976ca8eac7dc81c983a8b8009df9bc9ffe2f8",
   "sections": [
     "Data disclosed",
     "Offline behavior",

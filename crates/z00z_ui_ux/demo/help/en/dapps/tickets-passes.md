@@ -1,23 +1,23 @@
 ---
 id: dapps.tickets-passes
-title: dApps: Tickets & Passes
+title: dApps: Ticket & Pass
 route: dapps.tickets-passes
 scope: context
 ---
 
-# dApps: Tickets & Passes
+# dApps: Ticket & Pass
 
 [TOC]
 
 ## App View {#current-view}
 
-![dApps: Tickets & Passes application view](help/assets/en/dapps-tickets-passes.png)
+![dApps: Ticket & Pass application view](help/assets/en/dapps-tickets-passes.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 
 ## Overview
 
-Tickets & Passes issues a private event, transport, membership, or access
+Ticket & Pass issues a private event, transport, membership, or access
 right with bounded use and an explicit verification policy.
 
 **Boundary:** a Z00Z dApp does not control the wallet. It proposes a typed

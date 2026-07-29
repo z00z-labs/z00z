@@ -10,10 +10,10 @@
     "input|type=text|name=external-recipient|placeholder=Required when consuming the right to redeem",
     "input|type=text|name=route|placeholder=One explicit custody route"
   ],
-  "presentation_sha256": "f3c485181896823a974205b25c2d2a08d501e3f157266cf95c7434421ba57113",
+  "presentation_sha256": "13605b2bb5131d972d3b3c2a668dc1e44397cc971e06ed559cbb9e2df73ee5e9",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-assets-locker.png",
-  "screenshot_sha256": "ad16a4b4007b4d8576641c169f49799db8d91cfce1c6a4f12be50efaf55398b8",
+  "screenshot_sha256": "46fbf65b8aa3d201d22ab33d447b6cdfb9151b97c873d59211c3eea0a67f6282",
   "sections": [
     "Assets Locker",
     "Prepare proposal",

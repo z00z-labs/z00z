@@ -4,7 +4,7 @@
   const registry = root.Z00ZHelpRegistry;
   const i18n = root.Z00ZI18n;
   const demo = root.Z00ZDemo;
-  if (!registry || !i18n || !demo?.navigationChildren) {
+  if (!registry || !i18n || !demo?.navigationChildren || !demo.createNavigationSession) {
     throw new Error("Standalone Help dependencies are missing.");
   }
 
@@ -25,6 +25,7 @@
   const article = document.querySelector("#help-document");
   const main = document.querySelector("#help-main");
   const sidebar = document.querySelector("#help-sidebar");
+  const navigationScrollRegion = sidebar.querySelector(".help-navigation-scroll-region");
   const siteHeader = document.querySelector(".help-site-header");
   const mobileTopbarContext = document.querySelector("#help-mobile-topbar-context");
   const menuButton = document.querySelector("#help-menu-button");
@@ -36,7 +37,14 @@
   let sectionTarget = "";
   let searchQuery = "";
   let mobileNavigationLayout = root.matchMedia("(max-width: 768px)").matches;
-  const expandedBranchIds = new Set(["wallet"]);
+  const navigationSession = demo.createNavigationSession("help");
+  const restoredNavigationSnapshot = navigationSession.read();
+  const navigationScrollPositions = {
+    desktop: restoredNavigationSnapshot?.scrollPositions.desktop || 0,
+    mobile: restoredNavigationSnapshot?.scrollPositions.mobile || 0
+  };
+  const expandedBranchIds = new Set(restoredNavigationSnapshot?.expandedBranchIds || ["wallet"]);
+  let navigationSessionReady = false;
   const terminalNodeIds = new Set(["settings", "help", "about", "logout"]);
   const excludedNodeIds = new Set(["help", "about", "logout"]);
   const mobileDrawerSwipe = {
@@ -61,6 +69,26 @@
   const navigationIcon = (node, extraClass = "") => `<svg class="icon navigation-tree-icon help-tree-navigation-icon${extraClass ? ` ${extraClass}` : ""}" aria-hidden="true" data-help-navigation-icon="${escapeHtml(node.id)}"><use href="#i-${node.iconId}"/></svg>`;
   const translate = (key, values) => i18n.translate(language, key, values);
 
+  function persistNavigationState() {
+    if (!navigationSessionReady) return;
+    navigationSession.write({
+      activeRoute: registry.topic(activeTopicId)?.routeId || null,
+      expandedBranchIds: [...expandedBranchIds],
+      scrollPositions: navigationScrollPositions,
+      drawerOpen: Boolean(mobileNavigationLayout && !sidebar.hidden && sidebar.classList.contains("is-open"))
+    });
+  }
+
+  function captureNavigationScrollPosition() {
+    const layout = mobileNavigationLayout ? "mobile" : "desktop";
+    navigationScrollPositions[layout] = Math.max(0, Math.round(navigationScrollRegion.scrollTop));
+    persistNavigationState();
+  }
+
+  function restoreNavigationScrollPosition(layout) {
+    navigationScrollRegion.scrollTop = navigationScrollPositions[layout] || 0;
+  }
+
   function languageMetadata() {
     return i18n.languages().find(({ id }) => id === language) || i18n.languages()[0];
   }
@@ -79,13 +107,19 @@
     </div>`;
   }
 
-  function readRoute() {
+  function readRoute({ preserveExpansion = false } = {}) {
     const parameters = new URLSearchParams(root.location.search);
     language = i18n.resolveLanguage(parameters.get("lang"));
-    activeTopicId = topicIds.has(parameters.get("topic")) ? parameters.get("topic") : registry.globalTopic();
+    const requestedTopicId = parameters.get("topic");
+    const restoredTopicId = restoredNavigationSnapshot?.activeRoute
+      ? registry.topics().find(({ routeId }) => routeId === restoredNavigationSnapshot.activeRoute)?.id
+      : null;
+    activeTopicId = topicIds.has(requestedTopicId)
+      ? requestedTopicId
+      : topicIds.has(restoredTopicId) ? restoredTopicId : registry.globalTopic();
     sectionTarget = /^[a-z][a-z0-9-]*$/u.test(parameters.get("section") || "") ? parameters.get("section") : "";
     document.documentElement.dataset.palette = parameters.get("palette") === "z00z-corporate" ? "z00z-corporate" : "z00z-default";
-    expandActiveBranch();
+    if (!preserveExpansion) expandActiveBranch();
   }
 
   function routeUrl(topicId, target = "") {
@@ -205,8 +239,8 @@
   function walletAssetsContext(workspace) {
     const sections = [
       { id: "assets", topicId: "wallet.assets", routeId: "wallet.assets", labelKey: "assets.sectionAssets", iconId: "assets" },
-      { id: "vouchers", topicId: "wallet.vouchers", routeId: "wallet.vouchers", labelKey: "assets.sectionVouchers", iconId: "voucher" },
-      { id: "permissions", topicId: "wallet.permissions", routeId: "wallet.permissions", labelKey: "assets.sectionPermissions", iconId: "permission" }
+      { id: "vouchers", topicId: "wallet.vouchers", routeId: "wallet.vouchers", labelKey: "assets.sectionVouchers", iconId: "voucher-list" },
+      { id: "permissions", topicId: "wallet.permissions", routeId: "wallet.permissions", labelKey: "assets.sectionPermissions", iconId: "permission-list" }
     ];
     const destinations = sections.filter(({ topicId }) => registry.hasTopic(topicId));
     if (!destinations.length) return null;
@@ -504,6 +538,9 @@
     renderTree();
     renderSearch();
     renderDocument(options.focusHeading);
+    requestAnimationFrame(() => {
+      restoreNavigationScrollPosition(mobileNavigationLayout ? "mobile" : "desktop");
+    });
   }
 
   function openTopic(topicId) {
@@ -511,6 +548,7 @@
     activeTopicId = topicId;
     sectionTarget = "";
     expandActiveBranch();
+    persistNavigationState();
     root.history.pushState({}, "", routeUrl(topicId).href);
     render({ focusHeading: true });
     closeSidebar();
@@ -532,16 +570,23 @@
     document.body.classList.add("has-mobile-drawer");
     main.inert = true;
     menuButton.setAttribute("aria-expanded", "true");
+    persistNavigationState();
     requestAnimationFrame(() => {
       const focusTarget = sidebar.querySelector("[aria-current='page']")
         || sidebar.querySelector('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
-      focusTarget?.scrollIntoView({ block: "nearest" });
-      focusTarget?.focus();
+      const restoredScrollTop = navigationScrollPositions.mobile || 0;
+      if (restoredScrollTop > 0) {
+        restoreNavigationScrollPosition("mobile");
+      } else {
+        focusTarget?.scrollIntoView({ block: "nearest" });
+      }
+      focusTarget?.focus({ preventScroll: restoredScrollTop > 0 });
     });
   }
 
   function closeSidebar({ restoreFocus = false } = {}) {
     const wasOpen = !sidebar.hidden && sidebar.classList.contains("is-open");
+    if (wasOpen) captureNavigationScrollPosition();
     sidebar.classList.remove("is-open");
     backdrop.hidden = true;
     document.body.classList.remove("has-mobile-drawer");
@@ -557,6 +602,7 @@
       sidebar.removeAttribute("role");
       sidebar.hidden = false;
     }
+    persistNavigationState();
     if (restoreFocus && wasOpen) menuButton.focus();
   }
 
@@ -613,6 +659,7 @@
       const nodeId = branch.dataset.helpNavigationBranch;
       if (expandedBranchIds.has(nodeId)) expandedBranchIds.delete(nodeId);
       else expandedBranchIds.add(nodeId);
+      persistNavigationState();
       renderTree();
       requestAnimationFrame(() => tree.querySelector(`[data-help-navigation-branch="${CSS.escape(nodeId)}"]`)?.focus({ preventScroll: true }));
       return;
@@ -630,6 +677,7 @@
       const nodeId = branch.dataset.helpNavigationBranch;
       if (expandedBranchIds.has(nodeId)) expandedBranchIds.delete(nodeId);
       else expandedBranchIds.add(nodeId);
+      persistNavigationState();
       renderTree();
       requestAnimationFrame(() => navigationTerminal.querySelector(`[data-help-navigation-branch="${CSS.escape(nodeId)}"]`)?.focus({ preventScroll: true }));
       return;
@@ -681,6 +729,7 @@
     searchQuery = searchInput.value;
     renderSearch();
   });
+  navigationScrollRegion.addEventListener("scroll", captureNavigationScrollPosition, { passive: true });
   menuButton.addEventListener("click", openSidebar);
   backdrop.addEventListener("click", () => closeSidebar({ restoreFocus: true }));
   homeLink.addEventListener("click", (event) => {
@@ -803,7 +852,12 @@
     if (!event.target.closest("[data-help-language-picker]")) closeLanguagePicker();
   });
 
-  readRoute();
+  readRoute({ preserveExpansion: Boolean(restoredNavigationSnapshot) });
   closeSidebar();
+  navigationSessionReady = true;
   render();
+  persistNavigationState();
+  if (restoredNavigationSnapshot?.drawerOpen && mobileNavigationLayout) {
+    requestAnimationFrame(openSidebar);
+  }
 })(typeof window === "undefined" ? globalThis : window);

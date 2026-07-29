@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
-title: Découvrir
-summary: Découvrir : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.
+title: Découvrir les dApps
+summary: Découvrir les dApps : aide sur l’aperçu dApps local limité et sa frontière d’autorisation.
 scope: context
 ---
 ## Utiliser cette vue {#current-view}

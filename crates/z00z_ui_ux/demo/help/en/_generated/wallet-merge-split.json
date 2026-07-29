@@ -5,10 +5,10 @@
     "button|type=button|role=tab",
     "input|type=checkbox"
   ],
-  "presentation_sha256": "abdf6cf86f3ae7884353a4c4f036fc5678785d475cf8fc24cc7609f78f452682",
+  "presentation_sha256": "c15e606f98bc999325dda90fd4b7441c9bb4535b71b309070430fd77627547c3",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-merge-split.png",
-  "screenshot_sha256": "93da7dee5827b1207e947943c6bce5b1ee18bcfd2f4ba34c9c59bfc66d49d26a",
+  "screenshot_sha256": "9b8f75f5edcbe34f7e6ba72195cb19577062a520395a8fb3a97c31e7da607e55",
   "sections": [
     "Choose at least two inputs",
     "Merge/Split assets"

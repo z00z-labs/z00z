@@ -25,8 +25,13 @@ const TITLE_SEGMENTS = Object.freeze({
   onionnet: "OnionNet",
   staking: "Earn",
   "merge-split": "Merge/Split",
+  "agents-budget": "Agent Budget",
+  bounties: "Bounty",
+  "service-credits": "Service Credit",
   "wbold-gateway": "wBOLD Gateway",
-  "tickets-passes": "Tickets & Passes",
+  "tickets-passes": "Ticket & Pass",
+  "private-contract": "Private Agreement",
+  discover: "Discover dApps",
 });
 
 function segment(value) {

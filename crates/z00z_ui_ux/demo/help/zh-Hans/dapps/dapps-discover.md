@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
-title: 发现
-summary: 发现：受限本地 dApps 预览及其权限边界的帮助。
+title: 发现 dApps
+summary: 发现 dApps：受限本地 dApps 预览及其权限边界的帮助。
 scope: context
 ---
 ## 使用此视图 {#current-view}

@@ -9,10 +9,10 @@
     "input|type=text|name=class|placeholder=Coffee, travel, event credit",
     "input|type=text|name=scope|placeholder=Exact merchant or service class"
   ],
-  "presentation_sha256": "579b726fa10cf741531a62983d8f808551f2ff69d5e84bf78449edd462dba0ac",
+  "presentation_sha256": "2c5898d27b5ff8844066aa4e7311de286db116e1dd19488a70de4c0727e4dd11",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-create-voucher.png",
-  "screenshot_sha256": "9e45c17c6eabd2dd577646bcd73cd7a3bff010cd1e477fef9d36b82e24efa577",
+  "screenshot_sha256": "dcc0059fee7fdedd9727bd7bee608d364bce44f3b730083dfdbf45ccc714e2a2",
   "sections": [
     "Create Voucher",
     "Prepare proposal",

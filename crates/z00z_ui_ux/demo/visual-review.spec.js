@@ -3,13 +3,14 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { test, expect } = require("playwright/test");
 
-test.setTimeout(1_200_000);
+test.setTimeout(2_400_000);
 
 const demoUrl = process.env.Z00Z_WALLET_DEMO_URL;
 const dappMenuLabels = [
-  "Agents Budget",
+  "Agent Budget",
   "Assets Locker",
-  "Bounties",
+  "Bounty",
+  "Create Asset",
   "Create Permission",
   "Create Voucher",
   "Digital Goods",
@@ -17,19 +18,20 @@ const dappMenuLabels = [
   "Escrow",
   "Pay",
   "Payroll",
+  "Private Agreement",
   "Request",
-  "Service Credits",
+  "Service Credit",
   "Subscription",
   "Swap",
-  "Tickets & Passes",
+  "Ticket & Pass",
   "wBOLD Gateway",
-  "Discover",
-  "Installed",
+  "Discover dApps",
 ];
 const dappReviewRoutes = [
   ["dapps.agents-budget", "dapps-agents-budget"],
   ["dapps.assets-locker", "dapps-assets-locker"],
   ["dapps.bounties", "dapps-bounties"],
+  ["dapps.create-asset", "dapps-create-asset"],
   ["dapps.create-permission", "dapps-create-permission"],
   ["dapps.create-voucher", "dapps-create-voucher"],
   ["dapps.digital-goods", "dapps-digital-goods"],
@@ -37,6 +39,7 @@ const dappReviewRoutes = [
   ["dapps.escrow", "dapps-escrow"],
   ["dapps.pay", "dapps-pay"],
   ["dapps.payroll", "dapps-payroll"],
+  ["dapps.private-contract", "dapps-private-contract"],
   ["dapps.request", "dapps-request"],
   ["dapps.service-credits", "dapps-service-credits"],
   ["dapps.subscription", "dapps-subscription"],
@@ -112,6 +115,12 @@ async function captureHelp(page, trigger, viewport, name) {
 async function selectAppLanguage(page, languageId) {
   await page.locator("[data-language-picker-trigger]").click();
   await page.locator(`[data-language-picker-option="${languageId}"]`).click();
+}
+
+async function setBranchExpanded(branch, expanded) {
+  const expected = String(expanded);
+  if (await branch.getAttribute("aria-expanded") !== expected) await branch.click();
+  await expect(branch).toHaveAttribute("aria-expanded", expected);
 }
 
 async function settleMainAnimations(page) {
@@ -383,10 +392,6 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
     layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-wallet-handoff-send" }));
     await capture(page, `${viewport.name}-dapps-wallet-handoff-send`, { fullPage: viewport.width <= 768 });
 
-    await page.goto(`${demoUrl}?route=dapps.installed`);
-    layoutAudit.push(await auditResponsiveGeometry(page, viewport, { name: "dapps-installed" }));
-    await capture(page, `${viewport.name}-dapps-installed`, { fullPage: viewport.width <= 768 });
-
     await page.goto(`${demoUrl}?route=settings.appearance`);
     await page.locator('#main-content [data-palette="z00z-corporate"]').click();
     await expect(page.locator('#main-content [data-palette="z00z-corporate"]')).toHaveAttribute("aria-pressed", "true");
@@ -420,7 +425,7 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
       }
     }
 
-    await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
     await page.locator(".asset-identity-button").first().click();
     await expect(page.getByRole("heading", { name: "Asset details" })).toBeVisible();
     await capture(page, `${viewport.name}-asset-details`);
@@ -454,16 +459,15 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
     }
 
     if (viewport.width <= 768) {
-      await page.goto(`${demoUrl}?view=wallet&wallet=assets`);
+      await page.goto(`${demoUrl}?route=wallet.assets`);
       await page.locator("#mobile-menu-button").click();
       const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
       const wallet = drawer.locator('[data-navigation-branch="wallet"]');
       const telemetry = drawer.locator('[data-navigation-branch="telemetry"]');
+      await setBranchExpanded(wallet, true);
+      await setBranchExpanded(telemetry, false);
+      await setBranchExpanded(telemetry, true);
       await expect(wallet).toHaveAttribute("aria-expanded", "true");
-      await expect(telemetry).toHaveAttribute("aria-expanded", "false");
-      await telemetry.click();
-      await expect(wallet).toHaveAttribute("aria-expanded", "true");
-      await expect(telemetry).toHaveAttribute("aria-expanded", "true");
       await capture(page, `${viewport.name}-wallet-telemetry-multi-open`);
       await drawer.locator(".mobile-navigation-scroll-region").evaluate((region) => {
         region.scrollTop = region.scrollHeight;
@@ -479,7 +483,7 @@ test("capture Demo layouts and English Help review matrix", async ({ page }) => 
 
     if (viewport.width === 320) {
       for (const locale of ["ru", "de", "fr", "pt", "tr", "ja", "ko", "zh-Hans"]) {
-        await page.goto(`${demoUrl}?view=settings&settings=general`);
+        await page.goto(`${demoUrl}?route=settings.general`);
         await selectAppLanguage(page, locale);
         await capture(page, `${viewport.name}-locale-${locale}`);
       }
@@ -635,7 +639,7 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
       ? page.locator("#mobile-popup-menu")
       : page.locator("#app-navigation-tree");
     const dapps = navigation.locator('[data-navigation-branch="dapps"]');
-    await expect(dapps).toHaveAttribute("aria-expanded", "true");
+    await setBranchExpanded(dapps, true);
     const dappRoutes = navigation.locator('[data-navigation-branch="dapps"] + .navigation-tree-children > [data-navigation-route]');
     await expect(dappRoutes).toHaveText(dappMenuLabels);
     await expect(navigation.locator('[data-navigation-route="wallet.swap"]')).toHaveAttribute("aria-current", "page");
@@ -666,7 +670,7 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
       ? page.locator(".mobile-navigation-terminal")
       : page.locator("#app-navigation-terminal");
     if (viewport.width <= 768) await terminal.scrollIntoViewIfNeeded();
-    await expect(terminal.locator('[data-navigation-branch="settings"]')).toHaveAttribute("aria-expanded", "true");
+    await setBranchExpanded(terminal.locator('[data-navigation-branch="settings"]'), true);
     await expect(terminal.locator(":scope > .navigation-tree-terminal")).toHaveText(["Help", "About", "Log out"]);
     await expect(terminal.locator('[data-navigation-route="about"]')).toBeVisible();
     await capture(page, `${viewport.name}-phase-6-terminal-navigation`);

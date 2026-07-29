@@ -1,7 +1,7 @@
 ---
 id: dapps.discover
-title: 探索
-summary: 探索：制限されたローカル dApps プレビューと権限境界のヘルプです。
+title: dApps を探す
+summary: dApps を探す：制限されたローカル dApps プレビューと権限境界のヘルプです。
 scope: context
 ---
 ## この画面の使い方 {#current-view}

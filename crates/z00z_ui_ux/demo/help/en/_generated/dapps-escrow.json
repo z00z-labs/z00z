@@ -10,10 +10,10 @@
     "input|type=text|name=counterparty|placeholder=Recipient commitment",
     "input|type=text|name=fallback|placeholder=Return or alternate recipient"
   ],
-  "presentation_sha256": "3b932b54d7c1be1201e5c6b4b10b5bb3c7b4cb11051c0817a529f87a3d191613",
+  "presentation_sha256": "147e864b37607a7f9b86c06bbfc6db7e64d522be81acc80b0bedaa6adb5fd75f",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-escrow.png",
-  "screenshot_sha256": "a5c87ce1d873689c8c6320bc548b31dda451ec33af33dc49258f855be804cc9b",
+  "screenshot_sha256": "1ab61e5d5a562555c3c18d5b46a7378e586ab49186fcf94efbed204a108d9417",
   "sections": [
     "Escrow",
     "Prepare proposal",

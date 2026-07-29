@@ -3,10 +3,10 @@
   "components": [
     "button|type=button"
   ],
-  "presentation_sha256": "e80782e3dcbba4c90d1538a606eed87cdb5019678f8fd531da550560a91c670e",
+  "presentation_sha256": "428800022f4917283ccf68d5caf4c30eece3d9cff92dde2fac05210c56681202",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-settings-general.png",
-  "screenshot_sha256": "b6f641eb693a05b82b1b04d357cbb58db9e0d244aaeb7714299b59741dbddd8d",
+  "screenshot_sha256": "095ce6050a8b239b57768087d9bb561a4aa19104c05fd7dd76942bae18f6711d",
   "sections": [],
   "terms": [
     "Advanced",

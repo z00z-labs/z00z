@@ -12,9 +12,9 @@
   "presentation_sha256": "e4090f6201c9851ad55d4a5456216183ec7eb67d40ce8f3bd03ddab8c43f57ea",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-bounties.png",
-  "screenshot_sha256": "2d6c99925354e4fd369f148c643e5ef60b54f14a84edb5a783983fb1b16f791a",
+  "screenshot_sha256": "e92fd566e39d27b6ad0c6c4ba3b403d58b9d51d09e6e5cd70563a9c7494ceb7f",
   "sections": [
-    "Bounties",
+    "Bounty",
     "Prepare proposal",
     "What happens next"
   ],
@@ -22,7 +22,7 @@
     "0.00",
     "24 hours",
     "A backed bounty definition with verifier, deadline, and evidence requirements.",
-    "Bounties",
+    "Bounty",
     "Bounty claim \u2192 submission evidence \u2192 verifier right \u2192 payout package",
     "Bounty definition, verifier decision, and payout receipt",
     "Claim, Permission, Asset",

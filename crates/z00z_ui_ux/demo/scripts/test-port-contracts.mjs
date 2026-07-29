@@ -14,6 +14,7 @@ const context = vm.createContext({
 const modules = [
   "scripts/port/contracts.js",
   "scripts/port/navigation-model.js",
+  "scripts/port/navigation-session.js",
   "scripts/port/exchange-catalog.js",
   "scripts/port/dapp-catalog.js",
   "scripts/port/messenger-catalog.js",
@@ -39,6 +40,35 @@ for (const modulePath of modules) {
 const demo = context.window.Z00ZDemo;
 const locales = context.window.Z00ZLocaleRegistry;
 
+const navigationStorageValues = new Map();
+const navigationStorage = {
+  getItem(key) {
+    return navigationStorageValues.get(key) ?? null;
+  },
+  setItem(key, value) {
+    navigationStorageValues.set(key, String(value));
+  }
+};
+const navigationSession = demo.createNavigationSession("contract-test", navigationStorage);
+assert.equal(navigationSession.read(), null);
+assert.equal(navigationSession.write({
+  activeRoute: "dapps.request",
+  expandedBranchIds: ["telemetry", "wallet", "unknown", "telemetry"],
+  scrollPositions: { desktop: 34.4, mobile: -8 },
+  drawerOpen: true
+}), true);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(navigationSession.read())),
+  {
+    activeRoute: "dapps.request",
+    expandedBranchIds: ["telemetry", "wallet"],
+    scrollPositions: { desktop: 34, mobile: 0 },
+    drawerOpen: true
+  }
+);
+navigationStorageValues.set(navigationSession.key, "{not-json");
+assert.equal(navigationSession.read(), null);
+
 assert.equal(demo.PORT_CONTRACT.rendererRuntime, "leptos-csr-wasm");
 assert.equal(demo.PORT_CONTRACT.packagedHost, "tauri-2");
 assert.equal(demo.PORT_CONTRACT.browserProduct, false);
@@ -46,7 +76,7 @@ assert.equal(demo.PORT_CONTRACT.walletBackendRuntime, "native-rust");
 assert.ok(demo.PORT_CONTRACT.rendererForbiddenState.includes("session_token"));
 assert.ok(demo.PORT_CONTRACT.forbiddenTransports.includes("websocket"));
 assert.equal(demo.PORT_CONTRACT.capabilityStates, undefined);
-assert.equal(demo.PORT_CONTRACT.routes.length, 77);
+assert.equal(demo.PORT_CONTRACT.routes.length, 78);
 assert.ok(demo.PORT_CONTRACT.walletRoutes.includes("wallet.merge-split"));
 assert.equal(demo.navigationNode("wallet.merge-split").iconId, "merge-split");
 assert.equal(demo.navigationNode("wallet.merge-split").helpTopicId, "wallet.merge-split");
@@ -112,6 +142,7 @@ assert.deepEqual(Array.from(demo.DAPP_DESCRIPTOR_IDS), [
   "request",
   "create-voucher",
   "create-permission",
+  "create-asset",
   "agents-budget",
   "wbold-gateway",
   "subscription",
@@ -122,15 +153,17 @@ assert.deepEqual(Array.from(demo.DAPP_DESCRIPTOR_IDS), [
   "service-credits",
   "digital-goods",
   "payroll",
+  "private-contract",
   "assets-locker"
 ]);
-assert.equal(demo.DAPP_CATALOG.length, 15);
+assert.equal(demo.DAPP_CATALOG.length, 17);
 assert.equal(demo.assertDappCatalog(), true);
 const expectedDappInterfaces = {
   pay: ["recipient", "asset", "amount", "expiry", "connectivity"],
   request: ["asset", "amount", "amount-rule", "payment-mode", "expiry", "business-reference", "attachment-digest", "memo"],
   "create-voucher": ["class", "asset", "value", "scope", "uses", "partial", "expiry", "transferability", "refund"],
   "create-permission": ["recipient", "scope", "uses", "expiry", "delegation"],
+  "create-asset": ["class", "name", "symbol", "decimals", "serials", "nominal", "namespace", "policy", "metadata-digest"],
   "agents-budget": ["agent", "services", "asset", "period-limit", "action-limit", "max-actions", "approval", "expiry"],
   "wbold-gateway": ["direction", "amount", "external-recipient", "operator", "max-fee"],
   subscription: ["provider", "plan", "asset", "amount", "period", "periods", "expiry"],
@@ -141,6 +174,7 @@ const expectedDappInterfaces = {
   "service-credits": ["provider", "service", "quota", "unit", "expiry", "delegation"],
   "digital-goods": ["provider", "item", "uses", "expiry", "transferability"],
   payroll: ["batch", "asset", "recipient-set", "recipients", "total", "schedule", "audit"],
+  "private-contract": ["template", "counterparty", "subject", "obligations", "terms-digest", "effective", "expiry", "disclosure", "decision"],
   "assets-locker": ["asset", "action", "amount", "route", "external-recipient", "risk", "max-fee"]
 };
 for (const [descriptorId, fieldIds] of Object.entries(expectedDappInterfaces)) {
@@ -152,21 +186,39 @@ for (const [descriptorId, fieldIds] of Object.entries(expectedDappInterfaces)) {
 }
 assert.ok(Object.isFrozen(demo.DAPP_CATALOG));
 assert.ok(demo.DAPP_CATALOG.every((entry) => Object.isFrozen(entry)));
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ id }) => id)).size, 15);
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ iconName }) => iconName)).size, 15);
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ intentType }) => intentType)).size, 15);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ id }) => id)).size, 17);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ iconName }) => iconName)).size, 17);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ intentType }) => intentType)).size, 17);
 assert.equal(
   demo.dappDescriptor("create-voucher").iconName,
-  demo.navigationNode("wallet.vouchers").iconId
+  demo.navigationNode("dapps.create-voucher").iconId
 );
 assert.equal(
   demo.dappDescriptor("create-permission").iconName,
+  demo.navigationNode("dapps.create-permission").iconId
+);
+assert.equal(demo.navigationNode("dapps.create-voucher").iconId, "voucher-list");
+assert.equal(demo.navigationNode("dapps.create-permission").iconId, "permission-list");
+assert.equal(
+  demo.navigationNode("dapps.create-voucher").iconId,
+  demo.navigationNode("wallet.vouchers").iconId
+);
+assert.equal(
+  demo.navigationNode("dapps.create-permission").iconId,
   demo.navigationNode("wallet.permissions").iconId
 );
-assert.equal(demo.navigationNode("dapps.create-voucher").iconId, "voucher");
-assert.equal(demo.navigationNode("dapps.create-permission").iconId, "permission");
-assert.ok(!demo.ICON_NAMES.includes("dapp-create-voucher"));
-assert.ok(!demo.ICON_NAMES.includes("dapp-create-permission"));
+assert.equal(demo.dappDescriptor("create-asset").iconName, "assets");
+assert.equal(
+  demo.dappDescriptor("create-asset").iconName,
+  demo.navigationNode("dapps.create-asset").iconId
+);
+assert.equal(
+  demo.navigationNode("dapps.create-asset").iconId,
+  demo.navigationNode("wallet.assets-rights").iconId
+);
+assert.ok(demo.ICON_NAMES.includes("voucher-list"));
+assert.ok(demo.ICON_NAMES.includes("permission-list"));
+assert.ok(demo.ICON_NAMES.includes("dapp-private-contract"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.availability === "unavailable"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.presentationMode === "roadmap_preview"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.publisher.verified === false));
@@ -186,8 +238,12 @@ assert.equal(
   undefined
 );
 assert.ok(demo.DAPP_CATALOG.flatMap(({ proposalFields }) => proposalFields)
-  .filter(({ type, id }) => type === "number" && id !== "max-fee")
+  .filter(({ type, id }) => type === "number" && !["decimals", "max-fee"].includes(id))
   .every(({ min }) => Number(min) > 0));
+assert.equal(
+  demo.dappDescriptor("create-asset").proposalFields.find(({ id }) => id === "decimals").min,
+  "0"
+);
 assert.equal(demo.dappDescriptor("unknown"), null);
 assert.equal(demo.dappDescriptor("agents-budget").maturity, "concept");
 assert.equal(demo.dappDescriptor("agents-budget").valuePath, "separate_wallet_review");
@@ -216,6 +272,21 @@ assert.doesNotMatch(
   JSON.stringify(demo.DAPP_CATALOG),
   /((?:https?:)?\/\/)|\b(?:url|domain|iframe|bundle|executable|sourceCode)\b/i
 );
+const carbonMaterialRequestPath = "M30 19.102c0 .833-.324 1.614-.914 2.201l-7.277 7.25A4.93 4.93 0 0 1 18.306 30H11v-2h7.306a2.94 2.94 0 0 0 2.09-.865l7.279-7.25c.21-.208.325-.487.325-.783a1.102 1.102 0 0 0-1.88-.783l-5.882 5.86c-.517.513-1.353.82-2.238.82h-.992l-.01.001H13l-.002-2h4.007a1 1 0 0 0-.007-2h-7c-1.654 0-3 1.346-3 3v1.334L3.6 29.86L2 28.658l2.998-3.992V24c0-2.757 2.243-5 5-5h7a2.994 2.994 0 0 1 2.963 2.631l4.747-4.73a3.11 3.11 0 0 1 4.38 0A3.1 3.1 0 0 1 30 19.103Zm-.133-8.622a1 1 0 0 1-.867.502h-7a1 1 0 0 1-.864-1.504l3.5-6c.36-.614 1.369-.614 1.728 0l3.5 6a1 1 0 0 1 .003 1.002M27.26 8.982L25.5 5.967l-1.759 3.015zM9 2v7H2V2zM7 4H4v3h3zm12 9c0 2.206-1.794 4-4 4s-4-1.794-4-4s1.794-4 4-4s4 1.794 4 4m-2 0c0-1.102-.897-2-2-2s-2 .898-2 2s.898 2 2 2s2-.897 2-2";
+const etDocumentPaths = Object.freeze([
+  "M1.5 32h21c.827 0 1.5-.673 1.5-1.5v-21c0-.017-.008-.031-.009-.047q-.004-.033-.013-.065a.5.5 0 0 0-.09-.191c-.007-.009-.006-.02-.013-.029l-8-9-.01-.006a.5.5 0 0 0-.223-.134q-.027-.008-.056-.011C15.557.012 15.53 0 15.5 0h-14C.673 0 0 .673 0 1.5v29c0 .827.673 1.5 1.5 1.5M16 1.815L22.387 9H16.5c-.22 0-.5-.42-.5-.75zM1 1.5a.5.5 0 0 1 .5-.5H15v7.25c0 .809.655 1.75 1.5 1.75H23v20.5a.5.5 0 0 1-.5.5h-21c-.28 0-.5-.22-.5-.5z",
+  "M5.5 14h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1m0 4h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1m0-8h6a.5.5 0 0 0 0-1h-6a.5.5 0 0 0 0 1m0 12h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1m0 4h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1"
+]);
+const voucherListSource = await readFile(
+  resolve(demoRoot, "assets/z00z-friendly/Vauchers/vaucher-orange.svg"),
+  "utf8"
+);
+const permissionListSource = await readFile(
+  resolve(demoRoot, "assets/z00z-friendly/Permissions/permission-blue.svg"),
+  "utf8"
+);
+const voucherListPath = voucherListSource.match(/<path[^>]+d="([^"]+)"/)?.[1];
+const permissionListPaths = [...permissionListSource.matchAll(/<path[^>]+d="([^"]+)"/g)].map(([, path]) => path);
 for (const shellFile of ["index.html", "help.html"]) {
   const shellSource = await readFile(resolve(demoRoot, shellFile), "utf8");
   const mergeSplitSymbol = shellSource.match(/<symbol id="i-merge-split"[\s\S]*?<\/symbol>/)?.[0] || "";
@@ -231,13 +302,54 @@ for (const shellFile of ["index.html", "help.html"]) {
   assert.match(earnSymbol, /viewBox="0 0 24 24"/, `${shellFile} Earn must use the shared icon canvas.`);
   assert.match(earnSymbol, /stroke-width="1\.5"/, `${shellFile} Earn must use the light outline stroke.`);
   assert.doesNotMatch(earnSymbol, /icon-fill/, `${shellFile} Earn must not use a filled glyph.`);
-  assert.doesNotMatch(shellSource, /i-dapp-create-(?:voucher|permission)/);
   for (const iconName of navigationIcons) {
     const symbol = shellSource.match(new RegExp(`<symbol id="i-${iconName}"[\\s\\S]*?</symbol>`))?.[0] || "";
     assert.match(symbol, /viewBox="0 0 24 24"/, `${shellFile} ${iconName} must use the shared navigation canvas.`);
   }
   for (const { iconName } of demo.DAPP_CATALOG) {
     const symbol = shellSource.match(new RegExp(`<symbol id="i-${iconName}"[\\s\\S]*?</symbol>`))?.[0] || "";
+    if (iconName === "dapp-request") {
+      assert.match(symbol, /data-iconify="carbon:material-request"/);
+      assert.match(symbol, /transform="scale\(0\.75\)"/, `${shellFile} Request must normalize the Carbon 32px canvas to 24px.`);
+      assert.doesNotMatch(symbol, /filter=/, `${shellFile} Request must retain the native Carbon weight after 24px normalization.`);
+      assert.doesNotMatch(shellSource, /id="i-dapp-request-light"/, `${shellFile} Request must not apply an erosion filter.`);
+      assert.equal(
+        symbol.match(/<path fill="currentColor" d="([^"]+)"/)?.[1],
+        carbonMaterialRequestPath,
+        `${shellFile} Request must preserve the carbon:material-request geometry.`
+      );
+      continue;
+    }
+    if (iconName === "voucher-list") {
+      assert.equal(
+        symbol.match(/<path class="icon-fill" d="([^"]+)"/)?.[1],
+        voucherListPath,
+        `${shellFile} Create Voucher must preserve the Voucher list glyph.`
+      );
+      continue;
+    }
+    if (iconName === "permission-list") {
+      assert.match(symbol, /transform="scale\(0\.5\)"/);
+      assert.match(symbol, /stroke="currentColor"/);
+      assert.match(symbol, /stroke-width="3\.6"/, `${shellFile} Create Permission must normalize to the shared 1.8px menu weight.`);
+      assert.deepEqual(
+        [...symbol.matchAll(/<path[^>]+d="([^"]+)"/g)].map(([, path]) => path),
+        permissionListPaths,
+        `${shellFile} Create Permission must preserve the Permission list glyph.`
+      );
+      continue;
+    }
+    if (iconName === "dapp-private-contract") {
+      assert.match(symbol, /data-iconify="et:document"/);
+      assert.match(symbol, /transform="translate\(3 0\) scale\(0\.75\)"/);
+      assert.match(symbol, /fill="currentColor"/);
+      assert.deepEqual(
+        [...symbol.matchAll(/<path d="([^"]+)"/g)].map(([, path]) => path),
+        etDocumentPaths,
+        `${shellFile} Private Agreement must preserve the et:document geometry.`
+      );
+      continue;
+    }
     assert.match(symbol, /stroke-width="1\.5"/, `${shellFile} ${iconName} must use the light outline stroke.`);
     assert.doesNotMatch(symbol, /icon-fill/, `${shellFile} ${iconName} must not use a filled glyph.`);
   }
@@ -1037,6 +1149,7 @@ assert.deepEqual(
     "dapps.agents-budget",
     "dapps.assets-locker",
     "dapps.bounties",
+    "dapps.create-asset",
     "dapps.create-permission",
     "dapps.create-voucher",
     "dapps.digital-goods",
@@ -1044,18 +1157,20 @@ assert.deepEqual(
     "dapps.escrow",
     "dapps.pay",
     "dapps.payroll",
+    "dapps.private-contract",
     "dapps.request",
     "dapps.service-credits",
     "dapps.subscription",
     "wallet.swap",
     "dapps.tickets-passes",
     "dapps.wbold-gateway",
-    "dapps.discover",
-    "dapps.installed"
+    "dapps.discover"
   ]
 );
 assert.equal(demo.navigationNode("dapps.discover").sectionBreakBefore, true);
-assert.equal(demo.navigationNode("dapps.installed").sectionBreakBefore, false);
+assert.equal(demo.navigationNode("dapps.installed"), null);
+assert.equal(demo.PORT_CONTRACT.routes.includes("dapps.installed"), false);
+assert.equal(context.window.Z00ZHelpRegistry.hasTopic("dapps.installed"), false);
 assert.equal(demo.navigationNode("dapps.permissions"), null);
 assert.equal(demo.PORT_CONTRACT.routes.includes("dapps.permissions"), false);
 assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.swap").pagePath.join("/"), "dapps/swap");

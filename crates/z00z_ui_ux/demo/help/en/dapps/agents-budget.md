@@ -1,23 +1,23 @@
 ---
 id: dapps.agents-budget
-title: dApps: Agents Budget
+title: dApps: Agent Budget
 route: dapps.agents-budget
 scope: context
 ---
 
-# dApps: Agents Budget
+# dApps: Agent Budget
 
 [TOC]
 
 ## App View {#current-view}
 
-![dApps: Agents Budget application view](help/assets/en/dapps-agents-budget.png)
+![dApps: Agent Budget application view](help/assets/en/dapps-agents-budget.png)
 
 This image is captured from the live Demo view. Review the current interface before publishing explanatory guidance.
 
 ## Overview
 
-Agents Budget proposes a tightly bounded spending right for a named local
+Agent Budget proposes a tightly bounded spending right for a named local
 agent. The agent receives policy-limited authority, never a private key or
 generic signing interface.
 
