@@ -10128,7 +10128,9 @@ button.connection-option:hover,
   }
 
   .mobile-menu-button:focus-visible,
-  .mobile-popup-icon:focus-visible {
+  .mobile-popup-icon:focus-visible,
+  #mobile-popup-menu .navigation-tree-item:focus-visible,
+  #help-sidebar .navigation-tree-item:focus-visible {
     outline: 0;
     outline-offset: 0;
   }

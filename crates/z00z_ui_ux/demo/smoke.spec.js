@@ -3922,7 +3922,13 @@ test("mobile touch Menu control has no retained blue focus ring after closing He
   await page.locator("#help-menu-button").tap();
   await expect(page.locator(".help-mobile-menu-title")).toHaveText("Help Content");
   await expect(page.locator("#help-sidebar-close, [data-mobile-popup-close]")).toHaveCount(0);
-  await expect(page.locator('[data-help-topic-link="wallet.assets"]')).toBeFocused();
+  const activeHelpLink = page.locator('[data-help-topic-link="wallet.assets"]');
+  await expect(activeHelpLink).toBeFocused();
+  expect(await focusPresentation(activeHelpLink)).toMatchObject({
+    outlineStyle: "none",
+    outlineOffset: "0px",
+    tapHighlight: "rgba(0, 0, 0, 0)",
+  });
   await page.keyboard.press("Escape");
   const menuButton = page.locator("#help-menu-button");
   await expect(menuButton).toBeFocused();
