@@ -203,12 +203,14 @@ const headings = {
 const telemetryTopbar = {
   onionnet: ["OnionNet", "network.routeTelemetry"],
   reticulum: ["Reticulum", "network.carrierTelemetry"],
+  quic: ["QUIC", "network.quicTelemetry"],
   aggregators: ["Aggregators", "network.publicationTelemetry"]
 };
 
 const networkEntries = [
   { key: "reticulum", label: "Reticulum", initials: "R", helperKey: "network.carrierTelemetry" },
   { key: "onionnet", label: "OnionNet", initials: "O", helperKey: "network.routeTelemetry" },
+  { key: "quic", label: "QUIC", initials: "Q", helperKey: "network.quicTelemetry" },
   { key: "aggregators", label: "Aggregators", initials: "A", helperKey: "network.publicationTelemetry" }
 ];
 
@@ -793,7 +795,7 @@ function legacyStateForRoute(routeId) {
   if (routeId.startsWith("wallet.staking.")) return { view: "staking" };
   if (routeId === "wallet.backup") return { view: "wallet-backup" };
   if (routeId.startsWith("wallet.settings.")) return { view: "wallet-settings", walletSettingsSection: routeId.split(".").at(-1) };
-  if (routeId.startsWith("telemetry.reticulum.") || routeId.startsWith("telemetry.onionnet.") || routeId.startsWith("telemetry.aggregators.") || routeId.startsWith("telemetry.watchers.") || routeId.startsWith("telemetry.explorer.")) {
+  if (routeId.startsWith("telemetry.reticulum.") || routeId.startsWith("telemetry.onionnet.") || routeId.startsWith("telemetry.quic.") || routeId.startsWith("telemetry.aggregators.") || routeId.startsWith("telemetry.watchers.") || routeId.startsWith("telemetry.explorer.")) {
     const [, source, tab] = routeId.split(".");
     return { view: "telemetry", telemetrySource: source, [`${source}TelemetryTab`]: tab };
   }
@@ -829,7 +831,7 @@ function legacyStateForRoute(routeId) {
   if (routeId.startsWith("data-storage.")) {
     return { view: "data-storage", dataStorageSection: routeId.split(".").at(-1) };
   }
-  if (["settings.general", "settings.notifications", "settings.appearance"].includes(routeId)) {
+  if (routeId.startsWith("settings.")) {
     return { view: "settings", settingsSection: routeId.split(".").at(-1) };
   }
   if (routeId === "about") return { view: "about" };
@@ -2609,29 +2611,53 @@ function walletSettingsView() {
   return `<div class="view-enter settings-view wallet-settings-view"><div class="workspace-layout settings-layout"><aside class="context-rail">${walletSettingsContextNav()}</aside><article class="card settings-detail">${walletSettingsDetail()}</article></div></div>`;
 }
 
+function settingsNetworkTabs() {
+  return `<nav class="context-nav context-tab-list settings-network-tabs" role="tablist" aria-label="${escapeHtml(t("navigation.network"))}">${demoRuntime.workspaceLocalDestinations("settings.network", { includeHidden: true }).map(({ routeId, labelKey, iconId }) => {
+    const sectionId = routeId.split(".").at(-1);
+    const active = state.settingsSection === sectionId;
+    return `<button id="settings-network-tab-${sectionId}" class="context-nav-item settings-network-tab${active ? " is-active" : ""}" type="button" role="tab" aria-selected="${active}" aria-controls="settings-network-panel" tabindex="${active ? "0" : "-1"}" data-settings-network-section="${sectionId}">${icon(iconId)}<span><strong>${escapeHtml(t(labelKey))}</strong></span></button>`;
+  }).join("")}</nav>`;
+}
+
 function networkDetail() {
   if (state.settingsSection === "reticulum") return `
-    <div class="connection-options">
-      <div class="connection-option"><span class="health-orb"></span><span><strong>Reticulum service</strong><small>Target service example · no live wallet API</small></span><span class="status-badge is-ready">Target</span></div>
-      <div class="connection-option"><span class="list-icon">${icon("network")}</span><span><strong>Interfaces</strong><small>Auto · TCP client + local mesh discovery</small></span><button class="button" type="button" data-demo-action="config-stage">Configure</button></div>
-      <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Network identity</strong><small class="mono">RNS 6A3E…91B2 · independent from wallet seed</small></span><span class="status-badge is-active">Separate</span></div>
-    </div><div class="notice">${icon("settings")} Raw Reticulum interface definitions require a future runtime configuration route. Service/runtime changes may require restart.</div>`;
+    <section class="settings-network-panel" id="settings-network-panel" role="tabpanel" aria-labelledby="settings-network-tab-reticulum">
+      <div class="settings-heading"><div><p class="eyebrow">Local carrier</p><h2>Reticulum</h2><p>Choose local interfaces and discovery behavior without coupling the Reticulum identity to wallet signing keys.</p></div></div>
+      <div class="setting-group settings-first-group">
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Interface profile</strong><small>Preferred carrier interface set</small></span><select class="compact-value" aria-label="Reticulum interface profile" data-config-control="reticulum-interface"><option value="automatic"${state.reticulumInterface === "automatic" ? " selected" : ""}>Automatic</option><option value="auto-interface"${state.reticulumInterface === "auto-interface" ? " selected" : ""}>AutoInterface · local Ethernet / Wi-Fi</option><option value="backbone-client"${state.reticulumInterface === "backbone-client" ? " selected" : ""}>Backbone / TCP client</option><option value="rnode-lora"${state.reticulumInterface === "rnode-lora" ? " selected" : ""}>RNode / LoRa</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Discovery scope</strong><small>Limits automatic peer discovery</small></span><select class="compact-value" aria-label="Reticulum discovery scope" data-config-control="reticulum-discovery-scope"><option value="link"${state.reticulumDiscoveryScope === "link" ? " selected" : ""}>Link local</option><option value="site"${state.reticulumDiscoveryScope === "site" ? " selected" : ""}>Site</option><option value="organisation"${state.reticulumDiscoveryScope === "organisation" ? " selected" : ""}>Organization</option><option value="global"${state.reticulumDiscoveryScope === "global" ? " selected" : ""}>Global · explicit configuration</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><span class="setting-line-copy compact-row-label"><strong>Peer discovery</strong><small>Discover compatible local interfaces</small></span><span class="compact-value"></span><button class="toggle compact-action" type="button" aria-pressed="${state.reticulumPeerDiscovery}" aria-label="Reticulum peer discovery" data-demo-action="reticulum-peer-discovery"></button></div>
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Link strategy</strong><small>When to retain carrier links</small></span><select class="compact-value" aria-label="Reticulum link strategy" data-config-control="reticulum-link-strategy"><option value="persistent-ingress"${state.reticulumLinkStrategy === "persistent-ingress" ? " selected" : ""}>Persistent ingress links</option><option value="on-demand"${state.reticulumLinkStrategy === "on-demand" ? " selected" : ""}>On demand</option><option value="manual"${state.reticulumLinkStrategy === "manual" ? " selected" : ""}>Manual only</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><span class="setting-line-copy compact-row-label"><strong>Network identity</strong><small>Independent from wallet seed</small></span><span class="compact-value mono">RNS 6A3E…91B2</span><span class="status-badge compact-action is-active">Separate</span></div>
+      </div>
+      <div class="capability-note">${icon("alert")}<span><strong>Local target draft</strong><small>The Demo stores these choices locally. It does not claim that a Reticulum service applied them.</small></span></div>
+    </section>`;
 
   if (state.settingsSection === "onionnet") return `
-    <div class="connection-options">
-      <div class="connection-option"><span class="health-orb"></span><span><strong>Privacy route</strong><small>Target example · 3 hops · epoch 1842</small></span><span class="status-badge is-ready">Target floor</span></div>
-      <div class="connection-option"><span class="list-icon">${icon("shield")}</span><span><strong>Membership & replay checks</strong><small>Target telemetry · unavailable in current RPC</small></span><span class="status-badge is-ready">Target</span></div>
-      <div class="connection-option"><span class="list-icon">${icon("activity")}</span><span><strong>Route age</strong><small>12 minutes · rebuilt automatically by policy</small></span><button class="button" type="button" data-demo-action="rebuild-route">Rebuild</button></div>
-    </div><div class="capability-note">${icon("alert")} <span><strong>Target Phase 080 simulation</strong><small>The current live network RPC is stubbed; all route details on this screen are illustrative until an authoritative status capability exists.</small></span></div><div class="notice">${icon("shield")} This reports concrete route properties. It does not claim that the user is “anonymous” or “untraceable.”</div>`;
+    <section class="settings-network-panel" id="settings-network-panel" role="tabpanel" aria-labelledby="settings-network-tab-onionnet">
+      <div class="settings-heading"><div><p class="eyebrow">Private overlay</p><h2>OnionNet</h2><p>Set the privacy and fallback floor independently from Reticulum carriers and QUIC transport sessions.</p></div></div>
+      <div class="setting-group settings-first-group">
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Privacy mode</strong><small>Direct-path fallback policy</small></span><select class="compact-value" aria-label="OnionNet privacy mode" data-config-control="onionnet-privacy-mode"><option value="private"${state.onionnetPrivacyMode === "private" ? " selected" : ""}>Private · no direct fallback</option><option value="balanced"${state.onionnetPrivacyMode === "balanced" ? " selected" : ""}>Balanced · ask before direct</option><option value="direct-warning"${state.onionnetPrivacyMode === "direct-warning" ? " selected" : ""}>Direct · warning required</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Route rotation</strong><small>When to request a fresh privacy path</small></span><select class="compact-value" aria-label="OnionNet route rotation" data-config-control="onionnet-route-rotation"><option value="session"${state.onionnetRouteRotation === "session" ? " selected" : ""}>Every session</option><option value="15m"${state.onionnetRouteRotation === "15m" ? " selected" : ""}>Every 15 minutes</option><option value="30m"${state.onionnetRouteRotation === "30m" ? " selected" : ""}>Every 30 minutes</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Cover traffic</strong><small>Background packet policy</small></span><select class="compact-value" aria-label="OnionNet cover traffic" data-config-control="onionnet-cover-traffic"><option value="adaptive"${state.onionnetCoverTraffic === "adaptive" ? " selected" : ""}>Adaptive</option><option value="always"${state.onionnetCoverTraffic === "always" ? " selected" : ""}>Always</option><option value="off"${state.onionnetCoverTraffic === "off" ? " selected" : ""}>Off · reduced privacy</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><span class="setting-line-copy compact-row-label"><strong>Fail closed</strong><small>Block when the privacy floor cannot be met</small></span><span class="compact-value"></span><button class="toggle compact-action" type="button" aria-pressed="${state.onionnetFailClosed}" aria-label="OnionNet fail closed" data-demo-action="onionnet-fail-closed"></button></div>
+        <div class="setting-line compact-row"><span class="setting-line-copy compact-row-label"><strong>Admission & replay checks</strong><small>Runtime evidence is not registered</small></span><span class="compact-value"></span><span class="status-badge compact-action">${t("common.unavailable")}</span></div>
+      </div>
+      <div class="capability-note">${icon("alert")}<span><strong>Target privacy policy</strong><small>These controls define intent only. The Demo does not claim that an OnionNet route is live, anonymous, or untraceable.</small></span></div>
+    </section>`;
 
   return `
-    <div class="network-summary-grid">
-      <article><span>Mode</span><strong>Private</strong><small>No direct fallback</small></article>
-      <article><span>Privacy overlay</span><strong>OnionNet</strong><small>Verified · 3 hops</small></article>
-      <article><span>Active carrier</span><strong>Reticulum</strong><small>Direct underlay</small></article>
-      <article><span>Chain & scan</span><strong>Main · current</strong><small>Checked just now</small></article>
-    </div>
-    <div class="capability-note">${icon("alert")} <span><strong>Target Phase 080 simulation</strong><small>The current network RPC is stubbed. Production must show “capability unavailable” until these properties are authoritative.</small></span></div>`;
+    <section class="settings-network-panel" id="settings-network-panel" role="tabpanel" aria-labelledby="settings-network-tab-quic">
+      <div class="settings-heading"><div><p class="eyebrow">Secure transport</p><h2>QUIC</h2><p>Configure connection behavior while keeping transport security separate from OnionNet route privacy.</p></div></div>
+      <div class="setting-group settings-first-group">
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Endpoint policy</strong><small>How a configured QUIC endpoint is selected</small></span><select class="compact-value" aria-label="QUIC endpoint policy" data-config-control="quic-endpoint-policy"><option value="automatic"${state.quicEndpointPolicy === "automatic" ? " selected" : ""}>Automatic</option><option value="preferred"${state.quicEndpointPolicy === "preferred" ? " selected" : ""}>Prefer configured endpoint</option><option value="direct-only"${state.quicEndpointPolicy === "direct-only" ? " selected" : ""}>Direct only</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><span class="setting-line-copy compact-row-label"><strong>Path migration</strong><small>Keep a connection when the local path changes</small></span><span class="compact-value"></span><button class="toggle compact-action" type="button" aria-pressed="${state.quicPathMigration}" aria-label="QUIC path migration" data-demo-action="quic-path-migration"></button></div>
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Idle timeout</strong><small>Close an inactive connection</small></span><select class="compact-value" aria-label="QUIC idle timeout" data-config-control="quic-idle-timeout"><option value="30"${state.quicIdleTimeout === "30" ? " selected" : ""}>30 seconds</option><option value="60"${state.quicIdleTimeout === "60" ? " selected" : ""}>60 seconds</option><option value="120"${state.quicIdleTimeout === "120" ? " selected" : ""}>120 seconds</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row app-select-setting"><span class="setting-line-copy compact-row-label"><strong>Keep-alive</strong><small>Prevent idle closure while the app is active</small></span><select class="compact-value" aria-label="QUIC keep alive" data-config-control="quic-keep-alive"><option value="15"${state.quicKeepAlive === "15" ? " selected" : ""}>Every 15 seconds</option><option value="30"${state.quicKeepAlive === "30" ? " selected" : ""}>Every 30 seconds</option><option value="off"${state.quicKeepAlive === "off" ? " selected" : ""}>Off</option></select><span class="compact-action"></span></div>
+        <div class="setting-line compact-row"><span class="setting-line-copy compact-row-label"><strong>0-RTT wallet actions</strong><small>Disabled to avoid replayable early data</small></span><span class="compact-value"></span><span class="status-badge compact-action">Disabled</span></div>
+      </div>
+      <div class="capability-note">${icon("alert")}<span><strong>Local target draft</strong><small>No authoritative QUIC runtime bridge is registered. These values do not assert a live session or path.</small></span></div>
+    </section>`;
 }
 
 function settingsDetail() {
@@ -2684,11 +2710,8 @@ function settingsDetail() {
       </div>`;
   }
 
-  if (["reticulum", "onionnet"].includes(state.settingsSection)) {
-    const isOnionNet = state.settingsSection === "onionnet";
-    return `
-      <div class="settings-heading"><div><p class="eyebrow">${isOnionNet ? "Private overlay" : "Local carrier"}</p><h2>${isOnionNet ? "OnionNet" : "Reticulum"}</h2><p>${isOnionNet ? "Route privacy and admission controls remain distinct from the carrier." : "Carrier configuration remains local and separate from wallet keys and route policy."}</p></div>${isOnionNet ? '<select aria-label="Network mode"><option>Private · no direct fallback</option><option>Auto</option><option>Resilient</option><option>Direct · warning</option></select>' : ""}</div>
-      ${networkDetail()}`;
+  if (["reticulum", "onionnet", "quic"].includes(state.settingsSection)) {
+    return networkDetail();
   }
 
   if (state.settingsSection === "policies") {
@@ -2723,12 +2746,18 @@ function settingsDetail() {
 }
 
 function settingsView() {
-  return `
-    <div class="view-enter settings-view">
-      <div class="settings-layout settings-layout--full">
-        <article class="card settings-detail">${settingsDetail()}</article>
+  const networkSection = ["reticulum", "onionnet", "quic"].includes(state.settingsSection);
+  if (networkSection) {
+    return `<div class="view-enter settings-view app-settings-view">
+      <div class="workspace-layout settings-network-workspace" data-workspace-id="settings.network">
+        <aside class="context-rail settings-network-rail">${settingsNetworkTabs()}</aside>
+        <article class="card settings-detail workspace-panel">${settingsDetail()}</article>
       </div>
     </div>`;
+  }
+  return `<div class="view-enter settings-view app-settings-view">
+    <article class="card settings-detail settings-detail-standalone">${settingsDetail()}</article>
+  </div>`;
 }
 
 function usageMeter(label, value, total, detail) {
@@ -3164,6 +3193,75 @@ const onionnetTelemetryTabs = [
   }
 ];
 
+const quicTelemetryTabs = [
+  {
+    id: "overview",
+    labelKey: "quic.tabs.overview",
+    iconName: "overview",
+    metrics: [
+      ["Runtime capability", "Unavailable", "No registered QUIC status bridge"],
+      ["Handshake state", "Unavailable", "No authoritative TLS or QUIC session snapshot"],
+      ["Active streams", "Unavailable", "No aggregate stream counters"],
+      ["Path migration", "Unavailable", "No verified path-change evidence"]
+    ]
+  },
+  {
+    id: "connections",
+    labelKey: "quic.tabs.connections",
+    iconName: "reticulum-link",
+    metrics: [
+      ["Connection lifecycle", "Unavailable", "No aggregate active, closing, or draining counts"],
+      ["Negotiated version / ALPN", "Unavailable", "No sanitized negotiation snapshot"],
+      ["Connection ID rotation", "Unavailable", "No aggregate rotation or retirement counters"],
+      ["Traffic totals", "Unavailable", "No aggregate bytes sent or received"]
+    ]
+  },
+  {
+    id: "paths",
+    labelKey: "quic.tabs.paths",
+    iconName: "reticulum-paths",
+    metrics: [
+      ["Validated paths", "Unavailable", "No aggregate path-validation state"],
+      ["Migration events", "Unavailable", "No verified network-change events"],
+      ["NAT rebinding", "Unavailable", "No sanitized peer-address change counter"],
+      ["Path MTU", "Unavailable", "No validated maximum UDP payload size"]
+    ]
+  },
+  {
+    id: "streams",
+    labelKey: "quic.tabs.streams",
+    iconName: "queue",
+    metrics: [
+      ["Bidirectional streams", "Unavailable", "No aggregate open or closed count"],
+      ["Unidirectional streams", "Unavailable", "No aggregate open or closed count"],
+      ["Flow-control pressure", "Unavailable", "No connection or stream blocked counters"],
+      ["Reset / stop events", "Unavailable", "No aggregate stream termination reasons"]
+    ]
+  },
+  {
+    id: "recovery",
+    labelKey: "quic.tabs.recovery",
+    iconName: "restore",
+    metrics: [
+      ["RTT estimate", "Unavailable", "No latest, minimum, smoothed RTT, or variance snapshot"],
+      ["Loss recovery", "Unavailable", "No packet-loss or PTO counters"],
+      ["Congestion state", "Unavailable", "No congestion window or bytes-in-flight snapshot"],
+      ["ECN validation", "Unavailable", "No aggregate ECN capability or failure evidence"]
+    ]
+  },
+  {
+    id: "security",
+    labelKey: "quic.tabs.security",
+    iconName: "shield",
+    metrics: [
+      ["Handshake confirmation", "Unavailable", "No authoritative TLS-integrated handshake state"],
+      ["Cipher suite", "Unavailable", "No sanitized negotiated cipher metadata"],
+      ["Key phase updates", "Unavailable", "No aggregate key-update state or failure count"],
+      ["0-RTT early data", "Unavailable", "Wallet policy disables state-changing actions; runtime negotiation is not reported"]
+    ]
+  }
+];
+
 function workspaceContextNav(workspaceId) {
   const workspace = demoRuntime.navigationNode(workspaceId);
   return `<nav class="context-nav context-tab-list workspace-local-context${workspaceId.startsWith("telemetry.") ? " telemetry-workspace-context" : ""}" aria-label="${escapeHtml(navigationLabel(workspace))}">${demoRuntime.workspaceLocalDestinations(workspaceId).map(({ routeId, labelKey, iconId }) => {
@@ -3212,6 +3310,16 @@ function onionnetTelemetryView() {
     selectedTabId: state.onionnetTelemetryTab,
     titleKey: "onionnet.title",
     localCapabilityKey: "onionnet.localCapability"
+  });
+}
+
+function quicTelemetryView() {
+  return telemetryTabbedView({
+    source: "quic",
+    tabs: quicTelemetryTabs,
+    selectedTabId: state.quicTelemetryTab,
+    titleKey: "quic.title",
+    localCapabilityKey: "quic.localCapability"
   });
 }
 
@@ -3677,6 +3785,7 @@ function telemetryView() {
   const source = state.telemetrySource;
   if (source === "reticulum") return reticulumTelemetryView();
   if (source === "onionnet") return onionnetTelemetryView();
+  if (source === "quic") return quicTelemetryView();
   if (source === "aggregators") return aggregatorsTelemetryView();
   if (source === "watchers") return watchersTelemetryView();
   return explorerTelemetryView();
@@ -3749,7 +3858,7 @@ function dappScreenHeading(title, copy, meta = "") {
 }
 
 function dappDiscoverScreen() {
-  return `${dappScreenHeading("Discover dApps", "Seventeen curated Z00Z typed-action interfaces. Every card is a bundled local descriptor, never remotely executed application code.", `<span class="status-badge">${demoRuntime.DAPP_CATALOG.length} descriptors</span>`)}
+  return `${dappScreenHeading("Discover dApps", `${demoRuntime.DAPP_CATALOG.length} curated Z00Z typed-action interfaces. Every card is a bundled local descriptor, never remotely executed application code.`, `<span class="status-badge">${demoRuntime.DAPP_CATALOG.length} descriptors</span>`)}
     <section class="dapp-catalog-grid" aria-label="${escapeHtml(t("plan2.aria.dappCatalogue"))}">${demoRuntime.DAPP_CATALOG.map((entry) => dappCard(entry)).join("")}</section>`;
 }
 
@@ -3767,11 +3876,113 @@ function dappProposalFormValues(form) {
   return Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, String(value).trim()]));
 }
 
+function dappGatewayOverview(entry) {
+  if (!entry.gatewayAggregate || !entry.gatewayRoutes.length) return "";
+  return `<section class="wcoins-gateway-overview" aria-label="Stable asset route status">
+    <header class="wcoins-gateway-summary">
+      <div><p class="eyebrow">Bundled local fixture</p><h3>Stable routes</h3><strong>${escapeHtml(entry.gatewayAggregate)}</strong></div>
+      <span class="status-badge is-warning">Reconnect to verify live state</span>
+    </header>
+    <div class="wcoins-gateway-routes">
+      ${entry.gatewayRoutes.map((route) => `<article class="wcoins-route-card" data-wcoins-route="${escapeHtml(route.id)}">
+        <header><div><p class="eyebrow">${escapeHtml(route.externalAsset)} reserve · ${escapeHtml(route.reserveNetwork)}</p><h3>${escapeHtml(route.label)}</h3></div>${dappStatusBadge(route.status.toLowerCase())}</header>
+        <p class="wcoins-route-positioning">${escapeHtml(route.positioning)}</p>
+        <dl>
+          <div><dt>Z00Z asset</dt><dd>${escapeHtml(route.z00zAsset)}</dd></div>
+          <div><dt>External reserve</dt><dd>${escapeHtml(route.externalAsset)}</dd></div>
+          <div><dt>Reference</dt><dd>${escapeHtml(route.referenceCurrency)}</dd></div>
+          <div><dt>Protocol model</dt><dd>${escapeHtml(route.protocolModel)}</dd></div>
+          <div><dt>Reserve network</dt><dd>${escapeHtml(route.reserveNetwork)}</dd></div>
+          <div><dt>LockerID</dt><dd><code>${escapeHtml(route.lockerId)}</code></dd></div>
+          <div><dt>Reserve pool</dt><dd>${escapeHtml(route.reservePool)}</dd></div>
+          <div><dt>Liabilities</dt><dd>${escapeHtml(route.liabilities)}</dd></div>
+          <div><dt>Redemption route</dt><dd>${escapeHtml(route.redemptionRoute)}</dd></div>
+          <div><dt>Exposure limit</dt><dd>${escapeHtml(route.exposureLimit)}</dd></div>
+          <div><dt>Risk</dt><dd><span class="status-badge">${escapeHtml(route.riskBadge)}</span></dd></div>
+        </dl>
+        <p class="wcoins-route-uses"><strong>Primary use</strong><span>${escapeHtml(route.uses)}</span></p>
+      </article>`).join("")}
+    </div>
+    <div class="wcoins-gateway-notes">
+      <section class="wcoins-gateway-note" data-wcoins-note="controls" aria-labelledby="wcoins-control-model-title">
+        <div><p class="eyebrow">Mandatory route invariants</p><h3 id="wcoins-control-model-title">Gateway control model</h3></div>
+        <ul>${entry.gatewayControls.map((control) => `<li>${icon("check")}<span>${escapeHtml(control)}</span></li>`).join("")}</ul>
+      </section>
+      <section class="wcoins-gateway-note" data-wcoins-note="positioning" aria-labelledby="wcoins-positioning-title">
+        <div><p class="eyebrow">Product rationale</p><h3 id="wcoins-positioning-title">Stablecoin positioning</h3></div>
+        <ul>${entry.gatewayMarketNotes.map((note) => `<li>${icon("check")}<span>${escapeHtml(note)}</span></li>`).join("")}</ul>
+        <p class="wcoins-market-caveat">${icon("alert")}<span>Relative market liquidity changes. Revalidate current depth and volume before enabling live deposits.</span></p>
+      </section>
+    </div>
+  </section>`;
+}
+
+function dappXChainOverview(entry) {
+  if (!entry.integrationRecommendation
+    || !entry.integrations.length
+    || !entry.quoteFields.length) return "";
+  return `<section class="xchain-integration-overview" aria-label="X-Chain result and integration architecture">
+    <header class="xchain-integration-summary">
+      <div><p class="eyebrow">Result-first architecture · bundled locally</p><h3>One result, comparable execution plans</h3><strong>${entry.integrations.length} resolver integrations</strong><small>One catalogue · no separate adapter-family layer</small></div>
+      <span class="status-badge is-warning">No live adapter implied</span>
+    </header>
+    <section class="xchain-integrations-layer" data-xchain-integrations-layer aria-labelledby="xchain-integrations-layer-title">
+      <header>
+        <div><p class="eyebrow">Automatic integration layer</p><h3 id="xchain-integrations-layer-title">User selects the result; Wallet compares the plans</h3></div>
+        <span class="status-badge">${entry.integrations.length} resolver integrations</span>
+      </header>
+      <p class="xchain-integrations-intro">Discovery, quote normalization, route simulation, evidence collection, method selection, and monitoring stay under the hood. EVM Locker, Issuer Rail, Celestia DA, swaps, venues, and other mechanics appear only as disclosed steps inside the selected plan.</p>
+      <section class="xchain-integrations-catalog" data-xchain-integrations-catalog aria-labelledby="xchain-integrations-catalog-title">
+        <header class="xchain-integrations-catalog-heading">
+          <span><strong id="xchain-integrations-catalog-title">Six resolver integrations</strong><small>${entry.integrations.map(({ label }) => escapeHtml(label)).join(" · ")}</small></span>
+          <span class="status-badge">Always visible</span>
+        </header>
+        <div class="xchain-integrations">
+          ${entry.integrations.map((integration) => `<article class="xchain-integration-card" data-xchain-integration="${escapeHtml(integration.id)}">
+            <header><p class="eyebrow">${escapeHtml(integration.role)}</p><h3>${escapeHtml(integration.label)}</h3></header>
+            <dl>
+              <div><dt>Method</dt><dd>${escapeHtml(integration.method)}</dd></div>
+              <div><dt>Resources</dt><dd>${escapeHtml(integration.resources)}</dd></div>
+              <div><dt>Total price</dt><dd>${escapeHtml(integration.cost)}</dd></div>
+              <div><dt>Expected speed</dt><dd>${escapeHtml(integration.speed)}</dd></div>
+              <div><dt>Trust boundary</dt><dd>${escapeHtml(integration.trustBoundary)}</dd></div>
+            </dl>
+          </article>`).join("")}
+        </div>
+      </section>
+    </section>
+    <section class="xchain-quote-contract" data-xchain-note="quote" aria-labelledby="xchain-quote-contract-title">
+      <div><p class="eyebrow">Visible before confirmation</p><h3 id="xchain-quote-contract-title">Every plan uses one transparent quote contract</h3></div>
+      <ul>${entry.quoteFields.map((field) => `<li>${icon("check")}<span>${escapeHtml(field)}</span></li>`).join("")}</ul>
+    </section>
+    <details class="xchain-safeguards" data-xchain-safeguards>
+      <summary><span><strong>Execution safeguards</strong><small>Selection rules, route-change limits, finality separation, and recovery</small></span><span class="xchain-catalog-action">Inspect non-negotiable checks</span></summary>
+      <div class="xchain-integration-notes">
+        <section class="xchain-integration-note is-recommendation" data-xchain-note="recommendation" aria-labelledby="xchain-recommendation-title">
+          <div><p class="eyebrow">Recommended orchestration model</p><h3 id="xchain-recommendation-title">Hide the mechanics, expose the selected plan</h3></div>
+          <p>${escapeHtml(entry.integrationRecommendation)}</p>
+        </section>
+        <section class="xchain-integration-note" data-xchain-note="invariants" aria-labelledby="xchain-invariants-title">
+          <div><p class="eyebrow">Non-negotiable checks</p><h3 id="xchain-invariants-title">Execution invariants</h3></div>
+          <ul>${entry.integrationInvariants.map((invariant) => `<li>${icon("check")}<span>${escapeHtml(invariant)}</span></li>`).join("")}</ul>
+        </section>
+      </div>
+    </details>
+  </section>`;
+}
+
+function clearDappProposalValidation(form) {
+  [...form.elements]
+    .filter((control) => control instanceof HTMLInputElement || control instanceof HTMLSelectElement)
+    .forEach((control) => control.setCustomValidity(""));
+  const error = form.querySelector("#dapp-proposal-error");
+  if (error) error.textContent = "";
+}
+
 function validateDappProposalForm(form, descriptor) {
   const error = form.querySelector("#dapp-proposal-error");
   const controls = [...form.elements].filter((control) => control instanceof HTMLInputElement || control instanceof HTMLSelectElement);
-  controls.forEach((control) => control.setCustomValidity(""));
-  if (error) error.textContent = "";
+  clearDappProposalValidation(form);
 
   const invalidControl = controls.find((control) => control.willValidate && !control.checkValidity());
   if (invalidControl) {
@@ -3811,24 +4022,39 @@ function validateDappProposalForm(form, descriptor) {
   if (descriptor.id === "wbold-gateway"
     && values.direction.startsWith("Redeem")
     && !values["external-recipient"]) {
-    return fail("external-recipient", "External recipient is required for a wBOLD redemption.");
+    return fail("external-recipient", "External recipient is required for a wrapped stablecoin redemption.");
   }
   if (descriptor.id === "assets-locker"
     && values.action.startsWith("Consume")
     && !values["external-recipient"]) {
     return fail("external-recipient", "External recipient is required when consuming a right to redeem.");
   }
+  if (descriptor.id === "xchain-integration") {
+    const resultKind = values["result-kind"] || "";
+    const requiresDestination = resultKind.startsWith("Deliver") || resultKind.startsWith("Fulfill");
+    if (requiresDestination && !values.destination) {
+      return fail("destination", "A destination is required for external delivery or service fulfillment.");
+    }
+  }
   return true;
 }
 
 function dappProposalScreen(entry) {
-  const stages = [
-    ["Typed proposal", entry.intentType],
-    ["Scope check", entry.walletChecks.join(" · ")],
-    ["Package build", "Wallet selects eligible objects and constructs the package"],
-    ["Confirmation", "Wallet shows value, fee, disclosure, and settlement assumptions"],
-    ["Settlement path", entry.settlementPath]
-  ];
+  const stages = entry.id === "xchain-integration"
+    ? [
+      ["Result intent", "Wallet binds the minimum result, destination, deadline, cost ceiling, preference, and fallback policy"],
+      ["Quote comparison", "Wallet discovers compatible solvers and rejects every plan outside the reviewed limits"],
+      ["Plan disclosure", "Wallet shows method, resources, trust dependencies, all-in price, expected speed, finality, and recovery"],
+      ["Confirmation", "User accepts one normalized signed plan before any irreversible step"],
+      ["Execution and recovery", entry.settlementPath]
+    ]
+    : [
+      ["Typed proposal", entry.intentType],
+      ["Scope check", entry.walletChecks.join(" · ")],
+      ["Package build", "Wallet selects eligible objects and constructs the package"],
+      ["Confirmation", "Wallet shows value, fee, disclosure, and settlement assumptions"],
+      ["Settlement path", entry.settlementPath]
+    ];
   return `<section class="dapp-proposal" data-dapp-proposal="${escapeHtml(entry.id)}" data-intent-type="${escapeHtml(entry.intentType)}">
     <header class="dapp-detail-heading">
       <span class="dapp-card-icon is-large">${icon(entry.iconName)}</span>
@@ -3836,6 +4062,8 @@ function dappProposalScreen(entry) {
       ${dappStatusBadge(entry.maturity)}
     </header>
     <div class="dapp-architecture-boundary">${icon("shield")}<span><strong>dApp proposes; Wallet decides</strong><small>A Z00Z dApp does not control the wallet. It proposes a typed action. Wallet checks scope, builds the package, requests confirmation, and only then passes it to the settlement path.</small></span></div>
+    ${dappGatewayOverview(entry)}
+    ${dappXChainOverview(entry)}
     <div class="dapp-proposal-layout">
       <form class="dapp-proposal-form" id="dapp-action-proposal-form" data-dapp-id="${escapeHtml(entry.id)}" autocomplete="off" novalidate>
         <div class="dapp-proposal-form-heading"><div><p class="eyebrow">Typed action</p><h3>Prepare proposal</h3></div><code>${escapeHtml(entry.intentType)}</code></div>
@@ -4359,10 +4587,13 @@ function render(options = {}) {
     : [];
   routeBreadcrumb.textContent = routeNode ? [...ancestorLabels, navigationLabel(routeNode)].join(" / ") : "";
   routeBreadcrumb.hidden = !routeNode;
-  const telemetryOverview = /^telemetry\.(reticulum|onionnet|aggregators)\.overview$/.exec(state.activeRoute);
+  const telemetryOverview = /^telemetry\.(reticulum|onionnet|quic|aggregators)\.overview$/.exec(state.activeRoute);
+  const settingsNetworkRoute = /^settings\.(reticulum|onionnet|quic)$/.test(state.activeRoute);
   const [topbarTitle] = telemetryOverview
     ? telemetryTopbar[telemetryOverview[1]]
-    : [routeNode ? navigationLabel(routeNode) : t(legacyTitle), null];
+    : settingsNetworkRoute
+      ? [t("navigation.network"), null]
+      : [routeNode ? navigationLabel(routeNode) : t(legacyTitle), null];
   pageTitle.textContent = topbarTitle;
   pageContext.textContent = "";
   pageContext.hidden = true;
@@ -4415,6 +4646,10 @@ function render(options = {}) {
       ? mobileTopbarContext.querySelector(".context-nav-child.is-active, .context-nav-item.is-active")
       : main.querySelector(".context-nav-child.is-active, .context-nav-item.is-active");
     activeContext?.scrollIntoView({ block: "nearest", inline: "center" });
+    if (isMobileNavigation()) {
+      main.querySelector(".settings-network-rail .context-nav-item.is-active")
+        ?.scrollIntoView({ block: "nearest", inline: "center" });
+    }
   });
   if (options.focusMain) {
     main.focus({ preventScroll: true });
@@ -5722,6 +5957,18 @@ function handleDemoAction(action, button) {
     syncConfigDraftFromState();
     render();
     showToast(`Notifications ${state.notifications ? "enabled" : "disabled"}.`);
+  } else if (action === "reticulum-peer-discovery") {
+    state.reticulumPeerDiscovery = !state.reticulumPeerDiscovery;
+    render();
+    showToast(`Reticulum peer discovery ${state.reticulumPeerDiscovery ? "enabled" : "disabled"} in the local draft.`);
+  } else if (action === "onionnet-fail-closed") {
+    state.onionnetFailClosed = !state.onionnetFailClosed;
+    render();
+    showToast(`OnionNet fail-closed policy ${state.onionnetFailClosed ? "enabled" : "disabled"} in the local draft.`, state.onionnetFailClosed ? "check" : "alert");
+  } else if (action === "quic-path-migration") {
+    state.quicPathMigration = !state.quicPathMigration;
+    render();
+    showToast(`QUIC path migration ${state.quicPathMigration ? "enabled" : "disabled"} in the local draft.`);
   } else if (action === "check-for-updates") {
     state.updateCheckStatus = "current";
     render();
@@ -6351,13 +6598,10 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const settingButton = event.target.closest("[data-settings-section]");
-  if (settingButton) {
-    const section = settingButton.dataset.settingsSection;
-    state.settingsSection = section;
-    state.isNetworkOpen = ["reticulum", "onionnet"].includes(section);
-    if (state.isNetworkOpen) state.networkSection = section;
-    render();
+  const settingsNetworkButton = event.target.closest("[data-settings-network-section]");
+  if (settingsNetworkButton) {
+    selectCanonicalRoute(`settings.${settingsNetworkButton.dataset.settingsNetworkSection}`);
+    render({ focusMain: true });
     return;
   }
 
@@ -7245,6 +7489,11 @@ document.addEventListener("submit", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  const dappProposalForm = event.target instanceof Element
+    ? event.target.closest("#dapp-action-proposal-form")
+    : null;
+  if (dappProposalForm instanceof HTMLFormElement) clearDappProposalValidation(dappProposalForm);
+
   if (["send-recipient", "send-amount", "send-memo"].includes(event.target.id)) {
     const draft = activeSendDraft();
     if (event.target.id === "send-recipient") draft.recipient = event.target.value;
@@ -7297,6 +7546,11 @@ document.addEventListener("scroll", (event) => {
 }, true);
 
 document.addEventListener("change", async (event) => {
+  const dappProposalForm = event.target instanceof Element
+    ? event.target.closest("#dapp-action-proposal-form")
+    : null;
+  if (dappProposalForm instanceof HTMLFormElement) clearDappProposalValidation(dappProposalForm);
+
   if (event.target.matches("[data-merge-fragment-id]")) {
     const mergeSplitState = activeMergeSplitState();
     const assetId = event.target.dataset.mergeFragmentId;
@@ -7493,6 +7747,15 @@ document.addEventListener("change", async (event) => {
     if (configControl === "valuation-currency") state.valuationCurrency = event.target.value;
     if (configControl === "time-zone") state.timeZone = event.target.value;
     if (configControl === "network-units") state.networkUnits = event.target.value;
+    if (configControl === "reticulum-interface") state.reticulumInterface = event.target.value;
+    if (configControl === "reticulum-discovery-scope") state.reticulumDiscoveryScope = event.target.value;
+    if (configControl === "reticulum-link-strategy") state.reticulumLinkStrategy = event.target.value;
+    if (configControl === "onionnet-privacy-mode") state.onionnetPrivacyMode = event.target.value;
+    if (configControl === "onionnet-route-rotation") state.onionnetRouteRotation = event.target.value;
+    if (configControl === "onionnet-cover-traffic") state.onionnetCoverTraffic = event.target.value;
+    if (configControl === "quic-endpoint-policy") state.quicEndpointPolicy = event.target.value;
+    if (configControl === "quic-idle-timeout") state.quicIdleTimeout = event.target.value;
+    if (configControl === "quic-keep-alive") state.quicKeepAlive = event.target.value;
     if (configControl === "vibrate") state.vibrate = event.target.value;
     if (configControl === "ringtone") state.ringtone = event.target.value;
     if (configControl === "palette") applyPalette(event.target.value);

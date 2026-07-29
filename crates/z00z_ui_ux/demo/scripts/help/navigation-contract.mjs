@@ -23,15 +23,25 @@ const TITLE_SEGMENTS = Object.freeze({
   dapps: "dApps",
   "data-storage": "Data & Storage",
   onionnet: "OnionNet",
+  quic: "QUIC",
   staking: "Earn",
   "merge-split": "Merge/Split",
   "agents-budget": "Agent Budget",
   bounties: "Bounty",
   "service-credits": "Service Credit",
-  "wbold-gateway": "wBOLD Gateway",
+  "wbold-gateway": "wCoins Gateway",
+  "xchain-integration": "X-Chain Integration",
+  "security-model": "How dApps Work Safely",
   "tickets-passes": "Ticket & Pass",
   "private-contract": "Private Agreement",
   discover: "Discover dApps",
+});
+
+const PAGE_PATH_OVERRIDES = Object.freeze({
+  "settings.general": Object.freeze(["settings", "index"]),
+  "settings.reticulum": Object.freeze(["settings", "reticulum"]),
+  "settings.onionnet": Object.freeze(["settings", "onionnet"]),
+  "settings.quic": Object.freeze(["settings", "quic"]),
 });
 
 function segment(value) {
@@ -68,6 +78,9 @@ function nodeChain(node) {
 }
 
 function pagePath(node) {
+  const override = PAGE_PATH_OVERRIDES[node.helpTopicId];
+  if (override) return [...override];
+
   const chain = nodeChain(node);
 
   if (chain.length === 1 && node.target.kind === "route") {
@@ -116,6 +129,19 @@ function dialogRecords() {
   }));
 }
 
+function guideRecords() {
+  return [
+    Object.freeze({
+      id: "dapps.security-model",
+      labelKey: "help.title",
+      nodeId: "",
+      pagePath: Object.freeze(["dapps", "security-model"]),
+      routeId: "",
+      scope: "guide",
+    }),
+  ];
+}
+
 function appRecord() {
   return Object.freeze({
     id: "app",
@@ -149,6 +175,7 @@ export function helpRecords() {
     appRecord(),
     ...demo.PORT_CONTRACT.routes.map(recordForRoute),
     ...dialogRecords(),
+    ...guideRecords(),
   ]);
   assertRecords(records);
   return records;

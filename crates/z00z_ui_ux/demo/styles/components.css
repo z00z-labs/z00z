@@ -886,31 +886,34 @@ body.has-menu-search {
 }
 
 .menu-search-result strong {
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-primary);
   font-size: var(--type-support);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .menu-search-result small {
   margin-top: 4px;
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-tertiary);
   font-size: var(--type-status);
   line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .menu-search-result-path {
   max-width: 38%;
   flex: 0 0 auto;
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-tertiary);
   font-size: var(--type-status);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .menu-search-empty {
@@ -3418,10 +3421,11 @@ button.permission-row:hover {
 }
 
 .compact-row-label {
-  overflow: hidden;
+  overflow: visible;
   font-size: var(--type-row-title);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .notification-master-setting .compact-row-label {
@@ -5387,6 +5391,42 @@ button.permission-row:hover {
   margin: 0 auto;
 }
 
+.app-settings-view > .settings-detail {
+  width: min(100%, var(--settings-card-max));
+  margin-inline: auto;
+  justify-self: center;
+}
+
+.settings-network-workspace {
+  display: grid;
+  width: min(
+    100%,
+    calc(var(--context-rail-width) + var(--context-nav-content-gap) + var(--settings-card-max))
+  );
+  min-width: 0;
+  align-items: start;
+  margin-inline: auto;
+  column-gap: var(--context-nav-content-gap);
+  grid-template-columns: var(--context-rail-width) minmax(0, var(--settings-card-max));
+}
+
+.settings-network-workspace > .settings-detail {
+  width: 100%;
+  max-width: var(--settings-card-max);
+}
+
+.settings-network-tabs {
+  min-width: 0;
+}
+
+.settings-network-panel {
+  min-width: 0;
+}
+
+.settings-network-panel .settings-heading + .setting-group {
+  margin-top: 20px;
+}
+
 .wallet-settings-view .settings-detail {
   width: min(100%, var(--wallet-settings-card-max));
   margin-inline: 0;
@@ -5395,7 +5435,7 @@ button.permission-row:hover {
 
 @media (min-width: 901px) {
   .wallet-settings-view .setting-line.compact-row {
-    grid-template-columns: minmax(118px, 0.5fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(156px, 0.55fr) minmax(0, 1fr) auto;
   }
 
   .wallet-settings-view .setting-line[data-help-anchor="wallet-name"],
@@ -6225,11 +6265,12 @@ button.connection-option:hover,
   }
 
   .mobile-popup-header strong {
-    overflow: hidden;
+    overflow: visible;
     font-size: var(--type-nav);
+    overflow-wrap: anywhere;
     text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .mobile-drawer-brand {
@@ -6641,6 +6682,30 @@ button.connection-option:hover,
   .settings-heading > select,
   .settings-heading > .select-picker {
     width: 100%;
+  }
+
+  .settings-network-workspace {
+    display: block;
+  }
+
+  .settings-network-panel .app-select-setting.setting-line.compact-row {
+    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    padding-block: 9px;
+  }
+
+  .settings-network-panel .app-select-setting .compact-row-label,
+  .settings-network-panel .app-select-setting .compact-value {
+    grid-column: 1;
+  }
+
+  .settings-network-panel .app-select-setting .compact-value {
+    width: 100%;
+  }
+
+  .settings-network-panel .app-select-setting .compact-action {
+    display: none;
   }
 
   .config-status-grid,
@@ -8446,9 +8511,10 @@ button.connection-option:hover,
 
 .navigation-tree-label {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .navigation-tree-icon {
@@ -9430,6 +9496,443 @@ button.connection-option:hover,
   margin: -4px 0;
 }
 
+.wcoins-gateway-overview {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.wcoins-gateway-summary,
+.wcoins-route-card,
+.wcoins-gateway-note {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-surface);
+}
+
+.wcoins-gateway-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+.wcoins-gateway-summary h3,
+.wcoins-route-card h3,
+.wcoins-gateway-note h3 {
+  margin: 2px 0 0;
+}
+
+.wcoins-gateway-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  letter-spacing: -.025em;
+}
+
+.wcoins-gateway-routes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wcoins-route-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.wcoins-route-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wcoins-route-positioning {
+  min-height: 3em;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.wcoins-route-card dl {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+
+.wcoins-route-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(98px, .42fr) minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.wcoins-route-card dt {
+  color: var(--text-tertiary);
+  font-size: .73rem;
+  font-weight: 700;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.wcoins-route-card dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.wcoins-route-card code {
+  color: var(--text-secondary);
+  font-size: .78rem;
+}
+
+.wcoins-route-uses {
+  display: grid;
+  gap: 4px;
+  margin-top: auto;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.wcoins-route-uses strong {
+  color: var(--text-primary);
+  font-size: .76rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.wcoins-gateway-notes {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+  gap: 14px;
+}
+
+.wcoins-gateway-note {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.wcoins-gateway-note ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wcoins-gateway-note li,
+.wcoins-market-caveat {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.wcoins-gateway-note li .icon,
+.wcoins-market-caveat .icon {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.wcoins-market-caveat {
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.wcoins-market-caveat .icon {
+  color: var(--warning);
+}
+
+.xchain-integration-overview {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.xchain-integration-summary,
+.xchain-integrations-layer,
+.xchain-integration-card,
+.xchain-quote-contract,
+.xchain-integration-note {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-surface);
+}
+
+.xchain-integration-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+.xchain-integration-summary h3,
+.xchain-integrations-layer h3,
+.xchain-integration-card h3,
+.xchain-quote-contract h3,
+.xchain-integration-note h3 {
+  margin: 2px 0 0;
+}
+
+.xchain-integration-summary strong,
+.xchain-integration-summary small {
+  display: block;
+}
+
+.xchain-integration-summary strong {
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  letter-spacing: -.025em;
+}
+
+.xchain-integration-summary small {
+  margin-top: 3px;
+  color: var(--text-secondary);
+}
+
+.xchain-integrations-layer,
+.xchain-quote-contract {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.xchain-integrations-layer {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-surface));
+}
+
+.xchain-integrations-layer > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.xchain-integrations-intro {
+  max-width: 80ch;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.xchain-integrations-catalog,
+.xchain-safeguards {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface);
+}
+
+.xchain-integrations-catalog-heading,
+.xchain-safeguards > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  color: var(--text-primary);
+}
+
+.xchain-integrations-catalog-heading {
+  border-bottom: 1px solid var(--border);
+}
+
+.xchain-safeguards > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.xchain-safeguards > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xchain-integrations-catalog-heading > span:first-child,
+.xchain-safeguards > summary > span:first-child {
+  min-width: 0;
+}
+
+.xchain-integrations-catalog-heading strong,
+.xchain-integrations-catalog-heading small,
+.xchain-safeguards > summary strong,
+.xchain-safeguards > summary small {
+  display: block;
+}
+
+.xchain-integrations-catalog-heading small,
+.xchain-safeguards > summary small {
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+.xchain-catalog-action {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.xchain-catalog-action::after {
+  display: inline-block;
+  margin-left: 7px;
+  content: "⌄";
+  transition: transform var(--transition-fast);
+}
+
+.xchain-safeguards[open] .xchain-catalog-action::after {
+  transform: rotate(180deg);
+}
+
+.xchain-safeguards[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.xchain-safeguards .xchain-integration-notes {
+  padding: 12px;
+}
+
+.xchain-integrations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+
+.xchain-integration-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+}
+
+.xchain-integration-card dl {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+
+.xchain-integration-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(92px, .32fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.xchain-integration-card dt,
+.xchain-quote-contract li {
+  color: var(--text-secondary);
+}
+
+.xchain-integration-card dt {
+  font-size: .73rem;
+  font-weight: 700;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.xchain-integration-card dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.xchain-quote-contract ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xchain-quote-contract li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  line-height: 1.45;
+}
+
+.xchain-quote-contract li .icon {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.xchain-integration-notes {
+  display: grid;
+  grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+  gap: 14px;
+}
+
+.xchain-integration-note {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.xchain-integration-note.is-recommendation {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-surface));
+}
+
+.xchain-integration-note > p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.xchain-integration-note ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xchain-integration-note li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.xchain-integration-note li .icon {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
 .dapp-proposal-stages {
   display: grid;
   gap: 0;
@@ -9545,7 +10048,23 @@ button.connection-option:hover,
   color: var(--text-tertiary);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1180px) {
+  .wcoins-gateway-routes,
+  .wcoins-gateway-notes,
+  .xchain-integration-notes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xchain-integrations {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wcoins-route-positioning {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 768px) {
   .dapp-screen-heading,
   .dapp-record-heading,
   .dapp-detail-heading {
@@ -9596,6 +10115,41 @@ button.connection-option:hover,
 
   .dapp-proposal-submit {
     justify-self: stretch;
+  }
+
+  .wcoins-gateway-summary {
+    display: grid;
+    align-items: start;
+    padding: 15px 16px;
+  }
+
+  .xchain-integration-summary,
+  .xchain-integrations-layer > header,
+  .xchain-integrations-catalog-heading,
+  .xchain-safeguards > summary {
+    display: grid;
+    align-items: start;
+  }
+
+  .xchain-catalog-action {
+    justify-self: start;
+  }
+
+  .xchain-integration-summary {
+    padding: 15px 16px;
+  }
+
+  .xchain-integrations,
+  .xchain-quote-contract ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wcoins-route-card dl > div {
+    grid-template-columns: minmax(92px, .38fr) minmax(0, 1fr);
+  }
+
+  .xchain-integration-card dl > div {
+    grid-template-columns: minmax(96px, .38fr) minmax(0, 1fr);
   }
 }
 
@@ -10159,9 +10713,10 @@ button.connection-option:hover,
 .wallet-picker-trigger-copy strong,
 .wallet-picker-trigger-copy small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .wallet-picker-trigger-copy strong {
@@ -10231,9 +10786,10 @@ button.connection-option:hover,
 .wallet-picker-copy strong,
 .wallet-picker-copy small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .wallet-picker-copy strong {

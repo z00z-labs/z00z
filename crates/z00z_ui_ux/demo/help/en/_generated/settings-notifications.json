@@ -4,10 +4,10 @@
     "button|type=button",
     "button|type=button|aria-label=Notifications On|data-demo-action=general-notifications"
   ],
-  "presentation_sha256": "e38dc44f70251455bbb04d0f242ba6284413657f5c805220f04e8c9e5f056216",
+  "presentation_sha256": "b9dfd092f2f07d99d2e87f6c96f9ee654b6825dc2be6f550c3a9a6460c471dff",
   "scope": "context",
   "screenshot": "help/assets/en/settings-notifications.png",
-  "screenshot_sha256": "2f4e443b5629c63fe3cb5c6ac90c772f6dfca097658e499b2145af2351fe6251",
+  "screenshot_sha256": "79cca8712edcd2f31e6f6193af0da86b50cbca03f0bcf0a222fcab095618db9f",
   "sections": [
     "Notifications"
   ],

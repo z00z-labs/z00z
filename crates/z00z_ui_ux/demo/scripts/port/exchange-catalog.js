@@ -20,7 +20,7 @@
       iconName: "exchange",
       defaultDestination: "hyperliquid-usdc",
       orderTypes: ["market", "limit"],
-      destinationIds: ["hyperliquid-usdc", "hyperliquid-hype", "hyperliquid-btc"]
+      destinationIds: ["hyperliquid-usdc", "hyperliquid-btc"]
     },
     "near-intents": {
       id: "near-intents",
@@ -29,7 +29,7 @@
       iconName: "swap",
       defaultDestination: "solana-usdc",
       orderTypes: [],
-      destinationIds: ["solana-usdc", "ethereum-eth", "solana-sol", "near-near", "arbitrum-usdc"]
+      destinationIds: ["solana-usdc", "ethereum-eth", "near-near", "arbitrum-usdc"]
     }
   });
 
@@ -41,14 +41,6 @@
       unit: "USDC",
       network: "Hyperliquid",
       assetId: "hyperliquid:spot:USDC"
-    },
-    "hyperliquid-hype": {
-      id: "hyperliquid-hype",
-      providerId: "hyperliquid",
-      label: "HYPE",
-      unit: "HYPE",
-      network: "Hyperliquid",
-      assetId: "hyperliquid:spot:HYPE"
     },
     "hyperliquid-btc": {
       id: "hyperliquid-btc",
@@ -73,14 +65,6 @@
       unit: "ETH",
       network: "Ethereum",
       assetId: "nep141:eth.omft.near"
-    },
-    "solana-sol": {
-      id: "solana-sol",
-      providerId: "near-intents",
-      label: "SOL",
-      unit: "SOL",
-      network: "Solana",
-      assetId: "nep141:sol.omft.near"
     },
     "near-near": {
       id: "near-near",

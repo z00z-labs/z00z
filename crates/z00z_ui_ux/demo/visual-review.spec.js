@@ -24,7 +24,8 @@ const dappMenuLabels = [
   "Subscription",
   "Swap",
   "Ticket & Pass",
-  "wBOLD Gateway",
+  "wCoins Gateway",
+  "X-Chain Integration",
   "Discover dApps",
 ];
 const dappReviewRoutes = [
@@ -45,6 +46,7 @@ const dappReviewRoutes = [
   ["dapps.subscription", "dapps-subscription"],
   ["dapps.tickets-passes", "dapps-tickets-passes"],
   ["dapps.wbold-gateway", "dapps-wbold-gateway"],
+  ["dapps.xchain-integration", "dapps-xchain-integration"],
 ];
 const reviewRoot = path.resolve(process.env.Z00Z_VISUAL_REVIEW_DIR || path.join(
   __dirname,
@@ -670,7 +672,8 @@ test("capture Phase 6 desktop and mobile states", async ({ page }) => {
       ? page.locator(".mobile-navigation-terminal")
       : page.locator("#app-navigation-terminal");
     if (viewport.width <= 768) await terminal.scrollIntoViewIfNeeded();
-    await setBranchExpanded(terminal.locator('[data-navigation-branch="settings"]'), true);
+    await expect(terminal.locator('[data-navigation-branch="settings"]')).toBeVisible();
+    await expect(terminal.locator('[data-navigation-route^="settings."]')).toHaveCount(4);
     await expect(terminal.locator(":scope > .navigation-tree-terminal")).toHaveText(["Help", "About", "Log out"]);
     await expect(terminal.locator('[data-navigation-route="about"]')).toBeVisible();
     await capture(page, `${viewport.name}-phase-6-terminal-navigation`);

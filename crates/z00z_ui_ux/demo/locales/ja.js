@@ -17,7 +17,7 @@ window.Z00ZI18n.registerLocale("ja", {
     languageChanged: "言語をローカルで変更しました。"
   },
   nav: { home: "ホーム", assets: "資産", history: "履歴", swap: "スワップ", exchange: "取引所", staking: "ステーキング", backup: "バックアップ", settings: "設定" },
-  network: { routeTelemetry: "経路テレメトリー", carrierTelemetry: "キャリアテレメトリー", publicationTelemetry: "公開テレメトリー" },
+  network: { routeTelemetry: "経路テレメトリー", carrierTelemetry: "キャリアテレメトリー", quicTelemetry: "QUIC トランスポートテレメトリー", publicationTelemetry: "公開テレメトリー" },
   walletShell: {
     balanceAvailable: "{value} 利用可能",
     current: "現在", scanning: "スキャン中", identityAria: "ウォレットを切り替え。現在のウォレット: {wallet}", lockLabel: "{wallet} ウォレット", copyAddress: "{wallet} ウォレットの完全なアドレスをコピー",
@@ -60,6 +60,7 @@ window.Z00ZI18n.registerLocale("ja", {
     localCapabilityHelp: "このウォレットデモには OnionNet ステータスブリッジが登録されていません。本物らしい経路、トポロジー、プライバシー値は作成しません。",
     tabs: { overview: "概要", epoch: "エポック", privacy: "プライバシー下限", transport: "転送", queues: "キューと再生", probation: "試用", ingress: "入口境界" }
   },
+  quic: { title: "QUIC テレメトリー", summary: "安全な多重化トランスポートセッション、ストリーム、パスマイグレーションの読み取り専用エビデンスです。", localCapability: "ローカル QUIC 機能は利用できません", localCapabilityHelp: "このウォレットデモには QUIC ステータスブリッジが登録されていません。実データのように見えるハンドシェイク、ストリーム、パス情報は生成しません。", tabs: { overview: "概要", connections: "接続", paths: "経路", streams: "ストリーム", recovery: "復旧", security: "セキュリティ" } },
   help: { title: "ヘルプ", openGlobal: "アプリケーションヘルプを開く", openContext: "この画面のヘルプ", close: "ヘルプを閉じる", contents: "目次", drawerTitle: "ヘルプ内容", section: "ヘルプセクション {current}/{total}", unavailable: "この画面のヘルプは利用できません。" },
   status: { up: "稼働中", down: "停止", connecting: "接続中", degraded: "低下" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }

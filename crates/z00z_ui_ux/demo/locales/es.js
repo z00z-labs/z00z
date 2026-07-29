@@ -17,7 +17,7 @@ window.Z00ZI18n.registerLocale("es", {
     languageChanged: "Idioma cambiado localmente."
   },
   nav: { home: "Inicio", assets: "Activos", history: "Historial", swap: "Intercambio", exchange: "Mercado", staking: "Staking", backup: "Copia de seguridad", settings: "Ajustes" },
-  network: { routeTelemetry: "Telemetría de ruta", carrierTelemetry: "Telemetría de transporte", publicationTelemetry: "Telemetría de publicación" },
+  network: { routeTelemetry: "Telemetría de ruta", carrierTelemetry: "Telemetría de transporte", quicTelemetry: "Telemetría de transporte QUIC", publicationTelemetry: "Telemetría de publicación" },
   walletShell: {
     balanceAvailable: "{value} disponible",
     current: "Actual", scanning: "Analizando", identityAria: "Cambiar de cartera. Cartera actual: {wallet}", lockLabel: "Cartera {wallet}", copyAddress: "Copiar la dirección completa de la cartera {wallet}",
@@ -60,6 +60,7 @@ window.Z00ZI18n.registerLocale("es", {
     localCapabilityHelp: "Esta demo de cartera no tiene un puente de estado OnionNet registrado. No se inventan valores de ruta, topología o privacidad que parezcan reales.",
     tabs: { overview: "Resumen", epoch: "Época", privacy: "Umbral de privacidad", transport: "Transporte", queues: "Colas y repeticiones", probation: "Período de prueba", ingress: "Límite de entrada" }
   },
+  quic: { title: "Telemetría QUIC", summary: "Evidencia de solo lectura para sesiones de transporte seguras y multiplexadas, flujos y migración de ruta.", localCapability: "Capacidad QUIC local no disponible", localCapabilityHelp: "Esta demo de cartera no tiene un puente de estado QUIC registrado. No inventa datos de negociación, flujos o rutas con apariencia real.", tabs: { overview: "Resumen", connections: "Conexiones", paths: "Rutas", streams: "Flujos", recovery: "Recuperación", security: "Seguridad" } },
   help: { title: "Ayuda", openGlobal: "Abrir la ayuda de la aplicación", openContext: "Ayuda para esta vista", close: "Cerrar ayuda", contents: "Contenido", drawerTitle: "Contenido de ayuda", section: "Sección de ayuda {current} de {total}", unavailable: "La ayuda no está disponible para esta vista." },
   status: { up: "Activo", down: "Inactivo", connecting: "Conectando", degraded: "Degradado" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }

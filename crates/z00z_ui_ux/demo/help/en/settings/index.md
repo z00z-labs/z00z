@@ -42,4 +42,4 @@ General settings control how this application presents language-dependent inform
 - The Demo has no authoritative market-price feed. A selected currency formats available value fields but never turns an unavailable price into an estimate.
 - These controls update the current local concept and its YAML draft. Production persistence requires a revisioned runtime settings capability.
 
-<!-- help-sync:source {"page_path":"settings/general.md","route_id":"settings.general","screenshot":"help/assets/en/settings-general.png","topic_id":"settings.general"} -->
+<!-- help-sync:source {"page_path":"settings/index.md","route_id":"settings.general","screenshot":"help/assets/en/settings-general.png","topic_id":"settings.general"} -->

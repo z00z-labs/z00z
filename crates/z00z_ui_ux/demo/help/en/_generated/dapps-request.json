@@ -9,10 +9,10 @@
     "input|type=text|name=business-reference|placeholder=Optional private order or invoice reference",
     "input|type=text|name=memo|placeholder=Shared only with the payer"
   ],
-  "presentation_sha256": "2d73fa84f45a748b0ffa1beb3132494ebfd4a674e77c9839eae545c71cfda1b1",
+  "presentation_sha256": "824ebe4c5b88c424a4190957fcaecfeecaa9c341d199af824e2e81853546d120",
   "scope": "context",
   "screenshot": "help/assets/en/dapps-request.png",
-  "screenshot_sha256": "cad7b8b07c5d5a4d3773aed9e211b7306a670654f5bf38e415636e755d845cf5",
+  "screenshot_sha256": "d2614baea5a2fc04ecbb2d174f45f26317d14d7050a9e9aa3979d8cb0fb9767f",
   "sections": [
     "Prepare proposal",
     "Request",

@@ -55,6 +55,7 @@ window.Z00ZI18n.registerLocale("en", {
   network: {
     routeTelemetry: "Route telemetry",
     carrierTelemetry: "Carrier telemetry",
+    quicTelemetry: "QUIC transport telemetry",
     publicationTelemetry: "Publication telemetry"
   },
   walletShell: {
@@ -139,6 +140,20 @@ window.Z00ZI18n.registerLocale("en", {
       queues: "Queues & Replay",
       probation: "Probation",
       ingress: "Ingress"
+    }
+  },
+  quic: {
+    title: "QUIC telemetry",
+    summary: "Read-only evidence for secure multiplexed transport sessions, streams, and path migration.",
+    localCapability: "Local QUIC capability unavailable",
+    localCapabilityHelp: "This wallet demo has no registered QUIC status bridge. It does not invent live-looking handshake, stream, or path data.",
+    tabs: {
+      overview: "Overview",
+      connections: "Connections",
+      paths: "Paths",
+      streams: "Streams",
+      recovery: "Recovery",
+      security: "Security"
     }
   },
   help: {

@@ -73,9 +73,11 @@ const { documents } = await loadNavigationHelp(demoRoot);
 const supportedLocales = globalThis.Z00ZLocaleRegistry.map(({ id }) => id);
 const contexts = records.filter(({ scope }) => scope === "context");
 const dialogs = records.filter(({ scope }) => scope === "dialog");
+const guides = records.filter(({ scope }) => scope === "guide");
 
-assert.equal(contexts.length, 78, "Help must cover every current Demo route.");
+assert.equal(contexts.length, 88, "Help must cover every current Demo route.");
 assert.equal(dialogs.length, 9, "Help must cover every supported dialog view.");
+assert.equal(guides.length, 1, "Help must contain the dApps security guide.");
 assert.equal(documents.length, records.length, "Every Help navigation record requires one English Markdown page.");
 assert.equal(new Set(documents.map(({ id }) => id)).size, records.length, "Help page IDs must be unique.");
 
@@ -136,4 +138,4 @@ for (const node of visibleHelpNodes) {
   );
 }
 
-console.log(`Navigation Help ready: ${contexts.length} routed views, ${dialogs.length} dialog views, ${documents.length} pages in ${supportedLocales.length} locales.`);
+console.log(`Navigation Help ready: ${contexts.length} routed views, ${dialogs.length} dialog views, ${guides.length} guide, ${documents.length} pages in ${supportedLocales.length} locales.`);

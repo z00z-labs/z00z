@@ -129,7 +129,8 @@ function localizedLegacyMarkdown(source, record, language, sourceName) {
   if (!copy) throw new Error(`Unsupported Help locale: ${language}`);
   const { body, frontmatter } = parseFrontmatter(source, sourceName);
   const sections = splitLegacyBody(body.replace(/<!-- help-sync:source \{.+\} -->/u, ""));
-  const screenshot = `help/assets/en/${record.id.replaceAll(".", "-")}.png`;
+  const screenshot = body.match(/<!-- help-sync:source \{.+?"screenshot":"([^"]+)".+?\} -->/u)?.[1]
+    || `help/assets/en/${record.id.replaceAll(".", "-")}.png`;
   const provenance = JSON.stringify({
     localized_source: sourceName,
     page_path: pageFile(record),

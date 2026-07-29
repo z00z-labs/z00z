@@ -1,0 +1,43 @@
+{
+  "capture_route": "telemetry.quic.recovery",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.quic.connections",
+    "button|type=button|data-workspace-route=telemetry.quic.overview",
+    "button|type=button|data-workspace-route=telemetry.quic.paths",
+    "button|type=button|data-workspace-route=telemetry.quic.recovery",
+    "button|type=button|data-workspace-route=telemetry.quic.security",
+    "button|type=button|data-workspace-route=telemetry.quic.streams"
+  ],
+  "presentation_sha256": "65ca729190060f2559ed7145cabd958530b624f384d612c99222d2fd8b733413",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-quic-recovery.png",
+  "screenshot_sha256": "6e3736d07f63977576d067aa3708c145e80a532339d325c1371f1f5fd62b52a3",
+  "sections": [
+    "QUIC telemetry",
+    "Recovery"
+  ],
+  "terms": [
+    "Congestion state",
+    "Connections",
+    "ECN validation",
+    "Local QUIC capability unavailable",
+    "Loss recovery",
+    "No aggregate ECN capability or failure evidence",
+    "No congestion window or bytes-in-flight snapshot",
+    "No latest, minimum, smoothed RTT, or variance snapshot",
+    "No packet-loss or PTO counters",
+    "Overview",
+    "Paths",
+    "QUIC",
+    "QUIC telemetry",
+    "RTT estimate",
+    "Read-only",
+    "Recovery",
+    "Recovery parameters",
+    "Security",
+    "Streams",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.quic.recovery",
+  "version": 3
+}

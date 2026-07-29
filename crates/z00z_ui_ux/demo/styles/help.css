@@ -145,12 +145,13 @@
 .help-search-trigger-label {
   min-width: 0;
   flex: 1 1 auto;
-  overflow: hidden;
+  overflow: visible;
   font-size: var(--type-support);
   font-weight: 650;
+  overflow-wrap: anywhere;
   text-align: start;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .help-search-shortcut {
@@ -339,32 +340,33 @@ body.has-help-search {
 }
 
 .help-search-result strong {
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-primary);
   font-size: var(--type-support);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .help-search-result small {
-  display: -webkit-box;
+  display: block;
   margin-top: 4px;
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-tertiary);
   font-size: var(--type-status);
   line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 
 .help-search-result-path {
   max-width: 34%;
   flex: 0 0 auto;
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-tertiary);
   font-size: var(--type-status);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .help-search-empty {

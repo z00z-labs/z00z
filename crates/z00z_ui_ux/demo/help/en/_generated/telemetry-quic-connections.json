@@ -1,0 +1,43 @@
+{
+  "capture_route": "telemetry.quic.connections",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.quic.connections",
+    "button|type=button|data-workspace-route=telemetry.quic.overview",
+    "button|type=button|data-workspace-route=telemetry.quic.paths",
+    "button|type=button|data-workspace-route=telemetry.quic.recovery",
+    "button|type=button|data-workspace-route=telemetry.quic.security",
+    "button|type=button|data-workspace-route=telemetry.quic.streams"
+  ],
+  "presentation_sha256": "43de70a28934ed978342ccb120f79fb2e720acfb5087542a87cf0f3c1ddefd8f",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-quic-connections.png",
+  "screenshot_sha256": "cb8a0fe20ec7191a4157f01fbdc465e65b59ab4c0830da0703c49c6d429f2945",
+  "sections": [
+    "Connections",
+    "QUIC telemetry"
+  ],
+  "terms": [
+    "Connection ID rotation",
+    "Connection lifecycle",
+    "Connections",
+    "Connections parameters",
+    "Local QUIC capability unavailable",
+    "Negotiated version / ALPN",
+    "No aggregate active, closing, or draining counts",
+    "No aggregate bytes sent or received",
+    "No aggregate rotation or retirement counters",
+    "No sanitized negotiation snapshot",
+    "Overview",
+    "Paths",
+    "QUIC",
+    "QUIC telemetry",
+    "Read-only",
+    "Recovery",
+    "Security",
+    "Streams",
+    "Traffic totals",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.quic.connections",
+  "version": 3
+}

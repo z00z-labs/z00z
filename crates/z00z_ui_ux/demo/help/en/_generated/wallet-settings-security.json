@@ -4,10 +4,10 @@
     "button|type=button",
     "button|type=button|data-demo-action=lock"
   ],
-  "presentation_sha256": "3297c6edf81f8041e5a95b4991c700aa8292c4d7f475965b20a33014d5bf18f4",
+  "presentation_sha256": "24862a23cd2ed96ce58feb1686a4cc0fdc61b236430da84e6865ceada7acf15a",
   "scope": "context",
   "screenshot": "help/assets/en/wallet-settings-security.png",
-  "screenshot_sha256": "65fb399d91821ea8e4a3332cbd502e442ea83ad905536f76a125e2eec86fa042",
+  "screenshot_sha256": "cfc98e3b5da1c4f283ff3b1a057946ee0ca4daa57ab4f7c025aeccb95afce311",
   "sections": [],
   "terms": [
     "15 minutes",

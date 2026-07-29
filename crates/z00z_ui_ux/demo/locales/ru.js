@@ -55,6 +55,7 @@ window.Z00ZI18n.registerLocale("ru", {
   network: {
     routeTelemetry: "Телеметрия маршрута",
     carrierTelemetry: "Телеметрия носителя",
+    quicTelemetry: "Телеметрия транспорта QUIC",
     publicationTelemetry: "Телеметрия публикаций"
   },
   walletShell: {
@@ -139,6 +140,20 @@ window.Z00ZI18n.registerLocale("ru", {
       queues: "Очереди и повторы",
       probation: "Проверочный период",
       ingress: "Граница входа"
+    }
+  },
+  quic: {
+    title: "Телеметрия QUIC",
+    summary: "Доступные только для чтения данные о защищённых multiplexed transport sessions, потоках и смене пути.",
+    localCapability: "Локальная возможность QUIC недоступна",
+    localCapabilityHelp: "В demo кошелька не зарегистрирован bridge статуса QUIC. Интерфейс не имитирует живые данные handshake, streams или path migration.",
+    tabs: {
+      overview: "Обзор",
+      connections: "Соединения",
+      paths: "Пути",
+      streams: "Потоки",
+      recovery: "Восстановление",
+      security: "Безопасность"
     }
   },
   help: {

@@ -17,7 +17,7 @@ window.Z00ZI18n.registerLocale("zh-Hans", {
     languageChanged: "语言已在本地更改。"
   },
   nav: { home: "主页", assets: "资产", history: "历史记录", swap: "兑换", exchange: "交易所", staking: "质押", backup: "备份", settings: "设置" },
-  network: { routeTelemetry: "路由遥测", carrierTelemetry: "载体遥测", publicationTelemetry: "发布遥测" },
+  network: { routeTelemetry: "路由遥测", carrierTelemetry: "载体遥测", quicTelemetry: "QUIC 传输遥测", publicationTelemetry: "发布遥测" },
   walletShell: {
     balanceAvailable: "{value} 可用",
     current: "当前", scanning: "扫描中", identityAria: "切换钱包。当前钱包：{wallet}", lockLabel: "{wallet} 钱包", copyAddress: "复制 {wallet} 钱包的完整地址",
@@ -60,6 +60,7 @@ window.Z00ZI18n.registerLocale("zh-Hans", {
     localCapabilityHelp: "此钱包演示未注册 OnionNet 状态桥接。不会伪造看似实时的路由、拓扑或隐私数值。",
     tabs: { overview: "概览", epoch: "纪元", privacy: "隐私下限", transport: "传输", queues: "队列与重放", probation: "观察期", ingress: "入口边界" }
   },
+  quic: { title: "QUIC 遥测", summary: "安全多路复用传输会话、数据流和路径迁移的只读证据。", localCapability: "本地 QUIC 功能不可用", localCapabilityHelp: "此钱包演示未注册 QUIC 状态桥接，不会伪造看似实时的握手、数据流或路径数据。", tabs: { overview: "概览", connections: "连接", paths: "路径", streams: "数据流", recovery: "恢复", security: "安全" } },
   help: { title: "帮助", openGlobal: "打开应用帮助", openContext: "此视图的帮助", close: "关闭帮助", contents: "目录", drawerTitle: "帮助内容", section: "帮助章节 {current}/{total}", unavailable: "此视图暂无帮助。" },
   status: { up: "运行中", down: "离线", connecting: "正在连接", degraded: "受限" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }

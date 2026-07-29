@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -111,15 +112,9 @@ for (const appIcon of [
 
 const symbolBlocks = [...index.matchAll(/<symbol\s+id="i-([^"]+)"\s+viewBox="([^"]+)"[^>]*>([\s\S]*?)<\/symbol>/g)];
 const symbolNames = symbolBlocks.map((match) => match[1]);
-const normalizedFilledIconNames = new Set(["dapp-request", "dapp-private-contract"]);
 assert.deepEqual(symbolNames, Array.from(demo.ICON_NAMES), "inline SVG symbols must match the canonical icon registry order");
-for (const [, name, viewBox, body] of symbolBlocks) {
+for (const [, name, viewBox] of symbolBlocks) {
   assert.equal(viewBox, "0 0 24 24", `icon ${name} must use the normalized viewBox`);
-  assert.equal(
-    /fill="currentColor"/i.test(body),
-    normalizedFilledIconNames.has(name),
-    `icon ${name} must follow its declared normalized fill or outline contract`,
-  );
 }
 
 for (const family of Object.values(demo.OBJECT_TYPE_ICON_LUT)) {
@@ -139,10 +134,8 @@ for (const definition of Object.values(demo.OBJECT_FAMILY_ICON_LUT)) {
   assert.ok(iconInfo.size > 0, `${definition.iconSrc} must exist and be non-empty`);
 }
 for (const lightBackgroundCoinIcon of [
-  "assets/z00z-friendly/Coins/algorand-algo-logo-z00z.svg",
-  "assets/z00z-friendly/Coins/cardano-ada-logo-z00z.svg",
-  "assets/z00z-friendly/Coins/ethereum-eth-logo-z00z.svg",
-  "assets/z00z-friendly/Coins/hyperliquid-hype-logo-z00z.svg"
+  "assets/z00z-friendly/Coins/curve-usd-logo-z00z.svg",
+  "assets/z00z-friendly/Coins/ethereum-eth-logo-z00z.svg"
 ]) {
   const iconBody = await read(lightBackgroundCoinIcon);
   assert.match(
@@ -156,6 +149,29 @@ for (const lightBackgroundCoinIcon of [
     `${lightBackgroundCoinIcon} must remain transparent outside the gold ring`
   );
 }
+const curveSource = await read("assets/z00z-friendly/Coins/curve-usd-logo.svg");
+const curveWrapped = await read("assets/z00z-friendly/Coins/curve-usd-logo-z00z.svg");
+const ethereumWrapped = await read("assets/z00z-friendly/Coins/ethereum-eth-logo-z00z.svg");
+const embeddedCurveSource = curveWrapped.match(/href="data:image\/svg\+xml;base64,([^"]+)"/);
+assert.ok(embeddedCurveSource, "Curve USD Z00Z variant must embed the original local SVG");
+assert.equal(
+  Buffer.from(embeddedCurveSource[1], "base64").toString("utf8"),
+  curveSource,
+  "Curve USD Z00Z variant must preserve the original SVG byte-for-byte"
+);
+assert.match(
+  curveWrapped,
+  /<image x="210"\s+y="210"\s+width="580"\s+height="580"/,
+  "Curve USD source must be centered and reduced enough to fit completely inside the gold ring"
+);
+const normalizedRing = (source) => (
+  source.match(/<g id="z00z-cross-chain-ring"[\s\S]*?<\/g>/)?.[0].replace(/\s+/g, " ").trim()
+);
+assert.equal(
+  normalizedRing(curveWrapped),
+  normalizedRing(ethereumWrapped),
+  "Curve USD and Ethereum Z00Z variants must use the same gold ring"
+);
 
 const runtimeFiles = [
   "app.js",

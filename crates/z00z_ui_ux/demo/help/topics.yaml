@@ -205,6 +205,42 @@ topics:
     label_key: navigation.ingress
     route: telemetry.onionnet.ingress
     scope: context
+  - id: telemetry.quic.overview
+    title: Telemetry QUIC: Overview
+    file: telemetry/quic/index.md
+    label_key: navigation.quic
+    route: telemetry.quic.overview
+    scope: context
+  - id: telemetry.quic.connections
+    title: Telemetry QUIC: Connections
+    file: telemetry/quic/connections.md
+    label_key: quic.tabs.connections
+    route: telemetry.quic.connections
+    scope: context
+  - id: telemetry.quic.paths
+    title: Telemetry QUIC: Paths
+    file: telemetry/quic/paths.md
+    label_key: quic.tabs.paths
+    route: telemetry.quic.paths
+    scope: context
+  - id: telemetry.quic.streams
+    title: Telemetry QUIC: Streams
+    file: telemetry/quic/streams.md
+    label_key: quic.tabs.streams
+    route: telemetry.quic.streams
+    scope: context
+  - id: telemetry.quic.recovery
+    title: Telemetry QUIC: Recovery
+    file: telemetry/quic/recovery.md
+    label_key: quic.tabs.recovery
+    route: telemetry.quic.recovery
+    scope: context
+  - id: telemetry.quic.security
+    title: Telemetry QUIC: Security
+    file: telemetry/quic/security.md
+    label_key: quic.tabs.security
+    route: telemetry.quic.security
+    scope: context
   - id: telemetry.aggregators.overview
     title: Telemetry Aggregators: Overview
     file: telemetry/aggregators/index.md
@@ -350,7 +386,7 @@ topics:
     route: dapps.agents-budget
     scope: context
   - id: dapps.wbold-gateway
-    title: dApps: wBOLD Gateway
+    title: dApps: wCoins Gateway
     file: dapps/wbold-gateway.md
     label_key: navigation.wboldGateway
     route: dapps.wbold-gateway
@@ -415,6 +451,12 @@ topics:
     label_key: navigation.assetsLocker
     route: dapps.assets-locker
     scope: context
+  - id: dapps.xchain-integration
+    title: dApps: X-Chain Integration
+    file: dapps/xchain-integration.md
+    label_key: navigation.xchainIntegration
+    route: dapps.xchain-integration
+    scope: context
   - id: messenger.inbox
     title: Messenger: Inbox
     file: messenger/inbox.md
@@ -453,9 +495,27 @@ topics:
     scope: context
   - id: settings.general
     title: Settings: General
-    file: settings/general.md
+    file: settings/index.md
     label_key: navigation.general
     route: settings.general
+    scope: context
+  - id: settings.reticulum
+    title: Settings: Reticulum
+    file: settings/reticulum.md
+    label_key: navigation.network
+    route: settings.reticulum
+    scope: context
+  - id: settings.onionnet
+    title: Settings: OnionNet
+    file: settings/onionnet.md
+    label_key: navigation.onionnet
+    route: settings.onionnet
+    scope: context
+  - id: settings.quic
+    title: Settings: QUIC
+    file: settings/quic.md
+    label_key: navigation.quic
+    route: settings.quic
     scope: context
   - id: settings.notifications
     title: Settings: Notifications
@@ -529,3 +589,9 @@ topics:
     label_key: help.title
     route: none
     scope: dialog
+  - id: dapps.security-model
+    title: dApps: How dApps Work Safely
+    file: dapps/security-model.md
+    label_key: help.title
+    route: none
+    scope: guide

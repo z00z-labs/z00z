@@ -28,7 +28,7 @@
     "create_bounded_permission",
     "create_asset_definition",
     "propose_agent_budget",
-    "prepare_wbold_gateway",
+    "prepare_wcoins_gateway",
     "create_bounded_subscription",
     "prepare_private_donation",
     "create_private_escrow",
@@ -38,7 +38,8 @@
     "issue_digital_entitlement",
     "prepare_private_payroll",
     "propose_private_contract",
-    "prepare_external_asset_lock"
+    "prepare_external_asset_lock",
+    "prepare_xchain_integration"
   ]);
 
   const descriptor = ({
@@ -63,7 +64,15 @@
     proposalFields,
     walletChecks,
     settlementPath,
-    evidenceOutput
+    evidenceOutput,
+    gatewayAggregate = null,
+    gatewayRoutes = [],
+    gatewayControls = [],
+    gatewayMarketNotes = [],
+    integrations = [],
+    quoteFields = [],
+    integrationRecommendation = null,
+    integrationInvariants = []
   }) => deepFreeze({
     id,
     label,
@@ -102,7 +111,15 @@
     proposalFields,
     walletChecks,
     settlementPath,
-    evidenceOutput
+    evidenceOutput,
+    gatewayAggregate,
+    gatewayRoutes,
+    gatewayControls,
+    gatewayMarketNotes,
+    integrations,
+    quoteFields,
+    integrationRecommendation,
+    integrationInvariants
   });
 
   const DAPP_CATALOG = deepFreeze([
@@ -291,31 +308,173 @@
     }),
     descriptor({
       id: "wbold-gateway",
-      label: "wBOLD Gateway",
-      summary: "Propose a bounded deposit or redemption route for externally backed wBOLD.",
-      createdArtifact: "A typed external deposit or redemption route proposal.",
-      purpose: "Bridge one declared BOLD or wBOLD amount through an explicit operator while keeping external custody risk visible.",
+      label: "wCoins Gateway",
+      summary: "Propose a bounded deposit or redemption between a Z00Z wrapped coin and its route-specific external reserve.",
+      createdArtifact: "A typed stablecoin deposit or redemption proposal bound to one immutable LockerID.",
+      purpose: "Use route-specific USD, CHF, EUR, or JPY stablecoin candidates without hiding their distinct collateral, governance, oracle, liquidity, or custody risks.",
       useCaseFamily: "external_asset_gateway",
       iconName: "dapp-wbold-gateway",
-      intentType: "prepare_wbold_gateway",
+      intentType: "prepare_wcoins_gateway",
       requestedObjectFamilies: ["asset", "external_asset_right"],
       offlineMode: "reconnect_required",
-      offlineSummary: "The proposal is inspectable offline; external finality, backing, and redemption status require their authorities.",
-      disclosures: ["asset_family", "route", "bounded_value", "external_recipient"],
+      offlineSummary: "The proposal and last local route snapshot are inspectable offline; reserves, finality, status, and redemption availability require reconnection.",
+      disclosures: ["asset_family", "reference_currency", "protocol_model", "locker_id", "reserve_network", "route", "bounded_value", "external_recipient"],
       valuePath: "wallet_review",
       feePath: "separate_wallet_review",
-      reviewBoundary: "Z00Z verifies the internal proposal boundary, not external custody, solvency, or redemption.",
+      reviewBoundary: "Each Z00Z asset and external reserve network pair has an independent reference currency, protocol model, LockerID, reserve pool, liabilities, redemption route, status, risk badge, and exposure cap. Z00Z verifies the proposal boundary, not external solvency.",
       actionLabel: "Review gateway route in Wallet",
       proposalFields: [
-        { id: "direction", label: "Route", type: "select", options: ["Deposit BOLD → receive wBOLD", "Redeem wBOLD → receive BOLD"] },
+        {
+          id: "route",
+          label: "Stable asset route",
+          type: "select",
+          options: [
+            "wBOLD ← BOLD · ETH",
+            "wDAI ← DAI · ETH",
+            "wCRVUSD ← CRVUSD · ETH",
+            "wZCHF ← ZCHF · ETH",
+            "wdEURO ← dEURO · ETH",
+            "wCJPY ← CJPY · ETH"
+          ],
+          suffix: "The wCoin is issued inside Z00Z. Ethereum Mainnet is the external reserve network, not the wCoin network."
+        },
+        { id: "direction", label: "Action", type: "select", options: ["Deposit reserve → receive wCoin", "Redeem wCoin → receive reserve"] },
         { id: "amount", label: "Amount", type: "number", placeholder: "0.00", required: true, min: "0.00000001" },
-        { id: "external-recipient", label: "External recipient", type: "text", placeholder: "Required for redemption", suffix: "Must match the selected external network when redeeming" },
-        { id: "operator", label: "Locker route", type: "select", options: ["BOLD Locker · Ethereum"] },
+        { id: "external-recipient", label: "External recipient", type: "text", placeholder: "Required for redemption", suffix: "Must be an address on the selected reserve network when redeeming" },
         { id: "max-fee", label: "Maximum route fee", type: "number", placeholder: "0.00", required: true, min: "0", suffix: "May be zero; Wallet rejects any larger fee" }
       ],
-      walletChecks: ["Route status", "External finality", "Replay-safe deposit or exit", "Fee and recipient"],
-      settlementPath: "External event ↔ adapter proof ↔ wBOLD package ↔ checkpoint",
-      evidenceOutput: "External event reference, internal receipt, and route status"
+      walletChecks: ["Z00Z asset and reserve-asset mapping", "LockerID, reserve network, and route status", "Reserve and exposure cap", "External finality", "Replay-safe deposit or exit", "Fee and recipient"],
+      settlementPath: "External event ↔ route-specific adapter proof ↔ wrapped stablecoin package ↔ checkpoint",
+      evidenceOutput: "Z00Z asset, external reserve asset, reserve network, LockerID, external event reference, reserve snapshot, internal receipt, and route status",
+      gatewayAggregate: "6 independent lockers",
+      gatewayRoutes: [
+        {
+          id: "wbold",
+          label: "wBOLD",
+          z00zAsset: "wBOLD",
+          externalAsset: "BOLD",
+          referenceCurrency: "USD",
+          protocolModel: "Liquity V2 overcollateralized CDP",
+          reserveNetwork: "Ethereum Mainnet",
+          lockerId: "locker.ethereum-mainnet.bold.v1",
+          reservePool: "3,400.00 BOLD",
+          liabilities: "3,250.00 wBOLD",
+          redemptionRoute: "wBOLD (Z00Z) → BOLD (Ethereum Mainnet)",
+          riskBadge: "Governance-minimized",
+          status: "Active",
+          exposureLimit: "5,000.00 BOLD",
+          positioning: "Governance-minimized private stable value.",
+          uses: "Private payments · merchants · vouchers · scoped budgets · subscriptions · agent allowances"
+        },
+        {
+          id: "wdai",
+          label: "wDAI",
+          z00zAsset: "wDAI",
+          externalAsset: "DAI",
+          referenceCurrency: "USD",
+          protocolModel: "Governance-managed collateral system",
+          reserveNetwork: "Ethereum Mainnet",
+          lockerId: "locker.ethereum-mainnet.dai.v1",
+          reservePool: "6,950.00 DAI",
+          liabilities: "6,800.00 wDAI",
+          redemptionRoute: "wDAI (Z00Z) → DAI (Ethereum Mainnet)",
+          riskBadge: "Governance-managed",
+          status: "Active",
+          exposureLimit: "10,000.00 DAI",
+          positioning: "Highly liquid decentralized stable asset with governance-managed protocol risk.",
+          uses: "Large ingress and egress · OTC · existing DAI holders · external DeFi · backup liquidity"
+        },
+        {
+          id: "wcrvusd",
+          label: "wCRVUSD",
+          z00zAsset: "wCRVUSD",
+          externalAsset: "CRVUSD",
+          referenceCurrency: "USD",
+          protocolModel: "LLAMMA crypto-collateralized debt",
+          reserveNetwork: "Ethereum Mainnet",
+          lockerId: "locker.ethereum-mainnet.crvusd.v1",
+          reservePool: "2,500.00 CRVUSD",
+          liabilities: "2,400.00 wCRVUSD",
+          redemptionRoute: "wCRVUSD (Z00Z) → CRVUSD (Ethereum Mainnet)",
+          riskBadge: "DAO-managed",
+          status: "Active",
+          exposureLimit: "4,000.00 CRVUSD",
+          positioning: "DAO-managed crypto-collateralized stable asset without issuer address blacklist.",
+          uses: "Curve community · DEX liquidity · protocol-risk diversification · private DeFi settlement"
+        },
+        {
+          id: "wzchf",
+          label: "wZCHF",
+          z00zAsset: "wZCHF",
+          externalAsset: "ZCHF",
+          referenceCurrency: "CHF",
+          protocolModel: "Oracle-free positions, challenges, auctions, and reserve equity",
+          reserveNetwork: "Ethereum Mainnet",
+          lockerId: "locker.ethereum-mainnet.zchf.v1",
+          reservePool: "1,200.00 ZCHF",
+          liabilities: "1,000.00 wZCHF",
+          redemptionRoute: "wZCHF (Z00Z) → ZCHF (Ethereum Mainnet)",
+          riskBadge: "Mixed collateral",
+          status: "Candidate",
+          exposureLimit: "2,000.00 ZCHF",
+          positioning: "Most established non-USD candidate in this set; collateral and bridge composition remain route-specific risks.",
+          uses: "CHF-denominated private settlement · payroll · merchant invoices · treasury diversification"
+        },
+        {
+          id: "wdeuro",
+          label: "wdEURO",
+          z00zAsset: "wdEURO",
+          externalAsset: "dEURO",
+          referenceCurrency: "EUR",
+          protocolModel: "Oracle-free positions plus governed stablecoin bridges",
+          reserveNetwork: "Ethereum Mainnet",
+          lockerId: "locker.ethereum-mainnet.deuro.v1",
+          reservePool: "850.00 dEURO",
+          liabilities: "750.00 wdEURO",
+          redemptionRoute: "wdEURO (Z00Z) → dEURO (Ethereum Mainnet)",
+          riskBadge: "Early-stage · bridge-aware",
+          status: "Candidate",
+          exposureLimit: "1,250.00 dEURO",
+          positioning: "Promising euro candidate with an oracle-free position core and additional bridge dependencies.",
+          uses: "EUR-denominated private settlement · subscriptions · payroll · merchant invoices"
+        },
+        {
+          id: "wcjpy",
+          label: "wCJPY",
+          z00zAsset: "wCJPY",
+          externalAsset: "CJPY",
+          referenceCurrency: "JPY",
+          protocolModel: "ETH-backed CDP with Chainlink ETH/USD and USD/JPY feeds",
+          reserveNetwork: "Ethereum Mainnet",
+          lockerId: "locker.ethereum-mainnet.cjpy.v1",
+          reservePool: "180,000 CJPY",
+          liabilities: "150,000 wCJPY",
+          redemptionRoute: "wCJPY (Z00Z) → CJPY (Ethereum Mainnet)",
+          riskBadge: "Thin liquidity · oracle",
+          status: "Candidate",
+          exposureLimit: "250,000 CJPY",
+          positioning: "ETH-backed JPY candidate; activation remains gated on verified market depth and peg quality.",
+          uses: "JPY-denominated private settlement · merchant invoices · payroll · regional treasury routing"
+        }
+      ],
+      gatewayControls: [
+        "User reserves cannot be confiscated by the gateway.",
+        "Wrapped coins cannot be minted without a confirmed deposit.",
+        "Every external network is a separate route; an existing asset, network, or LockerID mapping cannot be changed retroactively.",
+        "New deposits may be stopped by a circuit breaker.",
+        "Any exit pause must have a hard deadline and a trust-minimized escape route after expiry.",
+        "Upgrades require a long timelock or a new locker version.",
+        "An old locker must retain redemption for its existing liabilities.",
+        "Every route enforces its own exposure cap."
+      ],
+      gatewayMarketNotes: [
+        "BOLD is the strongest candidate for minimizing administrative control and the strategic primary route for Z00Z.",
+        "DAI is the strongest liquidity route and currently leads this candidate set by a wide margin.",
+        "CRVUSD is the strongest compromise between decentralized architecture and meaningful trading activity.",
+        "ZCHF is the strongest non-USD candidate in this set by protocol history and present scale, but its collateral and bridge dependencies are not equivalent to BOLD.",
+        "dEURO is a promising new EUR candidate; current market activity and bridge composition require conservative pilot caps.",
+        "CJPY is an ETH-collateralized JPY candidate; current market depth is insufficient for an unrestricted route."
+      ]
     }),
     descriptor({
       id: "subscription",
@@ -611,6 +770,195 @@
       walletChecks: ["Asset and network", "Operator status", "Replay protection", "Reserve/redemption disclosure"],
       settlementPath: "External lock ↔ adapter proof ↔ private right ↔ external release",
       evidenceOutput: "Custody event reference, internal receipt, and redemption status"
+    }),
+    descriptor({
+      id: "xchain-integration",
+      label: "X-Chain Integration",
+      summary: "Describe the result you want and let Wallet compare bounded solver plans without making you operate bridges, venues, or adapters.",
+      createdArtifact: "A typed execution intent plus a request for normalized solver quotes, bound to one result, destination, deadline, cost ceiling, and fallback policy.",
+      purpose: "Keep integration work under the hood while making the achievable result, execution method, required resources, total price, expected speed, finality, and recovery path reviewable.",
+      useCaseFamily: "cross_chain_integration",
+      maturity: "concept",
+      iconName: "dapp-xchain-integration",
+      intentType: "prepare_xchain_integration",
+      requestedObjectFamilies: ["asset", "claim", "service_right", "external_asset_right"],
+      offlineMode: "reconnect_required",
+      offlineSummary: "The intent, accepted quote, method, limits, and last execution receipts remain inspectable offline; fresh quotes, external state, and completion require reconnection.",
+      disclosures: ["desired_result", "provided_value", "minimum_result", "destination", "execution_preference", "deadline", "maximum_total_cost", "fallback_policy"],
+      valuePath: "wallet_review",
+      feePath: "separate_wallet_review",
+      reviewBoundary: "The dApp cannot choose Wallet inputs, silently switch a reviewed route, attest external evidence, exceed result, cost, time, or fallback limits, release custody, publish private payloads, or claim an external effect is final.",
+      actionLabel: "Review execution intent in Wallet",
+      proposalFields: [
+        {
+          id: "result-kind",
+          label: "What you want to achieve",
+          type: "select",
+          options: [
+            "Receive a private asset in Z00Z",
+            "Deliver an asset to an external recipient",
+            "Fulfill an external service",
+            "Publish public evidence"
+          ],
+          suffix: "You choose the result. Wallet compares compatible solver and adapter plans."
+        },
+        {
+          id: "source",
+          label: "You provide",
+          type: "text",
+          placeholder: "Exact asset, amount, held right, or public artifact commitment",
+          required: true,
+          suffix: "Wallet resolves eligible private objects and external evidence; the dApp never selects Wallet inputs."
+        },
+        {
+          id: "result",
+          label: "Minimum acceptable result",
+          type: "text",
+          placeholder: "Exact asset and amount, service outcome, or publication handle",
+          required: true,
+          suffix: "Every quote must satisfy this result or Wallet rejects it."
+        },
+        {
+          id: "destination",
+          label: "Destination",
+          type: "text",
+          placeholder: "External recipient or service target when required",
+          suffix: "For a Z00Z receive, Wallet binds the active receiver automatically."
+        },
+        {
+          id: "preference",
+          label: "Execution preference",
+          type: "select",
+          options: [
+            "Best overall result",
+            "Lowest total cost",
+            "Fastest expected completion",
+            "Fewest external trust dependencies"
+          ],
+          suffix: "This ranks valid quotes; it never weakens the result, deadline, or cost ceiling."
+        },
+        {
+          id: "deadline",
+          label: "Execution deadline",
+          type: "select",
+          options: [
+            "15 minutes",
+            "1 hour",
+            "24 hours"
+          ],
+          suffix: "Wallet rejects quotes whose expected completion window exceeds this deadline."
+        },
+        {
+          id: "max-cost",
+          label: "Maximum total cost",
+          type: "number",
+          placeholder: "0.00",
+          required: true,
+          min: "0",
+          suffix: "One ceiling for solver, protocol, network, price-impact, and recovery costs."
+        },
+        {
+          id: "fallback",
+          label: "Fallback policy",
+          type: "select",
+          options: [
+            "Ask before any route change",
+            "Allow an equivalent fallback within all reviewed limits"
+          ],
+          suffix: "No fallback may change the result, destination, deadline, total-cost ceiling, or add a trust dependency."
+        }
+      ],
+      walletChecks: [
+        "Exact source, destination, and minimum result",
+        "Comparable signed quote schema and solver identity",
+        "Disclosed protocols, adapters, resources, and trust dependencies",
+        "All-in cost under the reviewed ceiling",
+        "Quote expiry, expected completion window, and finality milestones",
+        "Fallback, cancellation, refund, and irreversible-step boundaries",
+        "Wallet object selection and final user confirmation"
+      ],
+      settlementPath: "Result intent → competing solver quotes → normalized plan → Wallet confirmation → staged execution → verified result or bounded recovery",
+      evidenceOutput: "Accepted quote, solver and method, protocol steps, resources, all-in cost, time and finality milestones, execution receipts, and recovery outcome",
+      integrations: [
+        {
+          id: "near-intents",
+          label: "NEAR Intents",
+          role: "Intent discovery and solver competition",
+          method: "Collect signed result quotes and normalize the selected solver plan into the Wallet execution schema.",
+          resources: "Solver liquidity, route adapters, source funding, deposit evidence, and delivery verification.",
+          cost: "Solver margin, adapter, venue, network, and recovery costs under one total ceiling.",
+          speed: "Quote expiry, funding window, expected execution, delivery, and external finality milestones.",
+          trustBoundary: "Selected solver plus every adapter, venue, custody, and network dependency in its signed plan."
+        },
+        {
+          id: "ethereum",
+          label: "Ethereum",
+          role: "External settlement and evidence verification",
+          method: "Execute reviewed EVM steps such as an EVM Locker or asset-specific Issuer Rail and verify finalized event evidence.",
+          resources: "Contract capacity, gas, allowance or custody state, RPC evidence, and finality monitoring.",
+          cost: "Network gas, contract or adapter charges, and recovery reserve included in the all-in quote.",
+          speed: "Submission, inclusion, confirmation, and route-specific finality windows.",
+          trustBoundary: "Reviewed contracts, operators where present, evidence providers, and Ethereum finality assumptions."
+        },
+        {
+          id: "liquity-bold",
+          label: "Liquity BOLD",
+          role: "Stable liquidity source",
+          method: "Use a route-specific BOLD liquidity and settlement plan without treating Liquity as Z00Z finality.",
+          resources: "Available BOLD liquidity, redemption or market path, collateral constraints, and Ethereum gas.",
+          cost: "Spread, liquidity impact, protocol or solver charges, network costs, and recovery allowance.",
+          speed: "Liquidity availability, route execution, Ethereum inclusion, and external finality windows.",
+          trustBoundary: "Liquity protocol state plus the selected market, custody, solver, and adapter dependencies."
+        },
+        {
+          id: "hyperliquid",
+          label: "Hyperliquid",
+          role: "Order-book execution venue",
+          method: "Execute a bounded market or limit plan with explicit price, slippage, fill, and withdrawal conditions.",
+          resources: "Venue balance or deposit, market depth, venue adapter, withdrawal path, and delivery evidence.",
+          cost: "Spread, slippage, trading, deposit or withdrawal, network, solver, and recovery costs.",
+          speed: "Deposit readiness, expected fill, withdrawal, delivery, and finality windows.",
+          trustBoundary: "Venue operation, selected adapter, custody exposure, market liquidity, and withdrawal availability."
+        },
+        {
+          id: "uniswap",
+          label: "Uniswap",
+          role: "On-chain AMM execution",
+          method: "Execute a bounded swap against disclosed pools with a minimum output, slippage limit, and deadline.",
+          resources: "Pool liquidity, token allowance or permit, route contracts, gas, and output-delivery evidence.",
+          cost: "Pool fee, price impact, network gas, solver or adapter charge, and recovery allowance.",
+          speed: "Quote expiry, transaction inclusion, confirmation, delivery, and external finality windows.",
+          trustBoundary: "Selected pools, router contracts, token behavior, adapter logic, and network finality."
+        },
+        {
+          id: "external-solvers",
+          label: "External Solvers",
+          role: "Competitive and fallback execution",
+          method: "Accept only signed plans that implement the same result, cost, timing, trust, evidence, and recovery schema. Any EVM Locker, Issuer Rail, or Celestia DA publication is a disclosed plan step, never a separate user choice.",
+          resources: "Solver identity, liquidity or bond, required adapters, source funding, monitoring, and refund capacity.",
+          cost: "Every solver, protocol, venue, network, price-impact, and recovery component in one comparable quote.",
+          speed: "Quote expiry, start deadline, expected completion, finality milestones, and refund deadline.",
+          trustBoundary: "Solver identity and bond or reputation plus every dependency explicitly named by the plan."
+        }
+      ],
+      quoteFields: [
+        "Achievable result — exact output, minimum amount or service outcome, and destination.",
+        "Execution method — selected solver, protocols, external steps, and trust dependencies.",
+        "Required resources — source input, liquidity, gas, custody, allowance, collateral, or public artifact.",
+        "Total price — solver, protocol, venue, network, price-impact, and recovery costs under one ceiling.",
+        "Expected speed — quote expiry, start, completion, delivery, and finality milestones.",
+        "Failure path — cancellation deadline, refund owner, irreversible point, and permitted fallback."
+      ],
+      integrationRecommendation: "Start from the user's result and compare only plans that meet the same minimum result, destination, deadline, total-cost ceiling, and ranked preference. Keep discovery, simulation, evidence collection, monitoring, and adapter selection automatic. Before confirmation, expose the selected method, resources, all-in price, expected speed, trust dependencies, finality points, irreversible step, and recovery path.",
+      integrationInvariants: [
+        "Reject every plan below the minimum result or outside the reviewed destination, deadline, total-cost ceiling, or fallback policy.",
+        "Normalize every solver quote into the same result, method, resources, price, timing, finality, and recovery schema.",
+        "Disclose every protocol, adapter, venue, custody, issuer, and finality dependency before confirmation.",
+        "Wallet selects eligible inputs, verifies external evidence, builds the package, and obtains final user confirmation.",
+        "Never switch routes silently outside the reviewed fallback policy or after an irreversible step.",
+        "Track Z00Z checkpoint finality and every external effect or publication finality as separate statuses.",
+        "Fail closed when evidence is stale, contradictory, unavailable, or insufficient; surface cancellation, refund, or manual recovery."
+      ]
     })
   ]);
 
@@ -761,8 +1109,8 @@
     const seenIntentTypes = new Set();
     const seenIcons = new Set();
 
-    if (DAPP_CATALOG.length !== 17) {
-      throw new Error("The local dApp catalogue must contain exactly seventeen descriptors.");
+    if (DAPP_CATALOG.length !== 18) {
+      throw new Error("The local dApp catalogue must contain exactly eighteen descriptors.");
     }
 
     for (const entry of DAPP_CATALOG) {

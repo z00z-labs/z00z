@@ -17,7 +17,7 @@ window.Z00ZI18n.registerLocale("fr", {
     languageChanged: "Langue modifiée localement."
   },
   nav: { home: "Accueil", assets: "Actifs", history: "Historique", swap: "Échange", exchange: "Bourse", staking: "Staking", backup: "Sauvegarde", settings: "Paramètres" },
-  network: { routeTelemetry: "Télémétrie de route", carrierTelemetry: "Télémétrie de transport", publicationTelemetry: "Télémétrie de publication" },
+  network: { routeTelemetry: "Télémétrie de route", carrierTelemetry: "Télémétrie de transport", quicTelemetry: "Télémétrie du transport QUIC", publicationTelemetry: "Télémétrie de publication" },
   walletShell: {
     balanceAvailable: "{value} disponibles",
     current: "Actuel", scanning: "Analyse en cours", identityAria: "Changer de portefeuille. Portefeuille actuel : {wallet}", lockLabel: "Portefeuille {wallet}", copyAddress: "Copier l’adresse complète du portefeuille {wallet}",
@@ -60,6 +60,7 @@ window.Z00ZI18n.registerLocale("fr", {
     localCapabilityHelp: "Aucun pont de statut OnionNet n’est enregistré dans cette démo de portefeuille. Aucune valeur de route, topologie ou confidentialité semblant réelle n’est inventée.",
     tabs: { overview: "Vue d’ensemble", epoch: "Époque", privacy: "Seuil de confidentialité", transport: "Transport", queues: "Files et relectures", probation: "Probation", ingress: "Frontière d’entrée" }
   },
+  quic: { title: "Télémétrie QUIC", summary: "Données en lecture seule sur les sessions de transport sécurisées et multiplexées, les flux et la migration de chemin.", localCapability: "Fonctionnalité QUIC locale indisponible", localCapabilityHelp: "Cette démo de portefeuille ne dispose d’aucun pont d’état QUIC enregistré. Elle n’invente pas de données de négociation, de flux ou de chemin ayant l’apparence de données réelles.", tabs: { overview: "Aperçu", connections: "Connexions", paths: "Chemins", streams: "Flux", recovery: "Récupération", security: "Sécurité" } },
   help: { title: "Aide", openGlobal: "Ouvrir l’aide de l’application", openContext: "Aide pour cette vue", close: "Fermer l’aide", contents: "Sommaire", drawerTitle: "Contenu de l’aide", section: "Section d’aide {current} sur {total}", unavailable: "L’aide est indisponible pour cette vue." },
   status: { up: "Actif", down: "Inactif", connecting: "Connexion", degraded: "Dégradé" },
   units: { bitPerSecond: "{value} bit/s", kilobitPerSecond: "{value} kbit/s", megabitPerSecond: "{value} Mbit/s" }

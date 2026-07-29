@@ -22,6 +22,7 @@ const dappIds = [
   "payroll",
   "private-contract",
   "assets-locker",
+  "xchain-integration",
 ];
 const dappLabels = [
   "Pay",
@@ -30,7 +31,7 @@ const dappLabels = [
   "Create Permission",
   "Create Asset",
   "Agent Budget",
-  "wBOLD Gateway",
+  "wCoins Gateway",
   "Subscription",
   "Donation",
   "Escrow",
@@ -41,6 +42,7 @@ const dappLabels = [
   "Payroll",
   "Private Agreement",
   "Assets Locker",
+  "X-Chain Integration",
 ];
 const dappMenuLabels = [
   "Agent Budget",
@@ -60,7 +62,8 @@ const dappMenuLabels = [
   "Subscription",
   "Swap",
   "Ticket & Pass",
-  "wBOLD Gateway",
+  "wCoins Gateway",
+  "X-Chain Integration",
   "Discover dApps",
 ];
 
@@ -260,7 +263,8 @@ test("canonical navigation replaces global tabs and has no stale hierarchy style
   await expect(page.locator('#app-navigation-tree [data-navigation-route^="wallet.settings."]')).toHaveCount(1);
   await expect(page.locator('#app-navigation-tree > [data-navigation-route="contacts.list"]')).toHaveCount(1);
   await expect(page.locator('#app-navigation-tree [data-navigation-branch="settings"]')).toHaveCount(0);
-  await expect(page.locator('#app-navigation-terminal > .navigation-tree-branch [data-navigation-branch="settings"]')).toContainText("Settings");
+  await expect(page.locator('#app-navigation-terminal > .navigation-tree-branch > [data-navigation-branch="settings"]')).toContainText("Settings");
+  await expect(page.locator('#app-navigation-terminal [data-navigation-route^="settings."]')).toHaveCount(4);
   await expect(page.locator("#app-navigation-terminal > .navigation-tree-terminal")).toHaveText(["Help", "About", "Log out"]);
   await expect(page.locator('#app-navigation-terminal [data-navigation-route="about"]')).toBeVisible();
   await expect(page.locator("#app-navigation-terminal .app-version")).toHaveText("Version 0.1.0");
@@ -801,6 +805,7 @@ test("desktop tree keeps root accordions independent and opens sublevels inside 
   await expect(page.locator('#app-navigation-tree [data-navigation-branch="telemetry.reticulum"]')).toHaveCount(0);
   await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.reticulum"]')).toBeVisible();
   await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.onionnet"]')).toBeVisible();
+  await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.quic"]')).toBeVisible();
   await expect(page.locator('#app-navigation-tree [data-navigation-workspace="telemetry.aggregators"]')).toBeVisible();
   await expect(page.locator('#app-navigation-tree [data-navigation-route="telemetry.reticulum.node"]')).toHaveCount(0);
   await expect(page.locator('#app-navigation-tree [data-navigation-route^="telemetry.onionnet."]')).toHaveCount(1);
@@ -1374,6 +1379,25 @@ test("One Dark YAML highlighting uses the Z00Z dark canvas background", async ({
   expect(colors.editor).toBe(colors.canvas);
 });
 
+test("Curve asset uses canonical symbols and the wrapped vector logo", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=wallet.assets`);
+
+    const curveAsset = page.locator('[data-asset-key="crvusd"]');
+    await expect(curveAsset.locator(".object-label")).toHaveText("wCRVUSD");
+    await expect(curveAsset.locator("img")).toHaveAttribute(
+      "src",
+      "assets/z00z-friendly/Coins/curve-usd-logo-z00z.svg",
+    );
+    await expect(curveAsset.locator("img")).toBeVisible();
+    await expect(curveAsset.locator("xpath=..").locator(".asset-number").first()).toContainText("CRVUSD");
+  }
+});
+
 test("Corporate Advanced config notes use brand blue icons on desktop and mobile", async ({ page }) => {
   for (const viewport of [
     { width: 1280, height: 800 },
@@ -1431,7 +1455,7 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
 
     await expect(page.locator(".dapp-roadmap")).toBeVisible();
     await expect(page.locator(".route-preview")).toHaveCount(0);
-    await expect(page.locator("[data-dapp-card]")).toHaveCount(17);
+    await expect(page.locator("[data-dapp-card]")).toHaveCount(18);
     await expect(page.locator(".capability-boundary")).toHaveCount(0);
     await expect(page.locator(".navigation-tree-badge")).toHaveCount(0);
     await expect(page.locator(viewport.mobile ? ".mobile-nav-brand img" : ".desktop-topbar-brand .brand-mark")).toBeVisible();
@@ -1460,19 +1484,36 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
     }
     await expect(navigation.locator('[data-navigation-branch="dapps"]')).toHaveAttribute("aria-expanded", "true");
     const dappRoutes = navigation.locator('[data-navigation-branch="dapps"] + .navigation-tree-children > [data-navigation-route]');
-    await expect(dappRoutes).toHaveCount(19);
+    await expect(dappRoutes).toHaveCount(20);
     await expect(dappRoutes).toHaveText(dappMenuLabels);
     await expect(navigation.locator('[data-navigation-route="dapps.installed"]')).toHaveCount(0);
     await expect(navigation.locator('[data-navigation-route="dapps.request"] use')).toHaveAttribute("href", "#i-dapp-request");
+    await expect(navigation.locator('[data-navigation-route="dapps.assets-locker"] use')).toHaveAttribute("href", "#i-dapp-assets-locker");
     await expect(navigation.locator('[data-navigation-route="dapps.private-contract"] use')).toHaveAttribute("href", "#i-dapp-private-contract");
-    await expect(page.locator("#i-dapp-request")).toHaveAttribute("data-iconify", "carbon:material-request");
-    await expect(page.locator("#i-dapp-request-light")).toHaveCount(0);
+    await expect(navigation.locator('[data-navigation-route="dapps.xchain-integration"] use')).toHaveAttribute("href", "#i-dapp-xchain-integration");
+    await expect(page.locator("#i-dapp-request")).toHaveAttribute("data-iconify", "mdi-light:pin");
+    await expect(page.locator("#i-dapp-assets-locker")).toHaveAttribute("data-iconify", "material-symbols-light:lock-outline");
+    await expect(page.locator("#i-dapp-assets-locker")).toHaveAttribute("data-menu-icon-mode", "normalized-fill");
+    await expect(page.locator("#i-dapp-assets-locker")).toHaveAttribute("data-menu-icon-weight", "1.5");
     await expect(page.locator("#i-dapp-private-contract")).toHaveAttribute("data-iconify", "et:document");
+    await expect(page.locator("#i-dapp-xchain-integration")).toHaveAttribute("data-iconify", "mdi-light:link-variant");
+    await expect(page.locator("#i-dapp-xchain-integration")).toHaveAttribute("data-menu-icon-mode", "normalized-fill");
+    await expect(page.locator("#i-dapp-xchain-integration")).toHaveAttribute("data-menu-icon-weight", "1.5");
     await expect(page.locator("#i-dapp-private-contract > g")).toHaveAttribute("transform", "translate(3 0) scale(0.75)");
     await expect(page.locator("#i-dapp-private-contract > g")).toHaveAttribute("fill", "currentColor");
     await expect(page.locator("#i-dapp-request")).toHaveAttribute("viewBox", "0 0 24 24");
-    await expect(page.locator("#i-dapp-request > g")).toHaveAttribute("transform", "scale(0.75)");
-    await expect(page.locator("#i-dapp-request > g")).not.toHaveAttribute("filter", /.+/);
+    await expect(page.locator("#i-dapp-request > path")).toHaveAttribute("fill", "currentColor");
+    await expect(page.locator("#i-dapp-request > path")).toHaveAttribute("stroke", "currentColor");
+    await expect(page.locator("#i-dapp-request > path")).toHaveAttribute("stroke-width", "0.5");
+    await expect(page.locator("#i-dapp-request > path")).not.toHaveAttribute("filter", /.+/);
+    await expect(page.locator("#i-dapp-assets-locker > path")).toHaveAttribute("fill", "currentColor");
+    await expect(page.locator("#i-dapp-assets-locker > path")).toHaveAttribute("stroke", "currentColor");
+    await expect(page.locator("#i-dapp-assets-locker > path")).toHaveAttribute("stroke-width", "0.5");
+    await expect(page.locator("#i-dapp-assets-locker > path")).not.toHaveAttribute("filter", /.+/);
+    await expect(page.locator("#i-dapp-xchain-integration > path")).toHaveAttribute("fill", "currentColor");
+    await expect(page.locator("#i-dapp-xchain-integration > path")).toHaveAttribute("stroke", "currentColor");
+    await expect(page.locator("#i-dapp-xchain-integration > path")).toHaveAttribute("stroke-width", "0.5");
+    await expect(page.locator("#i-dapp-xchain-integration > path")).not.toHaveAttribute("filter", /.+/);
     const voucherNavigationIcon = navigation.locator('[data-navigation-route="dapps.create-voucher"] .navigation-tree-icon');
     const permissionNavigationIcon = navigation.locator('[data-navigation-route="dapps.create-permission"] .navigation-tree-icon');
     const assetNavigationIcon = navigation.locator('[data-navigation-route="dapps.create-asset"] .navigation-tree-icon');
@@ -1511,6 +1552,7 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
     const permissionCardIcon = page.locator('[data-dapp-card="create-permission"] .dapp-card-icon .icon');
     const assetCardIcon = page.locator('[data-dapp-card="create-asset"] .dapp-card-icon .icon');
     const privateContractCardIcon = page.locator('[data-dapp-card="private-contract"] .dapp-card-icon .icon');
+    const xchainCardIcon = page.locator('[data-dapp-card="xchain-integration"] .dapp-card-icon .icon');
     await expect(page.locator('[data-dapp-card="create-asset"] img')).toHaveCount(0);
     await expect(page.locator('[data-dapp-card="create-voucher"] img')).toHaveCount(0);
     await expect(page.locator('[data-dapp-card="create-permission"] img')).toHaveCount(0);
@@ -1519,6 +1561,7 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
     await expect(permissionCardIcon.locator("use")).toHaveAttribute("href", walletPermissionMenuHref);
     await expect(assetCardIcon.locator("use")).toHaveAttribute("href", walletAssetMenuHref);
     await expect(privateContractCardIcon.locator("use")).toHaveAttribute("href", "#i-dapp-private-contract");
+    await expect(xchainCardIcon.locator("use")).toHaveAttribute("href", "#i-dapp-xchain-integration");
     expect(await page.locator(
       '[data-dapp-card="agents-budget"] .dapp-card-icon .icon, [data-dapp-card="create-voucher"] .dapp-card-icon .icon, [data-dapp-card="create-permission"] .dapp-card-icon .icon'
     ).evaluateAll((icons) => [...new Set(icons.map((icon) => getComputedStyle(icon).color))])).toHaveLength(1);
@@ -1641,11 +1684,58 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
     await expect(page.locator('[data-dapp-outcome-route="intent_proposed"]')).toContainText("Wallet state unchanged");
 
     await page.goto(`${demoUrl}?route=dapps.wbold-gateway`);
-    await page.locator("#dapp-wbold-gateway-direction").selectOption({ label: "Redeem wBOLD → receive BOLD" });
+    const wcoinsGateway = page.locator('[data-dapp-proposal="wbold-gateway"]');
+    await expect(wcoinsGateway.locator(".dapp-detail-heading h2")).toHaveText("wCoins Gateway");
+    await expect(wcoinsGateway.locator(".wcoins-gateway-summary")).toContainText("Stable routes");
+    await expect(wcoinsGateway.locator(".wcoins-gateway-summary")).toContainText("6 independent lockers");
+    await expect(wcoinsGateway.locator(".wcoins-route-card")).toHaveCount(6);
+    await expect(wcoinsGateway.locator('[data-wcoins-route="wbold"]')).toContainText("locker.ethereum-mainnet.bold.v1");
+    await expect(wcoinsGateway.locator('[data-wcoins-route="wdai"]')).toContainText("locker.ethereum-mainnet.dai.v1");
+    await expect(wcoinsGateway.locator('[data-wcoins-route="wcrvusd"]')).toContainText("locker.ethereum-mainnet.crvusd.v1");
+    await expect(wcoinsGateway.locator('[data-wcoins-route="wzchf"]')).toContainText("locker.ethereum-mainnet.zchf.v1");
+    await expect(wcoinsGateway.locator('[data-wcoins-route="wdeuro"]')).toContainText("locker.ethereum-mainnet.deuro.v1");
+    await expect(wcoinsGateway.locator('[data-wcoins-route="wcjpy"]')).toContainText("locker.ethereum-mainnet.cjpy.v1");
+    await expect(wcoinsGateway.locator(".wcoins-route-card dl > div")).toHaveCount(66);
+    const firstWcoinsRoute = wcoinsGateway.locator(".wcoins-route-card").first();
+    await expect(firstWcoinsRoute).toContainText("Z00Z asset");
+    await expect(firstWcoinsRoute).toContainText("External reserve");
+    await expect(firstWcoinsRoute).toContainText("Reserve network");
+    await expect(wcoinsGateway.locator('[data-wcoins-note="controls"] li')).toHaveCount(8);
+    await expect(wcoinsGateway.locator('[data-wcoins-note="positioning"] > ul > li')).toHaveCount(6);
+    await expect(wcoinsGateway).toContainText("User reserves cannot be confiscated by the gateway.");
+    await expect(wcoinsGateway).toContainText("Every route enforces its own exposure cap.");
+    await expect(wcoinsGateway).toContainText("Relative market liquidity changes.");
+    await expect(page.locator("#dapp-wbold-gateway-route-hint")).toContainText("not the wCoin network");
+    const wcoinsRouteSelect = page.locator("#dapp-wbold-gateway-route");
+    expect(await wcoinsRouteSelect.locator("option").allTextContents()).toEqual([
+      "wBOLD ← BOLD · ETH",
+      "wDAI ← DAI · ETH",
+      "wCRVUSD ← CRVUSD · ETH",
+      "wZCHF ← ZCHF · ETH",
+      "wdEURO ← dEURO · ETH",
+      "wCJPY ← CJPY · ETH",
+    ]);
+    for (const option of await wcoinsRouteSelect.locator("option").allTextContents()) {
+      await wcoinsRouteSelect.selectOption({ label: option });
+      expect(await wcoinsRouteSelect.evaluate((select) => {
+        const context = document.createElement("canvas").getContext("2d");
+        const styles = getComputedStyle(select);
+        context.font = `${styles.fontWeight} ${styles.fontSize} ${styles.fontFamily}`;
+        return context.measureText(select.selectedOptions[0].textContent).width <= select.parentElement.clientWidth - 40;
+      }), `${option} must fit at ${viewport.width}px`).toBe(true);
+    }
+    await wcoinsRouteSelect.selectOption({ label: "wCRVUSD ← CRVUSD · ETH" });
+    const wcoinsActionSelect = page.locator("#dapp-wbold-gateway-direction");
+    expect(await wcoinsActionSelect.locator("option").allTextContents()).toEqual([
+      "Deposit reserve → receive wCoin",
+      "Redeem wCoin → receive reserve",
+    ]);
+    await wcoinsActionSelect.selectOption({ label: "Redeem wCoin → receive reserve" });
     await page.locator("#dapp-wbold-gateway-amount").fill("5");
     await page.locator("#dapp-wbold-gateway-max-fee").fill("0");
     await page.locator("#dapp-action-proposal-form").getByRole("button", { name: "Review gateway route in Wallet" }).click();
-    await expect(page.locator("#dapp-proposal-error")).toHaveText("External recipient is required for a wBOLD redemption.");
+    await expect(page.locator("#dapp-proposal-error")).toHaveText("External recipient is required for a wrapped stablecoin redemption.");
+    await expectNoViewportOverflow(page, `wCoins Gateway at ${viewport.width}px`);
 
     await page.goto(`${demoUrl}?route=dapps.assets-locker`);
     await page.locator("#dapp-assets-locker-asset").fill("BOLD · Ethereum");
@@ -1655,6 +1745,59 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
     await page.locator("#dapp-assets-locker-max-fee").fill("0");
     await page.locator("#dapp-action-proposal-form").getByRole("button", { name: "Review locker route in Wallet" }).click();
     await expect(page.locator("#dapp-proposal-error")).toHaveText("External recipient is required when consuming a right to redeem.");
+
+    await page.goto(`${demoUrl}?route=dapps.xchain-integration`);
+    const xchainIntegration = page.locator('[data-dapp-proposal="xchain-integration"]');
+    await expect(xchainIntegration.locator(".dapp-detail-heading h2")).toHaveText("X-Chain Integration");
+    await expect(xchainIntegration.locator(".xchain-integration-summary")).toContainText("6 resolver integrations");
+    await expect(xchainIntegration.locator(".xchain-integration-summary")).toContainText("One catalogue · no separate adapter-family layer");
+    await expect(xchainIntegration.locator("[data-xchain-effect-catalog], [data-xchain-lane]")).toHaveCount(0);
+    const xchainIntegrationsCatalog = xchainIntegration.locator("[data-xchain-integrations-catalog]");
+    await expect(xchainIntegrationsCatalog).toBeVisible();
+    expect(await xchainIntegrationsCatalog.evaluate((element) => element.tagName)).toBe("SECTION");
+    await expect(xchainIntegration.locator(".xchain-integration-card")).toHaveCount(6);
+    for (const card of await xchainIntegration.locator(".xchain-integration-card").all()) {
+      await expect(card).toBeVisible();
+    }
+    await expect(xchainIntegration.locator(".xchain-integration-card h3")).toHaveText([
+      "NEAR Intents",
+      "Ethereum",
+      "Liquity BOLD",
+      "Hyperliquid",
+      "Uniswap",
+      "External Solvers",
+    ]);
+    await expect(xchainIntegration.locator('[data-xchain-integration="near-intents"]')).toContainText("Intent discovery and solver competition");
+    await expect(xchainIntegration.locator('[data-xchain-integration="ethereum"]')).toContainText("EVM Locker");
+    await expect(xchainIntegration.locator('[data-xchain-integration="ethereum"]')).toContainText("Issuer Rail");
+    await expect(xchainIntegration.locator('[data-xchain-integration="liquity-bold"]')).toContainText("Stable liquidity source");
+    await expect(xchainIntegration.locator('[data-xchain-integration="hyperliquid"]')).toContainText("Order-book execution venue");
+    await expect(xchainIntegration.locator('[data-xchain-integration="uniswap"]')).toContainText("On-chain AMM execution");
+    await expect(xchainIntegration.locator('[data-xchain-integration="external-solvers"]')).toContainText("Celestia DA");
+    await expect(xchainIntegration.locator('[data-xchain-note="quote"] li')).toHaveCount(6);
+    const xchainSafeguards = xchainIntegration.locator("[data-xchain-safeguards]");
+    await expect(xchainSafeguards).not.toHaveAttribute("open", "");
+    await xchainSafeguards.locator("summary").click();
+    await expect(xchainSafeguards).toHaveAttribute("open", "");
+    await expect(xchainIntegration.locator('[data-xchain-note="invariants"] li')).toHaveCount(7);
+    await expect(xchainIntegration.locator('[data-xchain-note="recommendation"]')).toContainText("minimum result");
+    const resultKindSelect = page.locator("#dapp-xchain-integration-result-kind");
+    expect(await resultKindSelect.locator("option").allTextContents()).toEqual([
+      "Receive a private asset in Z00Z",
+      "Deliver an asset to an external recipient",
+      "Fulfill an external service",
+      "Publish public evidence",
+    ]);
+    await resultKindSelect.selectOption({ label: "Deliver an asset to an external recipient" });
+    await page.locator("#dapp-xchain-integration-source").fill("25.00 USDC on Ethereum");
+    await page.locator("#dapp-xchain-integration-result").fill("At least 24.80 private USDC");
+    await page.locator("#dapp-xchain-integration-max-cost").fill("0.20");
+    await expectNoViewportOverflow(page, `X-Chain Integration at ${viewport.width}px`);
+    await page.locator("#dapp-action-proposal-form").getByRole("button", { name: "Review execution intent in Wallet" }).click();
+    await expect(page.locator("#dapp-proposal-error")).toHaveText("A destination is required for external delivery or service fulfillment.");
+    await page.locator("#dapp-xchain-integration-destination").fill("recipient:reviewed-demo");
+    await page.locator("#dapp-action-proposal-form").getByRole("button", { name: "Review execution intent in Wallet" }).click();
+    await expect(page.locator('[data-dapp-outcome-route="intent_proposed"]')).toContainText("Wallet state unchanged");
 
     await page.goto(`${demoUrl}?route=dapps.pay`);
     await page.locator("#dapp-pay-recipient").fill("receiver-card-demo");
@@ -1719,6 +1862,88 @@ test("dApps roadmap stays local, navigable, bounded, and responsive", async ({ p
     await expect(page.locator(".review-hero")).toContainText("z00z1wallet-review-demo");
 
   }
+});
+
+test("X-Chain Integration uses one six-integration catalogue while exposing comparable result plans", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${demoUrl}?route=dapps.xchain-integration`);
+
+    const proposal = page.locator('[data-dapp-proposal="xchain-integration"]');
+    await expect(proposal).toBeVisible();
+    await expect(proposal.locator(".xchain-integration-card")).toHaveCount(6);
+    await expect(proposal.locator("[data-xchain-effect-catalog], [data-xchain-lane]")).toHaveCount(0);
+    const integrationsCatalog = proposal.locator("[data-xchain-integrations-catalog]");
+    await expect(integrationsCatalog).toBeVisible();
+    expect(await integrationsCatalog.evaluate((element) => element.tagName)).toBe("SECTION");
+    for (const card of await proposal.locator(".xchain-integration-card").all()) {
+      await expect(card).toBeVisible();
+    }
+    await expect(proposal.locator(".xchain-integration-card h3")).toHaveText([
+      "NEAR Intents",
+      "Ethereum",
+      "Liquity BOLD",
+      "Hyperliquid",
+      "Uniswap",
+      "External Solvers",
+    ]);
+    await expect(proposal.locator('[data-xchain-integration="near-intents"]')).toContainText("one total ceiling");
+    await expect(proposal.locator('[data-xchain-integration="ethereum"]')).toContainText("EVM Locker");
+    await expect(proposal.locator('[data-xchain-integration="ethereum"]')).toContainText("Issuer Rail");
+    await expect(proposal.locator('[data-xchain-integration="liquity-bold"]')).toContainText("BOLD liquidity");
+    await expect(proposal.locator('[data-xchain-integration="hyperliquid"]')).toContainText("market depth");
+    await expect(proposal.locator('[data-xchain-integration="uniswap"]')).toContainText("minimum output");
+    await expect(proposal.locator('[data-xchain-integration="external-solvers"]')).toContainText("Celestia DA");
+    await expect(proposal.locator('[data-xchain-note="quote"] li')).toHaveCount(6);
+    const safeguards = proposal.locator("[data-xchain-safeguards]");
+    await expect(safeguards).not.toHaveAttribute("open", "");
+    await safeguards.locator("summary").click();
+    await expect(safeguards).toHaveAttribute("open", "");
+    await expect(proposal.locator('[data-xchain-note="invariants"] li')).toHaveCount(7);
+    await expectNoViewportOverflow(page, `focused X-Chain Integration at ${viewport.width}px`);
+
+    const controlWidths = await proposal.locator(".dapp-proposal-fields .field-group").evaluateAll((groups) => (
+      groups.map((group) => {
+        const control = group.querySelector("input, .select-picker-trigger");
+        const groupBox = group.getBoundingClientRect();
+        const controlBox = control.getBoundingClientRect();
+        return {
+          width: Math.round(controlBox.width),
+          inside: Math.abs(controlBox.left - groupBox.left) <= 1
+            && Math.abs(controlBox.right - groupBox.right) <= 1,
+        };
+      })
+    ));
+    expect(controlWidths.every(({ inside }) => inside)).toBe(true);
+    expect(new Set(controlWidths.map(({ width }) => width)).size).toBe(1);
+
+    const resultKindSelect = page.locator("#dapp-xchain-integration-result-kind");
+    await resultKindSelect.selectOption({ label: "Fulfill an external service" });
+    await page.locator("#dapp-xchain-integration-source").fill("10.00 Z00Z");
+    await page.locator("#dapp-xchain-integration-result").fill("One completed compute job");
+    await page.locator("#dapp-xchain-integration-max-cost").fill("1.00");
+    await page.locator("#dapp-action-proposal-form button[type=submit]").click();
+    await expect(page.locator("#dapp-proposal-error")).toHaveText("A destination is required for external delivery or service fulfillment.");
+
+    await page.locator("#dapp-xchain-integration-destination").fill("service:compute-demo");
+    await page.locator("#dapp-action-proposal-form button[type=submit]").click();
+    await expect(page.locator('[data-dapp-outcome-route="intent_proposed"]')).toContainText("Wallet state unchanged");
+  }
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(new URL("help.html?topic=dapps.xchain-integration", demoUrl).toString());
+  const integrationsTable = page.locator("#help-document table").filter({ hasText: "NEAR Intents" }).first();
+  await expect(integrationsTable.locator("tbody tr > td:first-child")).toHaveText([
+    "NEAR Intents",
+    "Ethereum",
+    "Liquity BOLD",
+    "Hyperliquid",
+    "Uniswap",
+    "External Solvers",
+  ]);
 });
 
 test("Messenger keeps advisory actions local and revalidates payment inside Wallet on desktop and mobile", async ({ page }) => {
@@ -1925,7 +2150,7 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
       : page.locator("#app-navigation-terminal");
     if (viewport.mobile) await terminal.scrollIntoViewIfNeeded();
     const logout = terminal.locator('[data-demo-action="logout"]');
-    const terminalSettings = terminal.locator(':scope > .navigation-tree-branch [data-navigation-branch="settings"]');
+    const terminalSettings = terminal.locator(':scope > .navigation-tree-branch > [data-navigation-branch="settings"]');
     await expect(terminalSettings).toContainText("Settings");
     await expect(terminal.locator(":scope > .navigation-tree-terminal")).toHaveText(["Help", "About", "Log out"]);
     await expect(terminal.locator('[data-navigation-route="about"]')).toBeVisible();
@@ -1939,14 +2164,9 @@ test("version, destructive Log out, Data & Storage, Notifications, and About wor
       return target?.dataset.navigationBranch || target?.dataset.navigationRoute || "";
     }));
     expect(primaryOrder.indexOf("data-storage")).toBeLessThan(primaryOrder.indexOf("contacts.list"));
-    await expect(terminalSettings).toHaveAttribute("aria-expanded", viewport.mobile ? "true" : "false");
-    if (viewport.mobile) {
-      await terminalSettings.click();
-      await expect(terminalSettings).toHaveAttribute("aria-expanded", "false");
-    }
-    await terminalSettings.click();
-    await expect(terminalSettings).toHaveAttribute("aria-expanded", "true");
-    await expect(terminal.locator(':scope > .navigation-tree-branch > .navigation-tree-children [data-navigation-route^="settings."]')).toHaveCount(3);
+    await expect(terminalSettings).toHaveAttribute("aria-expanded", "false");
+    await expect(terminalSettings.locator(".navigation-tree-chevron")).toHaveCount(1);
+    await expect(terminal.locator('[data-navigation-route^="settings."]')).toHaveCount(4);
     await expect(terminal.locator(".app-version")).toHaveText("Version 0.1.0");
     const walletTrigger = viewport.mobile
       ? page.locator('#mobile-popup-menu [data-wallet-picker-trigger]')
@@ -2083,15 +2303,24 @@ test("English Help mirrors the Demo navigation and workspace menu", async ({ pag
   await expect(helpPage.locator("#help-tree > [data-help-navigation-node]")).toHaveCount(6);
   await expect(helpPage.locator("#help-navigation-terminal > [data-help-navigation-node]")).toHaveCount(1);
   await expect(helpPage.locator('[data-help-navigation-node="dapps.request"] use')).toHaveAttribute("href", "#i-dapp-request");
+  await expect(helpPage.locator('[data-help-navigation-node="dapps.assets-locker"] use')).toHaveAttribute("href", "#i-dapp-assets-locker");
   await expect(helpPage.locator('[data-help-navigation-node="dapps.private-contract"] use')).toHaveAttribute("href", "#i-dapp-private-contract");
-  await expect(helpPage.locator("#i-dapp-request")).toHaveAttribute("data-iconify", "carbon:material-request");
-  await expect(helpPage.locator("#i-dapp-request-light")).toHaveCount(0);
+  await expect(helpPage.locator("#i-dapp-request")).toHaveAttribute("data-iconify", "mdi-light:pin");
+  await expect(helpPage.locator("#i-dapp-assets-locker")).toHaveAttribute("data-iconify", "material-symbols-light:lock-outline");
+  await expect(helpPage.locator("#i-dapp-assets-locker")).toHaveAttribute("data-menu-icon-mode", "normalized-fill");
+  await expect(helpPage.locator("#i-dapp-assets-locker")).toHaveAttribute("data-menu-icon-weight", "1.5");
   await expect(helpPage.locator("#i-dapp-private-contract")).toHaveAttribute("data-iconify", "et:document");
   await expect(helpPage.locator("#i-dapp-private-contract > g")).toHaveAttribute("transform", "translate(3 0) scale(0.75)");
   await expect(helpPage.locator("#i-dapp-private-contract > g")).toHaveAttribute("fill", "currentColor");
   await expect(helpPage.locator("#i-dapp-request")).toHaveAttribute("viewBox", "0 0 24 24");
-  await expect(helpPage.locator("#i-dapp-request > g")).toHaveAttribute("transform", "scale(0.75)");
-  await expect(helpPage.locator("#i-dapp-request > g")).not.toHaveAttribute("filter", /.+/);
+  await expect(helpPage.locator("#i-dapp-request > path")).toHaveAttribute("fill", "currentColor");
+  await expect(helpPage.locator("#i-dapp-request > path")).toHaveAttribute("stroke", "currentColor");
+  await expect(helpPage.locator("#i-dapp-request > path")).toHaveAttribute("stroke-width", "0.5");
+  await expect(helpPage.locator("#i-dapp-request > path")).not.toHaveAttribute("filter", /.+/);
+  await expect(helpPage.locator("#i-dapp-assets-locker > path")).toHaveAttribute("fill", "currentColor");
+  await expect(helpPage.locator("#i-dapp-assets-locker > path")).toHaveAttribute("stroke", "currentColor");
+  await expect(helpPage.locator("#i-dapp-assets-locker > path")).toHaveAttribute("stroke-width", "0.5");
+  await expect(helpPage.locator("#i-dapp-assets-locker > path")).not.toHaveAttribute("filter", /.+/);
   const helpVoucherIcon = helpPage.locator('[data-help-navigation-node="dapps.create-voucher"] .navigation-tree-icon');
   const helpPermissionIcon = helpPage.locator('[data-help-navigation-node="dapps.create-permission"] .navigation-tree-icon');
   const helpAssetIcon = helpPage.locator('[data-help-navigation-node="dapps.create-asset"] .navigation-tree-icon');
@@ -2164,7 +2393,9 @@ test("English Help mirrors the Demo navigation and workspace menu", async ({ pag
       expectedTerminal: nodes.filter((node) => terminal.has(node.id)).map((node) => ({
         id: node.id,
         iconId: node.iconId,
-        children: window.Z00ZDemo.navigationChildren(node.id).map((child) => child.id),
+        children: node.target.kind === "branch"
+          ? window.Z00ZDemo.navigationChildren(node.id).map((child) => child.id)
+          : [],
       })),
     };
   });
@@ -2343,6 +2574,33 @@ test("every dApp Help page matches its App route on desktop and mobile", async (
   }
 });
 
+test("dApps security guide explains the isolated typed-intent boundary", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(new URL("help.html?topic=dapps.discover&lang=en", demoUrl).toString());
+    await page.locator('#help-document a[href="?topic=dapps.security-model"]').click();
+
+    await expect(page.locator("#help-title")).toHaveText("dApps: How dApps Work Safely");
+    await expect(page.locator('#help-document img[src="help/assets/en/dapps-discover.png"]')).toBeVisible();
+    await expect(page.locator("#help-document")).toContainText(
+      "A Z00Z dApp is a plugin that prepares a typed proposal for Wallet review."
+    );
+    await expect(page.locator("#help-document")).toContainText(
+      "An installable community-plugin host"
+    );
+    await expect(page.locator("#help-document")).toContainText(
+      "It must not hand Wallet opaque bytes and ask for sign(bytes)."
+    );
+    await expect(page.locator("#help-document")).toContainText(
+      "Z00Z Labs plugins and community plugins follow the same Wallet validation path."
+    );
+    await expectNoViewportOverflow(page, `dApps security guide at ${viewport.width}px`);
+  }
+});
+
 test("English Help uses the Demo Reticulum workspace menu without duplicates", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${demoUrl}?route=telemetry.reticulum.overview`);
@@ -2402,6 +2660,143 @@ test("English Help uses the Demo wallet settings menu in its main view", async (
   await helpPage.locator('[data-help-context-topic="wallet.settings.security"]').click();
   await expect(helpPage.locator("#help-title")).toHaveText("Wallet Settings: Security");
   await helpPage.close();
+});
+
+test("Settings is a navbar accordion and Network alone owns one main-view submenu in App and Help", async ({ page }) => {
+  const expectedSections = ["General", "Network", "Notifications", "Appearance"];
+  const expectedNetworkTabs = ["Reticulum", "OnionNet", "QUIC"];
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${demoUrl}?route=settings.general`);
+  const settingsBranch = page.locator('#app-navigation-terminal [data-navigation-branch="settings"]');
+  const settingsChildren = page.locator('#app-navigation-terminal [data-navigation-branch="settings"] + .navigation-tree-children');
+  await expect(settingsBranch).toHaveAttribute("aria-expanded", "true");
+  await expect(settingsChildren.locator(":scope > .navigation-tree-leaf .navigation-tree-label")).toHaveText(expectedSections);
+  await expect(settingsChildren.locator('[data-navigation-route="settings.general"]')).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".app-settings-view .context-rail")).toHaveCount(0);
+
+  await settingsChildren.locator('[data-navigation-route="settings.reticulum"]').click();
+  await expect(page).toHaveURL(/route=settings\.reticulum/);
+  await expect(page.locator("#page-title")).toHaveText("Network");
+  await expect(page.locator('.app-settings-view [data-workspace-id="settings.network"] > .context-rail')).toHaveCount(1);
+  await expect(page.locator(".settings-network-tab span")).toHaveText(expectedNetworkTabs);
+  await expect(page.locator('[data-settings-network-section="reticulum"]')).toHaveAttribute("aria-selected", "true");
+  await page.locator('[data-settings-network-section="quic"]').click();
+  await expect(page).toHaveURL(/route=settings\.quic/);
+  await expect(page.locator("#page-title")).toHaveText("Network");
+  await expect(settingsChildren.locator('[data-navigation-workspace="settings.network"]')).toHaveAttribute("aria-current", "page");
+  await expect(page.locator('[data-settings-network-section="quic"]')).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('[data-config-control="quic-idle-timeout"]')).toHaveValue("30");
+  await page.reload();
+  await expect(page).toHaveURL(/route=settings\.quic/);
+  await expect(page.locator('[data-settings-network-section="quic"]')).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('#app-navigation-terminal [data-navigation-branch="settings"]')).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator('#app-navigation-terminal [data-navigation-workspace="settings.network"]')).toHaveAttribute("aria-current", "page");
+
+  const helpPage = await openStandaloneHelp(page, page.getByRole("button", { name: "Help for this view" }));
+  const helpSettingsBranch = helpPage.locator('[data-help-navigation-branch="settings"]');
+  const helpSettingsChildren = helpPage.locator('[data-help-navigation-branch="settings"] + .navigation-tree-children');
+  await expect(helpSettingsBranch).toHaveAttribute("aria-expanded", "true");
+  await expect(helpSettingsChildren.locator(":scope > .navigation-tree-leaf .navigation-tree-label")).toHaveText(expectedSections);
+  await expect(helpPage.locator('[data-workspace-id="settings.network"] > .context-rail')).toHaveCount(1);
+  await expect(helpPage.locator(".help-settings-network-tabs .settings-network-tab span")).toHaveText(expectedNetworkTabs);
+  await expect(helpPage.locator('.help-settings-network-tabs [data-help-context-topic="settings.quic"]')).toHaveAttribute("aria-selected", "true");
+  await expect(helpPage.locator("#help-title")).toHaveText("Settings: QUIC");
+  await helpPage.setViewportSize({ width: 390, height: 844 });
+  const helpMobileContext = helpPage.locator("#help-mobile-topbar-context");
+  await expect(helpMobileContext).toBeVisible();
+  await expect(helpMobileContext.locator('[data-help-context-topic="settings.reticulum"]')).toBeInViewport();
+  await expect(helpPage.locator('.help-settings-network-tabs [data-help-context-topic="settings.quic"]')).toBeInViewport();
+  await helpPage.close();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${demoUrl}?route=settings.general`);
+  await expect(page.locator(".app-settings-view .context-rail")).toHaveCount(0);
+  const mobileContext = page.locator("#mobile-topbar-context");
+  await expect(mobileContext).toBeHidden();
+  await page.locator("#mobile-menu-button").click();
+  const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
+  const drawerSettings = drawer.locator('[data-navigation-branch="settings"]');
+  await expect(drawerSettings).toHaveAttribute("aria-expanded", "true");
+  await expect(drawer.locator('[data-navigation-branch="settings"] + .navigation-tree-children .navigation-tree-label')).toHaveText(expectedSections);
+  await drawer.locator('[data-navigation-workspace="settings.network"]').click();
+  await expect(mobileContext).toBeVisible();
+  await expect(mobileContext.locator(".settings-network-tab span")).toHaveText(expectedNetworkTabs);
+  await mobileContext.locator('[data-settings-network-section="quic"]').click();
+  await expect(page).toHaveURL(/route=settings\.quic/);
+  await expect(mobileContext.locator('[data-settings-network-section="quic"]')).toHaveAttribute("aria-selected", "true");
+  await expect(mobileContext.locator('[data-settings-network-section="quic"]')).toBeInViewport();
+  await page.locator("#mobile-menu-button").click();
+  await expect(drawer.locator('[data-navigation-branch="settings"]')).toHaveCount(1);
+  await expect(drawer.locator('[data-navigation-workspace="settings.network"]')).toHaveCount(1);
+  await expect(drawer.locator('[data-navigation-route^="settings."]')).toHaveCount(4);
+  await expectNoViewportOverflow(page);
+});
+
+test("Settings views stay centered and cards remain bounded on desktop and mobile", async ({ page }) => {
+  const standaloneRoutes = ["settings.general", "settings.notifications", "settings.appearance"];
+  const networkRoutes = ["settings.reticulum", "settings.onionnet", "settings.quic"];
+  const geometry = () => page.evaluate(() => {
+    const box = (selector) => {
+      const element = document.querySelector(selector);
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        right: rect.right,
+        center: rect.x + rect.width / 2,
+      };
+    };
+    return {
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      view: box(".app-settings-view"),
+      workspace: box(".settings-network-workspace"),
+      rail: box(".settings-network-rail"),
+      card: box(".app-settings-view .settings-detail"),
+    };
+  });
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1167, height: 753 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const route of standaloneRoutes) {
+      await page.goto(`${demoUrl}?route=${route}`);
+      const standalone = await geometry();
+      expect(standalone.card.width).toBeLessThanOrEqual(641);
+      expect(standalone.card.center).toBeCloseTo(standalone.view.center, 0);
+      expect(standalone.documentWidth).toBe(standalone.viewportWidth);
+    }
+
+    for (const route of networkRoutes) {
+      await page.goto(`${demoUrl}?route=${route}`);
+      const network = await geometry();
+      expect(network.workspace.width).toBeLessThanOrEqual(857);
+      expect(network.workspace.center).toBeCloseTo(network.view.center, 0);
+      expect(network.card.width).toBeLessThanOrEqual(641);
+      expect(network.card.y).toBeCloseTo(network.rail.y, 0);
+      expect(network.card.x - network.rail.right).toBeCloseTo(24, 0);
+      expect(network.documentWidth).toBe(network.viewportWidth);
+    }
+  }
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const route of [...standaloneRoutes, ...networkRoutes]) {
+      await page.goto(`${demoUrl}?route=${route}`);
+      const mobile = await geometry();
+      expect(mobile.card.center).toBeCloseTo(mobile.view.center, 0);
+      expect(mobile.card.width).toBeLessThanOrEqual(mobile.view.width + 1);
+      expect(mobile.documentWidth).toBe(mobile.viewportWidth);
+    }
+  }
 });
 
 test("Help follows the App language and resolves the matching localized catalogue", async ({ page }) => {
@@ -2895,6 +3290,74 @@ test("wallet settings keep selected wallet values beside their labels", async ({
   }
 });
 
+test("menu and wallet settings labels never use ellipsis on desktop or mobile", async ({ page }) => {
+  const assertVisibleLabelsFit = async (root) => {
+    const labels = await root.locator(".navigation-tree-label:visible, .wallet-picker-trigger-copy strong:visible, .wallet-picker-trigger-copy small:visible").evaluateAll((elements) => (
+      elements.map((element) => {
+        const style = getComputedStyle(element);
+        return {
+          text: element.textContent.trim(),
+          textOverflow: style.textOverflow,
+          horizontalOverflow: element.scrollWidth - element.clientWidth,
+        };
+      })
+    ));
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      expect(label.text, `${label.text} must not contain an ellipsis`).not.toMatch(/(?:\.\.\.|…)/);
+      expect(label.textOverflow, `${label.text} must not use CSS ellipsis`).not.toBe("ellipsis");
+      expect(label.horizontalOverflow, `${label.text} must fit or wrap`).toBeLessThanOrEqual(1);
+    }
+  };
+
+  for (const width of [1280, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${demoUrl}?route=wallet.settings.security`);
+    const navigationRoot = width <= 767
+      ? page.locator('#mobile-popup-menu[data-popup-type="menu"]')
+      : page.locator("#app-navigation-tree");
+    if (width <= 767) await page.locator("#mobile-menu-button").click();
+    for (const branchId of ["wallet", "dapps", "messenger", "data-storage", "telemetry", "settings"]) {
+      const branch = navigationRoot.locator(`[data-navigation-branch="${branchId}"]`);
+      if (await branch.count() && await branch.getAttribute("aria-expanded") === "false") await branch.click();
+    }
+    await assertVisibleLabelsFit(navigationRoot);
+    if (width <= 767) await page.keyboard.press("Escape");
+
+    for (const route of ["wallet.settings.security", "wallet.settings.policies"]) {
+      await page.goto(`${demoUrl}?route=${route}`);
+      const labels = await page.locator(".wallet-settings-view .compact-row-label").evaluateAll((elements) => (
+        elements.map((element) => {
+          const style = getComputedStyle(element);
+          return {
+            text: element.textContent.trim(),
+            textOverflow: style.textOverflow,
+            horizontalOverflow: element.scrollWidth - element.clientWidth,
+          };
+        })
+      ));
+      for (const label of labels) {
+        expect(label.text, `${route}: ${label.text}`).not.toMatch(/(?:\.\.\.|…)/);
+        expect(label.textOverflow, `${route}: ${label.text}`).not.toBe("ellipsis");
+        expect(label.horizontalOverflow, `${route}: ${label.text}`).toBeLessThanOrEqual(1);
+      }
+      await expectNoViewportOverflow(page, `${route} at ${width}px`);
+    }
+
+    const helpUrl = demoUrl.replace("index.html", "help.html");
+    await page.goto(`${helpUrl}?topic=wallet.settings.security`);
+    if (width <= 767) {
+      await page.locator("#help-menu-button").click();
+    }
+    const helpSidebar = page.locator("#help-sidebar");
+    for (const branchId of ["wallet", "dapps", "messenger", "data-storage", "telemetry", "settings"]) {
+      const branch = helpSidebar.locator(`[data-help-navigation-branch="${branchId}"]`);
+      if (await branch.count() && await branch.getAttribute("aria-expanded") === "false") await branch.click();
+    }
+    await assertVisibleLabelsFit(helpSidebar);
+  }
+});
+
 test("all Telemetry components keep deeper routes inside desktop rails and mobile tabs", async ({ page }) => {
   const workspaces = [
     {
@@ -2910,6 +3373,13 @@ test("all Telemetry components keep deeper routes inside desktop rails and mobil
       childRoute: "telemetry.onionnet.queues",
       childTitle: "Queues",
       localCount: 7,
+    },
+    {
+      id: "telemetry.quic",
+      route: "telemetry.quic.overview",
+      childRoute: "telemetry.quic.recovery",
+      childTitle: "Recovery",
+      localCount: 6,
     },
     {
       id: "telemetry.aggregators",
@@ -2966,7 +3436,9 @@ test("all Telemetry components keep deeper routes inside desktop rails and mobil
         await page.locator("#mobile-menu-button").click();
         const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
         await expect(drawer.locator(`[data-navigation-workspace="${workspace.id}"]`)).toHaveAttribute("aria-current", "page");
-        await expect(drawer.locator(`[data-navigation-route="${workspace.childRoute}"]`)).toHaveCount(0);
+        await expect(drawer.locator(`[data-navigation-route="${workspace.childRoute}"]`)).toHaveCount(
+          workspace.childRoute === workspace.route ? 1 : 0,
+        );
         await page.keyboard.press("Escape");
       } else {
         const [railBox, panelBox] = await Promise.all([
@@ -2975,9 +3447,45 @@ test("all Telemetry components keep deeper routes inside desktop rails and mobil
         ]);
         expect(railBox.x + railBox.width).toBeLessThanOrEqual(panelBox.x);
         await expect(page.locator(`#app-navigation-tree [data-navigation-workspace="${workspace.id}"]`)).toHaveAttribute("aria-current", "page");
-        await expect(page.locator(`#app-navigation-tree [data-navigation-route="${workspace.childRoute}"]`)).toHaveCount(0);
+        await expect(page.locator(`#app-navigation-tree [data-navigation-route="${workspace.childRoute}"]`)).toHaveCount(
+          workspace.childRoute === workspace.route ? 1 : 0,
+        );
       }
       await expectNoViewportOverflow(page);
+    }
+  }
+});
+
+test("QUIC telemetry exposes six honest runtime-evidence placeholders on desktop and mobile", async ({ page }) => {
+  const screens = [
+    ["overview", "Runtime capability"],
+    ["connections", "Connection lifecycle"],
+    ["paths", "Validated paths"],
+    ["streams", "Bidirectional streams"],
+    ["recovery", "RTT estimate"],
+    ["security", "Handshake confirmation"],
+  ];
+
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 320, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const [screenId, firstMetric] of screens) {
+      await page.goto(`${demoUrl}?route=telemetry.quic.${screenId}`);
+      const screen = page.locator(".quic-telemetry-view");
+      await expect(screen).toBeVisible();
+      await expect(screen.locator(".capability-note")).toContainText("Local QUIC capability unavailable");
+      await expect(screen.locator(".network-summary-grid > article")).toHaveCount(4);
+      await expect(screen.locator(".network-summary-grid > article").first()).toContainText(firstMetric);
+      await expect(screen.locator(".network-summary-grid strong")).toHaveText([
+        "Unavailable",
+        "Unavailable",
+        "Unavailable",
+        "Unavailable",
+      ]);
+      await expect(screen).not.toContainText(/(?:Connection ID:|Remote address|Session ticket|Traffic secret)/);
+      await expectNoViewportOverflow(page, `telemetry.quic.${screenId} at ${viewport.width}px`);
     }
   }
 });
@@ -2987,8 +3495,10 @@ test("every canonical workspace projects deeper routes only inside the main wind
     ["wallet.assets-rights", "wallet.assets", "wallet.permissions", 3],
     ["wallet.staking", "wallet.staking.stake", "wallet.staking.unstake", 2],
     ["wallet.settings", "wallet.settings.general", "wallet.settings.advanced", 5],
+    ["settings.network", "settings.reticulum", "settings.quic", 3],
     ["telemetry.reticulum", "telemetry.reticulum.overview", "telemetry.reticulum.links", 8],
     ["telemetry.onionnet", "telemetry.onionnet.overview", "telemetry.onionnet.ingress", 7],
+    ["telemetry.quic", "telemetry.quic.overview", "telemetry.quic.security", 6],
     ["telemetry.aggregators", "telemetry.aggregators.overview", "telemetry.aggregators.recovery", 6],
     ["telemetry.watchers", "telemetry.watchers.overview", "telemetry.watchers.evidence", 6],
     ["telemetry.explorer", "telemetry.explorer.overview", "telemetry.explorer.evidence", 5],
@@ -3009,15 +3519,22 @@ test("every canonical workspace projects deeper routes only inside the main wind
         await page.locator("#mobile-menu-button").click();
         const drawer = page.locator('#mobile-popup-menu[data-popup-type="menu"]');
         await expect(drawer.locator(`[data-navigation-workspace="${workspaceId}"]`)).toHaveCount(1);
-        await expect(drawer.locator(`[data-navigation-route="${childRoute}"]`)).toHaveCount(0);
+        await expect(drawer.locator(`[data-navigation-route="${childRoute}"]`)).toHaveCount(
+          childRoute === defaultRoute ? 1 : 0,
+        );
         await page.keyboard.press("Escape");
         const topCoordinates = await localNavigation.locator("button").evaluateAll((buttons) => (
           buttons.map((button) => Math.round(button.getBoundingClientRect().top))
         ));
         expect(new Set(topCoordinates).size).toBe(1);
       } else {
-        await expect(page.locator(`#app-navigation-tree [data-navigation-workspace="${workspaceId}"]`)).toHaveCount(1);
-        await expect(page.locator(`#app-navigation-tree [data-navigation-route="${childRoute}"]`)).toHaveCount(0);
+        const globalNavigation = workspaceId === "settings.network"
+          ? page.locator("#app-navigation-terminal")
+          : page.locator("#app-navigation-tree");
+        await expect(globalNavigation.locator(`[data-navigation-workspace="${workspaceId}"]`)).toHaveCount(1);
+        await expect(globalNavigation.locator(`[data-navigation-route="${childRoute}"]`)).toHaveCount(
+          childRoute === defaultRoute ? 1 : 0,
+        );
         const [railBox, panelBox] = await Promise.all([
           localNavigation.boundingBox(),
           page.locator(".workspace-layout > .workspace-panel, .wallet-settings-view .settings-detail").first().boundingBox(),
@@ -3358,17 +3875,13 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
     const walletRow = drawerElement.querySelector(
       '.navigation-tree-branch-toggle[data-navigation-branch="wallet"]',
     );
-    const settingsRow = drawerElement.querySelector(
-      '.navigation-tree-branch-toggle[data-navigation-branch="settings"]',
-    );
+    const settingsRow = drawerElement.querySelector('[data-navigation-branch="settings"]');
     const walletChevron = walletRow.querySelector(".navigation-tree-chevron");
-    const settingsChevron = settingsRow.querySelector(".navigation-tree-chevron");
     const drawerRect = drawerElement.getBoundingClientRect();
     const backdropRect = backdrop.getBoundingClientRect();
     const walletRowRect = walletRow.getBoundingClientRect();
     const settingsRowRect = settingsRow.getBoundingClientRect();
     const walletChevronRect = walletChevron.getBoundingClientRect();
-    const settingsChevronRect = settingsChevron.getBoundingClientRect();
     return {
       drawerTop: Math.round(drawerRect.top),
       drawerBottom: Math.round(drawerRect.bottom),
@@ -3381,9 +3894,8 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
         Math.round(settingsRowRect.left) === Math.round(walletRowRect.left)
         && Math.round(settingsRowRect.right) === Math.round(walletRowRect.right)
       ),
-      settingsChevronAligned: (
-        Math.round(settingsChevronRect.right) === Math.round(walletChevronRect.right)
-      ),
+      walletChevronVisible: walletChevron.getBoundingClientRect().width > 0,
+      settingsHasChevron: Boolean(settingsRow.querySelector(".navigation-tree-chevron")),
     };
   });
   expect(buttonOpenGeometry).toEqual({
@@ -3395,7 +3907,8 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
     backdropBottom: 800,
     topLeftBelongsToDrawer: true,
     settingsRowAligned: true,
-    settingsChevronAligned: true,
+    walletChevronVisible: true,
+    settingsHasChevron: true,
   });
   await expect(drawer.locator(".mobile-drawer-header")).toHaveCount(0);
   await expect(drawer.locator(".mobile-navigation-scroll-region")).toBeVisible();
@@ -3422,6 +3935,7 @@ test("mobile drawer uses the same root-only accordion tree and preserves the top
   await expect(drawer.locator('[data-navigation-branch="telemetry.reticulum"]')).toHaveCount(0);
   await expect(drawer.locator('[data-navigation-workspace="telemetry.reticulum"]')).toBeVisible();
   await expect(drawer.locator('[data-navigation-workspace="telemetry.onionnet"]')).toBeVisible();
+  await expect(drawer.locator('[data-navigation-workspace="telemetry.quic"]')).toBeVisible();
   await expect(drawer.locator('[data-navigation-workspace="telemetry.aggregators"]')).toBeVisible();
   await expect(drawer.locator('[data-navigation-route="telemetry.reticulum.node"]')).toHaveCount(0);
   const dapps = drawer.locator('[data-navigation-branch="dapps"]');
@@ -3845,19 +4359,17 @@ test("mobile Help reuses the App drawer shell, topbar positions, and interaction
   expect(helpShell.terminalLabels).toEqual(["Settings"]);
   await expect(helpDrawer.locator(".help-mobile-menu-title")).toHaveText("Help Content");
   const helpTerminalAlignment = await helpDrawer.evaluate((drawerElement) => {
-    const branchChevronRight = (branchId) => {
-      const chevron = drawerElement.querySelector(
-        `.navigation-tree-branch-toggle[data-help-navigation-branch="${branchId}"] `
-        + ".navigation-tree-chevron",
-      );
-      return Math.round(chevron.getBoundingClientRect().right);
-    };
+    const walletRow = drawerElement.querySelector('[data-help-navigation-branch="wallet"]');
+    const settingsRow = drawerElement.querySelector('[data-help-navigation-node="settings"]');
+    const walletRect = walletRow.getBoundingClientRect();
+    const settingsRect = settingsRow.getBoundingClientRect();
     return {
-      wallet: branchChevronRight("wallet"),
-      settings: branchChevronRight("settings"),
+      aligned: Math.round(walletRect.left) === Math.round(settingsRect.left)
+        && Math.round(walletRect.right) === Math.round(settingsRect.right),
+      settingsHasChevron: Boolean(settingsRow.querySelector(".navigation-tree-chevron")),
     };
   });
-  expect(helpTerminalAlignment.settings).toBe(helpTerminalAlignment.wallet);
+  expect(helpTerminalAlignment).toEqual({ aligned: true, settingsHasChevron: true });
 
   const wallet = helpDrawer.locator('[data-help-navigation-branch="wallet"]');
   const telemetry = helpDrawer.locator('[data-help-navigation-branch="telemetry"]');

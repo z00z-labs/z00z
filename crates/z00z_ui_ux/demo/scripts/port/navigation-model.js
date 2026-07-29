@@ -66,6 +66,7 @@
     profile({ id: "wallet.staking", maturity: "live", availability: "unavailable", evidenceSource: "fixture", freshness: "not_applicable", presentationMode: "product" }),
     profile({ id: "telemetry.reticulum", maturity: "live", availability: "unavailable", evidenceSource: "none", freshness: "unknown", presentationMode: "product" }),
     profile({ id: "telemetry.onionnet", maturity: "target", availability: "unavailable", evidenceSource: "none", freshness: "unknown", presentationMode: "product" }),
+    profile({ id: "telemetry.quic", maturity: "target", availability: "unavailable", evidenceSource: "none", freshness: "unknown", presentationMode: "product" }),
     profile({ id: "telemetry.aggregators", maturity: "live", availability: "unavailable", evidenceSource: "none", freshness: "unknown", presentationMode: "product" }),
     profile({ id: "telemetry.watchers", maturity: "live", availability: "unavailable", evidenceSource: "fixture", freshness: "unknown", presentationMode: "roadmap_preview" }),
     profile({ id: "telemetry.explorer", maturity: "target", availability: "unavailable", evidenceSource: "fixture", freshness: "unknown", presentationMode: "roadmap_preview" }),
@@ -110,19 +111,25 @@
     node({ id: "telemetry.onionnet.queues", parentId: "telemetry.onionnet", order: 50, labelKey: "navigation.queues", iconId: "queue", target: routeTarget("telemetry.onionnet.queues"), capabilityId: "telemetry.onionnet", helpTopicId: "telemetry.onionnet.queues" }),
     node({ id: "telemetry.onionnet.probation", parentId: "telemetry.onionnet", order: 60, labelKey: "navigation.probation", iconId: "alert", target: routeTarget("telemetry.onionnet.probation"), capabilityId: "telemetry.onionnet", helpTopicId: "telemetry.onionnet.probation" }),
     node({ id: "telemetry.onionnet.ingress", parentId: "telemetry.onionnet", order: 70, labelKey: "navigation.ingress", iconId: "entry", target: routeTarget("telemetry.onionnet.ingress"), capabilityId: "telemetry.onionnet", helpTopicId: "telemetry.onionnet.ingress" }),
-    node({ id: "telemetry.aggregators", parentId: "telemetry", order: 30, labelKey: "navigation.aggregators", iconId: "aggregate", target: workspaceTarget("telemetry.aggregators.overview"), capabilityId: "telemetry.aggregators", helpTopicId: "telemetry.aggregators.overview" }),
+    node({ id: "telemetry.quic", parentId: "telemetry", order: 30, labelKey: "navigation.quic", iconId: "network", target: workspaceTarget("telemetry.quic.overview"), capabilityId: "telemetry.quic", helpTopicId: "telemetry.quic.overview" }),
+    node({ id: "telemetry.quic.connections", parentId: "telemetry.quic", order: 20, labelKey: "quic.tabs.connections", iconId: "reticulum-link", target: routeTarget("telemetry.quic.connections"), capabilityId: "telemetry.quic", helpTopicId: "telemetry.quic.connections" }),
+    node({ id: "telemetry.quic.paths", parentId: "telemetry.quic", order: 30, labelKey: "quic.tabs.paths", iconId: "reticulum-paths", target: routeTarget("telemetry.quic.paths"), capabilityId: "telemetry.quic", helpTopicId: "telemetry.quic.paths" }),
+    node({ id: "telemetry.quic.streams", parentId: "telemetry.quic", order: 40, labelKey: "quic.tabs.streams", iconId: "queue", target: routeTarget("telemetry.quic.streams"), capabilityId: "telemetry.quic", helpTopicId: "telemetry.quic.streams" }),
+    node({ id: "telemetry.quic.recovery", parentId: "telemetry.quic", order: 50, labelKey: "quic.tabs.recovery", iconId: "restore", target: routeTarget("telemetry.quic.recovery"), capabilityId: "telemetry.quic", helpTopicId: "telemetry.quic.recovery" }),
+    node({ id: "telemetry.quic.security", parentId: "telemetry.quic", order: 60, labelKey: "quic.tabs.security", iconId: "shield", target: routeTarget("telemetry.quic.security"), capabilityId: "telemetry.quic", helpTopicId: "telemetry.quic.security" }),
+    node({ id: "telemetry.aggregators", parentId: "telemetry", order: 40, labelKey: "navigation.aggregators", iconId: "aggregate", target: workspaceTarget("telemetry.aggregators.overview"), capabilityId: "telemetry.aggregators", helpTopicId: "telemetry.aggregators.overview" }),
     node({ id: "telemetry.aggregators.ingress", parentId: "telemetry.aggregators", order: 20, labelKey: "navigation.ingress", iconId: "entry", target: routeTarget("telemetry.aggregators.ingress"), capabilityId: "telemetry.aggregators", helpTopicId: "telemetry.aggregators.ingress" }),
     node({ id: "telemetry.aggregators.planning", parentId: "telemetry.aggregators", order: 30, labelKey: "navigation.planning", iconId: "advanced", target: routeTarget("telemetry.aggregators.planning"), capabilityId: "telemetry.aggregators", helpTopicId: "telemetry.aggregators.planning" }),
     node({ id: "telemetry.aggregators.placement", parentId: "telemetry.aggregators", order: 40, labelKey: "navigation.placement", iconId: "reticulum-interface", target: routeTarget("telemetry.aggregators.placement"), capabilityId: "telemetry.aggregators", helpTopicId: "telemetry.aggregators.placement" }),
     node({ id: "telemetry.aggregators.publication", parentId: "telemetry.aggregators", order: 50, labelKey: "navigation.publication", iconId: "send", target: routeTarget("telemetry.aggregators.publication"), capabilityId: "telemetry.aggregators", helpTopicId: "telemetry.aggregators.publication" }),
     node({ id: "telemetry.aggregators.recovery", parentId: "telemetry.aggregators", order: 60, labelKey: "navigation.recovery", iconId: "restore", target: routeTarget("telemetry.aggregators.recovery"), capabilityId: "telemetry.aggregators", helpTopicId: "telemetry.aggregators.recovery" }),
-    node({ id: "telemetry.watchers", parentId: "telemetry", order: 40, labelKey: "navigation.watchers", iconId: "eye", target: workspaceTarget("telemetry.watchers.overview"), capabilityId: "telemetry.watchers", presentationMode: "roadmap_preview", helpTopicId: "telemetry.watchers.overview" }),
+    node({ id: "telemetry.watchers", parentId: "telemetry", order: 50, labelKey: "navigation.watchers", iconId: "eye", target: workspaceTarget("telemetry.watchers.overview"), capabilityId: "telemetry.watchers", presentationMode: "roadmap_preview", helpTopicId: "telemetry.watchers.overview" }),
     node({ id: "telemetry.watchers.alerts", parentId: "telemetry.watchers", order: 20, labelKey: "navigation.alerts", iconId: "alert", target: routeTarget("telemetry.watchers.alerts"), capabilityId: "telemetry.watchers", presentationMode: "roadmap_preview", helpTopicId: "telemetry.watchers.alerts" }),
     node({ id: "telemetry.watchers.publication", parentId: "telemetry.watchers", order: 30, labelKey: "navigation.publicationChecks", iconId: "check", target: routeTarget("telemetry.watchers.publication"), capabilityId: "telemetry.watchers", presentationMode: "roadmap_preview", helpTopicId: "telemetry.watchers.publication" }),
     node({ id: "telemetry.watchers.providers", parentId: "telemetry.watchers", order: 40, labelKey: "navigation.daProviders", iconId: "network", target: routeTarget("telemetry.watchers.providers"), capabilityId: "telemetry.watchers", presentationMode: "roadmap_preview", helpTopicId: "telemetry.watchers.providers" }),
     node({ id: "telemetry.watchers.censorship", parentId: "telemetry.watchers", order: 50, labelKey: "navigation.censorship", iconId: "eye-off", target: routeTarget("telemetry.watchers.censorship"), capabilityId: "telemetry.watchers", presentationMode: "roadmap_preview", helpTopicId: "telemetry.watchers.censorship" }),
     node({ id: "telemetry.watchers.evidence", parentId: "telemetry.watchers", order: 60, labelKey: "navigation.evidenceExport", iconId: "backup", target: routeTarget("telemetry.watchers.evidence"), capabilityId: "telemetry.watchers", presentationMode: "roadmap_preview", helpTopicId: "telemetry.watchers.evidence" }),
-    node({ id: "telemetry.explorer", parentId: "telemetry", order: 50, labelKey: "navigation.explorer", iconId: "search", target: workspaceTarget("telemetry.explorer.overview"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.overview" }),
+    node({ id: "telemetry.explorer", parentId: "telemetry", order: 60, labelKey: "navigation.explorer", iconId: "search", target: workspaceTarget("telemetry.explorer.overview"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.overview" }),
     node({ id: "telemetry.explorer.search", parentId: "telemetry.explorer", order: 20, labelKey: "navigation.search", iconId: "search", target: routeTarget("telemetry.explorer.search"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.search" }),
     node({ id: "telemetry.explorer.checkpoints", parentId: "telemetry.explorer", order: 30, labelKey: "navigation.checkpoints", iconId: "check", target: routeTarget("telemetry.explorer.checkpoints"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.checkpoints" }),
     node({ id: "telemetry.explorer.batches", parentId: "telemetry.explorer", order: 40, labelKey: "navigation.batches", iconId: "queue", target: routeTarget("telemetry.explorer.batches"), capabilityId: "telemetry.explorer", presentationMode: "roadmap_preview", helpTopicId: "telemetry.explorer.batches" }),
@@ -147,7 +154,8 @@
     node({ id: "wallet.swap", parentId: "dapps", order: 160, labelKey: "navigation.swap", iconId: "swap", target: routeTarget("wallet.swap"), capabilityId: "wallet.swap", helpTopicId: "wallet.swap" }),
     node({ id: "dapps.tickets-passes", parentId: "dapps", order: 170, labelKey: "navigation.ticketsPasses", iconId: "dapp-tickets-passes", target: routeTarget("dapps.tickets-passes"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.tickets-passes" }),
     node({ id: "dapps.wbold-gateway", parentId: "dapps", order: 180, labelKey: "navigation.wboldGateway", iconId: "dapp-wbold-gateway", target: routeTarget("dapps.wbold-gateway"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.wbold-gateway" }),
-    node({ id: "dapps.discover", parentId: "dapps", order: 190, labelKey: "navigation.discover", iconId: "search", target: routeTarget("dapps.discover"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.discover", sectionBreakBefore: true }),
+    node({ id: "dapps.xchain-integration", parentId: "dapps", order: 190, labelKey: "navigation.xchainIntegration", iconId: "dapp-xchain-integration", target: routeTarget("dapps.xchain-integration"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.xchain-integration" }),
+    node({ id: "dapps.discover", parentId: "dapps", order: 200, labelKey: "navigation.discover", iconId: "search", target: routeTarget("dapps.discover"), capabilityId: "dapps", presentationMode: "roadmap_preview", helpTopicId: "dapps.discover", sectionBreakBefore: true }),
     node({ id: "messenger", order: 40, labelKey: "navigation.messenger", iconId: "message", target: branchTarget(), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.inbox" }),
     node({ id: "messenger.inbox", parentId: "messenger", order: 10, labelKey: "navigation.inbox", iconId: "inbox", target: routeTarget("messenger.inbox"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.inbox" }),
     node({ id: "messenger.sent", parentId: "messenger", order: 20, labelKey: "navigation.sent", iconId: "sent", target: routeTarget("messenger.sent"), capabilityId: "messenger", presentationMode: "roadmap_preview", helpTopicId: "messenger.sent" }),
@@ -160,8 +168,11 @@
 
     node({ id: "settings", order: 60, labelKey: "navigation.settings", iconId: "settings", target: branchTarget(), helpTopicId: "settings.general" }),
     node({ id: "settings.general", parentId: "settings", order: 10, labelKey: "navigation.general", iconId: "overview", target: routeTarget("settings.general"), helpTopicId: "settings.general" }),
-    node({ id: "settings.notifications", parentId: "settings", order: 20, labelKey: "navigation.notifications", iconId: "bell", target: routeTarget("settings.notifications"), helpTopicId: "settings.notifications" }),
-    node({ id: "settings.appearance", parentId: "settings", order: 30, labelKey: "navigation.appearance", iconId: "eye", target: routeTarget("settings.appearance"), helpTopicId: "settings.appearance" }),
+    node({ id: "settings.network", parentId: "settings", order: 20, labelKey: "navigation.network", iconId: "network", target: workspaceTarget("settings.reticulum", "navigation.reticulum", "reticulum-node"), helpTopicId: "settings.reticulum" }),
+    node({ id: "settings.onionnet", parentId: "settings.network", order: 20, labelKey: "navigation.onionnet", iconId: "shield", target: routeTarget("settings.onionnet"), helpTopicId: "settings.onionnet", isVisible: false }),
+    node({ id: "settings.quic", parentId: "settings.network", order: 30, labelKey: "navigation.quic", iconId: "network", target: routeTarget("settings.quic"), helpTopicId: "settings.quic", isVisible: false }),
+    node({ id: "settings.notifications", parentId: "settings", order: 30, labelKey: "navigation.notifications", iconId: "bell", target: routeTarget("settings.notifications"), helpTopicId: "settings.notifications" }),
+    node({ id: "settings.appearance", parentId: "settings", order: 40, labelKey: "navigation.appearance", iconId: "eye", target: routeTarget("settings.appearance"), helpTopicId: "settings.appearance" }),
     node({ id: "help", order: 70, labelKey: "navigation.help", iconId: "question", target: helpTarget("help.root"), helpTopicId: "app" }),
     node({ id: "about", order: 75, labelKey: "navigation.about", iconId: "info", target: routeTarget("about"), helpTopicId: "about" }),
     node({ id: "logout", order: 80, labelKey: "navigation.logOut", iconId: "logout", target: actionTarget("logout") })
@@ -239,8 +250,6 @@
     if (route.view === "wallet-backup") return "wallet.backup";
     if (route.view === "wallet-settings") return `wallet.settings.${route.walletSettingsSection || "general"}`;
     if (route.view === "settings") {
-      if (route.settingsSection === "reticulum") return "telemetry.reticulum.overview";
-      if (route.settingsSection === "onionnet") return "telemetry.onionnet.overview";
       return `settings.${route.settingsSection || "general"}`;
     }
     if (route.view === "telemetry") {
@@ -325,7 +334,9 @@
       if (entry.target.kind === "group" && entry.parentId === null) errors.push(`root group: ${entry.id}`);
       const parentKind = entry.parentId === null ? null : byId.get(entry.parentId)?.target.kind;
       if (entry.parentId !== null && !["branch", "group", "workspace"].includes(parentKind)) errors.push(`non-container parent: ${entry.id}`);
-      if (entry.target.kind === "workspace" && parentKind !== "branch") errors.push(`workspace must be a first-level branch leaf: ${entry.id}`);
+      if (entry.target.kind === "workspace" && entry.parentId !== null && parentKind !== "branch") {
+        errors.push(`workspace must be a root leaf or first-level branch leaf: ${entry.id}`);
+      }
       if (parentKind === "workspace" && entry.target.kind !== "route") errors.push(`workspace child must be a local route: ${entry.id}`);
       const seen = new Set([entry.id]);
       let current = entry;

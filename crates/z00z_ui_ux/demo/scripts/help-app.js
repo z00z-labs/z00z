@@ -226,8 +226,8 @@
     return null;
   }
 
-  function workspaceDestinations(workspace) {
-    return demo.workspaceLocalDestinations(workspace.id)
+  function workspaceDestinations(workspace, { includeHidden = false } = {}) {
+    return demo.workspaceLocalDestinations(workspace.id, { includeHidden })
       .map(({ nodeId, routeId, labelKey, iconId }) => {
         const node = demo.navigationNode(nodeId) || demo.navigationNodeForRoute(routeId);
         const topicId = node ? topicIdForNode(node) : "";
@@ -268,10 +268,26 @@
     return { workspace, navigation, usesWorkspaceAttribute: false, frame: "wallet-settings" };
   }
 
+  function settingsContext(workspace) {
+    const destinations = workspaceDestinations(workspace, { includeHidden: true });
+    if (!destinations.length) return null;
+    const navigation = `<nav class="context-nav context-tab-list settings-network-tabs help-settings-network-tabs" role="tablist" aria-label="${escapeHtml(translate("navigation.network"))}">${destinations.map((destination) => {
+      const active = destination.topicId === activeTopicId;
+      return `<a class="context-nav-item settings-network-tab${active ? " is-active" : ""}" href="${escapeHtml(routeUrl(destination.topicId).href)}" role="tab" aria-selected="${active}" tabindex="${active ? "0" : "-1"}" data-help-context-topic="${escapeHtml(destination.topicId)}">${icon(destination.iconId)}<span><strong>${escapeHtml(translate(destination.labelKey))}</strong></span></a>`;
+    }).join("")}</nav>`;
+    return {
+      workspace,
+      navigation,
+      usesWorkspaceAttribute: true,
+      frame: "settings-network"
+    };
+  }
+
   function workspaceContext() {
     const workspace = activeWorkspaceNode();
     if (workspace?.id === "wallet.assets-rights") return walletAssetsContext(workspace);
     if (workspace?.id === "wallet.settings") return walletSettingsContext(workspace);
+    if (workspace?.id === "settings.network") return settingsContext(workspace);
     const destinations = workspace ? workspaceDestinations(workspace) : [];
     if (!workspace || !destinations.length) return null;
     const workspaceClass = workspace.id.startsWith("telemetry.") ? " telemetry-workspace-context" : "";
@@ -297,6 +313,12 @@
     mobileTopbarContext.hidden = false;
     siteHeader.classList.add("has-mobile-context");
     document.body.classList.add("has-help-mobile-context");
+    requestAnimationFrame(() => {
+      mobileTopbarContext.querySelector(".context-nav-item.is-active")
+        ?.scrollIntoView({ block: "nearest", inline: "center" });
+      article.querySelector(".settings-network-rail .context-nav-item.is-active")
+        ?.scrollIntoView({ block: "nearest", inline: "center" });
+    });
   }
 
   function normalizeSearchValue(value) {
@@ -484,6 +506,8 @@
       const panel = `<div class="workspace-panel help-markdown">${documentData.html}</div>`;
       if (context.frame === "wallet-settings") {
         article.innerHTML = `<div class="view-enter settings-view wallet-settings-view"><div class="workspace-layout settings-layout"><aside class="context-rail help-context-rail">${context.navigation}</aside>${panel}</div></div>`;
+      } else if (context.frame === "settings-network") {
+        article.innerHTML = `<div class="view-enter workspace-layout workspace-local-layout settings-network-workspace" data-workspace-id="${escapeHtml(context.workspace.id)}"><aside class="context-rail settings-network-rail help-context-rail">${context.navigation}</aside>${panel}</div>`;
       } else {
         const workspaceAttribute = context.usesWorkspaceAttribute ? ` data-workspace-id="${escapeHtml(context.workspace.id)}"` : "";
         article.innerHTML = `<div class="view-enter workspace-layout ${context.layoutClass}"${workspaceAttribute}><aside class="context-rail help-context-rail">${context.navigation}</aside>${panel}</div>`;

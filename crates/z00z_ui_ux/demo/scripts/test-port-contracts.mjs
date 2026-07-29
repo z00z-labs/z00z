@@ -76,7 +76,7 @@ assert.equal(demo.PORT_CONTRACT.walletBackendRuntime, "native-rust");
 assert.ok(demo.PORT_CONTRACT.rendererForbiddenState.includes("session_token"));
 assert.ok(demo.PORT_CONTRACT.forbiddenTransports.includes("websocket"));
 assert.equal(demo.PORT_CONTRACT.capabilityStates, undefined);
-assert.equal(demo.PORT_CONTRACT.routes.length, 78);
+assert.equal(demo.PORT_CONTRACT.routes.length, 88);
 assert.ok(demo.PORT_CONTRACT.walletRoutes.includes("wallet.merge-split"));
 assert.equal(demo.navigationNode("wallet.merge-split").iconId, "merge-split");
 assert.equal(demo.navigationNode("wallet.merge-split").helpTopicId, "wallet.merge-split");
@@ -118,6 +118,10 @@ assert.deepEqual(
   ["overview", "ingress", "planning", "placement", "publication", "recovery"]
 );
 assert.deepEqual(
+  Array.from(demo.PORT_CONTRACT.telemetryTabs.quic),
+  ["overview", "connections", "paths", "streams", "recovery", "security"]
+);
+assert.deepEqual(
   Array.from(demo.PORT_CONTRACT.telemetryTabs.watchers),
   ["overview", "alerts", "publication", "providers", "censorship", "evidence"]
 );
@@ -127,15 +131,22 @@ assert.deepEqual(
 );
 assert.deepEqual(
   Array.from(demo.PORT_CONTRACT.telemetrySources),
-  ["onionnet", "reticulum", "aggregators", "watchers", "explorer"]
+  ["reticulum", "onionnet", "quic", "aggregators", "watchers", "explorer"]
 );
 assert.deepEqual(Object.keys(demo.EXCHANGE_PROVIDER_LUT), ["hyperliquid", "near-intents"]);
 assert.equal(demo.exchangeProvider("unknown").id, "near-intents");
 assert.deepEqual(Array.from(demo.exchangeDestinations("hyperliquid"), ({ id }) => id), [
   "hyperliquid-usdc",
-  "hyperliquid-hype",
   "hyperliquid-btc"
 ]);
+assert.deepEqual(Array.from(demo.exchangeDestinations("near-intents"), ({ id }) => id), [
+  "solana-usdc",
+  "ethereum-eth",
+  "near-near",
+  "arbitrum-usdc"
+]);
+assert.ok(!Object.hasOwn(demo.EXCHANGE_DESTINATION_LUT, "hyperliquid-hype"));
+assert.ok(!Object.hasOwn(demo.EXCHANGE_DESTINATION_LUT, "solana-sol"));
 assert.ok(Object.isFrozen(demo.EXCHANGE_PROVIDER_LUT));
 assert.deepEqual(Array.from(demo.DAPP_DESCRIPTOR_IDS), [
   "pay",
@@ -154,9 +165,10 @@ assert.deepEqual(Array.from(demo.DAPP_DESCRIPTOR_IDS), [
   "digital-goods",
   "payroll",
   "private-contract",
-  "assets-locker"
+  "assets-locker",
+  "xchain-integration"
 ]);
-assert.equal(demo.DAPP_CATALOG.length, 17);
+assert.equal(demo.DAPP_CATALOG.length, 18);
 assert.equal(demo.assertDappCatalog(), true);
 const expectedDappInterfaces = {
   pay: ["recipient", "asset", "amount", "expiry", "connectivity"],
@@ -165,7 +177,7 @@ const expectedDappInterfaces = {
   "create-permission": ["recipient", "scope", "uses", "expiry", "delegation"],
   "create-asset": ["class", "name", "symbol", "decimals", "serials", "nominal", "namespace", "policy", "metadata-digest"],
   "agents-budget": ["agent", "services", "asset", "period-limit", "action-limit", "max-actions", "approval", "expiry"],
-  "wbold-gateway": ["direction", "amount", "external-recipient", "operator", "max-fee"],
+  "wbold-gateway": ["route", "direction", "amount", "external-recipient", "max-fee"],
   subscription: ["provider", "plan", "asset", "amount", "period", "periods", "expiry"],
   donation: ["beneficiary", "asset", "amount", "schedule", "disclosure"],
   escrow: ["counterparty", "asset", "amount", "condition", "timeout", "fallback", "arbitrator"],
@@ -175,7 +187,8 @@ const expectedDappInterfaces = {
   "digital-goods": ["provider", "item", "uses", "expiry", "transferability"],
   payroll: ["batch", "asset", "recipient-set", "recipients", "total", "schedule", "audit"],
   "private-contract": ["template", "counterparty", "subject", "obligations", "terms-digest", "effective", "expiry", "disclosure", "decision"],
-  "assets-locker": ["asset", "action", "amount", "route", "external-recipient", "risk", "max-fee"]
+  "assets-locker": ["asset", "action", "amount", "route", "external-recipient", "risk", "max-fee"],
+  "xchain-integration": ["result-kind", "source", "result", "destination", "preference", "deadline", "max-cost", "fallback"]
 };
 for (const [descriptorId, fieldIds] of Object.entries(expectedDappInterfaces)) {
   assert.deepEqual(
@@ -184,11 +197,51 @@ for (const [descriptorId, fieldIds] of Object.entries(expectedDappInterfaces)) {
     `${descriptorId} proposal fields must preserve the reviewed dApps.md interface contract.`
   );
 }
+const wcoinsGateway = demo.dappDescriptor("wbold-gateway");
+assert.equal(wcoinsGateway.label, "wCoins Gateway");
+assert.equal(wcoinsGateway.intentType, "prepare_wcoins_gateway");
+assert.equal(wcoinsGateway.gatewayAggregate, "6 independent lockers");
+assert.deepEqual(
+  Array.from(wcoinsGateway.gatewayRoutes, ({ label }) => label),
+  ["wBOLD", "wDAI", "wCRVUSD", "wZCHF", "wdEURO", "wCJPY"]
+);
+assert.equal(wcoinsGateway.gatewayControls.length, 8);
+assert.equal(wcoinsGateway.gatewayMarketNotes.length, 6);
+assert.equal(
+  new Set(Array.from(wcoinsGateway.gatewayRoutes, ({ lockerId }) => lockerId)).size,
+  6,
+  "Every wCoins route must own a distinct LockerID."
+);
+for (const route of wcoinsGateway.gatewayRoutes) {
+  for (const property of [
+    "z00zAsset",
+    "externalAsset",
+    "referenceCurrency",
+    "protocolModel",
+    "reserveNetwork",
+    "lockerId",
+    "reservePool",
+    "liabilities",
+    "redemptionRoute",
+    "riskBadge",
+    "status",
+    "exposureLimit"
+  ]) {
+    assert.ok(route[property], `${route.label} must declare ${property}.`);
+  }
+  assert.equal(route.reserveNetwork, "Ethereum Mainnet");
+  assert.match(route.lockerId, /^locker\.ethereum-mainnet\.[a-z0-9]+\.v1$/);
+}
+assert.deepEqual(
+  Array.from(wcoinsGateway.gatewayRoutes.slice(3), ({ referenceCurrency, status }) => [referenceCurrency, status]),
+  [["CHF", "Candidate"], ["EUR", "Candidate"], ["JPY", "Candidate"]],
+  "Non-USD routes must remain explicitly marked as candidates."
+);
 assert.ok(Object.isFrozen(demo.DAPP_CATALOG));
 assert.ok(demo.DAPP_CATALOG.every((entry) => Object.isFrozen(entry)));
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ id }) => id)).size, 17);
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ iconName }) => iconName)).size, 17);
-assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ intentType }) => intentType)).size, 17);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ id }) => id)).size, 18);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ iconName }) => iconName)).size, 18);
+assert.equal(new Set(Array.from(demo.DAPP_CATALOG, ({ intentType }) => intentType)).size, 18);
 assert.equal(
   demo.dappDescriptor("create-voucher").iconName,
   demo.navigationNode("dapps.create-voucher").iconId
@@ -219,6 +272,34 @@ assert.equal(
 assert.ok(demo.ICON_NAMES.includes("voucher-list"));
 assert.ok(demo.ICON_NAMES.includes("permission-list"));
 assert.ok(demo.ICON_NAMES.includes("dapp-private-contract"));
+assert.ok(demo.ICON_NAMES.includes("dapp-xchain-integration"));
+const xchainIntegration = demo.dappDescriptor("xchain-integration");
+assert.equal(xchainIntegration.intentType, "prepare_xchain_integration");
+assert.ok(!Object.hasOwn(xchainIntegration, "integrationLanes"));
+assert.ok(!Object.hasOwn(xchainIntegration, "solverIntegrations"));
+assert.deepEqual(
+  Array.from(xchainIntegration.integrations, ({ id }) => id),
+  ["near-intents", "ethereum", "liquity-bold", "hyperliquid", "uniswap", "external-solvers"]
+);
+assert.deepEqual(
+  Array.from(xchainIntegration.integrations, ({ label }) => label),
+  ["NEAR Intents", "Ethereum", "Liquity BOLD", "Hyperliquid", "Uniswap", "External Solvers"]
+);
+assert.equal(xchainIntegration.quoteFields.length, 6);
+assert.equal(xchainIntegration.integrationInvariants.length, 7);
+assert.match(xchainIntegration.integrationRecommendation, /user's result/i);
+assert.match(xchainIntegration.reviewBoundary, /cannot choose Wallet inputs/i);
+assert.ok(xchainIntegration.integrations.every((integration) => (
+  integration.role
+  && integration.method
+  && integration.resources
+  && integration.cost
+  && integration.speed
+  && integration.trustBoundary
+)));
+assert.match(xchainIntegration.integrations.find(({ id }) => id === "ethereum").method, /EVM Locker.*Issuer Rail/i);
+assert.match(xchainIntegration.integrations.find(({ id }) => id === "external-solvers").method, /Celestia DA/i);
+assert.ok(!JSON.stringify(xchainIntegration).match(/\b(?:Sui|Solana)\b/i));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.availability === "unavailable"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.presentationMode === "roadmap_preview"));
 assert.ok(demo.DAPP_CATALOG.every((entry) => entry.publisher.verified === false));
@@ -238,7 +319,7 @@ assert.equal(
   undefined
 );
 assert.ok(demo.DAPP_CATALOG.flatMap(({ proposalFields }) => proposalFields)
-  .filter(({ type, id }) => type === "number" && !["decimals", "max-fee"].includes(id))
+  .filter(({ type, id }) => type === "number" && !["decimals", "max-fee", "max-cost"].includes(id))
   .every(({ min }) => Number(min) > 0));
 assert.equal(
   demo.dappDescriptor("create-asset").proposalFields.find(({ id }) => id === "decimals").min,
@@ -272,88 +353,6 @@ assert.doesNotMatch(
   JSON.stringify(demo.DAPP_CATALOG),
   /((?:https?:)?\/\/)|\b(?:url|domain|iframe|bundle|executable|sourceCode)\b/i
 );
-const carbonMaterialRequestPath = "M30 19.102c0 .833-.324 1.614-.914 2.201l-7.277 7.25A4.93 4.93 0 0 1 18.306 30H11v-2h7.306a2.94 2.94 0 0 0 2.09-.865l7.279-7.25c.21-.208.325-.487.325-.783a1.102 1.102 0 0 0-1.88-.783l-5.882 5.86c-.517.513-1.353.82-2.238.82h-.992l-.01.001H13l-.002-2h4.007a1 1 0 0 0-.007-2h-7c-1.654 0-3 1.346-3 3v1.334L3.6 29.86L2 28.658l2.998-3.992V24c0-2.757 2.243-5 5-5h7a2.994 2.994 0 0 1 2.963 2.631l4.747-4.73a3.11 3.11 0 0 1 4.38 0A3.1 3.1 0 0 1 30 19.103Zm-.133-8.622a1 1 0 0 1-.867.502h-7a1 1 0 0 1-.864-1.504l3.5-6c.36-.614 1.369-.614 1.728 0l3.5 6a1 1 0 0 1 .003 1.002M27.26 8.982L25.5 5.967l-1.759 3.015zM9 2v7H2V2zM7 4H4v3h3zm12 9c0 2.206-1.794 4-4 4s-4-1.794-4-4s1.794-4 4-4s4 1.794 4 4m-2 0c0-1.102-.897-2-2-2s-2 .898-2 2s.898 2 2 2s2-.897 2-2";
-const etDocumentPaths = Object.freeze([
-  "M1.5 32h21c.827 0 1.5-.673 1.5-1.5v-21c0-.017-.008-.031-.009-.047q-.004-.033-.013-.065a.5.5 0 0 0-.09-.191c-.007-.009-.006-.02-.013-.029l-8-9-.01-.006a.5.5 0 0 0-.223-.134q-.027-.008-.056-.011C15.557.012 15.53 0 15.5 0h-14C.673 0 0 .673 0 1.5v29c0 .827.673 1.5 1.5 1.5M16 1.815L22.387 9H16.5c-.22 0-.5-.42-.5-.75zM1 1.5a.5.5 0 0 1 .5-.5H15v7.25c0 .809.655 1.75 1.5 1.75H23v20.5a.5.5 0 0 1-.5.5h-21c-.28 0-.5-.22-.5-.5z",
-  "M5.5 14h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1m0 4h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1m0-8h6a.5.5 0 0 0 0-1h-6a.5.5 0 0 0 0 1m0 12h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1m0 4h13a.5.5 0 0 0 0-1h-13a.5.5 0 0 0 0 1"
-]);
-const voucherListSource = await readFile(
-  resolve(demoRoot, "assets/z00z-friendly/Vauchers/vaucher-orange.svg"),
-  "utf8"
-);
-const permissionListSource = await readFile(
-  resolve(demoRoot, "assets/z00z-friendly/Permissions/permission-blue.svg"),
-  "utf8"
-);
-const voucherListPath = voucherListSource.match(/<path[^>]+d="([^"]+)"/)?.[1];
-const permissionListPaths = [...permissionListSource.matchAll(/<path[^>]+d="([^"]+)"/g)].map(([, path]) => path);
-for (const shellFile of ["index.html", "help.html"]) {
-  const shellSource = await readFile(resolve(demoRoot, shellFile), "utf8");
-  const mergeSplitSymbol = shellSource.match(/<symbol id="i-merge-split"[\s\S]*?<\/symbol>/)?.[0] || "";
-  const earnSymbol = shellSource.match(/<symbol id="i-earn"[\s\S]*?<\/symbol>/)?.[0] || "";
-  const navigationIcons = new Set(demo.NAVIGATION_NODES
-    .filter(({ id }) => shellFile === "index.html" || !["help", "about", "logout"].includes(id))
-    .map(({ iconId }) => iconId));
-  assert.match(
-    mergeSplitSymbol,
-    /M9 3h5v5h-2v4h5a3 3 0 0 1 3 3v2h2v5h-5v-5h2v-2/,
-    `${shellFile} Merge/Split must use mdi-light:sitemap.`
-  );
-  assert.match(earnSymbol, /viewBox="0 0 24 24"/, `${shellFile} Earn must use the shared icon canvas.`);
-  assert.match(earnSymbol, /stroke-width="1\.5"/, `${shellFile} Earn must use the light outline stroke.`);
-  assert.doesNotMatch(earnSymbol, /icon-fill/, `${shellFile} Earn must not use a filled glyph.`);
-  for (const iconName of navigationIcons) {
-    const symbol = shellSource.match(new RegExp(`<symbol id="i-${iconName}"[\\s\\S]*?</symbol>`))?.[0] || "";
-    assert.match(symbol, /viewBox="0 0 24 24"/, `${shellFile} ${iconName} must use the shared navigation canvas.`);
-  }
-  for (const { iconName } of demo.DAPP_CATALOG) {
-    const symbol = shellSource.match(new RegExp(`<symbol id="i-${iconName}"[\\s\\S]*?</symbol>`))?.[0] || "";
-    if (iconName === "dapp-request") {
-      assert.match(symbol, /data-iconify="carbon:material-request"/);
-      assert.match(symbol, /transform="scale\(0\.75\)"/, `${shellFile} Request must normalize the Carbon 32px canvas to 24px.`);
-      assert.doesNotMatch(symbol, /filter=/, `${shellFile} Request must retain the native Carbon weight after 24px normalization.`);
-      assert.doesNotMatch(shellSource, /id="i-dapp-request-light"/, `${shellFile} Request must not apply an erosion filter.`);
-      assert.equal(
-        symbol.match(/<path fill="currentColor" d="([^"]+)"/)?.[1],
-        carbonMaterialRequestPath,
-        `${shellFile} Request must preserve the carbon:material-request geometry.`
-      );
-      continue;
-    }
-    if (iconName === "voucher-list") {
-      assert.equal(
-        symbol.match(/<path class="icon-fill" d="([^"]+)"/)?.[1],
-        voucherListPath,
-        `${shellFile} Create Voucher must preserve the Voucher list glyph.`
-      );
-      continue;
-    }
-    if (iconName === "permission-list") {
-      assert.match(symbol, /transform="scale\(0\.5\)"/);
-      assert.match(symbol, /stroke="currentColor"/);
-      assert.match(symbol, /stroke-width="3\.6"/, `${shellFile} Create Permission must normalize to the shared 1.8px menu weight.`);
-      assert.deepEqual(
-        [...symbol.matchAll(/<path[^>]+d="([^"]+)"/g)].map(([, path]) => path),
-        permissionListPaths,
-        `${shellFile} Create Permission must preserve the Permission list glyph.`
-      );
-      continue;
-    }
-    if (iconName === "dapp-private-contract") {
-      assert.match(symbol, /data-iconify="et:document"/);
-      assert.match(symbol, /transform="translate\(3 0\) scale\(0\.75\)"/);
-      assert.match(symbol, /fill="currentColor"/);
-      assert.deepEqual(
-        [...symbol.matchAll(/<path d="([^"]+)"/g)].map(([, path]) => path),
-        etDocumentPaths,
-        `${shellFile} Private Agreement must preserve the et:document geometry.`
-      );
-      continue;
-    }
-    assert.match(symbol, /stroke-width="1\.5"/, `${shellFile} ${iconName} must use the light outline stroke.`);
-    assert.doesNotMatch(symbol, /icon-fill/, `${shellFile} ${iconName} must not use a filled glyph.`);
-  }
-}
 const walletFixturesBeforeDappReview = JSON.stringify(demo.INITIAL_WALLET_FIXTURES);
 const dappGateway = demo.createMockDappGateway();
 const offlinePayReviewResult = dappGateway.readPermissionReview({
@@ -792,6 +791,18 @@ assert.equal(allowed.settingsSection, "onionnet");
 assert.equal(allowed.onionnetTelemetryTab, "queues");
 assert.equal(demo.canonicalRouteFromLegacyNavigation(allowed), "wallet.send");
 assert.equal(
+  demo.canonicalRouteFromLegacyNavigation(demo.resolveInitialNavigation("?view=settings&settings=quic")),
+  "settings.quic"
+);
+assert.equal(
+  demo.canonicalRouteFromLegacyNavigation(demo.resolveInitialNavigation("?view=telemetry&telemetry=quic")),
+  "telemetry.quic.overview"
+);
+assert.equal(
+  demo.canonicalRouteFromLegacyNavigation(demo.resolveInitialNavigation("?view=telemetry&telemetry=quic&quicTab=recovery")),
+  "telemetry.quic.recovery"
+);
+assert.equal(
   demo.canonicalRouteFromLegacyNavigation(demo.resolveInitialNavigation("?view=telemetry&telemetry=reticulum&reticulumTab=links")),
   "telemetry.reticulum.links"
 );
@@ -826,19 +837,38 @@ assert.equal(deterministicProfile.address, "ZxN5q7…2305Pt");
 assert.equal(deterministicProfile.chainId, "testnet-2");
 assert.equal(demo.createEmptyWallet().summary.scan, "Unavailable");
 const friendlyAssetKeys = Object.keys(demo.ASSET_ICON_LUT);
+const removedAssetKeys = ["algorand", "avalanche", "cardano", "hyperliquid", "liquity", "solana", "zcash"];
 assert.deepEqual(Array.from(demo.DEFAULT_FRIENDLY_ASSET_KEYS), friendlyAssetKeys);
-assert.equal(new Set(friendlyAssetKeys).size, 16);
-assert.equal(demo.ASSET_CATALOG.length, 16);
+assert.equal(new Set(friendlyAssetKeys).size, 10);
+assert.equal(demo.ASSET_CATALOG.length, 10);
+assert.ok(removedAssetKeys.every((key) => !friendlyAssetKeys.includes(key)));
+assert.deepEqual(
+  { ...demo.ASSET_CATALOG.find(({ key }) => key === "crvusd") },
+  {
+    key: "crvusd",
+    type: "coin",
+    label: "wCRVUSD",
+    ticker: "CRVUSD",
+    unit: "CRVUSD",
+    iconSrc: "assets/z00z-friendly/Coins/curve-usd-logo-z00z.svg",
+    divisible: true,
+    owner: "Curve protocol",
+    assetId: "external:ethereum:crvusd"
+  }
+);
 for (const iconPath of Object.values(demo.ASSET_ICON_LUT)) {
   const iconInfo = await stat(resolve(demoRoot, iconPath));
   assert.ok(iconInfo.size > 0, `${iconPath} must exist and be non-empty`);
 }
 for (const wallet of demo.INITIAL_WALLET_FIXTURES) {
-  assert.equal(wallet.assetKeys.length, 16);
+  assert.equal(wallet.assetKeys.length, 10);
   assert.ok(friendlyAssetKeys.every((key) => wallet.assetKeys.includes(key)));
+  assert.ok(removedAssetKeys.every((key) => !wallet.assetKeys.includes(key)));
 }
 assert.deepEqual(Array.from(deterministicProfile.assetKeys), friendlyAssetKeys);
 assert.deepEqual(Array.from(demo.createEmptyWallet().assetKeys), friendlyAssetKeys);
+assert.ok(removedAssetKeys.every((key) => !deterministicProfile.assetKeys.includes(key)));
+assert.ok(removedAssetKeys.every((key) => !demo.createEmptyWallet().assetKeys.includes(key)));
 
 const state = demo.createInitialState({ search: "?view=activity" });
 assert.equal(state.view, "activity");
@@ -1071,6 +1101,12 @@ assert.equal(demo.navigationNode("wallet.vouchers").parentId, "wallet.assets-rig
 assert.equal(demo.navigationNode("wallet.permissions").parentId, "wallet.assets-rights");
 assert.equal(demo.navigationNode("wallet.quarantine").parentId, "wallet.assets-rights");
 assert.equal(demo.navigationNode("wallet.settings").target.kind, "workspace");
+assert.equal(demo.navigationNode("settings").target.kind, "branch");
+assert.equal(demo.navigationNode("settings.general").target.routeId, "settings.general");
+assert.equal(demo.navigationNode("settings.network").target.kind, "workspace");
+assert.equal(demo.navigationNode("settings.network").target.routeId, "settings.reticulum");
+assert.equal(demo.navigationNode("settings.onionnet").parentId, "settings.network");
+assert.equal(demo.navigationNode("settings.quic").parentId, "settings.network");
 assert.equal(demo.navigationNode("wallet.staking").target.kind, "workspace");
 assert.equal(demo.navigationNode("wallet.staking").target.routeId, "wallet.staking.stake");
 assert.equal(demo.navigationNode("wallet.staking.unstake").parentId, "wallet.staking");
@@ -1079,7 +1115,7 @@ assert.deepEqual(
   ["wallet.staking.stake", "wallet.staking.unstake"]
 );
 const workspaceNodes = demo.NAVIGATION_NODES.filter(({ target }) => target.kind === "workspace");
-assert.equal(workspaceNodes.length, 8);
+assert.equal(workspaceNodes.length, 10);
 for (const workspace of workspaceNodes) {
   assert.equal(demo.navigationNode(workspace.parentId).target.kind, "branch");
   const localDestinations = demo.workspaceLocalDestinations(workspace.id);
@@ -1099,9 +1135,18 @@ assert.deepEqual(
   Array.from(demo.workspaceLocalDestinations("wallet.settings")).map(({ routeId }) => routeId),
   ["wallet.settings.general", "wallet.settings.security", "wallet.settings.backup", "wallet.settings.policies", "wallet.settings.advanced"]
 );
+assert.deepEqual(
+  Array.from(demo.workspaceLocalDestinations("settings.network")).map(({ routeId }) => routeId),
+  ["settings.reticulum"]
+);
+assert.deepEqual(
+  Array.from(demo.workspaceLocalDestinations("settings.network", { includeHidden: true })).map(({ routeId }) => routeId),
+  ["settings.reticulum", "settings.onionnet", "settings.quic"]
+);
 for (const [workspaceId, defaultRoute, childCount] of [
   ["telemetry.reticulum", "telemetry.reticulum.overview", 7],
   ["telemetry.onionnet", "telemetry.onionnet.overview", 6],
+  ["telemetry.quic", "telemetry.quic.overview", 5],
   ["telemetry.aggregators", "telemetry.aggregators.overview", 5],
   ["telemetry.watchers", "telemetry.watchers.overview", 5],
   ["telemetry.explorer", "telemetry.explorer.overview", 4],
@@ -1135,8 +1180,12 @@ assert.deepEqual(
   ["bar-chart", "line-chart"]
 );
 assert.deepEqual(
-  Array.from(demo.navigationChildren("settings"), ({ target }) => target.routeId),
-  ["settings.general", "settings.notifications", "settings.appearance"]
+  Array.from(demo.navigationChildren("settings"), ({ id }) => id),
+  ["settings.general", "settings.network", "settings.notifications", "settings.appearance"]
+);
+assert.deepEqual(
+  Array.from(demo.navigationChildren("settings.network", { includeHidden: true }), ({ target }) => target.routeId),
+  ["settings.onionnet", "settings.quic"]
 );
 assert.equal(demo.navigationNode("about").target.routeId, "about");
 assert.equal(demo.navigationNode("about").isVisible, true);
@@ -1164,6 +1213,7 @@ assert.deepEqual(
     "wallet.swap",
     "dapps.tickets-passes",
     "dapps.wbold-gateway",
+    "dapps.xchain-integration",
     "dapps.discover"
   ]
 );
@@ -1171,6 +1221,9 @@ assert.equal(demo.navigationNode("dapps.discover").sectionBreakBefore, true);
 assert.equal(demo.navigationNode("dapps.installed"), null);
 assert.equal(demo.PORT_CONTRACT.routes.includes("dapps.installed"), false);
 assert.equal(context.window.Z00ZHelpRegistry.hasTopic("dapps.installed"), false);
+assert.equal(context.window.Z00ZHelpRegistry.hasTopic("dapps.security-model"), true);
+assert.equal(context.window.Z00ZHelpRegistry.topic("dapps.security-model").scope, "guide");
+assert.equal(context.window.Z00ZHelpRegistry.topic("dapps.security-model").routeId, "");
 assert.equal(demo.navigationNode("dapps.permissions"), null);
 assert.equal(demo.PORT_CONTRACT.routes.includes("dapps.permissions"), false);
 assert.equal(context.window.Z00ZHelpRegistry.topic("wallet.swap").pagePath.join("/"), "dapps/swap");
@@ -1495,7 +1548,7 @@ const nestedWorkspaceValidation = demo.validateNavigationModel({
   ))
 });
 assert.equal(nestedWorkspaceValidation.valid, false);
-assert.ok(nestedWorkspaceValidation.errors.includes("workspace must be a first-level branch leaf: wallet.assets-rights"));
+assert.ok(nestedWorkspaceValidation.errors.includes("workspace must be a root leaf or first-level branch leaf: wallet.assets-rights"));
 
 const nonRouteWorkspaceChildValidation = demo.validateNavigationModel({
   nodes: demo.NAVIGATION_NODES.map((entry) => (

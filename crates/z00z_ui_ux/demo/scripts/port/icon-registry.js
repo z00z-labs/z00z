@@ -6,7 +6,7 @@
     "dapp-pay", "dapp-request", "voucher-list", "permission-list", "dapp-agents-budget",
     "dapp-wbold-gateway", "dapp-subscription", "dapp-donation", "dapp-escrow", "dapp-bounties",
     "dapp-tickets-passes", "dapp-service-credits", "dapp-digital-goods", "dapp-payroll", "dapp-private-contract",
-    "dapp-assets-locker",
+    "dapp-assets-locker", "dapp-xchain-integration",
     "aggregate",
     "settings", "advanced", "send", "receive", "inbox", "sent", "coin", "token", "nft", "voucher",
     "right", "claim", "import", "merge-split", "permission", "eye", "eye-off", "lock", "shield", "bell", "user", "message", "question",

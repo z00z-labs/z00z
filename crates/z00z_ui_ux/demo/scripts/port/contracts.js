@@ -30,12 +30,13 @@
     Object.freeze({ id: "devnet-2", label: "Devnet-2", tone: "dev" })
   ]);
   const WALLET_CHAIN_IDS = freezeList(WALLET_CHAIN_OPTIONS.map(({ id }) => id));
-  const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "notifications", "appearance"]);
-  const NETWORK_SECTION_IDS = freezeList(["overview", "reticulum", "onionnet"]);
-  const TELEMETRY_SOURCE_IDS = freezeList(["onionnet", "reticulum", "aggregators", "watchers", "explorer"]);
+  const SETTINGS_SECTION_IDS = freezeList(["general", "reticulum", "onionnet", "quic", "notifications", "appearance"]);
+  const NETWORK_SECTION_IDS = freezeList(["overview", "reticulum", "onionnet", "quic"]);
+  const TELEMETRY_SOURCE_IDS = freezeList(["reticulum", "onionnet", "quic", "aggregators", "watchers", "explorer"]);
   const TELEMETRY_TAB_IDS = Object.freeze({
     reticulum: freezeList(["overview", "node", "interfaces", "radio", "entrypoints", "paths", "probes", "links"]),
     onionnet: freezeList(["overview", "epoch", "privacy", "transport", "queues", "probation", "ingress"]),
+    quic: freezeList(["overview", "connections", "paths", "streams", "recovery", "security"]),
     aggregators: freezeList(["overview", "ingress", "planning", "placement", "publication", "recovery"]),
     watchers: freezeList(["overview", "alerts", "publication", "providers", "censorship", "evidence"]),
     explorer: freezeList(["overview", "search", "checkpoints", "batches", "evidence"])
@@ -76,6 +77,12 @@
     "telemetry.onionnet.queues",
     "telemetry.onionnet.probation",
     "telemetry.onionnet.ingress",
+    "telemetry.quic.overview",
+    "telemetry.quic.connections",
+    "telemetry.quic.paths",
+    "telemetry.quic.streams",
+    "telemetry.quic.recovery",
+    "telemetry.quic.security",
     "telemetry.aggregators.overview",
     "telemetry.aggregators.ingress",
     "telemetry.aggregators.planning",
@@ -112,7 +119,8 @@
     "dapps.digital-goods",
     "dapps.payroll",
     "dapps.private-contract",
-    "dapps.assets-locker"
+    "dapps.assets-locker",
+    "dapps.xchain-integration"
   ]);
   const MESSENGER_ROUTE_IDS = freezeList([
     "messenger.inbox",
@@ -121,7 +129,14 @@
   ]);
   const CONTACTS_ROUTE_IDS = freezeList(["contacts.list"]);
   const DATA_STORAGE_ROUTE_IDS = freezeList(["data-storage.disk-usage", "data-storage.network-usage"]);
-  const APP_SETTINGS_ROUTE_IDS = freezeList(["settings.general", "settings.notifications", "settings.appearance"]);
+  const APP_SETTINGS_ROUTE_IDS = freezeList([
+    "settings.general",
+    "settings.reticulum",
+    "settings.onionnet",
+    "settings.quic",
+    "settings.notifications",
+    "settings.appearance"
+  ]);
   const ABOUT_ROUTE_IDS = freezeList(["about"]);
   const HELP_ROUTE_IDS = freezeList(["help.root"]);
   const APP_ACTION_IDS = freezeList(["lock", "logout"]);
@@ -129,6 +144,7 @@
     "wallet",
     "reticulum",
     "onionnet",
+    "quic",
     "aggregators",
     "watchers",
     "explorer",
@@ -153,6 +169,7 @@
     ["wallet", "wallet.assets"],
     ["reticulum", "telemetry.reticulum.overview"],
     ["onionnet", "telemetry.onionnet.overview"],
+    ["quic", "telemetry.quic.overview"],
     ["aggregators", "telemetry.aggregators.overview"],
     ["watchers", "telemetry.watchers.overview"],
     ["explorer", "telemetry.explorer.overview"],
@@ -260,7 +277,7 @@
     const networkSection = allowed(params.get("network"), NETWORK_SECTION_IDS, "overview");
     const requestedSettings = params.get("settings");
     const settingsSection = requestedSettings === "network"
-      ? (networkSection === "onionnet" ? "onionnet" : "reticulum")
+      ? (["reticulum", "onionnet", "quic"].includes(networkSection) ? networkSection : "reticulum")
       : allowed(requestedSettings, SETTINGS_SECTION_IDS, "general");
     const telemetrySource = allowed(params.get("telemetry"), TELEMETRY_SOURCE_IDS, "onionnet");
 
@@ -269,10 +286,11 @@
       walletSection,
       walletSettingsSection,
       settingsSection,
-      networkSection: ["reticulum", "onionnet"].includes(settingsSection) ? settingsSection : networkSection,
+      networkSection: ["reticulum", "onionnet", "quic"].includes(settingsSection) ? settingsSection : networkSection,
       telemetrySource,
       reticulumTelemetryTab: allowed(params.get("reticulumTab"), TELEMETRY_TAB_IDS.reticulum, "overview"),
       onionnetTelemetryTab: allowed(params.get("onionTab"), TELEMETRY_TAB_IDS.onionnet, "overview"),
+      quicTelemetryTab: allowed(params.get("quicTab"), TELEMETRY_TAB_IDS.quic, "overview"),
       aggregatorsTelemetryTab: allowed(params.get("aggregatorsTab"), TELEMETRY_TAB_IDS.aggregators, "overview"),
       watchersTelemetryTab: allowed(params.get("watchersTab"), TELEMETRY_TAB_IDS.watchers, "overview"),
       explorerTelemetryTab: allowed(params.get("explorerTab"), TELEMETRY_TAB_IDS.explorer, "overview")

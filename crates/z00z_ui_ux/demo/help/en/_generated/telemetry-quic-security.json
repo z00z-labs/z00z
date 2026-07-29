@@ -1,0 +1,43 @@
+{
+  "capture_route": "telemetry.quic.security",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.quic.connections",
+    "button|type=button|data-workspace-route=telemetry.quic.overview",
+    "button|type=button|data-workspace-route=telemetry.quic.paths",
+    "button|type=button|data-workspace-route=telemetry.quic.recovery",
+    "button|type=button|data-workspace-route=telemetry.quic.security",
+    "button|type=button|data-workspace-route=telemetry.quic.streams"
+  ],
+  "presentation_sha256": "2f88bb5f621bce00275b87ffbd06c06ca739ab3a600a2f73504920b66ce74568",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-quic-security.png",
+  "screenshot_sha256": "32901b65b1470b8c311144113210402b7e9a53463a4b6a30b02561bb09e06bd3",
+  "sections": [
+    "QUIC telemetry",
+    "Security"
+  ],
+  "terms": [
+    "0-RTT early data",
+    "Cipher suite",
+    "Connections",
+    "Handshake confirmation",
+    "Key phase updates",
+    "Local QUIC capability unavailable",
+    "No aggregate key-update state or failure count",
+    "No authoritative TLS-integrated handshake state",
+    "No sanitized negotiated cipher metadata",
+    "Overview",
+    "Paths",
+    "QUIC",
+    "QUIC telemetry",
+    "Read-only",
+    "Recovery",
+    "Security",
+    "Security parameters",
+    "Streams",
+    "Unavailable",
+    "Wallet policy disables state-changing actions; runtime negotiation is not reported"
+  ],
+  "topic_id": "telemetry.quic.security",
+  "version": 3
+}

@@ -17,7 +17,7 @@ This image is captured from the live Demo view. Review the current interface bef
 
 ## Overview
 
-Discover dApps presents 17 bundled Z00Z typed-action descriptors. Each card explains
+Discover dApps presents 18 bundled Z00Z typed-action descriptors. Each card explains
 the proposal it can prepare, the objects it requests, its disclosure boundary,
 offline behavior, and current maturity. These are local interface descriptors,
 not remotely downloaded or executed applications.
@@ -25,6 +25,8 @@ not remotely downloaded or executed applications.
 **Boundary:** a Z00Z dApp does not control the wallet. It proposes a typed
 action. Wallet checks scope, builds the package, requests confirmation, and
 only then passes it to the settlement path.
+
+[Read how dApps work and why the plugin model is safe](?topic=dapps.security-model).
 
 ## How to use this view
 
@@ -37,7 +39,7 @@ does not select Wallet objects, sign a package, or prove settlement.
 
 | Term or control | Explanation |
 | --- | --- |
-| 17 descriptors | Number of bundled typed-action interfaces currently available in this Demo catalogue. |
+| 18 descriptors | Number of bundled typed-action interfaces currently available in this Demo catalogue. |
 | Maturity | Indicates whether the interface is a local concept or has stronger implementation evidence. |
 | Requested objects | Object families the proposal may ask Wallet to review; this is not pre-authorized access. |
 | Data disclosed | Information the proposed action may reveal if the user later confirms it. |

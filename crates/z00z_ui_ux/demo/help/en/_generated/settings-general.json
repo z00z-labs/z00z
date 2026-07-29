@@ -4,10 +4,10 @@
     "button|type=button",
     "button|type=button|aria-label=Language"
   ],
-  "presentation_sha256": "7a0a9e16dd0846b77c3d293776985b0a386ac803f7fae699b33b4e41e705734a",
+  "presentation_sha256": "8ac736d0608138232dd83ea4b7cff8839ec2ba8240341092bde6fb7643fa1634",
   "scope": "context",
   "screenshot": "help/assets/en/settings-general.png",
-  "screenshot_sha256": "60a88fda5065c52bbe2e771b71e8eecf16b69de83d351d5d1fb6a0219751acf2",
+  "screenshot_sha256": "504988299fd8c98c9a47aa9942f2db9c8471a195cad52ee72e98c08ff072237c",
   "sections": [],
   "terms": [
     "Currency",
