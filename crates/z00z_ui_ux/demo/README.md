@@ -181,7 +181,7 @@ The port-facing modules under `scripts/port/` separate frozen identifiers,
 fixtures, presentation state, the mock gateway, locales, and semantic icons from
 DOM rendering. They map mechanically to Rust contracts, a Leptos store, and the
 native `WalletGateway`; the JavaScript remains demo-only and is not a production
-dependency. See [PORTING.md](PORTING.md) and
+dependency. See [RUST-PORTING.md](RUST-PORTING.md) and
 [Refactoring-PLAN.md](../../../.planning/phases/110-Wallet-UX-UI/Refactoring-PLAN.md).
 
 The CSS entry imports `styles/colors.css`, `styles/foundation.css`, and
