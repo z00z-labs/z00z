@@ -2,7 +2,7 @@ name: publish-wallet-demo
 
 on:
   push:
-    branches: [main]
+    branches: [wallet-demo-pages]
   workflow_dispatch:
 
 permissions:
@@ -18,32 +18,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout published artifact
         uses: actions/checkout@v4
-
-      - name: Validate self-contained demo bundle
-        working-directory: crates/z00z_ui_ux/demo
-        run: |
-          npm ci --ignore-scripts
-          node scripts/check-locales.mjs
-          node scripts/help/sync-markdown-runtime.mjs
-          node scripts/test-help-markdown-parity.mjs
-          python3 scripts/help/test_sync_views.py
-          python3 scripts/help/sync_views.py --check
-          node scripts/check-help.mjs
-          node scripts/check-design-system.mjs
-          node scripts/check-menu-icons.mjs
-          node scripts/test-port-contracts.mjs
-          node scripts/check-port-readiness.mjs
-          node scripts/test-pages-release.mjs
+        with:
+          ref: wallet-demo-pages
 
       - name: Prepare static demo
         run: |
-          mkdir -p _site/wallet-demo
-          tar -C crates/z00z_ui_ux/demo --exclude=node_modules -cf - . | tar -C _site/wallet-demo -xf -
-          node crates/z00z_ui_ux/demo/scripts/build-pages-release.mjs _site/wallet-demo "$GITHUB_SHA" "$GITHUB_REF_NAME"
-          printf '%s\n' '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./wallet-demo/"><title>Z00Z Wallet Demo</title><a href="./wallet-demo/">Open Z00Z Wallet Demo</a>' > _site/index.html
-          touch _site/.nojekyll
+          mkdir -p _site
+          git archive HEAD -- .nojekyll index.html wallet-demo | tar -x -C _site
+          test -f _site/index.html
+          test -f _site/wallet-demo/index.html
+          node -e '
+            const deployment = require("./_site/wallet-demo/deployment.json");
+            if (!/^[0-9a-f]{40}$/i.test(deployment.sha)) {
+              throw new Error("Invalid source SHA in deployment.json");
+            }
+            if (!deployment.ref.startsWith("z00z-labs/z00z-app@")) {
+              throw new Error("Wallet demo artifact must originate from z00z-app");
+            }
+            console.log(`Deploying z00z-app ${deployment.sha}`);
+          '
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
