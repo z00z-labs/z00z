@@ -64,6 +64,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloca"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5a7d05ea6aea7e9e64d25b9156ba2fee3fdd659e34e41063cd2fc7cd020d7f4"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -748,7 +757,7 @@ dependencies = [
  "cast",
  "ciborium",
  "clap",
- "criterion-plot",
+ "criterion-plot 0.5.0",
  "is-terminal",
  "itertools 0.10.5",
  "num-traits",
@@ -765,6 +774,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "criterion"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "950046b2aa2492f9a536f5f4f9a3de7b9e2476e575e05bd6c333371add4d98f3"
+dependencies = [
+ "alloca",
+ "anes",
+ "cast",
+ "ciborium",
+ "clap",
+ "criterion-plot 0.8.2",
+ "itertools 0.13.0",
+ "num-traits",
+ "oorandom",
+ "page_size",
+ "plotters",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "tinytemplate",
+ "walkdir",
+]
+
+[[package]]
 name = "criterion-plot"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -772,6 +806,16 @@ checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
  "itertools 0.10.5",
+]
+
+[[package]]
+name = "criterion-plot"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8d80a2f4f5b554395e47b5d8305bc3d27813bacb73493eb1001e8f76dae29ea"
+dependencies = [
+ "cast",
+ "itertools 0.13.0",
 ]
 
 [[package]]
@@ -2004,6 +2048,15 @@ dependencies = [
 
 [[package]]
 name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -2861,46 +2914,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-circuit-prover"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3-recursion?rev=b36339709a7a67ee9760fb578b3d4339fd983709#b36339709a7a67ee9760fb578b3d4339fd983709"
-dependencies = [
- "hashbrown 0.17.1",
- "p3-air",
- "p3-baby-bear",
- "p3-batch-stark",
- "p3-challenger",
- "p3-circle",
- "p3-circuit",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-goldilocks",
- "p3-keccak",
- "p3-koala-bear",
- "p3-lookup",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-merkle-tree",
- "p3-poseidon-circuit-cols",
- "p3-poseidon1-air",
- "p3-poseidon1-circuit-air",
- "p3-poseidon2",
- "p3-poseidon2-air",
- "p3-poseidon2-circuit-air",
- "p3-symmetric",
- "p3-uni-stark",
- "p3-util",
- "rand 0.10.2",
- "serde",
- "strum",
- "thiserror 2.0.18",
- "tracing",
- "unroll",
-]
-
-[[package]]
 name = "p3-commit"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3242,66 +3255,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-recursion"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3-recursion?rev=b36339709a7a67ee9760fb578b3d4339fd983709#b36339709a7a67ee9760fb578b3d4339fd983709"
-dependencies = [
- "hashbrown 0.17.1",
- "itertools 0.15.0",
- "p3-air",
- "p3-baby-bear",
- "p3-batch-stark",
- "p3-challenger",
- "p3-circuit",
- "p3-circuit-prover",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-goldilocks",
- "p3-koala-bear",
- "p3-lookup",
- "p3-matrix",
- "p3-merkle-tree",
- "p3-multilinear-util",
- "p3-poseidon2-air",
- "p3-poseidon2-circuit-air",
- "p3-sumcheck",
- "p3-symmetric",
- "p3-uni-stark",
- "p3-util",
- "p3-whir",
- "postcard",
- "rand 0.10.2",
- "serde",
- "thiserror 2.0.18",
- "tracing",
- "unroll",
-]
-
-[[package]]
-name = "p3-sumcheck"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0410e8ed3e2523f7fbf25c088759c93e70b6f8d585b1ff7a870aeae2e3d22dd2"
-dependencies = [
- "itertools 0.14.0",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-multilinear-util",
- "p3-util",
- "p3-zk-codes",
- "rand 0.10.2",
- "serde",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
 name = "p3-symmetric"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3311,6 +3264,28 @@ dependencies = [
  "p3-field",
  "p3-util",
  "serde",
+]
+
+[[package]]
+name = "p3-test-utils"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3-recursion?rev=b36339709a7a67ee9760fb578b3d4339fd983709#b36339709a7a67ee9760fb578b3d4339fd983709"
+dependencies = [
+ "p3-air",
+ "p3-baby-bear",
+ "p3-batch-stark",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-goldilocks",
+ "p3-koala-bear",
+ "p3-lookup",
+ "p3-matrix",
+ "p3-merkle-tree",
+ "p3-symmetric",
+ "p3-uni-stark",
 ]
 
 [[package]]
@@ -3345,45 +3320,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-whir"
-version = "0.6.1"
+name = "page_size"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deb329656284be9d9607dc47644b9fc57d0fab11e83f44d90a24d2450f013f95"
+checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
 dependencies = [
- "hashbrown 0.17.1",
- "itertools 0.14.0",
- "libm",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-merkle-tree",
- "p3-multilinear-util",
- "p3-sumcheck",
- "p3-symmetric",
- "p3-util",
- "p3-zk-codes",
- "rand 0.10.2",
- "serde",
- "spin 0.12.2",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "p3-zk-codes"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "572d4cb900ab336adcd533dad6b128c19c49a35a285f9f2506e502f8fbbc2873"
-dependencies = [
- "itertools 0.14.0",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-util",
- "rand 0.10.2",
+ "libc",
+ "winapi",
 ]
 
 [[package]]
@@ -3641,9 +3584,9 @@ dependencies = [
 
 [[package]]
 name = "proptest"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37566cb3fdacef14c0737f9546df7cfeadbfbc9fef10991038bf5015d0c80532"
+checksum = "4b45fcc2344c680f5025fe57779faef368840d0bd1f42f216291f0dc4ace4744"
 dependencies = [
  "bit-set",
  "bit-vec",
@@ -3675,7 +3618,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -4683,7 +4626,7 @@ dependencies = [
  "bincode 1.3.3",
  "blake2",
  "byteorder",
- "criterion",
+ "criterion 0.5.1",
  "curve25519-dalek",
  "digest",
  "ff",
@@ -4726,7 +4669,7 @@ dependencies = [
  "bincode 1.3.3",
  "blake2",
  "borsh",
- "criterion",
+ "criterion 0.5.1",
  "curve25519-dalek",
  "digest",
  "log",
@@ -5089,6 +5032,18 @@ checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
  "valuable",
+]
+
+[[package]]
+name = "tracing-forest"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f09cb459317a3811f76644334473239d696cd8efc606963ae7d1c308cead3b74"
+dependencies = [
+ "smallvec",
+ "thiserror 2.0.18",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6016,7 +5971,7 @@ dependencies = [
  "blake2",
  "chrono",
  "clap",
- "criterion",
+ "criterion 0.5.1",
  "digest",
  "getrandom 0.3.4",
  "hex",
@@ -6054,7 +6009,7 @@ dependencies = [
  "bip39",
  "blake2",
  "chacha20poly1305",
- "criterion",
+ "criterion 0.5.1",
  "getrandom 0.2.17",
  "hex-literal",
  "hkdf",
@@ -6094,6 +6049,52 @@ dependencies = [
  "wasm-bindgen-test",
  "web-sys",
  "z00z_utils",
+]
+
+[[package]]
+name = "z00z_plonky3_circuit_prover"
+version = "0.1.0"
+dependencies = [
+ "criterion 0.8.2",
+ "hashbrown 0.17.1",
+ "itertools 0.15.0",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-batch-stark",
+ "p3-challenger",
+ "p3-circle",
+ "p3-circuit",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-goldilocks",
+ "p3-keccak",
+ "p3-koala-bear",
+ "p3-lookup",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-merkle-tree",
+ "p3-poseidon-circuit-cols",
+ "p3-poseidon1-air",
+ "p3-poseidon1-circuit-air",
+ "p3-poseidon2",
+ "p3-poseidon2-air",
+ "p3-poseidon2-circuit-air",
+ "p3-symmetric",
+ "p3-test-utils",
+ "p3-uni-stark",
+ "p3-util",
+ "postcard",
+ "proptest",
+ "rand 0.10.2",
+ "serde",
+ "strum",
+ "thiserror 2.0.18",
+ "tracing",
+ "tracing-forest",
+ "tracing-subscriber",
+ "unroll",
 ]
 
 [[package]]
@@ -6149,7 +6150,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "bincode 2.0.1",
- "criterion",
+ "criterion 0.5.1",
  "ff",
  "fs2",
  "jmt",
@@ -6158,7 +6159,6 @@ dependencies = [
  "p3-batch-stark",
  "p3-challenger",
  "p3-circuit",
- "p3-circuit-prover",
  "p3-commit",
  "p3-dft",
  "p3-field",
@@ -6169,7 +6169,6 @@ dependencies = [
  "p3-maybe-rayon",
  "p3-merkle-tree",
  "p3-poseidon2-circuit-air",
- "p3-recursion",
  "p3-symmetric",
  "p3-uni-stark",
  "p3-util",
@@ -6186,6 +6185,7 @@ dependencies = [
  "tracing-subscriber",
  "z00z_core",
  "z00z_crypto",
+ "z00z_plonky3_circuit_prover",
  "z00z_utils",
  "z00z_wallets",
  "zeroize",
@@ -6251,7 +6251,7 @@ dependencies = [
  "chrono",
  "clap",
  "console_error_panic_hook",
- "criterion",
+ "criterion 0.5.1",
  "digest",
  "dirs",
  "evalexpr",

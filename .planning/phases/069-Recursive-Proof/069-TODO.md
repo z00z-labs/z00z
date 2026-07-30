@@ -310,7 +310,7 @@ plan; storage schema support alone does not require installing Kubo.
 | Dependency surface | Install target | Required package(s) | Primary docs | Phase 069 rule |
 | --- | --- | --- | --- | --- |
 | Nova block proof lane | `z00z_storage::checkpoint::nova` | [`nova-snark`](https://docs.rs/nova-snark/), [Microsoft/Nova repository](https://github.com/microsoft/Nova), [Nova paper](https://par.nsf.gov/servlets/purl/10440508) | `docs.rs`, repository README/examples, paper | MUST implement `NovaCompressedSnapshotV2`; MUST stay non-PQ; MUST pin one exact crate version or git revision in workspace metadata before the first adapter lands. |
-| Plonky3 recursion lane | `z00z_storage::checkpoint::recursive_v2::plonky3` | [`p3-recursion`](https://docs.rs/crate/p3-recursion/latest), [`p3-uni-stark`](https://docs.rs/crate/p3-uni-stark/latest), [`p3-fri`](https://docs.rs/crate/p3-fri/latest), [`p3-commit`](https://docs.rs/crate/p3-commit/latest), [`p3-challenger`](https://docs.rs/crate/p3-challenger/latest), [`p3-field`](https://docs.rs/crate/p3-field/latest), [`p3-matrix`](https://docs.rs/crate/p3-matrix/latest), [Plonky3 repository](https://github.com/Plonky3/Plonky3), and [Plonky3-recursion repository](https://github.com/Plonky3/Plonky3-recursion/) | `docs.rs`, upstream repositories, local benchmark vectors | MUST implement `Plonky3EpochProofV2`; MUST pin one approved compatibility set; MUST NOT mix unrelated `p3-*` release families inside the same workspace. |
+| Plonky3 recursion lane | `z00z_plonky3_circuit_prover`, consumed through `z00z_storage::checkpoint::recursive_v2::plonky3` | Audited circuit-prover and FRI-recursion modules from exact [Plonky3-recursion](https://github.com/Plonky3/Plonky3-recursion/) revision `b36339709a7a67ee9760fb578b3d4339fd983709`, plus [`p3-uni-stark`](https://docs.rs/crate/p3-uni-stark/latest), [`p3-fri`](https://docs.rs/crate/p3-fri/latest), [`p3-commit`](https://docs.rs/crate/p3-commit/latest), [`p3-challenger`](https://docs.rs/crate/p3-challenger/latest), [`p3-field`](https://docs.rs/crate/p3-field/latest), and [`p3-matrix`](https://docs.rs/crate/p3-matrix/latest) | Upstream repository, `docs.rs`, local benchmark vectors | MUST implement `Plonky3EpochProofV2`; MUST expose only the canonical `z00z_plonky3_circuit_prover` package; MUST NOT resolve a local/external `p3-recursion` package, compatibility package, alias, shim, or unrelated `p3-*` release family. |
 | Plonky3 field/hash profile | Same V2 module plus shared crypto helpers | [`p3-koala-bear`](https://docs.rs/crate/p3-koala-bear/latest), [`p3-poseidon2`](https://docs.rs/crate/p3-poseidon2/latest), and when sponge helpers are needed [`p3-symmetric`](https://docs.rs/crate/p3-symmetric/latest) | `docs.rs` plus the upstream Plonky3 workspace manifest | MUST match config `field: koala_bear` and `hash: poseidon2`; any alternative field/hash pair rejects unless config, vectors, proofs, and tests move together. |
 | IPFS archive RPC client | `z00z_rollup_node` archive adapter or future archive crate | [`ipfs-api-backend-hyper`](https://docs.rs/crate/ipfs-api-backend-hyper/latest) | `docs.rs` crate docs | Conditional scope only. If `ipfs_pinned` is exercised, the adapter MUST talk to an external pinned Kubo node over local or private RPC, emit receipts/pinning evidence, and keep SDK types outside canonical checkpoint modules. |
 | IPFS/Kubo daemon | Operator host, CI fixture, archive node | [Kubo install guide](https://docs.ipfs.tech/install/command-line/), [Kubo quick start](https://docs.ipfs.tech/how-to/command-line-quick-start/), and [Kubo RPC reference](https://docs.ipfs.tech/reference/kubo/rpc/) | Official IPFS docs | Install only when a Phase 069 plan includes the `ipfs_pinned` integration fixture. RPC MUST stay localhost or otherwise private; public RPC exposure is forbidden. |
@@ -352,7 +352,7 @@ plan; storage schema support alone does not require installing Kubo.
 | `NovaEpochChainRootV2` | Merkle or commitment root over the ordered Nova block proof digests and statement digests for one epoch. It is optional evidence inside the Plonky3 epoch statement, not the source of PQ soundness. |
 | `EpochRangeStatementV2` | Statement for one configured epoch range. It binds start/end heights and roots, the already canonical `EpochCloseAnchorV2` digest, ordered statement/link roots, challenge-content root, canonical DA payload commitment, witness/delta roots, and optional Nova chain root. It never depends on a future PQ anchor or provider-availability receipt. |
 | `Plonky3EpochProofV2` | Recursive STARK proof for one epoch range using Plonky3/Plonky3-recursion. It must prove the canonical transition range and bind public inputs; it is the selected PQ-friendly epoch lane. |
-| `EpochManifestV2` | Content-addressed manifest for a completed epoch: statements, canonical artifacts, links, DA refs, witness roots, Nova proof digests, Plonky3 proof digest, sizes, and retention locations. Its compact certified digest/anchor is permanent; its large body follows the challenge window and verified-history-successor policy. |
+| `EpochManifestV2` | Content-addressed manifest for a completed epoch: the exact canonical epoch statement, canonical artifacts, links, DA refs, witness roots, Nova proof digests, one final rolling-history Plonky3 proof digest/body, sizes, and retention locations. The history circuit verifies the standalone epoch child, whose body remains an internal recursion/retention input rather than duplicated publication data. Its compact certified digest/anchor is permanent; its large body follows the challenge window and verified-history-successor policy. |
 | `EpochCloseAnchorV2` | Compact canonical record committed when an epoch range closes. It binds range, roots, challenge-pack commitment, committee generation, network/version, a non-circular close-anchor MMR append, and any already-ready typed evidence-MMR appends; all leaf digests exclude their new MMR/final-anchor digest. It never waits for evidence to become ready. After the existing canonical block DA-ready/QC gates pass, it MUST NOT wait for Nova, Plonky3, PQ, or any additional recursive-evidence DA/archive publication. |
 | `EpochEvidenceAnchorV2` | Distinct immutable later attachment referencing one `EpochCloseAnchorV2` and binding the Nova chain root plus either a verified retained-body receipt or truthful `not_promotable` abandonment disposition, independently verified Plonky3 exact-epoch/history/rotation/PQ evidence, and verifier generation. It cannot mutate the close anchor or canonical finality. It is local pending evidence until its typed evidence-MMR inclusion is committed by a later certified close anchor; that inclusion is required before network promotion or deletion. |
 | `NovaRetentionStateV2` | Storage-owned epoch-scoped lifecycle record for scheduled Nova compression: `OpenEpoch`, body-less terminal `GapRecorded`, body-bearing `ClosedAwaitingPq`, `PqSuperseded`, `Abandoned`, `DeleteEligible`, or `Deleted`. It binds epoch/range, chain-root digest, verifier/parameter generation, predecessor state, reason, reference count/holds, retention-ledger generation, and any covering Plonky3/evidence-anchor/ticket digests. `body_digest` is mandatory in every body-bearing state and absent only in `OpenEpoch`/`GapRecorded`. It is not a proof, canonical-finality input, or permission to delete challenge/current-state bytes. |
@@ -438,7 +438,7 @@ MUST update this ledger and add a test that proves the new boundary.
 | Watchers observe publication readiness only. | Phase 068 says watcher evidence is not settlement authority. | `z00z_watchers::PublicationWatch` checks runtime, validator, and storage bindings. | Watchers can report readiness/gaps, not recursive validity. | Publication readiness and no-authority tests. |
 | Real recursive implementation is active only after storage contract gates. | User-approved architecture selects real implementation targets, not placeholder scaffolds. | T0 contains no recursive backend; T1 creates `z00z_storage::checkpoint::recursive_v2` as the sole verifier-gated boundary. | The V2 module owns Nova and Plonky3 adapters while the checkpoint facade owns statement bytes, artifact codecs, path gates, and reject taxonomy. | Implementation slices `069-05` through `069-08`. |
 | Nova folds every block and compresses on measured cadence. | `plonky3-stark.md` resolves Nova as fast classical lane. | Legacy config contains `branches.nova.cadence_blocks: 1`; Phase 069 separates fold, recovery-snapshot, compression, and publication cadences into four fields. | Every finalized checkpoint block updates the prover-local IVC state; only measured recovery/compression snapshots bind statement digest, checkpoint link, prior Nova output, and output root, while publication independently selects which verified envelopes become retrievable. | Nova cadence-manifest, branch-config, restart, traffic, and chain tests. |
-| Plonky3 recursively proves closed epochs asynchronously. | `plonky3-stark.md` resolves Plonky3/STARK as primary PQ-friendly epoch lane. | Legacy config proposed `branches.plonky3_epoch.cadence_blocks: 1000`; active ConfigV3 generation 2 pins `2000`, `proof_system: plonky3_stark_epoch_v2`, `field: koala_bear`, `hash: poseidon2`, nominal `security_bits: 124`, and `recursion_library: p3_recursion`. | Height 2000 first commits `EpochCloseAnchorV2` canonically; a later job emits exact-epoch proof, rolling-history successor, manifest, and PQ evidence without changing canonical finality. The manifest derives a finite lifetime budget and carries cumulative soundness loss across rotations. | Cadence tests at heights 1999/2000, prover-unavailable epoch-close test, later-attachment test, Plonky3 history tests, and security-budget overflow/rotation tests. |
+| Plonky3 recursively proves closed epochs asynchronously. | `plonky3-stark.md` resolves Plonky3/STARK as primary PQ-friendly epoch lane. | Legacy config proposed `branches.plonky3_epoch.cadence_blocks: 1000`; active ConfigV3 generation 2 pins `2000`, `proof_system: plonky3_stark_epoch_v2`, `field: koala_bear`, `hash: poseidon2`, nominal `security_bits: 124`, and `recursion_library: z00z_plonky3_circuit_prover`. | Height 2000 first commits `EpochCloseAnchorV2` canonically; a later job emits exact-epoch proof, rolling-history successor, manifest, and PQ evidence without changing canonical finality. The manifest derives a finite lifetime budget and carries cumulative soundness loss across rotations. | Cadence tests at heights 1999/2000, prover-unavailable epoch-close test, later-attachment test, Plonky3 history tests, and security-budget overflow/rotation tests. |
 | Plonky3 MUST NOT depend only on Nova. | Quantum attack can break ECC/Nova and then a STARK wrapper over Nova verifier would only prove false classical proofs verify. | Config has `has_transition_range_proof: true` and `has_independent_transition_proof: true`. | Plonky3 epoch proof may bind `nova_chain_root`, but PQ soundness must come from canonical transition range, roots, witnesses, deltas, and archive commitments. | `Plonky3DependsOnlyOnNova` negative test. |
 | PQ epoch artifact budget is explicit. | Plonky3/STARK proofs are larger than ECC/Nova; permanent proof-body retention is unnecessary when rolling history verifies exact predecessors. | Config limits reserve hard anti-amplification caps, not expected sizes; Phase 069 adds 4 KiB compact-anchor and 100 KiB/day permanent-history budgets. | Keep current plus two prior verified history/proof bodies and challenge-window evidence; retain only certified compact anchors/MMR/rotation commitments permanently. | Proof-size, rolling-history, plateau, and permanent-growth tests. |
 | Celestia is DA, not forever archive. | Phase 068 separates DA reference from archive manifest; Celestia-style DA availability does not imply indefinite historical retrieval. | Config has `archive_retention.is_celestia_da_only: true` and a 1,555,200-block challenge window from DA readiness. | DA publication starts challenge timing; the Z00Z challenge ring owns exact-byte retrieval until authorized expiry, while compact certified notary history remains permanent. | Celestia-as-archive, window-start, and expiry-ticket tests. |
@@ -1129,7 +1129,7 @@ recursive_checkpoint_witness_v2:
 | Lane | Cadence | Backend | Security role | Storage role |
 | --- | --- | --- | --- | --- |
 | Nova block lane | Fold every block; recovery snapshot SHOULD default to 100 blocks; compress/publish SHOULD default to 1000 blocks after measurement | `nova_streaming_compressed_v2` proof family with `fast_classical_streaming_v2` mode | Fast classical recursion and local proof continuity. Not PQ. | Prover-local PP/PK and fold state; bounded recovery/compressed snapshots. Compressed proof bodies follow `NovaRetentionStateV2`; the longer canonical challenge-data clock MUST NOT implicitly extend their lifetime. |
-| Plonky3 epoch/history lane | Exact epoch proof and rolling-history successor every `post_quantum.cadence_blocks`, default `2000`, asynchronously after epoch close | `plonky3_stark_epoch_v2` using `p3_recursion` | PQ-oriented outer proof evidence under declared STARK/FRI/hash assumptions; not end-to-end PQ authority. | Current plus two prior verified proof/history bodies and challenge-window references; permanent compact epoch/history/rotation anchors only. |
+| Plonky3 epoch/history lane | Exact epoch proof and rolling-history successor every `post_quantum.cadence_blocks`, default `2000`, asynchronously after epoch close | `plonky3_stark_epoch_v2` using `z00z_plonky3_circuit_prover` | PQ-oriented outer proof evidence under declared STARK/FRI/hash assumptions; not end-to-end PQ authority. | Current plus two prior verified proof/history bodies and challenge-window references; permanent compact epoch/history/rotation anchors only. |
 
 📌 Architecture rules:
 
@@ -1375,7 +1375,7 @@ epoch_range_statement_v2:
   nova_chain_root: "0x..."
   field: koala_bear
   hash: poseidon2
-  recursion_library: p3_recursion
+  recursion_library: z00z_plonky3_circuit_prover
   security_bits: 124
 ```
 
@@ -1421,7 +1421,8 @@ plonky3_epoch_proof_v2:
 - `is_transition_range_proven` MUST be true.
 - `is_nova_only` MUST be false.
 - `field` MUST be `koala_bear`, `hash` MUST be `poseidon2`, and
-  `recursion_library` MUST be `p3_recursion` for the default profile.
+  `recursion_library` MUST be `z00z_plonky3_circuit_prover` for the default
+  profile.
 - `security_bits` MUST be at least `124` only after a parameter derivation
   records the concrete FRI query count, blowup, grinding, hash security,
   extension field, conjectured-security assumptions, and composition loss. A
@@ -1444,13 +1445,18 @@ plonky3_epoch_proof_v2:
 
 | Quantity | Target | Hard cap |
 | --- | --- | --- |
-| Complete canonical Plonky3 epoch/history payload for exactly 2000 finalized blocks | Target at most 2 MiB via `target_plonky3_epoch_proof_bytes`, measured before transport compression and including every proof body, root/replica, public input, manifest field, and framing byte | Verified `(2 MiB, 4 MiB]` publishes as `TargetMissed`; 4 MiB via `max_plonky3_epoch_proof_bytes` is the hard publication cap; 16 MiB is ingress-only |
+| Complete canonical Plonky3 epoch/history payload for exactly 2000 finalized blocks | Target at most 2 MiB via `target_plonky3_epoch_proof_bytes`, measured before transport compression and including the exact epoch statement, one final history proof body that recursively verifies the epoch child, every root/replica, public input, manifest field, and framing byte. The standalone child body is not duplicated. | Verified `(2 MiB, 4 MiB]` publishes as `TargetMissed`; 4 MiB via `max_plonky3_epoch_proof_bytes` is the hard publication cap; 16 MiB is ingress-only |
 | Compact certified epoch/history/rotation anchor | <= 1 KiB preferred | 4 KiB encoded object; a multi-MiB proof body MUST NOT be embedded |
 | Permanent compact historical growth, excluding current state | 8.64 closed epochs/day; at 1 KiB each, close anchor + close certificate + evidence anchor is about 25.92 KiB/day before MMR/rotation overhead | 100 KiB/day aggregate; individual 4 KiB caps do not waive this stricter cadence budget |
 | Challenge-pack bytes | Measured from real traffic and lossless deduplication | Bounded by anti-amplification object caps and the 1,555,200-block window; retained bytes MUST plateau after expiry |
 
 📌 The `2 MiB` target applies only to the one complete exported epoch/history
-payload. A bounded internal chunk or recursion node may be larger and undergo
+payload. That payload carries one final history proof whose circuit verifies
+the exact epoch proof and exposes its complete canonical epoch-statement digest.
+The child epoch proof body and predecessor history body are internal recursion
+inputs, not additional publication objects. A serialized child-proof SHA digest
+MUST NOT be described as circuit-bound unless the circuit actually hashes those
+bytes. A bounded internal chunk or recursion node may be larger and undergo
 another sound compaction layer; it cannot be published or retained as the
 epoch result. A verified final payload in `(2 MiB, 4 MiB]` is published as
 `Plonky3ProofSizeStatusV2::TargetMissed` so recursion/history liveness
@@ -1482,7 +1488,7 @@ epoch_manifest_v2:
   delta_root: "0x..."
   nova_chain_root: "0x..."
   plonky3_epoch_statement_digest: "0x..."
-  plonky3_epoch_proof_digest: "0x..."
+  plonky3_history_proof_digest: "0x..."
   retention:
     nova_block_proofs: bounded_reprove_and_challenge_window
     plonky3_epoch_proofs: window_until_history_successor
@@ -1500,7 +1506,12 @@ epoch_manifest_v2:
   witness/delta roots. Availability metadata MUST NOT be reinterpreted as a
   validity input.
 - The manifest MUST bind `nova_chain_root` when Nova proofs exist for the epoch.
-- The manifest MUST bind the Plonky3 epoch statement and proof digests.
+- The manifest MUST carry the complete canonical Plonky3 epoch statement and
+  bind the final rolling-history proof digest/body. The rolling proof MUST
+  actual-verify the exact epoch child in-circuit and expose the epoch statement
+  digest. A standalone epoch proof-body digest may exist in local retention
+  accounting but is not a substitute for, or an additional body in, the
+  canonical exported envelope.
 - A manifest missing any configured required artifact MUST reject.
 - The certified compact manifest digest, `EpochCloseAnchorV2`, and
   `EpochEvidenceAnchorV2` are permanent. The
@@ -2177,7 +2188,10 @@ bytes, the current state, or `NovaAccumulatorSnapshotV2` recovery images:
    newer verified snapshot/head is durable, Plan 10 may journal/CAS retirement of
    a snapshot older than the active plus latest two only after rollback/reorg and
    reader references clear. A recovery snapshot is never published, put in the
-   challenge archive, or deleted by a Nova proof-body ticket.
+   challenge archive, or deleted by a Nova proof-body ticket. This local GC is
+   scoped only to `NovaAccumulatorSnapshotV2` and cannot address
+   `StateSnapshotV1`; Plan 12 owns the latter's chunk-payload measurement and
+   archive/bootstrap retention evidence.
 
 The eight-pending-epoch value is a hard anti-amplification planning default, not
 a throughput/capacity promise. At five-second blocks and 2000-block epochs it is
@@ -2707,7 +2721,7 @@ branches:
     field: koala_bear
     hash: poseidon2
     security_bits: 124
-    recursion_library: p3_recursion
+    recursion_library: z00z_plonky3_circuit_prover
     has_security_budget_manifest: true
     soundness_composition: conservative_sum
     has_epoch_count_bind: true
@@ -3020,7 +3034,7 @@ branches:
     field: koala_bear
     hash: poseidon2
     security_bits: 124
-    recursion_library: p3_recursion
+    recursion_library: z00z_plonky3_circuit_prover
     has_security_budget_manifest: true
     soundness_composition: conservative_sum
     has_epoch_count_bind: true
@@ -3318,7 +3332,8 @@ limits:
 - Missing exact-epoch statement, rolling-history successor, or history-rotation
   bridge requirement rejects.
 - `branches.plonky3_epoch.field != koala_bear`, `hash != poseidon2`, or
-  `recursion_library != p3_recursion` rejects in the default profile.
+  `recursion_library != z00z_plonky3_circuit_prover` rejects in the default
+  profile.
 - `branches.plonky3_epoch.security_bits < 124` rejects.
 - Missing/false security-budget or accepted-count requirements, a composition
   rule other than `conservative_sum`, or
@@ -3519,8 +3534,9 @@ limits:
 - Plonky3 and Plonky3-recursion dependencies MUST be pinned by commit or exact
   package version before implementation work lands.
 - The Plonky3 epoch lane MUST use the configured default profile:
-  `field: koala_bear`, `hash: poseidon2`, `recursion_library: p3_recursion`,
-  and `security_bits >= 124`.
+  `field: koala_bear`, `hash: poseidon2`,
+  `recursion_library: z00z_plonky3_circuit_prover`, and
+  `security_bits >= 124`.
 - A backend implementation MUST substitute proof bytes over the same checkpoint
   statement. It MUST NOT require a new checkpoint theorem.
 - A backend implementation MUST provide parameter docs, canonical ABI, test
@@ -5207,7 +5223,7 @@ Phase 069 MUST add source or documentation guards proving:
 | `069-07` | Implement the real Plonky3 base STARK for the same transition-consistency predicate. | Base proof verifies constrained state updates and rejects witness/public-input/parameter mutation. |
 | `069-08` | Implement recursive Plonky3 epoch aggregation. | A configured epoch proof verifies exact ordered leaf count/tree shape and rejects Nova-only, missing-step, reordered, padded, or mixed-parameter inputs. |
 | `069-09` | Bind verified receipts into sidecar/epoch/history/PQ evidence; implement challenge packs, compact anchors, retention tickets, wallet receipts, 16-shard seed recovery; reserve the Phase-071 mailbox handoff with no online path. | Actual backend/history verification governs evidence/deletion; current-unspent seed recovery works with no mailbox; reserved registry/config rows reject every online mailbox operation. |
-| `069-10` | Add bounded prover lifecycle and independent canonical/evidence/wallet durable state machines with restart, timeout, reorg, backup, plus an extension-safe three-transaction/outbox handoff for Phase 071. | No mailbox saga or fourth authority ships in Phase 069; the Phase-071 ACK/GC atomicity contract is exact and generic current outboxes remain idempotent. |
+| `069-10` | Add bounded prover lifecycle and independent canonical/evidence/wallet durable state machines with restart, timeout, reorg, backup, crash-safe Nova proof-body retirement, and physical local recovery-snapshot GC, plus an extension-safe three-transaction/outbox handoff for Phase 071. | Nova recovery storage retains only the active accumulator plus two verified hot snapshots, physically unlinks older unreferenced images after durable verified-head/journal/CAS gates, compacts the finite journal, and plateaus beyond 256 rotations; no mailbox saga or fourth authority ships in Phase 069, the Phase-071 ACK/GC atomicity contract is exact, and generic current outboxes remain idempotent. |
 | `069-11` | Benchmark proof size, fold/compression/prover/verifier time, peak memory, witness, retention, live-shard, seed-scan, and wallet-backup costs. | Mailbox metrics remain explicitly Phase-071/unmeasured and cap zero; no imported estimate, positive cap, or activation survives. |
 | `069-12` | Add real-backend simulator, asynchronous cadence, accelerated challenge retention, mailbox-absent seed recovery, wallet restore, and crash evidence. | Height 2000 closes without workers; archive retention plateaus; reserved mailbox paths stay unreachable; all three authority state machines recover. |
 | `069-13` | Close documentation, security, dependency, retention, wallet, atomicity, capacity, 069→071 handoff, and overclaim audits. | Packet records pins, receipts, limitations, client custody, no Phase-069 mailbox implementation/activation claim, and no finality/PQ/production overclaim. |

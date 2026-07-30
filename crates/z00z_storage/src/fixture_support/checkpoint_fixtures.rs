@@ -1,5 +1,6 @@
 use crate::{
     checkpoint::audit::{CheckpointAudit, CheckpointAuditVersion},
+    checkpoint::recursive_v2::{Plonky3BaseAdapterV2, Plonky3BaseProofV2},
     checkpoint::{
         ArchiveManifestVersion, CheckpointArchiveEncodingKindV1, CheckpointArchiveEntryKindV1,
         CheckpointArchiveEntryV1, CheckpointArchiveEntryVersion, CheckpointArchiveManifestV1,
@@ -13,6 +14,7 @@ use crate::{
     },
     settlement::{CheckRoot, DefinitionId, SerialId, SettlementStore, TerminalLeaf},
     snapshot::PrepSnapshotId,
+    CheckpointError,
 };
 use serde::Serialize;
 use z00z_core::assets::AssetLeaf;
@@ -262,4 +264,9 @@ pub fn prior_stage6_json() -> Vec<u8> {
             fragment_ids: vec![String::from("frag_1"), String::from("frag_2")],
         })
         .expect("prior stage6 json")
+}
+
+/// Exercise one canonical root-opening mutation through the pinned verifier.
+pub fn verify_root_opening_mutation(proof: &Plonky3BaseProofV2) -> Result<(), CheckpointError> {
+    Plonky3BaseAdapterV2::verify_root_opening_mutation(proof)
 }

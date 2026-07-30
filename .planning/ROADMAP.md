@@ -3019,7 +3019,7 @@ epochs over the existing Phase 068 checkpoint contract.
 **Requirements:** RCP-069
 **Depends on:** Phase 068 completion and its storage-owned checkpoint,
 recursive-sidecar, PQ-anchor, and authority-promotion contracts.
-**Plans:** 7/14 plans executed
+**Plans:** 8/14 plans executed
 
 - [x] 069-01-PLAN.md
 - [x] 069-02-PLAN.md
@@ -3028,7 +3028,7 @@ recursive-sidecar, PQ-anchor, and authority-promotion contracts.
 - [x] 069-05-PLAN.md
 - [x] 069-051-PLAN.md
 - [x] 069-06-PLAN.md
-- [ ] 069-07-PLAN.md
+- [x] 069-07-PLAN.md
 - [ ] 069-08-PLAN.md
 - [ ] 069-09-PLAN.md
 - [ ] 069-10-PLAN.md
@@ -3050,19 +3050,23 @@ activated the real private Plonky3 base-STARK work later stopped fail-closed by
 the Plan-07 blocker below; all future/target Phase-069 terms remain mandatory
 live authority and `CheckpointProofSystem::VERIFIED` stays disabled.
 
-**069-07 resource-timeout stop/split (2026-07-26):** Plan 07 is not complete.
-The live binary recursion profile and dynamic complete-update JMT schedule
-supersede the former W32 and fixed-role semantic blockers. The latest isolated
-release `predicate_differential` worker completed all eleven transition phases
-and stayed below the memory target (`8,914,336 KiB` process RSS,
-`9,283,543,040 B` cgroup peak, zero swap/events), but timed out after
-`7,200,250 ms` during the next replica's structural materialization. It did not
-reach aggregation, proof sizing, mutation acceptance, or actual root
-verification. Typed evidence is under the sole Phase-069 output root; command
-`6280c145e246…` cannot be rerun unchanged. The size policy remains target
-`2 MiB`, publication cap `4 MiB`, ingress cap `16 MiB`.
-`069-07-STOP-SPLIT.md` is authoritative; no summary exists and Plans 08–13
-remain dependency-locked until a materially optimized real proof passes.
+**069-07 closure / 069-08 activation (2026-07-28):** Plan 07 is complete.
+The materially changed exact-byte same-run cache successor passed the complete
+isolated theorem under command `731ffd506883…`: all `492` base leaves and
+`491` recursive nodes actual-verified, the canonical envelope is `1,556,272`
+bytes, wall time is `1,324,921 ms`, and cgroup peak is `14,164,029,440 B`.
+The separate mutation command `ab52ee7d8d71…` passed at `4,839,559,168 B`;
+its root-opening mutation reached the pinned verifier and rejected with
+`CapMismatch`. Both used zero swap and recorded zero memory/OOM events.
+Predecessor timeout `e5161ce4515a…` remains retry-forbidden.
+The exact broad release run passed `5,124/5,124` tests with zero warnings,
+release build/feature/clippy gates passed, six YOLO reviews ended with two
+consecutive clean runs, both doublechecks passed, and atomic coverage is
+`1,345/1,345`. `069-07-SUMMARY.md` is the closure authority and Plan 08 is
+active. Size policy remains target `2 MiB`, publication cap `4 MiB`, ingress
+cap `16 MiB`. Plan 10 now also owns physical Nova recovery-snapshot deletion
+only after durable verified-head, journal/CAS retirement, and complete
+rollback/reorg/read-reference clearance.
 
 **069-051 closure / 069-06 activation (2026-07-22):** Plan 051 is complete on
 proof-source digest

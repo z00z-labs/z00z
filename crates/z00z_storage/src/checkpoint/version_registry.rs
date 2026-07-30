@@ -17,7 +17,7 @@ use super::{
 };
 
 pub const CHECKPOINT_VERSION_REGISTRY_API_V2: u16 = 2;
-pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 9;
+pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 11;
 pub const RECURSIVE_OBJECT_PREHEADER_BYTES_V2: usize = 48;
 pub const RECURSIVE_OBJECT_MAGIC_V2: [u8; 4] = *b"ZCP2";
 /// Preferred complete canonical Plonky3 proof envelope size.
@@ -61,14 +61,14 @@ pub const RECURSIVE_PROFILE_MANIFEST_DIGEST_V2: [u8; 32] = [
     0xc3, 0xb3, 0xef, 0x33, 0xf7, 0x1b, 0xff, 0x63, 0xff, 0x1e, 0x08, 0x0e, 0x9d, 0x78, 0xe7, 0x1b,
 ];
 
-/// Literal production pin for the canonical generation-9 registry bytes.
+/// Literal production pin for the canonical generation-11 registry bytes.
 ///
 /// `authority_pinned` recomputes and compares this value before exposing any
 /// row, so changing a row without an explicit generation/pin rotation fails
 /// closed in production rather than only in a unit assertion.
 pub const CHECKPOINT_VERSION_REGISTRY_DIGEST_V2: [u8; 32] = [
-    0x3f, 0x46, 0x30, 0x33, 0x17, 0x4c, 0xad, 0x0e, 0x33, 0xfa, 0xe0, 0x24, 0xad, 0x1d, 0xa0, 0xe6,
-    0x1a, 0x8f, 0x16, 0xa5, 0xae, 0x8c, 0x9c, 0xbd, 0xb7, 0xe3, 0x18, 0x6c, 0x3a, 0x49, 0xf4, 0xf0,
+    0x14, 0x29, 0xc0, 0xcb, 0xb4, 0x49, 0xd3, 0xd6, 0x48, 0x07, 0x69, 0xfe, 0xe4, 0xaa, 0x21, 0x17,
+    0x57, 0x28, 0x91, 0xf0, 0xa4, 0xdd, 0x14, 0xdb, 0xdf, 0x04, 0xb7, 0x9c, 0xe5, 0x9e, 0xe3, 0x48,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -119,6 +119,14 @@ pub enum RecursiveBoundedObjectV2 {
     Plonky3BaseProof = 0x0690_0108,
     Plonky3BaseVerificationReceipt = 0x0690_0109,
     RecursiveSecurityBudgetManifest = 0x0690_010a,
+    EpochRangeStatement = 0x0690_010b,
+    EpochManifest = 0x0690_010c,
+    Plonky3EpochProof = 0x0690_010d,
+    Plonky3EpochVerificationReceipt = 0x0690_010e,
+    HistoryAccumulatorStatement = 0x0690_010f,
+    Plonky3HistoryProof = 0x0690_0110,
+    Plonky3HistoryVerificationReceipt = 0x0690_0111,
+    HistoryRotationBridge = 0x0690_0112,
     CheckpointContractConfigV2 = 0x0690_0201,
     CheckpointContractConfigV3 = 0x0690_0202,
     WalletBackup = 0x0690_0301,
@@ -156,6 +164,14 @@ impl RecursiveBoundedObjectV2 {
             0x0690_0108 => Self::Plonky3BaseProof,
             0x0690_0109 => Self::Plonky3BaseVerificationReceipt,
             0x0690_010a => Self::RecursiveSecurityBudgetManifest,
+            0x0690_010b => Self::EpochRangeStatement,
+            0x0690_010c => Self::EpochManifest,
+            0x0690_010d => Self::Plonky3EpochProof,
+            0x0690_010e => Self::Plonky3EpochVerificationReceipt,
+            0x0690_010f => Self::HistoryAccumulatorStatement,
+            0x0690_0110 => Self::Plonky3HistoryProof,
+            0x0690_0111 => Self::Plonky3HistoryVerificationReceipt,
+            0x0690_0112 => Self::HistoryRotationBridge,
             0x0690_0201 => Self::CheckpointContractConfigV2,
             0x0690_0202 => Self::CheckpointContractConfigV3,
             0x0690_0301 => Self::WalletBackup,
@@ -479,6 +495,28 @@ const fn cryptographic_domain(object: RecursiveBoundedObjectV2) -> &'static str 
         }
         RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest => {
             "z00z.storage.checkpoint.plonky3.security-budget.v2"
+        }
+        RecursiveBoundedObjectV2::EpochRangeStatement => {
+            "z00z.storage.checkpoint.epoch-range-statement.v2"
+        }
+        RecursiveBoundedObjectV2::EpochManifest => "z00z.storage.checkpoint.epoch-manifest.v2",
+        RecursiveBoundedObjectV2::Plonky3EpochProof => {
+            "z00z.storage.checkpoint.plonky3.epoch-proof.v2"
+        }
+        RecursiveBoundedObjectV2::Plonky3EpochVerificationReceipt => {
+            "z00z.storage.checkpoint.plonky3.epoch-verification-receipt.v2"
+        }
+        RecursiveBoundedObjectV2::HistoryAccumulatorStatement => {
+            "z00z.storage.checkpoint.history-accumulator-statement.v2"
+        }
+        RecursiveBoundedObjectV2::Plonky3HistoryProof => {
+            "z00z.storage.checkpoint.plonky3.history-proof.v2"
+        }
+        RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt => {
+            "z00z.storage.checkpoint.plonky3.history-verification-receipt.v2"
+        }
+        RecursiveBoundedObjectV2::HistoryRotationBridge => {
+            "z00z.storage.checkpoint.history-rotation-bridge.v2"
         }
         RecursiveBoundedObjectV2::CheckpointContractConfigV2 => {
             "z00z.storage.checkpoint.contract-config.v2"
@@ -947,6 +985,46 @@ const REGISTRY_ROWS_V2: &[CheckpointVersionRowV2] = &[
         "RecursiveSecurityBudgetManifestV2",
         16 * 1024,
     ),
+    live_v2(
+        RecursiveBoundedObjectV2::EpochRangeStatement,
+        "EpochRangeStatementV2",
+        16 * 1024,
+    ),
+    live_v2(
+        RecursiveBoundedObjectV2::EpochManifest,
+        "EpochManifestV2",
+        (PLONKY3_PUBLISH_BYTES_V2 - RECURSIVE_OBJECT_PREHEADER_BYTES_V2) as u64,
+    ),
+    live_v2(
+        RecursiveBoundedObjectV2::Plonky3EpochProof,
+        "Plonky3EpochProofV2",
+        (PLONKY3_PUBLISH_BYTES_V2 - RECURSIVE_OBJECT_PREHEADER_BYTES_V2) as u64,
+    ),
+    local_plonky3_v2(
+        RecursiveBoundedObjectV2::Plonky3EpochVerificationReceipt,
+        "Plonky3EpochVerificationReceiptV2",
+        16 * 1024,
+    ),
+    live_v2(
+        RecursiveBoundedObjectV2::HistoryAccumulatorStatement,
+        "HistoryAccumulatorStatementV2",
+        16 * 1024,
+    ),
+    live_v2(
+        RecursiveBoundedObjectV2::Plonky3HistoryProof,
+        "Plonky3HistoryProofV2",
+        (PLONKY3_PUBLISH_BYTES_V2 - RECURSIVE_OBJECT_PREHEADER_BYTES_V2) as u64,
+    ),
+    local_plonky3_v2(
+        RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt,
+        "Plonky3HistoryVerificationReceiptV2",
+        16 * 1024,
+    ),
+    live_v2(
+        RecursiveBoundedObjectV2::HistoryRotationBridge,
+        "HistoryRotationBridgeV2",
+        64 * 1024,
+    ),
     config_schema(
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
         "CheckpointContractConfigV2",
@@ -1076,6 +1154,52 @@ impl CheckpointVersionRegistryV2 {
             canonical_bytes,
             digest,
         })
+    }
+
+    /// Resolve one persisted registry catalog by exact canonical bytes.
+    ///
+    /// Historical generation numbers never manufacture registry rows. A
+    /// binary either carries the exact compiled catalog or fails closed until
+    /// that historical catalog is explicitly compiled into the authority set.
+    pub(crate) fn resolve_persisted(
+        canonical_bytes: &[u8],
+        expected_digest: [u8; 32],
+    ) -> Result<Self, CheckpointError> {
+        let registry = Self::authority_pinned().map_err(|_| CheckpointError::Authority)?;
+        if expected_digest == [0; 32]
+            || registry.digest != expected_digest
+            || registry.canonical_bytes != canonical_bytes
+        {
+            return Err(CheckpointError::Authority);
+        }
+        Ok(registry)
+    }
+
+    pub(crate) fn validate_history_authority_axes(
+        &self,
+        authority_generation: u64,
+        parameter_generation: u32,
+        runtime_profile_generation: u16,
+        runtime_profile_manifest_digest: [u8; 32],
+    ) -> Result<(), CheckpointError> {
+        let authority_generation =
+            u32::try_from(authority_generation).map_err(|_| CheckpointError::Authority)?;
+        for object in [
+            RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest,
+            RecursiveBoundedObjectV2::HistoryAccumulatorStatement,
+            RecursiveBoundedObjectV2::HistoryRotationBridge,
+            RecursiveBoundedObjectV2::Plonky3HistoryProof,
+        ] {
+            let row = self.row(object).map_err(|_| CheckpointError::Authority)?;
+            if row.authority_generation != authority_generation
+                || row.parameter_generation != Some(parameter_generation)
+                || row.runtime_profile_generation != Some(runtime_profile_generation)
+                || row.runtime_profile_manifest_digest != Some(runtime_profile_manifest_digest)
+            {
+                return Err(CheckpointError::Authority);
+            }
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -1690,6 +1814,14 @@ mod tests {
         RecursiveBoundedObjectV2::Plonky3BaseProof,
         RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt,
         RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest,
+        RecursiveBoundedObjectV2::EpochRangeStatement,
+        RecursiveBoundedObjectV2::EpochManifest,
+        RecursiveBoundedObjectV2::Plonky3EpochProof,
+        RecursiveBoundedObjectV2::Plonky3EpochVerificationReceipt,
+        RecursiveBoundedObjectV2::HistoryAccumulatorStatement,
+        RecursiveBoundedObjectV2::Plonky3HistoryProof,
+        RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt,
+        RecursiveBoundedObjectV2::HistoryRotationBridge,
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
         RecursiveBoundedObjectV2::CheckpointContractConfigV3,
         RecursiveBoundedObjectV2::WalletBackup,
@@ -1728,6 +1860,14 @@ mod tests {
         RecursiveBoundedObjectV2::Plonky3BaseProof,
         RecursiveBoundedObjectV2::Plonky3BaseVerificationReceipt,
         RecursiveBoundedObjectV2::RecursiveSecurityBudgetManifest,
+        RecursiveBoundedObjectV2::EpochRangeStatement,
+        RecursiveBoundedObjectV2::EpochManifest,
+        RecursiveBoundedObjectV2::Plonky3EpochProof,
+        RecursiveBoundedObjectV2::Plonky3EpochVerificationReceipt,
+        RecursiveBoundedObjectV2::HistoryAccumulatorStatement,
+        RecursiveBoundedObjectV2::Plonky3HistoryProof,
+        RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt,
+        RecursiveBoundedObjectV2::HistoryRotationBridge,
     ];
 
     const BACKUP_OBJECTS: &[RecursiveBoundedObjectV2] = &[
@@ -1836,7 +1976,7 @@ mod tests {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
         assert_eq!(
             super::super::contract_config_v3::hex_digest(registry.digest()),
-            "3f463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0"
+            "1429c0cbb449d3d6480769fee4aa2117572891f0a4dd14dbdf04b79ce59ee348"
         );
         let mut bytes = registry
             .encode_preheader(
@@ -1911,7 +2051,7 @@ mod tests {
     #[test]
     fn test_registry_rows_complete() {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
-        assert_eq!(registry.rows().len(), 32);
+        assert_eq!(registry.rows().len(), 40);
         assert_eq!(
             registry
                 .rows()

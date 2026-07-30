@@ -13,12 +13,15 @@ readonly TEST_NAME="checkpoint::nova::tests::test_nova_checkpoint_proves_relatio
 readonly VERIFIER_TEST_NAME="checkpoint::nova::tests::test_nova_clean_verifier_process"
 readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"
 readonly VERIFIER_BUNDLE_ENV="Z00Z_NOVA_VERIFIER_ONLY_BUNDLE_V2"
-readonly EXPECTED_SOURCE_REVISION="2d4a6312028d3987520d10e53f376dd22b40e303fd0e7d1b122c900f0d9e55d8"
-readonly EXPECTED_WORKER_SOURCE="a0fd346405c1f3d103d62b7d7b886574ad50d58dd749fcea22f8bf22960ade69"
-readonly EXPECTED_NOVA_SHA256="c3468b04960761f38d00e136a42fef737c3d7ea0bbd33974d2247fe7e4ed4c7d"
-readonly EXPECTED_CARGO_LOCK_SHA256="e3c6be97b546b23e4d9b46e89b221e37616804a8d7a6b5828a65ae07084a34fd"
+readonly EXPECTED_SOURCE_REVISION="ae51d7809aa8e93e681ef847ad11d5abd13a11d7ce0984d827e523292c11c7e6"
+readonly EXPECTED_WORKER_SOURCE="f777113dfb5a06b45b37aa4bdd4774c0389b49c1474d66d4c7a3fb3db5fc74e1"
+readonly EXPECTED_NOVA_SHA256="c95d9055b244ef890fc6cd50d9c03b366cee9e69c089ee50bd8a79c7f96f75ee"
+readonly EXPECTED_CARGO_LOCK_SHA256="e1373bac8fdfc4bf7042352fa8f520eb13de0e2796129bd33beac91732277e15"
 readonly NOVA_SOURCE="crates/z00z_storage/src/checkpoint/nova.rs"
-readonly WORKER_LOCK="target/workspace/z00z-nova-worker-v2.lock"
+readonly PHASE069_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint"
+readonly PHASE069_TASK_OUTPUT_ROOT="$PHASE069_OUTPUT_ROOT/069-08/task-1"
+readonly PHASE069_RELEASE_TARGET_DIR="$ROOT_DIR/.cache/phase-069/plan-08/cargo-release/library-test"
+readonly WORKER_LOCK="$PHASE069_TASK_OUTPUT_ROOT/nova-worker/z00z-nova-worker-v2.lock"
 
 usage() {
     printf 'usage: %s [--check|--self-test]\n' "${0##*/}"
@@ -449,8 +452,7 @@ fi
 
 umask 077
 run_stamp="$(date -u +'%Y%m%dT%H%M%SZ')"
-PHASE069_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint"
-RUN_DIR="$(realpath -m -- "${NOVA_VERIFIER_RSS_OUTPUT_DIR:-$PHASE069_OUTPUT_ROOT/nova-verifier-rss/$run_stamp-$$}")"
+RUN_DIR="$(realpath -m -- "${NOVA_VERIFIER_RSS_OUTPUT_DIR:-$PHASE069_TASK_OUTPUT_ROOT/nova-verifier-rss/$run_stamp-$$}")"
 case "$RUN_DIR" in
   "$PHASE069_OUTPUT_ROOT" | "$PHASE069_OUTPUT_ROOT"/*) ;;
   *) die "output path must stay under $PHASE069_OUTPUT_ROOT: $RUN_DIR" ;;
@@ -507,8 +509,9 @@ trap 'exit 129' HUP
 # This cache-bypassing measurement never activates the private PP/PK cache;
 # proof and verdict caching have no API. CARGO_INCREMENTAL=0 additionally keeps
 # compiler incremental state from obscuring the release invocation identity.
-setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$ROOT_DIR/target/workspace" \
-    cargo test --release -p z00z_storage --lib "$TEST_NAME" -- \
+setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$PHASE069_RELEASE_TARGET_DIR" \
+    CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 \
+    cargo test --release --locked --offline -p z00z_storage --lib "$TEST_NAME" -- \
         --exact --nocapture --test-threads 1 --ignored >"$TRANSCRIPT" 2>&1 &
 cargo_pid=$!
 cleanup_enabled=true

@@ -28,6 +28,10 @@ use super::{
         repo_default_path, CanonicalBranchCfg, CheckpointContractConfigV2, CheckpointResolvedPaths,
         DaCfg, CHECKPOINT_CONTRACT_CONFIG_MAX_BYTES,
     },
+    plonky3::{
+        build_history_authority_bundle_v2, history_authority_bundle_digest_v2,
+        HISTORY_AUTHORITY_BUNDLE_MAX_BYTES_V2,
+    },
     pq_anchor::{
         PostQuantumCheckpointAnchorModeV1, PostQuantumCheckpointAnchorV1,
         PostQuantumCheckpointAnchorVersion, PostQuantumCheckpointEnforcementStageV1,
@@ -60,16 +64,17 @@ pub const POST_QUANTUM_REQUIRED_ARTIFACTS_V3: [&str; 11] = [
     "epoch_evidence_commitment",
 ];
 const MIGRATION_RECORD_MAX_BYTES_V3: usize = 128 * 1024;
+const HISTORY_AUTHORITY_FILE_V3: &str = "history_authority.bin";
 const CONFIG_V2_MIGRATION_BYTES: &[u8] = include_bytes!("checkpoint_contract_v2_migration.yaml");
 const EMBEDDED_CHAIN_CONTEXT_PREIMAGE_V3: &[u8] =
     b"network=z00z-local\nchain=checkpoint-contract\nconfig_schema=3\n";
-const EMBEDDED_RELEASE_IDENTITY_V3: &str = "phase-069-07";
+const EMBEDDED_RELEASE_IDENTITY_V3: &str = "phase-069-08";
 // Independently generated from the complete release tuple by the authority
 // review tool. Production recomputes that tuple and compares it to this literal;
 // it never accepts a candidate's recomputation as its own authorization.
 const EMBEDDED_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-    0xb9, 0x04, 0x5f, 0x28, 0x26, 0x17, 0xb4, 0x15, 0x35, 0x31, 0x92, 0x27, 0x60, 0x94, 0x0f, 0x2e,
-    0x3c, 0xc3, 0x9f, 0x39, 0xc7, 0x79, 0x7b, 0x61, 0x47, 0xb9, 0xa9, 0xf4, 0xbf, 0x39, 0xe9, 0xd8,
+    0x52, 0xb2, 0x53, 0xbf, 0x76, 0xa5, 0x1a, 0x61, 0x15, 0xc8, 0x29, 0xf7, 0xe1, 0xb9, 0x67, 0xf0,
+    0xc8, 0x23, 0x7f, 0xf0, 0xd0, 0x2d, 0x66, 0x23, 0x14, 0xc2, 0x07, 0x92, 0x80, 0x45, 0x4e, 0xaa,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -1132,6 +1137,7 @@ pub struct ConfigMigrationRecordV3 {
     pub runtime_profile_identifier: String,
     pub runtime_profile_generation: u16,
     pub runtime_profile_manifest_digest: [u8; 32],
+    pub history_authority_bundle_digest: [u8; 32],
     pub activation_height: u64,
     pub pre_cutover_authority_generation: u64,
     pub activated_authority_generation: u64,
@@ -1159,6 +1165,7 @@ fn release_manifest_digest_v3(record: &ConfigMigrationRecordV3) -> [u8; 32] {
             record.runtime_profile_identifier.as_bytes(),
             &record.runtime_profile_generation.to_le_bytes(),
             &record.runtime_profile_manifest_digest,
+            &record.history_authority_bundle_digest,
             &record.pre_cutover_authority_generation.to_le_bytes(),
             &record.activated_authority_generation.to_le_bytes(),
             &record.parameter_generation.to_le_bytes(),
@@ -1204,6 +1211,7 @@ pub struct CheckpointConfigHeadV3 {
     pub runtime_profile_identifier: String,
     pub runtime_profile_generation: u16,
     pub runtime_profile_manifest_digest: [u8; 32],
+    pub history_authority_bundle_digest: [u8; 32],
     pub migration_record_digest: [u8; 32],
 }
 
@@ -1217,6 +1225,7 @@ pub struct ActiveCheckpointConfigV3 {
     head: CheckpointConfigHeadV3,
     config: CheckpointContractConfigV3,
     migration_record: Option<ConfigMigrationRecordV3>,
+    history_authority_bundle_bytes: Vec<u8>,
 }
 
 /// Copyable identity captured by long-running operations so they can reject
@@ -1232,6 +1241,7 @@ pub struct ActiveCheckpointConfigIdentityV3 {
     pub registry_digest: [u8; 32],
     pub runtime_profile_generation: u16,
     pub runtime_profile_manifest_digest: [u8; 32],
+    pub history_authority_bundle_digest: [u8; 32],
 }
 
 impl ActiveCheckpointConfigV3 {
@@ -1257,7 +1267,30 @@ impl ActiveCheckpointConfigV3 {
             registry_digest: self.head.registry_digest,
             runtime_profile_generation: self.head.runtime_profile_generation,
             runtime_profile_manifest_digest: self.head.runtime_profile_manifest_digest,
+            history_authority_bundle_digest: self.head.history_authority_bundle_digest,
         }
+    }
+
+    pub(crate) fn history_authority_bundle_bytes(&self) -> &[u8] {
+        &self.history_authority_bundle_bytes
+    }
+
+    /// Operator-approved commitment for a history-authority cutover.
+    ///
+    /// Installation and activation independently pin this exact release
+    /// manifest digest before the immutable generation can become active.
+    /// History rotation bridges therefore bind this value rather than accepting
+    /// a proof-selected non-zero marker.
+    pub(crate) fn history_rotation_commitment(&self) -> Result<[u8; 32], CheckpointError> {
+        let commitment = self
+            .migration_record
+            .as_ref()
+            .ok_or(CheckpointError::Authority)?
+            .release_manifest_digest;
+        if commitment == [0; 32] {
+            return Err(CheckpointError::Authority);
+        }
+        Ok(commitment)
     }
 }
 
@@ -1425,6 +1458,10 @@ impl ConfigV3ActivationStore {
 
         let registry_digest = CheckpointVersionRegistryV2::authority_pinned()?.digest();
         let destination_config_digest = destination.canonical_digest_with_ledger(ledger.digest)?;
+        let history_authority_bundle_bytes =
+            build_history_authority_bundle_v2(destination, destination_config_digest)?;
+        let history_authority_bundle_digest =
+            history_authority_bundle_digest_v2(&history_authority_bundle_bytes);
         let mut record = ConfigMigrationRecordV3 {
             wire_version: 1,
             release_identity: EMBEDDED_RELEASE_IDENTITY_V3.to_string(),
@@ -1442,6 +1479,7 @@ impl ConfigV3ActivationStore {
             runtime_profile_manifest_digest: decode_digest_hex(
                 &destination.runtime_profile.manifest_digest,
             )?,
+            history_authority_bundle_digest,
             activation_height: destination.version_authority.activation_height,
             pre_cutover_authority_generation,
             activated_authority_generation: u64::from(
@@ -1480,6 +1518,7 @@ impl ConfigV3ActivationStore {
             runtime_profile_manifest_digest: decode_digest_hex(
                 &destination.runtime_profile.manifest_digest,
             )?,
+            history_authority_bundle_digest,
             migration_record_digest,
         };
         let head_bytes = encode_local_registry_object(
@@ -1521,6 +1560,10 @@ impl ConfigV3ActivationStore {
             &canonical_destination,
         )?;
         write_or_validate_immutable(&generation.join("migration.bin"), &record_bytes)?;
+        write_or_validate_immutable(
+            &generation.join(HISTORY_AUTHORITY_FILE_V3),
+            &history_authority_bundle_bytes,
+        )?;
         sync_directory(&generation)
             .map_err(|error| CheckpointError::ContractConfig(error.to_string()))?;
 
@@ -1533,6 +1576,12 @@ impl ConfigV3ActivationStore {
                 &generation.join("migration.bin"),
                 RecursiveBoundedObjectV2::ConfigMigrationRecord,
             )? != record
+            || read_file_bounded(
+                &generation.join(HISTORY_AUTHORITY_FILE_V3),
+                (HISTORY_AUTHORITY_BUNDLE_MAX_BYTES_V2 + 1) as u64,
+            )
+            .map_err(|error| CheckpointError::ContractConfig(error.to_string()))?
+                != history_authority_bundle_bytes
         {
             return config_error("config generation reload mismatch");
         }
@@ -1559,16 +1608,41 @@ impl ConfigV3ActivationStore {
     /// than returning mixed-generation fields.
     pub fn load_active(&self) -> Result<ActiveCheckpointConfigV3, CheckpointError> {
         let head = self.load_head()?;
+        let snapshot = self.load_generation_head(&head)?;
+        if self.load_head()? != head {
+            return config_error("config head rotated while resolving active generation");
+        }
+        Ok(snapshot)
+    }
+
+    /// Resolve one exact immutable generation selected by a trusted identity.
+    ///
+    /// The path is derived directly from the complete expected generation; no
+    /// directory enumeration or current-head fallback is permitted.
+    pub fn load_generation(
+        &self,
+        expected: ActiveCheckpointConfigIdentityV3,
+    ) -> Result<ActiveCheckpointConfigV3, CheckpointError> {
+        if expected.config_generation == 0
+            || expected.config_digest == [0; 32]
+            || expected.registry_digest == [0; 32]
+            || expected.runtime_profile_manifest_digest == [0; 32]
+            || expected.history_authority_bundle_digest == [0; 32]
+        {
+            return config_error("historical config identity is incomplete");
+        }
         let generation = self
             .root
             .join("generations")
-            .join(format!("{:020}", head.config_generation));
+            .join(format!("{:020}", expected.config_generation));
         require_regular_config_directory(&generation)?;
 
         let config_path = generation.join("checkpoint_contract.yaml");
         let migration_path = generation.join("migration.bin");
+        let history_authority_path = generation.join(HISTORY_AUTHORITY_FILE_V3);
         require_regular_config_file(&config_path)?;
         require_regular_config_file(&migration_path)?;
+        require_regular_config_file(&history_authority_path)?;
 
         let config = CheckpointContractConfigV3::load(&config_path)?;
         let migration_bytes = read_file_bounded(
@@ -1583,16 +1657,52 @@ impl ConfigV3ActivationStore {
             &migration_bytes,
             RecursiveBoundedObjectV2::ConfigMigrationRecord,
         )?;
-        validate_active_snapshot(&head, &config, &migration_record, &migration_bytes)?;
-
-        if self.load_head()? != head {
-            return config_error("config head rotated while resolving active generation");
-        }
-        Ok(ActiveCheckpointConfigV3 {
+        let history_authority_bundle_bytes = read_file_bounded(
+            &history_authority_path,
+            (HISTORY_AUTHORITY_BUNDLE_MAX_BYTES_V2 + 1) as u64,
+        )
+        .map_err(|error| CheckpointError::ContractConfig(error.to_string()))?;
+        let head = head_from_migration_record_v3(&migration_record, &migration_bytes);
+        validate_active_snapshot(
+            &head,
+            &config,
+            &migration_record,
+            &migration_bytes,
+            &history_authority_bundle_bytes,
+        )?;
+        let snapshot = ActiveCheckpointConfigV3 {
             head,
             config,
             migration_record: Some(migration_record),
-        })
+            history_authority_bundle_bytes,
+        };
+        if snapshot.identity() != expected {
+            return config_error("historical config identity mismatch");
+        }
+        Ok(snapshot)
+    }
+
+    fn load_generation_head(
+        &self,
+        head: &CheckpointConfigHeadV3,
+    ) -> Result<ActiveCheckpointConfigV3, CheckpointError> {
+        let expected = ActiveCheckpointConfigIdentityV3 {
+            config_generation: head.config_generation,
+            authority_generation: head.authority_generation,
+            parameter_generation: head.parameter_generation,
+            activation_height: head.activation_height,
+            rollback_floor: head.rollback_floor,
+            config_digest: head.config_digest,
+            registry_digest: head.registry_digest,
+            runtime_profile_generation: head.runtime_profile_generation,
+            runtime_profile_manifest_digest: head.runtime_profile_manifest_digest,
+            history_authority_bundle_digest: head.history_authority_bundle_digest,
+        };
+        let snapshot = self.load_generation(expected)?;
+        if snapshot.head() != head {
+            return config_error("active config head does not match immutable generation");
+        }
+        Ok(snapshot)
     }
 
     fn load_head_optional(&self) -> Result<Option<CheckpointConfigHeadV3>, CheckpointError> {
@@ -1614,6 +1724,33 @@ impl ConfigV3ActivationStore {
             &path,
             RecursiveBoundedObjectV2::CheckpointConfigHead,
         )?))
+    }
+}
+
+fn head_from_migration_record_v3(
+    record: &ConfigMigrationRecordV3,
+    record_bytes: &[u8],
+) -> CheckpointConfigHeadV3 {
+    CheckpointConfigHeadV3 {
+        wire_version: 1,
+        schema: 3,
+        config_generation: record.config_generation,
+        authority_generation: record.activated_authority_generation,
+        parameter_generation: record.parameter_generation,
+        activation_height: record.activation_height,
+        rollback_floor: record.rollback_floor,
+        config_digest: record.destination_config_digest,
+        registry_digest: record.registry_digest,
+        rename_ledger_digest: record.rename_ledger_digest,
+        runtime_profile_identifier: record.runtime_profile_identifier.clone(),
+        runtime_profile_generation: record.runtime_profile_generation,
+        runtime_profile_manifest_digest: record.runtime_profile_manifest_digest,
+        history_authority_bundle_digest: record.history_authority_bundle_digest,
+        migration_record_digest: sha256_256(
+            "z00z.storage.checkpoint.config-migration-record.v3",
+            "migration_record_digest",
+            &[record_bytes],
+        ),
     }
 }
 
@@ -1650,6 +1787,9 @@ fn build_embedded_active_config() -> Result<ActiveCheckpointConfigV3, Checkpoint
     }
     let ledger = ConfigV3RenameLedger::from_pair(CONFIG_V2_MIGRATION_BYTES, &destination_bytes)?;
     let config_digest = config.canonical_digest_with_ledger(ledger.digest)?;
+    let history_authority_bundle_bytes = build_history_authority_bundle_v2(&config, config_digest)?;
+    let history_authority_bundle_digest =
+        history_authority_bundle_digest_v2(&history_authority_bundle_bytes);
     let mut record = ConfigMigrationRecordV3 {
         wire_version: 1,
         release_identity: EMBEDDED_RELEASE_IDENTITY_V3.to_string(),
@@ -1665,6 +1805,7 @@ fn build_embedded_active_config() -> Result<ActiveCheckpointConfigV3, Checkpoint
         runtime_profile_identifier: config.runtime_profile.identifier.clone(),
         runtime_profile_generation: config.runtime_profile.generation,
         runtime_profile_manifest_digest,
+        history_authority_bundle_digest,
         activation_height: config.version_authority.activation_height,
         pre_cutover_authority_generation: 1,
         activated_authority_generation: u64::from(config.version_authority.authority_generation),
@@ -1699,13 +1840,21 @@ fn build_embedded_active_config() -> Result<ActiveCheckpointConfigV3, Checkpoint
         runtime_profile_identifier: config.runtime_profile.identifier.clone(),
         runtime_profile_generation: config.runtime_profile.generation,
         runtime_profile_manifest_digest,
+        history_authority_bundle_digest,
         migration_record_digest,
     };
-    validate_active_snapshot(&head, &config, &record, &record_bytes)?;
+    validate_active_snapshot(
+        &head,
+        &config,
+        &record,
+        &record_bytes,
+        &history_authority_bundle_bytes,
+    )?;
     Ok(ActiveCheckpointConfigV3 {
         head,
         config,
         migration_record: Some(record),
+        history_authority_bundle_bytes,
     })
 }
 
@@ -1714,6 +1863,7 @@ fn validate_active_snapshot(
     config: &CheckpointContractConfigV3,
     record: &ConfigMigrationRecordV3,
     record_bytes: &[u8],
+    history_authority_bundle_bytes: &[u8],
 ) -> Result<(), CheckpointError> {
     validate_head_config_tuple(head, config)?;
     let _typed_source = decode_config_v2_migration(&record.source_config_bytes)?;
@@ -1752,6 +1902,11 @@ fn validate_active_snapshot(
         || record.runtime_profile_identifier != head.runtime_profile_identifier
         || record.runtime_profile_generation != head.runtime_profile_generation
         || record.runtime_profile_manifest_digest != head.runtime_profile_manifest_digest
+        || record.history_authority_bundle_digest != head.history_authority_bundle_digest
+        || history_authority_bundle_bytes.is_empty()
+        || history_authority_bundle_bytes.len() > HISTORY_AUTHORITY_BUNDLE_MAX_BYTES_V2
+        || history_authority_bundle_digest_v2(history_authority_bundle_bytes)
+            != head.history_authority_bundle_digest
         || record.activation_height != head.activation_height
         || record.activated_authority_generation != head.authority_generation
         || record.parameter_generation != head.parameter_generation
@@ -1786,6 +1941,7 @@ fn validate_head_config_tuple(
         || head.runtime_profile_generation != config.runtime_profile.generation
         || head.runtime_profile_manifest_digest
             != decode_digest_hex(&config.runtime_profile.manifest_digest)?
+        || head.history_authority_bundle_digest == [0; 32]
         || head.parameter_generation != config.version_authority.parameter_generation
         || head.rename_ledger_digest == [0; 32]
         || head.migration_record_digest == [0; 32]
@@ -2301,7 +2457,7 @@ fn is_digest_hex(value: &str) -> bool {
         && value.bytes().any(|byte| byte != b'0')
 }
 
-fn decode_digest_hex(value: &str) -> Result<[u8; 32], CheckpointError> {
+pub(super) fn decode_digest_hex(value: &str) -> Result<[u8; 32], CheckpointError> {
     if !is_digest_hex(value) {
         return config_error("digest must be non-zero lowercase hex");
     }
@@ -2343,9 +2499,9 @@ mod tests {
     use super::*;
 
     const TEST_RELEASE_MANIFEST_DIGEST_V3: [u8; 32] = [
-        0x51, 0xe1, 0x6c, 0xc0, 0xe7, 0xdf, 0xa8, 0xdc, 0x8e, 0x4d, 0x72, 0xd7, 0xe9, 0xb0, 0x45,
-        0x2e, 0x8c, 0xac, 0x0a, 0x5a, 0x3f, 0xb1, 0x9d, 0xb4, 0x59, 0x38, 0x84, 0x33, 0x45, 0x12,
-        0x07, 0xfa,
+        0x79, 0x2f, 0x9c, 0x9b, 0xe1, 0x09, 0xeb, 0x17, 0x4e, 0x28, 0x9b, 0x92, 0xc9, 0xf0, 0xc3,
+        0xd1, 0x2b, 0xf1, 0xa1, 0x89, 0x45, 0x31, 0x46, 0x6c, 0x72, 0xbd, 0x1c, 0xf0, 0x19, 0x51,
+        0x99, 0xcc,
     ];
 
     fn migration_source_v2() -> (CheckpointContractConfigV2, Vec<u8>) {
@@ -2409,7 +2565,7 @@ mod tests {
                 "canonical_bytes_digest",
                 &[&source_bytes],
             ),
-            decode_digest_hex("2a7484600c9056fedb6fa850edbbd284b1faec75d8fbfdd1f50d69c860802d08")
+            decode_digest_hex("9640a09ece5b45aac5f343ff3a96f760998c1047de18d019ea25b442feba2ba7")
                 .unwrap(),
         );
         let active = build_embedded_active_config().unwrap();
@@ -2433,7 +2589,7 @@ mod tests {
         assert_eq!(baseline, EMBEDDED_RELEASE_MANIFEST_DIGEST_V3);
         assert_eq!(record.release_manifest_digest, baseline);
 
-        let mutations: [fn(&mut ConfigMigrationRecordV3); 19] = [
+        let mutations: [fn(&mut ConfigMigrationRecordV3); 20] = [
             |value| value.release_identity.push_str("-drift"),
             |value| value.wire_version += 1,
             |value| value.source_schema += 1,
@@ -2446,6 +2602,7 @@ mod tests {
             |value| value.runtime_profile_identifier.push_str("-drift"),
             |value| value.runtime_profile_generation += 1,
             |value| value.runtime_profile_manifest_digest[0] ^= 1,
+            |value| value.history_authority_bundle_digest[0] ^= 1,
             |value| value.pre_cutover_authority_generation += 1,
             |value| value.activated_authority_generation += 1,
             |value| value.parameter_generation += 1,
@@ -2911,5 +3068,116 @@ mod tests {
             )
             .is_err());
         assert!(mixed.load_head().is_err());
+    }
+
+    #[test]
+    fn test_history_authority_restart() {
+        use super::super::{
+            authority_artifacts::ACTIVE_PLONKY3_SOURCE_REVISION_V2,
+            plonky3::Plonky3HistoryAuthorityResolverV2,
+        };
+
+        let active = CheckpointContractConfigV3::load_repo_default().unwrap();
+        let (source, source_bytes) = migration_source_v2();
+        let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
+        let (destination, ledger) = ConfigV3RenameLedger::migrate(
+            &source,
+            &source_bytes,
+            active.runtime_profile.manifest_digest.clone(),
+            hex_digest(registry.digest()),
+            2,
+            1,
+        )
+        .unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let store = ConfigV3ActivationStore::open(temp.path().join("config-store")).unwrap();
+        store
+            .install(
+                &source,
+                &source_bytes,
+                &destination,
+                &ledger,
+                1,
+                TEST_RELEASE_MANIFEST_DIGEST_V3,
+                embedded_chain_context_digest_v3(),
+                None,
+            )
+            .unwrap();
+        let installed = store.load_active().unwrap();
+        let expected = installed.identity();
+        assert_eq!(
+            Plonky3HistoryAuthorityResolverV2::resolve_installed(&store, expected)
+                .unwrap()
+                .identity()
+                .config_generation,
+            2
+        );
+
+        let generation = store.root.join("generations/00000000000000000002");
+        let bundle_path = generation.join(HISTORY_AUTHORITY_FILE_V3);
+        let migration_path = generation.join("migration.bin");
+        let original_bundle = read_file_bounded(
+            &bundle_path,
+            (HISTORY_AUTHORITY_BUNDLE_MAX_BYTES_V2 + 1) as u64,
+        )
+        .unwrap();
+
+        std::fs::remove_file(&bundle_path).unwrap();
+        assert!(matches!(
+            Plonky3HistoryAuthorityResolverV2::resolve_installed(&store, expected),
+            Err(CheckpointError::Authority)
+        ));
+        atomic_write_file_private(&bundle_path, &original_bundle).unwrap();
+
+        let mut corrupt = original_bundle.clone();
+        corrupt[0] ^= 1;
+        atomic_write_file_private(&bundle_path, &corrupt).unwrap();
+        assert!(matches!(
+            Plonky3HistoryAuthorityResolverV2::resolve_installed(&store, expected),
+            Err(CheckpointError::Authority)
+        ));
+        atomic_write_file_private(&bundle_path, &original_bundle).unwrap();
+
+        let needle = ACTIVE_PLONKY3_SOURCE_REVISION_V2.as_bytes();
+        let offset = original_bundle
+            .windows(needle.len())
+            .position(|window| window == needle)
+            .expect("compiled verifier row");
+        let mut unknown_catalog = original_bundle;
+        unknown_catalog[offset] ^= 1;
+        let unknown_digest = history_authority_bundle_digest_v2(&unknown_catalog);
+        let mut record =
+            read_local_registry_object::<ConfigMigrationRecordV3, MIGRATION_RECORD_MAX_BYTES_V3>(
+                &migration_path,
+                RecursiveBoundedObjectV2::ConfigMigrationRecord,
+            )
+            .unwrap();
+        record.history_authority_bundle_digest = unknown_digest;
+        record.release_manifest_digest = release_manifest_digest_v3(&record);
+        let record_bytes = encode_local_registry_object(
+            RecursiveBoundedObjectV2::ConfigMigrationRecord,
+            &record,
+            MIGRATION_RECORD_MAX_BYTES_V3,
+        )
+        .unwrap();
+        atomic_write_file_private(&migration_path, &record_bytes).unwrap();
+        atomic_write_file_private(&bundle_path, &unknown_catalog).unwrap();
+        let unknown_head = head_from_migration_record_v3(&record, &record_bytes);
+        let unknown_expected = ActiveCheckpointConfigIdentityV3 {
+            config_generation: unknown_head.config_generation,
+            authority_generation: unknown_head.authority_generation,
+            parameter_generation: unknown_head.parameter_generation,
+            activation_height: unknown_head.activation_height,
+            rollback_floor: unknown_head.rollback_floor,
+            config_digest: unknown_head.config_digest,
+            registry_digest: unknown_head.registry_digest,
+            runtime_profile_generation: unknown_head.runtime_profile_generation,
+            runtime_profile_manifest_digest: unknown_head.runtime_profile_manifest_digest,
+            history_authority_bundle_digest: unknown_head.history_authority_bundle_digest,
+        };
+        assert!(matches!(
+            Plonky3HistoryAuthorityResolverV2::resolve_installed(&store, unknown_expected),
+            Err(CheckpointError::Authority)
+        ));
     }
 }

@@ -13,10 +13,6 @@ use p3_circuit::{
     CircuitError, ExprId, NonPrimitiveOperationData, NpoCircuitPlugin, NpoLoweringContext,
     PreprocessedColumns, WitnessId,
 };
-use p3_circuit_prover::batch_stark_prover::{
-    BatchAir, BatchTableInstance, DynamicAirEntry, NonPrimitiveTableEntry, TablePacking,
-    TableProver,
-};
 use p3_commit::{
     BuildPeriodicLdeTableFast, Mmcs, OpenedValues, Pcs, PeriodicLdeTable, PolynomialSpace,
 };
@@ -26,23 +22,30 @@ use p3_fri::{FriParameters, TwoAdicFriPcs};
 use p3_koala_bear::KoalaBear;
 use p3_lookup::{Count, InteractionBuilder};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_recursion::challenger_perm::ChallengerPermConfig;
-use p3_recursion::pcs::{
+use p3_util::log2_ceil_usize;
+use z00z_plonky3_circuit_prover::batch_stark_prover::{
+    BatchAir, BatchTableInstance, DynamicAirEntry, NonPrimitiveTableEntry, TablePacking,
+    TableProver,
+};
+use z00z_plonky3_circuit_prover::challenger_perm::ChallengerPermConfig;
+use z00z_plonky3_circuit_prover::pcs::{
     verify_fri_circuit, FriProofTargets, InputProofTargets, MerkleCapTargets, MmcsProofTargets,
     RecExtensionValMmcs, RecValMmcs, Witness,
 };
-use p3_recursion::traits::ComsWithOpeningsTargets;
-use p3_recursion::types::{OpenedValuesTargetsWithLookups, RecursiveLagrangeSelectors};
-use p3_recursion::{
+use z00z_plonky3_circuit_prover::traits::ComsWithOpeningsTargets;
+use z00z_plonky3_circuit_prover::types::{
+    OpenedValuesTargetsWithLookups, RecursiveLagrangeSelectors,
+};
+use z00z_plonky3_circuit_prover::{
     CircuitChallenger, GenerationError, ObservableCommitment, PcsGeneration, Recursive,
     RecursiveChallenger, RecursiveMmcs, RecursivePcs, Target, VerificationError,
 };
-use p3_util::log2_ceil_usize;
 
 use super::{
     plonky3_binary_mmcs::verify_binary_paths, Plonky3ChallengeMmcsV2, Plonky3ChallengeV2,
     Plonky3ChallengerV2, Plonky3CompressionV2, Plonky3HashV2, Plonky3InnerPcsV2,
-    Plonky3StarkConfigV2, Plonky3ValueMmcsV2, PLONKY3_MMCS_DIGEST_ELEMS_V2,
+    Plonky3StarkConfigV2, Plonky3ValueMmcsV2, PLONKY3_COMMON_CAP_ROOTS_V2,
+    PLONKY3_MMCS_DIGEST_ELEMS_V2,
 };
 
 type DomainV2 = TwoAdicMultiplicativeCoset<KoalaBear>;
@@ -72,27 +75,70 @@ type UpstreamOpeningProofV2 = FriProofTargets<
 >;
 
 const ROOT_STATEMENT_NPO_ID_V2: &str = "z00z/plonky3/root-statement/v2";
-const ROOT_STATEMENT_DIGEST_LIMBS_V2: usize = 16;
-const ROOT_STATEMENT_DIGEST_COUNT_V2: usize = 5;
+pub(super) const ROOT_STATEMENT_DIGEST_LIMBS_V2: usize = 16;
+pub(super) const ROOT_STATEMENT_DIGEST_COUNT_V2: usize = 25;
 pub(super) const ROOT_STATEMENT_COMMITMENT_FIELDS_V2: usize = 8;
 pub(super) const ROOT_STATEMENT_COMMITMENT_INDEX_V2: usize =
     1 + ROOT_STATEMENT_DIGEST_LIMBS_V2 * ROOT_STATEMENT_DIGEST_COUNT_V2;
-pub(super) const ROOT_STATEMENT_FIELDS_V2: usize =
-    ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2 + 4;
-pub(super) const ROOT_STATEMENT_REPLICA_INDEX_V2: usize =
+pub(super) const ROOT_COMMON_CAP_FIELDS_V2: usize =
+    PLONKY3_COMMON_CAP_ROOTS_V2 * PLONKY3_MMCS_DIGEST_ELEMS_V2;
+pub(super) const ROOT_COMMON_CAP_INDEX_V2: usize =
     ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2;
+pub(super) const ROOT_STATEMENT_REPLICA_INDEX_V2: usize =
+    ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2;
 pub(super) const ROOT_STATEMENT_START_INDEX_V2: usize = ROOT_STATEMENT_REPLICA_INDEX_V2 + 1;
 pub(super) const ROOT_STATEMENT_COUNT_INDEX_V2: usize = ROOT_STATEMENT_START_INDEX_V2 + 1;
 pub(super) const ROOT_STATEMENT_TOTAL_INDEX_V2: usize = ROOT_STATEMENT_COUNT_INDEX_V2 + 1;
+pub(super) const ROOT_STATEMENT_SEMANTIC_INDEX_V2: usize = ROOT_STATEMENT_TOTAL_INDEX_V2 + 1;
+pub(super) const ROOT_STATEMENT_HEIGHT_LIMBS_V2: usize = 4;
+pub(super) const ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2: usize =
+    ROOT_STATEMENT_SEMANTIC_INDEX_V2;
+pub(super) const ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2: usize =
+    ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2;
+pub(super) const ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2: usize =
+    ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2;
+pub(super) const ROOT_STATEMENT_LAST_EPOCH_INDEX_V2: usize =
+    ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2;
+pub(super) const ROOT_STATEMENT_CADENCE_INDEX_V2: usize =
+    ROOT_STATEMENT_LAST_EPOCH_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2;
+pub(super) const ROOT_STATEMENT_CADENCE_LIMBS_V2: usize = ROOT_STATEMENT_HEIGHT_LIMBS_V2;
+pub(super) const ROOT_STATEMENT_PARAMETER_GENERATION_INDEX_V2: usize =
+    ROOT_STATEMENT_CADENCE_INDEX_V2 + ROOT_STATEMENT_CADENCE_LIMBS_V2;
+pub(super) const ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2: usize = 2;
+pub(super) const ROOT_STATEMENT_RUNTIME_PROFILE_GENERATION_INDEX_V2: usize =
+    ROOT_STATEMENT_PARAMETER_GENERATION_INDEX_V2 + ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2;
+pub(super) const ROOT_STATEMENT_HISTORY_COMPOSITION_RULE_INDEX_V2: usize =
+    ROOT_STATEMENT_RUNTIME_PROFILE_GENERATION_INDEX_V2 + 1;
+pub(super) const ROOT_STATEMENT_HISTORY_PER_PROOF_ERROR_INDEX_V2: usize =
+    ROOT_STATEMENT_HISTORY_COMPOSITION_RULE_INDEX_V2 + 1;
+pub(super) const ROOT_STATEMENT_HISTORY_INHERITED_ERROR_INDEX_V2: usize =
+    ROOT_STATEMENT_HISTORY_PER_PROOF_ERROR_INDEX_V2 + 1;
+pub(super) const ROOT_STATEMENT_HISTORY_CUMULATIVE_ERROR_INDEX_V2: usize =
+    ROOT_STATEMENT_HISTORY_INHERITED_ERROR_INDEX_V2 + 1;
+pub(super) const ROOT_STATEMENT_HISTORY_MINIMUM_RESIDUAL_INDEX_V2: usize =
+    ROOT_STATEMENT_HISTORY_CUMULATIVE_ERROR_INDEX_V2 + 1;
+pub(super) const ROOT_STATEMENT_HISTORY_SECURITY_FIELDS_V2: usize = 6;
+pub(super) const ROOT_STATEMENT_SEMANTIC_FIELDS_V2: usize = ROOT_STATEMENT_HEIGHT_LIMBS_V2 * 4
+    + ROOT_STATEMENT_CADENCE_LIMBS_V2
+    + ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2
+    + ROOT_STATEMENT_HISTORY_SECURITY_FIELDS_V2;
+pub(super) const ROOT_STATEMENT_FIELDS_V2: usize =
+    ROOT_STATEMENT_SEMANTIC_INDEX_V2 + ROOT_STATEMENT_SEMANTIC_FIELDS_V2;
 
 /// Fixed public statement propagated by every recursive layer.
 ///
 /// Digests are encoded as sixteen little-endian `u16` limbs so every value is
 /// canonical in KoalaBear. Eight native KoalaBear fields bind the ordered
-/// leaf/subtree commitment. The final four fields bind a physical-replica or
-/// replica-fold ordinal and an exact contiguous leaf range; aggregation can
-/// therefore neither duplicate nor omit a bounded domain proof or one of the
-/// three security replicas.
+/// leaf/subtree commitment. The next 128 fields carry the proof's complete
+/// ordered preprocessed-common cap without a lossy intermediary: every parent
+/// recursion circuit constrains those fields directly to the actual common
+/// targets consumed by its pinned child verifier, while the outer verifier
+/// checks and authority-pins the final root common. The trailing scalar fields
+/// bind a physical replica or fold ordinal, an exact contiguous range,
+/// start/end heights, first/last epoch, cadence, parameter generation, runtime
+/// profile generation, and the rolling-history security-composition scalars.
+/// Aggregation can therefore neither substitute a circuit shape nor duplicate,
+/// omit, reorder, or silently rotate a proved range.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct RootStatementV2 {
     values: [KoalaBear; ROOT_STATEMENT_FIELDS_V2],
@@ -100,40 +146,21 @@ pub(super) struct RootStatementV2 {
 
 impl RootStatementV2 {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn leaf(
-        statement_digest: [u8; 32],
-        leaf_manifest_digest: [u8; 32],
-        parameter_digest: [u8; 32],
-        security_digest: [u8; 32],
-        verifier_bundle_digest: [u8; 32],
+    pub(super) fn leaf_with_semantics(
+        digests: [[u8; 32]; ROOT_STATEMENT_DIGEST_COUNT_V2],
         commitment: [KoalaBear; ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
         replica: u8,
         start: u16,
         total: u16,
+        semantic_fields: [KoalaBear; ROOT_STATEMENT_SEMANTIC_FIELDS_V2],
     ) -> Result<Self, CircuitError> {
-        if [
-            statement_digest,
-            leaf_manifest_digest,
-            parameter_digest,
-            security_digest,
-            verifier_bundle_digest,
-        ]
-        .contains(&[0; 32])
-            || total == 0
-            || start >= total
-        {
+        if digests[..5].contains(&[0; 32]) || total == 0 || start >= total {
             return Err(CircuitError::InvalidPreprocessedValues);
         }
         let mut values = [KoalaBear::ZERO; ROOT_STATEMENT_FIELDS_V2];
         values[0] = KoalaBear::from_u8(2);
         let mut cursor = 1;
-        for digest in [
-            statement_digest,
-            leaf_manifest_digest,
-            parameter_digest,
-            security_digest,
-            verifier_bundle_digest,
-        ] {
+        for digest in digests {
             for limb in digest.chunks_exact(2) {
                 values[cursor] = KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]]));
                 cursor += 1;
@@ -146,7 +173,41 @@ impl RootStatementV2 {
         values[ROOT_STATEMENT_START_INDEX_V2] = KoalaBear::from_u16(start);
         values[ROOT_STATEMENT_COUNT_INDEX_V2] = KoalaBear::ONE;
         values[ROOT_STATEMENT_TOTAL_INDEX_V2] = KoalaBear::from_u16(total);
+        values[ROOT_STATEMENT_SEMANTIC_INDEX_V2
+            ..ROOT_STATEMENT_SEMANTIC_INDEX_V2 + ROOT_STATEMENT_SEMANTIC_FIELDS_V2]
+            .copy_from_slice(&semantic_fields);
         Ok(Self { values })
+    }
+
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn leaf(
+        statement_digest: [u8; 32],
+        leaf_manifest_digest: [u8; 32],
+        parameter_digest: [u8; 32],
+        security_digest: [u8; 32],
+        verifier_bundle_digest: [u8; 32],
+        commitment: [KoalaBear; ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
+        replica: u8,
+        start: u16,
+        total: u16,
+    ) -> Result<Self, CircuitError> {
+        let mut digests = [[0_u8; 32]; ROOT_STATEMENT_DIGEST_COUNT_V2];
+        digests[..5].copy_from_slice(&[
+            statement_digest,
+            leaf_manifest_digest,
+            parameter_digest,
+            security_digest,
+            verifier_bundle_digest,
+        ]);
+        Self::leaf_with_semantics(
+            digests,
+            commitment,
+            replica,
+            start,
+            total,
+            [KoalaBear::ZERO; ROOT_STATEMENT_SEMANTIC_FIELDS_V2],
+        )
     }
 
     pub(super) fn root(
@@ -160,6 +221,24 @@ impl RootStatementV2 {
         root.values[ROOT_STATEMENT_START_INDEX_V2] = KoalaBear::ZERO;
         root.values[ROOT_STATEMENT_COUNT_INDEX_V2] = root.values[ROOT_STATEMENT_TOTAL_INDEX_V2];
         root
+    }
+
+    /// Bind the proof's declared complete ordered preprocessed-common cap.
+    ///
+    /// The field is deliberately value-only: common-data construction commits
+    /// circuit shape and preprocessing, not these public statement values.
+    /// Base and aggregation provers can therefore derive the common first and
+    /// then supply the exact declaration without a digest cycle.
+    #[must_use]
+    pub(super) fn with_common_cap(
+        &self,
+        common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+    ) -> Self {
+        let mut bound = self.clone();
+        bound.values
+            [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
+            .copy_from_slice(&common_cap);
+        bound
     }
 
     /// Convert a complete physical-replica root into one ordered replica-fold
@@ -184,7 +263,7 @@ impl RootStatementV2 {
         Ok(root)
     }
 
-    #[must_use]
+    #[must_use = "the recursive root commitment must be bound or verified"]
     pub(super) fn commitment(&self) -> [KoalaBear; ROOT_STATEMENT_COMMITMENT_FIELDS_V2] {
         self.values[ROOT_STATEMENT_COMMITMENT_INDEX_V2
             ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2]
@@ -192,7 +271,7 @@ impl RootStatementV2 {
             .expect("fixed root-statement commitment width")
     }
 
-    #[must_use]
+    #[must_use = "root statement values must be consumed by the recursive verifier"]
     pub(super) const fn values(&self) -> &[KoalaBear; ROOT_STATEMENT_FIELDS_V2] {
         &self.values
     }
@@ -638,7 +717,9 @@ impl TableProver<Plonky3StarkConfigV2> for RootStatementProverV2 {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct RootStatementPreprocessorV2;
 
-impl p3_circuit_prover::common::NpoPreprocessor<KoalaBear> for RootStatementPreprocessorV2 {
+impl z00z_plonky3_circuit_prover::common::NpoPreprocessor<KoalaBear>
+    for RootStatementPreprocessorV2
+{
     fn preprocess(
         &self,
         _circuit: &dyn Any,
@@ -672,7 +753,7 @@ impl p3_circuit_prover::common::NpoPreprocessor<KoalaBear> for RootStatementPrep
 #[derive(Clone, Copy, Debug)]
 pub(super) struct RootStatementAirBuilderV2;
 
-impl p3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4>
+impl z00z_plonky3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4>
     for RootStatementAirBuilderV2
 {
     fn try_build(
@@ -681,9 +762,9 @@ impl p3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4>
         preprocessed: &[KoalaBear],
         min_height: usize,
         lanes: usize,
-        _constraint_profile: p3_circuit_prover::ConstraintProfile,
+        _constraint_profile: z00z_plonky3_circuit_prover::ConstraintProfile,
     ) -> Option<(
-        p3_circuit_prover::common::CircuitTableAir<Plonky3StarkConfigV2, 4>,
+        z00z_plonky3_circuit_prover::common::CircuitTableAir<Plonky3StarkConfigV2, 4>,
         usize,
     )> {
         if op_type != &root_statement_npo_type()
@@ -694,9 +775,12 @@ impl p3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4>
         }
         let padded_rows = min_height.max(1).next_power_of_two();
         Some((
-            p3_circuit_prover::common::CircuitTableAir::Dynamic(DynamicAirEntry::new(Box::new(
-                RootStatementAirV2::<KoalaBear, 4>::new(preprocessed.to_vec(), min_height),
-            ))),
+            z00z_plonky3_circuit_prover::common::CircuitTableAir::Dynamic(DynamicAirEntry::new(
+                Box::new(RootStatementAirV2::<KoalaBear, 4>::new(
+                    preprocessed.to_vec(),
+                    min_height,
+                )),
+            )),
             log2_ceil_usize(padded_rows),
         ))
     }
@@ -970,7 +1054,7 @@ impl
         DomainV2,
     > for Plonky3PcsV2
 {
-    type VerifierParams = p3_recursion::FriVerifierParams;
+    type VerifierParams = z00z_plonky3_circuit_prover::FriVerifierParams;
     type RecursiveProof = BinaryOpeningProofV2;
 
     fn get_challenges_circuit<const WIDTH: usize, const RATE: usize, C: ChallengerPermConfig>(

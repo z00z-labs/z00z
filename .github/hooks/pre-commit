@@ -104,16 +104,23 @@ rm -f /tmp/z00z-pre-commit-check.$$
 
 if [[ "$help_english_touched" -eq 1 ]]; then
     demo_rel="crates/z00z_ui_ux/demo"
-    log 'Validating navigation-derived English Help'
-    (
-        cd "$demo_rel"
-        node scripts/help/write-navigation-manifest.mjs --check
-        python3 scripts/help/sync_views.py --check
-        node scripts/compile-help.mjs
-        node scripts/check-help.mjs
-    )
-    git add -- "$demo_rel/scripts/generated/help-catalog.js"
-    log 'English Help catalogue staged after validation'
+    if [[ ! -d "$demo_rel" ]]; then
+        if git ls-files --cached -- "$demo_rel" | grep -q .; then
+            fail "Tracked English Help sources are missing from the worktree."
+        fi
+        log 'Skipping English Help validation because the demo tree is no longer tracked'
+    else
+        log 'Validating navigation-derived English Help'
+        (
+            cd "$demo_rel"
+            node scripts/help/write-navigation-manifest.mjs --check
+            python3 scripts/help/sync_views.py --check
+            node scripts/compile-help.mjs
+            node scripts/check-help.mjs
+        )
+        git add -- "$demo_rel/scripts/generated/help-catalog.js"
+        log 'English Help catalogue staged after validation'
+    fi
 fi
 
 if [[ "$rust_related_touched" -eq 1 ]]; then

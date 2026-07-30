@@ -73,7 +73,7 @@ branches:
     field: koala_bear
     hash: poseidon2
     security_bits: 124
-    recursion_library: p3_recursion
+    recursion_library: z00z_plonky3_circuit_prover
 authority_promotion:
   stage: spec_only
   recursive_authority_allowed: false

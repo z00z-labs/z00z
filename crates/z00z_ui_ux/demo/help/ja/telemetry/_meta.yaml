@@ -1,9 +1,0 @@
-title: テレメトリー
-icon: network
-order:
-  - reticulum
-  - onionnet
-  - quic
-  - aggregators
-  - watchers
-  - explorer

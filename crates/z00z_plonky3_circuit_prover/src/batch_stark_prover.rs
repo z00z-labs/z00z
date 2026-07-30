@@ -1,0 +1,2139 @@
+//! Batch STARK prover and verifier that unifies all circuit tables
+//! into a single batched STARK proof using `p3-batch-stark`.
+
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::cell::RefCell;
+
+use hashbrown::HashMap;
+#[cfg(debug_assertions)]
+use p3_air::DebugConstraintBuilder;
+use p3_air::{Air, BaseAir};
+use p3_batch_stark::common::{GlobalPreprocessed, PreprocessedInstanceMeta};
+use p3_batch_stark::{BatchProof, CommonData, ProverData, StarkGenericConfig, StarkInstance, Val};
+use p3_circuit::ops::{
+    NonPrimitivePreprocessedMap, NpoTypeId, Poseidon1Config, Poseidon2Config, PrimitiveOpType,
+};
+use p3_circuit::tables::Traces;
+use p3_circuit::{CircuitError, PreprocessedColumns};
+use p3_commit::Pcs;
+use p3_field::extension::{BinomialExtensionField, BinomiallyExtendable};
+use p3_field::{
+    Algebra, BasedVectorSpace, ExtensionField, Field, PrimeCharacteristicRing, PrimeField,
+    PrimeField64,
+};
+use p3_lookup::Lookups;
+use p3_lookup::folder::{ProverConstraintFolderWithLookups, VerifierConstraintFolderWithLookups};
+use p3_lookup::symbolic::InteractionSymbolicBuilder;
+use p3_matrix::Matrix;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_poseidon_circuit_cols::{
+    PoseidonPrepInputLimb, poseidon_d1_compact_preprocessed_header_cols,
+    poseidon_preprocessed_row_width, poseidon_preprocessed_row_width_for_air,
+    poseidon_uses_compact_d1_preprocessed,
+};
+use p3_uni_stark::{SymbolicExpression, SymbolicExpressionExt};
+use p3_util::log2_strict_usize;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use tracing::instrument;
+
+use crate::air::alu_air::ScheduleEntry;
+use crate::air::{AluAir, AluExtMulKind, ConstAir, PublicAir};
+use crate::batch_stark_prover::dynamic_air::transmute_traces;
+use crate::batch_stark_prover::packing::{AirTableShape, TraceTablesLayout};
+use crate::common::{CircuitTableAir, NpoAirBuilder, NpoPreprocessor, reduce_lanes_if_dummy};
+use crate::config::StarkField;
+use crate::constraint_profile::ConstraintProfile;
+use crate::field_params::ExtractBinomialW;
+
+mod dynamic_air;
+mod lookup_packing;
+mod packing;
+mod poseidon1;
+mod poseidon2;
+mod recompose;
+
+pub use dynamic_air::{
+    BatchAir, BatchTableInstance, CloneableBatchAir, DynamicAirEntry, TableProver,
+};
+pub use lookup_packing::{canonical_lookups_for_air, canonical_prover_data_from_airs_and_degrees};
+pub use packing::TablePacking;
+pub use poseidon1::{
+    Poseidon1AirBuilder, Poseidon1AirWrapperInner, Poseidon1Preprocessor, Poseidon1Prover,
+    Poseidon1ProverD2, poseidon1_preprocessor, poseidon1_verifier_air_from_config,
+};
+pub use poseidon2::{
+    Poseidon2AirBuilder, Poseidon2AirBuilderForConfig, Poseidon2AirWrapperInner,
+    Poseidon2Preprocessor, Poseidon2Prover, Poseidon2ProverD2, poseidon2_preprocessor,
+    poseidon2_verifier_air_from_config,
+};
+pub use recompose::{RecomposeAirBuilder, RecomposePreprocessor, RecomposeProver};
+
+/// Prime modulus of the BabyBear field (`2^31 - 2^27 + 1`).
+pub const BABY_BEAR_MODULUS: u64 = 0x7800_0001;
+/// Prime modulus of the KoalaBear field (`2^31 - 2^24 + 1`).
+pub const KOALA_BEAR_MODULUS: u64 = 0x7f00_0001;
+
+/// Returns the witness-bus dimension for a D=1 Poseidon config given the circuit's extension
+/// degree, or `None` if the scale is not supported.
+///
+/// Currently supported: 1 (base-field circuit) and 5 (KoalaBear quintic).
+#[inline]
+const fn poseidon_d1_witness_bus_dim(witness_ctl_scale: u32) -> Option<u32> {
+    match witness_ctl_scale {
+        1 => Some(1),
+        5 => Some(5),
+        _ => None,
+    }
+}
+
+/// Applies a Poseidon variant's preprocessing pass to the generic preprocessed columns.
+///
+/// `prefix` is the variant's CTL bus prefix (e.g. `poseidon1_perm/`); only op types under it
+/// are touched. `parse_cfg` resolves a variant-name suffix to its `(d, width_ext, rate_ext)`.
+fn poseidon_preprocess_for_prover<F, ExtF, const D: usize>(
+    preprocessed: &mut PreprocessedColumns<ExtF, D>,
+    prefix: &str,
+    parse_cfg: impl Fn(&str) -> Option<(usize, usize, usize)>,
+) -> Result<NonPrimitivePreprocessedMap<F>, CircuitError>
+where
+    F: StarkField + PrimeField64,
+    ExtF: ExtensionField<F>,
+{
+    let neg_one = F::NEG_ONE;
+
+    // Phase 1: scan preprocessed data to count mmcs_index_sum conditional reads,
+    // and update `ext_reads` accordingly. This must happen before computing multiplicities.
+    for (op_type, prep) in preprocessed.non_primitive.iter() {
+        let op_str = op_type.as_str();
+        if !op_str.starts_with(prefix) {
+            continue;
+        }
+        let rest = op_str
+            .strip_prefix(prefix)
+            .ok_or(CircuitError::InvalidPreprocessedValues)?;
+        let (d, w_ext, r_ext) = parse_cfg(rest).ok_or(CircuitError::InvalidPreprocessedValues)?;
+
+        // Arity-4 tables bind each direction bit to the sampled index directly; the base-4
+        // accumulator is unused and its idx / merkle-flag column slots are repurposed to carry the
+        // bit-source witness indices (already counted in `ext_reads` during preprocessing). The
+        // accumulator read-counting below would misread those slots, so skip arity-4 op types.
+        if 4 * (w_ext - r_ext) == w_ext {
+            continue;
+        }
+
+        let prep_row_width = poseidon_preprocessed_row_width_for_air(d, w_ext, r_ext);
+
+        let prep_base: Vec<F> = prep
+            .iter()
+            .map(|v| v.as_base().ok_or(CircuitError::InvalidPreprocessedValues))
+            .collect::<Result<Vec<_>, CircuitError>>()?;
+
+        if !prep_base.len().is_multiple_of(prep_row_width) {
+            return Err(CircuitError::InvalidPreprocessedValues);
+        }
+
+        let num_rows = prep_base.len() / prep_row_width;
+        let trace_height = num_rows.next_power_of_two();
+        let has_padding = trace_height > num_rows;
+        let compact = poseidon_uses_compact_d1_preprocessed(d, w_ext, r_ext);
+        let tail = if compact {
+            poseidon_d1_compact_preprocessed_header_cols(r_ext) + w_ext + r_ext + r_ext
+        } else {
+            poseidon_preprocessed_row_width(w_ext, r_ext) - 4
+        };
+
+        for row_idx in 0..num_rows {
+            let row_start = row_idx * prep_row_width;
+            let mmcs_flag_off = row_start + tail + 1;
+            let current_mmcs_merkle_flag = prep_base[mmcs_flag_off];
+
+            // Check if next row exists and has new_start = 1.
+            // The Poseidon AIR pads the trace and sets new_start = 1 in the first
+            // padding row (only if padding exists), so the last real row can trigger a
+            // lookup if its mmcs_merkle_flag = 1 and there is padding.
+            let next_new_start = if row_idx + 1 < num_rows {
+                let next_start = (row_idx + 1) * prep_row_width;
+                prep_base[next_start + tail + 2]
+            } else if has_padding {
+                F::ONE
+            } else {
+                prep_base[tail + 2]
+            };
+
+            let multiplicity = current_mmcs_merkle_flag * next_new_start;
+            if multiplicity != F::ZERO {
+                let mmcs_idx_u64 = F::as_canonical_u64(&prep_base[row_start + tail]);
+                let mmcs_witness_idx = (mmcs_idx_u64 as usize) / D;
+
+                if mmcs_witness_idx >= preprocessed.ext_reads.len() {
+                    preprocessed.ext_reads.resize(mmcs_witness_idx + 1, 0);
+                }
+                preprocessed.ext_reads[mmcs_witness_idx] += 1;
+            }
+        }
+    }
+
+    // Phase 2: update out_ctl values in the base-field preprocessed data.
+    //
+    // Duplicate creators (from optimizer witness_rewrite deduplication)
+    // are recorded in plugin-owned metadata under this op_type. For those, out_ctl = -1
+    // (reader contribution). For first-occurrence creators, out_ctl = +ext_reads[wid].
+    let mut non_primitive_base: NonPrimitivePreprocessedMap<F> = HashMap::new();
+    for (op_type, prep) in preprocessed.non_primitive.iter() {
+        let op_str = op_type.as_str();
+        if !op_str.starts_with(prefix) {
+            continue;
+        }
+        let rest = op_str
+            .strip_prefix(prefix)
+            .ok_or(CircuitError::InvalidPreprocessedValues)?;
+        let (d, w_ext, r_ext) = parse_cfg(rest).ok_or(CircuitError::InvalidPreprocessedValues)?;
+        let prep_row_width = poseidon_preprocessed_row_width_for_air(d, w_ext, r_ext);
+
+        let dup_wids = preprocessed.dup_npo_outputs.get(op_type);
+
+        let mut prep_base: Vec<F> = prep
+            .iter()
+            .map(|v| v.as_base().ok_or(CircuitError::InvalidPreprocessedValues))
+            .collect::<Result<Vec<_>, CircuitError>>()?;
+
+        if !prep_base.len().is_multiple_of(prep_row_width) {
+            return Err(CircuitError::InvalidPreprocessedValues);
+        }
+
+        let num_rows = prep_base.len() / prep_row_width;
+        let compact = poseidon_uses_compact_d1_preprocessed(d, w_ext, r_ext);
+
+        for row_idx in 0..num_rows {
+            let row_start = row_idx * prep_row_width;
+            let out_base = if compact {
+                row_start + poseidon_d1_compact_preprocessed_header_cols(r_ext) + w_ext
+            } else {
+                row_start + w_ext * size_of::<PoseidonPrepInputLimb<u8>>()
+            };
+            for j in 0..r_ext {
+                let (o0, ctl_off) = if compact {
+                    (out_base + j, out_base + r_ext + j)
+                } else {
+                    let o = out_base + j * 2;
+                    (o, o + 1)
+                };
+                let out_ctl = prep_base[ctl_off];
+                if out_ctl != F::ZERO {
+                    let idx = prep_base[o0];
+                    let out_wid = F::as_canonical_u64(&idx) as usize / D;
+                    let is_dup = dup_wids
+                        .and_then(|d| d.get(out_wid).copied())
+                        .unwrap_or(false);
+                    prep_base[ctl_off] = if is_dup {
+                        neg_one
+                    } else {
+                        let n_reads = preprocessed.ext_reads.get(out_wid).copied().unwrap_or(0);
+                        F::from_u32(n_reads)
+                    };
+                }
+            }
+        }
+
+        non_primitive_base.insert(op_type.clone(), prep_base);
+    }
+
+    Ok(non_primitive_base)
+}
+
+/// Opaque variant tag for a non-primitive AIR in a batch proof.
+///
+/// Each [`NonPrimitiveTableEntry`] has one tag. The **meaning** of the tag is
+/// defined by that entry's `op_type`: the corresponding [`TableProver`] interprets
+/// it when building the AIR in [`TableProver::batch_air_from_table_entry`].
+#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AirVariant {
+    /// Baseline AIR for this op type (default behaviour).
+    #[default]
+    Baseline = 0,
+    /// Recursion-optimized variant.
+    Optimized = 1,
+}
+
+/// Metadata describing a non-primitive table inside a batch proof.
+///
+/// Every non-primitive dynamic plugin produces exactly one `NonPrimitiveTableEntry`
+/// per batch instance. The entry is stored inside a `BatchStarkProof` and later provided
+/// back to the plugin during verification through
+/// [`TableProver::batch_air_from_table_entry`].
+const fn default_npo_lanes() -> usize {
+    1
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct NonPrimitiveTableEntry<SC>
+where
+    SC: StarkGenericConfig,
+{
+    /// Operation type (it should match `TableProver::op_type`).
+    pub op_type: NpoTypeId,
+    /// Number of logical operations (before lane packing) produced for this table.
+    pub rows: usize,
+    /// Number of operations packed per AIR row (lane count). Defaults to 1.
+    #[serde(default = "default_npo_lanes")]
+    pub lanes: usize,
+    /// Public values exposed by this table (if any).
+    pub public_values: Vec<Val<SC>>,
+    /// AIR variant used for this non-primitive table.
+    #[serde(default)]
+    pub air_variant: AirVariant,
+}
+
+impl<SC: StarkGenericConfig> NonPrimitiveTableEntry<SC> {
+    /// Re-check the lane-count invariant that constructors clamp, after deserialization.
+    pub fn validate(&self) -> Result<(), ProofMetadataError> {
+        if self.lanes == 0 {
+            return Err(ProofMetadataError::ZeroNpoLanes(self.op_type.clone()));
+        }
+        Ok(())
+    }
+}
+
+/// Combined data for circuit proving, including STARK prover data and preprocessed columns.
+///
+/// This struct bundles the upstream [`ProverData`] with circuit-specific preprocessed data,
+/// providing a cleaner API for `prove_all_tables`.
+///
+/// Preprocessed columns are stored as flat base-field vectors rather than a
+/// [`PreprocessedColumns<F, D>`](p3_circuit::PreprocessedColumns) because `D` is only
+/// determined at proving time (via `EF::DIMENSION`) while this struct is constructed
+/// and stored beforehand. The `ext_reads` and `dup_npo_outputs` fields from
+/// `PreprocessedColumns` are fully consumed during AIR construction in
+/// [`get_airs_and_degrees_with_prep`](crate::common::get_airs_and_degrees_with_prep)
+/// and are not needed here.
+/// Cached ALU packed-Horner schedule and preprocessed trace matrix, keyed by the
+/// `(lanes, horner_packed_steps, min_height)` they were computed for.
+type AluScheduleCache<F> = RefCell<
+    Option<(
+        usize,
+        usize,
+        usize,
+        Option<Vec<ScheduleEntry>>,
+        Option<RowMajorMatrix<F>>,
+    )>,
+>;
+
+pub struct CircuitProverData<SC: StarkGenericConfig> {
+    /// STARK prover data from p3_batch_stark.
+    pub prover_data: ProverData<SC>,
+    /// Preprocessed columns for primitive operations (Const, Public, ALU).
+    pub primitive_columns: Vec<Vec<Val<SC>>>,
+    /// Preprocessed columns for non-primitive operations.
+    pub non_primitive_columns: NonPrimitivePreprocessedMap<Val<SC>>,
+    /// Both are a pure function of `primitive_columns[Alu]` and the cache key (not of `D`), so
+    /// they are computed once and reused across every proof for this circuit shape.
+    alu_schedule_cache: AluScheduleCache<Val<SC>>,
+}
+
+impl<SC: StarkGenericConfig> CircuitProverData<SC> {
+    /// Create new circuit prover data from components.
+    pub const fn new(
+        prover_data: ProverData<SC>,
+        primitive_columns: Vec<Vec<Val<SC>>>,
+        non_primitive_columns: NonPrimitivePreprocessedMap<Val<SC>>,
+    ) -> Self {
+        Self {
+            prover_data,
+            primitive_columns,
+            non_primitive_columns,
+            alu_schedule_cache: RefCell::new(None),
+        }
+    }
+
+    /// Get a reference to the common data.
+    pub const fn common_data(&self) -> &CommonData<SC> {
+        &self.prover_data.common
+    }
+}
+
+/// Convenience macro for deriving all degree-specific helpers from a single base
+/// implementation.
+///
+/// Plugins usually implement a single `batch_instance_base` method that operates on
+/// base-field traces. This macro reuses that method to provide the `batch_instance_d*`
+/// variants by casting higher-degree traces back to the base field.
+///
+/// Users can invoke it inside their `TableProver` impl:
+///
+/// ```ignore
+/// impl<SC> TableProver<SC> for MyPlugin {
+///     fn op_type(&self) -> NpoTypeId {
+///         NpoTypeId::Poseidon2Perm(Poseidon2Config::BABY_BEAR_D4_W16)
+///     }
+///
+///     impl_table_prover_batch_instances_from_base!(batch_instance_base);
+///
+///     fn batch_air_from_table_entry(
+///         &self,
+///         config: &SC,
+///         degree: usize,
+///         circuit_extension_degree: u32,
+///         table_entry: &NonPrimitiveTableEntry<SC>,
+///     ) -> Result<DynamicAirEntry<SC>, String> {
+///         Ok(DynamicAirEntry::new(Box::new(MyPluginAir::<Val<SC>>::new(config))))
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_table_prover_batch_instances_from_base {
+    ($base:ident) => {
+        fn batch_instance_d1(
+            &self,
+            config: &SC,
+            packing: &TablePacking,
+            traces: &p3_circuit::tables::Traces<p3_batch_stark::Val<SC>>,
+        ) -> Option<BatchTableInstance<SC>> {
+            self.$base::<SC>(config, packing, traces)
+        }
+
+        fn batch_instance_d2(
+            &self,
+            config: &SC,
+            packing: &TablePacking,
+            traces: &p3_circuit::tables::Traces<
+                p3_field::extension::BinomialExtensionField<p3_batch_stark::Val<SC>, 2>,
+            >,
+        ) -> Option<BatchTableInstance<SC>> {
+            let t: &p3_circuit::tables::Traces<p3_batch_stark::Val<SC>> =
+                unsafe { transmute_traces(traces) };
+            self.$base::<SC>(config, packing, t)
+        }
+
+        fn batch_instance_d4(
+            &self,
+            config: &SC,
+            packing: &TablePacking,
+            traces: &p3_circuit::tables::Traces<
+                p3_field::extension::BinomialExtensionField<p3_batch_stark::Val<SC>, 4>,
+            >,
+        ) -> Option<BatchTableInstance<SC>> {
+            let t: &p3_circuit::tables::Traces<p3_batch_stark::Val<SC>> =
+                unsafe { transmute_traces(traces) };
+            self.$base::<SC>(config, packing, t)
+        }
+
+        fn batch_instance_d6(
+            &self,
+            config: &SC,
+            packing: &TablePacking,
+            traces: &p3_circuit::tables::Traces<
+                p3_field::extension::BinomialExtensionField<p3_batch_stark::Val<SC>, 6>,
+            >,
+        ) -> Option<BatchTableInstance<SC>> {
+            let t: &p3_circuit::tables::Traces<p3_batch_stark::Val<SC>> =
+                unsafe { transmute_traces(traces) };
+            self.$base::<SC>(config, packing, t)
+        }
+
+        fn batch_instance_d8(
+            &self,
+            config: &SC,
+            packing: &TablePacking,
+            traces: &p3_circuit::tables::Traces<
+                p3_field::extension::BinomialExtensionField<p3_batch_stark::Val<SC>, 8>,
+            >,
+        ) -> Option<BatchTableInstance<SC>> {
+            let t: &p3_circuit::tables::Traces<p3_batch_stark::Val<SC>> =
+                unsafe { transmute_traces(traces) };
+            self.$base::<SC>(config, packing, t)
+        }
+
+        fn batch_instance_d5(
+            &self,
+            config: &SC,
+            packing: &TablePacking,
+            traces: &p3_circuit::tables::Traces<
+                p3_field::extension::QuinticTrinomialExtensionField<p3_batch_stark::Val<SC>>,
+            >,
+        ) -> Option<BatchTableInstance<SC>> {
+            let t: &p3_circuit::tables::Traces<p3_batch_stark::Val<SC>> =
+                unsafe { transmute_traces(traces) };
+            self.$base::<SC>(config, packing, t)
+        }
+    };
+}
+
+/// Type alias for the primitive operation table selector.
+///
+/// Used as an index into [`RowCounts`] and related per-table arrays.
+pub type PrimitiveTable = PrimitiveOpType;
+
+/// Number of primitive circuit tables included in the unified batch STARK proof.
+pub const NUM_PRIMITIVE_TABLES: usize = PrimitiveTable::Alu as usize + 1;
+
+/// Row counts wrapper with type-safe indexing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RowCounts([usize; NUM_PRIMITIVE_TABLES]);
+
+impl RowCounts {
+    /// Creates a new RowCounts with the given row counts for each table.
+    pub const fn new(rows: [usize; NUM_PRIMITIVE_TABLES]) -> Self {
+        // Validate that all row counts are non-zero
+        let mut i = 0;
+        while i < rows.len() {
+            assert!(rows[i] > 0);
+            i += 1;
+        }
+        Self(rows)
+    }
+
+    /// Re-check the invariant [`RowCounts::new`] enforces, after deserialization.
+    pub fn validate(&self) -> Result<(), ProofMetadataError> {
+        if self.0.contains(&0) {
+            return Err(ProofMetadataError::ZeroRowCount);
+        }
+        Ok(())
+    }
+}
+
+impl core::ops::Index<PrimitiveTable> for RowCounts {
+    type Output = usize;
+    fn index(&self, table: PrimitiveTable) -> &Self::Output {
+        &self.0[table as usize]
+    }
+}
+
+/// Serializable mirror of [`PreprocessedInstanceMeta`].
+///
+/// Defined locally because the upstream type does not derive `Serialize`/`Deserialize`.
+#[derive(Serialize, Deserialize)]
+struct SerializedPreprocessedInstanceMeta {
+    matrix_index: usize,
+    width: usize,
+    degree_bits: usize,
+}
+
+/// Serializable projection of [`CommonData::preprocessed`] used to bind the proof
+/// to its prover-side common data across (de)serialization.
+///
+/// `lookups` are intentionally omitted: the verifier always rebuilds them from the
+/// AIRs reconstructed from proof metadata, so they are not part of the binding.
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+struct SerializedStarkCommon<SC: StarkGenericConfig> {
+    commitment: <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment,
+    instances: Vec<Option<SerializedPreprocessedInstanceMeta>>,
+    matrix_to_instance: Vec<usize>,
+}
+
+impl<SC: StarkGenericConfig> SerializedStarkCommon<SC> {
+    fn from_common(common: &CommonData<SC>) -> Option<Self> {
+        common.preprocessed.as_ref().map(|gp| Self {
+            commitment: gp.commitment.clone(),
+            instances: gp
+                .instances
+                .iter()
+                .map(|opt| {
+                    opt.as_ref().map(|m| SerializedPreprocessedInstanceMeta {
+                        matrix_index: m.matrix_index,
+                        width: m.width,
+                        degree_bits: m.degree_bits,
+                    })
+                })
+                .collect(),
+            matrix_to_instance: gp.matrix_to_instance.clone(),
+        })
+    }
+
+    fn into_common(self) -> CommonData<SC> {
+        CommonData::new(
+            Some(GlobalPreprocessed {
+                commitment: self.commitment,
+                instances: self
+                    .instances
+                    .into_iter()
+                    .map(|opt| {
+                        opt.map(|m| PreprocessedInstanceMeta {
+                            matrix_index: m.matrix_index,
+                            width: m.width,
+                            degree_bits: m.degree_bits,
+                        })
+                    })
+                    .collect(),
+                matrix_to_instance: self.matrix_to_instance,
+            }),
+            Vec::new(),
+        )
+    }
+}
+
+/// Clone a [`CommonData`] without requiring [`Clone`] on the upstream
+/// [`GlobalPreprocessed`] / [`PreprocessedInstanceMeta`] types.
+fn clone_common_data<SC: StarkGenericConfig>(common: &CommonData<SC>) -> CommonData<SC> {
+    CommonData::new(
+        common.preprocessed.as_ref().map(|gp| GlobalPreprocessed {
+            commitment: gp.commitment.clone(),
+            instances: gp
+                .instances
+                .iter()
+                .map(|opt| {
+                    opt.as_ref().map(|m| PreprocessedInstanceMeta {
+                        matrix_index: m.matrix_index,
+                        width: m.width,
+                        degree_bits: m.degree_bits,
+                    })
+                })
+                .collect(),
+            matrix_to_instance: gp.matrix_to_instance.clone(),
+        }),
+        common.lookups.clone(),
+    )
+}
+
+/// Custom (de)serialization for [`BatchStarkProof::stark_common`]. Persists only the
+/// preprocessed binding (commitment + per-instance metadata): the part the verifier
+/// needs to bind the proof to the [`CommonData`] it was generated against. `lookups`
+/// are intentionally not serialized because the verifier always rebuilds them from
+/// the AIRs reconstructed from proof metadata.
+mod serde_stark_common {
+    use alloc::vec::Vec;
+
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::{CommonData, SerializedStarkCommon, StarkGenericConfig};
+
+    pub(super) fn serialize<S, SC>(value: &CommonData<SC>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        SC: StarkGenericConfig,
+    {
+        SerializedStarkCommon::from_common(value).serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D, SC>(deserializer: D) -> Result<CommonData<SC>, D::Error>
+    where
+        D: Deserializer<'de>,
+        SC: StarkGenericConfig,
+    {
+        let parsed: Option<SerializedStarkCommon<SC>> = Option::deserialize(deserializer)?;
+        Ok(parsed
+            .map(SerializedStarkCommon::into_common)
+            .unwrap_or_else(|| CommonData::new(None, Vec::new())))
+    }
+}
+
+/// Proof bundle and metadata for the unified batch STARK proof across all circuit tables.
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct BatchStarkProof<SC>
+where
+    SC: StarkGenericConfig,
+{
+    /// The core cryptographic proof generated by `p3-batch-stark`.
+    pub proof: BatchProof<SC>,
+    /// Packing configuration used for the Witness, Public, and unified ALU tables.
+    pub table_packing: TablePacking,
+    /// The number of rows in each of the circuit tables.
+    pub rows: RowCounts,
+    /// Variant used for the primitive ALU table.
+    pub alu_variant: AirVariant,
+    /// The degree of the field extension (`D`) used for the proof.
+    pub ext_degree: usize,
+    /// The binomial coefficient `W` for extension field multiplication, if `ext_degree > 1`.
+    pub w_binomial: Option<Val<SC>>,
+    /// When `true` with `ext_degree == 5`, the ALU uses quintic trinomial reduction (`X^5+X^2-1`).
+    #[serde(default)]
+    pub alu_quintic_trinomial: bool,
+    /// Manifest describing batched non-primitive tables defined at runtime.
+    pub non_primitives: Vec<NonPrimitiveTableEntry<SC>>,
+    /// Common data derived from the final table AIRs after trace construction.
+    #[serde(with = "serde_stark_common")]
+    pub stark_common: CommonData<SC>,
+}
+
+impl<SC> core::fmt::Debug for BatchStarkProof<SC>
+where
+    SC: StarkGenericConfig,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let stark_common_summary = self.stark_common.preprocessed.as_ref().map(|gp| {
+            (
+                gp.instances.len(),
+                gp.matrix_to_instance.len(),
+                self.stark_common.lookups.len(),
+            )
+        });
+        f.debug_struct("BatchStarkProof")
+            .field("table_packing", &self.table_packing)
+            .field("rows", &self.rows)
+            .field("ext_degree", &self.ext_degree)
+            .field("w_binomial", &self.w_binomial)
+            .field("alu_quintic_trinomial", &self.alu_quintic_trinomial)
+            .field(
+                "stark_common(instances, matrices, lookups)",
+                &stark_common_summary,
+            )
+            .finish()
+    }
+}
+
+impl<SC> BatchStarkProof<SC>
+where
+    SC: StarkGenericConfig,
+{
+    /// Re-check the structural invariants that the prover enforces but
+    /// `#[derive(Deserialize)]` can bypass.
+    pub fn validate(&self) -> Result<(), ProofMetadataError> {
+        match self.ext_degree {
+            1 | 2 | 4 | 5 | 6 | 8 => {}
+            d => return Err(ProofMetadataError::UnsupportedExtDegree(d)),
+        }
+        self.rows.validate()?;
+        self.table_packing.validate()?;
+        for entry in &self.non_primitives {
+            entry.validate()?;
+        }
+        Ok(())
+    }
+}
+
+/// Produces a single batch STARK proof covering all circuit tables.
+pub struct BatchStarkProver<SC>
+where
+    SC: StarkGenericConfig + 'static,
+{
+    config: SC,
+    table_packing: TablePacking,
+    /// Variant used for the primitive ALU AIR.
+    alu_variant: AirVariant,
+    /// Registered dynamic non-primitive table provers.
+    non_primitive_provers: Vec<Box<dyn TableProver<SC>>>,
+    /// When true, run the lookup debugger before proving to report imbalanced multisets.
+    debug_lookups: bool,
+}
+
+/// Errors raised when proof metadata fails the structural invariants that the
+/// type constructors enforce but `#[derive(Deserialize)]` can bypass.
+///
+/// Validated via [`BatchStarkProof::validate`] before native and recursive
+/// verification so malformed serialized metadata is rejected up front.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum ProofMetadataError {
+    /// A primitive table row count is zero (constructors require non-zero).
+    #[error("primitive table row count must be non-zero")]
+    ZeroRowCount,
+
+    /// A primitive lane count is zero (`new`/`with_*` clamp to at least 1).
+    #[error("`{0}` lane count must be at least 1")]
+    ZeroLanes(&'static str),
+
+    /// A non-primitive table lane count is zero (defaults/clamps to at least 1).
+    #[error("non-primitive table `{0:?}` lane count must be at least 1")]
+    ZeroNpoLanes(NpoTypeId),
+
+    /// `min_trace_height` is not a non-zero power of two.
+    #[error("minimum trace height must be a non-zero power of two (got {0})")]
+    BadMinTraceHeight(usize),
+
+    /// `horner_packed_steps` is less than 2.
+    #[error("horner_packed_steps must be at least 2 (got {0})")]
+    BadHornerPackedSteps(usize),
+
+    /// `ext_degree` is not one of the supported values.
+    #[error("unsupported extension degree {0} (supported: 1,2,4,5,6,8)")]
+    UnsupportedExtDegree(usize),
+
+    /// The proof's declared extension degree does not match the verifier's expected trace field.
+    #[error(
+        "proof ext_degree {got} does not match the verifier's expected trace field (degree {expected})"
+    )]
+    ExtDegreeMismatch { expected: usize, got: usize },
+
+    /// The proof's binomial parameter `W` does not match the verifier's expected trace field.
+    #[error("proof binomial W does not match the verifier's expected trace field")]
+    BinomialWMismatch,
+
+    /// The proof's quintic-trinomial reduction flag does not match the verifier's expected trace field.
+    #[error(
+        "proof quintic-trinomial flag {got} does not match the verifier's expected trace field ({expected})"
+    )]
+    QuinticReductionMismatch { expected: bool, got: bool },
+
+    /// The proof's `alu_variant` does not match the manifest's expected value.
+    #[error("alu_variant mismatch: expected {expected:?}, got {got:?}")]
+    AluVariantMismatch {
+        expected: AirVariant,
+        got: AirVariant,
+    },
+
+    /// The number of non-primitive tables does not match the manifest.
+    #[error("non-primitive table count mismatch: expected {expected}, got {got}")]
+    NpoCountMismatch { expected: usize, got: usize },
+
+    /// A non-primitive table's `op_type` does not match the manifest at position `index`.
+    #[error("non-primitive op_type mismatch at index {index}: expected {expected:?}, got {got:?}")]
+    NpoOpTypeMismatch {
+        index: usize,
+        expected: NpoTypeId,
+        got: NpoTypeId,
+    },
+
+    /// A non-primitive table's `air_variant` does not match the manifest at position `index`.
+    #[error(
+        "non-primitive air_variant mismatch at index {index}: expected {expected:?}, got {got:?}"
+    )]
+    NpoAirVariantMismatch {
+        index: usize,
+        expected: AirVariant,
+        got: AirVariant,
+    },
+
+    /// A non-primitive table's `public_values` length does not match the manifest at position `index`.
+    #[error(
+        "non-primitive public_values length mismatch at index {index}: expected {expected}, got {got}"
+    )]
+    NpoPublicValueLenMismatch {
+        index: usize,
+        expected: usize,
+        got: usize,
+    },
+}
+
+/// Errors for the batch STARK table prover.
+#[derive(Debug, Error)]
+pub enum BatchStarkProverError {
+    /// The extension field degree is not one of the supported values (1, 2, 4, 6, 8).
+    #[error("unsupported extension degree: {0} (supported: 1,2,4,5,6,8)")]
+    UnsupportedDegree(usize),
+
+    /// An extension field with degree > 1 was requested but the binomial parameter `W` was not provided.
+    #[error("missing binomial parameter W for extension-field multiplication")]
+    MissingWForExtension,
+
+    /// The batch STARK verifier rejected the proof.
+    #[error("verification failed: {0}")]
+    Verify(String),
+
+    /// A non-primitive table entry references an op type for which no [`TableProver`] was registered.
+    #[error("missing table prover for non-primitive op `{0:?}`")]
+    MissingTableProver(NpoTypeId),
+
+    /// Proof metadata failed structural validation before verification.
+    #[error("invalid proof metadata: {0}")]
+    InvalidMetadata(#[from] ProofMetadataError),
+}
+
+impl<SC, const D: usize> BaseAir<Val<SC>> for CircuitTableAir<SC, D>
+where
+    SC: StarkGenericConfig,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>: Algebra<SymbolicExpression<Val<SC>>>,
+{
+    fn width(&self) -> usize {
+        match self {
+            Self::Const(a) => a.width(),
+            Self::Public(a) => a.width(),
+            Self::Alu(a) => a.width(),
+            Self::Dynamic(a) => <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::width(a.air()),
+        }
+    }
+
+    fn preprocessed_width(&self) -> usize {
+        match self {
+            Self::Const(a) => BaseAir::<Val<SC>>::preprocessed_width(a),
+            Self::Public(a) => BaseAir::<Val<SC>>::preprocessed_width(a),
+            Self::Alu(a) => BaseAir::<Val<SC>>::preprocessed_width(a),
+            Self::Dynamic(a) => {
+                <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::preprocessed_width(a.air())
+            }
+        }
+    }
+
+    fn preprocessed_trace(&self) -> Option<RowMajorMatrix<Val<SC>>> {
+        match self {
+            Self::Const(a) => a.preprocessed_trace(),
+            Self::Public(a) => a.preprocessed_trace(),
+            Self::Alu(a) => a.preprocessed_trace(),
+            Self::Dynamic(a) => {
+                <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::preprocessed_trace(a.air())
+            }
+        }
+    }
+
+    fn main_next_row_columns(&self) -> Vec<usize> {
+        match self {
+            Self::Const(a) => a.main_next_row_columns(),
+            Self::Public(a) => a.main_next_row_columns(),
+            Self::Alu(a) => a.main_next_row_columns(),
+            Self::Dynamic(a) => {
+                <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::main_next_row_columns(a.air())
+            }
+        }
+    }
+
+    fn num_public_values(&self) -> usize {
+        match self {
+            Self::Const(a) => BaseAir::<Val<SC>>::num_public_values(a),
+            Self::Public(a) => BaseAir::<Val<SC>>::num_public_values(a),
+            Self::Alu(a) => BaseAir::<Val<SC>>::num_public_values(a),
+            Self::Dynamic(a) => {
+                <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::num_public_values(a.air())
+            }
+        }
+    }
+
+    fn num_periodic_columns(&self) -> usize {
+        match self {
+            Self::Const(a) => BaseAir::<Val<SC>>::num_periodic_columns(a),
+            Self::Public(a) => BaseAir::<Val<SC>>::num_periodic_columns(a),
+            Self::Alu(a) => BaseAir::<Val<SC>>::num_periodic_columns(a),
+            Self::Dynamic(a) => {
+                <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::num_periodic_columns(a.air())
+            }
+        }
+    }
+
+    fn periodic_columns(&self) -> Vec<Vec<Val<SC>>> {
+        match self {
+            Self::Const(a) => BaseAir::<Val<SC>>::periodic_columns(a),
+            Self::Public(a) => BaseAir::<Val<SC>>::periodic_columns(a),
+            Self::Alu(a) => BaseAir::<Val<SC>>::periodic_columns(a),
+            Self::Dynamic(a) => {
+                <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::periodic_columns(a.air())
+            }
+        }
+    }
+}
+
+macro_rules! impl_circuit_table_air_for_builder {
+    ($builder_ty:ty) => {
+        fn eval(&self, builder: &mut $builder_ty) {
+            match self {
+                Self::Const(a) => Air::<$builder_ty>::eval(a, builder),
+                Self::Public(a) => Air::<$builder_ty>::eval(a, builder),
+                Self::Alu(a) => Air::<$builder_ty>::eval(a, builder),
+                Self::Dynamic(a) => Air::<$builder_ty>::eval(a, builder),
+            }
+        }
+    };
+}
+
+impl<SC, const D: usize> Air<InteractionSymbolicBuilder<Val<SC>, SC::Challenge>>
+    for CircuitTableAir<SC, D>
+where
+    SC: StarkGenericConfig,
+    Val<SC>: PrimeField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    impl_circuit_table_air_for_builder!(InteractionSymbolicBuilder<Val<SC>, SC::Challenge>);
+}
+
+#[cfg(debug_assertions)]
+impl<'a, SC, const D: usize> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
+    for CircuitTableAir<SC, D>
+where
+    SC: StarkGenericConfig,
+    Val<SC>: PrimeField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>: Algebra<SymbolicExpression<Val<SC>>>,
+{
+    impl_circuit_table_air_for_builder!(DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>);
+}
+
+impl<'a, SC, const D: usize> Air<ProverConstraintFolderWithLookups<'a, SC>>
+    for CircuitTableAir<SC, D>
+where
+    SC: StarkGenericConfig,
+    Val<SC>: PrimeField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>: Algebra<SymbolicExpression<Val<SC>>>,
+{
+    impl_circuit_table_air_for_builder!(ProverConstraintFolderWithLookups<'a, SC>);
+}
+
+impl<'a, SC, const D: usize> Air<VerifierConstraintFolderWithLookups<'a, SC>>
+    for CircuitTableAir<SC, D>
+where
+    SC: StarkGenericConfig,
+    Val<SC>: PrimeField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>: Algebra<SymbolicExpression<Val<SC>>>,
+{
+    impl_circuit_table_air_for_builder!(VerifierConstraintFolderWithLookups<'a, SC>);
+}
+
+/// Extract the lookups for a `CircuitTableAir` by symbolic evaluation. The dispatch by
+/// inner variant is needed to satisfy the AIR trait bound on the matched arms.
+///
+/// Public so the recursive verifier can rebuild the lookup contexts from the AIRs it
+/// reconstructs, instead of trusting the proof-supplied `common.lookups`.
+pub fn lookups_for_circuit_table_air<SC, const D: usize>(
+    air: &CircuitTableAir<SC, D>,
+    is_zk: usize,
+) -> Lookups<Val<SC>>
+where
+    SC: StarkGenericConfig,
+    Val<SC>: PrimeField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    // Prover, native verifier, and recursive verifier share one guarded packing policy.
+    macro_rules! pack {
+        ($a:expr) => {
+            canonical_lookups_for_air::<Val<SC>, SC::Challenge, _>($a, is_zk)
+        };
+    }
+    match air {
+        CircuitTableAir::Const(a) => pack!(a),
+        CircuitTableAir::Public(a) => pack!(a),
+        CircuitTableAir::Alu(a) => pack!(a),
+        CircuitTableAir::Dynamic(a) => pack!(a),
+    }
+}
+
+/// Const-generic dispatch for [`BatchStarkProver::register_poseidon2_table`]: only the chosen
+/// extension degree's `BinomiallyExtendable` bound is required on `Val<SC>`.
+#[doc(hidden)]
+pub trait RegisterPoseidon2ForExt<const D: usize, SC>
+where
+    SC: StarkGenericConfig + 'static,
+{
+    fn register_poseidon2(prover: &mut BatchStarkProver<SC>, config: Poseidon2Config);
+}
+
+impl<SC> RegisterPoseidon2ForExt<2, SC> for ()
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<2>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    fn register_poseidon2(prover: &mut BatchStarkProver<SC>, config: Poseidon2Config) {
+        prover.register_table_prover(Box::new(Poseidon2ProverD2::new(
+            config,
+            ConstraintProfile::Standard,
+        )));
+    }
+}
+
+impl<SC> RegisterPoseidon2ForExt<4, SC> for ()
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<4>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    fn register_poseidon2(prover: &mut BatchStarkProver<SC>, config: Poseidon2Config) {
+        prover.register_table_prover(Box::new(Poseidon2Prover::new(
+            config,
+            ConstraintProfile::Standard,
+        )));
+    }
+}
+
+impl<SC> RegisterPoseidon2ForExt<5, SC> for ()
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<4>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    fn register_poseidon2(prover: &mut BatchStarkProver<SC>, config: Poseidon2Config) {
+        prover.register_table_prover(Box::new(Poseidon2Prover::new(
+            config,
+            ConstraintProfile::Standard,
+        )));
+    }
+}
+
+/// Const-generic dispatch for [`BatchStarkProver::register_poseidon1_table`]: only the chosen
+/// extension degree's `BinomiallyExtendable` bound is required on `Val<SC>`.
+#[doc(hidden)]
+pub trait RegisterPoseidon1ForExt<const D: usize, SC>
+where
+    SC: StarkGenericConfig + 'static,
+{
+    fn register_poseidon1(prover: &mut BatchStarkProver<SC>, config: Poseidon1Config);
+}
+
+impl<SC> RegisterPoseidon1ForExt<2, SC> for ()
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<2>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    fn register_poseidon1(prover: &mut BatchStarkProver<SC>, config: Poseidon1Config) {
+        prover.register_table_prover(Box::new(Poseidon1ProverD2::new(
+            config,
+            ConstraintProfile::Standard,
+        )));
+    }
+}
+
+impl<SC> RegisterPoseidon1ForExt<4, SC> for ()
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<4>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    fn register_poseidon1(prover: &mut BatchStarkProver<SC>, config: Poseidon1Config) {
+        prover.register_table_prover(Box::new(Poseidon1Prover::new(
+            config,
+            ConstraintProfile::Standard,
+        )));
+    }
+}
+
+impl<SC> RegisterPoseidon1ForExt<5, SC> for ()
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<4>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    fn register_poseidon1(prover: &mut BatchStarkProver<SC>, config: Poseidon1Config) {
+        prover.register_table_prover(Box::new(Poseidon1Prover::new(
+            config,
+            ConstraintProfile::Standard,
+        )));
+    }
+}
+
+/// Dispatch a runtime extension degree to a `const D` monomorphization.
+///
+/// The single supported-degree list (1, 2, 4, 5, 6, 8) lives here so the prove and
+/// verify entry points cannot drift. `$body` is evaluated with `$d` bound as a
+/// `const usize` for each supported degree; any other degree yields
+/// [`BatchStarkProverError::UnsupportedDegree`].
+macro_rules! dispatch_by_ext_degree {
+    ($degree:expr, |$d:ident| $body:expr) => {
+        match $degree {
+            1 => {
+                const $d: usize = 1;
+                $body
+            }
+            2 => {
+                const $d: usize = 2;
+                $body
+            }
+            4 => {
+                const $d: usize = 4;
+                $body
+            }
+            5 => {
+                const $d: usize = 5;
+                $body
+            }
+            6 => {
+                const $d: usize = 6;
+                $body
+            }
+            8 => {
+                const $d: usize = 8;
+                $body
+            }
+            other => Err(BatchStarkProverError::UnsupportedDegree(other)),
+        }
+    };
+}
+
+impl<SC> BatchStarkProver<SC>
+where
+    SC: StarkGenericConfig + 'static,
+    Val<SC>: StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    /// Create a new prover with the given STARK config and default table packing.
+    pub fn new(config: SC) -> Self {
+        Self {
+            config,
+            table_packing: TablePacking::default(),
+            alu_variant: AirVariant::Optimized,
+            non_primitive_provers: Vec::new(),
+            debug_lookups: false,
+        }
+    }
+
+    /// Override the default [`TablePacking`] configuration (builder-style).
+    #[must_use]
+    pub fn with_table_packing(mut self, table_packing: TablePacking) -> Self {
+        self.table_packing = table_packing;
+        self
+    }
+
+    /// Enable the lookup debugger. When set, `prove_all_tables` will run
+    /// `check_lookups` on the constructed traces before generating the proof,
+    /// panicking with a detailed message on any multiset imbalance.
+    #[must_use]
+    pub const fn with_debug_lookups(mut self) -> Self {
+        self.debug_lookups = true;
+        self
+    }
+
+    /// Register a dynamic non-primitive table prover.
+    pub fn register_table_prover(&mut self, prover: Box<dyn TableProver<SC>>) {
+        self.non_primitive_provers.push(prover);
+    }
+
+    /// Builder-style registration for a dynamic non-primitive table prover.
+    #[must_use]
+    pub fn with_table_prover(mut self, prover: Box<dyn TableProver<SC>>) -> Self {
+        self.register_table_prover(prover);
+        self
+    }
+
+    /// Register the non-primitive Poseidon2 table prover for extension degree `D` (`2` or `4`).
+    pub fn register_poseidon2_table<const D: usize>(&mut self, config: Poseidon2Config)
+    where
+        SC: Send + Sync,
+        (): RegisterPoseidon2ForExt<D, SC>,
+    {
+        <() as RegisterPoseidon2ForExt<D, SC>>::register_poseidon2(self, config);
+    }
+
+    /// Register the non-primitive Poseidon1 table prover for extension degree `D` (`2`, `4` or `5`).
+    pub fn register_poseidon1_table<const D: usize>(&mut self, config: Poseidon1Config)
+    where
+        SC: Send + Sync,
+        (): RegisterPoseidon1ForExt<D, SC>,
+    {
+        <() as RegisterPoseidon1ForExt<D, SC>>::register_poseidon1(self, config);
+    }
+
+    /// Register the recompose (BF→EF packing) table prover(s) for extension degree `D`.
+    ///
+    /// Set `split_coeff_tables` to `true` when the Poseidon2 permutation degree can differ
+    /// from the circuit extension degree `D` (e.g. D=1 Poseidon2 in a D=5 circuit). That
+    /// registers both the standard `recompose` table and `recompose/coeff` (per-coefficient
+    /// WitnessChecks receives only where the circuit uses them).
+    pub fn register_recompose_table<const D: usize>(&mut self, split_coeff_tables: bool)
+    where
+        SC: Send + Sync,
+    {
+        for prover in recompose_table_provers::<SC, D>(1, split_coeff_tables) {
+            self.register_table_prover(prover);
+        }
+    }
+
+    /// Builder-style registration for the recompose table prover.
+    #[must_use]
+    pub fn with_recompose_table<const D: usize>(mut self, split_coeff_tables: bool) -> Self
+    where
+        SC: Send + Sync,
+    {
+        self.register_recompose_table::<D>(split_coeff_tables);
+        self
+    }
+
+    /// Return the current [`TablePacking`] configuration.
+    #[inline]
+    pub const fn table_packing(&self) -> &TablePacking {
+        &self.table_packing
+    }
+
+    /// Select which ALU AIR variant to use for primitive tables.
+    #[must_use]
+    pub const fn with_alu_variant(mut self, variant: AirVariant) -> Self {
+        self.alu_variant = variant;
+        self
+    }
+
+    /// Generate a unified batch STARK proof for all circuit tables.
+    #[instrument(skip_all)]
+    pub fn prove_all_tables<EF>(
+        &self,
+        traces: &Traces<EF>,
+        circuit_prover_data: &CircuitProverData<SC>,
+    ) -> Result<BatchStarkProof<SC>, BatchStarkProverError>
+    where
+        EF: Field + BasedVectorSpace<Val<SC>> + ExtractBinomialW<Val<SC>>,
+        SymbolicExpressionExt<Val<SC>, SC::Challenge>: Algebra<SymbolicExpression<Val<SC>>>,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Domain: Send + Sync,
+        SC::Pcs: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::ProverData: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: Sync,
+    {
+        let w_opt = EF::extract_w();
+        dispatch_by_ext_degree!(EF::DIMENSION, |D| self.prove::<EF, D>(
+            traces,
+            w_opt,
+            Some(circuit_prover_data),
+            None,
+        ))
+    }
+
+    /// Generate one unified proof directly from table traces.
+    ///
+    /// This is the canonical path for domain-specific AIRs whose rows already
+    /// are the proving computation. It deliberately has no [`Circuit`] or
+    /// [`CircuitProverData`] input, so raw table rows are not duplicated into
+    /// witness and ALU tables merely to reach the batch prover. Primitive
+    /// tables remain present as their mandatory one-row neutral instances, and
+    /// the complete prover common data is derived from the actual dynamic AIR
+    /// instances before committing.
+    ///
+    /// The returned proof uses the same transcript, PCS, FRI parameters,
+    /// metadata validation, native verifier, and recursive verifier as
+    /// [`Self::prove_all_tables`].
+    #[instrument(skip_all)]
+    pub fn prove_direct_tables(
+        &self,
+        traces: &Traces<Val<SC>>,
+    ) -> Result<BatchStarkProof<SC>, BatchStarkProverError>
+    where
+        SymbolicExpressionExt<Val<SC>, SC::Challenge>: Algebra<SymbolicExpression<Val<SC>>>,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Domain: Send + Sync,
+        SC::Pcs: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::ProverData: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: Sync,
+    {
+        self.prove::<Val<SC>, 1>(traces, None, None, None)
+    }
+
+    /// Generate a unified batch STARK proof while consuming single-use prover data.
+    ///
+    /// This is theorem- and transcript-equivalent to [`Self::prove_all_tables`].
+    /// It exists for bounded workers that will never reuse this circuit shape:
+    /// ownership of the large ALU preprocessed columns is moved into the AIR and
+    /// the reusable schedule/preprocessed-trace cache is deliberately bypassed.
+    /// All verifier-facing metadata, AIRs, trace matrices, and proof parameters
+    /// are unchanged.
+    #[instrument(skip_all)]
+    pub fn prove_all_tables_one_shot<EF>(
+        &self,
+        traces: &Traces<EF>,
+        mut circuit_prover_data: CircuitProverData<SC>,
+    ) -> Result<BatchStarkProof<SC>, BatchStarkProverError>
+    where
+        EF: Field + BasedVectorSpace<Val<SC>> + ExtractBinomialW<Val<SC>>,
+        SymbolicExpressionExt<Val<SC>, SC::Challenge>: Algebra<SymbolicExpression<Val<SC>>>,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Domain: Send + Sync,
+        SC::Pcs: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::ProverData: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: Sync,
+    {
+        let alu_prep = core::mem::take(
+            &mut circuit_prover_data.primitive_columns[PrimitiveOpType::Alu as usize],
+        );
+        let w_opt = EF::extract_w();
+        dispatch_by_ext_degree!(EF::DIMENSION, |D| self.prove::<EF, D>(
+            traces,
+            w_opt,
+            Some(&circuit_prover_data),
+            Some(alu_prep),
+        ))
+    }
+
+    /// Verify the unified batch STARK proof against all tables.
+    ///
+    /// `EF` is the verifier's **expected trace element field**. Its degree and binomial/quintic
+    /// reduction parameters are derived verifier-side and bound against the proof's declared
+    /// `ext_degree`/`w_binomial`/`alu_quintic_trinomial` before any AIR is reconstructed, so the
+    /// verified extension-arithmetic relation is verifier-chosen rather than proof-chosen.
+    pub fn verify_all_tables<EF>(
+        &self,
+        proof: &BatchStarkProof<SC>,
+    ) -> Result<(), BatchStarkProverError>
+    where
+        EF: Field + BasedVectorSpace<Val<SC>> + ExtractBinomialW<Val<SC>>,
+    {
+        proof.validate()?;
+
+        // Reduction parameters as the prover would store them for this field (see `prove`).
+        let expected_w = if EF::DIMENSION > 1 {
+            EF::extract_w()
+        } else {
+            None
+        };
+        let expected_quintic = EF::DIMENSION == 5 && EF::alu_is_quintic_trinomial();
+
+        if proof.ext_degree != EF::DIMENSION {
+            return Err(ProofMetadataError::ExtDegreeMismatch {
+                expected: EF::DIMENSION,
+                got: proof.ext_degree,
+            }
+            .into());
+        }
+        if proof.w_binomial != expected_w {
+            return Err(ProofMetadataError::BinomialWMismatch.into());
+        }
+        if proof.alu_quintic_trinomial != expected_quintic {
+            return Err(ProofMetadataError::QuinticReductionMismatch {
+                expected: expected_quintic,
+                got: proof.alu_quintic_trinomial,
+            }
+            .into());
+        }
+
+        let common = &proof.stark_common;
+        dispatch_by_ext_degree!(EF::DIMENSION, |D| self
+            .verify::<D>(proof, expected_w, common))
+    }
+
+    /// Generate a batch STARK proof for a specific extension field degree.
+    ///
+    /// This is the core proving logic that handles all circuit tables for a given
+    /// extension field dimension. It constructs AIRs, converts traces to matrices,
+    /// and generates the unified proof.
+    fn prove<EF, const D: usize>(
+        &self,
+        traces: &Traces<EF>,
+        w_binomial: Option<Val<SC>>,
+        circuit_prover_data: Option<&CircuitProverData<SC>>,
+        one_shot_alu_prep: Option<Vec<Val<SC>>>,
+    ) -> Result<BatchStarkProof<SC>, BatchStarkProverError>
+    where
+        EF: Field + BasedVectorSpace<Val<SC>> + ExtractBinomialW<Val<SC>>,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Domain: Send + Sync,
+        SC::Pcs: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::ProverData: Sync,
+        <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: Sync,
+    {
+        let direct_primitive = [
+            Vec::new(),
+            Vec::new(),
+            vec![Val::<SC>::ZERO; AluAir::<Val<SC>, D>::preprocessed_lane_width()],
+        ];
+        let direct_non_primitive = HashMap::new();
+        let primitive = circuit_prover_data
+            .map(|data| data.primitive_columns.as_slice())
+            .unwrap_or(&direct_primitive);
+        let non_primitive = circuit_prover_data
+            .map(|data| &data.non_primitive_columns)
+            .unwrap_or(&direct_non_primitive);
+
+        // One lookup per NpoTypeId instead of repeated `op_type()` (clones inner id string).
+        let prover_index_by_type: BTreeMap<NpoTypeId, usize> = self
+            .non_primitive_provers
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (p.op_type(), i))
+            .collect();
+
+        // Build matrices and AIRs per table.
+        let packing = &self.table_packing;
+        let min_height = packing.min_trace_height();
+
+        // The table implementation adds a dummy row when empty, so a trace length <= 1 means
+        // the Alu table has only dummy operations.
+        let alu_trace_only_dummy = traces.alu_trace.op_kind.len() <= 1;
+        let alu_lanes = reduce_lanes_if_dummy("ALU", alu_trace_only_dummy, packing.alu_lanes());
+
+        // Const — preprocessed is already in [ext_mult, index] 2-col format.
+        let const_rows = traces.const_trace.values.len();
+        let const_prep = primitive[PrimitiveOpType::Const as usize].clone();
+        let const_air = ConstAir::<Val<SC>, D>::new_with_preprocessed(const_rows, const_prep)
+            .with_min_height(min_height);
+        let const_matrix: RowMajorMatrix<Val<SC>> =
+            ConstAir::<Val<SC>, D>::trace_to_matrix(&traces.const_trace, min_height);
+
+        // Public — reduce lanes to 1 if the table has only dummy operations.
+        let public_trace_only_dummy = traces.public_trace.values.len() <= 1;
+        let public_lanes =
+            reduce_lanes_if_dummy("Public", public_trace_only_dummy, packing.public_lanes());
+
+        // Preprocessed is already in [ext_mult, index] 2-col format.
+        let public_rows = traces.public_trace.values.len();
+        let public_prep = primitive[PrimitiveOpType::Public as usize].clone();
+        let public_air =
+            PublicAir::<Val<SC>, D>::new_with_preprocessed(public_rows, public_lanes, public_prep)
+                .with_min_height(min_height);
+        let public_matrix: RowMajorMatrix<Val<SC>> = PublicAir::<Val<SC>, D>::trace_to_matrix(
+            &traces.public_trace,
+            public_lanes,
+            min_height,
+        );
+
+        // ALU — preprocessed is already in 10-col format (with multiplicities) from
+        // get_airs_and_degrees_with_prep. When the trace is empty, a dummy row is included.
+        let alu_rows = traces.alu_trace.values.len();
+        let one_shot = one_shot_alu_prep.is_some();
+        let alu_prep =
+            one_shot_alu_prep.unwrap_or_else(|| primitive[PrimitiveOpType::Alu as usize].clone());
+        let alu_num_ops = alu_prep.len() / AluAir::<Val<SC>, D>::preprocessed_lane_width();
+        let horner_k = packing.horner_packed_steps();
+        let alu_quintic = D == 5 && EF::alu_is_quintic_trinomial();
+        let reduction = AluExtMulKind::resolve(D, w_binomial, alu_quintic)
+            .ok_or(BatchStarkProverError::MissingWForExtension)?;
+        // The packed-Horner schedule and the resulting preprocessed trace matrix depend only on
+        // (alu_prep, alu_lanes, horner_k, min_height), not on D, so both are cached in
+        // `circuit_prover_data` and reused across proofs of this circuit shape.
+        let (alu_schedule, cached_prep_trace) = if one_shot {
+            (
+                AluAir::<Val<SC>, D>::compute_schedule_for(&alu_prep, alu_lanes, horner_k),
+                None,
+            )
+        } else {
+            match circuit_prover_data {
+                Some(circuit_prover_data) => {
+                    let mut cache = circuit_prover_data.alu_schedule_cache.borrow_mut();
+                    match cache.as_ref() {
+                        Some((cached_lanes, cached_k, cached_min_height, schedule, prep_trace))
+                            if *cached_lanes == alu_lanes
+                                && *cached_k == horner_k
+                                && *cached_min_height == min_height =>
+                        {
+                            (schedule.clone(), prep_trace.clone())
+                        }
+                        _ => {
+                            let schedule = AluAir::<Val<SC>, D>::compute_schedule_for(
+                                &alu_prep, alu_lanes, horner_k,
+                            );
+                            *cache =
+                                Some((alu_lanes, horner_k, min_height, schedule.clone(), None));
+                            (schedule, None)
+                        }
+                    }
+                }
+                None => (
+                    AluAir::<Val<SC>, D>::compute_schedule_for(&alu_prep, alu_lanes, horner_k),
+                    None,
+                ),
+            }
+        };
+        let mut alu_air: AluAir<Val<SC>, D> = AluAir::<Val<SC>, D>::from_reduction_with_schedule(
+            alu_num_ops,
+            alu_lanes,
+            reduction,
+            alu_prep,
+            horner_k,
+            alu_schedule,
+        )
+        .with_min_height(min_height);
+        if one_shot {
+            // `p3_batch_stark::prove_batch` requests this AIR's preprocessed
+            // trace exactly where it is consumed. Keeping neither a reusable
+            // cache copy nor an AIR-owned clone avoids overlapping three large
+            // matrices in a worker that will never prove this shape again.
+        } else if let Some(prep_trace) = cached_prep_trace {
+            alu_air = alu_air.with_precomputed_prep_trace(prep_trace);
+        } else if let Some(circuit_prover_data) = circuit_prover_data
+            && let Some(prep_trace) = alu_air.preprocessed_trace()
+        {
+            alu_air = alu_air.with_precomputed_prep_trace(prep_trace.clone());
+            let mut cache = circuit_prover_data.alu_schedule_cache.borrow_mut();
+            if let Some((cached_lanes, cached_k, cached_min_height, _, cached_prep_trace)) =
+                cache.as_mut()
+                && *cached_lanes == alu_lanes
+                && *cached_k == horner_k
+                && *cached_min_height == min_height
+            {
+                *cached_prep_trace = Some(prep_trace);
+            }
+        }
+        let alu_matrix: RowMajorMatrix<Val<SC>> =
+            alu_air.trace_to_matrix(&traces.alu_trace, min_height);
+        let alu_scheduled_entries = alu_air.scheduled_entry_count();
+
+        // We first handle all non-primitive tables dynamically, which will then be batched alongside primitive ones.
+        // Each trace must have a corresponding registered prover for it to be provable.
+        for (op_type, trace) in &traces.non_primitive_traces {
+            if trace.rows() == 0 {
+                continue;
+            }
+            if !prover_index_by_type.contains_key(op_type) {
+                return Err(BatchStarkProverError::MissingTableProver(op_type.clone()));
+            }
+        }
+
+        let mut dynamic_instances: Vec<BatchTableInstance<SC>> =
+            Vec::with_capacity(self.non_primitive_provers.len());
+        if D == 1 {
+            let t: &Traces<Val<SC>> = unsafe { transmute_traces(traces) };
+            for p in &self.non_primitive_provers {
+                if let Some(instance) = p.batch_instance_d1(&self.config, packing, t) {
+                    dynamic_instances.push(instance);
+                }
+            }
+        } else if D == 2 {
+            type EF2<F> = BinomialExtensionField<F, 2>;
+            let t: &Traces<EF2<Val<SC>>> = unsafe { transmute_traces(traces) };
+            for p in &self.non_primitive_provers {
+                if let Some(instance) = p.batch_instance_d2(&self.config, packing, t) {
+                    dynamic_instances.push(instance);
+                }
+            }
+        } else if D == 4 {
+            type EF4<F> = BinomialExtensionField<F, 4>;
+            let t: &Traces<EF4<Val<SC>>> = unsafe { transmute_traces(traces) };
+            for p in &self.non_primitive_provers {
+                if let Some(instance) = p.batch_instance_d4(&self.config, packing, t) {
+                    dynamic_instances.push(instance);
+                }
+            }
+        } else if D == 6 {
+            type EF6<F> = BinomialExtensionField<F, 6>;
+            let t: &Traces<EF6<Val<SC>>> = unsafe { transmute_traces(traces) };
+            for p in &self.non_primitive_provers {
+                if let Some(instance) = p.batch_instance_d6(&self.config, packing, t) {
+                    dynamic_instances.push(instance);
+                }
+            }
+        } else if D == 8 {
+            type EF8<F> = BinomialExtensionField<F, 8>;
+            let t: &Traces<EF8<Val<SC>>> = unsafe { transmute_traces(traces) };
+            for p in &self.non_primitive_provers {
+                if let Some(instance) = p.batch_instance_d8(&self.config, packing, t) {
+                    dynamic_instances.push(instance);
+                }
+            }
+        } else if D == 5 {
+            type EF5<F> = p3_field::extension::QuinticTrinomialExtensionField<F>;
+            let t: &Traces<EF5<Val<SC>>> = unsafe { transmute_traces(traces) };
+            for p in &self.non_primitive_provers {
+                if let Some(instance) = p.batch_instance_d5(&self.config, packing, t) {
+                    dynamic_instances.push(instance);
+                }
+            }
+        }
+
+        // The `batch_instance_dN` methods regenerate Poseidon2 preprocessed data from
+        // runtime ops using `extract_preprocessed_from_operations`.
+        //
+        // Hence, we override here with the committed preprocessed data so the debug
+        // lookup check is consistent with the committed preprocessed trace.
+        for instance in &mut dynamic_instances {
+            if let Some(committed_prep) = non_primitive.get(&instance.op_type)
+                && let Some(&pi) = prover_index_by_type.get(&instance.op_type)
+            {
+                let p = &self.non_primitive_provers[pi];
+                if let Some(new_air) = p.air_with_committed_preprocessed(
+                    committed_prep.clone(),
+                    min_height,
+                    instance.lanes,
+                    D as u32,
+                ) {
+                    instance.air = new_air;
+                }
+            }
+        }
+
+        TraceTablesLayout {
+            const_: AirTableShape {
+                main_cols: BaseAir::width(&const_air),
+                prep_cols: ConstAir::<Val<SC>, D>::preprocessed_width(),
+                rows: const_rows,
+                lanes: 1,
+            },
+            public: AirTableShape {
+                main_cols: BaseAir::width(&public_air),
+                prep_cols: public_air.preprocessed_width(),
+                rows: public_rows.div_ceil(public_lanes),
+                lanes: public_lanes,
+            },
+            alu: AirTableShape {
+                main_cols: BaseAir::width(&alu_air),
+                prep_cols: alu_air.preprocessed_width(),
+                rows: alu_scheduled_entries.div_ceil(alu_lanes),
+                lanes: alu_lanes,
+            },
+            non_primitives: dynamic_instances
+                .iter()
+                .map(|inst| {
+                    let prep_cols = BaseAir::preprocessed_width(&inst.air);
+                    let rows = traces
+                        .non_primitive_traces
+                        .get(&inst.op_type)
+                        .map(|t| t.rows())
+                        .unwrap_or(inst.rows);
+                    (
+                        inst.op_type.clone(),
+                        AirTableShape {
+                            main_cols: inst.trace.width(),
+                            prep_cols,
+                            rows: rows / inst.lanes,
+                            lanes: inst.lanes,
+                        },
+                    )
+                })
+                .collect(),
+        }
+        .log();
+
+        // Wrap AIRs in enum for heterogeneous batching and build instances in fixed order.
+        let mut air_storage: Vec<CircuitTableAir<SC, D>> =
+            Vec::with_capacity(NUM_PRIMITIVE_TABLES + dynamic_instances.len());
+        let mut trace_storage: Vec<RowMajorMatrix<Val<SC>>> =
+            Vec::with_capacity(NUM_PRIMITIVE_TABLES + dynamic_instances.len());
+        let mut public_storage: Vec<Vec<Val<SC>>> =
+            Vec::with_capacity(NUM_PRIMITIVE_TABLES + dynamic_instances.len());
+        let mut non_primitive_meta: Vec<(NpoTypeId, usize, usize, AirVariant)> =
+            Vec::with_capacity(dynamic_instances.len());
+
+        // Pad all trace matrices to at least min_height (for FRI compatibility)
+        air_storage.push(CircuitTableAir::Const(const_air));
+        trace_storage.push(const_matrix);
+        public_storage.push(Vec::new());
+
+        air_storage.push(CircuitTableAir::Public(public_air));
+        trace_storage.push(public_matrix);
+        public_storage.push(Vec::new());
+
+        air_storage.push(CircuitTableAir::Alu(alu_air));
+        trace_storage.push(alu_matrix);
+        public_storage.push(Vec::new());
+
+        for instance in dynamic_instances {
+            let BatchTableInstance {
+                op_type,
+                air,
+                mut trace,
+                public_values,
+                lanes,
+                rows,
+            } = instance;
+            air_storage.push(CircuitTableAir::Dynamic(air));
+            trace.pad_to_min_power_of_two_height(min_height, Val::<SC>::ZERO);
+            trace_storage.push(trace);
+            public_storage.push(public_values);
+            non_primitive_meta.push((op_type, rows, lanes, AirVariant::Baseline));
+        }
+
+        // Use the pre-computed ProverData when the AIR structure is unchanged (common case).
+        // Recompute only when lane reduction altered the lookup layout, since the number of
+        // lookups per table depends on lane count.
+        let lanes_reduced = (alu_trace_only_dummy && packing.alu_lanes() > 1)
+            || (public_trace_only_dummy && packing.public_lanes() > 1);
+        let recomputed_data: Option<ProverData<SC>> =
+            if circuit_prover_data.is_none() || lanes_reduced {
+                let trace_ext_degree_bits: Vec<usize> = trace_storage
+                    .iter()
+                    .map(|m| log2_strict_usize(m.height()) + self.config.is_zk())
+                    .collect();
+                Some(canonical_prover_data_from_airs_and_degrees(
+                    &self.config,
+                    &air_storage,
+                    &trace_ext_degree_bits,
+                ))
+            } else {
+                None
+            };
+        let effective_prover_data = recomputed_data
+            .as_ref()
+            .or_else(|| circuit_prover_data.map(|data| &data.prover_data))
+            .expect("direct-table proving always recomputes prover common data");
+
+        let proof = {
+            let trace_refs: Vec<&RowMajorMatrix<Val<SC>>> = trace_storage.iter().collect();
+            let instances: Vec<StarkInstance<'_, SC, CircuitTableAir<SC, D>>> =
+                StarkInstance::new_multiple(&air_storage, &trace_refs, &public_storage);
+
+            if self.debug_lookups {
+                use p3_lookup::debug_util::{LookupDebugInstance, check_lookups};
+
+                let mut preprocessed_traces: Vec<Option<RowMajorMatrix<Val<SC>>>> = instances
+                    .iter()
+                    .map(|inst| inst.air.preprocessed_trace())
+                    .collect();
+
+                for (j, (op_type, _, lanes, _)) in non_primitive_meta.iter().enumerate() {
+                    if let Some(committed_prep) = non_primitive.get(op_type) {
+                        let prover = self
+                            .non_primitive_provers
+                            .iter()
+                            .find(|p| TableProver::op_type(p.as_ref()) == *op_type);
+                        if let Some(prover) = prover
+                            && let Some(air) = prover.air_with_committed_preprocessed(
+                                committed_prep.clone(),
+                                min_height,
+                                *lanes,
+                                D as u32,
+                            )
+                            && let Some(trace) = air.preprocessed_trace()
+                        {
+                            preprocessed_traces[NUM_PRIMITIVE_TABLES + j] = Some(trace);
+                        }
+                    }
+                }
+
+                let debug_instance_lookups: Vec<Lookups<Val<SC>>> = instances
+                    .iter()
+                    .map(|inst| {
+                        lookups_for_circuit_table_air::<SC, D>(inst.air, self.config.is_zk())
+                    })
+                    .collect();
+                let debug_instances: Vec<LookupDebugInstance<'_, Val<SC>>> = instances
+                    .iter()
+                    .zip(preprocessed_traces.iter())
+                    .zip(debug_instance_lookups.iter())
+                    .map(|((inst, prep), lookups)| LookupDebugInstance {
+                        main_trace: inst.trace,
+                        preprocessed_trace: prep,
+                        public_values: &inst.public_values,
+                        lookups,
+                        permutation_challenges: &[],
+                    })
+                    .collect();
+                check_lookups(&debug_instances);
+            }
+
+            p3_batch_stark::prove_batch(&self.config, &instances, effective_prover_data)
+        };
+
+        let dynamic_public_values = public_storage.drain(NUM_PRIMITIVE_TABLES..);
+        let non_primitives: Vec<NonPrimitiveTableEntry<SC>> = non_primitive_meta
+            .into_iter()
+            .zip(dynamic_public_values)
+            .map(
+                |((op_type, rows, lanes, air_variant), public_values)| NonPrimitiveTableEntry {
+                    op_type,
+                    rows,
+                    lanes,
+                    public_values,
+                    air_variant,
+                },
+            )
+            .collect();
+
+        // Ensure all primitive table row counts are at least 1
+        // RowCounts::new requires non-zero counts, so pad zeros to 1
+        let const_rows_padded = const_rows.max(1);
+        let public_rows_padded = public_rows.max(1);
+        let alu_rows_padded = alu_rows.max(1);
+
+        // Store the effective packing (reduced lanes if applicable) so the verifier matches
+        // proving. Clone full config so `horner_packed_steps`, NPO lane overrides, etc. are preserved.
+        let effective_packing = self
+            .table_packing
+            .clone()
+            .with_public_alu_lanes(public_lanes, alu_lanes);
+
+        // Populate `stark_common` so the proof is self-binding to the preprocessed metadata.
+        let stark_common = recomputed_data.map(|pd| pd.common).unwrap_or_else(|| {
+            clone_common_data(
+                &circuit_prover_data
+                    .expect("circuit proving supplies precomputed common data")
+                    .prover_data
+                    .common,
+            )
+        });
+
+        Ok(BatchStarkProof {
+            proof,
+            table_packing: effective_packing,
+            rows: RowCounts::new([const_rows_padded, public_rows_padded, alu_rows_padded]),
+            alu_variant: self.alu_variant,
+            ext_degree: D,
+            w_binomial: if D > 1 { w_binomial } else { None },
+            alu_quintic_trinomial: alu_quintic,
+            non_primitives,
+            stark_common,
+        })
+    }
+
+    /// Verify a batch STARK proof for a specific extension field degree.
+    ///
+    /// This reconstructs the AIRs from the proof metadata and verifies the proof
+    /// against all circuit tables. The AIRs are reconstructed using the same
+    /// configuration that was used during proof generation.
+    fn verify<const D: usize>(
+        &self,
+        proof: &BatchStarkProof<SC>,
+        w_binomial: Option<Val<SC>>,
+        common: &CommonData<SC>,
+    ) -> Result<(), BatchStarkProverError> {
+        let prover_index_by_type: BTreeMap<NpoTypeId, usize> = self
+            .non_primitive_provers
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (p.op_type(), i))
+            .collect();
+
+        // Rebuild AIRs in the same order as prove.
+        let packing = &proof.table_packing;
+        let public_lanes = packing.public_lanes();
+        let alu_lanes = packing.alu_lanes();
+        let min_height = packing.min_trace_height();
+
+        let const_air = CircuitTableAir::Const(
+            ConstAir::<Val<SC>, D>::new(proof.rows[PrimitiveTable::Const])
+                .with_min_height(min_height),
+        );
+        let public_air = CircuitTableAir::Public(
+            PublicAir::<Val<SC>, D>::new(proof.rows[PrimitiveTable::Public], public_lanes)
+                .with_min_height(min_height),
+        );
+        let horner_k = packing.horner_packed_steps();
+        let reduction =
+            AluExtMulKind::resolve(D, w_binomial, D == 5 && proof.alu_quintic_trinomial)
+                .ok_or(BatchStarkProverError::MissingWForExtension)?;
+        let alu_air: CircuitTableAir<SC, D> = CircuitTableAir::Alu(
+            AluAir::<Val<SC>, D>::from_reduction(
+                proof.rows[PrimitiveTable::Alu],
+                alu_lanes,
+                reduction,
+            )
+            .with_horner_pack_k(horner_k)
+            .with_min_height(min_height),
+        );
+        let mut airs = vec![const_air, public_air, alu_air];
+        let mut pvs: Vec<Vec<Val<SC>>> =
+            Vec::with_capacity(NUM_PRIMITIVE_TABLES + proof.non_primitives.len());
+        pvs.resize_with(NUM_PRIMITIVE_TABLES, Vec::new);
+
+        for entry in &proof.non_primitives {
+            let pi = *prover_index_by_type.get(&entry.op_type).ok_or_else(|| {
+                BatchStarkProverError::Verify(format!(
+                    "unknown non-primitive op: {:?}",
+                    entry.op_type
+                ))
+            })?;
+            let plugin = &self.non_primitive_provers[pi];
+            let air = plugin
+                .batch_air_from_table_entry(&self.config, D, proof.ext_degree as u32, entry)
+                .map_err(BatchStarkProverError::Verify)?;
+            airs.push(CircuitTableAir::Dynamic(air));
+            pvs.push(entry.public_values.clone());
+        }
+
+        // Derive lookups from the rebuilt AIRs so the layout always reflects the effective
+        // lane counts stored in `proof.table_packing`. The serialized `stark_common` only
+        // carries the preprocessed binding, not the lookup contexts.
+        let lookups: Vec<Lookups<Val<SC>>> = airs
+            .iter()
+            .map(|a| lookups_for_circuit_table_air::<SC, D>(a, self.config.is_zk()))
+            .collect();
+        let effective_common = CommonData::new(
+            common.preprocessed.as_ref().map(|g| GlobalPreprocessed {
+                commitment: g.commitment.clone(),
+                instances: g.instances.clone(),
+                matrix_to_instance: g.matrix_to_instance.clone(),
+            }),
+            lookups,
+        );
+
+        p3_batch_stark::verify_batch(&self.config, &airs, &proof.proof, &pvs, &effective_common)
+            .map_err(|e| BatchStarkProverError::Verify(format!("{e:?}")))
+    }
+}
+
+/// Poseidon2 AIR builders for the given extension degree `D` (typically `2` or `4`).
+pub fn poseidon2_air_builders<SC, const D: usize>() -> Vec<Box<dyn NpoAirBuilder<SC, D>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<D> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+    Poseidon2AirBuilder<D>: NpoAirBuilder<SC, D>,
+{
+    vec![Box::new(Poseidon2AirBuilder)]
+}
+
+/// Create one config-restricted Poseidon2 AIR builder per entry in `configs`, preserving order.
+///
+/// Use this when a circuit can contain more than one Poseidon2 table (e.g. a W16 challenger plus a
+/// W32 MMCS): the per-config builders keep the prover-data AIR order aligned with the matching
+/// `non_primitive_provers`, one AIR per registered table prover.
+pub fn poseidon2_air_builders_for_configs<SC, const D: usize>(
+    configs: Vec<Poseidon2Config>,
+) -> Vec<Box<dyn NpoAirBuilder<SC, D>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+    Poseidon2AirBuilderForConfig<D>: NpoAirBuilder<SC, D> + 'static,
+{
+    configs
+        .into_iter()
+        .map(|config| {
+            Box::new(Poseidon2AirBuilderForConfig::<D>::new(config))
+                as Box<dyn NpoAirBuilder<SC, D>>
+        })
+        .collect()
+}
+
+/// Create Poseidon2 table provers for D=4 (e.g. BabyBear, KoalaBear).
+pub fn poseidon2_table_provers_d4<SC>(config: Poseidon2Config) -> Vec<Box<dyn TableProver<SC>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<4> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon2Prover::new(
+        config,
+        ConstraintProfile::Standard,
+    ))]
+}
+
+/// Create Poseidon2 table provers for `D = 5` circuit traces (e.g. Koala quintic with base-first Poseidon).
+pub fn poseidon2_table_provers_d5<SC>(config: Poseidon2Config) -> Vec<Box<dyn TableProver<SC>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<4>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon2Prover::new(
+        config,
+        ConstraintProfile::Standard,
+    ))]
+}
+
+/// Poseidon2 AIR builders for D=2 (e.g. Goldilocks).
+pub fn poseidon2_air_builders_d2<SC>() -> Vec<Box<dyn NpoAirBuilder<SC, 2>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<2> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon2AirBuilder::<2>)]
+}
+
+/// Poseidon2 AIR builders for D=4 (e.g. BabyBear, KoalaBear).
+pub fn poseidon2_air_builders_d4<SC>() -> Vec<Box<dyn NpoAirBuilder<SC, 4>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<4> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon2AirBuilder::<4>)]
+}
+
+/// Poseidon2 AIR builders for `D = 5` circuit traces (e.g. KoalaBear quintic).
+pub fn poseidon2_air_builders_d5<SC>() -> Vec<Box<dyn NpoAirBuilder<SC, 5>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon2AirBuilder::<5>)]
+}
+
+/// Poseidon1 AIR builders for the given extension degree `D` (typically `2` or `4`).
+pub fn poseidon1_air_builders<SC, const D: usize>() -> Vec<Box<dyn NpoAirBuilder<SC, D>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<D> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+    Poseidon1AirBuilder<D>: NpoAirBuilder<SC, D>,
+{
+    vec![Box::new(Poseidon1AirBuilder)]
+}
+
+/// Create Poseidon1 table provers for D=4 (e.g. BabyBear, KoalaBear).
+pub fn poseidon1_table_provers_d4<SC>(config: Poseidon1Config) -> Vec<Box<dyn TableProver<SC>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<4> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon1Prover::new(
+        config,
+        ConstraintProfile::Standard,
+    ))]
+}
+
+/// Create Poseidon1 table provers for `D = 5` circuit traces (e.g. Koala quintic with base-first Poseidon).
+pub fn poseidon1_table_provers_d5<SC>(config: Poseidon1Config) -> Vec<Box<dyn TableProver<SC>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField + BinomiallyExtendable<4>,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon1Prover::new(
+        config,
+        ConstraintProfile::Standard,
+    ))]
+}
+
+/// Poseidon1 AIR builders for D=2 (e.g. Goldilocks).
+pub fn poseidon1_air_builders_d2<SC>() -> Vec<Box<dyn NpoAirBuilder<SC, 2>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<2> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon1AirBuilder::<2>)]
+}
+
+/// Poseidon1 AIR builders for D=4 (e.g. BabyBear, KoalaBear).
+pub fn poseidon1_air_builders_d4<SC>() -> Vec<Box<dyn NpoAirBuilder<SC, 4>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: BinomiallyExtendable<4> + StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon1AirBuilder::<4>)]
+}
+
+/// Poseidon1 AIR builders for `D = 5` circuit traces (e.g. KoalaBear quintic).
+pub fn poseidon1_air_builders_d5<SC>() -> Vec<Box<dyn NpoAirBuilder<SC, 5>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    vec![Box::new(Poseidon1AirBuilder::<5>)]
+}
+
+/// Returns a type-erased Recompose preprocessor.
+///
+/// When `split_coeff_tables` is true, preprocesses both `recompose` and `recompose/coeff` rows.
+pub fn recompose_preprocessor<F>(split_coeff_tables: bool) -> Box<dyn NpoPreprocessor<F>>
+where
+    F: StarkField + PrimeField,
+    RecomposePreprocessor: NpoPreprocessor<F>,
+{
+    Box::new(RecomposePreprocessor::new(split_coeff_tables))
+}
+
+/// Recompose table provers for a given extension field degree.
+///
+/// When `split_coeff_tables` is true, returns both the standard table and the `recompose/coeff`
+/// variant.
+pub fn recompose_table_provers<SC, const D: usize>(
+    lanes: usize,
+    split_coeff_tables: bool,
+) -> Vec<Box<dyn TableProver<SC>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    if split_coeff_tables {
+        vec![
+            Box::new(RecomposeProver::<D>::new(lanes, false)),
+            Box::new(RecomposeProver::<D>::new(lanes, true)),
+        ]
+    } else {
+        vec![Box::new(RecomposeProver::<D>::new(lanes, false))]
+    }
+}
+
+/// Recompose AIR builders for a given extension field degree.
+///
+/// `split_coeff_tables` must match the value used in the paired [`recompose_table_provers`].
+pub fn recompose_air_builders<SC, const D: usize>(
+    lanes: usize,
+    split_coeff_tables: bool,
+) -> Vec<Box<dyn NpoAirBuilder<SC, D>>>
+where
+    SC: StarkGenericConfig + 'static + Send + Sync,
+    Val<SC>: StarkField,
+    SymbolicExpressionExt<Val<SC>, SC::Challenge>:
+        Algebra<SymbolicExpression<Val<SC>>> + Algebra<SC::Challenge>,
+{
+    if split_coeff_tables {
+        vec![
+            Box::new(RecomposeAirBuilder::<D>::new(lanes, false)),
+            Box::new(RecomposeAirBuilder::<D>::new(lanes, true)),
+        ]
+    } else {
+        vec![Box::new(RecomposeAirBuilder::<D>::new(lanes, false))]
+    }
+}
+
+#[cfg(test)]
+mod tests;

@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use p3_circuit::CircuitBuilder;
 use p3_field::{Field, PrimeCharacteristicRing, TwoAdicField};
 use p3_koala_bear::KoalaBear;
-use p3_recursion::traits::ComsWithOpeningsTargets;
-use p3_recursion::{Target, VerificationError};
+use z00z_plonky3_circuit_prover::traits::ComsWithOpeningsTargets;
+use z00z_plonky3_circuit_prover::{Target, VerificationError};
 
 use super::plonky3_binary_hash::{
     cap_height, compress_pair, compress_selected, connect_cap, hash_base_values,
@@ -16,6 +16,21 @@ use super::{Plonky3ChallengeV2, Plonky3RecOpeningProofV2, PLONKY3_MMCS_DIGEST_EL
 
 type DomainV2 = p3_field::coset::TwoAdicMultiplicativeCoset<KoalaBear>;
 type OpeningsV2 = ComsWithOpeningsTargets<CommitmentV2, DomainV2>;
+type QueryProofTargetsV2 = z00z_plonky3_circuit_prover::pcs::QueryProofTargets<
+    KoalaBear,
+    Plonky3ChallengeV2,
+    z00z_plonky3_circuit_prover::pcs::InputProofTargets<
+        KoalaBear,
+        Plonky3ChallengeV2,
+        super::plonky3_recursion::BinaryRecMmcsV2,
+    >,
+    z00z_plonky3_circuit_prover::pcs::RecExtensionValMmcs<
+        KoalaBear,
+        Plonky3ChallengeV2,
+        PLONKY3_MMCS_DIGEST_ELEMS_V2,
+        super::plonky3_recursion::BinaryRecMmcsV2,
+    >,
+>;
 
 pub(super) fn verify_binary_paths(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
@@ -80,7 +95,7 @@ fn validate_fri_shape(
 fn verify_input_paths(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
     openings: &OpeningsV2,
-    input_proofs: &[p3_recursion::pcs::BatchOpeningTargets<
+    input_proofs: &[z00z_plonky3_circuit_prover::pcs::BatchOpeningTargets<
         KoalaBear,
         Plonky3ChallengeV2,
         super::plonky3_recursion::BinaryRecMmcsV2,
@@ -202,7 +217,7 @@ fn hash_base_height(
 fn reduce_openings(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
     openings: &OpeningsV2,
-    input_proofs: &[p3_recursion::pcs::BatchOpeningTargets<
+    input_proofs: &[z00z_plonky3_circuit_prover::pcs::BatchOpeningTargets<
         KoalaBear,
         Plonky3ChallengeV2,
         super::plonky3_recursion::BinaryRecMmcsV2,
@@ -303,21 +318,7 @@ fn evaluation_point(
 fn verify_commit_paths(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
     proof: &Plonky3RecOpeningProofV2,
-    query: &p3_recursion::pcs::QueryProofTargets<
-        KoalaBear,
-        Plonky3ChallengeV2,
-        p3_recursion::pcs::InputProofTargets<
-            KoalaBear,
-            Plonky3ChallengeV2,
-            super::plonky3_recursion::BinaryRecMmcsV2,
-        >,
-        p3_recursion::pcs::RecExtensionValMmcs<
-            KoalaBear,
-            Plonky3ChallengeV2,
-            PLONKY3_MMCS_DIGEST_ELEMS_V2,
-            super::plonky3_recursion::BinaryRecMmcsV2,
-        >,
-    >,
+    query: &QueryProofTargetsV2,
     betas: &[Target],
     index_bits: &[Target],
     log_max_height: usize,

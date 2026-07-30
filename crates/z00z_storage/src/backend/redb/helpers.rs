@@ -321,7 +321,10 @@ impl RedbBackend {
 
 #[cfg(test)]
 mod recursive_v2_cutover_crash_tests {
-    use std::process::Command;
+    use std::{
+        path::Path,
+        process::{Command, Stdio},
+    };
 
     use z00z_crypto::{sha256_256_role, CheckpointShaRole};
 
@@ -329,13 +332,25 @@ mod recursive_v2_cutover_crash_tests {
         checkpoint::recursive_v2::{
             RecursiveAuthoritySnapshotV2, SettlementRootGenerationCutoverV2,
         },
-        fixture_support::settlement_corpus::{asset_item, load_fixture, redb_store_with_bits},
+        fixture_support::settlement_corpus::{asset_item, load_fixture, HjmtEnvGuard},
         settlement::{store::test_env_lock, SettlementStore},
     };
 
     const CHILD_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_CHILD";
+    const VERIFY_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_VERIFY_CHILD";
     const PATH_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_PATH";
+    const CASE_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CASE";
+    const EXPECTED_COMMIT_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_EXPECTED_COMMIT";
     const STAGE_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_STAGE";
+    const WORKERS_ENV: &str = "Z00Z_RECURSIVE_V2_CUTOVER_CRASH_WORKERS";
+    const MAX_VERIFY_WORKERS: usize = 5;
+    const CRASH_CASES: [(&str, bool); 5] = [
+        ("before-write-transaction", false),
+        ("before-manifest-insert", false),
+        ("after-manifest-insert-before-immediate-commit", false),
+        ("after-immediate-commit-before-readback", true),
+        ("after-durable-readback-before-success", true),
+    ];
 
     fn cutover(store: &SettlementStore) -> SettlementRootGenerationCutoverV2 {
         crate::fixture_support::genesis_chain_identity::ensure_test_process_chain_identity()
@@ -360,6 +375,39 @@ mod recursive_v2_cutover_crash_tests {
         .expect("crash-corpus cutover")
     }
 
+    fn verify_recovery(path: &Path, stage: &str, manifest_must_be_committed: bool) {
+        let mut reloaded =
+            SettlementStore::load(path).expect("fresh-process recovery verifier reload");
+        let recovered_manifest = reloaded
+            .backend
+            .load_recursive_v2_cutover()
+            .expect("read recovered cutover manifest");
+        assert_eq!(
+            recovered_manifest.is_some(),
+            manifest_must_be_committed,
+            "stage {stage} recovered the wrong complete-old/complete-new state"
+        );
+        let result = cutover(&reloaded).install_active_authority(&mut reloaded, 11);
+        if manifest_must_be_committed {
+            assert!(
+                result.is_err(),
+                "stage {stage} returned from Immediate commit, so reload must observe publication"
+            );
+        } else {
+            result.unwrap_or_else(|error| {
+                panic!("stage {stage} preceded commit, so reload must permit install: {error}")
+            });
+            assert!(
+                reloaded
+                    .backend
+                    .load_recursive_v2_cutover()
+                    .expect("read retried cutover manifest")
+                    .is_some(),
+                "stage {stage} retry returned success without publishing the complete manifest"
+            );
+        }
+    }
+
     #[test]
     fn recursive_v2_cutover_owned_boundary_crash_corpus() {
         if std::env::var_os(CHILD_ENV).is_some() {
@@ -370,78 +418,146 @@ mod recursive_v2_cutover_crash_tests {
                 .expect("the configured crash point must terminate before this returns");
             panic!("configured recursive V2 cutover crash point did not terminate the child");
         }
+        if std::env::var_os(VERIFY_ENV).is_some() {
+            let path = std::env::var_os(PATH_ENV).expect("recovery verifier database path");
+            let stage = std::env::var(CASE_ENV).expect("recovery verifier case");
+            let manifest_must_be_committed = match std::env::var(EXPECTED_COMMIT_ENV).as_deref() {
+                Ok("0") => false,
+                Ok("1") => true,
+                _ => panic!("{EXPECTED_COMMIT_ENV} must be 0 or 1"),
+            };
+            verify_recovery(Path::new(&path), &stage, manifest_must_be_committed);
+            return;
+        }
 
         let _settlement_env = test_env_lock()
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
+        let _hjmt_env = HjmtEnvGuard::with_bits("2");
+        let workers = std::env::var(WORKERS_ENV)
+            .map(|raw| {
+                raw.parse::<usize>()
+                    .ok()
+                    .filter(|workers| (1..=CRASH_CASES.len()).contains(workers))
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{WORKERS_ENV} must be an integer in 1..={}",
+                            CRASH_CASES.len()
+                        )
+                    })
+            })
+            .unwrap_or(1);
+        let current_exe = std::env::current_exe().expect("test executable");
+        let current_thread = std::thread::current();
+        let test_name = current_thread.name().expect("test harness name");
+        let baseline = tempfile::tempdir().expect("crash-corpus baseline directory");
+        let mut baseline_store =
+            SettlementStore::load(baseline.path()).expect("crash-corpus baseline store");
+        let fixture = load_fixture();
+        baseline_store
+            .put_settlement_item(asset_item(&fixture.assets[0]))
+            .expect("crash-corpus persisted pre-state");
+        drop(baseline_store);
+        let baseline_database = baseline.path().join(crate::backend::redb::DB_FILE);
+        let baseline_bytes = std::fs::metadata(&baseline_database)
+            .expect("crash-corpus baseline database metadata")
+            .len();
 
-        for (stage, manifest_must_be_committed) in [
-            ("before-write-transaction", false),
-            ("before-manifest-insert", false),
-            ("after-manifest-insert-before-immediate-commit", false),
-            ("after-immediate-commit-before-readback", true),
-            ("after-durable-readback-before-success", true),
-        ] {
-            let (_environment, temp, mut store) =
-                redb_store_with_bits(Some("2")).expect("crash-corpus durable store");
-            let fixture = load_fixture();
-            store
-                .put_settlement_item(asset_item(&fixture.assets[0]))
-                .expect("crash-corpus persisted pre-state");
-            drop(store);
-
-            let current_thread = std::thread::current();
-            let test_name = current_thread.name().expect("test harness name");
-            let output = Command::new(std::env::current_exe().expect("test executable"))
-                .arg("--exact")
-                .arg(test_name)
-                .arg("--nocapture")
-                .env(CHILD_ENV, "1")
-                .env(PATH_ENV, temp.path())
-                .env(STAGE_ENV, stage)
-                .env("Z00Z_SETTLEMENT_BACKEND_MODE", "hjmt")
-                .env("Z00Z_SETTLEMENT_BUCKET_BITS", "2")
-                .env("Z00Z_STORAGE_SCHED_CPU", "1")
-                .env("Z00Z_STORAGE_SCHED_QUEUE", "1024")
-                .output()
-                .expect("start recursive V2 cutover crash child");
-            assert_eq!(
-                output.status.code(),
-                Some(86),
-                "stage {stage} did not hit the owned crash point: stdout={} stderr={}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr),
-            );
-
-            let mut reloaded =
-                SettlementStore::load(temp.path()).expect("fresh-process-equivalent reload");
-            let recovered_manifest = reloaded
-                .backend
-                .load_recursive_v2_cutover()
-                .expect("read recovered cutover manifest");
-            assert_eq!(
-                recovered_manifest.is_some(),
-                manifest_must_be_committed,
-                "stage {stage} recovered the wrong complete-old/complete-new state"
-            );
-            let result = cutover(&reloaded).install_active_authority(&mut reloaded, 11);
-            if manifest_must_be_committed {
-                assert!(
-                    result.is_err(),
-                    "stage {stage} returned from Immediate commit, so reload must observe publication"
+        for case_batch in CRASH_CASES.chunks(workers) {
+            let mut running = Vec::with_capacity(case_batch.len());
+            for &(stage, manifest_must_be_committed) in case_batch {
+                let temp = tempfile::tempdir().expect("crash-corpus temporary directory");
+                let copied_bytes = std::fs::copy(
+                    &baseline_database,
+                    temp.path().join(crate::backend::redb::DB_FILE),
+                )
+                .expect("clone crash-corpus durable pre-state");
+                assert_eq!(
+                    copied_bytes, baseline_bytes,
+                    "crash-corpus durable pre-state clone length drifted"
                 );
-            } else {
-                result.unwrap_or_else(|error| {
-                    panic!("stage {stage} preceded commit, so reload must permit install: {error}")
-                });
-                assert!(
-                    reloaded
-                        .backend
-                        .load_recursive_v2_cutover()
-                        .expect("read retried cutover manifest")
-                        .is_some(),
-                    "stage {stage} retry returned success without publishing the complete manifest"
+                let child = Command::new(&current_exe)
+                    .arg("--exact")
+                    .arg(test_name)
+                    .arg("--nocapture")
+                    .env(CHILD_ENV, "1")
+                    .env(PATH_ENV, temp.path())
+                    .env(STAGE_ENV, stage)
+                    .env("Z00Z_SETTLEMENT_BACKEND_MODE", "hjmt")
+                    .env("Z00Z_SETTLEMENT_BUCKET_BITS", "2")
+                    .env("Z00Z_STORAGE_SCHED_CPU", "1")
+                    .env("Z00Z_STORAGE_SCHED_QUEUE", "1024")
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .expect("start recursive V2 cutover crash child");
+                running.push((stage, manifest_must_be_committed, temp, child));
+            }
+
+            let mut crashed = Vec::with_capacity(running.len());
+            for (stage, manifest_must_be_committed, temp, child) in running {
+                let output = child
+                    .wait_with_output()
+                    .expect("wait for recursive V2 cutover crash child");
+                assert_eq!(
+                    output.status.code(),
+                    Some(86),
+                    "stage {stage} did not hit the owned crash point: stdout={} stderr={}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr),
                 );
+                crashed.push((stage, manifest_must_be_committed, temp));
+            }
+
+            let mut pending = crashed.into_iter();
+            loop {
+                let verifier_batch = pending
+                    .by_ref()
+                    .take(MAX_VERIFY_WORKERS)
+                    .collect::<Vec<_>>();
+                if verifier_batch.is_empty() {
+                    break;
+                }
+                let mut verifying = Vec::with_capacity(verifier_batch.len());
+                for (stage, manifest_must_be_committed, temp) in verifier_batch {
+                    let child = Command::new(&current_exe)
+                        .arg("--exact")
+                        .arg(test_name)
+                        .arg("--nocapture")
+                        .env(VERIFY_ENV, "1")
+                        .env(PATH_ENV, temp.path())
+                        .env(CASE_ENV, stage)
+                        .env(
+                            EXPECTED_COMMIT_ENV,
+                            if manifest_must_be_committed { "1" } else { "0" },
+                        )
+                        .env("Z00Z_SETTLEMENT_BACKEND_MODE", "hjmt")
+                        .env("Z00Z_SETTLEMENT_BUCKET_BITS", "2")
+                        .env("Z00Z_STORAGE_SCHED_CPU", "1")
+                        .env("Z00Z_STORAGE_SCHED_QUEUE", "1024")
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn()
+                        .expect("start recursive V2 recovery verifier child");
+                    verifying.push((stage, temp, child));
+                }
+                for (stage, temp, child) in verifying {
+                    let output = child
+                        .wait_with_output()
+                        .expect("wait for recursive V2 recovery verifier child");
+                    assert!(
+                        output.status.success(),
+                        "stage {stage} recovery verifier failed: stdout={} stderr={}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr),
+                    );
+                    assert!(
+                        String::from_utf8_lossy(&output.stdout)
+                            .contains("test result: ok. 1 passed; 0 failed;"),
+                        "stage {stage} recovery verifier did not execute exactly one test"
+                    );
+                    drop(temp);
+                }
             }
         }
     }

@@ -1,0 +1,3 @@
+schema=z00z.nova.measurement-worker-authority.v2
+.github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh=b6a1e141ea86faa6cb2951a30d8b0bf2886457b97997993de658605d49f4cf14
+.github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh=30ef682a92814b60be3193bad5c58a7f56be03afc5deb385cd190383cca2ee20

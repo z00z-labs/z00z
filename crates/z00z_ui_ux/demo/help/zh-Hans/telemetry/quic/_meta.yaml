@@ -1,9 +1,0 @@
-title: QUIC
-icon: network
-order:
-  - index
-  - connections
-  - paths
-  - streams
-  - recovery
-  - security

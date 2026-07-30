@@ -1,9 +1,0 @@
-title: 遥测
-icon: network
-order:
-  - reticulum
-  - onionnet
-  - quic
-  - aggregators
-  - watchers
-  - explorer

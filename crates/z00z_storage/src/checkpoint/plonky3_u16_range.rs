@@ -20,15 +20,15 @@ use p3_circuit::{
     Circuit, CircuitBuilder, CircuitBuilderError, CircuitError, ExprId, NonPrimitiveOperationData,
     NpoCircuitPlugin, NpoLoweringContext, PreprocessedColumns, WitnessId,
 };
-use p3_circuit_prover::batch_stark_prover::{
-    BatchAir, BatchTableInstance, DynamicAirEntry, NonPrimitiveTableEntry, TablePacking,
-    TableProver,
-};
 use p3_field::{BasedVectorSpace, ExtensionField, Field, PrimeCharacteristicRing, PrimeField64};
 use p3_koala_bear::KoalaBear;
 use p3_lookup::{Count, InteractionBuilder};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
+use z00z_plonky3_circuit_prover::batch_stark_prover::{
+    BatchAir, BatchTableInstance, DynamicAirEntry, NonPrimitiveTableEntry, TablePacking,
+    TableProver,
+};
 
 use super::{Plonky3ChallengeV2, Plonky3StarkConfigV2};
 
@@ -668,7 +668,7 @@ fn u16_output_creator_flags(
     Ok(creator_flags)
 }
 
-impl p3_circuit_prover::common::NpoPreprocessor<KoalaBear> for U16RangePreprocessorV2 {
+impl z00z_plonky3_circuit_prover::common::NpoPreprocessor<KoalaBear> for U16RangePreprocessorV2 {
     fn preprocess(
         &self,
         circuit: &dyn Any,
@@ -742,16 +742,18 @@ impl p3_circuit_prover::common::NpoPreprocessor<KoalaBear> for U16RangePreproces
 #[derive(Clone, Copy, Debug)]
 pub(super) struct U16RangeAirBuilderV2;
 
-impl p3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4> for U16RangeAirBuilderV2 {
+impl z00z_plonky3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4>
+    for U16RangeAirBuilderV2
+{
     fn try_build(
         &self,
         op_type: &NpoTypeId,
         preprocessed: &[KoalaBear],
         min_height: usize,
         lanes: usize,
-        _constraint_profile: p3_circuit_prover::ConstraintProfile,
+        _constraint_profile: z00z_plonky3_circuit_prover::ConstraintProfile,
     ) -> Option<(
-        p3_circuit_prover::common::CircuitTableAir<Plonky3StarkConfigV2, 4>,
+        z00z_plonky3_circuit_prover::common::CircuitTableAir<Plonky3StarkConfigV2, 4>,
         usize,
     )> {
         if op_type != &u16_range_npo_type()
@@ -767,9 +769,12 @@ impl p3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4> for U16Ra
         }
         let padded_rows = min_height.max(rows).next_power_of_two();
         Some((
-            p3_circuit_prover::common::CircuitTableAir::Dynamic(DynamicAirEntry::new(Box::new(
-                U16RangeAirV2::<KoalaBear, 4>::new(preprocessed.to_vec(), min_height),
-            ))),
+            z00z_plonky3_circuit_prover::common::CircuitTableAir::Dynamic(DynamicAirEntry::new(
+                Box::new(U16RangeAirV2::<KoalaBear, 4>::new(
+                    preprocessed.to_vec(),
+                    min_height,
+                )),
+            )),
             log2_ceil_usize(padded_rows),
         ))
     }

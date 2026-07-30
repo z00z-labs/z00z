@@ -11,7 +11,14 @@ OWNER="checkpoint::nova::tests::"
 VERIFIER_RSS_HARNESS=".github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh"
 COVERAGE_AUDIT=".planning/phases/069-Recursive-Proof/069-COVERAGE-AUDIT.py"
 PHASE069_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint"
+PHASE069_RELEASE_TARGET_DIR="$ROOT_DIR/.cache/phase-069/plan-08/cargo-release/library-test"
+BOOTSTRAP_LIB_TEST_BINARY="${Z00Z_BOOTSTRAP_LIB_TEST_BINARY:-}"
+BOOTSTRAP_SELECTED_TESTS_MANIFEST="${Z00Z_BOOTSTRAP_SELECTED_TESTS_MANIFEST:-}"
+BOOTSTRAP_SELECTED_TEST_LOG_DIR="${Z00Z_BOOTSTRAP_SELECTED_TEST_LOG_DIR:-}"
 T3_ARTIFACT_DIR="$(realpath -m -- "${Z00Z_NOVA_T3_ARTIFACT_DIR_V2:-$PHASE069_OUTPUT_ROOT/recursive-v2-current}")"
+export CARGO_TARGET_DIR="$PHASE069_RELEASE_TARGET_DIR"
+export CARGO_BUILD_JOBS=1
+export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64
 case "$T3_ARTIFACT_DIR" in
   "$PHASE069_OUTPUT_ROOT" | "$PHASE069_OUTPUT_ROOT"/*) ;;
   *)
@@ -69,14 +76,32 @@ ARTIFACT_TESTS=(
 run_unit_exact() {
   local test_name="$1"
   shift
-  cargo test --release -p z00z_storage --lib "${OWNER}${test_name}" -- \
+  if [[ -n "$BOOTSTRAP_LIB_TEST_BINARY" ]]; then
+    case "$BOOTSTRAP_LIB_TEST_BINARY" in
+      "$PHASE069_RELEASE_TARGET_DIR"/release/deps/*) ;;
+      *)
+        echo "bootstrap lib-test executable escaped its canonical target" >&2
+        return 1
+        ;;
+    esac
+    [[ -f "$BOOTSTRAP_LIB_TEST_BINARY" &&
+      -x "$BOOTSTRAP_LIB_TEST_BINARY" &&
+      ! -L "$BOOTSTRAP_LIB_TEST_BINARY" ]] || {
+      echo "bootstrap lib-test executable is not canonical" >&2
+      return 1
+    }
+    "$BOOTSTRAP_LIB_TEST_BINARY" "${OWNER}${test_name}" \
+      --exact --nocapture --test-threads 1 "$@"
+    return
+  fi
+  cargo test --release --locked --offline -p z00z_storage --lib "${OWNER}${test_name}" -- \
     --exact --nocapture --test-threads 1 "$@"
 }
 
 run_storage_exact() {
   local test_name="$1"
   shift
-  cargo test --release -p z00z_storage --lib "$test_name" -- \
+  cargo test --release --locked --offline -p z00z_storage --lib "$test_name" -- \
     --exact --nocapture --test-threads 1 "$@"
 }
 
@@ -84,13 +109,13 @@ run_guards() {
   local contract dollar='$'
   local -a verifier_rss_contract=(
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
-    'readonly EXPECTED_SOURCE_REVISION="2d4a6312028d3987520d10e53f376dd22b40e303fd0e7d1b122c900f0d9e55d8"'
-    'readonly EXPECTED_WORKER_SOURCE="a0fd346405c1f3d103d62b7d7b886574ad50d58dd749fcea22f8bf22960ade69"'
-    'readonly EXPECTED_NOVA_SHA256="c3468b04960761f38d00e136a42fef737c3d7ea0bbd33974d2247fe7e4ed4c7d"'
-    'readonly EXPECTED_CARGO_LOCK_SHA256="e3c6be97b546b23e4d9b46e89b221e37616804a8d7a6b5828a65ae07084a34fd"'
+    'readonly EXPECTED_SOURCE_REVISION="ae51d7809aa8e93e681ef847ad11d5abd13a11d7ce0984d827e523292c11c7e6"'
+    'readonly EXPECTED_WORKER_SOURCE="f777113dfb5a06b45b37aa4bdd4774c0389b49c1474d66d4c7a3fb3db5fc74e1"'
+    'readonly EXPECTED_NOVA_SHA256="c95d9055b244ef890fc6cd50d9c03b366cee9e69c089ee50bd8a79c7f96f75ee"'
+    'readonly EXPECTED_CARGO_LOCK_SHA256="e1373bac8fdfc4bf7042352fa8f520eb13de0e2796129bd33beac91732277e15"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
-    "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}ROOT_DIR/target/workspace\""
-    "cargo test --release -p z00z_storage --lib \"${dollar}TEST_NAME\" --"
+    "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}PHASE069_RELEASE_TARGET_DIR\""
+    "cargo test --release --locked --offline -p z00z_storage --lib \"${dollar}TEST_NAME\" --"
     '--exact --nocapture --test-threads 1 --ignored'
     "printf 'measurement_status=%s\\n' \"${dollar}status\""
     'printf '\''worker_rlimit_as_bytes=25769803776\n'\'''
@@ -195,20 +220,100 @@ PY
 }
 
 run_curated() {
+  local id index offset packet_status=0 status test_name transcript
+  local run_id run_dir selected_manifest selected_log_dir
+  local -a tests=(
+    test_verifier_identity_binds_path
+    test_nova_backend_owner_locked
+    test_nova_dependency_transcript_pinned
+    test_nova_poseidon_wires_pinned
+    test_nova_pasta_identity_pinned
+    test_nova_keccak_transcript_pinned
+    test_nova_mutation_smoke
+  )
+  local -a pids=()
+  local -a wave_tests=()
+
   run_guards
   echo "=== curated Nova release packet: 7 source/dependency/R1CS units + 2 integration targets; features=production ==="
-  for test_name in \
-    test_verifier_identity_binds_path \
-    test_nova_backend_owner_locked \
-    test_nova_dependency_transcript_pinned \
-    test_nova_poseidon_wires_pinned \
-    test_nova_pasta_identity_pinned \
-    test_nova_keccak_transcript_pinned \
-    test_nova_mutation_smoke
-  do
-    run_unit_exact "$test_name"
-  done
-  cargo test --release -p z00z_storage \
+  if [[ -n "$BOOTSTRAP_SELECTED_TESTS_MANIFEST" ||
+    -n "$BOOTSTRAP_SELECTED_TEST_LOG_DIR" ]]; then
+    [[ -n "$BOOTSTRAP_SELECTED_TESTS_MANIFEST" &&
+      -n "$BOOTSTRAP_SELECTED_TEST_LOG_DIR" ]] || {
+      echo "bootstrap preselected Nova evidence is incomplete" >&2
+      return 1
+    }
+    selected_manifest="$(realpath -e -- "$BOOTSTRAP_SELECTED_TESTS_MANIFEST")" || return
+    selected_log_dir="$(realpath -e -- "$BOOTSTRAP_SELECTED_TEST_LOG_DIR")" || return
+    case "$selected_manifest" in
+      "$PHASE069_OUTPUT_ROOT"/*) ;;
+      *)
+        echo "bootstrap selected-test manifest escaped Phase 069 outputs" >&2
+        return 1
+        ;;
+    esac
+    case "$selected_log_dir" in
+      "$PHASE069_OUTPUT_ROOT"/*) ;;
+      *)
+        echo "bootstrap selected-test logs escaped Phase 069 outputs" >&2
+        return 1
+        ;;
+    esac
+    for test_name in "${tests[@]}"; do
+      id="$(
+        awk -F '\t' -v test_name="${OWNER}${test_name}" '
+          $2 == test_name {
+            print $1
+          }
+        ' "$selected_manifest"
+      )"
+      transcript="$selected_log_dir/$id.log"
+      if [[ ! "$id" =~ ^[0-9]{6}$ ]] ||
+        [[ ! -s "$transcript" ]] ||
+        [[ "$(grep -Fc "test ${OWNER}${test_name} ..." "$transcript")" != "1" ]] ||
+        ! grep -Fq "test result: ok. 1 passed; 0 failed;" "$transcript"; then
+        packet_status=1
+        echo "preselected Nova unit evidence is invalid: ${OWNER}${test_name}" >&2
+      fi
+    done
+  else
+    run_id="$(date -u +'%Y%m%dT%H%M%S%NZ')"
+    run_dir="$PHASE069_OUTPUT_ROOT/069-08/task-1/test-pyramid/nova-curated/$run_id"
+    mkdir -p "$run_dir"
+    for ((offset = 0; offset < ${#tests[@]}; offset += 4)); do
+      pids=()
+      wave_tests=()
+      for ((index = offset; index < offset + 4 && index < ${#tests[@]}; index++)); do
+        test_name="${tests[index]}"
+        transcript="$run_dir/$test_name.log"
+        (
+          run_unit_exact "$test_name"
+        ) >"$transcript" 2>&1 &
+        pids+=("$!")
+        wave_tests+=("$test_name")
+      done
+      for index in "${!pids[@]}"; do
+        test_name="${wave_tests[index]}"
+        transcript="$run_dir/$test_name.log"
+        if wait "${pids[index]}"; then
+          status=0
+        else
+          status=$?
+        fi
+        cat "$transcript"
+        if (( status != 0 )) ||
+          [[ "$(grep -Fc "test ${OWNER}${test_name} ..." "$transcript")" != "1" ]] ||
+          ! grep -Fq "test result: ok. 1 passed; 0 failed;" "$transcript"; then
+          packet_status=1
+        fi
+      done
+    done
+  fi
+  (( packet_status == 0 )) || {
+    echo "Nova curated unit packet failed selection or execution" >&2
+    return 1
+  }
+  cargo test --release --locked --offline -p z00z_storage \
     --test test_recursive_v2_nova_step \
     --test test_recursive_v2_nova_adversarial \
     -- --nocapture --test-threads "$THREADS"

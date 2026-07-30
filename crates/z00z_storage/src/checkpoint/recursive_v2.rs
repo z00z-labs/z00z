@@ -10,13 +10,40 @@ pub use super::{
         CanonicalCheckpointTransitionV2, SettlementRootCutoverModeV2,
         SettlementRootGenerationCutoverV2,
     },
+    epoch_frontier::{
+        EpochFrontierAuthorityInputsV2, EpochFrontierAuthorityV2, EpochFrontierProgressV2,
+        EpochProofFrontierV2, EpochRangeRootsV2,
+    },
+    epoch_manifest::{EpochManifestInputsV2, EpochManifestV2},
+    epoch_prover::{
+        EpochAirTableV2, EpochPreparedTransitionV2, EpochProofWorkManifestInputsV2,
+        EpochProofWorkManifestV2, EpochTraceChunkInputsV2, EpochTraceChunkV2,
+        EpochTraceChunkWorkV2, EpochTransitionBindingV2, EpochTransitionInputsV2,
+        EpochTransitionStreamV2, EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2,
+    },
+    epoch_range::{
+        epoch_ordered_digest_root_v2, EpochCadenceClassV2, EpochRangeInputsV2,
+        EpochRangeStatementV2,
+    },
+    history_accumulator::{
+        composed_history_error_exponent_v2, HistoryAccumulatorInputsV2,
+        HistoryAccumulatorStatementV2, HistoryAuthorityIdentityV2, HistoryBranchV2,
+        HistoryRotationBridgeV2, HistoryRotationInputsV2,
+    },
     nova::NovaProofEnvelopeV2,
     plonky3::{
-        DyadicErrorBoundV2, Plonky3BaseAdapterV2, Plonky3BaseProofV2, Plonky3BaseStatementV2,
-        Plonky3ProofSizeStatusV2, Plonky3TraceDimensionsV2, RecursiveSecurityBudgetManifestV2,
+        DyadicErrorBoundV2, Plonky3BaseAdapterV2, Plonky3BaseProofV2, Plonky3BaseRangeBindingV2,
+        Plonky3BaseStatementV2, Plonky3EpochAdapterV2, Plonky3EpochChunkWorkerV2,
+        Plonky3EpochPackedRangeV2, Plonky3EpochProofV2, Plonky3EpochSha256V2,
+        Plonky3EpochTraceAndRangeV2, Plonky3EpochTraceFramingV2, Plonky3EpochTransitionBatchV2,
+        Plonky3EpochTypedCommitmentV2, Plonky3HistoryAdapterV2, Plonky3HistoryAuthorityResolverV2,
+        Plonky3HistoryProofV2, Plonky3HistoryRelationV2, Plonky3ProofSizeStatusV2,
+        Plonky3TraceDimensionsV2, RecursiveSecurityBudgetManifestV2,
+        ResolvedPlonky3HistoryAuthorityV2,
     },
     receipt::{
         CryptographicVerificationReceiptV2, Plonky3BaseVerificationReceiptV2,
+        Plonky3EpochVerificationReceiptV2, Plonky3HistoryVerificationReceiptV2,
         RecursiveVerificationResultV2,
     },
     recursive_chain::{

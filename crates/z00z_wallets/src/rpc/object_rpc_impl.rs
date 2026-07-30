@@ -391,7 +391,7 @@ fn action_effect_matches(selected_action: SettlementActionV1, effect: LifecycleE
             LifecycleEffectV1::Accept
         ) | (
             SettlementActionV1::Voucher(VoucherAction::Reject),
-            LifecycleEffectV1::Refund
+            LifecycleEffectV1::Reject | LifecycleEffectV1::Refund
         ) | (
             SettlementActionV1::Voucher(VoucherAction::Transfer),
             LifecycleEffectV1::Transfer
@@ -412,7 +412,7 @@ fn action_effect_matches(selected_action: SettlementActionV1, effect: LifecycleE
             LifecycleEffectV1::Expire
         ) | (
             SettlementActionV1::Voucher(VoucherAction::Issue),
-            LifecycleEffectV1::Offer
+            LifecycleEffectV1::Issue | LifecycleEffectV1::Offer
         ) | (
             SettlementActionV1::Right(RightAction::Create),
             LifecycleEffectV1::Grant
@@ -433,6 +433,27 @@ fn action_effect_matches(selected_action: SettlementActionV1, effect: LifecycleE
             LifecycleEffectV1::Challenge
         )
     )
+}
+
+#[cfg(test)]
+mod test_action_effect_matches {
+    use super::*;
+
+    #[test]
+    fn voucher_issue_accepts_exact_and_legacy_effects() {
+        let action = SettlementActionV1::Voucher(VoucherAction::Issue);
+        assert!(action_effect_matches(action, LifecycleEffectV1::Issue));
+        assert!(action_effect_matches(action, LifecycleEffectV1::Offer));
+        assert!(!action_effect_matches(action, LifecycleEffectV1::Create));
+    }
+
+    #[test]
+    fn voucher_reject_accepts_exact_and_legacy_effects() {
+        let action = SettlementActionV1::Voucher(VoucherAction::Reject);
+        assert!(action_effect_matches(action, LifecycleEffectV1::Reject));
+        assert!(action_effect_matches(action, LifecycleEffectV1::Refund));
+        assert!(!action_effect_matches(action, LifecycleEffectV1::Cancel));
+    }
 }
 
 fn wallet_status_reject(

@@ -1,8 +1,0 @@
-title: Messenger
-icon: message
-order:
-  - inbox
-  - sent
-  - conversations
-  - detail
-  - request-review

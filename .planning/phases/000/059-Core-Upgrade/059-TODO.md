@@ -568,9 +568,15 @@ If programmability exists in the value layer, it should live on vouchers.
 `VoucherPolicy` defines bounded conditions and lifecycle rules.
 `ActionPool` defines the committed set of allowed voucher actions.
 
-These names define semantic contract surfaces for this paper and a later full
-spec. They are not a claim that the current crates already expose exact
-`VoucherPolicy` or `ActionPool` type names.
+The current dirty Z00Z worktree now exposes the exact backend-owned action
+surfaces `LifecycleEffectV1`, `ActionDescriptorV1`, `ActionPoolDescriptorV1`,
+`ActionId`, and `ActionPoolId` under `z00z_core::actions`. Their normative V1
+basis, App projection, compatibility rules, and cross-workspace conformance
+gates are frozen in the
+[V1 Actions Pool specification](../../../../docs/tech-papers/Z00Z-Actions-Pool-Spec.md).
+This is current
+source evidence, not a claim that all 24 effects are implemented by wallet
+runtime services or available to the product.
 
 Typical voucher actions are:
 
@@ -653,10 +659,12 @@ the same way before reading a longer descriptor. That means the header should
 stably identify object family, template or descriptor lineage, version, and
 trust tier.
 
-In the same maturity discipline, `VoucherPolicy`, `RightPolicy`, and
-`ActionPool` are paper-level semantic contract names. Current right-side code
-already commits several dedicated policy identifiers inside `RightLeaf` rather
-than one generic `RightPolicy` field.
+In the same maturity discipline, `VoucherPolicy` and `RightPolicy` remain
+paper-level semantic contract names. `ActionPool`, by contrast, now has the
+concrete `ActionPoolDescriptorV1` contract described by the
+[V1 Actions Pool specification](../../../../docs/tech-papers/Z00Z-Actions-Pool-Spec.md).
+Current right-side code already commits several dedicated policy identifiers
+inside `RightLeaf` rather than one generic `RightPolicy` field.
 
 ### 7.6 Minimum Action Semantics
 
@@ -1266,6 +1274,12 @@ A downstream full spec should freeze at least:
   signals;
 - wallet classification and quarantine rules for unknown or high-risk policy
   objects.
+
+The action vocabulary and App-facing projection part of that downstream work
+is now specified separately in the
+[V1 Actions Pool specification](../../../../docs/tech-papers/Z00Z-Actions-Pool-Spec.md).
+That document does not replace the remaining voucher/right wire-format,
+proof-format, or verifier work listed above.
 
 That is the correct division of labor. The whitepaper should define the object
 model, transition semantics, trust boundary, and role responsibilities clearly

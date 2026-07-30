@@ -42,7 +42,12 @@ mod codec;
 mod contract_config;
 mod contract_config_v3;
 mod da_reference;
+mod epoch_frontier;
+mod epoch_manifest;
+mod epoch_prover;
+mod epoch_range;
 mod exec_input;
+mod history_accumulator;
 mod ids;
 mod lifecycle;
 mod link;
@@ -146,9 +151,29 @@ pub use self::{
         CheckpointDaLocatorKind, CheckpointDaProviderFamily, CheckpointDaReferenceV1,
         CheckpointDaReferenceVersion,
     },
+    epoch_frontier::{
+        EpochFrontierAuthorityInputsV2, EpochFrontierAuthorityV2, EpochFrontierProgressV2,
+        EpochProofFrontierV2, EpochRangeRootsV2,
+    },
+    epoch_manifest::{EpochManifestInputsV2, EpochManifestV2},
+    epoch_prover::{
+        EpochAirTableV2, EpochPreparedTransitionV2, EpochProofWorkManifestInputsV2,
+        EpochProofWorkManifestV2, EpochTraceChunkInputsV2, EpochTraceChunkV2,
+        EpochTraceChunkWorkV2, EpochTransitionBindingV2, EpochTransitionInputsV2,
+        EpochTransitionStreamV2, EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2,
+    },
+    epoch_range::{
+        epoch_ordered_digest_root_v2, EpochCadenceClassV2, EpochRangeInputsV2,
+        EpochRangeStatementV2,
+    },
     exec_input::{
         derive_exec_tx_root, CheckpointExecInput, CheckpointExecOut, CheckpointExecTx,
         CheckpointExecVersion, CheckpointInRef,
+    },
+    history_accumulator::{
+        composed_history_error_exponent_v2, HistoryAccumulatorInputsV2,
+        HistoryAccumulatorStatementV2, HistoryBranchV2, HistoryRotationBridgeV2,
+        HistoryRotationInputsV2,
     },
     ids::{
         derive_checkpoint_id, derive_draft_id, derive_exec_id, reject_draft_for_checkpoint_id,

@@ -12,6 +12,7 @@ __pycache__/
 
 # Node
 **/node_modules/
+crates/z00z_ui_ux/demo/scripts/vendor/markdown/
 **/dist/
 **/build/
 

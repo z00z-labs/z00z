@@ -29,9 +29,9 @@ pub(crate) const TRACE_EVENT_HEADER_BYTES_V2: usize = 1 + 8 + 32 + 4;
 /// it is never a second record serialization.
 pub(crate) const TRACE_CANONICAL_CHUNK_BYTES_V2: usize = 64;
 pub(crate) const TRACE_CHUNK_CONTROL_VERSION_V2: u8 = 1;
-pub(crate) const TRACE_CHUNK_CONTROL_HEADER_BYTES_V2: usize = 1 + 8 + 4 + 4 + 1;
+pub(crate) const TRACE_CONTROL_HEADER_BYTES_V2: usize = 1 + 8 + 4 + 4 + 1;
 pub(crate) const TRACE_CONTROL_PAYLOAD_BYTES_V2: usize =
-    TRACE_CHUNK_CONTROL_HEADER_BYTES_V2 + TRACE_CANONICAL_CHUNK_BYTES_V2;
+    TRACE_CONTROL_HEADER_BYTES_V2 + TRACE_CANONICAL_CHUNK_BYTES_V2;
 const TRACE_CHUNK_ORDINAL_FLAG_V2: u64 = 1_u64 << 62;
 const SOURCE_WRITE_ORDINAL_FLAG_V2: u64 = 1_u64 << 61;
 /// Frozen first part of every per-source SHA control transcript.
@@ -72,6 +72,20 @@ pub enum RecursiveTraceOpcodeV2 {
 }
 
 pub(super) const RECURSIVE_TRACE_OPCODE_COUNT_V2: usize = 17;
+const RECURSIVE_TRACE_SOURCE_OPCODES_V2: [RecursiveTraceOpcodeV2; 12] = [
+    RecursiveTraceOpcodeV2::BeginBlock,
+    RecursiveTraceOpcodeV2::ReplayInput,
+    RecursiveTraceOpcodeV2::ReplayOutput,
+    RecursiveTraceOpcodeV2::UniquenessPrecommit,
+    RecursiveTraceOpcodeV2::UniquenessSorted,
+    RecursiveTraceOpcodeV2::UniquenessChallenge,
+    RecursiveTraceOpcodeV2::NetMerge,
+    RecursiveTraceOpcodeV2::JmtUpdate,
+    RecursiveTraceOpcodeV2::JmtMicroOp,
+    RecursiveTraceOpcodeV2::PromoteChildRoot,
+    RecursiveTraceOpcodeV2::CommitTypedEvent,
+    RecursiveTraceOpcodeV2::FinalizeBlock,
+];
 
 /// Exact declared or consumed count for every frozen trace opcode class.
 ///
@@ -117,26 +131,19 @@ impl RecursiveTraceEventCountsV2 {
     /// Return the number of canonical source records, excluding derived hash
     /// and fixed-width chunk controls.
     pub fn source_record_count(&self) -> Result<u64, CheckpointError> {
-        [
-            RecursiveTraceOpcodeV2::BeginBlock,
-            RecursiveTraceOpcodeV2::ReplayInput,
-            RecursiveTraceOpcodeV2::ReplayOutput,
-            RecursiveTraceOpcodeV2::UniquenessPrecommit,
-            RecursiveTraceOpcodeV2::UniquenessSorted,
-            RecursiveTraceOpcodeV2::UniquenessChallenge,
-            RecursiveTraceOpcodeV2::NetMerge,
-            RecursiveTraceOpcodeV2::JmtUpdate,
-            RecursiveTraceOpcodeV2::JmtMicroOp,
-            RecursiveTraceOpcodeV2::PromoteChildRoot,
-            RecursiveTraceOpcodeV2::CommitTypedEvent,
-            RecursiveTraceOpcodeV2::FinalizeBlock,
-        ]
-        .into_iter()
-        .try_fold(0_u64, |total, opcode| {
-            total
-                .checked_add(self.count(opcode))
-                .ok_or(CheckpointError::Overflow)
-        })
+        self.source_record_counts().total_count()
+    }
+
+    /// Project the complete frozen opcode histogram onto the canonical source
+    /// grammar. Derived controls remain committed by the transition statement
+    /// but cannot be mistaken for serialized source records by direct AIRs.
+    #[must_use]
+    pub(crate) fn source_record_counts(&self) -> Self {
+        let mut source = Self::default();
+        for opcode in RECURSIVE_TRACE_SOURCE_OPCODES_V2 {
+            source.counts[opcode_index(opcode)] = self.count(opcode);
+        }
+        source
     }
 
     /// Return the complete expanded schedule count, including derived control
@@ -202,21 +209,14 @@ impl RecursiveTraceOpcodeV2 {
     }
 
     pub(crate) const fn is_source_record(self) -> bool {
-        matches!(
-            self,
-            Self::BeginBlock
-                | Self::ReplayInput
-                | Self::ReplayOutput
-                | Self::UniquenessPrecommit
-                | Self::UniquenessSorted
-                | Self::UniquenessChallenge
-                | Self::NetMerge
-                | Self::JmtUpdate
-                | Self::JmtMicroOp
-                | Self::PromoteChildRoot
-                | Self::CommitTypedEvent
-                | Self::FinalizeBlock
-        )
+        let mut index = 0;
+        while index < RECURSIVE_TRACE_SOURCE_OPCODES_V2.len() {
+            if RECURSIVE_TRACE_SOURCE_OPCODES_V2[index] as u8 == self as u8 {
+                return true;
+            }
+            index += 1;
+        }
+        false
     }
 }
 
@@ -711,19 +711,17 @@ const HASH_CONTROL_SOURCE_BINDING_BYTES: usize = 8 + 1 + 32;
 const HASH_CONTROL_TRACE_BINDING_BYTES: usize = 8 + 8 + 8 + 8 + 1;
 const UNIQUENESS_LIST_BINDING_BYTES: usize = 1 + 4 + 8;
 const UNIQUENESS_TRANSCRIPT_BINDING_BYTES: usize = 1 + 8;
-pub(crate) const HASH_CONTROL_SOURCE_COMMON_BYTES_V2: usize =
+pub(crate) const HASH_SOURCE_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + HASH_CONTROL_SOURCE_BINDING_BYTES;
-pub(crate) const HASH_CONTROL_TRACE_COMMON_BYTES_V2: usize =
+pub(crate) const HASH_TRACE_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + HASH_CONTROL_TRACE_BINDING_BYTES;
 pub(crate) const UNIQUENESS_LIST_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + UNIQUENESS_LIST_BINDING_BYTES;
 pub(crate) const UNIQUENESS_TRANSCRIPT_COMMON_BYTES_V2: usize =
     HASH_CONTROL_SCHEMA_BYTES + UNIQUENESS_TRANSCRIPT_BINDING_BYTES;
 pub(crate) const HASH_CONTROL_BLOCK_BYTES_V2: usize = 8 + 8 + 64 + 32 + 32 + 1;
-const SOURCE_BLOCK_PAYLOAD_BYTES: usize =
-    HASH_CONTROL_SOURCE_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
-const TRACE_BLOCK_PAYLOAD_BYTES: usize =
-    HASH_CONTROL_TRACE_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
+const SOURCE_BLOCK_PAYLOAD_BYTES: usize = HASH_SOURCE_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
+const TRACE_BLOCK_PAYLOAD_BYTES: usize = HASH_TRACE_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
 const UNIQUENESS_LIST_BLOCK_BYTES: usize =
     UNIQUENESS_LIST_COMMON_BYTES_V2 + HASH_CONTROL_BLOCK_BYTES_V2;
 const UNIQUENESS_TRANSCRIPT_BLOCK_BYTES: usize =
@@ -932,7 +930,7 @@ pub(crate) fn emit_derived_hash_controls(
 /// schedules, allowing backend tests to exercise the one canonical trace
 /// precommit relation without inventing a second control grammar.
 #[cfg(test)]
-pub(crate) fn emit_expanded_trace_hash_controls_for_test(
+pub(crate) fn emit_test_trace_hash_controls(
     sources: &[RecursiveTraceEventV2],
     profile: &RecursiveCircuitProfileV2,
     mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), CheckpointError>,
@@ -1058,7 +1056,7 @@ pub(crate) fn emit_expanded_trace_hash_controls_for_test(
 /// one canonical event/control grammar while omitting unrelated whole-trace
 /// and uniqueness-transcript schedules.
 #[cfg(test)]
-pub(crate) fn emit_expanded_uniqueness_list_hash_controls_for_test(
+pub(crate) fn emit_test_uniqueness_list_hash(
     sources: &[RecursiveTraceEventV2],
     profile: &RecursiveCircuitProfileV2,
     mut emit: impl FnMut(RecursiveTraceEventV2) -> Result<(), CheckpointError>,
@@ -1101,7 +1099,7 @@ pub(crate) fn emit_expanded_uniqueness_list_hash_controls_for_test(
 /// Test-only expansion of all fourteen canonical uniqueness/settlement
 /// transcript jobs through the production encoder.
 #[cfg(test)]
-pub(crate) fn emit_expanded_uniqueness_transcript_hash_controls_for_test(
+pub(crate) fn emit_test_uniqueness_transcript_hash(
     context: RecursivePreUniquenessContextV2,
     precommit: UniquenessPrecommitV2,
     post_definition_root: [u8; 32],
@@ -1333,7 +1331,7 @@ fn source_hash_control_event(
     let payload_bytes = if block.is_some() {
         SOURCE_BLOCK_PAYLOAD_BYTES
     } else {
-        HASH_CONTROL_SOURCE_COMMON_BYTES_V2
+        HASH_SOURCE_COMMON_BYTES_V2
     };
     let mut payload = Vec::new();
     payload
@@ -1444,7 +1442,7 @@ fn trace_hash_control_event(
     let payload_bytes = if block.is_some() {
         TRACE_BLOCK_PAYLOAD_BYTES
     } else {
-        HASH_CONTROL_TRACE_COMMON_BYTES_V2
+        HASH_TRACE_COMMON_BYTES_V2
     };
     let mut payload = Vec::new();
     payload
@@ -2409,7 +2407,7 @@ pub(crate) fn decode_hash_control(
             if role != TRACE_HASH_ROLE_TAG_V2 {
                 return Err(CheckpointError::Canonical);
             }
-            if payload.len() < HASH_CONTROL_SOURCE_COMMON_BYTES_V2 {
+            if payload.len() < HASH_SOURCE_COMMON_BYTES_V2 {
                 return Err(CheckpointError::Canonical);
             }
             let ordinal = u64::from_le_bytes(
@@ -2425,7 +2423,7 @@ pub(crate) fn decode_hash_control(
                 .try_into()
                 .map_err(|_| CheckpointError::Canonical)?;
             (
-                HASH_CONTROL_SOURCE_COMMON_BYTES_V2,
+                HASH_SOURCE_COMMON_BYTES_V2,
                 Some(HashControlSourceBindingV2 {
                     ordinal,
                     opcode,
@@ -2440,7 +2438,7 @@ pub(crate) fn decode_hash_control(
             if role != TRACE_HASH_ROLE_TAG_V2 {
                 return Err(CheckpointError::Canonical);
             }
-            if payload.len() < HASH_CONTROL_TRACE_COMMON_BYTES_V2 {
+            if payload.len() < HASH_TRACE_COMMON_BYTES_V2 {
                 return Err(CheckpointError::Canonical);
             }
             let event_count = u64::from_le_bytes(
@@ -2469,7 +2467,7 @@ pub(crate) fn decode_hash_control(
                 _ => return Err(CheckpointError::Canonical),
             };
             (
-                HASH_CONTROL_TRACE_COMMON_BYTES_V2,
+                HASH_TRACE_COMMON_BYTES_V2,
                 None,
                 Some(HashControlTraceBindingV2 {
                     event_count,
@@ -2808,12 +2806,15 @@ impl RecursiveTransitionTraceSourceV2 {
         Ok(precommit)
     }
 
-    /// Return the sealed first-pass commitment before its one replay pass.
+    /// Return the immutable first-pass commitment for every verifier replay.
     ///
     /// The native evaluator uses these external-sort commitments instead of
     /// retaining a second in-memory replay-ID representation.
     pub(crate) fn sealed_precommit(&self) -> Result<RecursiveTracePrecommitV2, CheckpointError> {
-        if self.state != TraceSourceStateV2::Precommitted {
+        if !matches!(
+            self.state,
+            TraceSourceStateV2::Precommitted | TraceSourceStateV2::Replayed
+        ) {
             return Err(CheckpointError::TraceState);
         }
         self.precommit.ok_or(CheckpointError::TraceState)
@@ -3694,7 +3695,7 @@ mod tests {
     }
 
     #[test]
-    fn test_storage_trace_replays_once() {
+    fn test_sealed_replay_is_stable() {
         let temp = TempDir::new().expect("temp dir");
         let handle = snapshot();
         let mut source =
@@ -3846,6 +3847,21 @@ mod tests {
         );
         assert!(blocks.iter().all(|block| block.is_transition_verified()));
         assert!(blocks.last().expect("global final block").final_block);
+        assert_eq!(
+            source
+                .sealed_precommit()
+                .expect("replayed source retains its immutable precommit"),
+            precommit
+        );
+        let mut repeated_schedule = Vec::new();
+        let repeated = source
+            .event_pass(|event| {
+                repeated_schedule.push(event.clone());
+                Ok(())
+            })
+            .expect("deterministic verifier replay");
+        assert_eq!(repeated.precommit(), precommit);
+        assert!(repeated_schedule == schedule);
         assert_eq!(source.finish(handle).expect("same snapshot"), precommit);
     }
 

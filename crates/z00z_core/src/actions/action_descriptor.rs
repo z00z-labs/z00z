@@ -99,19 +99,123 @@ impl<'de> Deserialize<'de> for WitnessRequirementV1 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LifecycleEffectV1 {
+    /// Compatibility/evidence-only action with no declared object lifecycle mutation.
     NoStateChange,
+    /// Create a new non-value definition, request, agreement, or other object.
+    Create,
+    /// Issue a new value-bearing claim or policy-authorized asset instance.
+    Issue,
+    /// Present an object or proposal for another party's decision.
     Offer,
+    /// Accept a pending offer, request, or agreement.
     Accept,
+    /// Reject a pending offer without conflating rejection with the refund effect.
+    Reject,
+    /// Move ownership or control without changing object identity or value.
     Transfer,
+    /// Replace one object with multiple value-conserving descendants.
+    Split,
+    /// Replace compatible objects with one value-conserving descendant.
+    Merge,
+    /// Move value or authority into an enforceable conditional state.
+    Lock,
+    /// Present the condition witness that requests a conditional outcome.
+    Claim,
+    /// Release locked or conditional value after the declared condition succeeds.
+    Release,
+    /// Close a pending action before completion under its cancellation policy.
+    Cancel,
+    /// Consume a full claim and release its final output.
     Redeem,
+    /// Consume part of a claim while preserving an exact residual claim.
     PartialRedeem,
+    /// Return conditional value to its committed fallback target.
     Refund,
+    /// Irreversibly retire policy-authorized supply.
+    Burn,
+    /// Close an object because its committed validity window elapsed.
     Expire,
+    /// Create bounded authority.
     Grant,
+    /// Transfer or attenuate bounded authority.
     Delegate,
+    /// Exercise bounded authority or consume one allowed use.
     Use,
+    /// Terminate bounded authority under its revocation policy.
     Revoke,
+    /// Open a bounded dispute or challenge path.
     Challenge,
+    /// Close a challenge with a policy-authorized outcome.
+    Resolve,
+    /// Produce bounded receipt, audit, or selective-disclosure evidence.
+    Disclose,
+}
+
+impl LifecycleEffectV1 {
+    /// Closed semantic basis used to compose Z00Z object and dApp actions.
+    ///
+    /// Product and transport concepts such as payment, batch, subscription,
+    /// schedule, recurring execution, offline handoff, payroll, escrow, and
+    /// atomic exchange are compositions of these effects plus typed conditions
+    /// and witnesses. `NoStateChange` is intentionally excluded because it is
+    /// not an object lifecycle mutation.
+    pub const ATOMIC_BASIS: [Self; 24] = [
+        Self::Create,
+        Self::Issue,
+        Self::Offer,
+        Self::Accept,
+        Self::Reject,
+        Self::Transfer,
+        Self::Split,
+        Self::Merge,
+        Self::Lock,
+        Self::Claim,
+        Self::Release,
+        Self::Cancel,
+        Self::Redeem,
+        Self::PartialRedeem,
+        Self::Refund,
+        Self::Burn,
+        Self::Expire,
+        Self::Grant,
+        Self::Delegate,
+        Self::Use,
+        Self::Revoke,
+        Self::Challenge,
+        Self::Resolve,
+        Self::Disclose,
+    ];
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NoStateChange => "no_state_change",
+            Self::Create => "create",
+            Self::Issue => "issue",
+            Self::Offer => "offer",
+            Self::Accept => "accept",
+            Self::Reject => "reject",
+            Self::Transfer => "transfer",
+            Self::Split => "split",
+            Self::Merge => "merge",
+            Self::Lock => "lock",
+            Self::Claim => "claim",
+            Self::Release => "release",
+            Self::Cancel => "cancel",
+            Self::Redeem => "redeem",
+            Self::PartialRedeem => "partial_redeem",
+            Self::Refund => "refund",
+            Self::Burn => "burn",
+            Self::Expire => "expire",
+            Self::Grant => "grant",
+            Self::Delegate => "delegate",
+            Self::Use => "use",
+            Self::Revoke => "revoke",
+            Self::Challenge => "challenge",
+            Self::Resolve => "resolve",
+            Self::Disclose => "disclose",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

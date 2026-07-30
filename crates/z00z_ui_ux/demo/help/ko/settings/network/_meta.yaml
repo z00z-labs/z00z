@@ -1,6 +1,0 @@
-title: 네트워크
-icon: network
-order:
-  - reticulum
-  - onionnet
-  - quic

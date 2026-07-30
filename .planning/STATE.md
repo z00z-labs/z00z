@@ -4,17 +4,17 @@ milestone: v0.15
 milestone_name: Storage Serialization Bootstrap
 current_phase: 069
 current_phase_name: Recursive Proof
-current_plan: 069-07
-status: Phase 069 blocked at 069-07 — real Plonky3 worker resource timeout
-stopped_at: Dynamic transition passed; timed out in next-replica structural materialization
-last_updated: "2026-07-26T07:38:33Z"
-last_activity: 2026-07-26
+current_plan: 069-08
+status: Phase 069 Plan 069-08 active
+stopped_at: Plan 069-07 summary-backed complete; begin 069-08 exact epoch aggregation
+last_updated: "2026-07-28T15:05:00Z"
+last_activity: 2026-07-28
 progress:
   total_phases: 47
   completed_phases: 0
   total_plans: 14
-  completed_plans: 7
-  percent: 50
+  completed_plans: 8
+  percent: 57
 ---
 
 # Project State
@@ -30,9 +30,10 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 
 ## Status
 
-**Blocked lane:** `069-07`; dynamic JMT transition passes, but the real isolated worker timed out after `7,200,250 ms` in next-replica structural materialization.
-**Resources:** `8,914,336 KiB` process RSS, `9,283,543,040 B` cgroup peak, zero swap/events; command `6280c145e246…` cannot be rerun unchanged.
-**Progress:** [█████░░░░░] 50% (7/14); Plans 08–13 are dependency-locked.
-**Resume:** `.planning/phases/069-Recursive-Proof/069-07-STOP-SPLIT.md`.
+**Current lane:** `069-08`; exact 2,000-block recursive epoch aggregation.
+**Plan 07:** Complete at `14.16 GB` cgroup peak and `1,556,272 B`, zero swap/OOM.
+**Progress:** [██████░░░░] 57% (8/14).
+**Resume:** `.planning/phases/069-Recursive-Proof/069-08-PLAN.md`.
 **Output:** Only `crates/z00z_storage/outputs/checkpoint`; root `test-results` is forbidden.
-**Authority:** Future text is live scope; target `2 MiB`, publish cap `4 MiB`, ingress cap `16 MiB`; no summary or Plan 08 until full actual-verifier acceptance.
+**Authority:** `069-07-SUMMARY.md` closes the base theorem; `069-TODO.md` and
+referenced design documents remain mandatory live scope.

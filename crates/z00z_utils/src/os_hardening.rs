@@ -87,7 +87,7 @@ pub fn trim_process_heap_best_effort() -> bool {
     {
         // SAFETY: glibc documents `malloc_trim` as MT-safe. Passing zero asks
         // the allocator to keep no additional top-of-heap padding.
-        return unsafe { libc::malloc_trim(0) != 0 };
+        unsafe { libc::malloc_trim(0) != 0 }
     }
 
     #[cfg(any(miri, not(target_os = "linux"), not(target_env = "gnu")))]

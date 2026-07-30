@@ -6,7 +6,7 @@ runtime_profile:
   generation: 2
   manifest_digest: c58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b
 version_authority:
-  registry_digest: 3f463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0
+  registry_digest: 1429c0cbb449d3d6480769fee4aa2117572891f0a4dd14dbdf04b79ce59ee348
   authority_generation: 2
   parameter_generation: 3
   config_generation: 3
@@ -82,7 +82,7 @@ branches:
     field: koala_bear
     hash: poseidon2
     security_bits: 124
-    recursion_library: p3_recursion
+    recursion_library: z00z_plonky3_circuit_prover
     has_security_budget_manifest: true
     soundness_composition: conservative_sum
     has_epoch_count_bind: true

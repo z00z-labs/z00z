@@ -4876,7 +4876,7 @@ fn synthesize_replay_payload<CS: ConstraintSystem<Scalar>>(
                     _ => {
                         return Err(SynthesisError::Unsatisfiable(
                             "unknown replay parser stage".to_owned(),
-                        ))
+                        ));
                     }
                 };
                 Ok(Scalar::from(value))
@@ -16118,7 +16118,7 @@ fn synthesize_uniqueness_transcript_hash_context<CS: ConstraintSystem<Scalar>>(
             _ => {
                 return Err(SynthesisError::Unsatisfiable(
                     "transcript job binding is not exhaustive".to_owned(),
-                ))
+                ));
             }
         };
         for (limb, actual) in control.source_hash_limbs.iter().enumerate() {
@@ -24576,6 +24576,142 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         include_bytes!("nova.rs"),
     ),
     (
+        "crates/z00z_storage/src/checkpoint/authority_artifacts.rs",
+        include_bytes!("authority_artifacts.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3.rs",
+        include_bytes!("plonky3.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_event_stream.rs",
+        include_bytes!("plonky3_epoch_event_stream.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_trace_framing.rs",
+        include_bytes!("plonky3_epoch_trace_framing.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_trace_framing_air.rs",
+        include_bytes!("plonky3_epoch_trace_framing_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_transition_air.rs",
+        include_bytes!("plonky3_epoch_transition_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_transition_batch.rs",
+        include_bytes!("plonky3_epoch_transition_batch.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_transition_witness.rs",
+        include_bytes!("plonky3_epoch_transition_witness.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_typed_commitment.rs",
+        include_bytes!("plonky3_epoch_typed_commitment.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_typed_commitment_air.rs",
+        include_bytes!("plonky3_epoch_typed_commitment_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_uniqueness_air.rs",
+        include_bytes!("plonky3_epoch_uniqueness_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_uniqueness_air_tests.rs",
+        include_bytes!("plonky3_epoch_uniqueness_air_tests.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_uniqueness_range.rs",
+        include_bytes!("plonky3_epoch_uniqueness_range.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_uniqueness_witness.rs",
+        include_bytes!("plonky3_epoch_uniqueness_witness.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_packed_range.rs",
+        include_bytes!("plonky3_epoch_packed_range.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt.rs",
+        include_bytes!("plonky3_epoch_jmt.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt_air.rs",
+        include_bytes!("plonky3_epoch_jmt_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt_constraints_local.rs",
+        include_bytes!("plonky3_epoch_jmt_constraints_local.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt_constraints_row.rs",
+        include_bytes!("plonky3_epoch_jmt_constraints_row.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt_constraints_transition.rs",
+        include_bytes!("plonky3_epoch_jmt_constraints_transition.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt_table.rs",
+        include_bytes!("plonky3_epoch_jmt_table.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt_witness.rs",
+        include_bytes!("plonky3_epoch_jmt_witness.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_sha256.rs",
+        include_bytes!("plonky3_epoch_sha256.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_sha256_air.rs",
+        include_bytes!("plonky3_epoch_sha256_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_sha256_witness.rs",
+        include_bytes!("plonky3_epoch_sha256_witness.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_binary_hash.rs",
+        include_bytes!("plonky3_binary_hash.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_binary_mmcs.rs",
+        include_bytes!("plonky3_binary_mmcs.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_recursion.rs",
+        include_bytes!("plonky3_recursion.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_u16_range.rs",
+        include_bytes!("plonky3_u16_range.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/epoch_range.rs",
+        include_bytes!("epoch_range.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/epoch_frontier.rs",
+        include_bytes!("epoch_frontier.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/epoch_manifest.rs",
+        include_bytes!("epoch_manifest.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/epoch_prover.rs",
+        include_bytes!("epoch_prover.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/history_accumulator.rs",
+        include_bytes!("history_accumulator.rs"),
+    ),
+    (
         "crates/z00z_storage/src/checkpoint/canonical_transition.rs",
         include_bytes!("canonical_transition.rs"),
     ),
@@ -24915,6 +25051,234 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         "crates/z00z_utils/src/io/secure.rs",
         include_bytes!("../../../z00z_utils/src/io/secure.rs"),
     ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/alu_air.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/alu_air.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/alu_columns.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/alu_columns.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/column_layout.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/column_layout.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/const_air.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/const_air.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/public_air.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/public_air.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/recompose_air.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/recompose_air.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/recompose_columns.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/recompose_columns.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/shape_golden.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/shape_golden.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/air/test_utils.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/test_utils.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/backend/fri.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/backend/fri.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/backend/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/backend/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/batch_stark_prover.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/dynamic_air.rs",
+        include_bytes!(
+            "../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/dynamic_air.rs"
+        ),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/lookup_packing.rs",
+        include_bytes!(
+            "../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/lookup_packing.rs"
+        ),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/packing.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/packing.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/poseidon1.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/poseidon1.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/poseidon2.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/poseidon2.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/recompose.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/recompose.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/tests.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/tests.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/challenger/circuit.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/challenger/circuit.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/challenger/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/challenger/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/challenger_perm.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/challenger_perm.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/common.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/common.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/config.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/config.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/constraint_profile.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/constraint_profile.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/field_params.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/field_params.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/generation.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/generation.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/lib.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/lib.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/manifest.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/manifest.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/pcs/fri/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/pcs/fri/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/pcs/fri/params.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/pcs/fri/params.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/pcs/fri/targets.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/pcs/fri/targets.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/pcs/fri/verifier.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/pcs/fri/verifier.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/pcs/mmcs.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/pcs/mmcs.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/pcs/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/pcs/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/prelude.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/prelude.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/public_inputs.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/public_inputs.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/recursion.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/recursion.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/traits/air.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/traits/air.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/traits/challenger.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/traits/challenger.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/traits/mmcs.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/traits/mmcs.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/traits/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/traits/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/traits/pcs.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/traits/pcs.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/traits/recursive.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/traits/recursive.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/types/challenges.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/types/challenges.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/types/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/types/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/types/proof.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/types/proof.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/types/selectors.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/types/selectors.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/verifier/batch_stark.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/verifier/batch_stark.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/verifier/errors.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/verifier/errors.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/verifier/mod.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/verifier/mod.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/verifier/observable.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/verifier/observable.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/verifier/periodic.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/verifier/periodic.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/verifier/quotient.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/verifier/quotient.rs"),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/verifier/stark.rs",
+        include_bytes!("../../../z00z_plonky3_circuit_prover/src/verifier/stark.rs"),
+    ),
 ];
 
 fn is_source_manifest_current() -> bool {
@@ -24969,6 +25333,7 @@ pub(super) fn manifest_digest() -> [u8; 32] {
             b"z00z.recursive.v2.workspace-and-storage-manifests",
             include_bytes!("../../../../Cargo.toml"),
             include_bytes!("../../Cargo.toml"),
+            include_bytes!("../../../z00z_plonky3_circuit_prover/Cargo.toml"),
         ],
     )
 }
@@ -25507,8 +25872,13 @@ mod tests {
             .parent()
             .and_then(Path::parent)
             .expect("z00z_storage is inside the repository crates directory");
-        root.join("target")
-            .join("workspace")
+        root.join("crates")
+            .join("z00z_storage")
+            .join("outputs")
+            .join("checkpoint")
+            .join("069-08")
+            .join("task-1")
+            .join("nova-worker")
             .join("z00z-nova-worker-v2.lock")
     }
 
@@ -25661,8 +26031,7 @@ mod tests {
         if !status.success() {
             panic!(
                 "bounded Nova worker failed: status={:?}, output=child output inherited by the milestone-test terminal, time={}",
-                status,
-                time_report
+                status, time_report
             );
         }
         assert!(
@@ -26055,12 +26424,7 @@ mod tests {
         let secondary_identity = measured_bincode(&<SecondaryGroup as DlogGroup>::zero().affine());
         eprintln!(
             "Nova Pasta key wires: primary={:02x?} secondary={:02x?} primary_ipa={:02x?} secondary_ipa={:02x?} primary_identity={:02x?} secondary_identity={:02x?}",
-            primary,
-            secondary,
-            primary_ipa,
-            secondary_ipa,
-            primary_identity,
-            secondary_identity,
+            primary, secondary, primary_ipa, secondary_ipa, primary_identity, secondary_identity,
         );
         for (label, wire, expected_digest) in [
             (
@@ -29394,10 +29758,10 @@ mod tests {
                 event.hash_control.schema,
                 event.hash_control.stage,
                 cs.which_is_unsatisfied().unwrap_or("an unknown constraint"),
-                        super::scalar_u64(
-                            state.cells[super::GLOBAL_BYTE_CONTEXT_START
-                                + super::BYTE_CONTEXT_CHAINING_START_OFFSET],
-                        ),
+                super::scalar_u64(
+                    state.cells[super::GLOBAL_BYTE_CONTEXT_START
+                        + super::BYTE_CONTEXT_CHAINING_START_OFFSET],
+                ),
                 event.sha_compression.chaining_before[0],
                 states
                     .get(1)

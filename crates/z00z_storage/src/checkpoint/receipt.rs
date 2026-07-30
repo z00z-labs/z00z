@@ -16,6 +16,14 @@ pub(super) const RECURSIVE_RECEIPT_PAYLOAD_BYTES_V2: usize = 588;
 const PLONKY3_BASE_RECEIPT_MAGIC_V2: [u8; 8] = *b"Z00ZP3R2";
 const PLONKY3_BASE_RECEIPT_VERSION_V2: u16 = 2;
 const PLONKY3_BASE_RECEIPT_PAYLOAD_BYTES_V2: usize = 8 + 2 + 8 + 32 * 10 + 8 + 8 + 4 + 2;
+const PLONKY3_EPOCH_RECEIPT_MAGIC_V2: [u8; 8] = *b"Z00ZERP2";
+const PLONKY3_EPOCH_RECEIPT_VERSION_V2: u16 = 2;
+const PLONKY3_EPOCH_RECEIPT_PAYLOAD_BYTES_V2: usize =
+    8 + 2 + 8 * 3 + 4 + 32 * 10 + 8 + 8 + 4 + 2 + 4 + 1 + 32;
+const PLONKY3_HISTORY_RECEIPT_MAGIC_V2: [u8; 8] = *b"Z00ZHVR2";
+const PLONKY3_HISTORY_RECEIPT_VERSION_V2: u16 = 2;
+const PLONKY3_HISTORY_RECEIPT_PAYLOAD_BYTES_V2: usize =
+    8 + 2 + 1 + 8 * 3 + 32 * 8 + 8 + 8 + 4 + 2 + 4 + 1 + 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -86,6 +94,74 @@ pub struct Plonky3BaseVerificationReceiptV2 {
     runtime_profile_generation: u16,
     receipt_digest: [u8; 32],
     canonical_bytes: Vec<u8>,
+}
+
+/// Write-only local receipt issued only after the pinned Plonky3 verifier
+/// accepts the complete canonical epoch envelope.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Plonky3EpochVerificationReceiptV2 {
+    epoch_index: u64,
+    start_height: u64,
+    end_height: u64,
+    leaf_count: u32,
+    statement_digest: [u8; 32],
+    frontier_authority_digest: [u8; 32],
+    parameter_digest: [u8; 32],
+    security_budget_digest: [u8; 32],
+    recursive_base_proof_commitment: [u8; 32],
+    air_binding_digest: [u8; 32],
+    proof_digest: [u8; 32],
+    registry_digest: [u8; 32],
+    runtime_profile_manifest_digest: [u8; 32],
+    config_digest: [u8; 32],
+    config_generation: u64,
+    authority_generation: u64,
+    parameter_generation: u32,
+    runtime_profile_generation: u16,
+    canonical_envelope_bytes: u32,
+    size_status: super::plonky3::Plonky3ProofSizeStatusV2,
+    receipt_digest: [u8; 32],
+    canonical_bytes: Vec<u8>,
+}
+
+/// Write-only local receipt issued only after the pinned Plonky3 verifier
+/// accepts a complete rolling-history proof.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Plonky3HistoryVerificationReceiptV2 {
+    relation: super::plonky3::Plonky3HistoryRelationV2,
+    history_length: u64,
+    last_epoch: u64,
+    last_height: u64,
+    statement_digest: [u8; 32],
+    parameter_digest: [u8; 32],
+    security_budget_digest: [u8; 32],
+    air_binding_digest: [u8; 32],
+    proof_digest: [u8; 32],
+    registry_digest: [u8; 32],
+    runtime_profile_manifest_digest: [u8; 32],
+    config_digest: [u8; 32],
+    config_generation: u64,
+    authority_generation: u64,
+    parameter_generation: u32,
+    runtime_profile_generation: u16,
+    canonical_envelope_bytes: u32,
+    size_status: super::plonky3::Plonky3ProofSizeStatusV2,
+    receipt_digest: [u8; 32],
+    canonical_bytes: Vec<u8>,
+}
+
+/// Unforgeable in-process capability passed from the actual base-verifier
+/// receipt into epoch-frontier admission.
+pub(super) struct VerifiedPlonky3BaseAdmissionV2 {
+    pub(super) range: super::plonky3::Plonky3BaseRangeBindingV2,
+    pub(super) receipt_digest: [u8; 32],
+    pub(super) registry_digest: [u8; 32],
+    pub(super) runtime_profile_manifest_digest: [u8; 32],
+    pub(super) config_digest: [u8; 32],
+    pub(super) config_generation: u64,
+    pub(super) authority_generation: u64,
+    pub(super) parameter_generation: u32,
+    pub(super) runtime_profile_generation: u16,
 }
 
 impl Plonky3BaseVerificationReceiptV2 {
@@ -178,6 +254,37 @@ impl Plonky3BaseVerificationReceiptV2 {
         })
     }
 
+    pub(super) fn bind_epoch_admission(
+        &self,
+        proof: &super::plonky3::Plonky3BaseProofV2,
+    ) -> Result<VerifiedPlonky3BaseAdmissionV2, CheckpointError> {
+        let range = proof.range_binding()?;
+        if self.height != range.height
+            || self.statement_digest != range.base_statement_digest
+            || self.event_vector_digest != range.event_vector_digest
+            || self.parameter_digest != range.parameter_digest
+            || self.security_budget_digest != range.security_budget_digest
+            || self.air_binding_digest != range.air_binding_digest
+            || self.proof_digest != range.proof_digest
+            || self.receipt_digest == [0; 32]
+        {
+            return Err(CheckpointError::RecursiveRejected(
+                super::recursive_reject::RecursiveCheckpointRejectReasonV2::Plonky3TranscriptMismatch,
+            ));
+        }
+        Ok(VerifiedPlonky3BaseAdmissionV2 {
+            range,
+            receipt_digest: self.receipt_digest,
+            registry_digest: self.registry_digest,
+            runtime_profile_manifest_digest: self.runtime_profile_manifest_digest,
+            config_digest: self.config_digest,
+            config_generation: self.config_generation,
+            authority_generation: self.authority_generation,
+            parameter_generation: self.parameter_generation,
+            runtime_profile_generation: self.runtime_profile_generation,
+        })
+    }
+
     #[must_use]
     pub const fn height(&self) -> u64 {
         self.height
@@ -191,6 +298,304 @@ impl Plonky3BaseVerificationReceiptV2 {
     #[must_use]
     pub const fn proof_digest(&self) -> [u8; 32] {
         self.proof_digest
+    }
+
+    #[must_use]
+    pub const fn receipt_digest(&self) -> [u8; 32] {
+        self.receipt_digest
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> &[u8] {
+        &self.canonical_bytes
+    }
+}
+
+impl Plonky3EpochVerificationReceiptV2 {
+    pub(super) fn issue(
+        verified: super::plonky3::VerifiedPlonky3EpochV2,
+    ) -> Result<Self, CheckpointError> {
+        if verified.start_height == 0
+            || verified.end_height < verified.start_height
+            || verified.leaf_count == 0
+            || verified.canonical_envelope_bytes == 0
+            || [
+                verified.statement_digest,
+                verified.frontier_authority_digest,
+                verified.parameter_digest,
+                verified.security_budget_digest,
+                verified.recursive_base_proof_commitment,
+                verified.air_binding_digest,
+                verified.proof_digest,
+            ]
+            .contains(&[0; 32])
+        {
+            return Err(CheckpointError::Invariant);
+        }
+        let registry = CheckpointVersionRegistryV2::authority_pinned()?;
+        let row = registry.row(RecursiveBoundedObjectV2::Plonky3EpochVerificationReceipt)?;
+        let active = CheckpointConfigResolverV3::resolve_active()?;
+        let identity = active.identity();
+        let registry_digest = registry.digest();
+        let runtime_profile_manifest_digest = row
+            .runtime_profile_manifest_digest
+            .ok_or(CheckpointError::Authority)?;
+        if identity.registry_digest != registry_digest
+            || identity.runtime_profile_manifest_digest != runtime_profile_manifest_digest
+            || row.runtime_profile_generation != Some(identity.runtime_profile_generation)
+            || u64::from(row.authority_generation) != identity.authority_generation
+            || row.parameter_generation != Some(identity.parameter_generation)
+            || verified.parameter_digest == [0; 32]
+        {
+            return Err(CheckpointError::Authority);
+        }
+        let size_status = verified.size_status;
+        let size_status_wire = match size_status {
+            super::plonky3::Plonky3ProofSizeStatusV2::WithinTarget => 1,
+            super::plonky3::Plonky3ProofSizeStatusV2::TargetMissed => 2,
+        };
+        let mut prefix = Vec::with_capacity(PLONKY3_EPOCH_RECEIPT_PAYLOAD_BYTES_V2 - 32);
+        prefix.extend_from_slice(&PLONKY3_EPOCH_RECEIPT_MAGIC_V2);
+        prefix.extend_from_slice(&PLONKY3_EPOCH_RECEIPT_VERSION_V2.to_le_bytes());
+        prefix.extend_from_slice(&verified.epoch_index.to_le_bytes());
+        prefix.extend_from_slice(&verified.start_height.to_le_bytes());
+        prefix.extend_from_slice(&verified.end_height.to_le_bytes());
+        prefix.extend_from_slice(&verified.leaf_count.to_le_bytes());
+        for digest in [
+            verified.statement_digest,
+            verified.frontier_authority_digest,
+            verified.parameter_digest,
+            verified.security_budget_digest,
+            verified.recursive_base_proof_commitment,
+            verified.air_binding_digest,
+            verified.proof_digest,
+            registry_digest,
+            runtime_profile_manifest_digest,
+            identity.config_digest,
+        ] {
+            prefix.extend_from_slice(&digest);
+        }
+        prefix.extend_from_slice(&identity.config_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.authority_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.parameter_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.runtime_profile_generation.to_le_bytes());
+        prefix.extend_from_slice(&verified.canonical_envelope_bytes.to_le_bytes());
+        prefix.push(size_status_wire);
+        let receipt_digest = sha256_256(
+            "z00z.storage.checkpoint.plonky3.epoch-verification-receipt.v2",
+            "receipt",
+            &[&prefix],
+        );
+        prefix.extend_from_slice(&receipt_digest);
+        if prefix.len() != PLONKY3_EPOCH_RECEIPT_PAYLOAD_BYTES_V2 {
+            return Err(CheckpointError::Invariant);
+        }
+        let preheader = registry.encode_preheader(
+            RecursiveBoundedObjectV2::Plonky3EpochVerificationReceipt,
+            prefix.len(),
+        )?;
+        let mut canonical_bytes = Vec::with_capacity(preheader.len() + prefix.len());
+        canonical_bytes.extend_from_slice(&preheader);
+        canonical_bytes.extend_from_slice(&prefix);
+        Ok(Self {
+            epoch_index: verified.epoch_index,
+            start_height: verified.start_height,
+            end_height: verified.end_height,
+            leaf_count: verified.leaf_count,
+            statement_digest: verified.statement_digest,
+            frontier_authority_digest: verified.frontier_authority_digest,
+            parameter_digest: verified.parameter_digest,
+            security_budget_digest: verified.security_budget_digest,
+            recursive_base_proof_commitment: verified.recursive_base_proof_commitment,
+            air_binding_digest: verified.air_binding_digest,
+            proof_digest: verified.proof_digest,
+            registry_digest,
+            runtime_profile_manifest_digest,
+            config_digest: identity.config_digest,
+            config_generation: identity.config_generation,
+            authority_generation: identity.authority_generation,
+            parameter_generation: identity.parameter_generation,
+            runtime_profile_generation: identity.runtime_profile_generation,
+            canonical_envelope_bytes: verified.canonical_envelope_bytes,
+            size_status,
+            receipt_digest,
+            canonical_bytes,
+        })
+    }
+
+    #[must_use]
+    pub const fn epoch_index(&self) -> u64 {
+        self.epoch_index
+    }
+
+    #[must_use]
+    pub const fn range(&self) -> (u64, u64, u32) {
+        (self.start_height, self.end_height, self.leaf_count)
+    }
+
+    #[must_use]
+    pub const fn statement_digest(&self) -> [u8; 32] {
+        self.statement_digest
+    }
+
+    #[must_use]
+    pub const fn proof_digest(&self) -> [u8; 32] {
+        self.proof_digest
+    }
+
+    #[must_use]
+    pub const fn size_status(&self) -> super::plonky3::Plonky3ProofSizeStatusV2 {
+        self.size_status
+    }
+
+    #[must_use]
+    pub const fn canonical_envelope_bytes(&self) -> u32 {
+        self.canonical_envelope_bytes
+    }
+
+    #[must_use]
+    pub const fn receipt_digest(&self) -> [u8; 32] {
+        self.receipt_digest
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> &[u8] {
+        &self.canonical_bytes
+    }
+}
+
+impl Plonky3HistoryVerificationReceiptV2 {
+    pub(super) fn issue(
+        verified: super::plonky3::VerifiedPlonky3HistoryV2,
+    ) -> Result<Self, CheckpointError> {
+        if verified.history_length == 0
+            || verified.last_height == 0
+            || verified.canonical_envelope_bytes == 0
+            || [
+                verified.statement_digest,
+                verified.parameter_digest,
+                verified.security_budget_digest,
+                verified.air_binding_digest,
+                verified.proof_digest,
+            ]
+            .contains(&[0; 32])
+        {
+            return Err(CheckpointError::Invariant);
+        }
+        let registry = CheckpointVersionRegistryV2::authority_pinned()?;
+        let row = registry.row(RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt)?;
+        let active = CheckpointConfigResolverV3::resolve_active()?;
+        let identity = active.identity();
+        let registry_digest = registry.digest();
+        let runtime_profile_manifest_digest = row
+            .runtime_profile_manifest_digest
+            .ok_or(CheckpointError::Authority)?;
+        if identity.registry_digest != registry_digest
+            || identity.runtime_profile_manifest_digest != runtime_profile_manifest_digest
+            || row.runtime_profile_generation != Some(identity.runtime_profile_generation)
+            || u64::from(row.authority_generation) != identity.authority_generation
+            || row.parameter_generation != Some(identity.parameter_generation)
+        {
+            return Err(CheckpointError::Authority);
+        }
+        let size_status = verified.size_status;
+        let size_status_wire = match size_status {
+            super::plonky3::Plonky3ProofSizeStatusV2::WithinTarget => 1,
+            super::plonky3::Plonky3ProofSizeStatusV2::TargetMissed => 2,
+        };
+        let mut prefix = Vec::with_capacity(PLONKY3_HISTORY_RECEIPT_PAYLOAD_BYTES_V2 - 32);
+        prefix.extend_from_slice(&PLONKY3_HISTORY_RECEIPT_MAGIC_V2);
+        prefix.extend_from_slice(&PLONKY3_HISTORY_RECEIPT_VERSION_V2.to_le_bytes());
+        prefix.push(verified.relation as u8);
+        prefix.extend_from_slice(&verified.history_length.to_le_bytes());
+        prefix.extend_from_slice(&verified.last_epoch.to_le_bytes());
+        prefix.extend_from_slice(&verified.last_height.to_le_bytes());
+        for digest in [
+            verified.statement_digest,
+            verified.parameter_digest,
+            verified.security_budget_digest,
+            verified.air_binding_digest,
+            verified.proof_digest,
+            registry_digest,
+            runtime_profile_manifest_digest,
+            identity.config_digest,
+        ] {
+            prefix.extend_from_slice(&digest);
+        }
+        prefix.extend_from_slice(&identity.config_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.authority_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.parameter_generation.to_le_bytes());
+        prefix.extend_from_slice(&identity.runtime_profile_generation.to_le_bytes());
+        prefix.extend_from_slice(&verified.canonical_envelope_bytes.to_le_bytes());
+        prefix.push(size_status_wire);
+        let receipt_digest = sha256_256(
+            "z00z.storage.checkpoint.plonky3.history-verification-receipt.v2",
+            "receipt",
+            &[&prefix],
+        );
+        prefix.extend_from_slice(&receipt_digest);
+        if prefix.len() != PLONKY3_HISTORY_RECEIPT_PAYLOAD_BYTES_V2 {
+            return Err(CheckpointError::Invariant);
+        }
+        let preheader = registry.encode_preheader(
+            RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt,
+            prefix.len(),
+        )?;
+        let mut canonical_bytes = Vec::with_capacity(preheader.len() + prefix.len());
+        canonical_bytes.extend_from_slice(&preheader);
+        canonical_bytes.extend_from_slice(&prefix);
+        Ok(Self {
+            relation: verified.relation,
+            history_length: verified.history_length,
+            last_epoch: verified.last_epoch,
+            last_height: verified.last_height,
+            statement_digest: verified.statement_digest,
+            parameter_digest: verified.parameter_digest,
+            security_budget_digest: verified.security_budget_digest,
+            air_binding_digest: verified.air_binding_digest,
+            proof_digest: verified.proof_digest,
+            registry_digest,
+            runtime_profile_manifest_digest,
+            config_digest: identity.config_digest,
+            config_generation: identity.config_generation,
+            authority_generation: identity.authority_generation,
+            parameter_generation: identity.parameter_generation,
+            runtime_profile_generation: identity.runtime_profile_generation,
+            canonical_envelope_bytes: verified.canonical_envelope_bytes,
+            size_status,
+            receipt_digest,
+            canonical_bytes,
+        })
+    }
+
+    #[must_use]
+    pub const fn relation(&self) -> super::plonky3::Plonky3HistoryRelationV2 {
+        self.relation
+    }
+
+    #[must_use]
+    pub const fn history_length(&self) -> u64 {
+        self.history_length
+    }
+
+    #[must_use]
+    pub const fn last_epoch(&self) -> u64 {
+        self.last_epoch
+    }
+
+    #[must_use]
+    pub const fn last_height(&self) -> u64 {
+        self.last_height
+    }
+
+    #[must_use]
+    pub const fn proof_digest(&self) -> [u8; 32] {
+        self.proof_digest
+    }
+
+    #[must_use]
+    pub const fn size_status(&self) -> super::plonky3::Plonky3ProofSizeStatusV2 {
+        self.size_status
     }
 
     #[must_use]

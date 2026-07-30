@@ -870,7 +870,7 @@ impl CheckpointContractConfigV2 {
         require_eq(
             "branches.plonky3_epoch.recursion_library",
             &plonky3.recursion_library,
-            "p3_recursion",
+            "z00z_plonky3_circuit_prover",
         )?;
         Ok(())
     }

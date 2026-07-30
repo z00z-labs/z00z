@@ -304,8 +304,8 @@ fn test_every_pinned_identity_axis_rejects_drift() {
             "  manifest_digest: a58e3b8341626573f956b1a9db13b30bc3b3ef33f71bff63ff1e080e9d78e71b\n",
         ),
         (
-            "  registry_digest: 3f463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0\n",
-            "  registry_digest: af463033174cad0e33fae024ad1da0e61a8f16a5ae8c9cbdb7e3186c3a49f4f0\n",
+            "  registry_digest: 1429c0cbb449d3d6480769fee4aa2117572891f0a4dd14dbdf04b79ce59ee348\n",
+            "  registry_digest: 0429c0cbb449d3d6480769fee4aa2117572891f0a4dd14dbdf04b79ce59ee348\n",
         ),
         ("  parameter_generation: 3\n", "  parameter_generation: 4\n"),
     ] {

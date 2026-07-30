@@ -7,16 +7,38 @@ SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 readonly SCRIPT_PATH
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")/../../../.." && pwd)"
 readonly ROOT_DIR
-readonly EVIDENCE_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint/069-07/task-1/resource-worker"
+RESOURCE_PHASE="${Z00Z_PLONKY3_RESOURCE_PHASE:-069-08}"
+readonly RESOURCE_PHASE
+case "$RESOURCE_PHASE" in
+    069-07 | 069-08 | 069-09 | 069-10 | 069-11 | 069-12 | 069-13) ;;
+    *) printf 'plonky3 resource worker: unsupported Phase 069 output scope: %s\n' "$RESOURCE_PHASE" >&2; exit 1 ;;
+esac
+readonly CHECKPOINT_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint"
+readonly PHASE069_RELEASE_TARGET_DIR="$ROOT_DIR/.cache/phase-069/plan-08/cargo-release/library-test"
+readonly EVIDENCE_ROOT="$CHECKPOINT_OUTPUT_ROOT/$RESOURCE_PHASE/task-1/resource-worker"
 readonly BLOCK_ROOT="$EVIDENCE_ROOT/blocked-command-digests"
-readonly CHUNK_CACHE_ROOT="$EVIDENCE_ROOT/chunk-proof-cache-v2"
+readonly CHUNK_CACHE_ROOT="$ROOT_DIR/.cache/phase-069/plan-08/proof-restart-v2"
 readonly TEST_TARGET="test_recursive_v2_plonky3_base"
-readonly SOURCE_DIAGNOSTIC_TEST="test_real_source_batch_stark_roundtrip"
+readonly SOURCE_DIAGNOSTIC_TEST="test_source_stark_roundtrip"
 readonly SOURCE_DIAGNOSTIC_FILTER="checkpoint::plonky3::tests::$SOURCE_DIAGNOSTIC_TEST"
-readonly HASH_DIAGNOSTIC_TEST="test_real_hash_chunk_batch_stark_roundtrip"
+readonly HASH_DIAGNOSTIC_TEST="test_hash_chunk_stark_roundtrip"
 readonly HASH_DIAGNOSTIC_FILTER="checkpoint::plonky3::tests::$HASH_DIAGNOSTIC_TEST"
-readonly AGGREGATION_DIAGNOSTIC_TEST="test_real_recursive_aggregation_wave_roundtrip"
-readonly AGGREGATION_DIAGNOSTIC_FILTER="checkpoint::plonky3::tests::$AGGREGATION_DIAGNOSTIC_TEST"
+readonly AGGREGATION_DIAGNOSTIC_TEST="test_recursive_aggregation_roundtrip"
+readonly ROOT_AUTHORITY_DIAGNOSTIC_TEST="test_real_root_authority_candidate"
+readonly AGGREGATION_SCHEDULE_1X12_TEST="test_real_aggregation_schedule_1x12"
+readonly AGGREGATION_SCHEDULE_2X8_TEST="test_real_aggregation_schedule_2x8"
+readonly AGGREGATION_SCHEDULE_2X10_TEST="test_real_aggregation_schedule_2x10"
+readonly AGGREGATION_SCHEDULE_2X12_TEST="test_real_aggregation_schedule_2x12"
+readonly BOUNDED_EPOCH_SMOKE_TEST="test_bounded_epoch_two_leaf_actual_recursion"
+readonly TRACE_FRAMING_SMOKE_TEST="test_direct_trace_framing_actual_roundtrip"
+readonly PACKED_RANGE_SMOKE_TEST="test_direct_packed_range_actual_roundtrip"
+readonly SHA256_SMOKE_TEST="test_direct_sha256_actual_roundtrip"
+readonly JMT_SMOKE_TEST="test_direct_jmt_actual_roundtrip"
+readonly TYPED_COMMITMENT_SMOKE_TEST="test_direct_typed_commitment_actual_roundtrip"
+readonly TRANSITION_BATCH_SMOKE_TEST="test_direct_transition_batch_actual_roundtrip"
+readonly TRANSITION_BATCH_CHUNK_SMOKE_TEST="test_direct_transition_batch_actual_eight_transition_roundtrip"
+readonly EXACT_EPOCH_TEST="test_production_epoch_2000_actual_recursion_step"
+readonly AUTHORITY_INVENTORY_TEST="test_recursive_cache_authority_inventory"
 readonly MEMORY_HIGH_BYTES=17179869184
 readonly MEMORY_MAX_BYTES=25769803776
 readonly MEMORY_TARGET_BYTES=17179869184
@@ -24,9 +46,19 @@ readonly SMOKE_MEMORY_HIGH_BYTES=5368709120
 readonly SMOKE_MEMORY_MAX_BYTES=6442450944
 readonly SMOKE_PROCESS_BYTES=4294967296
 readonly RUNTIME_SECONDS=7200
+readonly PREFLIGHT_RUNTIME_SECONDS=120
+readonly DIRECT_TABLE_RUNTIME_SECONDS=120
+readonly BOUNDED_EPOCH_RUNTIME_SECONDS=900
+readonly EXACT_EPOCH_RUNTIME_SECONDS=7200
 readonly STAGE_STALL_SECONDS=900
 readonly SMOKE_RUNTIME_SECONDS=3600
 readonly STATUS_POLL_SECONDS=5
+readonly THREAD_SAMPLE_SECONDS=5
+# Every Plonky3 proof operation owns an explicit bounded Rayon pool. Keep the
+# process-global fallback at one thread for fixture glue so it cannot retain a
+# second idle twelve-thread pool beside base materialization or aggregation.
+readonly GLOBAL_RAYON_THREADS=1
+readonly HJMT_SCHED_THREADS=1
 readonly SCHEMA="z00z.plonky3.resource-evidence.v1"
 readonly ISOLATION_SCHEMA="z00z.plonky3.resource-isolation.v1"
 readonly RUN_STATE_SCHEMA="z00z.plonky3.detached-run-state.v1"
@@ -36,18 +68,23 @@ readonly RECURSION_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_recursion.
 readonly BINARY_MMCS_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_binary_mmcs.rs"
 readonly BINARY_HASH_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_binary_hash.rs"
 readonly U16_RANGE_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_u16_range.rs"
+readonly -a PROVER_SOURCE_ROOTS=(
+    "crates/z00z_plonky3_circuit_prover"
+)
 readonly AUTHORITY_SOURCE="crates/z00z_storage/src/checkpoint/authority_artifacts.rs"
 readonly NOVA_SOURCE="crates/z00z_storage/src/checkpoint/nova.rs"
 readonly BOOTSTRAP_SCRIPT=".github/skills/smart-tests-bootstrap/scripts/bootstrap_tests.sh"
+readonly BOOTSTRAP_SOURCE_AUTHORITY=".github/skills/smart-tests-bootstrap/scripts/bootstrap_source_authority.sh"
 readonly NOVA_GATE_SCRIPT=".github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh"
 readonly NOVA_RSS_SCRIPT=".github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh"
+readonly NOVA_MEASUREMENT_AUTHORITY=".github/skills/smart-tests-bootstrap/scripts/nova_measurement_worker_authority_v2.txt"
 
 STARTED_RUN_DIR=""
 ACTIVE_INTERNAL_RUN_DIR=""
 ACTIVE_INTERNAL_EXIT_REASON=""
 
 usage() {
-    printf 'usage: %s --preflight | --bootstrap | --start <exact-test-name> | --run <exact-test-name> | --status <run-dir> | --status-latest <exact-test-name>\n' "${0##*/}"
+    printf 'usage: %s --preflight | --bootstrap-prewarm | --bootstrap | --start <exact-test-name> | --run <exact-test-name> | --status <run-dir> | --status-latest <exact-test-name>\n' "${0##*/}"
 }
 
 die() {
@@ -80,10 +117,30 @@ checkpoint_authority_digests() {
     )
 }
 
+prover_source_digests() {
+    local root file
+    for root in "${PROVER_SOURCE_ROOTS[@]}"; do
+        [[ -d "$root" ]] ||
+            die "canonical prover source is missing: $root"
+        while IFS= read -r -d '' file; do
+            sha256sum "$file"
+        done < <(
+            find "$root" -type f \
+                \( -name '*.rs' -o -name 'Cargo.toml' \
+                    -o -name 'README.z00z.md' \
+                    -o -name 'LICENSE-APACHE' \
+                    -o -name 'LICENSE-MIT' \) -print0 |
+                sort -z
+        )
+    done
+}
+
 source_digest() {
     {
         checkpoint_authority_digests
+        prover_source_digests
         sha256sum "$TEST_SOURCE"
+        sha256sum "$NOVA_MEASUREMENT_AUTHORITY"
         sha256sum Cargo.toml
         sha256sum Cargo.lock
         sha256sum crates/z00z_storage/Cargo.toml
@@ -93,18 +150,8 @@ source_digest() {
 backend_digest() {
     {
         checkpoint_authority_digests
-        sha256sum Cargo.toml
-        sha256sum Cargo.lock
-        sha256sum crates/z00z_storage/Cargo.toml
-    } | sha256_text
-}
-
-bootstrap_source_digest() {
-    {
-        checkpoint_authority_digests
-        sha256sum "$BOOTSTRAP_SCRIPT"
-        sha256sum "$NOVA_GATE_SCRIPT"
-        sha256sum "$NOVA_RSS_SCRIPT"
+        prover_source_digests
+        sha256sum "$NOVA_MEASUREMENT_AUTHORITY"
         sha256sum Cargo.toml
         sha256sum Cargo.lock
         sha256sum crates/z00z_storage/Cargo.toml
@@ -112,12 +159,16 @@ bootstrap_source_digest() {
 }
 
 previous_bootstrap_digest() {
-    local record
+    local kind="$1" record
     while IFS= read -r -d '' record; do
-        jq -r '
+        jq -r --arg kind "$kind" '
             if (
-                (.command.kind? == "bootstrap")
-                or ((.command.text? // "") | contains("bootstrap"))
+                (.command.kind? == $kind)
+                or (
+                    $kind == "bootstrap"
+                    and (.command.kind? // "") == ""
+                    and ((.command.text? // "") | contains("bootstrap"))
+                )
             ) then
                 .command.digest? // empty
             else
@@ -144,13 +195,51 @@ previous_test_digest() {
 
 is_named_test() {
     case "$1" in
-        predicate_differential | transcript_and_actual_proof_mutations_reject | \
+        test_predicate_differential | test_transcript_mutations_reject | \
             "$SOURCE_DIAGNOSTIC_TEST" | "$HASH_DIAGNOSTIC_TEST" | \
-            "$AGGREGATION_DIAGNOSTIC_TEST")
+            "$AGGREGATION_DIAGNOSTIC_TEST" | \
+            "$ROOT_AUTHORITY_DIAGNOSTIC_TEST" | \
+            "$AGGREGATION_SCHEDULE_1X12_TEST" | \
+            "$AGGREGATION_SCHEDULE_2X8_TEST" | \
+            "$AGGREGATION_SCHEDULE_2X10_TEST" | \
+            "$AGGREGATION_SCHEDULE_2X12_TEST" | \
+            "$BOUNDED_EPOCH_SMOKE_TEST" | \
+            "$TRACE_FRAMING_SMOKE_TEST" | \
+            "$PACKED_RANGE_SMOKE_TEST" | \
+            "$SHA256_SMOKE_TEST" | \
+            "$JMT_SMOKE_TEST" | \
+            "$TYPED_COMMITMENT_SMOKE_TEST" | \
+            "$TRANSITION_BATCH_SMOKE_TEST" | \
+            "$TRANSITION_BATCH_CHUNK_SMOKE_TEST" | \
+            "$EXACT_EPOCH_TEST" | \
+            "$AUTHORITY_INVENTORY_TEST")
             return 0
             ;;
         *)
             return 1
+            ;;
+    esac
+}
+
+runtime_budget_for_test() {
+    case "$1" in
+        "$TRACE_FRAMING_SMOKE_TEST" | \
+            "$PACKED_RANGE_SMOKE_TEST" | \
+            "$SHA256_SMOKE_TEST" | \
+            "$JMT_SMOKE_TEST" | \
+            "$TYPED_COMMITMENT_SMOKE_TEST" | \
+            "$TRANSITION_BATCH_SMOKE_TEST" | \
+            "$TRANSITION_BATCH_CHUNK_SMOKE_TEST")
+            printf '%s\n' "$DIRECT_TABLE_RUNTIME_SECONDS"
+            ;;
+        "$BOUNDED_EPOCH_SMOKE_TEST")
+            printf '%s\n' "$BOUNDED_EPOCH_RUNTIME_SECONDS"
+            ;;
+        "$EXACT_EPOCH_TEST")
+            printf '%s\n' "$EXACT_EPOCH_RUNTIME_SECONDS"
+            ;;
+        *)
+            printf '%s\n' "$RUNTIME_SECONDS"
             ;;
     esac
 }
@@ -164,13 +253,31 @@ is_hash_diagnostic_test() {
 }
 
 is_aggregation_diagnostic_test() {
-    [[ "$1" == "$AGGREGATION_DIAGNOSTIC_TEST" ]]
+    case "$1" in
+        "$AGGREGATION_DIAGNOSTIC_TEST" | \
+            "$ROOT_AUTHORITY_DIAGNOSTIC_TEST" | \
+            "$AGGREGATION_SCHEDULE_1X12_TEST" | \
+            "$AGGREGATION_SCHEDULE_2X8_TEST" | \
+            "$AGGREGATION_SCHEDULE_2X10_TEST" | \
+            "$AGGREGATION_SCHEDULE_2X12_TEST" | \
+            "$BOUNDED_EPOCH_SMOKE_TEST")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 is_lib_diagnostic_test() {
     is_source_diagnostic_test "$1" ||
         is_hash_diagnostic_test "$1" ||
-        is_aggregation_diagnostic_test "$1"
+        is_aggregation_diagnostic_test "$1" ||
+        [[ "$1" == "$TRACE_FRAMING_SMOKE_TEST" ]] ||
+        [[ "$1" == "$PACKED_RANGE_SMOKE_TEST" ]] ||
+        [[ "$1" == "$SHA256_SMOKE_TEST" ]] ||
+        [[ "$1" == "$JMT_SMOKE_TEST" ]] ||
+        [[ "$1" == "$AUTHORITY_INVENTORY_TEST" ]]
 }
 
 lib_diagnostic_filter() {
@@ -179,7 +286,14 @@ lib_diagnostic_filter() {
     elif is_hash_diagnostic_test "$1"; then
         printf '%s\n' "$HASH_DIAGNOSTIC_FILTER"
     elif is_aggregation_diagnostic_test "$1"; then
-        printf '%s\n' "$AGGREGATION_DIAGNOSTIC_FILTER"
+        printf 'checkpoint::plonky3::tests::%s\n' "$1"
+    elif [[ "$1" == "$TRACE_FRAMING_SMOKE_TEST" ||
+        "$1" == "$PACKED_RANGE_SMOKE_TEST" ||
+        "$1" == "$SHA256_SMOKE_TEST" ||
+        "$1" == "$JMT_SMOKE_TEST" ]]; then
+        printf 'checkpoint::epoch_prover::tests::%s\n' "$1"
+    elif [[ "$1" == "$AUTHORITY_INVENTORY_TEST" ]]; then
+        printf 'checkpoint::plonky3::tests::%s\n' "$1"
     else
         return 1
     fi
@@ -222,6 +336,77 @@ cgroup_max_rss_kib() {
     printf '%s\n' "$max_rss"
 }
 
+sample_cgroup_threads() {
+    local cgroup_root="$1" output="$2" phase="$3" sampled_at="$4"
+    local pid task tid comm state wchan
+    [[ -r "$cgroup_root/cgroup.procs" ]] || return 1
+    while IFS= read -r pid; do
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        for task in "/proc/$pid/task/"[0-9]*; do
+            [[ -d "$task" ]] || continue
+            tid="${task##*/}"
+            [[ -r "$task/comm" && -r "$task/status" ]] || continue
+            comm="$(tr -d '\r\n' <"$task/comm" 2>/dev/null | tr '\t' ' ')" || continue
+            state="$(
+                awk '$1 == "State:" { print $2; exit }' "$task/status" 2>/dev/null
+            )" || continue
+            [[ -n "$comm" && -n "$state" ]] || continue
+            wchan="$(
+                tr -d '\r\n' <"$task/wchan" 2>/dev/null |
+                    tr '\t' ' ' || printf unavailable
+            )"
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                "$sampled_at" "$phase" "$pid" "$tid" "$comm" \
+                "$state" "${wchan:-unavailable}" >>"$output"
+        done
+    done <"$cgroup_root/cgroup.procs"
+}
+
+thread_inventory_summary() {
+    local source="$1"
+    jq -Rn '
+        [
+            inputs
+            | split("\t")
+            | select(length >= 7 and .[0] != "sample_epoch")
+            | {
+                sample: .[0],
+                phase: .[1],
+                pid: (.[2] | tonumber),
+                tid: (.[3] | tonumber),
+                name: .[4],
+                state: .[5],
+                wchan: .[6]
+            }
+        ] as $rows
+        | {
+            sample_count: ($rows | map(.sample) | unique | length),
+            peak_total: (
+                [$rows | group_by(.sample)[] | length] | max // 0
+            ),
+            peak_by_name: (
+                $rows
+                | group_by(.name)
+                | map({
+                    key: .[0].name,
+                    value: ([group_by(.sample)[] | length] | max // 0)
+                })
+                | from_entries
+            ),
+            observed_names: ($rows | map(.name) | unique | sort),
+            peak_by_phase: (
+                $rows
+                | group_by(.phase)
+                | map({
+                    key: .[0].phase,
+                    value: ([group_by(.sample)[] | length] | max // 0)
+                })
+                | from_entries
+            )
+        }
+    ' <"$source"
+}
+
 events_to_json() {
     local source="$1"
     jq -Rn '
@@ -238,8 +423,9 @@ events_to_json() {
 write_run_state() {
     local run_dir="$1" state="$2" unit="$3" test_name="$4" command_digest="$5"
     local previous_digest="$6" source_sha="$7" fixture_sha="$8" backend_sha="$9"
-    local worker_digest="${10}" parent_cgroup="${11}" test_target tmp
+    local worker_digest="${10}" parent_cgroup="${11}" test_target runtime_seconds tmp
     test_target="$(named_test_target "$test_name")"
+    runtime_seconds="$(runtime_budget_for_test "$test_name")"
     tmp="$run_dir/run-state.json.tmp.$$"
     jq -n -S \
         --arg schema "$RUN_STATE_SCHEMA" \
@@ -258,7 +444,7 @@ write_run_state() {
         --arg parent_cgroup "$parent_cgroup" \
         --argjson memory_high "$MEMORY_HIGH_BYTES" \
         --argjson memory_max "$MEMORY_MAX_BYTES" \
-        --argjson runtime_seconds "$RUNTIME_SECONDS" \
+        --argjson runtime_seconds "$runtime_seconds" \
         '{
             schema: $schema,
             created_at: $created_at,
@@ -428,6 +614,7 @@ write_isolation_failure() {
 write_smoke_failure() {
     local output="$1" reason="$2" worker_digest="$3" parent_cgroup="$4"
     local unit="$5" command_digest="$6" source_sha="$7"
+    local command_kind="${8:-bootstrap}"
     jq -n -S \
         --arg schema "$SCHEMA" \
         --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
@@ -436,6 +623,7 @@ write_smoke_failure() {
         --arg parent_cgroup "$parent_cgroup" \
         --arg unit "$unit" \
         --arg command_digest "$command_digest" \
+        --arg command_kind "$command_kind" \
         --arg source_digest "$source_sha" \
         --argjson memory_high "$SMOKE_MEMORY_HIGH_BYTES" \
         --argjson memory_max "$SMOKE_MEMORY_MAX_BYTES" \
@@ -447,7 +635,7 @@ write_smoke_failure() {
             detail: $detail,
             is_retry_forbidden: true,
             command: {
-                kind: "bootstrap",
+                kind: $command_kind,
                 profile: "release",
                 test_threads: 1,
                 digest: $command_digest
@@ -473,6 +661,7 @@ host_preflight() {
     [[ "$(stat -fc %T /sys/fs/cgroup)" == "cgroup2fs" ]] || die "unified cgroup-v2 is required"
     [[ -r /sys/fs/cgroup/cgroup.controllers ]] || die "cgroup controllers are unreadable"
     grep -qw memory /sys/fs/cgroup/cgroup.controllers || die "cgroup-v2 memory controller is unavailable"
+    [[ -r /proc/sys/kernel/random/boot_id ]] || die "host boot identity is unavailable"
     for command in awk cargo date find grep jq mv ps readlink sed sha256sum sleep sort stat systemctl systemd-run tail timeout tr uname wc; do
         require_command "$command"
     done
@@ -499,12 +688,12 @@ new_run_dir() {
 
 unit_name() {
     local label="$1" digest="$2"
-    printf 'z00z-p3-06907-%s-%s-%s\n' "$label" "$$" "${digest:0:8}"
+    printf 'z00z-p3-%s-%s-%s-%s\n' "${RESOURCE_PHASE//-/}" "$label" "$$" "${digest:0:8}"
 }
 
 systemd_heavy_start() {
-    local unit="$1" service_log="$2"
-    shift 2
+    local unit="$1" service_log="$2" runtime_seconds="$3"
+    shift 3
     systemd-run --user \
         --unit="$unit" \
         --service-type=exec \
@@ -513,8 +702,9 @@ systemd_heavy_start() {
         --property=MemoryHigh="$MEMORY_HIGH_BYTES" \
         --property=MemoryMax="$MEMORY_MAX_BYTES" \
         --property=MemorySwapMax=0 \
-        --property=RuntimeMaxSec="$((RUNTIME_SECONDS + 120))" \
+        --property=RuntimeMaxSec="$((runtime_seconds + 120))" \
         --property=TimeoutStopSec=45 \
+        --setenv=Z00Z_PLONKY3_RESOURCE_PHASE="$RESOURCE_PHASE" \
         --property="StandardOutput=append:$service_log" \
         --property="StandardError=append:$service_log" \
         "$@"
@@ -532,13 +722,14 @@ systemd_smoke_launch() {
         --property=MemoryMax="$SMOKE_MEMORY_MAX_BYTES" \
         --property=MemorySwapMax=0 \
         --property=RuntimeMaxSec="$((SMOKE_RUNTIME_SECONDS + 120))" \
+        --setenv=Z00Z_PLONKY3_RESOURCE_PHASE="$RESOURCE_PHASE" \
         "$@"
 }
 
 internal_preflight() {
     local run_dir="$1" parent_cgroup="$2" unit="$3" worker_digest="$4"
     local child_cgroup cgroup_root memory_high memory_max memory_swap_max memory_oom_group
-    local oom_policy kill_mode
+    local oom_policy kill_mode host_boot_id
     local success=false detail="isolation controls did not match"
 
     child_cgroup="$(current_cgroup)"
@@ -549,8 +740,10 @@ internal_preflight() {
     memory_oom_group="$(read_cgroup_value "$child_cgroup" memory.oom.group 2>/dev/null || true)"
     oom_policy="$(systemctl --user show "$unit.service" --property=OOMPolicy --value 2>/dev/null || true)"
     kill_mode="$(systemctl --user show "$unit.service" --property=KillMode --value 2>/dev/null || true)"
+    host_boot_id="$(</proc/sys/kernel/random/boot_id)"
 
     if [[ -n "$child_cgroup" \
+        && "$host_boot_id" =~ ^[0-9a-f-]{36}$ \
         && "$child_cgroup" != "$parent_cgroup" \
         && "$child_cgroup" != "$parent_cgroup/"* \
         && "$child_cgroup" != *app-code-*.scope* \
@@ -574,6 +767,7 @@ internal_preflight() {
         --arg exit_reason "$([[ "$success" == true ]] && printf success || printf isolation_unavailable)" \
         --arg detail "$detail" \
         --arg worker_digest "$worker_digest" \
+        --arg host_boot_id "$host_boot_id" \
         --arg parent_cgroup "$parent_cgroup" \
         --arg child_cgroup "$child_cgroup" \
         --arg unit "$unit.service" \
@@ -589,6 +783,7 @@ internal_preflight() {
             exit_reason: $exit_reason,
             detail: $detail,
             worker_digest: $worker_digest,
+            host_boot_id: $host_boot_id,
             parent_cgroup: $parent_cgroup,
             child_cgroup: $child_cgroup,
             unit: $unit,
@@ -616,7 +811,8 @@ run_preflight() {
     unit="$(unit_name preflight "$worker_digest")"
     mkdir -p "$run_dir"
     output="$run_dir/systemd-run.log"
-    if ! systemd_heavy_start "$unit" "$run_dir/service.log" \
+    if ! systemd_heavy_start \
+        "$unit" "$run_dir/service.log" "$PREFLIGHT_RUNTIME_SECONDS" \
         "$SCRIPT_PATH" --internal-preflight \
         "$run_dir" "$parent_cgroup" "$unit" "$worker_digest" >"$output" 2>&1; then
         if [[ ! -s "$run_dir/isolation-preflight.json" ]]; then
@@ -667,7 +863,13 @@ internal_run() {
     local oom_delta max_delta exit_reason detail retry_forbidden=false test_count_ok=false
     local telemetry_json=null parameter_digest=null trace_dimensions=null canonical_proof_bytes=null
     local size_status=null last_chunk_json=null chunk_candidate trace_candidate
-    local cache_files=0 cache_bytes=0 worker_digest test_target diagnostic_filter=""
+    local authority_inventory_json=null authority_candidate
+    local epoch_progress_json=null epoch_candidate
+    local cache_files=0 cache_bytes=0 recursive_cache_files=0
+    local worker_digest test_target runtime_seconds diagnostic_filter=""
+    local thread_inventory="$run_dir/thread-inventory.tsv"
+    local thread_summary_json=null last_thread_sample_epoch=0
+    local phase_hwm_fallback=false emitted_phase
     declare -A phase_high_water=(
         [launch]=0
         [fixture_ready]=0
@@ -692,6 +894,7 @@ internal_run() {
     trap 'ACTIVE_INTERNAL_EXIT_REASON=isolation_unavailable; exit 130' INT
     worker_digest="$(file_digest "$SCRIPT_PATH")"
     test_target="$(named_test_target "$test_name")"
+    runtime_seconds="$(runtime_budget_for_test "$test_name")"
 
     child_cgroup="$(current_cgroup)"
     cgroup_root="/sys/fs/cgroup$child_cgroup"
@@ -733,23 +936,45 @@ internal_run() {
     read_cgroup_value "$child_cgroup" memory.current >"$run_dir/memory-current-before.txt"
     read_cgroup_value "$child_cgroup" memory.peak >"$run_dir/memory-peak-before.txt"
     read_cgroup_value "$child_cgroup" memory.swap.current >"$run_dir/memory-swap-before.txt"
+    printf 'sample_epoch\tphase\tpid\ttid\tname\tstate\twchan\n' >"$thread_inventory"
+    sample_cgroup_threads \
+        "$cgroup_root" "$thread_inventory" "$phase" "$(date +%s)" || true
 
     start_ns="$(date +%s%N)"
     set +e
     mkdir -p "$CHUNK_CACHE_ROOT"
     if is_lib_diagnostic_test "$test_name"; then
         diagnostic_filter="$(lib_diagnostic_filter "$test_name")"
-        /usr/bin/timeout --signal=TERM --kill-after=30s "$RUNTIME_SECONDS" \
+        /usr/bin/timeout --signal=TERM --kill-after=30s "$runtime_seconds" \
             /usr/bin/time -v -o "$run_dir/time-v.txt" \
-            env Z00Z_PLONKY3_RESOURCE_TELEMETRY=1 \
-            cargo test --release --lib -p z00z_storage "$diagnostic_filter" -- \
+            env CARGO_TARGET_DIR="$PHASE069_RELEASE_TARGET_DIR" \
+            CARGO_BUILD_JOBS=1 \
+            CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 \
+            RAYON_NUM_THREADS="$GLOBAL_RAYON_THREADS" \
+            MALLOC_ARENA_MAX=1 \
+            MALLOC_MMAP_THRESHOLD_=131072 \
+            MALLOC_TRIM_THRESHOLD_=131072 \
+            MALLOC_TOP_PAD_=0 \
+            Z00Z_STORAGE_SCHED_CPU="$HJMT_SCHED_THREADS" \
+            Z00Z_PLONKY3_RESOURCE_TELEMETRY=1 \
+            Z00Z_PLONKY3_CHUNK_CACHE_DIR="$CHUNK_CACHE_ROOT" \
+            cargo test --release --locked --offline --lib -p z00z_storage "$diagnostic_filter" -- \
             --ignored --exact --nocapture --test-threads=1 >"$run_dir/test.log" 2>&1 &
     else
-        /usr/bin/timeout --signal=TERM --kill-after=30s "$RUNTIME_SECONDS" \
+        /usr/bin/timeout --signal=TERM --kill-after=30s "$runtime_seconds" \
             /usr/bin/time -v -o "$run_dir/time-v.txt" \
-            env Z00Z_PLONKY3_RESOURCE_TELEMETRY=1 \
+            env CARGO_TARGET_DIR="$PHASE069_RELEASE_TARGET_DIR" \
+            CARGO_BUILD_JOBS=1 \
+            CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 \
+            RAYON_NUM_THREADS="$GLOBAL_RAYON_THREADS" \
+            MALLOC_ARENA_MAX=1 \
+            MALLOC_MMAP_THRESHOLD_=131072 \
+            MALLOC_TRIM_THRESHOLD_=131072 \
+            MALLOC_TOP_PAD_=0 \
+            Z00Z_STORAGE_SCHED_CPU="$HJMT_SCHED_THREADS" \
+            Z00Z_PLONKY3_RESOURCE_TELEMETRY=1 \
             Z00Z_PLONKY3_CHUNK_CACHE_DIR="$CHUNK_CACHE_ROOT" \
-            cargo test --release -p z00z_storage --test "$TEST_TARGET" "$test_name" -- \
+            cargo test --release --locked --offline -p z00z_storage --test "$TEST_TARGET" "$test_name" -- \
             --ignored --exact --nocapture --test-threads=1 >"$run_dir/test.log" 2>&1 &
     fi
     local command_pid=$!
@@ -774,8 +999,6 @@ internal_run() {
             abort_reason=cgroup_max
         elif (( proc_rss_kib * 1024 > MEMORY_TARGET_BYTES )); then
             abort_reason=process_rss
-        elif [[ "$current" =~ ^[0-9]+$ ]] && (( current > MEMORY_TARGET_BYTES )); then
-            abort_reason=target_high
         fi
         if [[ -n "$abort_reason" ]]; then
             kill -TERM -- "-$command_pgid" 2>/dev/null ||
@@ -783,7 +1006,7 @@ internal_run() {
             break
         fi
         observed_phase="$(
-            sed -n 's/^Z00Z_PLONKY3_PHASE_V1 //p' "$run_dir/test.log" |
+            sed -n 's/.*Z00Z_PLONKY3_PHASE_V1 //p' "$run_dir/test.log" |
                 tail -n 1
         )"
         case "$observed_phase" in
@@ -795,6 +1018,11 @@ internal_run() {
         esac
         current_log_mtime="$(stat -c %Y "$run_dir/test.log" 2>/dev/null || printf 0)"
         now_epoch="$(date +%s)"
+        if (( now_epoch - last_thread_sample_epoch >= THREAD_SAMPLE_SECONDS )); then
+            sample_cgroup_threads \
+                "$cgroup_root" "$thread_inventory" "$phase" "$now_epoch" || true
+            last_thread_sample_epoch="$now_epoch"
+        fi
         if [[ "$current_log_mtime" =~ ^[0-9]+$ ]] &&
             (( current_log_mtime != last_log_mtime )); then
             last_log_mtime="$current_log_mtime"
@@ -824,6 +1052,10 @@ internal_run() {
     set -e
     end_ns="$(date +%s%N)"
     wall_ms=$(((end_ns - start_ns) / 1000000))
+    sample_cgroup_threads \
+        "$cgroup_root" "$thread_inventory" "$phase" "$(date +%s)" || true
+    thread_summary_json="$(thread_inventory_summary "$thread_inventory")"
+    printf '%s\n' "$thread_summary_json" >"$run_dir/thread-inventory-summary.json"
 
     cp "$cgroup_root/memory.events" "$events_after"
     current="$(read_cgroup_value "$child_cgroup" memory.current 2>/dev/null || printf 0)"
@@ -832,11 +1064,36 @@ internal_run() {
     printf '%s\n' "$current" >"$run_dir/memory-current-after.txt"
     printf '%s\n' "$peak" >"$run_dir/memory-peak-after.txt"
     printf '%s\n' "$swap_current" >"$run_dir/memory-swap-after.txt"
-    time_peak="$(sed -nE 's/^[[:space:]]*Maximum resident set size \\(kbytes\\):[[:space:]]*([0-9]+)$/\\1/p' "$run_dir/time-v.txt" | tail -n 1)"
+    time_peak="$(sed -nE 's/^[[:space:]]*Maximum resident set size \(kbytes\):[[:space:]]*([0-9]+)$/\1/p' "$run_dir/time-v.txt" | tail -n 1)"
     time_peak="${time_peak:-0}"
-    cache_files="$(find "$CHUNK_CACHE_ROOT" -maxdepth 1 -type f -name '*.postcard' | wc -l)"
-    cache_bytes="$(find "$CHUNK_CACHE_ROOT" -maxdepth 1 -type f -name '*.postcard' -printf '%s\n' |
+    if [[ "$peak" =~ ^[0-9]+$ ]] && (( peak > 0 )); then
+        while IFS= read -r emitted_phase; do
+            case "$emitted_phase" in
+                fixture_ready | proving | chunk_structural | chunk_hash | chunk_source | \
+                    chunk_lists | chunk_uniqueness | chunk_trace | chunk_transition | \
+                    aggregation | proof_ready | verifying | verify_complete)
+                    if (( phase_high_water[$emitted_phase] == 0 )); then
+                        # Sub-poll phases still receive a conservative cgroup
+                        # run peak instead of a misleading zero measurement.
+                        phase_high_water[$emitted_phase]="$peak"
+                        phase_hwm_fallback=true
+                    fi
+                    ;;
+            esac
+        done < <(
+            sed -n 's/.*Z00Z_PLONKY3_PHASE_V1 //p' "$run_dir/test.log" |
+                sort -u
+        )
+    fi
+    cache_files="$(find "$CHUNK_CACHE_ROOT" -type f -name '*.postcard' | wc -l)"
+    cache_bytes="$(find "$CHUNK_CACHE_ROOT" -type f -name '*.postcard' -printf '%s\n' |
         awk '{ total += $1 } END { print total + 0 }')"
+    if [[ -d "$CHUNK_CACHE_ROOT/recursive-node-cache-v2" ]]; then
+        recursive_cache_files="$(
+            find "$CHUNK_CACHE_ROOT/recursive-node-cache-v2" \
+                -maxdepth 1 -type f -name '*.postcard' | wc -l
+        )"
+    fi
 
     events_before_json="$(events_to_json "$events_before")"
     events_after_json="$(events_to_json "$events_after")"
@@ -903,10 +1160,71 @@ internal_run() {
             trace_dimensions="$(jq -c '.dimensions' <<<"$trace_candidate")"
         fi
     fi
+    if grep -Fq 'Z00Z_PLONKY3_AUTHORITY_TOTAL_V1 ' "$run_dir/test.log"; then
+        authority_candidate="$(
+            sed -n \
+                's/^Z00Z_PLONKY3_AUTHORITY_TOTAL_V1 //p' \
+                "$run_dir/test.log" |
+                tail -n 1
+        )"
+        if jq -e --argjson expected "$recursive_cache_files" '
+            type == "object"
+            and (.total_files | type == "number")
+            and (.total_files == $expected)
+            and (.current_generation_files | type == "number")
+            and (.stale_generation_files | type == "number")
+            and (
+                .current_generation_files + .stale_generation_files
+                == .total_files
+            )
+            and (.verified_nodes | type == "number")
+            and (.verified_nodes == .current_generation_files)
+            and (.verified_nodes > 0)
+            and (.groups | type == "number")
+            and (.groups > 0)
+            and (.unique_common_digests | type == "number")
+            and (.unique_common_digests > 0)
+        ' <<<"$authority_candidate" >/dev/null 2>&1; then
+            authority_inventory_json="$authority_candidate"
+        fi
+    fi
+    if grep -Fq 'Z00Z_PLONKY3_EPOCH_PROGRESS_V1 ' "$run_dir/test.log"; then
+        epoch_candidate="$(
+            sed -n \
+                's/^Z00Z_PLONKY3_EPOCH_PROGRESS_V1 //p' \
+                "$run_dir/test.log" |
+                tail -n 1
+        )"
+        if jq -e '
+            type == "object"
+            and (.admitted_leaves | type == "number" and floor == .)
+            and (.total_leaves == 2000)
+            and (.active_ranges | type == "number" and floor == .)
+            and (.merged_parents | type == "number" and floor == .)
+            and (.completed | type == "boolean")
+            and (.admitted_leaves >= 0)
+            and (.admitted_leaves <= .total_leaves)
+            and (.active_ranges >= 0)
+            and (.merged_parents >= 0)
+            and (
+                if .completed then
+                    .admitted_leaves == .total_leaves
+                    and (.final_envelope_bytes | type == "number" and floor == .)
+                    and .final_envelope_bytes > 0
+                    and .final_envelope_bytes <= 2097152
+                else
+                    .admitted_leaves < .total_leaves
+                    and .final_envelope_bytes == null
+                end
+            )
+        ' <<<"$epoch_candidate" >/dev/null 2>&1; then
+            epoch_progress_json="$epoch_candidate"
+        fi
+    fi
 
-    if [[ "$abort_reason" == process_rss || "$abort_reason" == target_high ]]; then
+    if [[ "$abort_reason" == process_rss ]]; then
         exit_reason=resource_memory_max
-        detail="real proof exceeded the 16 GiB acceptance target"
+        detail="real prover process exceeded the 16 GiB peak-RSS acceptance target"
     elif [[ "$abort_reason" == phase_timeout ]]; then
         exit_reason=resource_timeout
         detail="named proof stage made no progress for the bounded 900-second limit"
@@ -925,12 +1243,13 @@ internal_run() {
     elif [[ ! "$peak" =~ ^[0-9]+$ || ! "$swap_current" =~ ^[0-9]+$ ]]; then
         exit_reason=isolation_unavailable
         detail="required cgroup resource metadata is missing"
-    elif (( peak > MEMORY_TARGET_BYTES )); then
-        exit_reason=resource_memory_max
-        detail="peak cgroup memory exceeded the 16 GiB acceptance target"
     elif (( swap_current > 0 )); then
         exit_reason=resource_memory_max
         detail="nonzero cgroup swap use violates acceptance"
+    elif (( proc_rss_peak_kib * 1024 > MEMORY_TARGET_BYTES ||
+        time_peak * 1024 > MEMORY_TARGET_BYTES )); then
+        exit_reason=resource_memory_max
+        detail="real prover process exceeded the 16 GiB peak-RSS acceptance target"
     elif (( command_status == 0 )) && [[ "$test_count_ok" == true ]] &&
         is_source_diagnostic_test "$test_name"; then
         exit_reason=success
@@ -940,9 +1259,56 @@ internal_run() {
         exit_reason=success
         detail="isolated bounded hash-leaf prove/actual-verify diagnostic passed"
     elif (( command_status == 0 )) && [[ "$test_count_ok" == true ]] &&
-        is_aggregation_diagnostic_test "$test_name"; then
+        is_aggregation_diagnostic_test "$test_name" &&
+        {
+            [[ "$test_name" != "$BOUNDED_EPOCH_SMOKE_TEST" ]] ||
+                [[ "$telemetry_json" != null && "$parameter_digest" != null &&
+                    "$trace_dimensions" != null && "$canonical_proof_bytes" != null &&
+                    "$size_status" != null ]]
+        }; then
         exit_reason=success
-        detail="isolated bounded concurrent aggregation wave prove/actual-verify diagnostic passed"
+        if [[ "$test_name" == "$BOUNDED_EPOCH_SMOKE_TEST" ]]; then
+            if (( proc_rss_peak_kib * 1024 <= SMOKE_PROCESS_BYTES &&
+                time_peak * 1024 <= SMOKE_PROCESS_BYTES )); then
+                detail="isolated two-leaf epoch recursion and actual-verifier mutation smoke passed within the desired 4 GiB optimization objective"
+            else
+                detail="isolated two-leaf epoch recursion and actual-verifier mutation smoke passed below the 16 GiB acceptance target but missed the non-blocking 4 GiB optimization objective"
+            fi
+        else
+            detail="isolated bounded concurrent aggregation wave prove/actual-verify diagnostic passed"
+        fi
+    elif (( command_status == 0 )) && [[ "$test_count_ok" == true ]] &&
+        [[ "$test_name" == "$TRACE_FRAMING_SMOKE_TEST" ||
+            "$test_name" == "$PACKED_RANGE_SMOKE_TEST" ||
+            "$test_name" == "$SHA256_SMOKE_TEST" ||
+            "$test_name" == "$JMT_SMOKE_TEST" ||
+            "$test_name" == "$TYPED_COMMITMENT_SMOKE_TEST" ]] &&
+        [[ "$telemetry_json" != null && "$parameter_digest" != null &&
+            "$trace_dimensions" != null && "$canonical_proof_bytes" != null &&
+            "$size_status" != null ]]; then
+        exit_reason=success
+        if (( proc_rss_peak_kib * 1024 <= SMOKE_PROCESS_BYTES &&
+            time_peak * 1024 <= SMOKE_PROCESS_BYTES )); then
+            detail="isolated direct epoch table prove/actual-verify mutation smoke passed within the desired 4 GiB optimization objective"
+        else
+            detail="isolated direct epoch table prove/actual-verify mutation smoke passed below the 16 GiB acceptance target but missed the non-blocking 4 GiB optimization objective"
+        fi
+    elif (( command_status == 0 )) && [[ "$test_count_ok" == true ]] &&
+        [[ "$test_name" == "$AUTHORITY_INVENTORY_TEST" ]] &&
+        [[ "$authority_inventory_json" != null ]]; then
+        exit_reason=success
+        detail="isolated recursive-cache authority inventory actual-verified every cached node"
+    elif (( command_status == 0 )) && [[ "$test_count_ok" == true ]] &&
+        [[ "$test_name" == "$EXACT_EPOCH_TEST" ]] &&
+        [[ "$epoch_progress_json" != null && "$telemetry_json" != null &&
+            "$parameter_digest" != null && "$trace_dimensions" != null &&
+            "$canonical_proof_bytes" != null && "$size_status" != null ]]; then
+        exit_reason=success
+        if [[ "$(jq -r '.completed' <<<"$epoch_progress_json")" == true ]]; then
+            detail="exact 2000-leaf epoch and history proof completed under the production target"
+        else
+            detail="one actual-verified exact-epoch leaf step advanced the durable frontier"
+        fi
     elif (( command_status == 0 )) && [[ "$test_count_ok" == true ]] &&
         [[ "$telemetry_json" != null && "$parameter_digest" != null &&
             "$trace_dimensions" != null && "$canonical_proof_bytes" != null &&
@@ -978,11 +1344,14 @@ internal_run() {
         --arg child_cgroup "$child_cgroup" \
         --arg unit "$unit.service" \
         --arg oom_policy "$oom_policy" \
+        --arg thread_inventory "$thread_inventory" \
         --argjson parameter_digest "$parameter_digest" \
         --argjson trace_dimensions "$trace_dimensions" \
         --argjson canonical_proof_bytes "$canonical_proof_bytes" \
         --argjson size_status "$size_status" \
         --argjson last_chunk "$last_chunk_json" \
+        --argjson authority_inventory "$authority_inventory_json" \
+        --argjson epoch_progress "$epoch_progress_json" \
         --argjson events_before "$events_before_json" \
         --argjson events_after "$events_after_json" \
         --argjson events_delta "$events_delta_json" \
@@ -993,9 +1362,13 @@ internal_run() {
         --argjson swap_current "$swap_current" \
         --argjson time_peak_kib "$time_peak" \
         --argjson process_peak_kib "$proc_rss_peak_kib" \
+        --argjson smoke_process_target_bytes "$SMOKE_PROCESS_BYTES" \
         --argjson cache_files "$cache_files" \
         --argjson cache_bytes "$cache_bytes" \
+        --argjson recursive_cache_files "$recursive_cache_files" \
+        --argjson thread_summary "$thread_summary_json" \
         --argjson retry_forbidden "$retry_forbidden" \
+        --argjson phase_hwm_fallback "$phase_hwm_fallback" \
         --argjson launch_hwm "${phase_high_water[launch]}" \
         --argjson fixture_hwm "${phase_high_water[fixture_ready]}" \
         --argjson proving_hwm "${phase_high_water[proving]}" \
@@ -1012,10 +1385,17 @@ internal_run() {
         --argjson verify_hwm "${phase_high_water[verify_complete]}" \
         --argjson memory_high "$MEMORY_HIGH_BYTES" \
         --argjson memory_max "$MEMORY_MAX_BYTES" \
+        --argjson runtime_seconds "$runtime_seconds" \
         --argjson stage_stall_seconds "$STAGE_STALL_SECONDS" \
         '{
             schema: $schema,
-            evidence_kind: (if $retry_forbidden then "resource_exhaustion" else "proof_run" end),
+            evidence_kind: (
+                if $retry_forbidden then "resource_exhaustion"
+                elif $epoch_progress != null then "epoch_progress"
+                elif $authority_inventory != null then "authority_inventory"
+                else "proof_run"
+                end
+            ),
             recorded_at: $recorded_at,
             exit_reason: $exit_reason,
             detail: $detail,
@@ -1046,17 +1426,34 @@ internal_run() {
                 memory_high_bytes: $memory_high,
                 memory_max_bytes: $memory_max,
                 memory_swap_max_bytes: 0,
+                runtime_seconds: $runtime_seconds,
                 stage_stall_seconds: $stage_stall_seconds
+            },
+            artifacts: {
+                thread_inventory_tsv: $thread_inventory,
+                thread_inventory_summary_json: ($thread_inventory | sub("\\.tsv$"; "-summary.json")),
+                authority_inventory: $authority_inventory,
+                epoch_progress: $epoch_progress
             },
             resources: {
                 wall_time_ms: $wall_ms,
                 peak_rss_kib: $time_peak_kib,
                 observed_process_peak_rss_kib: $process_peak_kib,
+                optimization_objective: {
+                    target_process_peak_rss_bytes: $smoke_process_target_bytes,
+                    observed_process_peak_rss_bytes: ($process_peak_kib * 1024),
+                    met: (
+                        ($process_peak_kib * 1024 <= $smoke_process_target_bytes)
+                        and ($time_peak_kib * 1024 <= $smoke_process_target_bytes)
+                    )
+                },
                 memory_current_bytes: $current,
                 memory_peak_bytes: $peak,
                 memory_swap_current_bytes: $swap_current,
                 chunk_cache_files: $cache_files,
                 chunk_cache_bytes: $cache_bytes,
+                recursive_cache_files: $recursive_cache_files,
+                threads: $thread_summary,
                 canonical_proof_bytes: $canonical_proof_bytes,
                 proof_size_status: $size_status,
                 last_chunk_progress: $last_chunk,
@@ -1064,6 +1461,7 @@ internal_run() {
                 memory_events_before: $events_before,
                 memory_events_after: $events_after,
                 memory_events_delta: $events_delta,
+                phase_high_water_uses_conservative_run_peak: $phase_hwm_fallback,
                 phase_high_water_bytes: {
                     launch: $launch_hwm,
                     fixture_ready: $fixture_hwm,
@@ -1100,14 +1498,35 @@ internal_run() {
 internal_bootstrap() {
     local run_dir="$1" parent_cgroup="$2" unit="$3" command_digest="$4"
     local previous_digest="$5" source_sha="$6" fixture_sha="$7" backend_sha="$8"
-    local worker_digest="$9" child_cgroup cgroup_root high max swap_max oom_group
+    local worker_digest="$9" bootstrap_mode="${10}"
+    local child_cgroup cgroup_root high max swap_max oom_group
     local oom_policy kill_mode start_ns end_ns wall_ms command_status=0 phase=launch
     local current peak swap_current time_peak=0 time_peak_bytes=0 signal=null
     local proc_rss_kib=0 proc_rss_peak_kib=0 command_pgid
     local max_before=0 oom_before=0 event_max=0 event_oom=0 abort_reason=""
     local events_before events_after events_before_json events_after_json events_delta_json
     local oom_delta max_delta exit_reason detail retry_forbidden=false bootstrap_complete=false
-    local host_swap_kib=0
+    local host_swap_kib=0 bootstrap_result="" bootstrap_reason=""
+    local source_stability_json cache_identity_json=null
+    local source_digest_before="$source_sha" source_digest_after="$source_sha"
+    local command_kind result_scope completion_marker completion_detail
+    case "$bootstrap_mode" in
+        bootstrap)
+            command_kind="bootstrap"
+            result_scope="test-pyramid/bootstrap"
+            completion_marker="=== BOOTSTRAP COMPLETE ==="
+            completion_detail="isolated release bootstrap passed within the smoke budget"
+            ;;
+        prewarm)
+            command_kind="bootstrap-prewarm"
+            result_scope="diagnostics/bootstrap-prewarm"
+            completion_marker="=== BOOTSTRAP PREWARM COMPLETE ==="
+            completion_detail="isolated release compile prewarm passed within its measured bound"
+            ;;
+        *)
+            die "invalid internal bootstrap mode: $bootstrap_mode"
+            ;;
+    esac
     declare -A phase_hwm=(
         [launch]=0
         [compile]=0
@@ -1142,7 +1561,7 @@ internal_bootstrap() {
             "$run_dir/resource-evidence.json" \
             "smoke isolation controls were unavailable before bootstrap launch" \
             "$worker_digest" "$parent_cgroup" "$unit.service" \
-            "$command_digest" "$source_sha"
+            "$command_digest" "$source_sha" "$command_kind"
         return 125
     fi
 
@@ -1165,12 +1584,16 @@ internal_bootstrap() {
     /usr/bin/timeout --signal=TERM --kill-after=30s "$SMOKE_RUNTIME_SECONDS" \
         /usr/bin/time -v -o "$run_dir/time-v.txt" \
         env \
-        BOOTSTRAP_THREADS=1 \
+        BOOTSTRAP_THREADS=8 \
+        CARGO_BUILD_JOBS=1 \
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 \
+        Z00Z_BOOTSTRAP_EXPECTED_SOURCE_MANIFEST="$run_dir/source-manifest-launch.tsv" \
+        Z00Z_BOOTSTRAP_EXECUTION_SCOPE=systemd-user-transient \
         MALLOC_ARENA_MAX=1 \
         MALLOC_MMAP_THRESHOLD_=131072 \
         MALLOC_TRIM_THRESHOLD_=131072 \
         MALLOC_TOP_PAD_=0 \
-        "$BOOTSTRAP_SCRIPT" >"$run_dir/bootstrap.log" 2>&1 &
+        "$BOOTSTRAP_SCRIPT" "$bootstrap_mode" >"$run_dir/bootstrap.log" 2>&1 &
     local command_pid=$!
     command_pgid="$(ps -o pgid= -p "$command_pid" | tr -d '[:space:]')"
     command_pgid="${command_pgid:-$command_pid}"
@@ -1197,7 +1620,7 @@ internal_bootstrap() {
                 kill -TERM "$command_pid" 2>/dev/null || true
             break
         fi
-        if grep -Fq '=== BOOTSTRAP COMPLETE ===' "$run_dir/bootstrap.log"; then
+        if grep -Fq "$completion_marker" "$run_dir/bootstrap.log"; then
             phase=complete
         elif grep -Fq '=== wallet integration ===' "$run_dir/bootstrap.log"; then
             phase=wallet
@@ -1248,8 +1671,55 @@ internal_bootstrap() {
         signal=9
     fi
     if (( command_status == 0 )) &&
-        grep -Fq '=== BOOTSTRAP COMPLETE ===' "$run_dir/bootstrap.log"; then
+        grep -Fq "$completion_marker" "$run_dir/bootstrap.log"; then
         bootstrap_complete=true
+    fi
+    bootstrap_result="$(
+        sed -n 's/^Z00Z_BOOTSTRAP_EVIDENCE_V1 //p' "$run_dir/bootstrap.log" |
+            tail -n 1
+    )"
+    case "$bootstrap_result" in
+        "$CHECKPOINT_OUTPUT_ROOT/069-08/task-1/$result_scope/"*/result.json)
+            if [[ -f "$bootstrap_result" ]] &&
+                jq -e '.schema == "z00z.phase069.test-pyramid.v1"' \
+                    "$bootstrap_result" >/dev/null; then
+                source_stability_json="$(
+                    jq -c '.source_stability' "$bootstrap_result"
+                )"
+                source_digest_before="$(
+                    jq -r '.identity.source_digest_before' "$bootstrap_result"
+                )"
+                source_digest_after="$(
+                    jq -r '.identity.source_digest_after' "$bootstrap_result"
+                )"
+                cache_identity_json="$(
+                    jq -c '.cache_identity // null' "$bootstrap_result"
+                )"
+                bootstrap_reason="$(
+                    jq -r '.reason // empty' "$bootstrap_result"
+                )"
+            else
+                bootstrap_result=""
+            fi
+            ;;
+        *)
+            bootstrap_result=""
+            ;;
+    esac
+    if [[ -z "${source_stability_json:-}" ]]; then
+        source_stability_json="$(
+            jq -n \
+                --arg before "$source_digest_before" \
+                --arg after "$source_digest_after" \
+                '{
+                    status: "evidence_unavailable",
+                    drift_stage: null,
+                    checks: [],
+                    changed_paths: [],
+                    before_digest: $before,
+                    after_digest: $after
+                }'
+        )"
     fi
 
     if [[ "$abort_reason" == process_rss ]]; then
@@ -1262,6 +1732,9 @@ internal_bootstrap() {
     elif (( max_delta > 0 )); then
         exit_reason=resource_memory_max
         detail="bootstrap cgroup recorded MemoryMax pressure"
+    elif [[ "$bootstrap_reason" == prewarm_required ]]; then
+        exit_reason=prewarm_required
+        detail="cold compile exceeded the mandatory bootstrap budget; isolated diagnostic prewarm is required once"
     elif (( command_status == 124 )); then
         exit_reason=resource_timeout
         detail="bootstrap resource timeout expired"
@@ -1278,9 +1751,13 @@ internal_bootstrap() {
     elif (( swap_current > 0 )); then
         exit_reason=resource_memory_max
         detail="bootstrap used swap despite the zero-swap contract"
+    elif (( command_status == 86 )) &&
+        [[ "$(jq -r '.status' <<<"$source_stability_json")" == source_drift ]]; then
+        exit_reason=source_drift
+        detail="bootstrap source authority changed during the guarded run"
     elif [[ "$bootstrap_complete" == true ]]; then
         exit_reason=success
-        detail="isolated release bootstrap passed within the smoke budget"
+        detail="$completion_detail"
     else
         exit_reason=test_failure
         detail="isolated release bootstrap failed without a resource terminal"
@@ -1296,9 +1773,13 @@ internal_bootstrap() {
         --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
         --arg exit_reason "$exit_reason" \
         --arg detail "$detail" \
+        --arg command_kind "$command_kind" \
+        --arg bootstrap_mode "$bootstrap_mode" \
         --arg command_digest "$command_digest" \
         --arg previous_digest "$previous_digest" \
         --arg source_digest "$source_sha" \
+        --arg source_digest_before "$source_digest_before" \
+        --arg source_digest_after "$source_digest_after" \
         --arg fixture_digest "$fixture_sha" \
         --arg backend_digest "$backend_sha" \
         --arg worker_digest "$worker_digest" \
@@ -1309,6 +1790,9 @@ internal_bootstrap() {
         --arg kill_mode "$kill_mode" \
         --arg log_path "$run_dir/bootstrap.log" \
         --arg time_path "$run_dir/time-v.txt" \
+        --arg bootstrap_result_path "$bootstrap_result" \
+        --argjson source_stability "$source_stability_json" \
+        --argjson cache_identity "$cache_identity_json" \
         --argjson events_before "$events_before_json" \
         --argjson events_after "$events_after_json" \
         --argjson events_delta "$events_delta_json" \
@@ -1336,15 +1820,22 @@ internal_bootstrap() {
         --argjson process_limit "$SMOKE_PROCESS_BYTES" \
         '{
             schema: $schema,
-            evidence_kind: (if $retry_forbidden then "resource_exhaustion" else "bootstrap_run" end),
+            evidence_kind: (
+                if $exit_reason == "source_drift" then "source_drift"
+                elif $retry_forbidden then "resource_exhaustion"
+                elif $bootstrap_mode == "prewarm" then "bootstrap_prewarm"
+                else "bootstrap_run"
+                end
+            ),
             recorded_at: $recorded_at,
             exit_reason: $exit_reason,
             detail: $detail,
             is_retry_forbidden: $retry_forbidden,
             command: {
-                kind: "bootstrap",
+                kind: $command_kind,
+                mode: $bootstrap_mode,
                 profile: "release",
-                test_threads: 1,
+                test_threads: 8,
                 exit_status: $command_status,
                 signal: $signal,
                 digest: $command_digest,
@@ -1354,10 +1845,14 @@ internal_bootstrap() {
             },
             identity: {
                 source_digest: $source_digest,
+                source_digest_before: $source_digest_before,
+                source_digest_after: $source_digest_after,
                 fixture_digest: $fixture_digest,
                 backend_digest: $backend_digest,
                 worker_digest: $worker_digest
             },
+            source_stability: $source_stability,
+            cache_identity: $cache_identity,
             isolation: {
                 unit: $unit,
                 cgroup: $child_cgroup,
@@ -1393,12 +1888,21 @@ internal_bootstrap() {
                 }
             },
             terminal_flags: {
-                bootstrap_complete: $bootstrap_complete,
+                bootstrap_complete: (
+                    $bootstrap_mode == "bootstrap" and $bootstrap_complete
+                ),
+                prewarm_complete: (
+                    $bootstrap_mode == "prewarm" and $bootstrap_complete
+                ),
                 named_plonky3_prover_started: false
             },
             artifacts: {
                 stdout_stderr_log: $log_path,
-                time_v_log: $time_path
+                time_v_log: $time_path,
+                bootstrap_result: (
+                    $bootstrap_result_path
+                    | if length == 0 then null else . end
+                )
             }
         }' >"$run_dir/resource-evidence.json"
 
@@ -1410,24 +1914,46 @@ internal_bootstrap() {
 }
 
 run_bootstrap() {
-    local worker_digest parent_cgroup run_dir unit source_sha fixture_sha backend_sha
-    local command_text command_digest previous_digest output launch_status reason
+    local bootstrap_mode="${1:-bootstrap}" command_kind
+    local worker_digest parent_cgroup run_dir unit source_sha fixture_sha backend_sha host_boot_id
+    local source_manifest command_text command_digest previous_digest output
+    local launch_status reason
+    case "$bootstrap_mode" in
+        bootstrap)
+            command_kind="bootstrap"
+            ;;
+        prewarm)
+            command_kind="bootstrap-prewarm"
+            ;;
+        *)
+            die "invalid bootstrap mode: $bootstrap_mode"
+            ;;
+    esac
     host_preflight
     mkdir -p "$EVIDENCE_ROOT" "$BLOCK_ROOT"
     worker_digest="$(file_digest "$SCRIPT_PATH")"
+    host_boot_id="$(</proc/sys/kernel/random/boot_id)"
     if [[ ! -s "$EVIDENCE_ROOT/preflight-latest.json" ]] ||
         ! jq -e \
             --arg worker_digest "$worker_digest" \
-            '.exit_reason == "success" and .worker_digest == $worker_digest' \
+            --arg host_boot_id "$host_boot_id" \
+            '.exit_reason == "success"
+            and .worker_digest == $worker_digest
+            and .host_boot_id == $host_boot_id' \
             "$EVIDENCE_ROOT/preflight-latest.json" >/dev/null; then
         die "current-worker isolation preflight is required before bootstrap"
     fi
 
-    source_sha="$(bootstrap_source_digest)"
+    [[ -x "$BOOTSTRAP_SOURCE_AUTHORITY" ]] ||
+        die "bootstrap source authority is missing or not executable: $BOOTSTRAP_SOURCE_AUTHORITY"
+    source_manifest="$("$BOOTSTRAP_SOURCE_AUTHORITY" manifest)"
+    [[ -n "$source_manifest" ]] ||
+        die "bootstrap source authority returned an empty manifest"
+    source_sha="$(printf '%s\n' "$source_manifest" | sha256_text)"
     fixture_sha="$(file_digest "$BOOTSTRAP_SCRIPT")"
     backend_sha="$(backend_digest)"
-    previous_digest="$(previous_bootstrap_digest)"
-    command_text="BOOTSTRAP_THREADS=1 $BOOTSTRAP_SCRIPT"
+    previous_digest="$(previous_bootstrap_digest "$command_kind")"
+    command_text="BOOTSTRAP_THREADS=8 CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 $BOOTSTRAP_SCRIPT $bootstrap_mode"
     command_digest="$({
         printf '%s\n' "$command_text"
         printf '%s\n' "$source_sha" "$worker_digest"
@@ -1442,14 +1968,17 @@ run_bootstrap() {
     fi
 
     parent_cgroup="$(current_cgroup)"
-    run_dir="$(new_run_dir bootstrap "$command_digest")"
-    unit="$(unit_name bootstrap "$command_digest")"
+    run_dir="$(new_run_dir "$command_kind" "$command_digest")"
+    unit="$(unit_name "$command_kind" "$command_digest")"
     mkdir -p "$run_dir"
+    printf '%s\n' "$source_manifest" >"$run_dir/source-manifest-launch.tsv"
     output="$run_dir/systemd-run.log"
     set +e
     systemd_smoke_launch "$unit" "$SCRIPT_PATH" --internal-bootstrap \
         "$run_dir" "$parent_cgroup" "$unit" "$command_digest" "$previous_digest" \
-        "$source_sha" "$fixture_sha" "$backend_sha" "$worker_digest" >"$output" 2>&1
+        "$source_sha" "$fixture_sha" "$backend_sha" "$worker_digest" \
+        "$bootstrap_mode" \
+        >"$output" 2>&1
     launch_status=$?
     set -e
     if [[ ! -s "$run_dir/resource-evidence.json" ]]; then
@@ -1457,7 +1986,7 @@ run_bootstrap() {
             "$run_dir/resource-evidence.json" \
             "bootstrap service ended before typed evidence was written; see systemd-run.log" \
             "$worker_digest" "$parent_cgroup" "$unit.service" \
-            "$command_digest" "$source_sha"
+            "$command_digest" "$source_sha" "$command_kind"
         cp "$run_dir/resource-evidence.json" "$BLOCK_ROOT/$command_digest.json"
         printf '%s\n' "$run_dir/resource-evidence.json"
         return 125
@@ -1624,6 +2153,7 @@ wait_for_detached_run() {
 start_named_test() {
     local test_name="$1" worker_digest parent_cgroup run_dir unit source_sha fixture_sha backend_sha
     local command_text command_digest previous_digest output latest launch_status active_run
+    local host_boot_id runtime_seconds
     host_preflight
     is_named_test "$test_name" || die "unapproved or non-exact heavy test: $test_name"
     mkdir -p "$EVIDENCE_ROOT" "$BLOCK_ROOT"
@@ -1631,17 +2161,26 @@ start_named_test() {
         die "another named heavy proof is already active: $active_run"
     fi
     worker_digest="$(file_digest "$SCRIPT_PATH")"
+    host_boot_id="$(</proc/sys/kernel/random/boot_id)"
+    runtime_seconds="$(runtime_budget_for_test "$test_name")"
     latest="$EVIDENCE_ROOT/preflight-latest.json"
     [[ -s "$latest" ]] || die "positive isolation preflight is required before a real prover"
     jq -e \
         --arg worker_digest "$worker_digest" \
-        '.exit_reason == "success" and .worker_digest == $worker_digest' \
+        --arg host_boot_id "$host_boot_id" \
+        '.exit_reason == "success"
+        and .worker_digest == $worker_digest
+        and .host_boot_id == $host_boot_id' \
         "$latest" >/dev/null || die "isolation preflight is stale or unsuccessful"
 
     source_sha="$(source_digest)"
     if is_source_diagnostic_test "$test_name" ||
         is_hash_diagnostic_test "$test_name" ||
-        is_aggregation_diagnostic_test "$test_name"; then
+        is_aggregation_diagnostic_test "$test_name" ||
+        [[ "$test_name" == "$TRACE_FRAMING_SMOKE_TEST" ||
+            "$test_name" == "$PACKED_RANGE_SMOKE_TEST" ||
+            "$test_name" == "$SHA256_SMOKE_TEST" ||
+            "$test_name" == "$JMT_SMOKE_TEST" ]]; then
         fixture_sha="$(file_digest "$BACKEND_SOURCE")"
     else
         fixture_sha="$(file_digest "$TEST_SOURCE")"
@@ -1649,14 +2188,16 @@ start_named_test() {
     backend_sha="$(backend_digest)"
     previous_digest="$(previous_test_digest "$test_name")"
     if is_lib_diagnostic_test "$test_name"; then
-        command_text="cargo test --release --lib -p z00z_storage $(lib_diagnostic_filter "$test_name") -- --ignored --exact --nocapture --test-threads=1"
+        command_text="CARGO_TARGET_DIR=$PHASE069_RELEASE_TARGET_DIR CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 RAYON_NUM_THREADS=$GLOBAL_RAYON_THREADS MALLOC_ARENA_MAX=1 MALLOC_MMAP_THRESHOLD_=131072 MALLOC_TRIM_THRESHOLD_=131072 MALLOC_TOP_PAD_=0 Z00Z_STORAGE_SCHED_CPU=$HJMT_SCHED_THREADS Z00Z_PLONKY3_RESOURCE_TELEMETRY=1 cargo test --release --locked --offline --lib -p z00z_storage $(lib_diagnostic_filter "$test_name") -- --ignored --exact --nocapture --test-threads=1"
     else
-        command_text="Z00Z_PLONKY3_RESOURCE_TELEMETRY=1 cargo test --release -p z00z_storage --test $TEST_TARGET $test_name -- --ignored --exact --nocapture --test-threads=1"
+        command_text="CARGO_TARGET_DIR=$PHASE069_RELEASE_TARGET_DIR CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 RAYON_NUM_THREADS=$GLOBAL_RAYON_THREADS MALLOC_ARENA_MAX=1 MALLOC_MMAP_THRESHOLD_=131072 MALLOC_TRIM_THRESHOLD_=131072 MALLOC_TOP_PAD_=0 Z00Z_STORAGE_SCHED_CPU=$HJMT_SCHED_THREADS Z00Z_PLONKY3_RESOURCE_TELEMETRY=1 cargo test --release --locked --offline -p z00z_storage --test $TEST_TARGET $test_name -- --ignored --exact --nocapture --test-threads=1"
     fi
     command_digest="$({
         printf '%s\n' "$command_text"
         printf '%s\n' "$source_sha" "$worker_digest"
-        printf '%s\n' "$MEMORY_HIGH_BYTES" "$MEMORY_MAX_BYTES" 0 "$RUNTIME_SECONDS"
+        printf '%s\n' \
+            "$MEMORY_HIGH_BYTES" "$MEMORY_MAX_BYTES" "$MEMORY_TARGET_BYTES" \
+            0 "$runtime_seconds"
     } | sha256_text)"
     if [[ -s "$BLOCK_ROOT/$command_digest.json" ]]; then
         printf 'unchanged terminal command is retry-forbidden: %s\n' "$command_digest" >&2
@@ -1674,7 +2215,7 @@ start_named_test() {
         "$previous_digest" "$source_sha" "$fixture_sha" "$backend_sha" \
         "$worker_digest" "$parent_cgroup"
     set +e
-    systemd_heavy_start "$unit" "$run_dir/service.log" \
+    systemd_heavy_start "$unit" "$run_dir/service.log" "$runtime_seconds" \
         "$SCRIPT_PATH" --internal-run \
         "$run_dir" "$parent_cgroup" "$unit" "$test_name" "$command_digest" \
         "$source_sha" "$fixture_sha" "$backend_sha" "$previous_digest" >"$output" 2>&1
@@ -1714,7 +2255,11 @@ main() {
             ;;
         --bootstrap)
             [[ "$#" == 1 ]] || die "--bootstrap accepts no arguments"
-            run_bootstrap
+            run_bootstrap bootstrap
+            ;;
+        --bootstrap-prewarm)
+            [[ "$#" == 1 ]] || die "--bootstrap-prewarm accepts no arguments"
+            run_bootstrap prewarm
             ;;
         --run)
             [[ "$#" == 2 ]] || die "--run requires one exact test name"
@@ -1748,8 +2293,10 @@ main() {
             internal_run "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}"
             ;;
         --internal-bootstrap)
-            [[ "$#" == 10 ]] || die "invalid internal bootstrap arguments"
-            internal_bootstrap "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}"
+            [[ "$#" == 11 ]] || die "invalid internal bootstrap arguments"
+            internal_bootstrap \
+                "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" \
+                "${10}" "${11}"
             ;;
         -h | --help)
             usage

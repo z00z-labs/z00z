@@ -11,3 +11,6 @@ pub use action_id::{ActionId, ActionPoolId};
 pub use action_pool::{
     fixed_cash_action_pool_descriptor, reject_custom_native_cash_pool, ActionPoolDescriptorV1,
 };
+
+#[cfg(test)]
+mod test_action_descriptor;

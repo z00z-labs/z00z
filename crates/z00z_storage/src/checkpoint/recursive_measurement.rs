@@ -4,10 +4,15 @@
 //! separate decisions. This module records the measured policy; it does not
 //! schedule jobs or send network traffic.
 
+use std::{path::PathBuf, sync::OnceLock};
+
+use sha2::{Digest, Sha256};
 use z00z_crypto::sha256_256;
+use z00z_utils::io::{read_file_bounded, symlink_metadata};
 
 use super::{
     authority_artifacts::ACTIVE_VERIFIER_BUNDLE_DIGEST_V2,
+    contract_config_v3::decode_digest_hex,
     nova::{lockfile_digest, manifest_digest, source_revision_digest},
     version_registry::{
         CheckpointVersionRegistryV2, RecursiveBoundedObjectV2, NOVA_CADENCE_DOMAIN_V2,
@@ -30,12 +35,118 @@ const NOVA_MEASUREMENT_BACKEND_ID_V2: &[u8] =
     b"nova-snark=0.73.0;features=io;curve-cycle=pasta;transcript=keccak256";
 const NOVA_MEASUREMENT_FIXTURE_ID_V2: &[u8] =
     b"phase069-plan06-canonical-mixed-nova-artifacts-and-continuous-chain-v2";
-const NOVA_MILESTONE_HARNESS_V2: &[u8] = include_bytes!(
-    "../../../../.github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh"
-);
-const NOVA_VERIFIER_RSS_HARNESS_V2: &[u8] = include_bytes!(
-    "../../../../.github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh"
-);
+const NOVA_MEASUREMENT_AUTHORITY_SCHEMA_V2: &str = "z00z.nova.measurement-worker-authority.v2";
+const NOVA_MEASUREMENT_AUTHORITY_PATH_V2: &str =
+    ".github/skills/smart-tests-bootstrap/scripts/nova_measurement_worker_authority_v2.txt";
+const NOVA_MILESTONE_HARNESS_PATH_V2: &str =
+    ".github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh";
+const NOVA_VERIFIER_RSS_HARNESS_PATH_V2: &str =
+    ".github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh";
+const NOVA_MEASUREMENT_AUTHORITY_MAX_BYTES_V2: u64 = 1_024;
+const NOVA_MEASUREMENT_HARNESS_MAX_BYTES_V2: u64 = 128 * 1_024;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct NovaMeasurementWorkerAuthorityV2 {
+    manifest_digest: [u8; 32],
+    milestone_harness_digest: [u8; 32],
+    verifier_rss_harness_digest: [u8; 32],
+}
+
+fn repo_owned_measurement_path(relative: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(relative)
+}
+
+fn read_repo_owned_measurement_file(relative: &str, max_bytes: u64) -> Option<Vec<u8>> {
+    let path = repo_owned_measurement_path(relative);
+    let metadata = symlink_metadata(&path).ok()?;
+    if !metadata.file_type().is_file() {
+        return None;
+    }
+    read_file_bounded(path, max_bytes).ok()
+}
+
+fn parse_measurement_worker_authority(manifest_bytes: &[u8]) -> Option<([u8; 32], [u8; 32])> {
+    let manifest = std::str::from_utf8(manifest_bytes).ok()?;
+    if !manifest.ends_with('\n') || manifest.ends_with("\n\n") || manifest.contains('\r') {
+        return None;
+    }
+    let mut lines = manifest.lines();
+    if lines.next()? != format!("schema={NOVA_MEASUREMENT_AUTHORITY_SCHEMA_V2}") {
+        return None;
+    }
+    let milestone = lines.next()?.strip_prefix(NOVA_MILESTONE_HARNESS_PATH_V2)?;
+    let verifier_rss = lines
+        .next()?
+        .strip_prefix(NOVA_VERIFIER_RSS_HARNESS_PATH_V2)?;
+    if lines.next().is_some() {
+        return None;
+    }
+    Some((
+        decode_digest_hex(milestone.strip_prefix('=')?).ok()?,
+        decode_digest_hex(verifier_rss.strip_prefix('=')?).ok()?,
+    ))
+}
+
+fn verify_measurement_worker_authority(
+    manifest_bytes: &[u8],
+    milestone_harness: &[u8],
+    verifier_rss_harness: &[u8],
+) -> Option<NovaMeasurementWorkerAuthorityV2> {
+    let (expected_milestone, expected_verifier_rss) =
+        parse_measurement_worker_authority(manifest_bytes)?;
+    let milestone_harness_digest: [u8; 32] = Sha256::digest(milestone_harness).into();
+    let verifier_rss_harness_digest: [u8; 32] = Sha256::digest(verifier_rss_harness).into();
+    if milestone_harness_digest != expected_milestone
+        || verifier_rss_harness_digest != expected_verifier_rss
+    {
+        return None;
+    }
+    Some(NovaMeasurementWorkerAuthorityV2 {
+        manifest_digest: Sha256::digest(manifest_bytes).into(),
+        milestone_harness_digest,
+        verifier_rss_harness_digest,
+    })
+}
+
+fn measurement_worker_authority() -> Option<NovaMeasurementWorkerAuthorityV2> {
+    static AUTHORITY: OnceLock<Option<NovaMeasurementWorkerAuthorityV2>> = OnceLock::new();
+    *AUTHORITY.get_or_init(|| {
+        let manifest = read_repo_owned_measurement_file(
+            NOVA_MEASUREMENT_AUTHORITY_PATH_V2,
+            NOVA_MEASUREMENT_AUTHORITY_MAX_BYTES_V2,
+        )?;
+        let milestone = read_repo_owned_measurement_file(
+            NOVA_MILESTONE_HARNESS_PATH_V2,
+            NOVA_MEASUREMENT_HARNESS_MAX_BYTES_V2,
+        )?;
+        let verifier_rss = read_repo_owned_measurement_file(
+            NOVA_VERIFIER_RSS_HARNESS_PATH_V2,
+            NOVA_MEASUREMENT_HARNESS_MAX_BYTES_V2,
+        )?;
+        verify_measurement_worker_authority(&manifest, &milestone, &verifier_rss)
+    })
+}
+
+fn measurement_worker_identity_digest(source_revision: [u8; 32]) -> [u8; 32] {
+    let Some(authority) = measurement_worker_authority() else {
+        return [0; 32];
+    };
+    sha256_256(
+        NOVA_CADENCE_DOMAIN_V2,
+        MEASUREMENT_WORKER_LABEL_V2,
+        &[
+            NOVA_MEASUREMENT_AUTHORITY_PATH_V2.as_bytes(),
+            &authority.manifest_digest,
+            NOVA_MILESTONE_HARNESS_PATH_V2.as_bytes(),
+            &authority.milestone_harness_digest,
+            NOVA_VERIFIER_RSS_HARNESS_PATH_V2.as_bytes(),
+            &authority.verifier_rss_harness_digest,
+            &source_revision,
+        ],
+    )
+}
 
 pub(crate) const NOVA_IMAGE_MAX_BYTES_V2: usize = 512 * 1024 * 1024;
 pub(crate) const NOVA_SNAPSHOT_MAX_BYTES_V2: usize = 540 * 1024 * 1024;
@@ -82,15 +193,7 @@ impl NovaCadenceMeasurementPacketV2 {
                 &workspace_manifest_digest,
             ],
         );
-        let worker_identity_digest = sha256_256(
-            NOVA_CADENCE_DOMAIN_V2,
-            MEASUREMENT_WORKER_LABEL_V2,
-            &[
-                NOVA_MILESTONE_HARNESS_V2,
-                NOVA_VERIFIER_RSS_HARNESS_V2,
-                &source_revision_digest,
-            ],
-        );
+        let worker_identity_digest = measurement_worker_identity_digest(source_revision_digest);
         let fixture_identity_digest = sha256_256(
             NOVA_CADENCE_DOMAIN_V2,
             MEASUREMENT_FIXTURE_LABEL_V2,
@@ -487,6 +590,43 @@ impl NovaRoleDeliveryV2 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_measurement_worker_authority_hashes_runtime_scripts() {
+        let manifest = read_repo_owned_measurement_file(
+            NOVA_MEASUREMENT_AUTHORITY_PATH_V2,
+            NOVA_MEASUREMENT_AUTHORITY_MAX_BYTES_V2,
+        )
+        .expect("canonical measurement-worker authority manifest");
+        let milestone = read_repo_owned_measurement_file(
+            NOVA_MILESTONE_HARNESS_PATH_V2,
+            NOVA_MEASUREMENT_HARNESS_MAX_BYTES_V2,
+        )
+        .expect("canonical Nova milestone harness");
+        let verifier_rss = read_repo_owned_measurement_file(
+            NOVA_VERIFIER_RSS_HARNESS_PATH_V2,
+            NOVA_MEASUREMENT_HARNESS_MAX_BYTES_V2,
+        )
+        .expect("canonical Nova verifier RSS harness");
+        let authority = verify_measurement_worker_authority(&manifest, &milestone, &verifier_rss)
+            .expect("authority hashes match runtime scripts");
+        assert_eq!(measurement_worker_authority(), Some(authority));
+
+        let mut tampered_milestone = milestone.clone();
+        tampered_milestone[0] ^= 1;
+        assert!(
+            verify_measurement_worker_authority(&manifest, &tampered_milestone, &verifier_rss)
+                .is_none()
+        );
+
+        let mut tampered_manifest = manifest;
+        let digest_offset = tampered_manifest.len() - 2;
+        tampered_manifest[digest_offset] ^= 1;
+        assert!(
+            verify_measurement_worker_authority(&tampered_manifest, &milestone, &verifier_rss)
+                .is_none()
+        );
+    }
 
     #[test]
     fn test_measurement_binds_identities() {

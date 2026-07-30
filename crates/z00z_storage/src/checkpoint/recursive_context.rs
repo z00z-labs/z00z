@@ -400,6 +400,8 @@ pub(crate) struct RecursiveCheckpointBindingV2 {
     journal_digest: [u8; 32],
     prior_recursive_output_root: Option<[u8; 32]>,
     checkpoint_link_digest: [u8; 32],
+    challenge_content_digest: [u8; 32],
+    da_payload_commitment: [u8; 32],
     pre_settlement_root: SettlementStateRoot,
     post_settlement_root: SettlementStateRoot,
 }
@@ -464,6 +466,12 @@ impl RecursiveCheckpointBindingV2 {
             .statement_core()
             .ok_or(CheckpointError::Authority)?;
         let da_ref = artifact.da_ref().ok_or(CheckpointError::Authority)?;
+        let archive_manifest = checkpoint_store
+            .load_archive_manifest(&checkpoint_id)
+            .map_err(|_| CheckpointError::Authority)?;
+        let da_reference = checkpoint_store
+            .load_da_reference(&checkpoint_id)
+            .map_err(|_| CheckpointError::Authority)?;
         let final_bind = CheckpointTransitionStatementFinalV1::new(da_ref);
         let statement_core_digest = statement.statement_core_digest_v1(&core);
         let statement_digest = statement.final_statement_digest_v1(&core, &final_bind);
@@ -471,6 +479,18 @@ impl RecursiveCheckpointBindingV2 {
             || statement_digest == [0; 32]
             || statement_core_digest == [0; 32]
             || link.link_bind() == [0; 32]
+            || archive_manifest.statement_core_digest() != statement_core_digest
+            || archive_manifest.checkpoint_exec_input_id() != link.exec_input_id()
+            || archive_manifest.prep_snapshot_id() != link.prep_snapshot_id()
+            || archive_manifest.tx_data_root() != exec_tx_root
+            || archive_manifest.delta_root() != core.delta_root()
+            || archive_manifest.witness_root() != core.witness_root()
+            || archive_manifest.journal_digest() != core.journal_digest()
+            || archive_manifest.content_address_root() == [0; 32]
+            || da_reference.da_ref() != da_ref
+            || da_reference.statement_core_digest() != statement_core_digest
+            || da_reference.archive_manifest_root() != archive_manifest.archive_manifest_root()
+            || da_reference.payload_commitment() != archive_manifest.da_payload_commitment()
         {
             return Err(CheckpointError::Authority);
         }
@@ -520,6 +540,8 @@ impl RecursiveCheckpointBindingV2 {
             journal_digest: core.journal_digest(),
             prior_recursive_output_root: core.prior_recursive_output_root(),
             checkpoint_link_digest: link.link_bind(),
+            challenge_content_digest: archive_manifest.content_address_root(),
+            da_payload_commitment: da_reference.payload_commitment(),
             pre_settlement_root: statement.prev_settlement_root(),
             post_settlement_root: statement.new_settlement_root(),
         })
@@ -621,6 +643,16 @@ impl RecursiveCheckpointBindingV2 {
     #[must_use]
     pub(crate) const fn checkpoint_link_digest(&self) -> [u8; 32] {
         self.checkpoint_link_digest
+    }
+
+    #[must_use]
+    pub(crate) const fn challenge_content_digest(&self) -> [u8; 32] {
+        self.challenge_content_digest
+    }
+
+    #[must_use]
+    pub(crate) const fn da_payload_commitment(&self) -> [u8; 32] {
+        self.da_payload_commitment
     }
 
     #[must_use]

@@ -4,8 +4,8 @@ use p3_circuit::ops::{PermCall, PermConfig, Poseidon2Config};
 use p3_circuit::{CircuitBuilder, CircuitBuilderError};
 use p3_field::PrimeCharacteristicRing;
 use p3_koala_bear::KoalaBear;
-use p3_recursion::pcs::MerkleCapTargets;
-use p3_recursion::{Target, VerificationError};
+use z00z_plonky3_circuit_prover::pcs::MerkleCapTargets;
+use z00z_plonky3_circuit_prover::{Target, VerificationError};
 
 use super::{Plonky3ChallengeV2, PLONKY3_MMCS_DIGEST_ELEMS_V2};
 
@@ -22,7 +22,7 @@ pub(super) fn hash_base_values(
     let chunks = values.chunks(24);
     for (chunk_index, chunk) in chunks.enumerate() {
         let mut inputs = vec![None; 8];
-        for extension_index in 0..6 {
+        for (extension_index, input) in inputs.iter_mut().enumerate().take(6) {
             let start = extension_index * 4;
             let count = chunk.len().saturating_sub(start).min(4);
             if count == 0 {
@@ -36,7 +36,7 @@ pub(super) fn hash_base_values(
                 previous.as_deref(),
                 extension_index,
             )?;
-            inputs[extension_index] = Some(pack_coefficients(circuit, &coefficients)?);
+            *input = Some(pack_coefficients(circuit, &coefficients)?);
         }
         let is_last = chunk_index + 1 == chunk_count;
         let exposed = exposed_base_outputs(values.len(), chunk_index, is_last);
@@ -52,7 +52,7 @@ fn exposed_base_outputs(value_count: usize, chunk_index: usize, is_last: bool) -
     }
     let next_start = (chunk_index + 1) * 24;
     let next_len = value_count.saturating_sub(next_start).min(24);
-    if next_len % 4 == 0 {
+    if next_len.is_multiple_of(4) {
         Vec::new()
     } else {
         (0..=next_len / 4).collect()
