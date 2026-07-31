@@ -130,6 +130,10 @@ path = "bin/assets_analyzer_cli.rs"
 name = "assets_extractor_cli"
 path = "bin/assets_extractor_cli.rs"
 
+[[bin]]
+name = "z00z_action_basis_manifest"
+path = "bin/z00z_action_basis_manifest.rs"
+
 # Assets Generation CLI Binary
 [[bin]]
 name = "assets_generation_cli"

@@ -300,3 +300,20 @@ impl ActionDescriptorV1 {
         Ok(ActionId::new(id))
     }
 }
+
+#[cfg(test)]
+mod basis_vocabulary_tests {
+    use super::*;
+
+    #[test]
+    fn atomic_basis_is_vocabulary_not_synthetic_descriptor_authority() {
+        let mut effects = BTreeSet::new();
+        for effect in LifecycleEffectV1::ATOMIC_BASIS {
+            assert_ne!(effect, LifecycleEffectV1::NoStateChange);
+            assert!(effects.insert(effect.as_str()));
+        }
+        assert_eq!(effects.len(), 24);
+        assert_eq!(LifecycleEffectV1::ATOMIC_BASIS[0].as_str(), "create");
+        assert_eq!(LifecycleEffectV1::ATOMIC_BASIS[23].as_str(), "disclose");
+    }
+}
