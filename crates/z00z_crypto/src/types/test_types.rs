@@ -1,9 +1,11 @@
 use super::*;
+use crate::secret::SecretBytes;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory, keys::SecretKey,
     ristretto::pedersen::commitment_factory::PedersenCommitmentFactory, tari_utilities::ByteArray,
 };
 use z00z_utils::rng::MockRngProvider;
+use zeroize::Zeroize;
 
 fn test_rng(seed: u64) -> rand::rngs::StdRng {
     MockRngProvider::with_u64_seed(seed).rng()
@@ -259,6 +261,38 @@ fn test_scalar_bytes_roundtrip() {
     let bytes = original.to_bytes();
     let recovered = Z00ZScalar::from_canonical_bytes(&bytes).unwrap();
     assert!(original.ct_eq(&recovered));
+}
+
+#[test]
+fn try_from_nonzero_secret_bytes_zeroizes_all_paths() {
+    let cases = [
+        (
+            vec![
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+            ],
+            true,
+        ),
+        (vec![0; 32], false),
+        (vec![0xff; 32], false),
+        (vec![7; 31], false),
+        (vec![7; 33], false),
+    ];
+
+    for (bytes, should_succeed) in cases {
+        let mut owner = SecretBytes::new(bytes);
+        let mut result = Z00ZScalar::try_from_nonzero_secret_bytes(&mut owner);
+        assert_eq!(result.is_ok(), should_succeed);
+        assert!(owner.as_slice().iter().all(|byte| *byte == 0));
+        if let Ok(scalar) = result.as_mut() {
+            assert!(
+                !scalar.is_zero(),
+                "valid secret must produce a non-zero scalar"
+            );
+            scalar.zeroize();
+            assert_eq!(scalar.to_bytes(), Z00ZScalar::ZERO_BYTES);
+        }
+    }
 }
 
 #[test]

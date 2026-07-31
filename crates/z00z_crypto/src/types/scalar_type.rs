@@ -5,7 +5,7 @@ use tari_crypto::ristretto::RistrettoSecretKey;
 use tari_crypto::tari_utilities::ByteArray;
 use zeroize::Zeroize;
 
-use crate::CryptoError;
+use crate::{secret::SecretBytes, CryptoError};
 
 #[derive(zeroize::Zeroize)]
 #[zeroize(drop)]
@@ -42,6 +42,27 @@ impl Z00ZScalar {
             .try_into()
             .map_err(|_| CryptoError::InvalidParameters { param: "scalar" })?;
         Self::try_from_bytes(bytes)
+    }
+
+    /// Parse one non-zero canonical scalar directly from a zeroizing owner.
+    ///
+    /// The caller-owned buffer is wiped before every return, including length,
+    /// canonical-encoding, and zero-scalar failures.
+    pub fn try_from_nonzero_secret_bytes(secret: &mut SecretBytes) -> Result<Self, CryptoError> {
+        let parsed = if secret.len() != 32 {
+            Err(CryptoError::InvalidParameters { param: "scalar" })
+        } else {
+            RistrettoSecretKey::from_canonical_bytes(secret.as_slice())
+                .map(Self)
+                .map_err(|_| CryptoError::InvalidParameters { param: "scalar" })
+        };
+        secret.wipe();
+
+        let scalar = parsed?;
+        if scalar.is_zero() {
+            return Err(CryptoError::InvalidScalar);
+        }
+        Ok(scalar)
     }
 
     pub fn from_uniform_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
