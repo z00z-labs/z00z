@@ -5959,6 +5959,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "z00z-app-api"
+version = "0.1.0"
+dependencies = [
+ "z00z_utils",
+]
+
+[[package]]
+name = "z00z-app-ext"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "z00z-app-api",
+ "z00z_crypto",
+ "z00z_utils",
+]
+
+[[package]]
+name = "z00z-app-rpc"
+version = "0.1.0"
+dependencies = [
+ "z00z-app-api",
+ "z00z_utils",
+]
+
+[[package]]
 name = "z00z_aggregators"
 version = "0.2.0"
 dependencies = [
@@ -6310,6 +6335,9 @@ dependencies = [
  "wasm-bindgen-test",
  "web-sys",
  "winapi",
+ "z00z-app-api",
+ "z00z-app-ext",
+ "z00z-app-rpc",
  "z00z_core",
  "z00z_crypto",
  "z00z_networks_rpc",

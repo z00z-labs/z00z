@@ -76,6 +76,8 @@ z00z_crypto = { path = "../z00z_crypto" }
 z00z_storage = { path = "../z00z_storage" }
 z00z_utils = { path = "../z00z_utils" }                                      # MANDATORY: Always use z00z_utils abstractions
 z00z_networks_rpc = { path = "../z00z_networks/rpc", features = ["logger"] }
+z00z-app-api = { path = "../../../z00z-app/crates/z00z_app_api" }
+z00z-app-ext = { path = "../../../z00z-app/crates/z00z_app_ext" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -133,6 +135,7 @@ tokio = { version = "1", features = ["full"] }
 z00z_core = { path = "../z00z_core", features = ["deterministic-rng"] }
 z00z_crypto = { path = "../z00z_crypto", features = ["test-utils"] }
 z00z_utils = { path = "../z00z_utils", features = ["test-utils"] }
+z00z-app-rpc = { path = "../../../z00z-app/crates/z00z_app_rpc" }
 
 # Native-only dev dependencies (don't work in WASM)
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
