@@ -134,6 +134,16 @@ pub fn set_file_mode(file: &std::fs::File, mode: u32) -> Result<(), IoError> {
     Ok(())
 }
 
+/// Mark a file read-only using the platform-native permission representation.
+pub fn set_file_readonly(path: impl AsRef<Path>) -> Result<(), IoError> {
+    let path = path.as_ref();
+    let mut permissions = std::fs::metadata(path)?.permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(path, permissions)?;
+    std::fs::File::open(path)?.sync_all()?;
+    Ok(())
+}
+
 /// Read directory entries into a bounded, deterministically sorted path list.
 pub fn read_dir(path: impl AsRef<Path>) -> Result<Vec<PathBuf>, IoError> {
     read_dir_bounded(path, DEFAULT_MAX_DIR_ENTRIES)

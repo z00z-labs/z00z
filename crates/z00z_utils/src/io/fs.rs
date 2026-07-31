@@ -37,7 +37,8 @@ pub use self::{
     file_read::{
         create_dir_all, file_len, open_lock_file, path_exists, path_exists_no_follow, read_dir,
         read_dir_bounded, read_file, read_link, read_to_string, remove_dir_all, remove_file,
-        rename_file, set_file_mode, set_permissions_mode, symlink_metadata, sync_directory,
+        rename_file, set_file_mode, set_file_readonly, set_permissions_mode, symlink_metadata,
+        sync_directory,
     },
     fs_codec::{load_with_codec, read_file_bounded, save_with_codec},
     json_io::{load_json, load_json_bounded, save_json},

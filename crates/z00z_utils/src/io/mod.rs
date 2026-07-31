@@ -25,7 +25,11 @@
 
 pub mod error;
 pub mod fs;
+mod hashing;
 mod spool;
+mod temporary;
+#[cfg(target_arch = "wasm32")]
+mod web;
 
 pub use std::fs::File;
 pub use std::io::copy;
@@ -39,7 +43,12 @@ pub use fs::{
     path_exists_no_follow, prepare_managed_root, prune_hex_dirs, prune_scope_alias_dirs, read_dir,
     read_dir_bounded, read_file, read_file_bounded, read_link, read_to_string, remove_dir_all,
     remove_file, rename_file, reset_managed_root, reset_managed_root_once, save_bincode, save_json,
-    save_with_codec, save_yaml, set_file_mode, set_permissions_mode, stable_current_exe_scope,
-    symlink_metadata, sync_directory, write_file, write_file_private_new, SecureDir,
+    save_with_codec, save_yaml, set_file_mode, set_file_readonly, set_permissions_mode,
+    stable_current_exe_scope, symlink_metadata, sync_directory, write_file, write_file_private_new,
+    SecureDir,
 };
+pub use hashing::{sha256_256, to_lower_hex};
 pub use spool::PrivateSpoolFile;
+pub use temporary::TemporaryDirectory;
+#[cfg(target_arch = "wasm32")]
+pub use web::{delay_ms, read_web_resource_bounded, web_location_pathname};

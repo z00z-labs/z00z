@@ -32,6 +32,12 @@ lz4 = "1"
 lz4_flex = "0.11"
 rustix = { version = "1", features = ["fs", "mm", "process"] }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+gloo-net = "0.6"
+gloo-timers = { version = "0.3", features = ["futures"] }
+web-sys = { version = "0.3", features = ["Location", "Window"] }
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_Memory"] }
 
