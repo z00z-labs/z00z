@@ -10,6 +10,12 @@
 pub mod traits;
 pub use traits::{Codec, CodecError};
 
+pub mod app_wire;
+pub use app_wire::{
+    AppWireCodec, AppWireEnvelope, AppWireError, AppWireField, APP_WIRE_MAGIC, APP_WIRE_VERSION,
+    MAX_APP_WIRE_FIELDS, MAX_APP_WIRE_FIELD_BYTES, MAX_APP_WIRE_FRAME_BYTES,
+};
+
 mod canonical_json;
 pub use canonical_json::to_canonical_json_bytes;
 
