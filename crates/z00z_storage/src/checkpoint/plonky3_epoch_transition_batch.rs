@@ -75,11 +75,11 @@ use crate::CheckpointError;
 
 const RECEIPT_DOMAIN_V2: &str = "z00z.storage.checkpoint.plonky3.epoch-transition-batch-receipt.v2";
 const RECEIPT_LABEL_V2: &str = "actual_verified_trace_chunk";
-const CHUNK_PROOF_MAGIC_V2: [u8; 8] = *b"Z00ZECP5";
-const CHUNK_PROOF_WIRE_VERSION_V2: u16 = 5;
+const CHUNK_PROOF_MAGIC_V2: [u8; 8] = *b"Z00ZECP6";
+const CHUNK_PROOF_WIRE_VERSION_V2: u16 = 6;
 const CHUNK_PROOF_STATEMENT_COUNT_V2: u16 = 6;
-const CHUNK_PROOF_MIN_GROUP_COUNT_V2: u16 = 4;
-const CHUNK_PROOF_MAX_GROUP_COUNT_V2: u16 = 5;
+const CHUNK_PROOF_MIN_GROUP_COUNT_V2: u16 = 6;
+const CHUNK_PROOF_MAX_GROUP_COUNT_V2: u16 = 7;
 const CHUNK_PROOF_GROUP_FIXED_BYTES_V2: usize = 1 + 4 + 32;
 const CHUNK_PROOF_UNIQUENESS_METADATA_BYTES_V2: usize = 2;
 const CHUNK_PROOF_FIXED_BYTES_V2: usize = 8
@@ -90,14 +90,18 @@ const CHUNK_PROOF_FIXED_BYTES_V2: usize = 8
     + CHUNK_PROOF_GROUP_FIXED_BYTES_V2 * CHUNK_PROOF_MIN_GROUP_COUNT_V2 as usize
     + CHUNK_PROOF_UNIQUENESS_METADATA_BYTES_V2;
 const TRANSITION_CORE_GROUP_TABLE_COUNT_V2: usize = 2;
-const TRANSITION_SEMANTIC_GROUP_TABLE_COUNT_V2: usize = 7;
+const TRANSITION_TYPED_GROUP_TABLE_COUNT_V2: usize = 5;
+const TRANSITION_JMT_GROUP_TABLE_COUNT_V2: usize = 5;
+const TRANSITION_FLOW_GROUP_TABLE_COUNT_V2: usize = 4;
 const HASH_GROUP_TABLE_COUNT_V2: usize = 2;
 const UNIQUENESS_GROUP_TABLE_COUNT_V2: usize = ROLE_COUNT_V2 + 4;
 const TABLE_COUNT_V2: usize = TRANSITION_CORE_GROUP_TABLE_COUNT_V2
-    + TRANSITION_SEMANTIC_GROUP_TABLE_COUNT_V2
+    + TRANSITION_TYPED_GROUP_TABLE_COUNT_V2
+    + 3
+    + 2
     + HASH_GROUP_TABLE_COUNT_V2
     + UNIQUENESS_GROUP_TABLE_COUNT_V2;
-// Frontier admission is enabled only for the closed twenty-table theorem.
+// Frontier admission is enabled only for the closed twenty-three-table theorem.
 // The transition and uniqueness semantic-source AIRs bind the canonical event
 // bytes to the complete uniqueness transcript/Close relation, while their
 // linked SHA tables derive every structural event identifier from those same
@@ -109,20 +113,24 @@ const FRONTIER_ADMISSION_COMPLETE_SEMANTIC_COVERAGE_V2: bool = true;
 #[repr(u8)]
 pub(super) enum EpochChunkProofGroupV2 {
     Transition = 1,
-    TransitionSemantic = 2,
-    Hash = 3,
-    UniquenessLower = 4,
-    UniquenessUpper = 5,
+    TransitionTyped = 2,
+    TransitionJmt = 3,
+    TransitionFlow = 4,
+    Hash = 5,
+    UniquenessLower = 6,
+    UniquenessUpper = 7,
 }
 
 impl EpochChunkProofGroupV2 {
     const fn decode(value: u8) -> Option<Self> {
         match value {
             1 => Some(Self::Transition),
-            2 => Some(Self::TransitionSemantic),
-            3 => Some(Self::Hash),
-            4 => Some(Self::UniquenessLower),
-            5 => Some(Self::UniquenessUpper),
+            2 => Some(Self::TransitionTyped),
+            3 => Some(Self::TransitionJmt),
+            4 => Some(Self::TransitionFlow),
+            5 => Some(Self::Hash),
+            6 => Some(Self::UniquenessLower),
+            7 => Some(Self::UniquenessUpper),
             _ => None,
         }
     }
@@ -130,7 +138,9 @@ impl EpochChunkProofGroupV2 {
     fn expected(binding_count: usize) -> Result<Vec<Self>, CheckpointError> {
         let mut groups = vec![
             Self::Transition,
-            Self::TransitionSemantic,
+            Self::TransitionTyped,
+            Self::TransitionJmt,
+            Self::TransitionFlow,
             Self::Hash,
             Self::UniquenessLower,
         ];
@@ -147,7 +157,9 @@ impl EpochChunkProofGroupV2 {
     const fn table_count(self) -> usize {
         match self {
             Self::Transition => TRANSITION_CORE_GROUP_TABLE_COUNT_V2,
-            Self::TransitionSemantic => TRANSITION_SEMANTIC_GROUP_TABLE_COUNT_V2,
+            Self::TransitionTyped => TRANSITION_TYPED_GROUP_TABLE_COUNT_V2,
+            Self::TransitionJmt => TRANSITION_JMT_GROUP_TABLE_COUNT_V2,
+            Self::TransitionFlow => TRANSITION_FLOW_GROUP_TABLE_COUNT_V2,
             Self::Hash => HASH_GROUP_TABLE_COUNT_V2,
             Self::UniquenessLower | Self::UniquenessUpper => UNIQUENESS_GROUP_TABLE_COUNT_V2,
         }
@@ -156,7 +168,9 @@ impl EpochChunkProofGroupV2 {
     const fn name(self) -> &'static str {
         match self {
             Self::Transition => "transition",
-            Self::TransitionSemantic => "transition-semantic",
+            Self::TransitionTyped => "transition-typed",
+            Self::TransitionJmt => "transition-jmt",
+            Self::TransitionFlow => "transition-flow",
             Self::Hash => "hash",
             Self::UniquenessLower => "uniqueness-lower",
             Self::UniquenessUpper => "uniqueness-upper",
@@ -335,14 +349,16 @@ mod slot_sliced_codec_tests {
     use super::*;
 
     #[test]
-    fn group_schedule_is_exact_and_v4_is_fail_closed() {
-        assert_eq!(CHUNK_PROOF_MAGIC_V2, *b"Z00ZECP5");
-        assert_eq!(CHUNK_PROOF_WIRE_VERSION_V2, 5);
+    fn group_schedule_is_exact_and_v5_is_fail_closed() {
+        assert_eq!(CHUNK_PROOF_MAGIC_V2, *b"Z00ZECP6");
+        assert_eq!(CHUNK_PROOF_WIRE_VERSION_V2, 6);
         assert_eq!(
             EpochChunkProofGroupV2::expected(8).expect("eight-slot schedule"),
             vec![
                 EpochChunkProofGroupV2::Transition,
-                EpochChunkProofGroupV2::TransitionSemantic,
+                EpochChunkProofGroupV2::TransitionTyped,
+                EpochChunkProofGroupV2::TransitionJmt,
+                EpochChunkProofGroupV2::TransitionFlow,
                 EpochChunkProofGroupV2::Hash,
                 EpochChunkProofGroupV2::UniquenessLower,
                 EpochChunkProofGroupV2::UniquenessUpper,
@@ -352,14 +368,16 @@ mod slot_sliced_codec_tests {
             EpochChunkProofGroupV2::expected(4).expect("four-slot schedule"),
             vec![
                 EpochChunkProofGroupV2::Transition,
-                EpochChunkProofGroupV2::TransitionSemantic,
+                EpochChunkProofGroupV2::TransitionTyped,
+                EpochChunkProofGroupV2::TransitionJmt,
+                EpochChunkProofGroupV2::TransitionFlow,
                 EpochChunkProofGroupV2::Hash,
                 EpochChunkProofGroupV2::UniquenessLower,
             ],
         );
-        assert_ne!(CHUNK_PROOF_MAGIC_V2, *b"Z00ZECP4");
-        assert_ne!(CHUNK_PROOF_WIRE_VERSION_V2, 4);
-        assert!(EpochChunkProofGroupV2::decode(6).is_none());
+        assert_ne!(CHUNK_PROOF_MAGIC_V2, *b"Z00ZECP5");
+        assert_ne!(CHUNK_PROOF_WIRE_VERSION_V2, 5);
+        assert!(EpochChunkProofGroupV2::decode(8).is_none());
     }
 }
 
@@ -709,27 +727,46 @@ impl Plonky3EpochChunkProofV2 {
                 event_bytes,
             )?,
         )?;
-        verify_transition_semantic_group_proof(
-            &self.decode_group_proof(EpochChunkProofGroupV2::TransitionSemantic)?,
+        let typed_public = typed_public_values(&self.typed_statement, &self.bindings)?;
+        let jmt_public = jmt_witness::chunk_public_values(&self.jmt_statement, &self.bindings)?;
+        let jmt_sha_public = sha_witness::jmt_linked_public_values(&self.jmt_statement)?;
+        let semantic_event_source_public = event_source_witness::public_values_for_slice(
+            &self.packed_statement,
+            &self.bindings,
+            EpochUniquenessSliceV2::full(self.bindings.len())?,
+        )?;
+        let semantic_source_public = semantic_source_witness::public_values_for_slice(
+            &self.packed_statement,
+            &self.bindings,
+            EpochUniquenessSliceV2::full(self.bindings.len())?,
+        )?;
+        let semantic_sha_public = sha_witness::chain_public_values_for_slice(
+            &self.transition_statement,
+            &self.bindings,
+            EpochUniquenessSliceV2::full(self.bindings.len())?,
+        )?;
+        verify_transition_typed_group_proof(
+            &self.decode_group_proof(EpochChunkProofGroupV2::TransitionTyped)?,
             &transition_public,
-            &typed_public_values(&self.typed_statement, &self.bindings)?,
-            &jmt_witness::chunk_public_values(&self.jmt_statement, &self.bindings)?,
-            &sha_witness::jmt_linked_public_values(&self.jmt_statement)?,
-            &event_source_witness::public_values_for_slice(
-                &self.packed_statement,
-                &self.bindings,
-                EpochUniquenessSliceV2::full(self.bindings.len())?,
-            )?,
-            &semantic_source_witness::public_values_for_slice(
-                &self.packed_statement,
-                &self.bindings,
-                EpochUniquenessSliceV2::full(self.bindings.len())?,
-            )?,
-            &sha_witness::chain_public_values_for_slice(
-                &self.transition_statement,
-                &self.bindings,
-                EpochUniquenessSliceV2::full(self.bindings.len())?,
-            )?,
+            &typed_public,
+            &semantic_event_source_public,
+            &semantic_source_public,
+            &semantic_sha_public,
+        )?;
+        verify_transition_jmt_group_proof(
+            &self.decode_group_proof(EpochChunkProofGroupV2::TransitionJmt)?,
+            &jmt_public,
+            &jmt_sha_public,
+            &semantic_event_source_public,
+            &semantic_source_public,
+            &semantic_sha_public,
+        )?;
+        verify_transition_flow_group_proof(
+            &self.decode_group_proof(EpochChunkProofGroupV2::TransitionFlow)?,
+            &transition_public,
+            &semantic_event_source_public,
+            &semantic_source_public,
+            &semantic_sha_public,
         )?;
         verify_hash_group_proof(
             &self.decode_group_proof(EpochChunkProofGroupV2::Hash)?,
@@ -1101,20 +1138,18 @@ fn transition_core_group_traces(
     ])
 }
 
-fn transition_semantic_group_traces(
+fn transition_typed_group_traces(
     transition_rows: Vec<super::plonky3_epoch_transition_air::TransitionRowV2>,
     typed_rows: Vec<super::plonky3_epoch_typed_commitment_air::TypedCommitmentRowV2>,
-    jmt_trace: JmtChunkTraceV2,
-    jmt_sha_trace: ShaTraceV2,
     event_source: EventSourceTraceV2,
     semantic_source: SemanticSourceTraceV2,
     semantic_sha_trace: ShaTraceV2,
 ) -> Traces<KoalaBear> {
     empty_traces(vec![
         (
-            TransitionAirRoleV2::Semantic.npo_type(),
+            TransitionAirRoleV2::SemanticTyped.npo_type(),
             Box::new(TransitionTraceV2 {
-                role: TransitionAirRoleV2::Semantic,
+                role: TransitionAirRoleV2::SemanticTyped,
                 rows: transition_rows,
             }) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
         ),
@@ -1125,6 +1160,29 @@ fn transition_semantic_group_traces(
                 rows: typed_rows,
             }) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
         ),
+        (
+            EventSourceAirRoleV2::SemanticTransition.npo_type(),
+            Box::new(event_source) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+        ),
+        (
+            SemanticSourceAirRoleV2::TransitionTyped.npo_type(),
+            Box::new(semantic_source) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+        ),
+        (
+            ShaAirRoleV2::SemanticTransitionChain.npo_type(),
+            Box::new(semantic_sha_trace) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+        ),
+    ])
+}
+
+fn transition_jmt_group_traces(
+    jmt_trace: JmtChunkTraceV2,
+    jmt_sha_trace: ShaTraceV2,
+    event_source: EventSourceTraceV2,
+    semantic_source: SemanticSourceTraceV2,
+    semantic_sha_trace: ShaTraceV2,
+) -> Traces<KoalaBear> {
+    empty_traces(vec![
         (
             jmt_chunk_npo_type(),
             Box::new(jmt_trace) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
@@ -1138,7 +1196,36 @@ fn transition_semantic_group_traces(
             Box::new(event_source) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
         ),
         (
-            SemanticSourceAirRoleV2::Transition.npo_type(),
+            SemanticSourceAirRoleV2::TransitionJmt.npo_type(),
+            Box::new(semantic_source) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+        ),
+        (
+            ShaAirRoleV2::SemanticTransitionChain.npo_type(),
+            Box::new(semantic_sha_trace) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+        ),
+    ])
+}
+
+fn transition_flow_group_traces(
+    transition_rows: Vec<super::plonky3_epoch_transition_air::TransitionRowV2>,
+    event_source: EventSourceTraceV2,
+    semantic_source: SemanticSourceTraceV2,
+    semantic_sha_trace: ShaTraceV2,
+) -> Traces<KoalaBear> {
+    empty_traces(vec![
+        (
+            TransitionAirRoleV2::SemanticFlow.npo_type(),
+            Box::new(TransitionTraceV2 {
+                role: TransitionAirRoleV2::SemanticFlow,
+                rows: transition_rows,
+            }) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+        ),
+        (
+            EventSourceAirRoleV2::SemanticTransition.npo_type(),
+            Box::new(event_source) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+        ),
+        (
+            SemanticSourceAirRoleV2::TransitionFlow.npo_type(),
             Box::new(semantic_source) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
         ),
         (
@@ -1209,20 +1296,47 @@ fn transition_core_group_table_provers(
     ]
 }
 
-fn transition_semantic_group_table_provers(
+fn transition_typed_group_table_provers(
 ) -> Vec<Box<dyn z00z_plonky3_circuit_prover::TableProver<Plonky3StarkConfigV2>>> {
     vec![
-        Box::new(TransitionProverV2::new(TransitionAirRoleV2::Semantic)),
+        Box::new(TransitionProverV2::new(TransitionAirRoleV2::SemanticTyped)),
         Box::new(TypedCommitmentProverV2::new(
             TypedCommitmentAirRoleV2::LinkedConsumer,
         )),
+        Box::new(EventSourceProverV2::new(
+            EventSourceAirRoleV2::SemanticTransition,
+        )),
+        Box::new(SemanticSourceProverV2::new(
+            SemanticSourceAirRoleV2::TransitionTyped,
+        )),
+        Box::new(ShaProverV2::new(ShaAirRoleV2::SemanticTransitionChain)),
+    ]
+}
+
+fn transition_jmt_group_table_provers(
+) -> Vec<Box<dyn z00z_plonky3_circuit_prover::TableProver<Plonky3StarkConfigV2>>> {
+    vec![
         Box::new(JmtChunkProverV2),
         Box::new(ShaProverV2::new(ShaAirRoleV2::JmtLinked)),
         Box::new(EventSourceProverV2::new(
             EventSourceAirRoleV2::SemanticTransition,
         )),
         Box::new(SemanticSourceProverV2::new(
-            SemanticSourceAirRoleV2::Transition,
+            SemanticSourceAirRoleV2::TransitionJmt,
+        )),
+        Box::new(ShaProverV2::new(ShaAirRoleV2::SemanticTransitionChain)),
+    ]
+}
+
+fn transition_flow_group_table_provers(
+) -> Vec<Box<dyn z00z_plonky3_circuit_prover::TableProver<Plonky3StarkConfigV2>>> {
+    vec![
+        Box::new(TransitionProverV2::new(TransitionAirRoleV2::SemanticFlow)),
+        Box::new(EventSourceProverV2::new(
+            EventSourceAirRoleV2::SemanticTransition,
+        )),
+        Box::new(SemanticSourceProverV2::new(
+            SemanticSourceAirRoleV2::TransitionFlow,
         )),
         Box::new(ShaProverV2::new(ShaAirRoleV2::SemanticTransitionChain)),
     ]
@@ -1259,7 +1373,22 @@ fn uniqueness_group_table_provers(
 pub(super) fn epoch_chunk_table_provers(
 ) -> Vec<Box<dyn z00z_plonky3_circuit_prover::TableProver<Plonky3StarkConfigV2>>> {
     let mut provers = transition_core_group_table_provers();
-    provers.extend(transition_semantic_group_table_provers());
+    provers.extend(transition_typed_group_table_provers());
+    provers.extend([
+        Box::new(JmtChunkProverV2)
+            as Box<dyn z00z_plonky3_circuit_prover::TableProver<Plonky3StarkConfigV2>>,
+        Box::new(ShaProverV2::new(ShaAirRoleV2::JmtLinked)),
+        Box::new(SemanticSourceProverV2::new(
+            SemanticSourceAirRoleV2::TransitionJmt,
+        )),
+    ]);
+    provers.extend([
+        Box::new(TransitionProverV2::new(TransitionAirRoleV2::SemanticFlow))
+            as Box<dyn z00z_plonky3_circuit_prover::TableProver<Plonky3StarkConfigV2>>,
+        Box::new(SemanticSourceProverV2::new(
+            SemanticSourceAirRoleV2::TransitionFlow,
+        )),
+    ]);
     provers.extend(hash_group_table_provers());
     provers.extend(uniqueness_group_table_provers());
     debug_assert_eq!(provers.len(), TABLE_COUNT_V2);
@@ -1277,7 +1406,9 @@ fn configured_group_prover(
         .with_debug_lookups();
     let table_provers = match group {
         EpochChunkProofGroupV2::Transition => transition_core_group_table_provers(),
-        EpochChunkProofGroupV2::TransitionSemantic => transition_semantic_group_table_provers(),
+        EpochChunkProofGroupV2::TransitionTyped => transition_typed_group_table_provers(),
+        EpochChunkProofGroupV2::TransitionJmt => transition_jmt_group_table_provers(),
+        EpochChunkProofGroupV2::TransitionFlow => transition_flow_group_table_provers(),
         EpochChunkProofGroupV2::Hash => hash_group_table_provers(),
         EpochChunkProofGroupV2::UniquenessLower | EpochChunkProofGroupV2::UniquenessUpper => {
             uniqueness_group_table_provers()
@@ -1346,27 +1477,72 @@ fn verify_transition_core_group_proof(
     Ok(())
 }
 
-fn verify_transition_semantic_group_proof(
+fn verify_transition_typed_group_proof(
     proof: &BatchStarkProof<Plonky3StarkConfigV2>,
     expected_transition_public: &[KoalaBear],
     expected_typed_public: &[KoalaBear],
+    expected_event_source_public: &[KoalaBear],
+    expected_semantic_source_public: &[KoalaBear],
+    expected_semantic_sha_public: &[KoalaBear],
+) -> Result<(), CheckpointError> {
+    verify_group_tables(EpochChunkProofGroupV2::TransitionTyped, proof)?;
+    if exact_public_values(proof, TransitionAirRoleV2::SemanticTyped.npo_type())?
+        != expected_transition_public
+        || exact_public_values(proof, TypedCommitmentAirRoleV2::LinkedConsumer.npo_type())?
+            != expected_typed_public
+        || exact_public_values(proof, EventSourceAirRoleV2::SemanticTransition.npo_type())?
+            != expected_event_source_public
+        || exact_public_values(proof, SemanticSourceAirRoleV2::TransitionTyped.npo_type())?
+            != expected_semantic_source_public
+        || exact_public_values(proof, ShaAirRoleV2::SemanticTransitionChain.npo_type())?
+            != expected_semantic_sha_public
+    {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    Ok(())
+}
+
+fn verify_transition_jmt_group_proof(
+    proof: &BatchStarkProof<Plonky3StarkConfigV2>,
     expected_jmt_public: &[KoalaBear],
     expected_jmt_sha_public: &[KoalaBear],
     expected_event_source_public: &[KoalaBear],
     expected_semantic_source_public: &[KoalaBear],
     expected_semantic_sha_public: &[KoalaBear],
 ) -> Result<(), CheckpointError> {
-    verify_group_tables(EpochChunkProofGroupV2::TransitionSemantic, proof)?;
-    if exact_public_values(proof, TransitionAirRoleV2::Semantic.npo_type())?
-        != expected_transition_public
-        || exact_public_values(proof, TypedCommitmentAirRoleV2::LinkedConsumer.npo_type())?
-            != expected_typed_public
-        || exact_public_values(proof, jmt_chunk_npo_type())? != expected_jmt_public
+    verify_group_tables(EpochChunkProofGroupV2::TransitionJmt, proof)?;
+    if exact_public_values(proof, jmt_chunk_npo_type())? != expected_jmt_public
         || exact_public_values(proof, ShaAirRoleV2::JmtLinked.npo_type())?
             != expected_jmt_sha_public
         || exact_public_values(proof, EventSourceAirRoleV2::SemanticTransition.npo_type())?
             != expected_event_source_public
-        || exact_public_values(proof, SemanticSourceAirRoleV2::Transition.npo_type())?
+        || exact_public_values(proof, SemanticSourceAirRoleV2::TransitionJmt.npo_type())?
+            != expected_semantic_source_public
+        || exact_public_values(proof, ShaAirRoleV2::SemanticTransitionChain.npo_type())?
+            != expected_semantic_sha_public
+    {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    Ok(())
+}
+
+fn verify_transition_flow_group_proof(
+    proof: &BatchStarkProof<Plonky3StarkConfigV2>,
+    expected_transition_public: &[KoalaBear],
+    expected_event_source_public: &[KoalaBear],
+    expected_semantic_source_public: &[KoalaBear],
+    expected_semantic_sha_public: &[KoalaBear],
+) -> Result<(), CheckpointError> {
+    verify_group_tables(EpochChunkProofGroupV2::TransitionFlow, proof)?;
+    if exact_public_values(proof, TransitionAirRoleV2::SemanticFlow.npo_type())?
+        != expected_transition_public
+        || exact_public_values(proof, EventSourceAirRoleV2::SemanticTransition.npo_type())?
+            != expected_event_source_public
+        || exact_public_values(proof, SemanticSourceAirRoleV2::TransitionFlow.npo_type())?
             != expected_semantic_source_public
         || exact_public_values(proof, ShaAirRoleV2::SemanticTransitionChain.npo_type())?
             != expected_semantic_sha_public
@@ -1498,7 +1674,7 @@ pub(super) fn prove_epoch_chunk(
     let transition_rows = transition_witness::rows(&transition_statement, &bindings)?;
     let trace_framing_rows = trace_framing::rows(&trace_framing_statement, &bindings, event_bytes)?;
     let transition_core_group_traces =
-        transition_core_group_traces(transition_rows.clone(), trace_framing_rows);
+        transition_core_group_traces(transition_rows, trace_framing_rows);
     let transition_group = prove_group(
         EpochChunkProofGroupV2::Transition,
         transition_core_group_traces,
@@ -1513,56 +1689,135 @@ pub(super) fn prove_epoch_chunk(
     )?;
     drop(transition_group_proof);
 
-    let jmt_public = jmt_witness::chunk_public_values(&jmt_statement, &bindings)?;
-    let jmt_sha_trace = sha_witness::jmt_linked_trace(&jmt_statement, &bindings, prepared)?;
-    let jmt_sha_public = jmt_sha_trace.public_values.clone();
-    let transition_event_source = event_source_witness::semantic_trace(
+    let transition_semantic_sha_public = sha_witness::chain_public_values_for_slice(
+        &transition_statement,
+        &bindings,
+        EpochUniquenessSliceV2::full(bindings.len())?,
+    )?;
+
+    let typed_event_source = event_source_witness::semantic_trace(
         EventSourceAirRoleV2::SemanticTransition,
         &packed_statement,
         &bindings,
         prepared,
     )?;
-    let transition_semantic_source = semantic_source_witness::witness(
-        SemanticSourceAirRoleV2::Transition,
+    let typed_semantic_source = semantic_source_witness::witness(
+        SemanticSourceAirRoleV2::TransitionTyped,
         &packed_statement,
         &bindings,
         prepared,
     )?;
-    let (transition_semantic_sha, _) = sha_witness::semantic_chain_trace(
+    let (typed_semantic_sha, _) = sha_witness::semantic_chain_trace(
         ShaAirRoleV2::SemanticTransitionChain,
         &transition_statement,
         &bindings,
         prepared,
     )?;
-    let transition_semantic_sha_public = transition_semantic_sha.public_values.clone();
-    let jmt_chunk_trace = jmt_witness::chunk_trace(&jmt_statement, &bindings, prepared)?;
-    let transition_semantic_group_traces = transition_semantic_group_traces(
-        transition_rows,
+    let transition_typed_group_traces = transition_typed_group_traces(
+        transition_witness::rows(&transition_statement, &bindings)?,
         typed_commitment::rows(&typed_statement, &bindings, prepared)?,
-        jmt_chunk_trace,
-        jmt_sha_trace,
-        transition_event_source,
-        transition_semantic_source.trace,
-        transition_semantic_sha,
+        typed_event_source,
+        typed_semantic_source.trace,
+        typed_semantic_sha,
     );
-    let transition_semantic_group = prove_group(
-        EpochChunkProofGroupV2::TransitionSemantic,
-        transition_semantic_group_traces,
+    let transition_typed_group = prove_group(
+        EpochChunkProofGroupV2::TransitionTyped,
+        transition_typed_group_traces,
         resource_telemetry_enabled,
     )?;
-    let transition_semantic_group_proof =
-        decode_internal_canonical_batch_proof_v2(&transition_semantic_group.proof_bytes)?;
-    verify_transition_semantic_group_proof(
-        &transition_semantic_group_proof,
+    let transition_typed_group_proof =
+        decode_internal_canonical_batch_proof_v2(&transition_typed_group.proof_bytes)?;
+    verify_transition_typed_group_proof(
+        &transition_typed_group_proof,
         &transition_public,
         &typed_public,
+        &event_source_public,
+        &semantic_source_public,
+        &transition_semantic_sha_public,
+    )?;
+    drop(transition_typed_group_proof);
+
+    let jmt_public = jmt_witness::chunk_public_values(&jmt_statement, &bindings)?;
+    let jmt_sha_public = sha_witness::jmt_linked_public_values(&jmt_statement)?;
+    let jmt_event_source = event_source_witness::semantic_trace(
+        EventSourceAirRoleV2::SemanticTransition,
+        &packed_statement,
+        &bindings,
+        prepared,
+    )?;
+    let jmt_semantic_source = semantic_source_witness::witness(
+        SemanticSourceAirRoleV2::TransitionJmt,
+        &packed_statement,
+        &bindings,
+        prepared,
+    )?;
+    let (jmt_semantic_sha, _) = sha_witness::semantic_chain_trace(
+        ShaAirRoleV2::SemanticTransitionChain,
+        &transition_statement,
+        &bindings,
+        prepared,
+    )?;
+    let transition_jmt_group = prove_group(
+        EpochChunkProofGroupV2::TransitionJmt,
+        transition_jmt_group_traces(
+            jmt_witness::chunk_trace(&jmt_statement, &bindings, prepared)?,
+            sha_witness::jmt_linked_trace(&jmt_statement, &bindings, prepared)?,
+            jmt_event_source,
+            jmt_semantic_source.trace,
+            jmt_semantic_sha,
+        ),
+        resource_telemetry_enabled,
+    )?;
+    let transition_jmt_group_proof =
+        decode_internal_canonical_batch_proof_v2(&transition_jmt_group.proof_bytes)?;
+    verify_transition_jmt_group_proof(
+        &transition_jmt_group_proof,
         &jmt_public,
         &jmt_sha_public,
         &event_source_public,
         &semantic_source_public,
         &transition_semantic_sha_public,
     )?;
-    drop(transition_semantic_group_proof);
+    drop(transition_jmt_group_proof);
+
+    let flow_event_source = event_source_witness::semantic_trace(
+        EventSourceAirRoleV2::SemanticTransition,
+        &packed_statement,
+        &bindings,
+        prepared,
+    )?;
+    let flow_semantic_source = semantic_source_witness::witness(
+        SemanticSourceAirRoleV2::TransitionFlow,
+        &packed_statement,
+        &bindings,
+        prepared,
+    )?;
+    let (flow_semantic_sha, _) = sha_witness::semantic_chain_trace(
+        ShaAirRoleV2::SemanticTransitionChain,
+        &transition_statement,
+        &bindings,
+        prepared,
+    )?;
+    let transition_flow_group = prove_group(
+        EpochChunkProofGroupV2::TransitionFlow,
+        transition_flow_group_traces(
+            transition_witness::rows(&transition_statement, &bindings)?,
+            flow_event_source,
+            flow_semantic_source.trace,
+            flow_semantic_sha,
+        ),
+        resource_telemetry_enabled,
+    )?;
+    let transition_flow_group_proof =
+        decode_internal_canonical_batch_proof_v2(&transition_flow_group.proof_bytes)?;
+    verify_transition_flow_group_proof(
+        &transition_flow_group_proof,
+        &transition_public,
+        &event_source_public,
+        &semantic_source_public,
+        &transition_semantic_sha_public,
+    )?;
+    drop(transition_flow_group_proof);
 
     let (sha_trace, _sha_block_count) =
         sha_witness::chain_trace(&transition_statement, &bindings, prepared)?;
@@ -1674,7 +1929,13 @@ pub(super) fn prove_epoch_chunk(
         uniqueness_range_query_count,
         bindings,
         group_proofs: {
-            let mut groups = vec![transition_group, transition_semantic_group, hash_group];
+            let mut groups = vec![
+                transition_group,
+                transition_typed_group,
+                transition_jmt_group,
+                transition_flow_group,
+                hash_group,
+            ];
             groups.extend(uniqueness_groups);
             groups
         },

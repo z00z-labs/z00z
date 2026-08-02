@@ -34,7 +34,9 @@ use super::{
 use crate::checkpoint::recursive_semantics::{NetEffectKindV2, UNIQUENESS_PRECOMMIT_LABEL_V2};
 use crate::checkpoint::recursive_trace::STRUCTURAL_EVENT_HASH_LABEL_V2;
 
-const TRANSITION_NPO_ID_V2: &str = "z00z/plonky3/epoch-semantic-source-transition/v2";
+const TRANSITION_TYPED_NPO_ID_V2: &str = "z00z/plonky3/epoch-semantic-source-transition-typed/v2";
+const TRANSITION_JMT_NPO_ID_V2: &str = "z00z/plonky3/epoch-semantic-source-transition-jmt/v2";
+const TRANSITION_FLOW_NPO_ID_V2: &str = "z00z/plonky3/epoch-semantic-source-transition-flow/v2";
 const UNIQUENESS_NPO_ID_V2: &str = "z00z/plonky3/epoch-semantic-source-uniqueness/v2";
 
 pub(super) const SOURCE_TYPED_PAYLOAD_BYTE_BUS_V2: &str =
@@ -244,16 +246,27 @@ pub(super) const TRANSCRIPT_PHASE_ENDS_V2: [usize; TRANSCRIPT_PHASE_COUNT_V2] = 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SemanticSourceAirRoleV2 {
-    Transition,
+    TransitionTyped,
+    TransitionJmt,
+    TransitionFlow,
     Uniqueness,
 }
 
 impl SemanticSourceAirRoleV2 {
     pub(super) fn npo_type(self) -> NpoTypeId {
         NpoTypeId::new(match self {
-            Self::Transition => TRANSITION_NPO_ID_V2,
+            Self::TransitionTyped => TRANSITION_TYPED_NPO_ID_V2,
+            Self::TransitionJmt => TRANSITION_JMT_NPO_ID_V2,
+            Self::TransitionFlow => TRANSITION_FLOW_NPO_ID_V2,
             Self::Uniqueness => UNIQUENESS_NPO_ID_V2,
         })
+    }
+
+    pub(super) const fn is_transition(self) -> bool {
+        matches!(
+            self,
+            Self::TransitionTyped | Self::TransitionJmt | Self::TransitionFlow
+        )
     }
 }
 
@@ -1054,7 +1067,7 @@ where
         );
         for slack_byte in &declared_count_slack_bytes {
             builder.assert_zero((one.clone() - slot_end.clone()) * slack_byte.clone());
-            if self.role == SemanticSourceAirRoleV2::Transition {
+            if self.role.is_transition() {
                 builder.assert_zero(slot_end.clone() * slack_byte.clone());
             }
         }
@@ -1362,7 +1375,9 @@ where
         }
 
         match self.role {
-            SemanticSourceAirRoleV2::Transition => {
+            SemanticSourceAirRoleV2::TransitionTyped
+            | SemanticSourceAirRoleV2::TransitionJmt
+            | SemanticSourceAirRoleV2::TransitionFlow => {
                 for offset in TRANSCRIPT_PHASE_SELECTOR_OFFSET_V2..ROW_FIELDS_V2 {
                     builder.assert_zero(field::<AB>(local, offset));
                 }
@@ -1570,17 +1585,19 @@ where
                 let flow_root_even =
                     flow_root_emit.clone() * (one.clone() - flow_root_byte_parity.clone());
                 let flow_root_odd = flow_root_emit.clone() * flow_root_byte_parity.clone();
-                builder.push_interaction(
-                    TRANSITION_FLOW_ROOT_LIMB_BUS_V2,
-                    vec![
-                        transition_index.clone(),
-                        flow_phases[12].clone(),
-                        flow_root_limb_index.clone(),
-                        flow_root_low_byte.clone()
-                            + flow_decoded_byte.clone() * AB::Expr::from_u64(256),
-                    ],
-                    -Count::bounded(flow_root_odd.clone() * fixed_event_gates[0].clone(), 1),
-                );
+                if self.role == SemanticSourceAirRoleV2::TransitionFlow {
+                    builder.push_interaction(
+                        TRANSITION_FLOW_ROOT_LIMB_BUS_V2,
+                        vec![
+                            transition_index.clone(),
+                            flow_phases[12].clone(),
+                            flow_root_limb_index.clone(),
+                            flow_root_low_byte.clone()
+                                + flow_decoded_byte.clone() * AB::Expr::from_u64(256),
+                        ],
+                        -Count::bounded(flow_root_odd.clone() * fixed_event_gates[0].clone(), 1),
+                    );
+                }
                 builder
                     .when_first_row()
                     .assert_zero(flow_root_low_byte.clone());
@@ -1655,51 +1672,55 @@ where
                             * (one.clone() - flow_hex_low.clone()),
                     );
                 }
-                builder.push_interaction(
-                    SOURCE_NET_MUTATION_BYTE_BUS_V2,
-                    [transition_index.clone()]
-                        .into_iter()
-                        .chain(net_terminal_limbs.iter().cloned())
-                        .chain([payload_index.clone(), byte.clone()])
-                        .collect::<Vec<_>>(),
-                    Count::bounded(payload.clone() * net_mutation.clone(), 1),
-                );
-                builder.push_interaction(
-                    SOURCE_TYPED_PAYLOAD_BYTE_BUS_V2,
-                    [transition_index.clone()]
-                        .into_iter()
-                        .chain(ordinal_bytes.iter().cloned())
-                        .chain([payload_index.clone(), byte.clone()])
-                        .collect::<Vec<AB::Expr>>(),
-                    Count::bounded(payload.clone() * typed, 1),
-                );
-                for (event_opcode, gate, position) in [
-                    (
-                        RecursiveTraceOpcodeV2::JmtUpdate as u8,
-                        jmt_header.clone(),
-                        AB::Expr::ZERO,
-                    ),
-                    (
-                        RecursiveTraceOpcodeV2::PromoteChildRoot as u8,
-                        jmt_promotion.clone(),
-                        AB::Expr::ZERO,
-                    ),
-                    (
-                        RecursiveTraceOpcodeV2::JmtMicroOp as u8,
-                        jmt_micro.clone(),
-                        jmt_count.clone() + one.clone(),
-                    ),
-                ] {
+                if self.role == SemanticSourceAirRoleV2::TransitionJmt {
                     builder.push_interaction(
-                        SOURCE_JMT_PAYLOAD_BYTE_BUS_V2,
-                        vec![
-                            transition_index.clone(),
-                            AB::Expr::from_u64(u64::from(event_opcode)),
-                            position,
-                            payload_index.clone(),
-                            byte.clone(),
-                        ],
-                        Count::bounded(payload.clone() * gate, 1),
+                        SOURCE_NET_MUTATION_BYTE_BUS_V2,
+                        [transition_index.clone()]
+                            .into_iter()
+                            .chain(net_terminal_limbs.iter().cloned())
+                            .chain([payload_index.clone(), byte.clone()])
+                            .collect::<Vec<_>>(),
+                        Count::bounded(payload.clone() * net_mutation.clone(), 1),
+                    );
+                    for (event_opcode, gate, position) in [
+                        (
+                            RecursiveTraceOpcodeV2::JmtUpdate as u8,
+                            jmt_header.clone(),
+                            AB::Expr::ZERO,
+                        ),
+                        (
+                            RecursiveTraceOpcodeV2::PromoteChildRoot as u8,
+                            jmt_promotion.clone(),
+                            AB::Expr::ZERO,
+                        ),
+                        (
+                            RecursiveTraceOpcodeV2::JmtMicroOp as u8,
+                            jmt_micro.clone(),
+                            jmt_count.clone() + one.clone(),
+                        ),
+                    ] {
+                        builder.push_interaction(
+                            SOURCE_JMT_PAYLOAD_BYTE_BUS_V2,
+                            vec![
+                                transition_index.clone(),
+                                AB::Expr::from_u64(u64::from(event_opcode)),
+                                position,
+                                payload_index.clone(),
+                                byte.clone(),
+                            ],
+                            Count::bounded(payload.clone() * gate, 1),
+                        );
+                    }
+                }
+                if self.role == SemanticSourceAirRoleV2::TransitionTyped {
+                    builder.push_interaction(
+                        SOURCE_TYPED_PAYLOAD_BYTE_BUS_V2,
+                        [transition_index.clone()]
+                            .into_iter()
+                            .chain(ordinal_bytes.iter().cloned())
+                            .chain([payload_index.clone(), byte.clone()])
+                            .collect::<Vec<AB::Expr>>(),
+                        Count::bounded(payload.clone() * typed, 1),
                     );
                 }
             }

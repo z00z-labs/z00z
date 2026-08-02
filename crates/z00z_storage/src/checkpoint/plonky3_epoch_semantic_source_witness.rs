@@ -876,7 +876,7 @@ pub(super) fn witness_for_slice(
                 };
                 let flow = match phase {
                     SourcePhaseV2::Payload(payload_index)
-                        if role == SemanticSourceAirRoleV2::Transition
+                        if role.is_transition()
                             && matches!(
                                 record.opcode(),
                                 RecursiveTraceOpcodeV2::BeginBlock

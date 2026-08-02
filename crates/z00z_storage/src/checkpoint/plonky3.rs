@@ -554,13 +554,12 @@ const SOURCE_ITEMS_PER_CHUNK_V2: u16 = 4;
 const PLONKY3_MINIMUM_RESIDUAL_BITS_V2: u16 = 100;
 const PER_PROOF_BOUND_BITS_V2: u16 = 133;
 const PLONKY3_LIFETIME_BOUND_BITS_V2: u16 = 107;
-// Generation 21 invalidates chunks created before the transition theorem was
-// split into independently closed core and semantic proof groups.
-const PLONKY3_CHUNK_CACHE_GENERATION_V2: u16 = 21;
-// Generation 15 invalidates recursive nodes created before each wide direct
-// coverage group was first normalized into a bounded recursive certificate and
-// only then merged with the accumulated chunk statement.
-const PLONKY3_NODE_CACHE_GENERATION_V2: u16 = 15;
+// Generation 22 invalidates chunks created before transition semantics were
+// split into typed, JMT, and flow-root proof groups.
+const PLONKY3_CHUNK_CACHE_GENERATION_V2: u16 = 22;
+// Generation 16 invalidates recursive nodes created before the three semantic
+// domain certificates were merged in their canonical coverage order.
+const PLONKY3_NODE_CACHE_GENERATION_V2: u16 = 16;
 const PLONKY3_PREVIOUS_TREE_GENERATION_V2: u8 = 14;
 const PLONKY3_AGGREGATION_TREE_GENERATION_V2: u8 =
     PLONKY3_ROOT_AUTHORITY_V2.aggregation_generation();
@@ -570,10 +569,12 @@ const EPOCH_RANGE_FOLD_ORDINAL_V2: u8 = PLONKY3_FRI_REPLICA_COUNT_V2 + 2;
 const EPOCH_SEAL_ORDINAL_V2: u8 = PLONKY3_FRI_REPLICA_COUNT_V2 + 3;
 const HISTORY_SEAL_ORDINAL_V2: u8 = PLONKY3_FRI_REPLICA_COUNT_V2 + 4;
 const EPOCH_CHUNK_TRANSITION_COVERAGE_V2: u8 = 1;
-const EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2: u8 = 3;
-const EPOCH_CHUNK_HASH_COVERAGE_V2: u8 = 7;
-const EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2: u8 = 15;
-const EPOCH_CHUNK_COMPLETE_COVERAGE_V2: u8 = 31;
+const EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2: u8 = 3;
+const EPOCH_CHUNK_TRANSITION_JMT_COVERAGE_V2: u8 = 7;
+const EPOCH_CHUNK_TRANSITION_FLOW_COVERAGE_V2: u8 = 15;
+const EPOCH_CHUNK_HASH_COVERAGE_V2: u8 = 31;
+const EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2: u8 = 63;
+const EPOCH_CHUNK_COMPLETE_COVERAGE_V2: u8 = 127;
 const EPOCH_CHUNK_COVERAGE_CERTIFICATE_FLAG_V2: u8 = 0x80;
 type Plonky3TraceFieldV2 = BinomialExtensionField<KoalaBear, 4>;
 type Plonky3PermutationV2 = Poseidon2KoalaBear<PLONKY3_MMCS_WIDTH_V2>;
@@ -13654,7 +13655,9 @@ fn build_epoch_chunk_normalization_circuit(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum EpochChunkCoverageStageV2 {
-    TransitionSemantic,
+    TransitionTyped,
+    TransitionJmt,
+    TransitionFlow,
     Hash,
     UniquenessLower,
     UniquenessUpper,
@@ -13663,8 +13666,10 @@ enum EpochChunkCoverageStageV2 {
 impl EpochChunkCoverageStageV2 {
     const fn input_coverage(self) -> u8 {
         match self {
-            Self::TransitionSemantic => EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
-            Self::Hash => EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            Self::TransitionTyped => EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
+            Self::TransitionJmt => EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2,
+            Self::TransitionFlow => EPOCH_CHUNK_TRANSITION_JMT_COVERAGE_V2,
+            Self::Hash => EPOCH_CHUNK_TRANSITION_FLOW_COVERAGE_V2,
             Self::UniquenessLower => EPOCH_CHUNK_HASH_COVERAGE_V2,
             Self::UniquenessUpper => EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
         }
@@ -13672,7 +13677,9 @@ impl EpochChunkCoverageStageV2 {
 
     const fn output_coverage(self, active_count: usize) -> u8 {
         match self {
-            Self::TransitionSemantic => EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            Self::TransitionTyped => EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2,
+            Self::TransitionJmt => EPOCH_CHUNK_TRANSITION_JMT_COVERAGE_V2,
+            Self::TransitionFlow => EPOCH_CHUNK_TRANSITION_FLOW_COVERAGE_V2,
             Self::Hash => EPOCH_CHUNK_HASH_COVERAGE_V2,
             Self::UniquenessLower if active_count <= 4 => EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
             Self::UniquenessLower => EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
@@ -13682,7 +13689,7 @@ impl EpochChunkCoverageStageV2 {
 
     const fn slice(self, active_count: usize) -> Option<(usize, usize)> {
         match self {
-            Self::TransitionSemantic | Self::Hash => None,
+            Self::TransitionTyped | Self::TransitionJmt | Self::TransitionFlow | Self::Hash => None,
             Self::UniquenessLower => Some((0, if active_count < 4 { active_count } else { 4 })),
             Self::UniquenessUpper if active_count > 4 => Some((4, active_count - 4)),
             Self::UniquenessUpper => None,
@@ -13695,7 +13702,9 @@ impl EpochChunkCoverageStageV2 {
 
     const fn cap_operation(self) -> &'static str {
         match self {
-            Self::TransitionSemantic => "epoch-semantic-certificate-cap",
+            Self::TransitionTyped => "epoch-semantic-typed-certificate-cap",
+            Self::TransitionJmt => "epoch-semantic-jmt-certificate-cap",
+            Self::TransitionFlow => "epoch-semantic-flow-certificate-cap",
             Self::Hash => "epoch-hash-certificate-cap",
             Self::UniquenessLower => "epoch-uniqueness-lower-certificate-cap",
             Self::UniquenessUpper => "epoch-uniqueness-upper-certificate-cap",
@@ -13704,7 +13713,9 @@ impl EpochChunkCoverageStageV2 {
 
     const fn proof_operation(self) -> &'static str {
         match self {
-            Self::TransitionSemantic => "epoch-semantic-certificate-proof",
+            Self::TransitionTyped => "epoch-semantic-typed-certificate-proof",
+            Self::TransitionJmt => "epoch-semantic-jmt-certificate-proof",
+            Self::TransitionFlow => "epoch-semantic-flow-certificate-proof",
             Self::Hash => "epoch-hash-certificate-proof",
             Self::UniquenessLower => "epoch-uniqueness-lower-certificate-proof",
             Self::UniquenessUpper => "epoch-uniqueness-upper-certificate-proof",
@@ -13713,7 +13724,9 @@ impl EpochChunkCoverageStageV2 {
 
     const fn merge_operation(self) -> &'static str {
         match self {
-            Self::TransitionSemantic => "epoch-semantic-coverage-merge",
+            Self::TransitionTyped => "epoch-semantic-typed-coverage-merge",
+            Self::TransitionJmt => "epoch-semantic-jmt-coverage-merge",
+            Self::TransitionFlow => "epoch-semantic-flow-coverage-merge",
             Self::Hash => "epoch-hash-coverage-merge",
             Self::UniquenessLower => "epoch-uniqueness-lower-coverage-merge",
             Self::UniquenessUpper => "epoch-uniqueness-upper-coverage-merge",
@@ -13985,57 +13998,17 @@ fn constrain_typed_commitment_group_public(
     Ok(())
 }
 
-fn constrain_transition_semantic_group_public(
+fn constrain_transition_semantic_source_group_public(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
     transition_public: &[ExprId],
     group_result: &BoundVerifierResultV2,
     group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    semantic_role: SemanticSourceAirRoleV2,
     active_count: usize,
 ) -> Result<(), CheckpointError> {
     use plonky3_epoch_event_source_columns as event_source;
-    use plonky3_epoch_jmt_air as jmt;
     use plonky3_epoch_semantic_source_air as semantic_source;
     use plonky3_epoch_sha256_columns as sha;
-    use plonky3_epoch_transition_air as transition;
-    use plonky3_epoch_typed_commitment_air as typed;
-
-    if transition_public.len() != transition::PUBLIC_FIELDS_V2
-        || active_count == 0
-        || active_count > transition::BINDING_SLOTS_V2
-    {
-        return Err(CheckpointError::Canonical);
-    }
-    let semantic_transition_public = direct_group_public_targets(
-        group_result,
-        group_child,
-        &transition::TransitionAirRoleV2::Semantic.npo_type(),
-        transition::PUBLIC_FIELDS_V2,
-    )?;
-    constrain_statement_range_equal(circuit, semantic_transition_public, transition_public)?;
-    let typed_public = direct_group_public_targets(
-        group_result,
-        group_child,
-        &TypedCommitmentAirRoleV2::LinkedConsumer.npo_type(),
-        typed::PUBLIC_FIELDS_V2,
-    )?;
-    constrain_typed_commitment_group_public(
-        circuit,
-        typed_public,
-        transition_public,
-        active_count,
-    )?;
-    let jmt_public = direct_group_public_targets(
-        group_result,
-        group_child,
-        &jmt::jmt_chunk_npo_type(),
-        jmt::CHUNK_PUBLIC_FIELDS_V2,
-    )?;
-    let jmt_sha_public = direct_group_public_targets(
-        group_result,
-        group_child,
-        &ShaAirRoleV2::JmtLinked.npo_type(),
-        sha::JMT_LINKED_PUBLIC_FIELDS_V2,
-    )?;
     let event_public = direct_group_public_targets(
         group_result,
         group_child,
@@ -14045,7 +14018,7 @@ fn constrain_transition_semantic_group_public(
     let semantic_public = direct_group_public_targets(
         group_result,
         group_child,
-        &SemanticSourceAirRoleV2::Transition.npo_type(),
+        &semantic_role.npo_type(),
         semantic_source::PUBLIC_FIELDS_V2,
     )?;
     let semantic_sha_public = direct_group_public_targets(
@@ -14062,6 +14035,122 @@ fn constrain_transition_semantic_group_public(
         semantic_sha_public,
         active_count,
         0,
+        active_count,
+    )
+}
+
+fn constrain_transition_typed_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_transition_air as transition;
+    use plonky3_epoch_typed_commitment_air as typed;
+
+    if transition_public.len() != transition::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let semantic_transition_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &transition::TransitionAirRoleV2::SemanticTyped.npo_type(),
+        transition::PUBLIC_FIELDS_V2,
+    )?;
+    constrain_statement_range_equal(circuit, semantic_transition_public, transition_public)?;
+    let typed_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &TypedCommitmentAirRoleV2::LinkedConsumer.npo_type(),
+        typed::PUBLIC_FIELDS_V2,
+    )?;
+    constrain_typed_commitment_group_public(
+        circuit,
+        typed_public,
+        transition_public,
+        active_count,
+    )?;
+    constrain_transition_semantic_source_group_public(
+        circuit,
+        transition_public,
+        group_result,
+        group_child,
+        SemanticSourceAirRoleV2::TransitionTyped,
+        active_count,
+    )
+}
+
+fn constrain_transition_flow_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_transition_air as transition;
+
+    if transition_public.len() != transition::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let semantic_transition_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &transition::TransitionAirRoleV2::SemanticFlow.npo_type(),
+        transition::PUBLIC_FIELDS_V2,
+    )?;
+    constrain_statement_range_equal(circuit, semantic_transition_public, transition_public)?;
+    constrain_transition_semantic_source_group_public(
+        circuit,
+        transition_public,
+        group_result,
+        group_child,
+        SemanticSourceAirRoleV2::TransitionFlow,
+        active_count,
+    )
+}
+
+fn constrain_transition_jmt_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_jmt_air as jmt;
+    use plonky3_epoch_sha256_columns as sha;
+    use plonky3_epoch_transition_air as transition;
+
+    if transition_public.len() != transition::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let jmt_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &jmt::jmt_chunk_npo_type(),
+        jmt::CHUNK_PUBLIC_FIELDS_V2,
+    )?;
+    let jmt_sha_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &ShaAirRoleV2::JmtLinked.npo_type(),
+        sha::JMT_LINKED_PUBLIC_FIELDS_V2,
+    )?;
+    constrain_transition_semantic_source_group_public(
+        circuit,
+        transition_public,
+        group_result,
+        group_child,
+        SemanticSourceAirRoleV2::TransitionJmt,
         active_count,
     )?;
     constrain_statement_range_equal(
@@ -14843,15 +14932,27 @@ fn constrain_epoch_chunk_coverage_group(
     active_count: usize,
 ) -> Result<(), CheckpointError> {
     match stage {
-        EpochChunkCoverageStageV2::TransitionSemantic => {
-            constrain_transition_semantic_group_public(
-                circuit,
-                transition_public,
-                group_result,
-                group_child,
-                active_count,
-            )
-        }
+        EpochChunkCoverageStageV2::TransitionTyped => constrain_transition_typed_group_public(
+            circuit,
+            transition_public,
+            group_result,
+            group_child,
+            active_count,
+        ),
+        EpochChunkCoverageStageV2::TransitionJmt => constrain_transition_jmt_group_public(
+            circuit,
+            transition_public,
+            group_result,
+            group_child,
+            active_count,
+        ),
+        EpochChunkCoverageStageV2::TransitionFlow => constrain_transition_flow_group_public(
+            circuit,
+            transition_public,
+            group_result,
+            group_child,
+            active_count,
+        ),
         EpochChunkCoverageStageV2::Hash => constrain_hash_group_public(
             circuit,
             transition_public,
@@ -16592,12 +16693,36 @@ fn prove_epoch_chunk_normalization(
     let accumulated = prove_epoch_transition_group_normalization(transition_group, inputs)?;
     trim_prover_heap();
 
-    let transition_semantic_group =
-        artifact.decode_group_proof(EpochChunkProofGroupV2::TransitionSemantic)?;
+    let transition_typed_group =
+        artifact.decode_group_proof(EpochChunkProofGroupV2::TransitionTyped)?;
     let accumulated = prove_epoch_chunk_coverage_stage(
         accumulated,
-        transition_semantic_group,
-        EpochChunkCoverageStageV2::TransitionSemantic,
+        transition_typed_group,
+        EpochChunkCoverageStageV2::TransitionTyped,
+        &transition_public,
+        transition_common,
+        active_count,
+    )?;
+    trim_prover_heap();
+
+    let transition_jmt_group =
+        artifact.decode_group_proof(EpochChunkProofGroupV2::TransitionJmt)?;
+    let accumulated = prove_epoch_chunk_coverage_stage(
+        accumulated,
+        transition_jmt_group,
+        EpochChunkCoverageStageV2::TransitionJmt,
+        &transition_public,
+        transition_common,
+        active_count,
+    )?;
+    trim_prover_heap();
+
+    let transition_flow_group =
+        artifact.decode_group_proof(EpochChunkProofGroupV2::TransitionFlow)?;
+    let accumulated = prove_epoch_chunk_coverage_stage(
+        accumulated,
+        transition_flow_group,
+        EpochChunkCoverageStageV2::TransitionFlow,
         &transition_public,
         transition_common,
         active_count,
@@ -24276,11 +24401,13 @@ mod tests {
         };
         let child_common = [KoalaBear::from_u8(7); ROOT_COMMON_CAP_FIELDS_V2];
         let parent_common = [KoalaBear::from_u8(8); ROOT_COMMON_CAP_FIELDS_V2];
-        let semantic_common = [KoalaBear::from_u8(9); ROOT_COMMON_CAP_FIELDS_V2];
-        let hash_common = [KoalaBear::from_u8(10); ROOT_COMMON_CAP_FIELDS_V2];
-        let uniqueness_lower_common = [KoalaBear::from_u8(11); ROOT_COMMON_CAP_FIELDS_V2];
-        let uniqueness_upper_common = [KoalaBear::from_u8(12); ROOT_COMMON_CAP_FIELDS_V2];
-        let complete_common = [KoalaBear::from_u8(13); ROOT_COMMON_CAP_FIELDS_V2];
+        let typed_common = [KoalaBear::from_u8(9); ROOT_COMMON_CAP_FIELDS_V2];
+        let jmt_common = [KoalaBear::from_u8(10); ROOT_COMMON_CAP_FIELDS_V2];
+        let flow_common = [KoalaBear::from_u8(11); ROOT_COMMON_CAP_FIELDS_V2];
+        let hash_common = [KoalaBear::from_u8(12); ROOT_COMMON_CAP_FIELDS_V2];
+        let uniqueness_lower_common = [KoalaBear::from_u8(13); ROOT_COMMON_CAP_FIELDS_V2];
+        let uniqueness_upper_common = [KoalaBear::from_u8(14); ROOT_COMMON_CAP_FIELDS_V2];
+        let complete_common = [KoalaBear::from_u8(15); ROOT_COMMON_CAP_FIELDS_V2];
         let normalize = |chunk: &EpochTraceChunkProofInputsV2| {
             let direct_public =
                 plonky3_epoch_transition_witness::public_values(&chunk.statement, &chunk.bindings)
@@ -24292,16 +24419,30 @@ mod tests {
                 parent_common,
             )
             .unwrap();
-            let semantic = epoch_chunk_coverage_statement_values(
+            let typed = epoch_chunk_coverage_statement_values(
                 &transition,
                 EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
-                EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
-                semantic_common,
+                EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2,
+                typed_common,
+            )
+            .unwrap();
+            let jmt = epoch_chunk_coverage_statement_values(
+                &typed,
+                EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2,
+                EPOCH_CHUNK_TRANSITION_JMT_COVERAGE_V2,
+                jmt_common,
+            )
+            .unwrap();
+            let flow = epoch_chunk_coverage_statement_values(
+                &jmt,
+                EPOCH_CHUNK_TRANSITION_JMT_COVERAGE_V2,
+                EPOCH_CHUNK_TRANSITION_FLOW_COVERAGE_V2,
+                flow_common,
             )
             .unwrap();
             let hash = epoch_chunk_coverage_statement_values(
-                &semantic,
-                EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+                &flow,
+                EPOCH_CHUNK_TRANSITION_FLOW_COVERAGE_V2,
                 EPOCH_CHUNK_HASH_COVERAGE_V2,
                 hash_common,
             )
@@ -24421,25 +24562,41 @@ mod tests {
         let mut transition = vec![KoalaBear::ZERO; ROOT_STATEMENT_FIELDS_V2];
         transition[ROOT_STATEMENT_REPLICA_INDEX_V2] =
             KoalaBear::from_u8(EPOCH_CHUNK_TRANSITION_COVERAGE_V2);
-        let semantic_common = [KoalaBear::from_u8(1); ROOT_COMMON_CAP_FIELDS_V2];
-        let hash_common = [KoalaBear::from_u8(2); ROOT_COMMON_CAP_FIELDS_V2];
-        let uniqueness_lower_common = [KoalaBear::from_u8(3); ROOT_COMMON_CAP_FIELDS_V2];
-        let complete_common = [KoalaBear::from_u8(4); ROOT_COMMON_CAP_FIELDS_V2];
+        let typed_common = [KoalaBear::from_u8(1); ROOT_COMMON_CAP_FIELDS_V2];
+        let jmt_common = [KoalaBear::from_u8(2); ROOT_COMMON_CAP_FIELDS_V2];
+        let flow_common = [KoalaBear::from_u8(3); ROOT_COMMON_CAP_FIELDS_V2];
+        let hash_common = [KoalaBear::from_u8(4); ROOT_COMMON_CAP_FIELDS_V2];
+        let uniqueness_lower_common = [KoalaBear::from_u8(5); ROOT_COMMON_CAP_FIELDS_V2];
+        let complete_common = [KoalaBear::from_u8(6); ROOT_COMMON_CAP_FIELDS_V2];
 
-        let semantic = epoch_chunk_coverage_statement_values(
+        let typed = epoch_chunk_coverage_statement_values(
             &transition,
             EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
-            EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
-            semantic_common,
+            EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2,
+            typed_common,
         )
         .unwrap();
         assert_eq!(
-            semantic[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
-            u64::from(EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2),
+            typed[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
+            u64::from(EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2),
         );
+        let jmt = epoch_chunk_coverage_statement_values(
+            &typed,
+            EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2,
+            EPOCH_CHUNK_TRANSITION_JMT_COVERAGE_V2,
+            jmt_common,
+        )
+        .unwrap();
+        let flow = epoch_chunk_coverage_statement_values(
+            &jmt,
+            EPOCH_CHUNK_TRANSITION_JMT_COVERAGE_V2,
+            EPOCH_CHUNK_TRANSITION_FLOW_COVERAGE_V2,
+            flow_common,
+        )
+        .unwrap();
         let hash = epoch_chunk_coverage_statement_values(
-            &semantic,
-            EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            &flow,
+            EPOCH_CHUNK_TRANSITION_FLOW_COVERAGE_V2,
             EPOCH_CHUNK_HASH_COVERAGE_V2,
             hash_common,
         )
@@ -24450,7 +24607,7 @@ mod tests {
         );
         assert!(epoch_chunk_coverage_statement_values(
             &transition,
-            EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            EPOCH_CHUNK_TRANSITION_TYPED_COVERAGE_V2,
             EPOCH_CHUNK_HASH_COVERAGE_V2,
             uniqueness_lower_common,
         )
@@ -24519,18 +24676,18 @@ mod tests {
             vec![KoalaBear::ZERO; plonky3_epoch_transition_air::PUBLIC_FIELDS_V2];
         let transition_common = [KoalaBear::from_u8(7); ROOT_COMMON_CAP_FIELDS_V2];
         let parent_common = [KoalaBear::from_u8(8); ROOT_COMMON_CAP_FIELDS_V2];
-        let semantic = epoch_chunk_group_certificate_statement_values(
+        let typed = epoch_chunk_group_certificate_statement_values(
             &transition_public,
             transition_common,
-            EpochChunkCoverageStageV2::TransitionSemantic,
+            EpochChunkCoverageStageV2::TransitionTyped,
             plonky3_epoch_transition_air::BINDING_SLOTS_V2,
             parent_common,
         )
         .unwrap();
         assert_eq!(
-            semantic[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
+            typed[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
             u64::from(
-                EpochChunkCoverageStageV2::TransitionSemantic
+                EpochChunkCoverageStageV2::TransitionTyped
                     .certificate_ordinal(plonky3_epoch_transition_air::BINDING_SLOTS_V2),
             ),
         );
@@ -24539,13 +24696,13 @@ mod tests {
         let substituted = epoch_chunk_group_certificate_statement_values(
             &transition_public,
             transition_common,
-            EpochChunkCoverageStageV2::TransitionSemantic,
+            EpochChunkCoverageStageV2::TransitionTyped,
             plonky3_epoch_transition_air::BINDING_SLOTS_V2,
             parent_common,
         )
         .unwrap();
         assert_ne!(
-            &semantic[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+            &typed[ROOT_STATEMENT_COMMITMENT_INDEX_V2
                 ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
             &substituted[ROOT_STATEMENT_COMMITMENT_INDEX_V2
                 ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2],

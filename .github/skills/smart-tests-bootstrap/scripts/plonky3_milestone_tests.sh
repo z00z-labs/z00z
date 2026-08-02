@@ -772,8 +772,8 @@ case "$MODE" in
       "$DIRECT_TABLE_TARGET_SECONDS" "$DIRECT_TABLE_BUDGET_SECONDS"
     ;;
   transition-batch)
-    # The closed transition bundle proves twenty linked tables across four or
-    # five Batch-STARK groups. It is a combined closure gate, not one of the five
+    # The closed transition bundle proves twenty-three distinct linked tables
+    # across six or seven Batch-STARK groups. It is a combined closure gate, not one of the five
     # single-table direct-AIR targets governed by the 10-second warm budget.
     run_isolated \
       test_direct_transition_batch_actual_roundtrip \

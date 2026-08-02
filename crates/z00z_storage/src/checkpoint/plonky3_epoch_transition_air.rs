@@ -29,7 +29,8 @@ use super::{
 };
 
 const CORE_NPO_ID_V2: &str = "z00z/plonky3/epoch-transition-core-linked/v2";
-const SEMANTIC_NPO_ID_V2: &str = "z00z/plonky3/epoch-transition-semantic-linked/v2";
+const SEMANTIC_TYPED_NPO_ID_V2: &str = "z00z/plonky3/epoch-transition-semantic-typed-linked/v2";
+const SEMANTIC_FLOW_NPO_ID_V2: &str = "z00z/plonky3/epoch-transition-semantic-flow-linked/v2";
 pub(super) const TRANSITION_TRACE_FRAMING_BUS_V2: &str =
     "z00z/plonky3/epoch-transition-trace-framing/v2";
 pub(super) const TRANSITION_FLOW_ROOT_LIMB_BUS_V2: &str =
@@ -132,14 +133,16 @@ pub(super) struct TransitionRowV2 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum TransitionAirRoleV2 {
     Core,
-    Semantic,
+    SemanticTyped,
+    SemanticFlow,
 }
 
 impl TransitionAirRoleV2 {
     pub(super) fn npo_type(self) -> NpoTypeId {
         NpoTypeId::new(match self {
             Self::Core => CORE_NPO_ID_V2,
-            Self::Semantic => SEMANTIC_NPO_ID_V2,
+            Self::SemanticTyped => SEMANTIC_TYPED_NPO_ID_V2,
+            Self::SemanticFlow => SEMANTIC_FLOW_NPO_ID_V2,
         })
     }
 }
@@ -281,7 +284,7 @@ where
             .fold(AB::Expr::ZERO, |sum, (index, selector)| {
                 sum + selector.clone() * AB::Expr::from_usize(index)
             });
-        if self.role == TransitionAirRoleV2::Semantic {
+        if self.role == TransitionAirRoleV2::SemanticTyped {
             for kind in 0..COMMITMENTS_PER_TRANSITION_V2 {
                 let mut fields = Vec::with_capacity(2 + DIGEST_LIMBS_V2);
                 fields.push(transition_index.clone());
@@ -312,7 +315,7 @@ where
                 Count::bounded(active.clone(), 1),
             );
         }
-        if self.role == TransitionAirRoleV2::Semantic {
+        if self.role == TransitionAirRoleV2::SemanticFlow {
             for (root_kind, root_offset) in [
                 (0_usize, BINDING_PRE_ROOT_OFFSET_V2),
                 (1_usize, BINDING_POST_ROOT_OFFSET_V2),

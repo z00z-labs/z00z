@@ -23,8 +23,8 @@ use crate::{settlement::SettlementStore, CheckpointError};
 
 const EPOCH_WORK_MAGIC_V2: [u8; 8] = *b"Z00ZEWM2";
 const EPOCH_WORK_WIRE_V2: u16 = 2;
-pub(super) const EPOCH_DIRECT_AIR_GENERATION_V2: u16 = 6;
-pub(super) const EPOCH_CHUNK_GRAMMAR_GENERATION_V2: u16 = 5;
+pub(super) const EPOCH_DIRECT_AIR_GENERATION_V2: u16 = 7;
+pub(super) const EPOCH_CHUNK_GRAMMAR_GENERATION_V2: u16 = 6;
 const EPOCH_WORK_MAX_TRANSITIONS_V2: u32 = 4_096;
 const EPOCH_TRANSITION_DIGEST_COUNT_V2: usize = 25;
 const EPOCH_TRANSITION_COUNT_FIELD_COUNT_V2: usize = 6;

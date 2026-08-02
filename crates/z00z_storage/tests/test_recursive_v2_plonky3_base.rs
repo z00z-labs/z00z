@@ -110,7 +110,7 @@ fn chunk_group_offsets(proof: &Plonky3EpochChunkProofV2) -> Vec<ChunkGroupOffset
             .try_into()
             .expect("canonical group count"),
     ));
-    assert!((4..=5).contains(&group_count));
+    assert!((6..=7).contains(&group_count));
     let mut cursor = statement_starts[0] + statement_bundle_len;
     let mut offsets = Vec::with_capacity(group_count);
     for expected_group in 1_u8..=u8::try_from(group_count).expect("bounded group count") {
@@ -118,8 +118,8 @@ fn chunk_group_offsets(proof: &Plonky3EpochChunkProofV2) -> Vec<ChunkGroupOffset
         let tag = bytes[cursor];
         assert_eq!(tag, expected_group);
         let descriptor_len = match tag {
-            1 | 2 | 3 => 0,
-            4 | 5 => 2,
+            1 | 2 | 3 | 4 | 5 => 0,
+            6 | 7 => 2,
             _ => panic!("canonical group tag"),
         };
         let proof_len_start = cursor + 1 + descriptor_len;

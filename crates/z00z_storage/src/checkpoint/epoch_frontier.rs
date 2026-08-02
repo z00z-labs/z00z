@@ -53,7 +53,7 @@ const FRONTIER_WIRE_VERSION_V2: u16 = 5;
 // Generation 9 additionally binds the actual proof and verification receipt
 // into durable chunk admission identity. There is no decoder or migration path
 // from predecessor frontier generations.
-const FRONTIER_TREE_GENERATION_V2: u8 = 10;
+const FRONTIER_TREE_GENERATION_V2: u8 = 11;
 const FRONTIER_AUTHORITY_DIGEST_COUNT_V2: usize = 10;
 const FRONTIER_AUTHORITY_BYTES_V2: usize =
     8 + 2 + 1 + 1 + 8 * 4 + 4 * 2 + 2 + 8 * 4 + 4 + FRONTIER_AUTHORITY_DIGEST_COUNT_V2 * 32 + 32;
