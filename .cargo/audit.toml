@@ -1,6 +1,6 @@
 [advisories]
-# quick-xml remains transitively pinned below 0.41 by the optional egui/wayland
-# desktop wallet stack, so these are tracked as accepted exceptions until that
-# upstream chain can move.
-ignore = ["RUSTSEC-2026-0194", "RUSTSEC-2026-0195", "RUSTSEC-2025-0141"]
+# bincode remains transitively required by the current workspace and Nova
+# dependency graph. Track its unmaintained status as an explicit exception
+# until those owners migrate to a maintained codec.
+ignore = ["RUSTSEC-2025-0141"]
 informational_warnings = ["unmaintained", "unsound"]

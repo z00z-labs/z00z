@@ -151,7 +151,7 @@ pub(super) fn mk_out_with_blind(
     if let Some(seed) = split_seed {
         let seed = seed32(seed, &party, value, serial_id, idx);
         let mut rng = DeterministicRngProvider::from_seed(seed).rng();
-        let r = Z00ZScalar::random(&mut rng);
+        let r = Z00ZScalar::random(&mut rng).map_err(|error| error.to_string())?;
         let sender = sender_derive_dh_with_r(&view_pk, &r).map_err(|e| e.to_string())?;
         let r_pub = sender.r_pub.to_bytes();
         let k_dh = derive_dh_key(&sender.dh);
@@ -180,7 +180,7 @@ pub(super) fn mk_out_with_blind(
     }
 
     let mut rng = SystemRngProvider.rng();
-    let r = Z00ZScalar::random(&mut rng);
+    let r = Z00ZScalar::random(&mut rng).map_err(|error| error.to_string())?;
     let sender = sender_derive_dh_with_r(&view_pk, &r).map_err(|e| e.to_string())?;
     let r_pub = sender.r_pub.to_bytes();
     let k_dh = derive_dh_key(&sender.dh);

@@ -26,7 +26,8 @@ use z00z_plonky3_circuit_prover::{BatchStarkProof, BatchStarkProver};
 use super::plonky3_epoch_transition_air::TRANSITION_TRACE_FRAMING_BUS_V2;
 use super::{
     hardened_koala_bear_config, Plonky3StarkConfigV2, RecursiveCheckpointRejectReasonV2,
-    EPOCH_CHUNK_BYTES_V2,
+    EPOCH_CHUNK_BYTES_V2, EPOCH_CHUNK_INPUT_STATE_ROOT_LIMB_OFFSET_V2,
+    EPOCH_CHUNK_OUTPUT_STATE_ROOT_LIMB_OFFSET_V2,
 };
 use crate::CheckpointError;
 
@@ -59,11 +60,11 @@ const PUBLIC_FIRST_TRANSITION_OFFSET_V2: usize = 11;
 const PUBLIC_LAST_TRANSITION_OFFSET_V2: usize = 13;
 const PUBLIC_ROW_COUNT_OFFSET_V2: usize = 21;
 const PUBLIC_EVENT_COUNT_OFFSET_V2: usize = 29;
-const PUBLIC_INPUT_STATE_ROOT_OFFSET_V2: usize = 49;
-const PUBLIC_OUTPUT_STATE_ROOT_OFFSET_V2: usize = 65;
-const PUBLIC_FIRST_HEIGHT_OFFSET_V2: usize = STATEMENT_LIMBS_V2;
-const PUBLIC_LAST_HEIGHT_OFFSET_V2: usize = PUBLIC_FIRST_HEIGHT_OFFSET_V2 + 4;
-const PUBLIC_EVENT_BYTES_OFFSET_V2: usize = PUBLIC_LAST_HEIGHT_OFFSET_V2 + 4;
+const PUBLIC_INPUT_STATE_ROOT_OFFSET_V2: usize = EPOCH_CHUNK_INPUT_STATE_ROOT_LIMB_OFFSET_V2;
+const PUBLIC_OUTPUT_STATE_ROOT_OFFSET_V2: usize = EPOCH_CHUNK_OUTPUT_STATE_ROOT_LIMB_OFFSET_V2;
+pub(super) const PUBLIC_FIRST_HEIGHT_OFFSET_V2: usize = STATEMENT_LIMBS_V2;
+pub(super) const PUBLIC_LAST_HEIGHT_OFFSET_V2: usize = PUBLIC_FIRST_HEIGHT_OFFSET_V2 + 4;
+pub(super) const PUBLIC_EVENT_BYTES_OFFSET_V2: usize = PUBLIC_LAST_HEIGHT_OFFSET_V2 + 4;
 
 #[derive(Clone, Debug)]
 pub(super) struct TraceFramingRowV2 {

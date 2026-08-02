@@ -21,7 +21,7 @@ fn test_perf_ecdh() {
     let mut rng = SystemRngProvider.rng();
     let start = Instant::now();
     for _ in 0..ITERS {
-        let r = Z00ZScalar::random(&mut rng);
+        let r = Z00ZScalar::random(&mut rng).unwrap();
         let _ = sender_derive_dh_with_r(&view_pk, &r).expect("sender derive failed");
     }
 

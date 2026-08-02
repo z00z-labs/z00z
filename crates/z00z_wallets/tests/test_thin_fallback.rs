@@ -17,7 +17,7 @@ use thin_test_support::{context_for_entry, fixture_entry, tx_json, ThinRpcEnv};
 #[tokio::test]
 async fn test_uncertainty_forces_thick() {
     let entry = fixture_entry().await;
-    let (old_sk, _) = generate_identity_keypair();
+    let (old_sk, _) = generate_identity_keypair().unwrap();
     let valid_snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 50, 10, 1_000),
         vec![entry.clone()],
@@ -31,7 +31,7 @@ async fn test_uncertainty_forces_thick() {
         .publish_snapshot(valid_snapshot.clone())
         .expect("publish valid snapshot");
 
-    let (new_sk, _) = generate_identity_keypair();
+    let (new_sk, _) = generate_identity_keypair().unwrap();
     let missing_snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 51, 20, 1_000),
         vec![entry.clone()],
@@ -77,7 +77,7 @@ async fn test_uncertainty_forces_thick() {
 #[tokio::test]
 async fn test_resubmit_keeps_meaning() {
     let entry = fixture_entry().await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let valid_snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 60, 10, 1_000),
         vec![entry.clone()],

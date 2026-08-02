@@ -13,8 +13,8 @@ use z00z_plonky3_circuit_prover::batch_stark_prover::{
 };
 use z00z_plonky3_circuit_prover::{BatchStarkProof, BatchStarkProver};
 
-use super::plonky3_epoch_sha256_air::{
-    sha_npo_type, ShaAirV2, ShaTraceV2, CALL_FIELDS_V2, PUBLIC_FIELDS_V2, SHA_ROWS_V2,
+use super::plonky3_epoch_sha256_columns::{
+    ShaAirRoleV2, ShaAirV2, ShaTraceV2, ROW_FIELDS_V2, SHA_ROWS_V2,
 };
 use super::plonky3_epoch_sha256_witness::{compress, public_values, rows, words_bytes};
 #[cfg(test)]
@@ -26,32 +26,53 @@ use super::{
 use crate::CheckpointError;
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct ShaProverV2;
+pub(super) struct ShaProverV2 {
+    role: ShaAirRoleV2,
+}
 
 impl ShaProverV2 {
+    pub(super) const fn new(role: ShaAirRoleV2) -> Self {
+        Self { role }
+    }
+
+    fn valid_rows(self, rows: usize) -> bool {
+        match self.role {
+            ShaAirRoleV2::Standalone => rows == SHA_ROWS_V2,
+            ShaAirRoleV2::Chain
+            | ShaAirRoleV2::SemanticTransitionChain
+            | ShaAirRoleV2::SemanticUniquenessChain
+            | ShaAirRoleV2::JmtLinked
+            | ShaAirRoleV2::RecursiveCompression => {
+                rows >= SHA_ROWS_V2 && rows.is_power_of_two() && rows.is_multiple_of(SHA_ROWS_V2)
+            }
+        }
+    }
+
     fn batch_instance(
         &self,
         packing: &TablePacking,
         traces: &Traces<KoalaBear>,
     ) -> Option<BatchTableInstance<Plonky3StarkConfigV2>> {
-        let trace = traces.non_primitive_trace::<ShaTraceV2>(&sha_npo_type())?;
-        if trace.rows.len() != SHA_ROWS_V2
+        let trace = traces.non_primitive_trace::<ShaTraceV2>(&self.role.npo_type())?;
+        if trace.role != self.role
+            || trace.public_values.len() != self.role.public_fields()
+            || !self.valid_rows(trace.rows.len())
             || trace
                 .rows
                 .iter()
-                .any(|row| row.values.len() != CALL_FIELDS_V2)
+                .any(|row| row.values.len() != ROW_FIELDS_V2)
         {
             return None;
         }
-        let preprocessed = vec![KoalaBear::ONE; SHA_ROWS_V2];
-        let min_height = packing.min_trace_height().max(SHA_ROWS_V2);
-        let air = ShaAirV2::<KoalaBear, 1>::new(preprocessed, min_height);
+        let preprocessed = vec![KoalaBear::ONE; trace.rows.len()];
+        let min_height = packing.min_trace_height().max(trace.rows.len());
+        let air = ShaAirV2::<KoalaBear, 1>::new(self.role, preprocessed, min_height);
         Some(BatchTableInstance {
-            op_type: sha_npo_type(),
+            op_type: self.role.npo_type(),
             air: DynamicAirEntry::new(Box::new(air)),
             trace: ShaAirV2::<KoalaBear, 1>::trace_to_matrix(&trace.rows, min_height),
-            public_values: trace.rows[0].values[..PUBLIC_FIELDS_V2].to_vec(),
-            rows: SHA_ROWS_V2,
+            public_values: trace.public_values.clone(),
+            rows: trace.rows.len(),
             lanes: 1,
         })
     }
@@ -59,7 +80,7 @@ impl ShaProverV2 {
 
 impl TableProver<Plonky3StarkConfigV2> for ShaProverV2 {
     fn op_type(&self) -> NpoTypeId {
-        sha_npo_type()
+        self.role.npo_type()
     }
 
     fn batch_instance_d1(
@@ -116,14 +137,14 @@ impl TableProver<Plonky3StarkConfigV2> for ShaProverV2 {
     ) -> Result<DynamicAirEntry<Plonky3StarkConfigV2>, String> {
         if degree != 1
             || circuit_extension_degree != 1
-            || entry.rows != SHA_ROWS_V2
+            || !self.valid_rows(entry.rows)
             || entry.lanes != 1
-            || entry.public_values.len() != PUBLIC_FIELDS_V2
+            || entry.public_values.len() != self.role.public_fields()
         {
             return Err("epoch SHA-256 table shape mismatch".into());
         }
         Ok(DynamicAirEntry::new(Box::new(
-            ShaAirV2::<KoalaBear, 1>::new(Vec::new(), entry.rows),
+            ShaAirV2::<KoalaBear, 1>::new(self.role, Vec::new(), entry.rows),
         )))
     }
 
@@ -136,11 +157,11 @@ impl TableProver<Plonky3StarkConfigV2> for ShaProverV2 {
     ) -> Option<DynamicAirEntry<Plonky3StarkConfigV2>> {
         (lanes == 1
             && circuit_extension_degree == 1
-            && committed.len() == SHA_ROWS_V2
+            && self.valid_rows(committed.len())
             && committed.iter().all(|&value| value == KoalaBear::ONE))
         .then(|| {
             DynamicAirEntry::new(Box::new(ShaAirV2::<KoalaBear, 1>::new(
-                committed, min_height,
+                self.role, committed, min_height,
             )))
         })
     }
@@ -153,7 +174,7 @@ fn verify_batch(
 ) -> Result<(), CheckpointError> {
     let mut verifier =
         BatchStarkProver::new(hardened_koala_bear_config()).with_table_packing(table_packing);
-    verifier.register_table_prover(Box::new(ShaProverV2));
+    verifier.register_table_prover(Box::new(ShaProverV2::new(ShaAirRoleV2::Standalone)));
     verifier
         .verify_all_tables::<KoalaBear>(proof)
         .map_err(|error| {
@@ -164,7 +185,7 @@ fn verify_batch(
     let mut entries = proof
         .non_primitives
         .iter()
-        .filter(|entry| entry.op_type == sha_npo_type());
+        .filter(|entry| entry.op_type == ShaAirRoleV2::Standalone.npo_type());
     let actual_public = entries
         .next()
         .map(|entry| entry.public_values.as_slice())
@@ -186,7 +207,11 @@ fn prove(
     let expected_public = public_values(statement, input, block, output)?;
     #[cfg(test)]
     {
-        let air = ShaAirV2::<KoalaBear, 1>::new(vec![KoalaBear::ONE; SHA_ROWS_V2], SHA_ROWS_V2);
+        let air = ShaAirV2::<KoalaBear, 1>::new(
+            ShaAirRoleV2::Standalone,
+            vec![KoalaBear::ONE; SHA_ROWS_V2],
+            SHA_ROWS_V2,
+        );
         let matrix = ShaAirV2::<KoalaBear, 1>::trace_to_matrix(&rows, SHA_ROWS_V2);
         p3_air::check_constraints(&air, &matrix, &expected_public);
     }
@@ -202,8 +227,12 @@ fn prove(
         },
         alu_trace: AluTrace::from_records(Vec::new()),
         non_primitive_traces: [(
-            sha_npo_type(),
-            Box::new(ShaTraceV2 { rows }) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
+            ShaAirRoleV2::Standalone.npo_type(),
+            Box::new(ShaTraceV2 {
+                role: ShaAirRoleV2::Standalone,
+                public_values: expected_public.clone(),
+                rows,
+            }) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
         )]
         .into_iter()
         .collect(),
@@ -212,7 +241,7 @@ fn prove(
     let table_packing = TablePacking::new(1, 1).with_min_trace_height(SHA_ROWS_V2);
     let mut prover = BatchStarkProver::new(hardened_koala_bear_config())
         .with_table_packing(table_packing.clone());
-    prover.register_table_prover(Box::new(ShaProverV2));
+    prover.register_table_prover(Box::new(ShaProverV2::new(ShaAirRoleV2::Standalone)));
     let proof = prover.prove_direct_tables(&traces).map_err(|error| {
         CheckpointError::Backend(format!("Plonky3 epoch SHA-256 prove failed: {error}"))
     })?;
@@ -346,7 +375,7 @@ pub(super) fn prove_epoch_sha256_smoke(
     let entry = proof
         .non_primitives
         .iter_mut()
-        .find(|entry| entry.op_type == sha_npo_type())
+        .find(|entry| entry.op_type == ShaAirRoleV2::Standalone.npo_type())
         .ok_or(CheckpointError::BackendVerificationFailed)?;
     let value = entry
         .public_values

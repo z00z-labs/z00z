@@ -37,7 +37,7 @@ fn test_range_values() {
     let values = [0u64, 1, 100, 12345, u32::MAX as u64, u64::MAX - 1, u64::MAX];
 
     for value in values {
-        let blinding = Z00ZScalar::random(&mut rng);
+        let blinding = Z00ZScalar::random(&mut rng).unwrap();
         let commitment = commit_value(value, &blinding);
         let proof = create_range_proof(value, &blinding, 64, 0).expect("proof generation failed");
         let ok = verify_range_proof(&proof, &commitment, 64, 1, 0).is_ok();
@@ -50,7 +50,7 @@ fn test_wrong_commitment() {
     let mut rng = z00z_utils::rng::SystemRngProvider.rng();
 
     let value = 1000u64;
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let commitment_real = commit_value(value, &blinding);
     let proof = create_range_proof(value, &blinding, 64, 0).expect("proof");
 
@@ -59,12 +59,12 @@ fn test_wrong_commitment() {
         "real commitment must pass"
     );
 
-    let wrong = commit_value(2000, &Z00ZScalar::random(&mut rng));
+    let wrong = commit_value(2000, &Z00ZScalar::random(&mut rng).unwrap());
     let ok_wrong = verify_range_proof(&proof, &wrong, 64, 1, 0).is_ok();
     assert!(!ok_wrong, "tampered commitment must fail");
 
     let rand_value = rng.next_u64();
-    let rand_blind = Z00ZScalar::random(&mut rng);
+    let rand_blind = Z00ZScalar::random(&mut rng).unwrap();
     let rand_pt = commit_value(rand_value, &rand_blind);
     let result = verify_range_proof(&proof, &rand_pt, 64, 1, 0);
     assert!(result.is_err());
@@ -77,7 +77,7 @@ fn test_batch_verify_100() {
 
     for i in 0..100u64 {
         let v = (i + 1) * 100;
-        let r = Z00ZScalar::random(&mut rng);
+        let r = Z00ZScalar::random(&mut rng).unwrap();
         let c = commit_value(v, &r);
         let proof = create_range_proof(v, &r, 64, 0).expect("proof");
         entries.push((c, proof));
@@ -99,7 +99,7 @@ fn test_batch_perf_100ms() {
 
     for i in 0..100u64 {
         let v = (i + 1) * 100;
-        let r = Z00ZScalar::random(&mut rng);
+        let r = Z00ZScalar::random(&mut rng).unwrap();
         let c = commit_value(v, &r);
         let proof = create_range_proof(v, &r, 64, 0).expect("proof");
         entries.push((c, proof));

@@ -53,13 +53,13 @@ pub const JMT_UPDATE_TRACE_VERSION_V2: u8 = 3;
 pub(crate) const JMT_TRACE_MAX_BYTES_V2: usize = 67_108_864;
 pub(crate) const JMT_TRACE_MAX_OPS_V2: usize = 1_000;
 const JMT_PROOF_MAX_BYTES_V2: usize = 24 * 1024 * 1024;
-const JMT_VALUE_MAX_BYTES_V2: usize = 64 * 1024;
+pub(crate) const JMT_VALUE_MAX_BYTES_V2: usize = 64 * 1024;
 const JMT_VALUES_MAX_BYTES_V2: usize = 24 * 1024 * 1024;
 #[cfg(test)]
 pub(crate) const JMT_ENVELOPE_MAX_BYTES_V2: usize = 48 * 1024 * 1024;
 pub(crate) const JMT_SPARSE_PLACEHOLDER_HASH_V2: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
-const JMT_LEAF_DOMAIN_V2: &[u8] = b"JMT::LeafNode";
-const JMT_INTERNAL_DOMAIN_V2: &[u8] = b"JMT::IntrnalNode";
+pub(crate) const JMT_LEAF_DOMAIN_V2: &[u8] = b"JMT::LeafNode";
+pub(crate) const JMT_INTERNAL_DOMAIN_V2: &[u8] = b"JMT::IntrnalNode";
 pub(crate) const JMT_TRACE_MUTATING_KIND_V2: u8 = 1;
 pub(crate) const JMT_TRACE_NOOP_KIND_V2: u8 = 2;
 const JMT_TRACE_NOOP_LABEL_V2: &str = "settlement_update_trace_noop_v2";

@@ -35,10 +35,10 @@ pub use self::{
     },
     bincode_io::{load_bincode, load_bincode_bounded, save_bincode},
     file_read::{
-        create_dir_all, file_len, open_lock_file, path_exists, path_exists_no_follow, read_dir,
-        read_dir_bounded, read_file, read_link, read_to_string, remove_dir_all, remove_file,
-        rename_file, set_file_mode, set_file_readonly, set_permissions_mode, symlink_metadata,
-        sync_directory,
+        create_dir_all, destinations_alias_no_follow, file_len, open_lock_file, path_exists,
+        path_exists_no_follow, read_dir, read_dir_bounded, read_file, read_link, read_to_string,
+        remove_dir_all, remove_file, rename_file, set_file_mode, set_file_readonly,
+        set_permissions_mode, symlink_metadata, sync_directory,
     },
     fs_codec::{load_with_codec, read_file_bounded, save_with_codec},
     json_io::{load_json, load_json_bounded, save_json},
@@ -452,8 +452,18 @@ fn clear_managed_root_contents(
     rel_dir: &Path,
     keep: &[PathBuf],
 ) -> Result<(), IoError> {
-    if !path_exists(dir)? {
+    if !path_exists_no_follow(dir)? {
         return Ok(());
+    }
+    let dir_meta = symlink_metadata(dir)?;
+    if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
+        return Err(IoError::Io(std::io::Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "managed-root traversal requires a real directory: {}",
+                dir.display()
+            ),
+        )));
     }
 
     for entry in read_dir(dir)? {
@@ -468,7 +478,15 @@ fn clear_managed_root_contents(
         } else {
             rel_dir.join(name)
         };
-        let meta = std::fs::metadata(&entry)?;
+        let meta = symlink_metadata(&entry)?;
+
+        // Preserve rules describe entries inside the managed root. A symlink is
+        // never such an entry, even when its target happens to be a directory.
+        // Unlink it without inspecting or traversing its target.
+        if meta.file_type().is_symlink() {
+            remove_file(&entry)?;
+            continue;
+        }
 
         if keep.iter().any(|prefix| rel_path.starts_with(prefix)) {
             continue;

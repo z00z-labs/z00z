@@ -129,8 +129,8 @@ fn test_bind_commit() {
     let prover = ProverImpl::new().expect("prover");
     let mut rng = MockRngProvider::with_u64_seed(24).rng();
 
-    let blind_a = Hidden::hide(Z00ZScalar::random(&mut rng));
-    let blind_b = Hidden::hide(Z00ZScalar::random(&mut rng));
+    let blind_a = Hidden::hide(Z00ZScalar::random(&mut rng).unwrap());
+    let blind_b = Hidden::hide(Z00ZScalar::random(&mut rng).unwrap());
 
     let proof_a = prover.create_proof(9, &blind_a).expect("proof");
     let comm_b = create_commitment(11, blind_b.reveal()).expect("commit");

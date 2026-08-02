@@ -18,6 +18,9 @@ use z00z_utils::time::Instant;
 
 use super::{
     canonical_transition::CanonicalCheckpointTransitionV2,
+    epoch_prover::{
+        EpochPreparedTransitionCaptureV2, EpochTraceChunkWorkV2, EpochTransitionStreamV2,
+    },
     nova::{
         resolve_cached_verifier_v2, NovaChainTransitionV2, NovaContinuousSessionV2, NovaRunGuardV2,
         NovaVerifierCacheV2,
@@ -629,6 +632,31 @@ pub struct RecursiveCheckpointChainBlockV2<'a> {
     handoff: SettlementExecHandoff,
 }
 
+/// Exact canonical transitions produced by one successful recursive ingress.
+///
+/// The capture is linear and opaque: callers can only consume it into the
+/// production epoch stream. This keeps Nova and Plonky3 bound to the same
+/// storage commit without constructing or replaying a parallel transition.
+pub struct RecursiveEpochTransitionCaptureV2 {
+    capture: EpochPreparedTransitionCaptureV2,
+}
+
+impl RecursiveEpochTransitionCaptureV2 {
+    #[must_use]
+    pub fn transition_count(&self) -> usize {
+        self.capture.transition_count()
+    }
+
+    /// Consume every captured transition in order and return only completed,
+    /// generation-bounded Plonky3 trace-chunk work items.
+    pub fn append_to_epoch(
+        self,
+        stream: &mut EpochTransitionStreamV2,
+    ) -> Result<Vec<EpochTraceChunkWorkV2>, CheckpointError> {
+        stream.append_capture(self.capture)
+    }
+}
+
 impl<'a> RecursiveCheckpointChainBlockV2<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -741,6 +769,69 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         cancellation: &RecursiveEvidenceCancellationV2,
         request: RecursiveEvidenceRequestV2,
     ) -> Result<RecursiveEvidenceOutcomeV2, CheckpointError> {
+        let (outcome, _) = self.produce_inner(
+            blocks,
+            settlement_store,
+            prover_material_bytes,
+            verifier_bundle_bytes,
+            cancellation,
+            request,
+            None,
+        )?;
+        Ok(outcome)
+    }
+
+    /// Execute the sole recursive ingress and return its exact transitions as
+    /// a linear input to the production Plonky3 epoch stream.
+    pub fn produce_with_epoch_capture(
+        &self,
+        blocks: &mut [RecursiveCheckpointChainBlockV2<'_>],
+        settlement_store: &mut SettlementStore,
+        prover_material_bytes: &[u8],
+        verifier_bundle_bytes: &[u8],
+        cancellation: &RecursiveEvidenceCancellationV2,
+        request: RecursiveEvidenceRequestV2,
+        epoch_stream: &EpochTransitionStreamV2,
+    ) -> Result<
+        (
+            RecursiveEvidenceOutcomeV2,
+            RecursiveEpochTransitionCaptureV2,
+        ),
+        CheckpointError,
+    > {
+        let (outcome, capture) = self.produce_inner(
+            blocks,
+            settlement_store,
+            prover_material_bytes,
+            verifier_bundle_bytes,
+            cancellation,
+            request,
+            Some(epoch_stream),
+        )?;
+        Ok((
+            outcome,
+            RecursiveEpochTransitionCaptureV2 {
+                capture: capture.ok_or(CheckpointError::Invariant)?,
+            },
+        ))
+    }
+
+    fn produce_inner(
+        &self,
+        blocks: &mut [RecursiveCheckpointChainBlockV2<'_>],
+        settlement_store: &mut SettlementStore,
+        prover_material_bytes: &[u8],
+        verifier_bundle_bytes: &[u8],
+        cancellation: &RecursiveEvidenceCancellationV2,
+        request: RecursiveEvidenceRequestV2,
+        epoch_stream: Option<&EpochTransitionStreamV2>,
+    ) -> Result<
+        (
+            RecursiveEvidenceOutcomeV2,
+            Option<EpochPreparedTransitionCaptureV2>,
+        ),
+        CheckpointError,
+    > {
         if blocks.is_empty() {
             return Err(CheckpointError::RecursiveRejected(
                 super::recursive_reject::RecursiveCheckpointRejectReasonV2::ChainTooShort,
@@ -814,6 +905,13 @@ impl RecursiveCheckpointEvidenceStoreV2 {
         let (stage, ()) = stage
             .retain(revalidation)
             .map_err(LiveGateFailureV2::into_error)?;
+        let epoch_capture_result = match epoch_stream {
+            Some(stream) => stream
+                .prepare_capture(&mut transitions, settlement_store)
+                .map(Some),
+            None => Ok(None),
+        };
+        let epoch_capture = drop_session_on_error(&mut session_slot, epoch_capture_result)?;
         let target_height_result = transitions
             .last()
             .map(CanonicalCheckpointTransitionV2::checkpoint_height)
@@ -971,7 +1069,10 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 successor,
                 metrics,
             };
-            return Ok(RecursiveEvidenceOutcomeV2::Recovery(Box::new(recovery)));
+            return Ok((
+                RecursiveEvidenceOutcomeV2::Recovery(Box::new(recovery)),
+                epoch_capture,
+            ));
         }
         if request == RecursiveEvidenceRequestV2::FoldOnly {
             revalidate_or_drop_session(
@@ -984,7 +1085,10 @@ impl RecursiveCheckpointEvidenceStoreV2 {
             if let Some(snapshot) = recovery_snapshot {
                 let _ = self.recovery.commit(&snapshot)?;
             }
-            return Ok(RecursiveEvidenceOutcomeV2::Folded(Box::new(successor)));
+            return Ok((
+                RecursiveEvidenceOutcomeV2::Folded(Box::new(successor)),
+                epoch_capture,
+            ));
         }
         if let Some(snapshot) = recovery_snapshot {
             revalidate_or_drop_session(
@@ -1192,8 +1296,8 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 return Err(error);
             }
         };
-        Ok(RecursiveEvidenceOutcomeV2::Snapshot(Box::new(
-            RecursiveCheckpointEvidenceV2 {
+        Ok((
+            RecursiveEvidenceOutcomeV2::Snapshot(Box::new(RecursiveCheckpointEvidenceV2 {
                 sidecar,
                 receipt,
                 envelope_digest: verified.envelope_digest(),
@@ -1201,8 +1305,9 @@ impl RecursiveCheckpointEvidenceStoreV2 {
                 receipt_digest,
                 successor,
                 verifier_attempts,
-            },
-        )))
+            })),
+            epoch_capture,
+        ))
     }
 
     fn object_dir(&self, class: &str) -> Result<&SecureDir, CheckpointError> {

@@ -133,7 +133,7 @@ pub fn build_output_leaf(
     s_out: [u8; 32],
 ) -> Result<TerminalLeaf, WalletError> {
     let mut rng = SystemRngProvider.rng();
-    let blinding = Hidden::hide(Z00ZScalar::random(&mut rng));
+    let blinding = Hidden::hide(Z00ZScalar::random(&mut rng).unwrap());
     build_output_with_blind(
         k_dh,
         r_pub,

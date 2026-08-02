@@ -12,20 +12,26 @@ use z00z_plonky3_circuit_prover::{BatchStarkProof, BatchStarkProver};
 #[cfg(test)]
 use super::plonky3_epoch_jmt_air::JmtAirV2;
 use super::plonky3_epoch_jmt_air::{
-    jmt_npo_type, JmtRowV2, JmtTraceV2, BIT_POSITION_COUNT_V2, BYTE_POSITION_COUNT_V2,
-    CALL_FIELDS_V2, CASE_COUNT_V2, JMT_MIN_ROWS_V2, JMT_RECORD_BYTES_V2, OPCODE_COUNT_V2,
-    PUBLIC_FIELDS_V2, RECORD_LENGTHS_V2, ROLE_COUNT_V2, RUNNING_OFFSET_V2, SELECTED_BITS_COUNT_V2,
-    SIBLING_TYPE_COUNT_V2,
+    jmt_npo_type, JmtChunkRowV2, JmtChunkTraceV2, JmtRowV2, JmtTraceV2, BIT_POSITION_COUNT_V2,
+    BYTE_POSITION_COUNT_V2, CALL_FIELDS_V2, CASE_COUNT_V2, CHUNK_LANES_V2, CHUNK_LANE_FIELDS_V2,
+    CHUNK_LANE_KIND_OFFSET_V2, CHUNK_LANE_OFFSET_V2, CHUNK_LANE_POST_ROOT_OFFSET_V2,
+    CHUNK_LANE_PRE_ROOT_OFFSET_V2, CHUNK_LANE_RECORD_COUNT_OFFSET_V2,
+    CHUNK_LANE_TRACE_DIGEST_OFFSET_V2, CHUNK_LANE_UPDATE_COUNT_OFFSET_V2, CHUNK_PUBLIC_FIELDS_V2,
+    DIGEST_LIMBS_V2, JMT_MIN_ROWS_V2, JMT_RECORD_BYTES_V2, OPCODE_COUNT_V2, PUBLIC_FIELDS_V2,
+    PUBLIC_ROW_COUNT_OFFSET_V2, RECORD_LENGTHS_V2, ROLE_COUNT_V2, ROW_FIELDS_V2, RUNNING_OFFSET_V2,
+    SELECTED_BITS_COUNT_V2, SIBLING_TYPE_COUNT_V2, STATEMENT_LIMBS_V2,
 };
 use super::plonky3_epoch_jmt_table::JmtProverV2;
 use super::plonky3_epoch_sha256_witness::{compress as sha_compress, words_bytes};
 use super::{
-    hardened_koala_bear_config, EpochAirTableV2, EpochTraceChunkV2, Plonky3StarkConfigV2,
+    hardened_koala_bear_config, plonky3_epoch_event_stream, EpochAirTableV2,
+    EpochPreparedTransitionV2, EpochTraceChunkV2, EpochTransitionBindingV2, Plonky3StarkConfigV2,
     RecursiveCheckpointRejectReasonV2, EPOCH_CHUNK_BYTES_V2,
 };
 use crate::settlement::{
-    SettlementUpdateTraceCircuitDecoderV2, JMT_CIRCUIT_HEADER_BYTES_V2,
-    JMT_SPARSE_PLACEHOLDER_HASH_V2,
+    noop_update_trace_digest, RootGeneration, SettlementUpdateTraceCircuitDecoderV2,
+    JMT_CIRCUIT_HEADER_BYTES_V2, JMT_SPARSE_PLACEHOLDER_HASH_V2, JMT_TRACE_MUTATING_KIND_V2,
+    JMT_TRACE_NOOP_KIND_V2, JMT_UPDATE_TRACE_VERSION_V2,
 };
 use crate::CheckpointError;
 
@@ -43,7 +49,16 @@ struct JmtWitnessStateV2 {
     completed_operations: u32,
     coalesced: bool,
     new_parent_started: bool,
+    operation_job: usize,
+    expected_value_bytes: u32,
+    expected_prior_value_bytes: u32,
+    prior_value_block_count: u32,
+    new_value_block_count: u32,
+    value_padding_started: bool,
+    value_kind: Option<u8>,
     role: u8,
+    tree_definition: [u8; 32],
+    tree_serial: [u8; 4],
     mutation_case: u8,
     key: [u8; 32],
     path_key: [u8; 32],
@@ -69,7 +84,16 @@ impl Default for JmtWitnessStateV2 {
             completed_operations: 0,
             coalesced: false,
             new_parent_started: false,
+            operation_job: 0,
+            expected_value_bytes: 0,
+            expected_prior_value_bytes: 0,
+            prior_value_block_count: 0,
+            new_value_block_count: 0,
+            value_padding_started: false,
+            value_kind: None,
             role: 0,
+            tree_definition: [0; 32],
+            tree_serial: [0; 4],
             mutation_case: 0,
             key: [0; 32],
             path_key: [0; 32],
@@ -98,7 +122,12 @@ fn take_u32(bytes: &[u8], offset: usize) -> Result<u32, CheckpointError> {
 }
 
 fn digest_limbs(digest: [u8; 32]) -> [u16; 16] {
-    core::array::from_fn(|index| u16::from_le_bytes([digest[index * 2], digest[index * 2 + 1]]))
+    core::array::from_fn(|limb| {
+        let word = limb / 2;
+        let within_word = if limb.is_multiple_of(2) { 2 } else { 0 };
+        let byte = word * 4 + within_word;
+        u16::from_be_bytes([digest[byte], digest[byte + 1]])
+    })
 }
 
 fn raw_sha_digest(blocks: &[u8]) -> Result<[u8; 32], CheckpointError> {
@@ -115,6 +144,22 @@ fn raw_sha_digest(blocks: &[u8]) -> Result<[u8; 32], CheckpointError> {
 
 fn append_digest(values: &mut Vec<KoalaBear>, digest: [u8; 32]) {
     values.extend(digest_limbs(digest).map(KoalaBear::from_u16));
+}
+
+fn append_u64_limbs(values: &mut Vec<KoalaBear>, value: u64) {
+    values.extend(
+        [
+            value as u16,
+            (value >> 16) as u16,
+            (value >> 32) as u16,
+            (value >> 48) as u16,
+        ]
+        .map(KoalaBear::from_u16),
+    );
+}
+
+fn append_u32_bytes(values: &mut Vec<KoalaBear>, value: u32) {
+    values.extend(value.to_le_bytes().map(KoalaBear::from_u8));
 }
 
 pub(super) fn public_values(
@@ -134,10 +179,134 @@ pub(super) fn public_values(
             .map(|limb| KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]]))),
     );
     values.extend(header.iter().copied().map(KoalaBear::from_u8));
+    append_digest(&mut values, statement.inputs().input_state_root);
+    append_digest(&mut values, statement.inputs().output_state_root);
     if values.len() != PUBLIC_FIELDS_V2 {
         return Err(CheckpointError::Invariant);
     }
     Ok(values)
+}
+
+pub(super) fn chunk_public_values(
+    statement: &EpochTraceChunkV2,
+    bindings: &[EpochTransitionBindingV2],
+) -> Result<Vec<KoalaBear>, CheckpointError> {
+    let inputs = statement.inputs();
+    let record_count = bindings.iter().try_fold(0_u64, |total, binding| {
+        total
+            .checked_add(binding.inputs().jmt_record_count)
+            .ok_or(CheckpointError::Overflow)
+    })?;
+    if statement.canonical_bytes().len() != EPOCH_CHUNK_BYTES_V2
+        || inputs.table != EpochAirTableV2::JmtUpdate
+        || inputs.replica != 0
+        || bindings.is_empty()
+        || bindings.len() > CHUNK_LANES_V2
+        || inputs.row_count != record_count
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut values = Vec::with_capacity(CHUNK_PUBLIC_FIELDS_V2);
+    values.extend(
+        statement
+            .canonical_bytes()
+            .chunks_exact(2)
+            .map(|limb| KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]]))),
+    );
+    for lane in 0..CHUNK_LANES_V2 {
+        values.push(KoalaBear::from_bool(lane < bindings.len()));
+    }
+    for lane in 0..CHUNK_LANES_V2 {
+        if let Some(binding) = bindings.get(lane) {
+            let binding = binding.inputs();
+            let update_count =
+                u32::try_from(binding.jmt_update_count).map_err(|_| CheckpointError::Limit)?;
+            append_digest(&mut values, binding.pre_definition_root);
+            append_digest(&mut values, binding.post_definition_root);
+            values.extend(
+                binding
+                    .post_definition_root
+                    .into_iter()
+                    .map(KoalaBear::from_u8),
+            );
+            values.extend(
+                binding
+                    .update_trace_digest
+                    .into_iter()
+                    .map(KoalaBear::from_u8),
+            );
+            append_u64_limbs(&mut values, binding.jmt_record_count);
+            append_u32_bytes(&mut values, update_count);
+            values.push(KoalaBear::from_u8(if binding.jmt_record_count == 0 {
+                JMT_TRACE_NOOP_KIND_V2
+            } else {
+                JMT_TRACE_MUTATING_KIND_V2
+            }));
+        } else {
+            append_digest(&mut values, [0; 32]);
+            append_digest(&mut values, [0; 32]);
+            values.extend(core::iter::repeat_n(KoalaBear::ZERO, 32));
+            values.extend(
+                noop_update_trace_digest()
+                    .into_iter()
+                    .map(KoalaBear::from_u8),
+            );
+            append_u64_limbs(&mut values, 0);
+            append_u32_bytes(&mut values, 0);
+            values.push(KoalaBear::from_u8(JMT_TRACE_NOOP_KIND_V2));
+        }
+    }
+    if values.len() != CHUNK_PUBLIC_FIELDS_V2 {
+        return Err(CheckpointError::Invariant);
+    }
+    Ok(values)
+}
+
+fn chunk_lane_public_values(
+    chunk_public: &[KoalaBear],
+    lane: usize,
+) -> Result<Vec<KoalaBear>, CheckpointError> {
+    if chunk_public.len() != CHUNK_PUBLIC_FIELDS_V2 || lane >= CHUNK_LANES_V2 {
+        return Err(CheckpointError::Invariant);
+    }
+    let lane_offset = CHUNK_LANE_OFFSET_V2 + lane * CHUNK_LANE_FIELDS_V2;
+    let mut values = chunk_public[..STATEMENT_LIMBS_V2].to_vec();
+    values[PUBLIC_ROW_COUNT_OFFSET_V2..PUBLIC_ROW_COUNT_OFFSET_V2 + 4].copy_from_slice(
+        &chunk_public[lane_offset + CHUNK_LANE_RECORD_COUNT_OFFSET_V2
+            ..lane_offset + CHUNK_LANE_RECORD_COUNT_OFFSET_V2 + 4],
+    );
+    values.push(KoalaBear::from_u8(JMT_UPDATE_TRACE_VERSION_V2));
+    values.push(KoalaBear::from_u8(RootGeneration::SettlementV2.version()));
+    values.push(chunk_public[lane_offset + CHUNK_LANE_KIND_OFFSET_V2]);
+    values.extend_from_slice(
+        &chunk_public[lane_offset + CHUNK_LANE_TRACE_DIGEST_OFFSET_V2
+            ..lane_offset + CHUNK_LANE_TRACE_DIGEST_OFFSET_V2 + 32],
+    );
+    values.extend_from_slice(
+        &chunk_public[lane_offset + CHUNK_LANE_UPDATE_COUNT_OFFSET_V2
+            ..lane_offset + CHUNK_LANE_UPDATE_COUNT_OFFSET_V2 + 4],
+    );
+    values.extend_from_slice(
+        &chunk_public[lane_offset + CHUNK_LANE_PRE_ROOT_OFFSET_V2
+            ..lane_offset + CHUNK_LANE_PRE_ROOT_OFFSET_V2 + DIGEST_LIMBS_V2],
+    );
+    values.extend_from_slice(
+        &chunk_public[lane_offset + CHUNK_LANE_POST_ROOT_OFFSET_V2
+            ..lane_offset + CHUNK_LANE_POST_ROOT_OFFSET_V2 + DIGEST_LIMBS_V2],
+    );
+    if values.len() != PUBLIC_FIELDS_V2 {
+        return Err(CheckpointError::Invariant);
+    }
+    Ok(values)
+}
+
+fn canonical_noop_header() -> [u8; JMT_CIRCUIT_HEADER_BYTES_V2] {
+    let mut header = [0_u8; JMT_CIRCUIT_HEADER_BYTES_V2];
+    header[0] = JMT_UPDATE_TRACE_VERSION_V2;
+    header[1] = RootGeneration::SettlementV2.version();
+    header[2] = JMT_TRACE_NOOP_KIND_V2;
+    header[3..35].copy_from_slice(&noop_update_trace_digest());
+    header
 }
 
 pub(super) fn rows(
@@ -145,12 +314,28 @@ pub(super) fn rows(
     header: &[u8],
     records: &[Vec<u8>],
 ) -> Result<Vec<JmtRowV2>, CheckpointError> {
-    if records.is_empty()
-        || header.len() != JMT_CIRCUIT_HEADER_BYTES_V2
+    if header.len() != JMT_CIRCUIT_HEADER_BYTES_V2
         || statement.inputs().table != EpochAirTableV2::JmtUpdate
         || statement.inputs().replica != 0
         || statement.inputs().row_count
             != u64::try_from(records.len()).map_err(|_| CheckpointError::Limit)?
+        || (records.is_empty() && header[2] != JMT_TRACE_NOOP_KIND_V2)
+        || (!records.is_empty() && header[2] != JMT_TRACE_MUTATING_KIND_V2)
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    rows_with_public(public_values(statement, header)?, header, records)
+}
+
+pub(super) fn rows_with_public<R: AsRef<[u8]>>(
+    public: Vec<KoalaBear>,
+    header: &[u8],
+    records: &[R],
+) -> Result<Vec<JmtRowV2>, CheckpointError> {
+    if public.len() != PUBLIC_FIELDS_V2
+        || header.len() != JMT_CIRCUIT_HEADER_BYTES_V2
+        || (records.is_empty() && header[2] != JMT_TRACE_NOOP_KIND_V2)
+        || (!records.is_empty() && header[2] != JMT_TRACE_MUTATING_KIND_V2)
     {
         return Err(CheckpointError::Canonical);
     }
@@ -158,18 +343,18 @@ pub(super) fn rows(
         .map_err(|error| CheckpointError::Backend(format!("JMT header rejected: {error}")))?;
     for record in records {
         decoder
-            .accept(record)
+            .accept(record.as_ref())
             .map_err(|error| CheckpointError::Backend(format!("JMT record rejected: {error}")))?;
     }
     decoder
         .finish()
         .map_err(|error| CheckpointError::Backend(format!("JMT transcript rejected: {error}")))?;
 
-    let public = public_values(statement, header)?;
     let padded_rows = records.len().max(JMT_MIN_ROWS_V2).next_power_of_two();
     let mut result = Vec::with_capacity(padded_rows);
     let mut state = JmtWitnessStateV2::default();
     for (record_index, record) in records.iter().enumerate() {
+        let record = record.as_ref();
         if record.len() < 2 || record.len() > JMT_RECORD_BYTES_V2 {
             return Err(CheckpointError::Limit);
         }
@@ -185,11 +370,15 @@ pub(super) fn rows(
         let mut new_leaf_digest = [0_u8; 32];
         let mut aux = 0_u16;
         let mut bit_index = None;
+        let mut value_padding_start = false;
+        let mut value_remainder = None;
 
         match opcode {
             1 => {
                 state.update_index = take_u32(record, 2)?;
                 state.role = record[6];
+                state.tree_definition = take_array(record, 7)?;
+                state.tree_serial = take_array(record, 39)?;
                 state.update_current = take_array(record, 91)?;
                 state.update_new_root = take_array(record, 123)?;
                 state.expected_operations = take_u32(record, 155)?;
@@ -204,6 +393,13 @@ pub(super) fn rows(
                 state.consumed_split = 0;
                 state.coalesced = false;
                 state.new_parent_started = false;
+                state.operation_job = 0;
+                state.expected_value_bytes = 0;
+                state.expected_prior_value_bytes = 0;
+                state.prior_value_block_count = 0;
+                state.new_value_block_count = 0;
+                state.value_padding_started = false;
+                state.value_kind = None;
                 state.mutation_case = 0;
                 state.key = [0; 32];
                 state.path_key = [0; 32];
@@ -213,9 +409,18 @@ pub(super) fn rows(
             2 => {
                 state.update_index = take_u32(record, 2)?;
                 state.operation_index = take_u32(record, 6)?;
+                state.operation_job = record_index
+                    .checked_add(1)
+                    .ok_or(CheckpointError::Overflow)?;
                 state.key = take_array(record, 10)?;
                 state.value_present = record[42] == 1;
+                state.expected_value_bytes = take_u32(record, 43)?;
                 state.prior_present = record[47] == 1;
+                state.expected_prior_value_bytes = take_u32(record, 48)?;
+                state.prior_value_block_count = 0;
+                state.new_value_block_count = 0;
+                state.value_padding_started = false;
+                state.value_kind = None;
                 state.leaf_present = false;
                 state.expected_siblings = 0;
                 state.consumed_siblings = 0;
@@ -231,9 +436,36 @@ pub(super) fn rows(
             3 => {
                 state.update_index = take_u32(record, 2)?;
                 state.operation_index = take_u32(record, 6)?;
-                aux = u16::try_from(take_u32(record, 10)?).map_err(|_| CheckpointError::Limit)?;
+                let block_index = take_u32(record, 10)?;
+                let block_count = take_u32(record, 14)?;
+                let value_kind = record[18];
+                aux = u16::try_from(block_index).map_err(|_| CheckpointError::Limit)?;
+                if state.value_kind != Some(value_kind) {
+                    state.value_padding_started = false;
+                }
+                let expected_bytes = match value_kind {
+                    0 => {
+                        state.new_value_block_count = block_count;
+                        state.expected_value_bytes
+                    }
+                    1 => {
+                        state.prior_value_block_count = block_count;
+                        state.expected_prior_value_bytes
+                    }
+                    _ => return Err(CheckpointError::Canonical),
+                };
+                let remainder = expected_bytes % 64;
+                value_padding_start = block_index
+                    .checked_mul(64)
+                    .is_some_and(|start| start == expected_bytes - remainder);
+                state.value_padding_started |= value_padding_start;
+                state.value_kind = Some(value_kind);
+                value_remainder =
+                    Some(usize::try_from(remainder).map_err(|_| CheckpointError::Limit)?);
             }
             4 => {
+                state.value_padding_started = false;
+                state.value_kind = None;
                 state.update_index = take_u32(record, 2)?;
                 state.operation_index = take_u32(record, 6)?;
                 state.leaf_present = record[10] == 1;
@@ -432,6 +664,26 @@ pub(super) fn rows(
         for bit in 0..SELECTED_BITS_COUNT_V2 {
             values.push(KoalaBear::from_bool((selected_byte >> bit) & 1 == 1));
         }
+        values.push(KoalaBear::from_usize(state.operation_job));
+        values.push(KoalaBear::from_u64(u64::from(state.expected_value_bytes)));
+        values.push(KoalaBear::from_u64(u64::from(
+            state.expected_prior_value_bytes,
+        )));
+        values.push(KoalaBear::from_u64(u64::from(
+            state.prior_value_block_count,
+        )));
+        values.push(KoalaBear::from_u64(u64::from(state.new_value_block_count)));
+        values.push(KoalaBear::from_bool(
+            opcode == 3 && state.value_padding_started,
+        ));
+        values.push(KoalaBear::from_bool(opcode == 3 && value_padding_start));
+        for remainder in 0..64 {
+            values.push(KoalaBear::from_bool(
+                opcode == 3 && value_remainder == Some(remainder),
+            ));
+        }
+        values.extend(state.tree_definition.map(KoalaBear::from_u8));
+        values.extend(state.tree_serial.map(KoalaBear::from_u8));
         if values.len() != CALL_FIELDS_V2 {
             return Err(CheckpointError::Invariant);
         }
@@ -444,6 +696,90 @@ pub(super) fn rows(
         result.push(JmtRowV2 { values });
     }
     Ok(result)
+}
+
+pub(super) fn chunk_trace(
+    statement: &EpochTraceChunkV2,
+    bindings: &[EpochTransitionBindingV2],
+    prepared: &[EpochPreparedTransitionV2],
+) -> Result<JmtChunkTraceV2, CheckpointError> {
+    if bindings.len() != prepared.len() || bindings.is_empty() || bindings.len() > CHUNK_LANES_V2 {
+        return Err(CheckpointError::Invariant);
+    }
+    let public = chunk_public_values(statement, bindings)?;
+    let inactive_header = canonical_noop_header();
+    let mut lane_rows = Vec::with_capacity(CHUNK_LANES_V2);
+    let mut lane_record_counts = Vec::with_capacity(CHUNK_LANES_V2);
+    for lane in 0..CHUNK_LANES_V2 {
+        let lane_public = chunk_lane_public_values(&public, lane)?;
+        if let (Some(binding), Some(prepared)) = (bindings.get(lane), prepared.get(lane)) {
+            if prepared.binding() != *binding {
+                return Err(CheckpointError::Invariant);
+            }
+            let binding = binding.inputs();
+            let stream = plonky3_epoch_event_stream::transition_event_stream(&prepared.material)?;
+            let header = stream.jmt_header();
+            let records = stream.jmt_micro_records().collect::<Vec<_>>();
+            let record_count = u64::try_from(records.len()).map_err(|_| CheckpointError::Limit)?;
+            let update_count = u64::from(stream.jmt().update_count());
+            let expected_kind = if record_count == 0 {
+                JMT_TRACE_NOOP_KIND_V2
+            } else {
+                JMT_TRACE_MUTATING_KIND_V2
+            };
+            if header[0] != JMT_UPDATE_TRACE_VERSION_V2
+                || header[1] != RootGeneration::SettlementV2.version()
+                || header[2] != expected_kind
+                || header[3..35] != binding.update_trace_digest
+                || u64::from(u32::from_le_bytes(
+                    header[35..39]
+                        .try_into()
+                        .map_err(|_| CheckpointError::Canonical)?,
+                )) != binding.jmt_update_count
+                || record_count != binding.jmt_record_count
+                || update_count != binding.jmt_update_count
+                || stream.jmt().trace_digest() != binding.update_trace_digest
+                || stream.jmt().promoted_definition_root() != binding.post_definition_root
+            {
+                return Err(CheckpointError::RecursiveRejected(
+                    RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+                ));
+            }
+            lane_record_counts
+                .push(usize::try_from(record_count).map_err(|_| CheckpointError::Limit)?);
+            lane_rows.push(rows_with_public(lane_public, header, &records)?);
+        } else {
+            let records: [&[u8]; 0] = [];
+            lane_record_counts.push(0);
+            lane_rows.push(rows_with_public(lane_public, &inactive_header, &records)?);
+        }
+    }
+    let height = lane_rows
+        .iter()
+        .map(Vec::len)
+        .max()
+        .ok_or(CheckpointError::Invariant)?;
+    let mut rows = Vec::with_capacity(height);
+    for row_index in 0..height {
+        let mut values = Vec::with_capacity(CHUNK_LANES_V2 * ROW_FIELDS_V2);
+        for lane in 0..CHUNK_LANES_V2 {
+            if let Some(row) = lane_rows[lane].get(row_index) {
+                values.extend_from_slice(&row.values[PUBLIC_FIELDS_V2..]);
+            } else {
+                let start = values.len();
+                values.resize(start + ROW_FIELDS_V2, KoalaBear::ZERO);
+                values[start + RUNNING_OFFSET_V2] = KoalaBear::from_usize(lane_record_counts[lane]);
+            }
+        }
+        if values.len() != CHUNK_LANES_V2 * ROW_FIELDS_V2 {
+            return Err(CheckpointError::Invariant);
+        }
+        rows.push(JmtChunkRowV2 { values });
+    }
+    Ok(JmtChunkTraceV2 {
+        public_values: public,
+        rows,
+    })
 }
 
 pub(super) fn verify_batch(

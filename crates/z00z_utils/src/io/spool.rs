@@ -13,11 +13,10 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 /// The path is deliberately never exposed.  The identity and metadata checks
 /// below still make replacement, linking, truncation, append, or permission
 /// drift fail closed before a trace pass consumes bytes.
+#[cfg(unix)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PrivateSpoolIdentity {
-    #[cfg(unix)]
     device: u64,
-    #[cfg(unix)]
     inode: u64,
 }
 
@@ -27,6 +26,7 @@ struct PrivateSpoolIdentity {
 /// the first rewind, so event replay cannot alter precommitted spool bytes.
 pub struct PrivateSpoolFile {
     file: NamedTempFile,
+    #[cfg(unix)]
     identity: PrivateSpoolIdentity,
     max_bytes: u64,
     written: u64,
@@ -43,18 +43,23 @@ impl PrivateSpoolFile {
             )));
         }
 
-        let mut file = tempfile::Builder::new()
+        let file = tempfile::Builder::new()
             .prefix("z00z-private-spool-")
             .tempfile_in(dir)?;
+
+        #[cfg(unix)]
+        let mut file = file;
 
         #[cfg(unix)]
         file.as_file_mut()
             .set_permissions(std::fs::Permissions::from_mode(0o600))?;
 
+        #[cfg(unix)]
         let identity = Self::capture_identity(file.as_file())?;
 
         let spool = Self {
             file,
+            #[cfg(unix)]
             identity,
             max_bytes,
             written: 0,
@@ -161,6 +166,7 @@ impl PrivateSpoolFile {
         Ok(())
     }
 
+    #[cfg(unix)]
     fn capture_identity(file: &std::fs::File) -> Result<PrivateSpoolIdentity, IoError> {
         let metadata = file.metadata()?;
         if !metadata.file_type().is_file() {
@@ -170,9 +176,7 @@ impl PrivateSpoolFile {
             )));
         }
         Ok(PrivateSpoolIdentity {
-            #[cfg(unix)]
             device: metadata.dev(),
-            #[cfg(unix)]
             inode: metadata.ino(),
         })
     }

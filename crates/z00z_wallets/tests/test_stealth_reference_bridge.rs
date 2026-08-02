@@ -13,7 +13,7 @@ fn test_req_dh_modes_split() {
     let receiver_secret = ReceiverSecret::generate().expect("receiver secret");
     let receiver_keys = ReceiverKeys::from_receiver_secret(receiver_secret).expect("keys");
     let req_id = [0x71u8; 32];
-    let r = Z00ZScalar::random(&mut SystemRngProvider.rng());
+    let r = Z00ZScalar::random(&mut SystemRngProvider.rng()).unwrap();
 
     let sender = sender_derive_dh_with_r(&receiver_keys.view_pk, &r).expect("sender");
     let recv = receiver_derive_dh(receiver_keys.reveal_view_sk(), &sender.r_pub).expect("recv");
@@ -36,7 +36,7 @@ fn test_req_owner_gate_split() {
     let receiver_secret = ReceiverSecret::generate().expect("receiver secret");
     let receiver_keys = ReceiverKeys::from_receiver_secret(receiver_secret).expect("keys");
     let req_id = [0x72u8; 32];
-    let r = Z00ZScalar::random(&mut SystemRngProvider.rng());
+    let r = Z00ZScalar::random(&mut SystemRngProvider.rng()).unwrap();
 
     let sender = sender_derive_dh_with_r(&receiver_keys.view_pk, &r).expect("sender");
     let r_pub = sender.r_pub.to_bytes();

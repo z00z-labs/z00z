@@ -59,7 +59,7 @@ fn ref_priv(
 #[test]
 fn test_ref_pub_from_scalar() {
     let mut rng = make_rng(9001);
-    let sk = Z00ZScalar::random(&mut rng);
+    let sk = Z00ZScalar::random(&mut rng).unwrap();
     let pk = Z00ZRistrettoPoint::from_secret_key(&sk);
 
     assert_eq!(
@@ -71,8 +71,8 @@ fn test_ref_pub_from_scalar() {
 #[test]
 fn test_ref_hash_scalar_diff() {
     let mut rng = make_rng(9002);
-    let point_a = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng));
-    let point_b = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng));
+    let point_a = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng).unwrap());
+    let point_b = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng).unwrap());
 
     let hash_a = ref_hash_scalar(&point_a);
     let hash_b = ref_hash_scalar(&point_b);
@@ -83,8 +83,8 @@ fn test_ref_hash_scalar_diff() {
 #[test]
 fn test_ref_shared_point_eq() {
     let mut rng = make_rng(9003);
-    let key_a = Z00ZScalar::random(&mut rng);
-    let key_b = Z00ZScalar::random(&mut rng);
+    let key_a = Z00ZScalar::random(&mut rng).unwrap();
+    let key_b = Z00ZScalar::random(&mut rng).unwrap();
     let pub_a = Z00ZRistrettoPoint::from_secret_key(&key_a);
     let pub_b = Z00ZRistrettoPoint::from_secret_key(&key_b);
 
@@ -97,11 +97,11 @@ fn test_ref_shared_point_eq() {
 #[test]
 fn test_ref_private_public_match() {
     let mut rng = make_rng(9004);
-    let spend_sk = Z00ZScalar::random(&mut rng);
+    let spend_sk = Z00ZScalar::random(&mut rng).unwrap();
     let spend_pk = Z00ZRistrettoPoint::from_secret_key(&spend_sk);
-    let view_sk = Z00ZScalar::random(&mut rng);
+    let view_sk = Z00ZScalar::random(&mut rng).unwrap();
     let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
-    let eph_sk = Z00ZScalar::random(&mut rng);
+    let eph_sk = Z00ZScalar::random(&mut rng).unwrap();
     let eph_pk = generate_ephemeral_keypair(&eph_sk).expect("ephemeral public key");
 
     let (stealth_pk, view_tag) = ref_addr(&view_pk, &spend_pk, &eph_sk);
@@ -114,10 +114,10 @@ fn test_ref_private_public_match() {
 #[test]
 fn test_ref_view_tag_gate() {
     let mut rng = make_rng(9005);
-    let spend_sk = Z00ZScalar::random(&mut rng);
-    let view_sk = Z00ZScalar::random(&mut rng);
+    let spend_sk = Z00ZScalar::random(&mut rng).unwrap();
+    let view_sk = Z00ZScalar::random(&mut rng).unwrap();
     let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
-    let eph_sk = Z00ZScalar::random(&mut rng);
+    let eph_sk = Z00ZScalar::random(&mut rng).unwrap();
     let eph_pk = generate_ephemeral_keypair(&eph_sk).expect("ephemeral public key");
 
     let (_, good_tag) = ref_addr(

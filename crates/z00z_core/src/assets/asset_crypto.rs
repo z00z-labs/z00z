@@ -12,8 +12,9 @@ impl Asset {
         amount: u64,
         nonce: [u8; 32],
     ) -> Result<(Self, Hidden<Z00ZScalar>), AssetError> {
-        let mut rng = SystemRngProvider.rng();
-        let blinding = Hidden::hide(Z00ZScalar::random(&mut rng));
+        let blinding = Hidden::hide(
+            Z00ZScalar::random_secure(&SystemRngProvider).map_err(AssetError::CryptoError)?,
+        );
         let asset = Self::new_confidential_with_blinding(
             definition,
             serial_id,
@@ -131,7 +132,7 @@ impl Asset {
     /// #     8, 1000, 100_000_000, "test.io".into(), 1, 1, 0, None
     /// # )?;
     /// # let asset = Asset::new(
-    /// #     Arc::new(def), 100, 1_000_000, &Z00ZScalar::random(&mut OsRng), [42u8; 32], &mut OsRng
+    /// #     Arc::new(def), 100, 1_000_000, &Z00ZScalar::random(&mut OsRng).unwrap(), [42u8; 32], &mut OsRng
     /// # )?;
     /// let asset_id = asset.asset_id();
     /// assert_eq!(asset_id.len(), 32);

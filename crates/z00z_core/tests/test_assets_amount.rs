@@ -59,8 +59,8 @@ fn test_amount_arithmetic() {
 #[test]
 fn test_blinding_unique() {
     let mut rng = SystemRngProvider.rng();
-    let first = Z00ZScalar::random(&mut rng);
-    let second = Z00ZScalar::random(&mut rng);
+    let first = Z00ZScalar::random(&mut rng).unwrap();
+    let second = Z00ZScalar::random(&mut rng).unwrap();
     assert_ne!(first.as_bytes(), second.as_bytes());
 }
 

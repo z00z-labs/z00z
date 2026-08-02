@@ -15,7 +15,7 @@ use thin_test_support::{context_for_entry, fixture_entry, tx_json, ThinRpcEnv};
 async fn test_verify_keeps_meaning() {
     let entry = fixture_entry().await;
     let env = ThinRpcEnv::new("thin-modes-verify", 100).await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 21, 99_000, 200_000),
         vec![entry.clone()],
@@ -71,7 +71,7 @@ async fn test_broadcast_keeps_tx_id() {
     let entry = fixture_entry().await;
     let thick_env = ThinRpcEnv::new("thin-modes-broadcast-thick", 100).await;
     let thin_env = ThinRpcEnv::new("thin-modes-broadcast-thin", 100).await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 22, 99_000, 200_000),
         vec![entry.clone()],

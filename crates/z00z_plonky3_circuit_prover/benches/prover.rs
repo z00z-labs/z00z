@@ -6,11 +6,11 @@
 use core::hint::black_box;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use p3_batch_stark::ProverData;
 use p3_circuit::CircuitBuilder;
 use p3_field::PrimeCharacteristicRing;
 use p3_koala_bear::KoalaBear;
 use z00z_plonky3_circuit_prover::air::{AluAir, ConstAir, PublicAir};
+use z00z_plonky3_circuit_prover::batch_stark_prover::canonical_prover_data_from_airs_and_degrees;
 use z00z_plonky3_circuit_prover::common::get_airs_and_degrees_with_prep;
 use z00z_plonky3_circuit_prover::config::KoalaBearConfig;
 use z00z_plonky3_circuit_prover::{
@@ -101,7 +101,8 @@ fn bench_prove_all_tables(c: &mut Criterion) {
                 let mut runner = circuit.runner();
                 runner.set_public_inputs(&[expected_fib]).unwrap();
                 let traces = runner.run().unwrap();
-                let prover_data = ProverData::from_airs_and_degrees(&config, &airs, &degrees);
+                let prover_data =
+                    canonical_prover_data_from_airs_and_degrees(&config, &airs, &degrees);
                 let circuit_prover_data =
                     CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
                 let prover =

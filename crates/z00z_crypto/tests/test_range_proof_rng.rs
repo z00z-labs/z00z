@@ -6,7 +6,7 @@ use z00z_utils::rng::DeterministicRngProvider;
 
 fn test_blind(seed: [u8; 32]) -> Z00ZScalar {
     let mut rng = DeterministicRngProvider::from_seed(seed).rng();
-    Z00ZScalar::random(&mut rng)
+    Z00ZScalar::random(&mut rng).unwrap()
 }
 
 #[test]

@@ -23,11 +23,19 @@ use crate::{settlement::SettlementStore, CheckpointError};
 
 const EPOCH_WORK_MAGIC_V2: [u8; 8] = *b"Z00ZEWM2";
 const EPOCH_WORK_WIRE_V2: u16 = 2;
-pub(super) const EPOCH_DIRECT_AIR_GENERATION_V2: u16 = 3;
-pub(super) const EPOCH_CHUNK_GRAMMAR_GENERATION_V2: u16 = 2;
+pub(super) const EPOCH_DIRECT_AIR_GENERATION_V2: u16 = 6;
+pub(super) const EPOCH_CHUNK_GRAMMAR_GENERATION_V2: u16 = 5;
 const EPOCH_WORK_MAX_TRANSITIONS_V2: u32 = 4_096;
-const EPOCH_TRANSITION_DIGEST_COUNT_V2: usize = 14;
-const EPOCH_TRANSITION_BYTES_V2: usize = 4 + 8 + 1 + EPOCH_TRANSITION_DIGEST_COUNT_V2 * 32 + 8 + 8;
+const EPOCH_TRANSITION_DIGEST_COUNT_V2: usize = 25;
+const EPOCH_TRANSITION_COUNT_FIELD_COUNT_V2: usize = 6;
+const EPOCH_TRANSITION_OPTION_MARKER_COUNT_V2: usize = 2;
+const EPOCH_TRANSITION_BYTES_V2: usize = 4
+    + 8
+    + EPOCH_TRANSITION_OPTION_MARKER_COUNT_V2
+    + EPOCH_TRANSITION_DIGEST_COUNT_V2 * 32
+    + 4
+    + EPOCH_TRANSITION_COUNT_FIELD_COUNT_V2 * 8;
+pub(super) const EPOCH_TRANSITION_BINDING_BYTES_V2: usize = EPOCH_TRANSITION_BYTES_V2 + 32;
 const EPOCH_WORK_HEADER_DIGEST_COUNT_V2: usize = 13;
 const EPOCH_WORK_HEADER_BYTES_V2: usize =
     8 + 2 + 1 + 2 + 2 + 8 * 3 + 4 * 2 + 2 + 8 * 2 + EPOCH_WORK_HEADER_DIGEST_COUNT_V2 * 32 + 1 + 32;
@@ -39,16 +47,27 @@ const EPOCH_WORK_LABEL_V2: &str = "canonical_manifest";
 
 const EPOCH_CHUNK_MAGIC_V2: [u8; 8] = *b"Z00ZETC2";
 const EPOCH_CHUNK_WIRE_V2: u16 = 2;
-const EPOCH_CHUNK_DIGEST_COUNT_V2: usize = 9;
+const EPOCH_CHUNK_DIGEST_COUNT_V2: usize = 11;
+const EPOCH_CHUNK_SCALAR_PREFIX_BYTES_V2: usize =
+    8 + 2 + 2 + 1 + 1 + 5 * core::mem::size_of::<u32>() + 4 * core::mem::size_of::<u64>();
+const EPOCH_CHUNK_INPUT_STATE_ROOT_BYTE_OFFSET_V2: usize =
+    EPOCH_CHUNK_SCALAR_PREFIX_BYTES_V2 + 3 * 32;
+const EPOCH_CHUNK_OUTPUT_STATE_ROOT_BYTE_OFFSET_V2: usize =
+    EPOCH_CHUNK_INPUT_STATE_ROOT_BYTE_OFFSET_V2 + 32;
+pub(super) const EPOCH_CHUNK_INPUT_STATE_ROOT_LIMB_OFFSET_V2: usize =
+    EPOCH_CHUNK_INPUT_STATE_ROOT_BYTE_OFFSET_V2 / core::mem::size_of::<u16>();
+pub(super) const EPOCH_CHUNK_OUTPUT_STATE_ROOT_LIMB_OFFSET_V2: usize =
+    EPOCH_CHUNK_OUTPUT_STATE_ROOT_BYTE_OFFSET_V2 / core::mem::size_of::<u16>();
 pub(super) const EPOCH_CHUNK_BYTES_V2: usize =
     8 + 2 + 2 + 1 + 1 + 4 * 5 + 8 * 4 + EPOCH_CHUNK_DIGEST_COUNT_V2 * 32 + 32;
 const EPOCH_CHUNK_DOMAIN_V2: &str = "z00z.storage.checkpoint.epoch.trace-chunk.v2";
 const EPOCH_CHUNK_LABEL_V2: &str = "canonical_statement";
-const EPOCH_TRANSITION_SLICE_DOMAIN_V2: &str = "z00z.storage.checkpoint.epoch.transition-slice.v2";
-const EPOCH_STREAM_ACCUMULATOR_DOMAIN_V2: &str =
+pub(super) const EPOCH_TRANSITION_SLICE_DOMAIN_V2: &str =
+    "z00z.storage.checkpoint.epoch.transition-slice.v2";
+pub(super) const EPOCH_STREAM_ACCUMULATOR_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.epoch.stream-accumulator.v2";
-const EPOCH_STREAM_INITIAL_LABEL_V2: &str = "initial";
-const EPOCH_STREAM_STEP_LABEL_V2: &str = "transition";
+pub(super) const EPOCH_STREAM_INITIAL_LABEL_V2: &str = "initial";
+pub(super) const EPOCH_STREAM_STEP_LABEL_V2: &str = "transition";
 
 /// Fixed generation-bound transition span of one production proving work item.
 ///
@@ -66,6 +85,9 @@ pub struct EpochTransitionInputsV2 {
     pub height: u64,
     pub checkpoint_id: [u8; 32],
     pub predecessor: Option<[u8; 32]>,
+    pub recursive_transition_statement_digest: [u8; 32],
+    pub checkpoint_exec_tx_root: [u8; 32],
+    pub checkpoint_exec_tx_count: u32,
     pub checkpoint_statement_digest: [u8; 32],
     pub checkpoint_statement_core_digest: [u8; 32],
     pub checkpoint_link_digest: [u8; 32],
@@ -75,11 +97,24 @@ pub struct EpochTransitionInputsV2 {
     pub journal_digest: [u8; 32],
     pub challenge_content_digest: [u8; 32],
     pub da_payload_commitment: [u8; 32],
+    pub prior_recursive_output_root: Option<[u8; 32]>,
     pub pre_settlement_root: [u8; 32],
     pub post_settlement_root: [u8; 32],
+    pub pre_definition_root: [u8; 32],
+    pub post_definition_root: [u8; 32],
+    pub trace_digest: [u8; 32],
+    pub update_trace_digest: [u8; 32],
+    pub declared_work_digest: [u8; 32],
+    pub pre_uniqueness_context_digest: [u8; 32],
+    pub spent_uniqueness_precommit: [u8; 32],
+    pub output_uniqueness_precommit: [u8; 32],
     pub event_vector_digest: [u8; 32],
     pub event_count: u64,
     pub event_bytes: u64,
+    pub uniqueness_row_count: u64,
+    pub jmt_record_count: u64,
+    pub jmt_envelope_count: u64,
+    pub jmt_update_count: u64,
 }
 
 /// Content-addressed transition record retained by the immutable work manifest.
@@ -130,6 +165,26 @@ impl EpochTransitionBindingV2 {
             self.inputs.checkpoint_link_digest,
         ]
     }
+
+    pub(super) fn encode_canonical(&self) -> Vec<u8> {
+        let mut bytes = encode_transition(&self.inputs);
+        bytes.extend_from_slice(&self.digest);
+        debug_assert_eq!(bytes.len(), EPOCH_TRANSITION_BINDING_BYTES_V2);
+        bytes
+    }
+
+    pub(super) fn decode_canonical(bytes: &[u8]) -> Result<Self, CheckpointError> {
+        if bytes.len() != EPOCH_TRANSITION_BINDING_BYTES_V2 {
+            return Err(CheckpointError::Canonical);
+        }
+        let mut reader = EpochCodecReaderV2::new(bytes);
+        let binding = decode_transition(&mut reader)?;
+        let digest: [u8; 32] = reader.array()?;
+        if !reader.is_done() || digest != binding.digest || binding.encode_canonical() != bytes {
+            return Err(CheckpointError::Canonical);
+        }
+        Ok(binding)
+    }
 }
 
 /// Opaque, one-transition proving material produced from the native evaluator.
@@ -174,6 +229,20 @@ pub struct EpochTransitionStreamV2 {
     running_accumulator: [u8; 32],
 }
 
+/// Linear private-material capture prepared before Nova closes the canonical
+/// transition source and committed to exactly one unchanged epoch stream.
+pub(crate) struct EpochPreparedTransitionCaptureV2 {
+    authority_digest: [u8; 32],
+    first_ordinal: u32,
+    prepared: Vec<EpochPreparedTransitionV2>,
+}
+
+impl EpochPreparedTransitionCaptureV2 {
+    pub(crate) fn transition_count(&self) -> usize {
+        self.prepared.len()
+    }
+}
+
 impl EpochTransitionStreamV2 {
     pub fn resolve_active(
         store: &SettlementStore,
@@ -197,12 +266,13 @@ impl EpochTransitionStreamV2 {
             parameter_digest: history_identity.verifier_parameter_digest,
             verifier_bundle_digest: history_identity.verifier_bundle_digest,
         })?;
-        let total_chunk_count = epoch_trace_chunk_count(authority.leaf_count())?;
+        let total_chunk_count = epoch_trace_chunk_count(authority.transition_count())?;
         let initial_accumulator = epoch_stream_initial_accumulator(authority);
         Ok(Self {
             authority,
             transitions: Vec::with_capacity(
-                usize::try_from(authority.leaf_count()).map_err(|_| CheckpointError::Limit)?,
+                usize::try_from(authority.transition_count())
+                    .map_err(|_| CheckpointError::Limit)?,
             ),
             pending: Vec::with_capacity(
                 usize::try_from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2)
@@ -245,12 +315,109 @@ impl EpochTransitionStreamV2 {
         transition: &mut CanonicalCheckpointTransitionV2,
         store: &SettlementStore,
     ) -> Result<Option<EpochTraceChunkWorkV2>, CheckpointError> {
-        let ordinal = u32::try_from(self.transitions.len()).map_err(|_| CheckpointError::Limit)?;
-        if ordinal >= self.authority.leaf_count() {
+        let capture = self.prepare_capture(std::slice::from_mut(transition), store)?;
+        let mut completed = self.append_capture(capture)?;
+        if completed.len() > 1 {
+            return Err(CheckpointError::Invariant);
+        }
+        Ok(completed.pop())
+    }
+
+    pub(crate) fn prepare_capture(
+        &self,
+        transitions: &mut [CanonicalCheckpointTransitionV2],
+        store: &SettlementStore,
+    ) -> Result<EpochPreparedTransitionCaptureV2, CheckpointError> {
+        if transitions.is_empty() {
             return Err(range_missing());
         }
-        let material = transition_material(transition, store)?;
-        let prepared = prepare_epoch_transition(self.authority, ordinal, material)?;
+        let first_ordinal =
+            u32::try_from(self.transitions.len()).map_err(|_| CheckpointError::Limit)?;
+        let requested = u32::try_from(transitions.len()).map_err(|_| CheckpointError::Limit)?;
+        if first_ordinal
+            .checked_add(requested)
+            .filter(|end| *end <= self.authority.transition_count())
+            .is_none()
+        {
+            return Err(range_missing());
+        }
+        let mut previous = self.transitions.last().copied();
+        let mut prepared = Vec::with_capacity(transitions.len());
+        for (offset, transition) in transitions.iter_mut().enumerate() {
+            let ordinal = first_ordinal
+                .checked_add(u32::try_from(offset).map_err(|_| CheckpointError::Limit)?)
+                .ok_or(CheckpointError::Overflow)?;
+            let material = transition_material(transition, store)?;
+            let next = prepare_epoch_transition(self.authority, ordinal, material)?;
+            self.validate_prepared_link(ordinal, &next, previous)?;
+            previous = Some(next.binding);
+            prepared.push(next);
+        }
+        Ok(EpochPreparedTransitionCaptureV2 {
+            authority_digest: self.authority.digest(),
+            first_ordinal,
+            prepared,
+        })
+    }
+
+    pub(crate) fn append_capture(
+        &mut self,
+        capture: EpochPreparedTransitionCaptureV2,
+    ) -> Result<Vec<EpochTraceChunkWorkV2>, CheckpointError> {
+        if capture.authority_digest != self.authority.digest()
+            || usize::try_from(capture.first_ordinal).map_err(|_| CheckpointError::Limit)?
+                != self.transitions.len()
+            || capture.prepared.is_empty()
+        {
+            return Err(CheckpointError::Authority);
+        }
+        let mut completed = Vec::new();
+        for prepared in capture.prepared {
+            if let Some(work) = self.append_prepared(prepared)? {
+                completed.push(work);
+            }
+        }
+        Ok(completed)
+    }
+
+    fn append_prepared(
+        &mut self,
+        prepared: EpochPreparedTransitionV2,
+    ) -> Result<Option<EpochTraceChunkWorkV2>, CheckpointError> {
+        let ordinal = u32::try_from(self.transitions.len()).map_err(|_| CheckpointError::Limit)?;
+        self.validate_prepared_link(ordinal, &prepared, self.transitions.last().copied())?;
+        let inputs = prepared.binding.inputs();
+        if self.pending.is_empty() {
+            self.pending_input_accumulator = self.running_accumulator;
+        }
+        self.running_accumulator = epoch_stream_step_accumulator(
+            self.authority,
+            self.running_accumulator,
+            prepared.binding,
+        );
+        self.transitions.push(prepared.binding);
+        self.pending.push(prepared);
+
+        let (_, expected_last) = epoch_trace_chunk_transition_range(
+            self.authority.transition_count(),
+            self.next_chunk_ordinal,
+        )?;
+        if inputs.ordinal == expected_last {
+            self.take_completed_chunk().map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn validate_prepared_link(
+        &self,
+        ordinal: u32,
+        prepared: &EpochPreparedTransitionV2,
+        previous: Option<EpochTransitionBindingV2>,
+    ) -> Result<(), CheckpointError> {
+        if ordinal >= self.authority.transition_count() || prepared.binding.ordinal() != ordinal {
+            return Err(range_missing());
+        }
         let inputs = prepared.binding.inputs();
         let expected_height = self
             .authority
@@ -262,7 +429,7 @@ impl EpochTransitionStreamV2 {
                 RecursiveCheckpointRejectReasonV2::StepReordered,
             ));
         }
-        match self.transitions.last().copied() {
+        match previous {
             None => {
                 if inputs.pre_settlement_root != self.authority.start_root()
                     || (expected_height == 1 && inputs.predecessor.is_some())
@@ -284,26 +451,7 @@ impl EpochTransitionStreamV2 {
                 }
             }
         }
-        if self.pending.is_empty() {
-            self.pending_input_accumulator = self.running_accumulator;
-        }
-        self.running_accumulator = epoch_stream_step_accumulator(
-            self.authority,
-            self.running_accumulator,
-            prepared.binding,
-        );
-        self.transitions.push(prepared.binding);
-        self.pending.push(prepared);
-
-        let (_, expected_last) = epoch_trace_chunk_transition_range(
-            self.authority.leaf_count(),
-            self.next_chunk_ordinal,
-        )?;
-        if ordinal == expected_last {
-            self.take_completed_chunk().map(Some)
-        } else {
-            Ok(None)
-        }
+        Ok(())
     }
 
     /// Close the immutable work manifest exactly once after the configured
@@ -315,7 +463,8 @@ impl EpochTransitionStreamV2 {
         nova_chain_root: Option<[u8; 32]>,
     ) -> Result<EpochProofWorkManifestV2, CheckpointError> {
         if self.transitions.len()
-            != usize::try_from(self.authority.leaf_count()).map_err(|_| CheckpointError::Limit)?
+            != usize::try_from(self.authority.transition_count())
+                .map_err(|_| CheckpointError::Limit)?
             || !self.pending.is_empty()
             || self.next_chunk_ordinal != self.total_chunk_count
         {
@@ -332,7 +481,7 @@ impl EpochTransitionStreamV2 {
             epoch_index: self.authority.epoch_index(),
             start_height: self.authority.start_height(),
             end_height: self.authority.end_height(),
-            transition_count: self.authority.leaf_count(),
+            transition_count: self.authority.transition_count(),
             parameter_generation: self.authority.parameter_generation(),
             runtime_profile_generation: self.authority.runtime_profile_generation(),
             config_generation: self.authority.config_generation(),
@@ -357,7 +506,7 @@ impl EpochTransitionStreamV2 {
     fn take_completed_chunk(&mut self) -> Result<EpochTraceChunkWorkV2, CheckpointError> {
         let chunk_ordinal = self.next_chunk_ordinal;
         let (first_transition, last_transition) =
-            epoch_trace_chunk_transition_range(self.authority.leaf_count(), chunk_ordinal)?;
+            epoch_trace_chunk_transition_range(self.authority.transition_count(), chunk_ordinal)?;
         let expected_len = last_transition
             .checked_sub(first_transition)
             .and_then(|span| span.checked_add(1))
@@ -515,12 +664,14 @@ impl EpochTraceChunkWorkV2 {
                 chunk_count: self.chunk_count,
                 first_transition: self.first_transition,
                 last_transition: self.last_transition,
-                transition_count: self.authority.leaf_count(),
+                transition_count: self.authority.transition_count(),
                 row_start,
                 row_count,
                 event_start: self.event_start,
                 event_count: self.event_count,
                 frontier_authority_digest: self.authority.digest(),
+                chain_context_digest: self.authority.chain_context_digest(),
+                predicate_digest: self.authority.predicate_digest(),
                 input_state_root: first.pre_settlement_root,
                 output_state_root: last.post_settlement_root,
                 input_accumulator: self.input_accumulator,
@@ -567,7 +718,7 @@ fn epoch_trace_chunk_transition_range(
     Ok((first, last))
 }
 
-fn epoch_stream_initial_accumulator(authority: EpochFrontierAuthorityV2) -> [u8; 32] {
+pub(super) fn epoch_stream_initial_accumulator(authority: EpochFrontierAuthorityV2) -> [u8; 32] {
     sha256_256(
         EPOCH_STREAM_ACCUMULATOR_DOMAIN_V2,
         EPOCH_STREAM_INITIAL_LABEL_V2,
@@ -575,7 +726,7 @@ fn epoch_stream_initial_accumulator(authority: EpochFrontierAuthorityV2) -> [u8;
     )
 }
 
-fn epoch_stream_step_accumulator(
+pub(super) fn epoch_stream_step_accumulator(
     authority: EpochFrontierAuthorityV2,
     previous: [u8; 32],
     transition: EpochTransitionBindingV2,
@@ -598,6 +749,18 @@ fn prepare_epoch_transition(
     material: TransitionMaterialV2,
 ) -> Result<EpochPreparedTransitionV2, CheckpointError> {
     let statement = material.transition_statement;
+    let declared_counts = statement.declared_event_counts();
+    let uniqueness_row_count = declared_counts
+        .count(super::recursive_trace::RecursiveTraceOpcodeV2::ReplayInput)
+        .checked_add(
+            declared_counts.count(super::recursive_trace::RecursiveTraceOpcodeV2::ReplayOutput),
+        )
+        .ok_or(CheckpointError::Overflow)?;
+    let jmt_record_count =
+        declared_counts.count(super::recursive_trace::RecursiveTraceOpcodeV2::JmtMicroOp);
+    let jmt_envelope_count =
+        declared_counts.count(super::recursive_trace::RecursiveTraceOpcodeV2::JmtUpdate);
+    let jmt_update_count = u64::from(super::plonky3::epoch_jmt_update_count(&material)?);
     let expected_event_bytes = 16_u64
         .checked_add(
             statement
@@ -655,6 +818,9 @@ fn prepare_epoch_transition(
         height: statement.height(),
         checkpoint_id: statement.checkpoint_id().into_bytes(),
         predecessor: statement.predecessor().map(|id| id.into_bytes()),
+        recursive_transition_statement_digest: statement.digest(),
+        checkpoint_exec_tx_root: statement.checkpoint_exec_tx_root(),
+        checkpoint_exec_tx_count: statement.checkpoint_exec_tx_count(),
         checkpoint_statement_digest: statement.checkpoint_statement_digest(),
         checkpoint_statement_core_digest: statement.checkpoint_statement_core_digest(),
         checkpoint_link_digest: statement.checkpoint_link_digest(),
@@ -664,11 +830,24 @@ fn prepare_epoch_transition(
         journal_digest: statement.journal_digest(),
         challenge_content_digest: material.challenge_content_digest,
         da_payload_commitment: material.da_payload_commitment,
+        prior_recursive_output_root: statement.prior_recursive_output_root(),
         pre_settlement_root: *statement.pre_settlement_root().as_bytes(),
         post_settlement_root: *statement.post_settlement_root().as_bytes(),
+        pre_definition_root: statement.pre_definition_root(),
+        post_definition_root: statement.post_definition_root(),
+        trace_digest: statement.trace_digest(),
+        update_trace_digest: statement.update_trace_digest(),
+        declared_work_digest: statement.declared_work_digest(),
+        pre_uniqueness_context_digest: statement.pre_uniqueness_context_digest(),
+        spent_uniqueness_precommit: statement.spent_uniqueness_precommit(),
+        output_uniqueness_precommit: statement.output_uniqueness_precommit(),
         event_vector_digest: material.statement.event_vector_digest(),
         event_count: statement.declared_event_count(),
         event_bytes,
+        uniqueness_row_count,
+        jmt_record_count,
+        jmt_envelope_count,
+        jmt_update_count,
     })?;
     Ok(EpochPreparedTransitionV2 { binding, material })
 }
@@ -865,6 +1044,35 @@ impl EpochProofWorkManifestV2 {
     }
 
     #[must_use]
+    pub const fn frontier_authority_digest(&self) -> [u8; 32] {
+        self.inputs.frontier_authority_digest
+    }
+
+    #[must_use]
+    pub const fn epoch_close_anchor_digest(&self) -> [u8; 32] {
+        self.inputs.epoch_close_anchor_digest
+    }
+
+    #[must_use]
+    pub const fn nova_chain_root(&self) -> Option<[u8; 32]> {
+        self.inputs.nova_chain_root
+    }
+
+    #[must_use]
+    pub const fn start_root(&self) -> [u8; 32] {
+        self.inputs.start_root
+    }
+
+    #[must_use]
+    pub const fn end_root(&self) -> [u8; 32] {
+        self.inputs.end_root
+    }
+
+    pub fn frontier_authority(&self) -> Result<EpochFrontierAuthorityV2, CheckpointError> {
+        manifest_frontier_authority(&self.inputs)
+    }
+
+    #[must_use]
     pub const fn transition_root(&self) -> [u8; 32] {
         self.transition_root
     }
@@ -953,6 +1161,8 @@ pub struct EpochTraceChunkInputsV2 {
     pub event_start: u64,
     pub event_count: u64,
     pub frontier_authority_digest: [u8; 32],
+    pub chain_context_digest: [u8; 32],
+    pub predicate_digest: [u8; 32],
     pub input_state_root: [u8; 32],
     pub output_state_root: [u8; 32],
     pub input_accumulator: [u8; 32],
@@ -1022,6 +1232,8 @@ impl EpochTraceChunkV2 {
         let event_start = reader.u64()?;
         let event_count = reader.u64()?;
         let frontier_authority_digest = reader.array()?;
+        let chain_context_digest = reader.array()?;
+        let predicate_digest = reader.array()?;
         let input_state_root = reader.array()?;
         let output_state_root = reader.array()?;
         let input_accumulator = reader.array()?;
@@ -1050,6 +1262,8 @@ impl EpochTraceChunkV2 {
                 event_start,
                 event_count,
                 frontier_authority_digest,
+                chain_context_digest,
+                predicate_digest,
                 input_state_root,
                 output_state_root,
                 input_accumulator,
@@ -1083,11 +1297,22 @@ impl EpochTraceChunkV2 {
 }
 
 fn validate_transition(inputs: &EpochTransitionInputsV2) -> Result<(), CheckpointError> {
+    let counted_semantic_events = inputs
+        .uniqueness_row_count
+        .checked_add(inputs.jmt_record_count)
+        .and_then(|count| count.checked_add(inputs.jmt_envelope_count))
+        .ok_or(CheckpointError::Overflow)?;
     if inputs.height == 0
         || inputs.event_count == 0
         || inputs.event_bytes == 0
+        || inputs.jmt_envelope_count != 1
+        || (inputs.jmt_record_count == 0) != (inputs.jmt_update_count == 0)
+        || inputs.jmt_update_count > inputs.jmt_record_count
+        || counted_semantic_events > inputs.event_count
         || [
             inputs.checkpoint_id,
+            inputs.recursive_transition_statement_digest,
+            inputs.checkpoint_exec_tx_root,
             inputs.checkpoint_statement_digest,
             inputs.checkpoint_statement_core_digest,
             inputs.checkpoint_link_digest,
@@ -1099,10 +1324,19 @@ fn validate_transition(inputs: &EpochTransitionInputsV2) -> Result<(), Checkpoin
             inputs.da_payload_commitment,
             inputs.pre_settlement_root,
             inputs.post_settlement_root,
+            inputs.pre_definition_root,
+            inputs.post_definition_root,
+            inputs.trace_digest,
+            inputs.update_trace_digest,
+            inputs.declared_work_digest,
+            inputs.pre_uniqueness_context_digest,
+            inputs.spent_uniqueness_precommit,
+            inputs.output_uniqueness_precommit,
             inputs.event_vector_digest,
         ]
         .contains(&[0; 32])
         || inputs.predecessor == Some([0; 32])
+        || inputs.prior_recursive_output_root == Some([0; 32])
     {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::EpochManifestIncomplete,
@@ -1252,14 +1486,22 @@ fn validate_chunk(
     if inputs.replica >= 3
         || inputs.chunk_count == 0
         || inputs.chunk_ordinal >= inputs.chunk_count
-        || inputs.transition_count != authority.leaf_count()
+        || inputs.transition_count != authority.transition_count()
         || inputs.first_transition > inputs.last_transition
         || inputs.last_transition >= inputs.transition_count
         || usize::try_from(slice_len).map_err(|_| CheckpointError::Limit)? != transitions.len()
-        || inputs.row_count == 0
+        || (inputs.row_count == 0
+            && !matches!(
+                inputs.table,
+                EpochAirTableV2::JmtUpdate | EpochAirTableV2::Uniqueness
+            ))
         || inputs.event_count == 0
         || inputs.frontier_authority_digest != authority.digest()
+        || inputs.chain_context_digest != authority.chain_context_digest()
+        || inputs.predicate_digest != authority.predicate_digest()
         || [
+            inputs.chain_context_digest,
+            inputs.predicate_digest,
             inputs.input_state_root,
             inputs.output_state_root,
             inputs.input_accumulator,
@@ -1325,7 +1567,20 @@ fn validate_chunk(
     }
     let slice_commitment =
         epoch_ordered_digest_root_v2(EPOCH_TRANSITION_SLICE_DOMAIN_V2, &transition_digests)?;
-    if inputs.event_count != event_count || inputs.input_slice_commitment != slice_commitment {
+    let output_accumulator =
+        transitions
+            .iter()
+            .copied()
+            .fold(inputs.input_accumulator, |accumulator, transition| {
+                epoch_stream_step_accumulator(*authority, accumulator, transition)
+            });
+    let invalid_initial_boundary = inputs.first_transition == 0
+        && inputs.input_accumulator != epoch_stream_initial_accumulator(*authority);
+    if inputs.event_count != event_count
+        || inputs.input_slice_commitment != slice_commitment
+        || inputs.output_accumulator != output_accumulator
+        || invalid_initial_boundary
+    {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
         ));
@@ -1340,6 +1595,9 @@ fn encode_transition(inputs: &EpochTransitionInputsV2) -> Vec<u8> {
     bytes.extend_from_slice(&inputs.checkpoint_id);
     bytes.push(u8::from(inputs.predecessor.is_some()));
     bytes.extend_from_slice(&inputs.predecessor.unwrap_or([0; 32]));
+    bytes.extend_from_slice(&inputs.recursive_transition_statement_digest);
+    bytes.extend_from_slice(&inputs.checkpoint_exec_tx_root);
+    bytes.extend_from_slice(&inputs.checkpoint_exec_tx_count.to_le_bytes());
     for digest in [
         inputs.checkpoint_statement_digest,
         inputs.checkpoint_statement_core_digest,
@@ -1350,14 +1608,32 @@ fn encode_transition(inputs: &EpochTransitionInputsV2) -> Vec<u8> {
         inputs.journal_digest,
         inputs.challenge_content_digest,
         inputs.da_payload_commitment,
+    ] {
+        bytes.extend_from_slice(&digest);
+    }
+    bytes.push(u8::from(inputs.prior_recursive_output_root.is_some()));
+    bytes.extend_from_slice(&inputs.prior_recursive_output_root.unwrap_or([0; 32]));
+    for digest in [
         inputs.pre_settlement_root,
         inputs.post_settlement_root,
+        inputs.pre_definition_root,
+        inputs.post_definition_root,
+        inputs.trace_digest,
+        inputs.update_trace_digest,
+        inputs.declared_work_digest,
+        inputs.pre_uniqueness_context_digest,
+        inputs.spent_uniqueness_precommit,
+        inputs.output_uniqueness_precommit,
         inputs.event_vector_digest,
     ] {
         bytes.extend_from_slice(&digest);
     }
     bytes.extend_from_slice(&inputs.event_count.to_le_bytes());
     bytes.extend_from_slice(&inputs.event_bytes.to_le_bytes());
+    bytes.extend_from_slice(&inputs.uniqueness_row_count.to_le_bytes());
+    bytes.extend_from_slice(&inputs.jmt_record_count.to_le_bytes());
+    bytes.extend_from_slice(&inputs.jmt_envelope_count.to_le_bytes());
+    bytes.extend_from_slice(&inputs.jmt_update_count.to_le_bytes());
     debug_assert_eq!(bytes.len(), EPOCH_TRANSITION_BYTES_V2);
     bytes
 }
@@ -1378,6 +1654,9 @@ fn decode_transition(
         height,
         checkpoint_id,
         predecessor,
+        recursive_transition_statement_digest: reader.array()?,
+        checkpoint_exec_tx_root: reader.array()?,
+        checkpoint_exec_tx_count: reader.u32()?,
         checkpoint_statement_digest: reader.array()?,
         checkpoint_statement_core_digest: reader.array()?,
         checkpoint_link_digest: reader.array()?,
@@ -1387,11 +1666,28 @@ fn decode_transition(
         journal_digest: reader.array()?,
         challenge_content_digest: reader.array()?,
         da_payload_commitment: reader.array()?,
+        prior_recursive_output_root: match (reader.u8()?, reader.array::<32>()?) {
+            (0, digest) if digest == [0; 32] => None,
+            (1, digest) if digest != [0; 32] => Some(digest),
+            _ => return Err(CheckpointError::Canonical),
+        },
         pre_settlement_root: reader.array()?,
         post_settlement_root: reader.array()?,
+        pre_definition_root: reader.array()?,
+        post_definition_root: reader.array()?,
+        trace_digest: reader.array()?,
+        update_trace_digest: reader.array()?,
+        declared_work_digest: reader.array()?,
+        pre_uniqueness_context_digest: reader.array()?,
+        spent_uniqueness_precommit: reader.array()?,
+        output_uniqueness_precommit: reader.array()?,
         event_vector_digest: reader.array()?,
         event_count: reader.u64()?,
         event_bytes: reader.u64()?,
+        uniqueness_row_count: reader.u64()?,
+        jmt_record_count: reader.u64()?,
+        jmt_envelope_count: reader.u64()?,
+        jmt_update_count: reader.u64()?,
     })
 }
 
@@ -1462,6 +1758,8 @@ fn encode_chunk_prefix(inputs: &EpochTraceChunkInputsV2) -> Vec<u8> {
     bytes.extend_from_slice(&inputs.event_count.to_le_bytes());
     for digest in [
         inputs.frontier_authority_digest,
+        inputs.chain_context_digest,
+        inputs.predicate_digest,
         inputs.input_state_root,
         inputs.output_state_root,
         inputs.input_accumulator,
@@ -1554,6 +1852,9 @@ mod tests {
             height,
             checkpoint_id: digest("checkpoint", height),
             predecessor: previous_checkpoint,
+            recursive_transition_statement_digest: digest("recursive-statement", height),
+            checkpoint_exec_tx_root: digest("exec-tx-root", height),
+            checkpoint_exec_tx_count: 1,
             checkpoint_statement_digest: digest("statement", height),
             checkpoint_statement_core_digest: digest("statement-core", height),
             checkpoint_link_digest: digest("link", height),
@@ -1563,11 +1864,24 @@ mod tests {
             journal_digest: digest("journal", height),
             challenge_content_digest: digest("challenge", height),
             da_payload_commitment: digest("da", height),
+            prior_recursive_output_root: previous_checkpoint.map(|_| digest("prior-ivc", height)),
             pre_settlement_root: pre_root,
             post_settlement_root: digest("state", height),
+            pre_definition_root: digest("definition-pre", height),
+            post_definition_root: digest("definition-post", height),
+            trace_digest: digest("trace", height),
+            update_trace_digest: digest("update-trace", height),
+            declared_work_digest: digest("declared-work", height),
+            pre_uniqueness_context_digest: digest("pre-uniqueness", height),
+            spent_uniqueness_precommit: digest("spent-precommit", height),
+            output_uniqueness_precommit: digest("output-precommit", height),
             event_vector_digest: digest("events", height),
             event_count: 17,
             event_bytes: 512,
+            uniqueness_row_count: 1,
+            jmt_record_count: 1,
+            jmt_envelope_count: 1,
+            jmt_update_count: 1,
         })
         .expect("transition")
     }
@@ -1654,6 +1968,14 @@ mod tests {
         let event_count = transitions.iter().fold(0_u64, |count, transition| {
             count + transition.inputs().event_count
         });
+        let input_accumulator = epoch_stream_initial_accumulator(authority);
+        let output_accumulator =
+            transitions
+                .iter()
+                .copied()
+                .fold(input_accumulator, |accumulator, transition| {
+                    epoch_stream_step_accumulator(authority, accumulator, transition)
+                });
         EpochTraceChunkV2::new(
             &authority,
             transitions,
@@ -1670,10 +1992,12 @@ mod tests {
                 event_start: 0,
                 event_count,
                 frontier_authority_digest: authority.digest(),
+                chain_context_digest: authority.chain_context_digest(),
+                predicate_digest: authority.predicate_digest(),
                 input_state_root: first.pre_settlement_root,
                 output_state_root: last.post_settlement_root,
-                input_accumulator: digest("accumulator-in", 0),
-                output_accumulator: digest("accumulator-out", 0),
+                input_accumulator,
+                output_accumulator,
                 input_slice_commitment: slice_commitment,
                 parameter_digest: manifest.inputs.parameter_digest,
                 verifier_bundle_digest: manifest.inputs.verifier_bundle_digest,
@@ -1687,11 +2011,47 @@ mod tests {
     fn test_work_manifest_roundtrip_and_exact_count() {
         let manifest = manifest(2);
         assert_eq!(manifest.transition_count(), 2);
-        assert_eq!(
-            EpochProofWorkManifestV2::decode_canonical(manifest.canonical_bytes()).expect("decode"),
-            manifest
-        );
+        let decoded =
+            EpochProofWorkManifestV2::decode_canonical(manifest.canonical_bytes()).expect("decode");
+        assert_eq!(decoded, manifest);
+        let decoded_transition = decoded.transition(0).expect("decoded transition").inputs();
+        assert_eq!(decoded_transition.uniqueness_row_count, 1);
+        assert_eq!(decoded_transition.jmt_record_count, 1);
+        assert_eq!(decoded_transition.jmt_envelope_count, 1);
+        assert_eq!(decoded_transition.jmt_update_count, 1);
         assert_ne!(manifest.transition_root(), [0; 32]);
+    }
+
+    #[test]
+    fn test_transition_accepts_noop_semantics_and_rejects_overclaimed_coverage() {
+        let baseline = transition(0, 1, None, digest("state", 0)).inputs();
+
+        let mut no_op = baseline;
+        no_op.post_settlement_root = no_op.pre_settlement_root;
+        no_op.post_definition_root = no_op.pre_definition_root;
+        no_op.update_trace_digest = crate::settlement::noop_update_trace_digest();
+        no_op.uniqueness_row_count = 0;
+        no_op.jmt_record_count = 0;
+        no_op.jmt_update_count = 0;
+        EpochTransitionBindingV2::new(no_op)
+            .expect("canonical no-op transition has no uniqueness or JMT micro rows");
+
+        for mutate in [
+            |inputs: &mut EpochTransitionInputsV2| inputs.jmt_envelope_count = 0,
+            |inputs: &mut EpochTransitionInputsV2| inputs.jmt_envelope_count = 2,
+            |inputs: &mut EpochTransitionInputsV2| inputs.jmt_update_count = 0,
+            |inputs: &mut EpochTransitionInputsV2| {
+                inputs.uniqueness_row_count = inputs.event_count;
+                inputs.jmt_record_count = 1;
+            },
+        ] {
+            let mut mutated = baseline;
+            mutate(&mut mutated);
+            assert!(
+                EpochTransitionBindingV2::new(mutated).is_err(),
+                "semantic coverage mutation must fail closed",
+            );
+        }
     }
 
     #[test]
@@ -1729,6 +2089,17 @@ mod tests {
                 .expect("decode"),
             chunk
         );
+        let chunk_inputs = chunk.inputs();
+        assert_eq!(
+            &chunk.canonical_bytes()[EPOCH_CHUNK_INPUT_STATE_ROOT_BYTE_OFFSET_V2
+                ..EPOCH_CHUNK_INPUT_STATE_ROOT_BYTE_OFFSET_V2 + 32],
+            &chunk_inputs.input_state_root,
+        );
+        assert_eq!(
+            &chunk.canonical_bytes()[EPOCH_CHUNK_OUTPUT_STATE_ROOT_BYTE_OFFSET_V2
+                ..EPOCH_CHUNK_OUTPUT_STATE_ROOT_BYTE_OFFSET_V2 + 32],
+            &chunk_inputs.output_state_root,
+        );
         manifest
             .validate_closed_chunk(&chunk)
             .expect("closed manifest validates tentative chunk");
@@ -1740,6 +2111,15 @@ mod tests {
         let mut inputs = chunk.inputs();
         inputs.first_transition = 1;
         assert!(EpochTraceChunkV2::new(&authority, transitions, inputs).is_err());
+
+        let mut inputs = chunk.inputs();
+        inputs.output_accumulator[0] ^= 1;
+        assert!(matches!(
+            EpochTraceChunkV2::new(&authority, transitions, inputs),
+            Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch
+            ))
+        ));
     }
 
     #[test]
@@ -1887,6 +2267,78 @@ mod tests {
             &statement, &header, &records,
         )
         .expect("split-insert JMT AIR constraints");
+    }
+
+    #[test]
+    fn test_direct_jmt_noop_constraints_and_header_mutations() {
+        let mut manifest_inputs = manifest(1).inputs;
+        let mut transition_inputs = manifest_inputs.transitions[0].inputs();
+        transition_inputs.post_settlement_root = transition_inputs.pre_settlement_root;
+        transition_inputs.post_definition_root = transition_inputs.pre_definition_root;
+        transition_inputs.update_trace_digest = crate::settlement::noop_update_trace_digest();
+        transition_inputs.uniqueness_row_count = 0;
+        transition_inputs.jmt_record_count = 0;
+        transition_inputs.jmt_update_count = 0;
+        manifest_inputs.transitions[0] =
+            EpochTransitionBindingV2::new(transition_inputs).expect("no-op transition");
+        manifest_inputs.end_root = transition_inputs.post_settlement_root;
+        let manifest =
+            EpochProofWorkManifestV2::new(manifest_inputs).expect("canonical no-op manifest");
+        let authority = manifest_frontier_authority(&manifest.inputs).expect("authority");
+        let transitions = manifest.inputs.transitions.as_slice();
+        let mut inputs = chunk(&manifest).inputs();
+        inputs.table = EpochAirTableV2::JmtUpdate;
+        inputs.row_start = 0;
+        inputs.row_count = 0;
+        let statement =
+            EpochTraceChunkV2::new(&authority, transitions, inputs).expect("no-op JMT statement");
+
+        let mut header = [0_u8; crate::settlement::JMT_CIRCUIT_HEADER_BYTES_V2];
+        header[0] = crate::settlement::JMT_UPDATE_TRACE_VERSION_V2;
+        header[1] = crate::settlement::RootGeneration::SettlementV2.version();
+        header[2] = crate::settlement::JMT_TRACE_NOOP_KIND_V2;
+        header[3..35].copy_from_slice(&crate::settlement::noop_update_trace_digest());
+        let records = Vec::<Vec<u8>>::new();
+        crate::checkpoint::plonky3::check_epoch_jmt_update_constraints(
+            &statement, &header, &records,
+        )
+        .expect("no-op JMT AIR constraints");
+
+        let mut wrong_version = header;
+        wrong_version[0] ^= 1;
+        assert!(
+            crate::checkpoint::plonky3::check_epoch_jmt_update_constraints(
+                &statement,
+                &wrong_version,
+                &records,
+            )
+            .is_err(),
+            "non-canonical JMT header version must fail closed",
+        );
+
+        let mut wrong_digest = header;
+        wrong_digest[3] ^= 1;
+        assert!(
+            crate::checkpoint::plonky3::check_epoch_jmt_update_constraints(
+                &statement,
+                &wrong_digest,
+                &records,
+            )
+            .is_err(),
+            "non-canonical JMT no-op digest must fail closed",
+        );
+
+        let mut mutating_without_records = header;
+        mutating_without_records[2] = crate::settlement::JMT_TRACE_MUTATING_KIND_V2;
+        assert!(
+            crate::checkpoint::plonky3::check_epoch_jmt_update_constraints(
+                &statement,
+                &mutating_without_records,
+                &records,
+            )
+            .is_err(),
+            "mutating JMT header without records must fail closed",
+        );
     }
 
     #[test]

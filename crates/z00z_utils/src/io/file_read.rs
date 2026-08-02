@@ -1,7 +1,7 @@
 use super::{read_file_bounded, ErrorKind, IoError, Path, PathBuf};
 
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 const DEFAULT_MAX_DIR_ENTRIES: usize = 100_000;
 
@@ -77,6 +77,111 @@ pub fn path_exists_no_follow(path: impl AsRef<Path>) -> Result<bool, IoError> {
 /// Read metadata for a path entry without following symbolic links.
 pub fn symlink_metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, IoError> {
     Ok(std::fs::symlink_metadata(path)?)
+}
+
+/// Return whether two file destinations may address the same entry.
+///
+/// Existing parent directories are compared by filesystem identity after
+/// resolving parent aliases. The final component is inspected without
+/// following symbolic links, and existing hard links are compared by file
+/// identity. A final symbolic link is rejected conservatively.
+pub fn destinations_alias_no_follow(
+    left: impl AsRef<Path>,
+    right: impl AsRef<Path>,
+) -> Result<bool, IoError> {
+    let left = left.as_ref();
+    let right = right.as_ref();
+    let left_name = left.file_name().ok_or_else(invalid_destination)?;
+    let right_name = right.file_name().ok_or_else(invalid_destination)?;
+    let left_parent = left.parent().unwrap_or_else(|| Path::new("."));
+    let right_parent = right.parent().unwrap_or_else(|| Path::new("."));
+    let left_parent_metadata = metadata_if_present(left_parent)?;
+    let right_parent_metadata = metadata_if_present(right_parent)?;
+    let same_parent = match (&left_parent_metadata, &right_parent_metadata) {
+        (Some(left_metadata), Some(right_metadata)) => {
+            if !left_metadata.is_dir() || !right_metadata.is_dir() {
+                return Err(invalid_destination().into());
+            }
+            metadata_identity_equal(left_metadata, right_metadata)
+                || resolved_parent_path(left_parent)? == resolved_parent_path(right_parent)?
+        }
+        _ => resolved_parent_path(left_parent)? == resolved_parent_path(right_parent)?,
+    };
+    if same_parent && left_name == right_name {
+        return Ok(true);
+    }
+
+    let left_metadata = symlink_metadata_if_present(left)?;
+    let right_metadata = symlink_metadata_if_present(right)?;
+    if left_metadata
+        .as_ref()
+        .is_some_and(|metadata| metadata.file_type().is_symlink())
+        || right_metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Ok(true);
+    }
+    Ok(match (left_metadata, right_metadata) {
+        (Some(left_metadata), Some(right_metadata)) => {
+            metadata_identity_equal(&left_metadata, &right_metadata)
+                || std::fs::canonicalize(left)? == std::fs::canonicalize(right)?
+        }
+        _ => false,
+    })
+}
+
+fn invalid_destination() -> std::io::Error {
+    std::io::Error::new(ErrorKind::InvalidInput, "destination must name a file")
+}
+
+fn metadata_if_present(path: &Path) -> Result<Option<std::fs::Metadata>, IoError> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn symlink_metadata_if_present(path: &Path) -> Result<Option<std::fs::Metadata>, IoError> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn resolved_parent_path(path: &Path) -> Result<PathBuf, IoError> {
+    let mut cursor = path.to_path_buf();
+    let mut missing = Vec::new();
+    loop {
+        match std::fs::canonicalize(&cursor) {
+            Ok(mut resolved) => {
+                for component in missing.iter().rev() {
+                    resolved.push(component);
+                }
+                return Ok(resolved);
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                let component = cursor.file_name().ok_or(error)?;
+                missing.push(component.to_os_string());
+                if !cursor.pop() {
+                    return Err(invalid_destination().into());
+                }
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
+#[cfg(unix)]
+fn metadata_identity_equal(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
+    left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+#[cfg(not(unix))]
+fn metadata_identity_equal(_left: &std::fs::Metadata, _right: &std::fs::Metadata) -> bool {
+    false
 }
 
 /// Flush a directory entry set to stable storage.

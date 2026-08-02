@@ -14,8 +14,8 @@ fn test_rng(seed: u64) -> rand::rngs::StdRng {
 #[allow(non_snake_case)]
 fn test_ecdh_roundtrip_symmetry() {
     let mut rng = test_rng(101);
-    let r = Z00ZScalar::random(&mut rng);
-    let view_sk = Z00ZScalar::random(&mut rng);
+    let r = Z00ZScalar::random(&mut rng).unwrap();
+    let view_sk = Z00ZScalar::random(&mut rng).unwrap();
     let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
 
     let r_pub = generate_ephemeral_keypair(&r).unwrap();
@@ -38,17 +38,17 @@ fn test_validate_rejects_identity() {
     ));
 
     let mut rng = test_rng(102);
-    let valid_point = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng));
+    let valid_point = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng).unwrap());
     assert!(validate_stealth_point(&valid_point).is_ok());
 }
 
 #[test]
 fn test_different_r_different_dh() {
     let mut rng = test_rng(103);
-    let view_sk = Z00ZScalar::random(&mut rng);
+    let view_sk = Z00ZScalar::random(&mut rng).unwrap();
     let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
-    let r1 = Z00ZScalar::random(&mut rng);
-    let r2 = Z00ZScalar::random(&mut rng);
+    let r1 = Z00ZScalar::random(&mut rng).unwrap();
+    let r2 = Z00ZScalar::random(&mut rng).unwrap();
 
     let dh1 = compute_stealth_dh_sender(&r1, &view_pk).unwrap();
     let dh2 = compute_stealth_dh_sender(&r2, &view_pk).unwrap();
@@ -63,7 +63,7 @@ fn test_different_r_different_dh() {
 #[test]
 fn test_derive_dh_key_deterministic() {
     let mut rng = test_rng(104);
-    let dh = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng));
+    let dh = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng).unwrap());
 
     let k1 = derive_dh_key(&dh);
     let k2 = derive_dh_key(&dh);
@@ -76,8 +76,8 @@ fn test_ecdh_performance() {
     use std::time::Instant;
 
     let mut rng = test_rng(105);
-    let r = Z00ZScalar::random(&mut rng);
-    let view_pk = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng));
+    let r = Z00ZScalar::random(&mut rng).unwrap();
+    let view_pk = Z00ZRistrettoPoint::from_secret_key(&Z00ZScalar::random(&mut rng).unwrap());
 
     for _ in 0..10 {
         let _ = compute_stealth_dh_sender(&r, &view_pk).unwrap();

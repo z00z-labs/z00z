@@ -28,7 +28,7 @@ fn make_rng(seed: u64) -> rand::rngs::StdRng {
 }
 
 fn rand_point(rng: &mut (impl rand::RngCore + rand::CryptoRng)) -> Z00ZRistrettoPoint {
-    let scalar = Z00ZScalar::random(rng);
+    let scalar = Z00ZScalar::random(rng).unwrap();
     Z00ZRistrettoPoint::from_secret_key(&scalar)
 }
 
@@ -108,7 +108,7 @@ fn test_identity_point_validate_reject() {
 #[test]
 fn test_valid_point_accepted() {
     let mut rng = make_rng(103);
-    let scalar = Z00ZScalar::random(&mut rng);
+    let scalar = Z00ZScalar::random(&mut rng).unwrap();
     let point = Z00ZRistrettoPoint::from_secret_key(&scalar);
 
     assert!(
@@ -138,7 +138,7 @@ fn test_zero_scalar_validate_reject() {
 #[test]
 fn test_zero_scalar_dh_reject() {
     let mut rng = make_rng(104);
-    let view_sk = Z00ZScalar::random(&mut rng);
+    let view_sk = Z00ZScalar::random(&mut rng).unwrap();
     let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
 
     let r = compute_stealth_dh_sender(&Z00ZScalar::zero(), &view_pk);
@@ -166,7 +166,7 @@ fn test_ephemeral_zero_r_rejected() {
 #[test]
 fn test_recover_zero_sk_reject() {
     let mut rng = make_rng(110);
-    let r = Z00ZScalar::random(&mut rng);
+    let r = Z00ZScalar::random(&mut rng).unwrap();
     let r_pub = Z00ZRistrettoPoint::from_secret_key(&r);
 
     let result = recover_stealth_dh_receiver(&Z00ZScalar::zero(), &r_pub);
@@ -182,8 +182,8 @@ fn test_recover_zero_sk_reject() {
 #[test]
 fn test_scalar_mul_distributivity() {
     let mut rng = make_rng(105);
-    let a = Z00ZScalar::random(&mut rng);
-    let b = Z00ZScalar::random(&mut rng);
+    let a = Z00ZScalar::random(&mut rng).unwrap();
+    let b = Z00ZScalar::random(&mut rng).unwrap();
     let p = rand_point(&mut rng);
 
     let ab = &a + &b;
@@ -199,8 +199,8 @@ fn test_scalar_mul_distributivity() {
 #[test]
 fn test_scalar_exponent_commutativity() {
     let mut rng = make_rng(106);
-    let a = Z00ZScalar::random(&mut rng);
-    let b = Z00ZScalar::random(&mut rng);
+    let a = Z00ZScalar::random(&mut rng).unwrap();
+    let b = Z00ZScalar::random(&mut rng).unwrap();
     let p = rand_point(&mut rng);
 
     let pa = &p * &a;
@@ -219,8 +219,8 @@ fn test_scalar_exponent_commutativity() {
 fn test_ecdh_algebraic_identity() {
     let mut rng = make_rng(107);
     for _ in 0..100 {
-        let r = Z00ZScalar::random(&mut rng);
-        let view_sk = Z00ZScalar::random(&mut rng);
+        let r = Z00ZScalar::random(&mut rng).unwrap();
+        let view_sk = Z00ZScalar::random(&mut rng).unwrap();
 
         let R_pub = Z00ZRistrettoPoint::from_secret_key(&r);
         let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);

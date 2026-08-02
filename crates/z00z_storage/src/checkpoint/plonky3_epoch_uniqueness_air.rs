@@ -15,14 +15,20 @@ use p3_field::{Field, PrimeCharacteristicRing};
 use p3_koala_bear::KoalaBear;
 use p3_lookup::{Count, InteractionBuilder};
 use p3_matrix::dense::RowMajorMatrix;
+use z00z_crypto::{CheckpointSha256BlockStreamV2, CheckpointShaRole};
 use z00z_plonky3_circuit_prover::batch_stark_prover::{
     BatchAir, BatchTableInstance, DynamicAirEntry, NonPrimitiveTableEntry, TablePacking,
     TableProver,
 };
 
+use super::plonky3_epoch_semantic_source_air::{
+    SOURCE_NET_EFFECT_BYTE_BUS_V2, SOURCE_REPLAY_SEMANTIC_BYTE_BUS_V2,
+    SOURCE_UNIQUENESS_PAYLOAD_BYTE_BUS_V2,
+};
+use super::plonky3_epoch_sha256_columns::{SemanticShaJobKindV2, SEMANTIC_SHA_RAW_BYTE_BUS_V2};
 use super::{
     Plonky3StarkConfigV2, EPOCH_CHUNK_BYTES_V2, EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2,
-    UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
+    UNIQUENESS_PRECOMMIT_VERSION_V2, UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
 };
 
 const REPLAY_NPO_ID_V2: &str = "z00z/plonky3/epoch-uniqueness-replay/v2";
@@ -41,8 +47,10 @@ pub(super) const ROLE_COUNT_V2: usize = 5;
 pub(super) const MIN_ROWS_V2: usize = 32;
 pub(super) const MAX_TRANSITIONS_V2: usize = EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2 as usize;
 pub(super) const STATEMENT_LIMBS_V2: usize = EPOCH_CHUNK_BYTES_V2 / core::mem::size_of::<u16>();
-pub(super) const PUBLIC_FIELDS_V2: usize = STATEMENT_LIMBS_V2;
-const PUBLIC_ROW_COUNT_OFFSET_V2: usize = 21;
+pub(super) const PUBLIC_SLICE_START_OFFSET_V2: usize = STATEMENT_LIMBS_V2;
+pub(super) const PUBLIC_SLICE_LEN_OFFSET_V2: usize = PUBLIC_SLICE_START_OFFSET_V2 + 1;
+pub(super) const PUBLIC_SLICE_ROW_COUNT_OFFSET_V2: usize = PUBLIC_SLICE_LEN_OFFSET_V2 + 1;
+pub(super) const PUBLIC_FIELDS_V2: usize = PUBLIC_SLICE_ROW_COUNT_OFFSET_V2 + 4;
 
 const HEADER_ACTIVE_OFFSET_V2: usize = 0;
 const ACTIVE_OFFSET_V2: usize = 1;
@@ -54,13 +62,23 @@ const SAME_TERMINAL_OFFSET_V2: usize = SEMANTIC_OFFSET_V2 + UNIQUENESS_SEMANTIC_
 const DIFF_SELECTOR_OFFSET_V2: usize = SAME_TERMINAL_OFFSET_V2 + 1;
 const TERMINAL_BYTES_V2: usize = 32;
 const DIFF_MINUS_ONE_OFFSET_V2: usize = DIFF_SELECTOR_OFFSET_V2 + TERMINAL_BYTES_V2;
-pub(super) const RUNNING_ROW_COUNT_OFFSET_V2: usize = DIFF_MINUS_ONE_OFFSET_V2 + 1;
+const NET_PAIR_SECOND_OFFSET_V2: usize = DIFF_MINUS_ONE_OFFSET_V2 + 1;
+const NET_EFFECT_SELECTOR_OFFSET_V2: usize = NET_PAIR_SECOND_OFFSET_V2 + 1;
+const NET_EFFECT_SELECTOR_COUNT_V2: usize = 4;
+const NET_HASH_DIFF_SELECTOR_OFFSET_V2: usize =
+    NET_EFFECT_SELECTOR_OFFSET_V2 + NET_EFFECT_SELECTOR_COUNT_V2;
+const NET_HASH_DIFFERENCE_OFFSET_V2: usize = NET_HASH_DIFF_SELECTOR_OFFSET_V2 + TERMINAL_BYTES_V2;
+const NET_HASH_DIFF_INVERSE_OFFSET_V2: usize = NET_HASH_DIFFERENCE_OFFSET_V2 + 1;
+const NET_EFFECT_POSITION_OFFSET_V2: usize = NET_HASH_DIFF_INVERSE_OFFSET_V2 + 1;
+pub(super) const RUNNING_ROW_COUNT_OFFSET_V2: usize = NET_EFFECT_POSITION_OFFSET_V2 + 1;
 pub(super) const ROW_FIELDS_V2: usize = RUNNING_ROW_COUNT_OFFSET_V2 + 1;
 pub(super) const CALL_FIELDS_V2: usize = PUBLIC_FIELDS_V2 + ROW_FIELDS_V2;
 
 const DEFINITION_START_V2: usize = 0;
 const TERMINAL_START_V2: usize = 36;
 const TERMINAL_END_V2: usize = TERMINAL_START_V2 + TERMINAL_BYTES_V2;
+const VALUE_HASH_START_V2: usize = TERMINAL_END_V2;
+const VALUE_HASH_END_V2: usize = VALUE_HASH_START_V2 + TERMINAL_BYTES_V2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum UniquenessAirRoleV2 {
@@ -246,12 +264,18 @@ where
             active.clone(),
         );
 
-        let transition_index = transition_selectors
+        let local_transition_index = transition_selectors
             .iter()
             .enumerate()
             .fold(AB::Expr::ZERO, |sum, (index, selector)| {
                 sum + selector.clone() * AB::Expr::from_usize(index)
             });
+        // The witness lanes are compact physical lanes. The public slice
+        // descriptor restores the canonical chunk slot before every
+        // cross-table interaction, so an upper proof cannot be replayed as a
+        // lower proof.
+        let transition_index =
+            local_transition_index + public[PUBLIC_SLICE_START_OFFSET_V2].clone();
         let set_index = set_selectors[1].clone();
         let same_transition = transition_selectors
             .iter()
@@ -294,8 +318,9 @@ where
         builder.when_first_row().assert_zero(position.clone());
         {
             let mut transition = builder.when_transition();
-            transition
-                .assert_zero(same_group.clone() * (next_position.clone() - position - one.clone()));
+            transition.assert_zero(
+                same_group.clone() * (next_position.clone() - position.clone() - one.clone()),
+            );
             transition.assert_zero((next_active.clone() - same_group.clone()) * next_position);
         }
 
@@ -303,8 +328,112 @@ where
             semantic_fields::<AB>(local, transition_index.clone(), set_index.clone(), true);
         let permutation =
             semantic_fields::<AB>(local, transition_index.clone(), set_index.clone(), false);
+
+        if self.role != UniquenessAirRoleV2::Replay {
+            let (class_base, pass, list) = match self.role {
+                UniquenessAirRoleV2::Replay => unreachable!(),
+                UniquenessAirRoleV2::CommitOriginal => (0, 0, 0),
+                UniquenessAirRoleV2::CommitSorted => (2, 0, 1),
+                UniquenessAirRoleV2::ProductOriginal => (4, 1, 0),
+                UniquenessAirRoleV2::ProductSorted => (6, 1, 1),
+            };
+            let class = AB::Expr::from_usize(class_base) + set_index.clone();
+            let payload_bytes = [
+                AB::Expr::from_u64(u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2)),
+                AB::Expr::from_usize(pass),
+                set_index.clone(),
+                AB::Expr::from_usize(list),
+            ]
+            .into_iter()
+            .chain(
+                (0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2)
+                    .map(|index| field::<AB>(local, SEMANTIC_OFFSET_V2 + index)),
+            );
+            for (payload_index, payload_byte) in payload_bytes.enumerate() {
+                builder.push_interaction(
+                    SOURCE_UNIQUENESS_PAYLOAD_BYTE_BUS_V2,
+                    vec![
+                        transition_index.clone(),
+                        class.clone(),
+                        position.clone(),
+                        AB::Expr::from_usize(payload_index),
+                        payload_byte,
+                    ],
+                    -Count::bounded(active.clone(), 1),
+                );
+            }
+        }
+
+        if matches!(
+            self.role,
+            UniquenessAirRoleV2::CommitOriginal | UniquenessAirRoleV2::CommitSorted
+        ) {
+            let sorted = usize::from(self.role == UniquenessAirRoleV2::CommitSorted);
+            let roles = if sorted == 0 {
+                [
+                    CheckpointShaRole::SpentOriginalIds,
+                    CheckpointShaRole::OutputOriginalIds,
+                ]
+            } else {
+                [
+                    CheckpointShaRole::SpentSortedIds,
+                    CheckpointShaRole::OutputSortedIds,
+                ]
+            };
+            let first_row_part = roles
+                .map(|role| CheckpointSha256BlockStreamV2::framed_role_prefix(role).len() + 8 + 4);
+            let row_start = set_selectors[0].clone() * AB::Expr::from_usize(first_row_part[0])
+                + set_selectors[1].clone() * AB::Expr::from_usize(first_row_part[1])
+                + position.clone() * AB::Expr::from_usize(8 + UNIQUENESS_SEMANTIC_ROW_BYTES_V2);
+            let job_id = set_index.clone() * AB::Expr::from_u64(2) + AB::Expr::from_usize(sorted);
+            for (offset, byte) in u64::try_from(UNIQUENESS_SEMANTIC_ROW_BYTES_V2)
+                .expect("semantic row length fits u64")
+                .to_le_bytes()
+                .into_iter()
+                .enumerate()
+            {
+                builder.push_interaction(
+                    SEMANTIC_SHA_RAW_BYTE_BUS_V2,
+                    vec![
+                        transition_index.clone(),
+                        AB::Expr::from_u64(u64::from(SemanticShaJobKindV2::UniquenessList as u8)),
+                        job_id.clone(),
+                        row_start.clone() + AB::Expr::from_usize(offset),
+                        AB::Expr::from_u64(u64::from(byte)),
+                    ],
+                    Count::bounded(active.clone(), 1),
+                );
+            }
+            for semantic_index in 0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2 {
+                builder.push_interaction(
+                    SEMANTIC_SHA_RAW_BYTE_BUS_V2,
+                    vec![
+                        transition_index.clone(),
+                        AB::Expr::from_u64(u64::from(SemanticShaJobKindV2::UniquenessList as u8)),
+                        job_id.clone(),
+                        row_start.clone() + AB::Expr::from_usize(8 + semantic_index),
+                        field::<AB>(local, SEMANTIC_OFFSET_V2 + semantic_index),
+                    ],
+                    Count::bounded(active.clone(), 1),
+                );
+            }
+        }
+
         match self.role {
             UniquenessAirRoleV2::Replay => {
+                for semantic_index in 0..UNIQUENESS_SEMANTIC_ROW_BYTES_V2 {
+                    builder.push_interaction(
+                        SOURCE_REPLAY_SEMANTIC_BYTE_BUS_V2,
+                        vec![
+                            transition_index.clone(),
+                            set_index.clone(),
+                            position.clone(),
+                            AB::Expr::from_usize(semantic_index),
+                            field::<AB>(local, SEMANTIC_OFFSET_V2 + semantic_index),
+                        ],
+                        Count::bounded(-active.clone(), 1),
+                    );
+                }
                 builder.push_interaction(
                     REPLAY_COMMIT_BUS_V2,
                     replay_with_position,
@@ -314,6 +443,7 @@ where
                     builder.push_interaction(
                         RANGE_BUS_V2,
                         vec![
+                            transition_index.clone(),
                             field::<AB>(local, SEMANTIC_OFFSET_V2 + pair * 2),
                             field::<AB>(local, SEMANTIC_OFFSET_V2 + pair * 2 + 1),
                             AB::Expr::ZERO,
@@ -389,7 +519,7 @@ where
         } else {
             builder.assert_zero(same_terminal.clone());
         }
-        let strict_comparison = comparison_pair - same_terminal;
+        let strict_comparison = comparison_pair - same_terminal.clone();
         // `same_terminal` is Boolean and constrained to be a subset of the
         // Boolean comparison selector, so their difference is also Boolean.
 
@@ -431,9 +561,192 @@ where
         if self.role.is_sorted() {
             builder.push_interaction(
                 RANGE_BUS_V2,
-                vec![diff_minus_one, AB::Expr::ZERO, one.clone()],
+                vec![
+                    transition_index.clone(),
+                    diff_minus_one,
+                    AB::Expr::ZERO,
+                    one.clone(),
+                ],
                 Count::bounded(-strict_comparison, 1),
             );
+        }
+
+        if self.role == UniquenessAirRoleV2::ProductSorted {
+            let net_pair_second = field::<AB>(local, NET_PAIR_SECOND_OFFSET_V2);
+            let next_net_pair_second = field::<AB>(next, NET_PAIR_SECOND_OFFSET_V2);
+            builder.assert_bool(net_pair_second.clone());
+            builder.assert_zero(net_pair_second.clone() * (one.clone() - active.clone()));
+            builder.assert_zero(net_pair_second.clone() * (one.clone() - set_index.clone()));
+            builder
+                .when_first_row()
+                .assert_zero(net_pair_second.clone());
+            builder
+                .when_transition()
+                .assert_eq(next_net_pair_second, same_terminal.clone());
+
+            let net_emit = active.clone() - net_pair_second;
+            let net_singleton = net_emit.clone() - same_terminal.clone();
+            let net_effect_selectors = (0..NET_EFFECT_SELECTOR_COUNT_V2)
+                .map(|index| field::<AB>(local, NET_EFFECT_SELECTOR_OFFSET_V2 + index))
+                .collect::<Vec<_>>();
+            for selector in &net_effect_selectors {
+                builder.assert_bool(selector.clone());
+            }
+            let net_delete = net_effect_selectors[0].clone();
+            let net_insert = net_effect_selectors[1].clone();
+            let net_replace = net_effect_selectors[2].clone();
+            let net_unchanged = net_effect_selectors[3].clone();
+            builder.assert_eq(
+                net_effect_selectors
+                    .iter()
+                    .cloned()
+                    .fold(AB::Expr::ZERO, |sum, value| sum + value),
+                net_emit.clone(),
+            );
+            builder.assert_eq(
+                net_delete.clone(),
+                net_singleton.clone() * (one.clone() - set_index.clone()),
+            );
+            builder.assert_eq(net_insert.clone(), net_singleton * set_index.clone());
+            builder.assert_eq(
+                net_replace.clone() + net_unchanged.clone(),
+                same_terminal.clone(),
+            );
+
+            let net_hash_diff_selectors = (0..TERMINAL_BYTES_V2)
+                .map(|index| field::<AB>(local, NET_HASH_DIFF_SELECTOR_OFFSET_V2 + index))
+                .collect::<Vec<_>>();
+            for selector in &net_hash_diff_selectors {
+                builder.assert_bool(selector.clone());
+            }
+            builder.assert_eq(
+                net_hash_diff_selectors
+                    .iter()
+                    .cloned()
+                    .fold(AB::Expr::ZERO, |sum, value| sum + value),
+                net_replace.clone(),
+            );
+            let mut selected_difference = AB::Expr::ZERO;
+            for (difference_index, selector) in net_hash_diff_selectors.iter().enumerate() {
+                for prior in 0..difference_index {
+                    builder.assert_zero(
+                        selector.clone()
+                            * (field::<AB>(next, SEMANTIC_OFFSET_V2 + VALUE_HASH_START_V2 + prior)
+                                - field::<AB>(
+                                    local,
+                                    SEMANTIC_OFFSET_V2 + VALUE_HASH_START_V2 + prior,
+                                )),
+                    );
+                }
+                selected_difference += selector.clone()
+                    * (field::<AB>(
+                        next,
+                        SEMANTIC_OFFSET_V2 + VALUE_HASH_START_V2 + difference_index,
+                    ) - field::<AB>(
+                        local,
+                        SEMANTIC_OFFSET_V2 + VALUE_HASH_START_V2 + difference_index,
+                    ));
+            }
+            for index in VALUE_HASH_START_V2..VALUE_HASH_END_V2 {
+                builder.assert_zero(
+                    net_unchanged.clone()
+                        * (field::<AB>(next, SEMANTIC_OFFSET_V2 + index)
+                            - field::<AB>(local, SEMANTIC_OFFSET_V2 + index)),
+                );
+            }
+            let net_hash_difference = field::<AB>(local, NET_HASH_DIFFERENCE_OFFSET_V2);
+            let net_hash_diff_inverse = field::<AB>(local, NET_HASH_DIFF_INVERSE_OFFSET_V2);
+            builder.assert_eq(net_hash_difference.clone(), selected_difference);
+            builder.assert_eq(
+                net_hash_difference * net_hash_diff_inverse.clone(),
+                net_replace.clone(),
+            );
+            builder.assert_zero((one.clone() - net_replace.clone()) * net_hash_diff_inverse);
+
+            let net_effect_position = field::<AB>(local, NET_EFFECT_POSITION_OFFSET_V2);
+            let next_net_effect_position = field::<AB>(next, NET_EFFECT_POSITION_OFFSET_V2);
+            builder
+                .when_first_row()
+                .assert_zero(net_effect_position.clone());
+            {
+                let mut transition = builder.when_transition();
+                transition.assert_zero(
+                    same_transition.clone()
+                        * (next_net_effect_position.clone()
+                            - net_effect_position.clone()
+                            - net_emit.clone()),
+                );
+                transition.assert_zero(
+                    (next_active.clone() - same_transition.clone()) * next_net_effect_position,
+                );
+            }
+
+            let net_kind = net_delete.clone()
+                + net_insert.clone() * AB::Expr::from_u64(2)
+                + net_replace.clone() * AB::Expr::from_u64(3)
+                + net_unchanged.clone() * AB::Expr::from_u64(4);
+            for (payload_index, payload_byte) in [
+                (
+                    0,
+                    AB::Expr::from_u64(u64::from(UNIQUENESS_PRECOMMIT_VERSION_V2)),
+                ),
+                (1, net_kind),
+            ] {
+                builder.push_interaction(
+                    SOURCE_NET_EFFECT_BYTE_BUS_V2,
+                    vec![
+                        transition_index.clone(),
+                        net_effect_position.clone(),
+                        AB::Expr::from_usize(payload_index),
+                        payload_byte,
+                    ],
+                    Count::bounded(-net_emit.clone(), 1),
+                );
+            }
+            for semantic_index in DEFINITION_START_V2..TERMINAL_END_V2 {
+                builder.push_interaction(
+                    SOURCE_NET_EFFECT_BYTE_BUS_V2,
+                    vec![
+                        transition_index.clone(),
+                        net_effect_position.clone(),
+                        AB::Expr::from_usize(2 + semantic_index),
+                        field::<AB>(local, SEMANTIC_OFFSET_V2 + semantic_index),
+                    ],
+                    Count::bounded(-net_emit.clone(), 1),
+                );
+            }
+            let net_old_gate = net_delete + net_replace.clone() + net_unchanged.clone();
+            let net_pair_gate = net_replace + net_unchanged;
+            for hash_index in 0..TERMINAL_BYTES_V2 {
+                let current_hash =
+                    field::<AB>(local, SEMANTIC_OFFSET_V2 + VALUE_HASH_START_V2 + hash_index);
+                let next_hash =
+                    field::<AB>(next, SEMANTIC_OFFSET_V2 + VALUE_HASH_START_V2 + hash_index);
+                builder.push_interaction(
+                    SOURCE_NET_EFFECT_BYTE_BUS_V2,
+                    vec![
+                        transition_index.clone(),
+                        net_effect_position.clone(),
+                        AB::Expr::from_usize(2 + VALUE_HASH_START_V2 + hash_index),
+                        net_old_gate.clone() * current_hash.clone(),
+                    ],
+                    Count::bounded(-net_emit.clone(), 1),
+                );
+                builder.push_interaction(
+                    SOURCE_NET_EFFECT_BYTE_BUS_V2,
+                    vec![
+                        transition_index.clone(),
+                        net_effect_position.clone(),
+                        AB::Expr::from_usize(2 + UNIQUENESS_SEMANTIC_ROW_BYTES_V2 + hash_index),
+                        net_insert.clone() * current_hash + net_pair_gate.clone() * next_hash,
+                    ],
+                    Count::bounded(-net_emit.clone(), 1),
+                );
+            }
+        } else {
+            for offset in NET_PAIR_SECOND_OFFSET_V2..RUNNING_ROW_COUNT_OFFSET_V2 {
+                builder.assert_zero(field::<AB>(local, offset));
+            }
         }
 
         let running = field::<AB>(local, RUNNING_ROW_COUNT_OFFSET_V2);
@@ -444,10 +757,10 @@ where
         builder
             .when_transition()
             .assert_eq(next_running, running.clone() + next_active);
-        let public_count = public[PUBLIC_ROW_COUNT_OFFSET_V2].clone()
-            + public[PUBLIC_ROW_COUNT_OFFSET_V2 + 1].clone() * AB::Expr::from_u64(65_536);
-        builder.assert_zero(public[PUBLIC_ROW_COUNT_OFFSET_V2 + 2].clone());
-        builder.assert_zero(public[PUBLIC_ROW_COUNT_OFFSET_V2 + 3].clone());
+        let public_count = public[PUBLIC_SLICE_ROW_COUNT_OFFSET_V2].clone()
+            + public[PUBLIC_SLICE_ROW_COUNT_OFFSET_V2 + 1].clone() * AB::Expr::from_u64(65_536);
+        builder.assert_zero(public[PUBLIC_SLICE_ROW_COUNT_OFFSET_V2 + 2].clone());
+        builder.assert_zero(public[PUBLIC_SLICE_ROW_COUNT_OFFSET_V2 + 3].clone());
         builder.when_last_row().assert_eq(running, public_count);
 
         let inactive = one - active;
@@ -566,14 +879,6 @@ impl TableProver<Plonky3StarkConfigV2> for UniquenessProverV2 {
             self.role,
         ))))
     }
-}
-
-pub(super) fn check_constraints(trace: &UniquenessTraceV2, expected_public: &[KoalaBear]) {
-    p3_air::check_constraints(
-        &UniquenessAirV2::new(trace.role),
-        &UniquenessAirV2::trace_to_matrix(&trace.rows),
-        expected_public,
-    );
 }
 
 #[cfg(test)]

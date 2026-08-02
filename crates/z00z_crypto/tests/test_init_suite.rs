@@ -23,7 +23,7 @@ fn test_services_work_after_init() {
     z00z_crypto::initialize();
 
     // Create commitment - uses COMMITMENT_FACTORY
-    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
     let amount = 1000u64;
     let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
 

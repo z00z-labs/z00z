@@ -16,7 +16,7 @@ const CHAIN_NAME: &str = "z00z-devnet-1";
 
 fn make_scalar(seed: u64) -> Hidden<Z00ZScalar> {
     let mut rng = MockRngProvider::with_u64_seed(seed).rng();
-    Hidden::hide(Z00ZScalar::random(&mut rng))
+    Hidden::hide(Z00ZScalar::random(&mut rng).unwrap())
 }
 
 fn make_pkg(out_count: usize) -> Vec<u8> {

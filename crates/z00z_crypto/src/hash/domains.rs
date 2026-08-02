@@ -43,6 +43,7 @@ pub enum CheckpointShaRole {
     OutputSortedIds,
     IdPrecommit,
     IdChallenge,
+    EventVector,
 }
 
 /// Complete frozen checkpoint SHA-role registry.
@@ -64,6 +65,7 @@ pub const ALL_CHECKPOINT_SHA_ROLES_V2: &[CheckpointShaRole] = &[
     CheckpointShaRole::OutputSortedIds,
     CheckpointShaRole::IdPrecommit,
     CheckpointShaRole::IdChallenge,
+    CheckpointShaRole::EventVector,
 ];
 
 impl CheckpointShaRole {
@@ -86,6 +88,7 @@ impl CheckpointShaRole {
             | Self::OutputSortedIds
             | Self::IdPrecommit
             | Self::IdChallenge => "z00z.storage.checkpoint.uniqueness.v2",
+            Self::EventVector => "z00z.storage.checkpoint.plonky3.event-vector.v2",
         }
     }
 
@@ -110,6 +113,7 @@ impl CheckpointShaRole {
             Self::OutputSortedIds => "output_sorted_ids_v2",
             Self::IdPrecommit => "id_lists_precommit_v2",
             Self::IdChallenge => "id_permutation_challenge_v2",
+            Self::EventVector => "canonical_events",
         }
     }
 }

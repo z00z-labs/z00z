@@ -961,6 +961,15 @@ pub struct RecursiveFinalizedIvcStateV2 {
 }
 
 impl RecursiveFinalizedIvcStateV2 {
+    /// Reload the canonical initial IVC endpoint installed by the V2 cutover owner.
+    ///
+    /// External production callers need this digest when sealing the first
+    /// checkpoint's `prior_recursive_output_root`; the store remains the sole
+    /// source of every field and rejects stale or malformed cutover state.
+    pub fn from_installed_cutover(store: &SettlementStore) -> Result<Self, CheckpointError> {
+        Self::from_cutover_store(store)
+    }
+
     /// Build the unique finalized successor after `X_h` exists.
     pub(super) fn expected_successor(
         input: &RecursiveNovaStepInputV2,

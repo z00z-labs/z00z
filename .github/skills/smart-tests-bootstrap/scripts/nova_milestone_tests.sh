@@ -109,10 +109,10 @@ run_guards() {
   local contract dollar='$'
   local -a verifier_rss_contract=(
     'readonly VERIFIER_MARKER="Z00Z_NOVA_VERIFIER_ONLY_V2=1"'
-    'readonly EXPECTED_SOURCE_REVISION="ae51d7809aa8e93e681ef847ad11d5abd13a11d7ce0984d827e523292c11c7e6"'
-    'readonly EXPECTED_WORKER_SOURCE="f777113dfb5a06b45b37aa4bdd4774c0389b49c1474d66d4c7a3fb3db5fc74e1"'
-    'readonly EXPECTED_NOVA_SHA256="c95d9055b244ef890fc6cd50d9c03b366cee9e69c089ee50bd8a79c7f96f75ee"'
-    'readonly EXPECTED_CARGO_LOCK_SHA256="e1373bac8fdfc4bf7042352fa8f520eb13de0e2796129bd33beac91732277e15"'
+    'readonly EXPECTED_SOURCE_REVISION="b33ba4285432fbd6736fb081537652e92e347ffeac530b81e1e116cecd5a2a6a"'
+    'readonly EXPECTED_WORKER_SOURCE="87e6d575559089b5c1188ff65204787abdccd2f25d7aa79ab7198654383d0eb6"'
+    'readonly EXPECTED_NOVA_SHA256="c7af8cedcf9d56a00c772a5ed97dcb8eb844dc4d23cdb9dc0a6ad43fa33e5216"'
+    'readonly EXPECTED_CARGO_LOCK_SHA256="6f0a8698bf3871f77ea8a6b4d901a87924614b4cb7e573989ebc69130d598afc"'
     "for children_path in \"/proc/${dollar}pid/task/\"[0-9]*/children; do"
     "setsid env CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=\"${dollar}PHASE069_RELEASE_TARGET_DIR\""
     "cargo test --release --locked --offline -p z00z_storage --lib \"${dollar}TEST_NAME\" --"
@@ -223,6 +223,7 @@ run_curated() {
   local id index offset packet_status=0 status test_name transcript
   local run_id run_dir selected_manifest selected_log_dir
   local -a tests=(
+    test_recursive_source_manifest_covers_explicit_path_modules
     test_verifier_identity_binds_path
     test_nova_backend_owner_locked
     test_nova_dependency_transcript_pinned
@@ -235,7 +236,7 @@ run_curated() {
   local -a wave_tests=()
 
   run_guards
-  echo "=== curated Nova release packet: 7 source/dependency/R1CS units + 2 integration targets; features=production ==="
+  echo "=== curated Nova release packet: 8 source/dependency/R1CS units + 2 integration targets; features=production ==="
   if [[ -n "$BOOTSTRAP_SELECTED_TESTS_MANIFEST" ||
     -n "$BOOTSTRAP_SELECTED_TEST_LOG_DIR" ]]; then
     [[ -n "$BOOTSTRAP_SELECTED_TESTS_MANIFEST" &&
@@ -317,7 +318,7 @@ run_curated() {
     --test test_recursive_v2_nova_step \
     --test test_recursive_v2_nova_adversarial \
     -- --nocapture --test-threads "$THREADS"
-  echo "Nova curated release packet: PASS (7 unit gates, 2 integration targets)"
+  echo "Nova curated release packet: PASS (8 unit gates, 2 integration targets)"
 }
 
 run_ignored_exact() {

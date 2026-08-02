@@ -197,7 +197,7 @@ mod tests {
     fn test_create_proof_verify_roundtrip() {
         let prover = ProverImpl::new().unwrap();
         let mut rng = MockRngProvider::with_u64_seed(7).rng();
-        let blinding = Hidden::hide(Z00ZScalar::random(&mut rng));
+        let blinding = Hidden::hide(Z00ZScalar::random(&mut rng).unwrap());
 
         let amount = 123u64;
         let proof = prover.create_proof(amount, &blinding).unwrap();
@@ -211,8 +211,8 @@ mod tests {
         let prover = ProverImpl::new().unwrap();
 
         let mut rng = MockRngProvider::with_u64_seed(7).rng();
-        let b1 = Hidden::hide(Z00ZScalar::random(&mut rng));
-        let b2 = Hidden::hide(Z00ZScalar::random(&mut rng));
+        let b1 = Hidden::hide(Z00ZScalar::random(&mut rng).unwrap());
+        let b2 = Hidden::hide(Z00ZScalar::random(&mut rng).unwrap());
 
         let outputs = vec![(1u64, b1), (2u64, b2)];
         let proofs = prover.create_batch_proofs(&outputs).unwrap();
@@ -238,7 +238,7 @@ mod tests {
         // 3) Verify tampered proof is rejected.
         let prover = ProverImpl::new().unwrap();
         let mut rng = MockRngProvider::with_u64_seed(11).rng();
-        let blinding = Hidden::hide(Z00ZScalar::random(&mut rng));
+        let blinding = Hidden::hide(Z00ZScalar::random(&mut rng).unwrap());
 
         let amount = 7_777u64;
         let proof = prover.create_proof(amount, &blinding).unwrap();

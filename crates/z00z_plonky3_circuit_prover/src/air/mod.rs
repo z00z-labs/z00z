@@ -8,8 +8,6 @@ mod recompose_columns;
 
 #[cfg(test)]
 mod shape_golden;
-#[cfg(test)]
-pub mod test_utils;
 
 pub use alu_air::{AluAir, AluExtMulKind};
 pub use const_air::ConstAir;

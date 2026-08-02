@@ -208,9 +208,7 @@ fn build_output_state_with_blinding(
     );
     let tag16 = Some(match sender_path.tag_mode {
         TagMode::CardBound => compute_tag16(&sender_path.k_dh, &leaf_ad),
-        TagMode::RequestBound { req_id } => {
-            compute_tag16_with_req(&sender_path.k_dh, &req_id)
-        }
+        TagMode::RequestBound { req_id } => compute_tag16_with_req(&sender_path.k_dh, &req_id),
     });
     let output = TxStealthOutput {
         r_pub: sender_path.r_pub,
@@ -252,7 +250,7 @@ fn build_leaf_state_rng<R: rand::CryptoRng + rand::RngCore>(
     serial_id: u32,
     rng: &mut R,
 ) -> Result<OutputBuildState, StealthError> {
-    let r = select_r_rng(rng);
+    let r = select_r_rng(rng)?;
     build_output_state_with_rng(
         receiver_card,
         payment_request,
@@ -307,9 +305,7 @@ fn build_output_state_with_rng<R: rand::CryptoRng + rand::RngCore>(
     );
     let tag16 = Some(match sender_path.tag_mode {
         TagMode::CardBound => compute_tag16(&sender_path.k_dh, &leaf_ad),
-        TagMode::RequestBound { req_id } => {
-            compute_tag16_with_req(&sender_path.k_dh, &req_id)
-        }
+        TagMode::RequestBound { req_id } => compute_tag16_with_req(&sender_path.k_dh, &req_id),
     });
     let output = TxStealthOutput {
         r_pub: sender_path.r_pub,
@@ -334,8 +330,10 @@ fn build_output_state_with_rng<R: rand::CryptoRng + rand::RngCore>(
     })
 }
 
-fn select_r_rng<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Z00ZScalar {
-    Z00ZScalar::random(rng)
+fn select_r_rng<R: rand::CryptoRng + rand::RngCore>(
+    rng: &mut R,
+) -> Result<Z00ZScalar, StealthError> {
+    Z00ZScalar::random(rng).map_err(|_| StealthError::InvalidEphemeralScalar)
 }
 
 fn derive_sender_path(
@@ -361,7 +359,7 @@ fn make_amount_with_rng<R: rand::CryptoRng + rand::RngCore>(
     amount: u64,
     rng: &mut R,
 ) -> Result<(Z00ZScalar, [u8; 32]), StealthError> {
-    let blinding = Z00ZScalar::random(rng);
+    let blinding = Z00ZScalar::random(rng).map_err(|_| StealthError::InvalidEphemeralScalar)?;
     let commitment =
         create_commitment(amount, &blinding).map_err(|_| StealthError::InvalidStealthInput)?;
     let mut c_amount = [0u8; 32];

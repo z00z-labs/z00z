@@ -26,6 +26,28 @@ use crate::common::{NpoPreprocessor, get_airs_and_degrees_with_prep};
 use crate::config::{self, BabyBearConfig, GoldilocksConfig, KoalaBearConfig};
 
 #[test]
+fn test_trace_field_cast_requires_exact_concrete_type() {
+    let mut builder = CircuitBuilder::<BabyBear>::new();
+    let value = builder.public_input();
+    builder.assert_zero(value);
+    let circuit = builder.build().expect("minimal circuit");
+    let mut runner = circuit.runner();
+    runner
+        .set_public_inputs(&[BabyBear::ZERO])
+        .expect("public input");
+    let traces = runner.run().expect("minimal trace");
+
+    assert!(
+        super::dynamic_air::cast_traces_exact::<BabyBear, BabyBear>(&traces).is_some(),
+        "the identical concrete trace field must remain dispatchable",
+    );
+    assert!(
+        super::dynamic_air::cast_traces_exact::<BabyBear, KoalaBear>(&traces).is_none(),
+        "a different same-dimension field must reject before reading the trace",
+    );
+}
+
+#[test]
 fn test_babybear_batch_stark_base_field() {
     let mut builder = CircuitBuilder::<BabyBear>::new();
 
@@ -47,36 +69,69 @@ fn test_babybear_batch_stark_base_field() {
 
     let circuit = builder.build().unwrap();
     let cfg = config::baby_bear();
-    let (airs_degrees, primitive_columns, non_primitive_columns) =
-        get_airs_and_degrees_with_prep::<BabyBearConfig, _, 1>(
-            &circuit,
-            &TablePacking::default(),
-            &[],
-            &[],
-            ConstraintProfile::Standard,
-        )
-        .unwrap();
-    let (airs, log_degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
-    let circuit_prover_data =
-        CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
-
-    let mut runner = circuit.runner();
-
     let x_val = BabyBear::from_u64(7);
     let expected_val = BabyBear::from_u64(13); // 7 + 10 - 3 - 1 = 13
-    runner.set_public_inputs(&[x_val, expected_val]).unwrap();
-    let traces = runner.run().unwrap();
+    let build_prover_data = || {
+        let (airs_degrees, primitive_columns, non_primitive_columns) =
+            get_airs_and_degrees_with_prep::<BabyBearConfig, _, 1>(
+                &circuit,
+                &TablePacking::default(),
+                &[],
+                &[],
+                ConstraintProfile::Standard,
+            )
+            .unwrap();
+        let (airs, log_degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
+        let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
+        CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns)
+    };
+    let reusable_prover_data = build_prover_data();
+    let one_shot_prover_data = build_prover_data();
+    let run_circuit = || {
+        let mut runner = circuit.runner();
+        runner.set_public_inputs(&[x_val, expected_val]).unwrap();
+        runner.run().unwrap()
+    };
+    let reusable_traces = run_circuit();
+    let one_shot_traces = run_circuit();
 
     let prover = BatchStarkProver::new(cfg);
 
+    let reusable_proof = prover
+        .prove_all_tables(&reusable_traces, &reusable_prover_data)
+        .unwrap();
     let proof = prover
-        .prove_all_tables_one_shot(&traces, circuit_prover_data)
+        .prove_all_tables_one_shot(one_shot_traces, one_shot_prover_data)
         .unwrap();
     assert_eq!(proof.ext_degree, 1);
     assert!(proof.w_binomial.is_none());
 
-    assert!(prover.verify_all_tables::<BabyBear>(&proof).is_ok());
+    if let Err(error) = prover.verify_all_tables::<BabyBear>(&reusable_proof) {
+        panic!("reusable Batch-STARK proof must actual-verify: {error:?}");
+    }
+    if let Err(error) = prover.verify_all_tables::<BabyBear>(&proof) {
+        panic!("one-shot Batch-STARK proof must actual-verify: {error:?}");
+    }
+    assert_eq!(proof.table_packing, reusable_proof.table_packing);
+    assert_eq!(proof.rows, reusable_proof.rows);
+    assert_eq!(proof.alu_variant, reusable_proof.alu_variant);
+    assert_eq!(proof.ext_degree, reusable_proof.ext_degree);
+    assert_eq!(proof.w_binomial, reusable_proof.w_binomial);
+    assert_eq!(
+        proof.alu_quintic_trinomial,
+        reusable_proof.alu_quintic_trinomial
+    );
+    assert!(proof.non_primitives.is_empty());
+    assert!(reusable_proof.non_primitives.is_empty());
+    assert_eq!(
+        postcard::to_allocvec(&SerializedStarkCommon::from_common(&proof.stark_common))
+            .expect("serialize one-shot Batch-STARK common data"),
+        postcard::to_allocvec(&SerializedStarkCommon::from_common(
+            &reusable_proof.stark_common
+        ))
+        .expect("serialize reusable Batch-STARK common data"),
+        "one-shot materialization must preserve the reusable preprocessed binding",
+    );
 
     // Soundness (#1.1): the reduction is bound to the verifier's expected trace field, so
     // verifying this D=1 proof against a D=4 field is rejected up front, before AIR rebuild.
@@ -118,7 +173,7 @@ fn test_trace_next_suppressed_for_next_row_free_tables() {
         )
         .unwrap();
     let (airs, log_degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -193,7 +248,7 @@ fn test_table_lookups() {
     let expected_val = BabyBear::from_u64(13); // 7 + 10 - 3 - 1 = 13
     runner.set_public_inputs(&[x_val, expected_val]).unwrap();
     let traces = runner.run().unwrap();
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -220,11 +275,11 @@ fn test_table_lookups() {
             }
             CircuitTableAir::Alu(_) => {
                 // The ALU declares 4 WitnessChecks sends per lane + 2 extra for double-step Horner
-                // a1/c1, all on the same global bus. Same-bus packing folds them in pairs up to the
-                // degree budget, halving the column count.
+                // a1/c1, all on the same global bus. The canonical Z00Z layout reserves one
+                // algebraic degree of quotient headroom, so this boundary bucket stays unpacked.
                 let declared = default_packing.alu_lanes() * 4
                     + 2 * (default_packing.horner_packed_steps() - 1);
-                let expected_num_lookups = declared.div_ceil(2);
+                let expected_num_lookups = declared;
                 assert_eq!(
                     lookups.len(),
                     expected_num_lookups,
@@ -298,7 +353,7 @@ fn test_extension_field_batch_stark() {
     runner.set_public_inputs(&[xv, yv, zv, expected_v]).unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
     let prover = BatchStarkProver::new(cfg);
@@ -373,7 +428,7 @@ fn test_extension_field_table_lookups() {
     runner.set_public_inputs(&[xv, yv, zv, expected_v]).unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -406,11 +461,11 @@ fn test_extension_field_table_lookups() {
             }
             CircuitTableAir::Alu(_) => {
                 // The ALU declares 4 WitnessChecks sends per lane + 2 extra for double-step Horner
-                // a1/c1, all on the same global bus. Same-bus packing folds them in pairs up to the
-                // degree budget, halving the column count.
+                // a1/c1, all on the same global bus. The canonical Z00Z layout reserves one
+                // algebraic degree of quotient headroom, so this boundary bucket stays unpacked.
                 let declared = default_packing.alu_lanes() * 4
                     + 2 * (default_packing.horner_packed_steps() - 1);
-                let expected_num_lookups = declared.div_ceil(2);
+                let expected_num_lookups = declared;
                 assert_eq!(
                     lookups.len(),
                     expected_num_lookups,
@@ -469,7 +524,7 @@ fn test_koalabear_batch_stark_base_field() {
         .unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
     let prover = BatchStarkProver::new(cfg);
@@ -565,7 +620,7 @@ fn test_koalabear_batch_stark_extension_field_d8() {
         .unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
     let prover = BatchStarkProver::new(cfg);
@@ -630,7 +685,7 @@ fn test_goldilocks_batch_stark_binomial_ext2() {
         .unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
     let prover = BatchStarkProver::new(cfg);
@@ -769,7 +824,7 @@ fn test_mul_only_circuit_padding() {
     runner.set_public_inputs(&[x_val, y_val]).unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -817,7 +872,7 @@ fn test_add_only_circuit_padding() {
         .unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -908,7 +963,7 @@ fn test_koalabear_quintic_trinomial_batch_stark_with_poseidon_d1() {
     runner.set_public_inputs(&[in0, in1, exp0, exp1]).unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -1008,7 +1063,7 @@ fn test_koalabear_quintic_trinomial_batch_stark_poseidon_d1_sponge_chain() {
     runner.set_public_inputs(&[in0, in1, exp0, exp1]).unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -1053,7 +1108,7 @@ fn test_stark_serialization_round_trip() {
         )
         .unwrap();
     let (airs, log_degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -1256,7 +1311,7 @@ fn verify_all_tables_rejects_tampered_serialized_row_counts() {
         )
         .unwrap();
     let (airs, log_degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 
@@ -1364,7 +1419,7 @@ fn test_koalabear_quintic_trinomial_batch_stark_with_poseidon1_d1() {
     runner.set_public_inputs(&[in0, in1, exp0, exp1]).unwrap();
     let traces = runner.run().unwrap();
 
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 

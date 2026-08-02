@@ -24588,6 +24588,22 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         include_bytes!("plonky3_epoch_event_stream.rs"),
     ),
     (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_event_source_air.rs",
+        include_bytes!("plonky3_epoch_event_source_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_event_source_columns.rs",
+        include_bytes!("plonky3_epoch_event_source_columns.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_event_source_table.rs",
+        include_bytes!("plonky3_epoch_event_source_table.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_event_source_witness.rs",
+        include_bytes!("plonky3_epoch_event_source_witness.rs"),
+    ),
+    (
         "crates/z00z_storage/src/checkpoint/plonky3_epoch_trace_framing.rs",
         include_bytes!("plonky3_epoch_trace_framing.rs"),
     ),
@@ -24628,12 +24644,24 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         include_bytes!("plonky3_epoch_uniqueness_range.rs"),
     ),
     (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_uniqueness_slice.rs",
+        include_bytes!("plonky3_epoch_uniqueness_slice.rs"),
+    ),
+    (
         "crates/z00z_storage/src/checkpoint/plonky3_epoch_uniqueness_witness.rs",
         include_bytes!("plonky3_epoch_uniqueness_witness.rs"),
     ),
     (
         "crates/z00z_storage/src/checkpoint/plonky3_epoch_packed_range.rs",
         include_bytes!("plonky3_epoch_packed_range.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_semantic_source_air.rs",
+        include_bytes!("plonky3_epoch_semantic_source_air.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_semantic_source_witness.rs",
+        include_bytes!("plonky3_epoch_semantic_source_witness.rs"),
     ),
     (
         "crates/z00z_storage/src/checkpoint/plonky3_epoch_jmt.rs",
@@ -24672,20 +24700,40 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         include_bytes!("plonky3_epoch_sha256_air.rs"),
     ),
     (
+        "crates/z00z_storage/src/checkpoint/plonky3_epoch_sha256_columns.rs",
+        include_bytes!("plonky3_epoch_sha256_columns.rs"),
+    ),
+    (
         "crates/z00z_storage/src/checkpoint/plonky3_epoch_sha256_witness.rs",
         include_bytes!("plonky3_epoch_sha256_witness.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_recursive_sha256.rs",
+        include_bytes!("plonky3_recursive_sha256.rs"),
     ),
     (
         "crates/z00z_storage/src/checkpoint/plonky3_binary_hash.rs",
         include_bytes!("plonky3_binary_hash.rs"),
     ),
     (
+        "crates/z00z_storage/src/checkpoint/plonky3_binary_fri_fold.rs",
+        include_bytes!("plonky3_binary_fri_fold.rs"),
+    ),
+    (
         "crates/z00z_storage/src/checkpoint/plonky3_binary_mmcs.rs",
         include_bytes!("plonky3_binary_mmcs.rs"),
     ),
     (
-        "crates/z00z_storage/src/checkpoint/plonky3_recursion.rs",
-        include_bytes!("plonky3_recursion.rs"),
+        "crates/z00z_storage/src/checkpoint/plonky3_binary_pcs.rs",
+        include_bytes!("plonky3_binary_pcs.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_root_statement.rs",
+        include_bytes!("plonky3_root_statement.rs"),
+    ),
+    (
+        "crates/z00z_storage/src/checkpoint/plonky3_root_statement_air.rs",
+        include_bytes!("plonky3_root_statement_air.rs"),
     ),
     (
         "crates/z00z_storage/src/checkpoint/plonky3_u16_range.rs",
@@ -25088,10 +25136,6 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/shape_golden.rs"),
     ),
     (
-        "crates/z00z_plonky3_circuit_prover/src/air/test_utils.rs",
-        include_bytes!("../../../z00z_plonky3_circuit_prover/src/air/test_utils.rs"),
-    ),
-    (
         "crates/z00z_plonky3_circuit_prover/src/backend/fri.rs",
         include_bytes!("../../../z00z_plonky3_circuit_prover/src/backend/fri.rs"),
     ),
@@ -25113,6 +25157,12 @@ const SOURCE_REVISION_ENTRIES_V2: &[(&str, &[u8])] = &[
         "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/lookup_packing.rs",
         include_bytes!(
             "../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/lookup_packing.rs"
+        ),
+    ),
+    (
+        "crates/z00z_plonky3_circuit_prover/src/batch_stark_prover/one_shot_batch.rs",
+        include_bytes!(
+            "../../../z00z_plonky3_circuit_prover/src/batch_stark_prover/one_shot_batch.rs"
         ),
     ),
     (
@@ -26122,10 +26172,42 @@ mod tests {
     }
 
     #[test]
+    fn test_recursive_source_manifest_covers_explicit_path_modules() {
+        let manifest = super::SOURCE_REVISION_MANIFEST_V2
+            .lines()
+            .filter(|line| !line.is_empty())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            manifest.len(),
+            super::SOURCE_REVISION_ENTRIES_V2.len(),
+            "the recursive source manifest must contain no duplicate paths",
+        );
+        for line in include_str!("plonky3.rs").lines().map(str::trim) {
+            let Some(module_path) = line
+                .strip_prefix("#[path = \"")
+                .and_then(|path| path.strip_suffix("\"]"))
+            else {
+                continue;
+            };
+            let canonical_path = format!("crates/z00z_storage/src/checkpoint/{module_path}");
+            assert!(
+                manifest.contains(canonical_path.as_str()),
+                "explicit proof module `{canonical_path}` is missing from recursive source identity",
+            );
+        }
+    }
+
+    #[test]
     fn test_verifier_identity_binds_path() {
         ensure_test_identity();
         assert!(super::is_source_manifest_current());
-        let expected = include_str!("../../tests/fixtures/recursive_source_revision_v2.hex").trim();
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/recursive_source_revision_v2.hex"
+        );
+        let expected = std::fs::read_to_string(fixture_path)
+            .expect("recursive source revision fixture remains readable");
+        let expected = expected.trim();
         assert_eq!(
             super::lowercase_hex(super::source_revision_digest()),
             expected

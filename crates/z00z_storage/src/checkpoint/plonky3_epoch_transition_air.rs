@@ -23,32 +23,84 @@ use z00z_plonky3_circuit_prover::batch_stark_prover::{
 use super::plonky3_epoch_typed_commitment_air::{
     COMMITMENTS_PER_TRANSITION_V2, EXPECTED_TYPED_COMMITMENT_BUS_V2,
 };
-use super::{Plonky3StarkConfigV2, EPOCH_CHUNK_BYTES_V2, EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2};
+use super::{
+    Plonky3StarkConfigV2, EPOCH_CHUNK_BYTES_V2, EPOCH_CHUNK_INPUT_STATE_ROOT_LIMB_OFFSET_V2,
+    EPOCH_CHUNK_OUTPUT_STATE_ROOT_LIMB_OFFSET_V2, EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2,
+};
 
-const NPO_ID_V2: &str = "z00z/plonky3/epoch-transition-linked/v2";
+const CORE_NPO_ID_V2: &str = "z00z/plonky3/epoch-transition-core-linked/v2";
+const SEMANTIC_NPO_ID_V2: &str = "z00z/plonky3/epoch-transition-semantic-linked/v2";
 pub(super) const TRANSITION_TRACE_FRAMING_BUS_V2: &str =
     "z00z/plonky3/epoch-transition-trace-framing/v2";
+pub(super) const TRANSITION_FLOW_ROOT_LIMB_BUS_V2: &str =
+    "z00z/plonky3/epoch-transition-flow-root-limb/v2";
 pub(super) const BINDING_SLOTS_V2: usize = EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2 as usize;
 pub(super) const ROWS_V2: usize = 32;
 const STATEMENT_LIMBS_V2: usize = EPOCH_CHUNK_BYTES_V2 / core::mem::size_of::<u16>();
 const DIGEST_LIMBS_V2: usize = 16;
 const U64_LIMBS_V2: usize = 4;
 
-const BINDING_ORDINAL_OFFSET_V2: usize = 0;
-const BINDING_HEIGHT_OFFSET_V2: usize = BINDING_ORDINAL_OFFSET_V2 + 2;
-const BINDING_PRE_ROOT_OFFSET_V2: usize = BINDING_HEIGHT_OFFSET_V2 + U64_LIMBS_V2;
-const BINDING_POST_ROOT_OFFSET_V2: usize = BINDING_PRE_ROOT_OFFSET_V2 + DIGEST_LIMBS_V2;
-const BINDING_DIGEST_OFFSET_V2: usize = BINDING_POST_ROOT_OFFSET_V2 + DIGEST_LIMBS_V2;
-const BINDING_EVENT_COUNT_OFFSET_V2: usize = BINDING_DIGEST_OFFSET_V2 + DIGEST_LIMBS_V2;
-const BINDING_EVENT_BYTES_OFFSET_V2: usize = BINDING_EVENT_COUNT_OFFSET_V2 + U64_LIMBS_V2;
-const BINDING_TYPED_OFFSET_V2: usize = BINDING_EVENT_BYTES_OFFSET_V2 + U64_LIMBS_V2;
-pub(super) const BINDING_FIELDS_V2: usize =
+pub(super) const BINDING_ORDINAL_OFFSET_V2: usize = 0;
+pub(super) const BINDING_HEIGHT_OFFSET_V2: usize = BINDING_ORDINAL_OFFSET_V2 + 2;
+pub(super) const BINDING_PRE_ROOT_OFFSET_V2: usize = BINDING_HEIGHT_OFFSET_V2 + U64_LIMBS_V2;
+pub(super) const BINDING_POST_ROOT_OFFSET_V2: usize = BINDING_PRE_ROOT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_DIGEST_OFFSET_V2: usize = BINDING_POST_ROOT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_EVENT_COUNT_OFFSET_V2: usize = BINDING_DIGEST_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_EVENT_BYTES_OFFSET_V2: usize =
+    BINDING_EVENT_COUNT_OFFSET_V2 + U64_LIMBS_V2;
+pub(super) const BINDING_TYPED_OFFSET_V2: usize = BINDING_EVENT_BYTES_OFFSET_V2 + U64_LIMBS_V2;
+pub(super) const BINDING_CHECKPOINT_ID_OFFSET_V2: usize =
     BINDING_TYPED_OFFSET_V2 + COMMITMENTS_PER_TRANSITION_V2 * DIGEST_LIMBS_V2;
+pub(super) const BINDING_PREDECESSOR_PRESENT_OFFSET_V2: usize =
+    BINDING_CHECKPOINT_ID_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_PREDECESSOR_OFFSET_V2: usize = BINDING_PREDECESSOR_PRESENT_OFFSET_V2 + 1;
+pub(super) const BINDING_STATEMENT_OFFSET_V2: usize =
+    BINDING_PREDECESSOR_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_STATEMENT_CORE_OFFSET_V2: usize =
+    BINDING_STATEMENT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_ARTIFACT_OFFSET_V2: usize =
+    BINDING_STATEMENT_CORE_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_CHALLENGE_OFFSET_V2: usize = BINDING_ARTIFACT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_DA_OFFSET_V2: usize = BINDING_CHALLENGE_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_EVENT_VECTOR_OFFSET_V2: usize = BINDING_DA_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_RECURSIVE_STATEMENT_OFFSET_V2: usize =
+    BINDING_EVENT_VECTOR_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_EXEC_TX_ROOT_OFFSET_V2: usize =
+    BINDING_RECURSIVE_STATEMENT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_EXEC_TX_COUNT_OFFSET_V2: usize =
+    BINDING_EXEC_TX_ROOT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_PRIOR_IVC_PRESENT_OFFSET_V2: usize = BINDING_EXEC_TX_COUNT_OFFSET_V2 + 2;
+pub(super) const BINDING_PRIOR_IVC_OFFSET_V2: usize = BINDING_PRIOR_IVC_PRESENT_OFFSET_V2 + 1;
+pub(super) const BINDING_PRE_DEFINITION_OFFSET_V2: usize =
+    BINDING_PRIOR_IVC_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_POST_DEFINITION_OFFSET_V2: usize =
+    BINDING_PRE_DEFINITION_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_TRACE_DIGEST_OFFSET_V2: usize =
+    BINDING_POST_DEFINITION_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_UPDATE_TRACE_DIGEST_OFFSET_V2: usize =
+    BINDING_TRACE_DIGEST_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_DECLARED_WORK_DIGEST_OFFSET_V2: usize =
+    BINDING_UPDATE_TRACE_DIGEST_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_PRE_UNIQUENESS_OFFSET_V2: usize =
+    BINDING_DECLARED_WORK_DIGEST_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_SPENT_PRECOMMIT_OFFSET_V2: usize =
+    BINDING_PRE_UNIQUENESS_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_OUTPUT_PRECOMMIT_OFFSET_V2: usize =
+    BINDING_SPENT_PRECOMMIT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_UNIQUENESS_ROW_COUNT_OFFSET_V2: usize =
+    BINDING_OUTPUT_PRECOMMIT_OFFSET_V2 + DIGEST_LIMBS_V2;
+pub(super) const BINDING_JMT_RECORD_COUNT_OFFSET_V2: usize =
+    BINDING_UNIQUENESS_ROW_COUNT_OFFSET_V2 + U64_LIMBS_V2;
+pub(super) const BINDING_JMT_ENVELOPE_COUNT_OFFSET_V2: usize =
+    BINDING_JMT_RECORD_COUNT_OFFSET_V2 + U64_LIMBS_V2;
+pub(super) const BINDING_JMT_UPDATE_COUNT_OFFSET_V2: usize =
+    BINDING_JMT_ENVELOPE_COUNT_OFFSET_V2 + U64_LIMBS_V2;
+pub(super) const BINDING_FIELDS_V2: usize = BINDING_JMT_UPDATE_COUNT_OFFSET_V2 + U64_LIMBS_V2;
 
-const PUBLIC_BINDINGS_OFFSET_V2: usize = STATEMENT_LIMBS_V2;
-const PUBLIC_BINDING_COUNT_OFFSET_V2: usize =
+pub(super) const PUBLIC_BINDINGS_OFFSET_V2: usize = STATEMENT_LIMBS_V2;
+pub(super) const PUBLIC_BINDING_COUNT_OFFSET_V2: usize =
     PUBLIC_BINDINGS_OFFSET_V2 + BINDING_SLOTS_V2 * BINDING_FIELDS_V2;
-const PUBLIC_EVENT_BYTES_OFFSET_V2: usize = PUBLIC_BINDING_COUNT_OFFSET_V2 + 1;
+pub(super) const PUBLIC_EVENT_BYTES_OFFSET_V2: usize = PUBLIC_BINDING_COUNT_OFFSET_V2 + 1;
 pub(super) const PUBLIC_FIELDS_V2: usize = PUBLIC_EVENT_BYTES_OFFSET_V2 + U64_LIMBS_V2;
 
 const HEADER_ACTIVE_OFFSET_V2: usize = 0;
@@ -69,22 +121,38 @@ const STATEMENT_FIRST_TRANSITION_OFFSET_V2: usize = 11;
 const STATEMENT_LAST_TRANSITION_OFFSET_V2: usize = 13;
 const STATEMENT_ROW_COUNT_OFFSET_V2: usize = 21;
 const STATEMENT_EVENT_COUNT_OFFSET_V2: usize = 29;
-const STATEMENT_INPUT_ROOT_OFFSET_V2: usize = 49;
-const STATEMENT_OUTPUT_ROOT_OFFSET_V2: usize = 65;
+const STATEMENT_INPUT_ROOT_OFFSET_V2: usize = EPOCH_CHUNK_INPUT_STATE_ROOT_LIMB_OFFSET_V2;
+const STATEMENT_OUTPUT_ROOT_OFFSET_V2: usize = EPOCH_CHUNK_OUTPUT_STATE_ROOT_LIMB_OFFSET_V2;
 
 #[derive(Clone, Debug)]
 pub(super) struct TransitionRowV2 {
     pub(super) values: Vec<KoalaBear>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TransitionAirRoleV2 {
+    Core,
+    Semantic,
+}
+
+impl TransitionAirRoleV2 {
+    pub(super) fn npo_type(self) -> NpoTypeId {
+        NpoTypeId::new(match self {
+            Self::Core => CORE_NPO_ID_V2,
+            Self::Semantic => SEMANTIC_NPO_ID_V2,
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct TransitionTraceV2 {
+    pub(super) role: TransitionAirRoleV2,
     pub(super) rows: Vec<TransitionRowV2>,
 }
 
 impl NonPrimitiveTrace<KoalaBear> for TransitionTraceV2 {
     fn op_type(&self) -> NpoTypeId {
-        npo_type()
+        self.role.npo_type()
     }
 
     fn rows(&self) -> usize {
@@ -101,9 +169,15 @@ impl NonPrimitiveTrace<KoalaBear> for TransitionTraceV2 {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct TransitionAirV2;
+struct TransitionAirV2 {
+    role: TransitionAirRoleV2,
+}
 
 impl TransitionAirV2 {
+    const fn new(role: TransitionAirRoleV2) -> Self {
+        Self { role }
+    }
+
     fn trace_to_matrix(rows: &[TransitionRowV2]) -> RowMajorMatrix<KoalaBear> {
         RowMajorMatrix::new(
             rows.iter()
@@ -192,6 +266,14 @@ where
                     });
             builder.assert_eq(row(local, BINDING_OFFSET_V2 + field_index), expected);
         }
+        builder.assert_bool(row(
+            local,
+            BINDING_OFFSET_V2 + BINDING_PREDECESSOR_PRESENT_OFFSET_V2,
+        ));
+        builder.assert_bool(row(
+            local,
+            BINDING_OFFSET_V2 + BINDING_PRIOR_IVC_PRESENT_OFFSET_V2,
+        ));
 
         let transition_index = selectors
             .iter()
@@ -199,31 +281,56 @@ where
             .fold(AB::Expr::ZERO, |sum, (index, selector)| {
                 sum + selector.clone() * AB::Expr::from_usize(index)
             });
-        for kind in 0..COMMITMENTS_PER_TRANSITION_V2 {
-            let mut fields = Vec::with_capacity(2 + DIGEST_LIMBS_V2);
-            fields.push(transition_index.clone());
-            fields.push(AB::Expr::from_usize(kind + 1));
-            for limb in 0..DIGEST_LIMBS_V2 {
-                fields.push(row(
-                    local,
-                    BINDING_OFFSET_V2 + BINDING_TYPED_OFFSET_V2 + kind * DIGEST_LIMBS_V2 + limb,
-                ));
+        if self.role == TransitionAirRoleV2::Semantic {
+            for kind in 0..COMMITMENTS_PER_TRANSITION_V2 {
+                let mut fields = Vec::with_capacity(2 + DIGEST_LIMBS_V2);
+                fields.push(transition_index.clone());
+                fields.push(AB::Expr::from_usize(kind + 1));
+                for limb in 0..DIGEST_LIMBS_V2 {
+                    fields.push(row(
+                        local,
+                        BINDING_OFFSET_V2 + BINDING_TYPED_OFFSET_V2 + kind * DIGEST_LIMBS_V2 + limb,
+                    ));
+                }
+                builder.push_interaction(
+                    EXPECTED_TYPED_COMMITMENT_BUS_V2,
+                    fields,
+                    Count::bounded(active.clone(), 1),
+                );
+            }
+        }
+        if self.role == TransitionAirRoleV2::Core {
+            let mut framing_fields =
+                Vec::with_capacity(BINDING_EVENT_BYTES_OFFSET_V2 + U64_LIMBS_V2);
+            for offset in BINDING_ORDINAL_OFFSET_V2..(BINDING_EVENT_BYTES_OFFSET_V2 + U64_LIMBS_V2)
+            {
+                framing_fields.push(row(local, BINDING_OFFSET_V2 + offset));
             }
             builder.push_interaction(
-                EXPECTED_TYPED_COMMITMENT_BUS_V2,
-                fields,
+                TRANSITION_TRACE_FRAMING_BUS_V2,
+                framing_fields,
                 Count::bounded(active.clone(), 1),
             );
         }
-        let mut framing_fields = Vec::with_capacity(BINDING_EVENT_BYTES_OFFSET_V2 + U64_LIMBS_V2);
-        for offset in BINDING_ORDINAL_OFFSET_V2..(BINDING_EVENT_BYTES_OFFSET_V2 + U64_LIMBS_V2) {
-            framing_fields.push(row(local, BINDING_OFFSET_V2 + offset));
+        if self.role == TransitionAirRoleV2::Semantic {
+            for (root_kind, root_offset) in [
+                (0_usize, BINDING_PRE_ROOT_OFFSET_V2),
+                (1_usize, BINDING_POST_ROOT_OFFSET_V2),
+            ] {
+                for limb in 0..DIGEST_LIMBS_V2 {
+                    builder.push_interaction(
+                        TRANSITION_FLOW_ROOT_LIMB_BUS_V2,
+                        vec![
+                            transition_index.clone(),
+                            AB::Expr::from_usize(root_kind),
+                            AB::Expr::from_usize(limb),
+                            row(local, BINDING_OFFSET_V2 + root_offset + limb),
+                        ],
+                        Count::bounded(active.clone(), 1),
+                    );
+                }
+            }
         }
-        builder.push_interaction(
-            TRANSITION_TRACE_FRAMING_BUS_V2,
-            framing_fields,
-            Count::bounded(active.clone(), 1),
-        );
 
         let running = row(local, RUNNING_COUNT_OFFSET_V2);
         let next_running = row(next, RUNNING_COUNT_OFFSET_V2);
@@ -306,6 +413,25 @@ where
                                 local,
                                 BINDING_OFFSET_V2 + BINDING_POST_ROOT_OFFSET_V2 + limb,
                             )),
+                );
+            }
+            transition.assert_zero(
+                next_active.clone()
+                    * (row(
+                        next,
+                        BINDING_OFFSET_V2 + BINDING_PREDECESSOR_PRESENT_OFFSET_V2,
+                    ) - one.clone()),
+            );
+            for limb in 0..DIGEST_LIMBS_V2 {
+                transition.assert_zero(
+                    next_active.clone()
+                        * (row(
+                            next,
+                            BINDING_OFFSET_V2 + BINDING_PREDECESSOR_OFFSET_V2 + limb,
+                        ) - row(
+                            local,
+                            BINDING_OFFSET_V2 + BINDING_CHECKPOINT_ID_OFFSET_V2 + limb,
+                        )),
                 );
             }
             constrain_increment(
@@ -453,14 +579,22 @@ fn constrain_running_total<AB>(
 impl BatchAir<Plonky3StarkConfigV2> for TransitionAirV2 {}
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct TransitionProverV2;
+pub(super) struct TransitionProverV2 {
+    role: TransitionAirRoleV2,
+}
 
 impl TransitionProverV2 {
+    pub(super) const fn new(role: TransitionAirRoleV2) -> Self {
+        Self { role }
+    }
+
     fn batch_instance(
+        &self,
         traces: &Traces<KoalaBear>,
     ) -> Option<BatchTableInstance<Plonky3StarkConfigV2>> {
-        let trace = traces.non_primitive_trace::<TransitionTraceV2>(&npo_type())?;
-        if trace.rows.len() != ROWS_V2
+        let trace = traces.non_primitive_trace::<TransitionTraceV2>(&self.role.npo_type())?;
+        if trace.role != self.role
+            || trace.rows.len() != ROWS_V2
             || trace
                 .rows
                 .iter()
@@ -469,8 +603,8 @@ impl TransitionProverV2 {
             return None;
         }
         Some(BatchTableInstance {
-            op_type: npo_type(),
-            air: DynamicAirEntry::new(Box::new(TransitionAirV2)),
+            op_type: self.role.npo_type(),
+            air: DynamicAirEntry::new(Box::new(TransitionAirV2::new(self.role))),
             trace: TransitionAirV2::trace_to_matrix(&trace.rows),
             public_values: trace.rows[0].values[..PUBLIC_FIELDS_V2].to_vec(),
             rows: ROWS_V2,
@@ -481,7 +615,7 @@ impl TransitionProverV2 {
 
 impl TableProver<Plonky3StarkConfigV2> for TransitionProverV2 {
     fn op_type(&self) -> NpoTypeId {
-        npo_type()
+        self.role.npo_type()
     }
 
     fn batch_instance_d1(
@@ -490,7 +624,7 @@ impl TableProver<Plonky3StarkConfigV2> for TransitionProverV2 {
         _packing: &TablePacking,
         traces: &Traces<KoalaBear>,
     ) -> Option<BatchTableInstance<Plonky3StarkConfigV2>> {
-        Self::batch_instance(traces)
+        self.batch_instance(traces)
     }
 
     fn batch_instance_d2(
@@ -538,25 +672,19 @@ impl TableProver<Plonky3StarkConfigV2> for TransitionProverV2 {
     ) -> Result<DynamicAirEntry<Plonky3StarkConfigV2>, String> {
         if degree != 1
             || circuit_extension_degree != 1
-            || entry.op_type != npo_type()
+            || entry.op_type != self.role.npo_type()
             || entry.rows != ROWS_V2
             || entry.lanes != 1
             || entry.public_values.len() != PUBLIC_FIELDS_V2
         {
             return Err("epoch transition linked table shape mismatch".into());
         }
-        Ok(DynamicAirEntry::new(Box::new(TransitionAirV2)))
+        Ok(DynamicAirEntry::new(Box::new(TransitionAirV2::new(
+            self.role,
+        ))))
     }
 }
 
 pub(super) fn npo_type() -> NpoTypeId {
-    NpoTypeId::new(NPO_ID_V2)
-}
-
-pub(super) fn check_constraints(rows: &[TransitionRowV2], expected_public: &[KoalaBear]) {
-    p3_air::check_constraints(
-        &TransitionAirV2,
-        &TransitionAirV2::trace_to_matrix(rows),
-        expected_public,
-    );
+    TransitionAirRoleV2::Core.npo_type()
 }

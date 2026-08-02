@@ -15,7 +15,7 @@ use thin_test_support::{context_for_entry, fixture_entry, tx_json, ThinRpcEnv};
 async fn test_verify_matches_checkpoint() {
     let entry = fixture_entry().await;
     let env = ThinRpcEnv::new("thin-equivalence-verify", 100).await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 41, 99_000, 200_000),
         vec![entry.clone()],
@@ -71,7 +71,7 @@ async fn test_broadcast_keeps_tx_id() {
     let entry = fixture_entry().await;
     let thick_env = ThinRpcEnv::new("thin-equivalence-broadcast-thick", 100).await;
     let thin_env = ThinRpcEnv::new("thin-equivalence-broadcast-thin", 100).await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 42, 99_000, 200_000),
         vec![entry.clone()],

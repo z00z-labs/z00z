@@ -4,7 +4,8 @@ pub use super::{
     adapter::{
         RecursiveCheckpointChainBlockV2, RecursiveCheckpointEvidenceStoreV2,
         RecursiveCheckpointEvidenceV2, RecursiveCheckpointRecoveryV2,
-        RecursiveEvidenceCancellationV2, RecursiveEvidenceOutcomeV2, RecursiveEvidenceRequestV2,
+        RecursiveEpochTransitionCaptureV2, RecursiveEvidenceCancellationV2,
+        RecursiveEvidenceOutcomeV2, RecursiveEvidenceRequestV2,
     },
     canonical_transition::{
         CanonicalCheckpointTransitionV2, SettlementRootCutoverModeV2,
@@ -33,9 +34,9 @@ pub use super::{
     nova::NovaProofEnvelopeV2,
     plonky3::{
         DyadicErrorBoundV2, Plonky3BaseAdapterV2, Plonky3BaseProofV2, Plonky3BaseRangeBindingV2,
-        Plonky3BaseStatementV2, Plonky3EpochAdapterV2, Plonky3EpochChunkWorkerV2,
-        Plonky3EpochPackedRangeV2, Plonky3EpochProofV2, Plonky3EpochSha256V2,
-        Plonky3EpochTraceAndRangeV2, Plonky3EpochTraceFramingV2, Plonky3EpochTransitionBatchV2,
+        Plonky3BaseStatementV2, Plonky3EpochAdapterV2, Plonky3EpochChunkProofV2,
+        Plonky3EpochChunkWorkerV2, Plonky3EpochPackedRangeV2, Plonky3EpochProofV2,
+        Plonky3EpochSha256V2, Plonky3EpochTraceAndRangeV2, Plonky3EpochTraceFramingV2,
         Plonky3EpochTypedCommitmentV2, Plonky3HistoryAdapterV2, Plonky3HistoryAuthorityResolverV2,
         Plonky3HistoryProofV2, Plonky3HistoryRelationV2, Plonky3ProofSizeStatusV2,
         Plonky3TraceDimensionsV2, RecursiveSecurityBudgetManifestV2,

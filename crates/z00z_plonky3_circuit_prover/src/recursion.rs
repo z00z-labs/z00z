@@ -280,6 +280,10 @@ impl<F: Field, EF: ExtensionField<F>, LG: LookupProtocol> RecursiveAir<F, EF, LG
     fn opens_trace_next(&self) -> bool {
         false
     }
+
+    fn opens_preprocessed_next(&self) -> bool {
+        false
+    }
 }
 
 /// Preprocessed prover data for a fixed verification circuit shape, produced offline by

@@ -211,7 +211,7 @@ mod tests {
     fn test_opening_bad_blind() {
         let value = 1000u64;
         let com = Commitment::new_with_blinding(value, &Z00ZScalar::one()).expect("commitment");
-        let wrong = Z00ZScalar::from_hash(&[1u8; 64]);
+        let wrong = Z00ZScalar::from_hash(&[1u8; 64]).unwrap();
         assert!(!verify_opening(&com, value, wrong));
     }
 
@@ -219,8 +219,8 @@ mod tests {
     fn test_commitment_homomorphic() {
         let first_value = 100u64;
         let second_value = 200u64;
-        let r1 = Z00ZScalar::from_hash(&[11u8; 64]);
-        let r2 = Z00ZScalar::from_hash(&[22u8; 64]);
+        let r1 = Z00ZScalar::from_hash(&[11u8; 64]).unwrap();
+        let r2 = Z00ZScalar::from_hash(&[22u8; 64]).unwrap();
 
         let c1 = Commitment::new_with_blinding(first_value, &r1).expect("c1");
         let c2 = Commitment::new_with_blinding(second_value, &r2).expect("c2");

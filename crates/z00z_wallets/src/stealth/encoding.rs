@@ -38,7 +38,7 @@ mod tests {
     fn sample_pk() -> Z00ZRistrettoPoint {
         let provider = SystemRngProvider;
         let mut rng = provider.rng();
-        let sk = Z00ZScalar::random(&mut rng);
+        let sk = Z00ZScalar::random(&mut rng).unwrap();
         Z00ZRistrettoPoint::from_secret_key(&sk)
     }
 

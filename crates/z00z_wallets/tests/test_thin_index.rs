@@ -21,7 +21,7 @@ use thin_test_support::{
 async fn test_roundtrip_resolves_package() {
     let entry = fixture_entry().await;
     let expected_pkg = expected_package(&entry);
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 7, 10, 1_000),
         vec![entry.clone()],
@@ -55,7 +55,7 @@ async fn test_roundtrip_resolves_package() {
 #[tokio::test]
 async fn test_rejects_generation_drift() {
     let entry = fixture_entry().await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
 
     let stale_snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 3, 10, 25),
@@ -112,7 +112,7 @@ async fn test_rejects_generation_drift() {
 #[tokio::test]
 async fn test_rejects_ref_drift() {
     let entry = fixture_entry().await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 9, 10, 1_000),
         vec![entry.clone()],
@@ -160,7 +160,7 @@ async fn test_rejects_ref_drift() {
             .expect("serialize alternate package"),
     )
     .expect("alternate entry");
-    let (second_sk, _) = generate_identity_keypair();
+    let (second_sk, _) = generate_identity_keypair().unwrap();
     let equivocated = ThinSnapshot::new_signed(
         context_for_entry(&entry, 9, 10, 1_000),
         vec![alt_entry],
@@ -178,7 +178,7 @@ async fn test_verify_uses_thin_path() {
     let env = ThinRpcEnv::new("thin-wallet", 100).await;
     let entry = fixture_entry().await;
     let expected_pkg = expected_package(&entry);
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 11, 10, 200_000),
         vec![entry.clone()],
@@ -213,7 +213,7 @@ async fn test_verify_uses_thin_path() {
 async fn test_reports_wrapper_errors() {
     let env = ThinRpcEnv::new("thin-wallet-errors", 100).await;
     let entry = fixture_entry().await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 16, 10, 200_000),
         vec![entry.clone()],

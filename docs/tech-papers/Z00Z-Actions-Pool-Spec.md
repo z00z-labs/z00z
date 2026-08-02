@@ -20,7 +20,7 @@ Reference specs:
 - [Z00Z App production port specification](../../../z00z-app/.planning/phases/Z00Z-App-SPEC.md)
 - [Z00Z Help production specification](../../../z00z-app/.planning/phases/Z00Z-Help-SPEC.md)
 
-Owner modules/packages/crates: `z00z_core::actions`, `z00z_app_api::actions`, `z00z_app_rpc`, `z00z_app_service`, `z00z_app_ui`, `z00z_backend`, `z00z_app_help`
+Owner modules/packages/crates: `z00z_core::actions`, `z00z_app_api::actions`, `z00z_app_rpc`, `z00z_app_service`, `z00z_app_ui`, `z00z_app_main`, `z00z_app_help`
 
 ## 🎯 0. Executive Summary
 
@@ -124,7 +124,7 @@ contract.
 - deterministic `ActionBasisManifestV1` generator and checked fixture
 - generated action schemas and golden vectors
 - App RPC action projection methods
-- production `z00z_backend` action commands and platform adapters; the current
+- production `z00z_app_main` action commands and platform adapters; the current
   app-local crate is only a placeholder
 - UI action-presentation registry
 - compiled Help action-topic coverage
@@ -292,7 +292,7 @@ classDiagram
 | Safe public action DTOs | `z00z_app_api::actions` | All conforming clients | bounded transport-neutral projections | core implementation or UI |
 | Closed wire mapping | `z00z_app_rpc` | Desktop/mobile clients | method IDs, bounds, vectors | generic method/value executor |
 | Projection and revalidation | `z00z_app_service` plus domain owner | App RPC dispatcher | policy/state/authority checks | presentation strings |
-| Native platform composition | `z00z_backend` | Packaged Wallet renderer | allowlisted Tauri commands, desktop App RPC client, mobile `InProcessRpcTransport` | action semantics, policy decisions, or a second dispatcher |
+| Native platform composition | `z00z_app_main` | Packaged Wallet renderer | allowlisted Tauri commands, desktop App RPC client, mobile `InProcessRpcTransport` | action semantics, policy decisions, or a second dispatcher |
 | UI presentation | `z00z_app_ui::action_presentation` | Wallet renderer | locale keys, icons, review language | action semantics or availability |
 | Action Help topics | `z00z_app_help` content/compiler | Isolated Help renderer | explanatory content and topic integrity | App API or wallet capability |
 
@@ -315,7 +315,7 @@ modules:
   api_projection_owner: "z00z_app_api::actions"
   wire_owner: "z00z_app_rpc"
   service_owner: "z00z_app_service"
-  platform_owner: "z00z_backend"
+  platform_owner: "z00z_app_main"
   ui_owner: "z00z_app_ui::action_presentation"
   help_owner: "z00z_app_help"
 
@@ -325,7 +325,7 @@ paths:
   api_projection: "crates/z00z_app_api/src/actions"
   rpc_projection: "crates/z00z_app_rpc/src"
   app_ui_projection: "../z00z-app/crates/z00z_app_ui/src/action_presentation"
-  app_backend_projection: "../z00z-app/crates/z00z_backend/src"
+  app_backend_projection: "../z00z-app/crates/z00z_app_main/src"
   app_help_projection: "../z00z-app/crates/z00z_app_help"
 
 limits:
@@ -400,7 +400,7 @@ tests:
 | ACT-BASIS-04 | Security | No generic executor or renderer-authored descriptor | API/RPC/source scan | API/RPC owners | Release fails |
 | ACT-BASIS-05 | Compatibility | Legacy aliases remain exact and bounded | wallet regression tests | `z00z_wallets` | Alias input rejected |
 | ACT-BASIS-06 | Coverage | UI, locales, review, and Help cover all effects | composite coverage report | App owners | Release fails |
-| ACT-BASIS-07 | Platform | Desktop framed and mobile in-process adapters enter one dispatcher | command inventory and cross-transport vectors | `z00z_backend` | Release fails |
+| ACT-BASIS-07 | Platform | Desktop framed and mobile in-process adapters enter one dispatcher | command inventory and cross-transport vectors | `z00z_app_main` | Release fails |
 
 ## 📊 11. Component Presence Matrix
 
@@ -413,7 +413,7 @@ tests:
 | App API projection | No | No | No | Yes | target path absent | Implement generated safe DTOs |
 | App RPC vectors | No | No | No | Yes | target path absent | Implement closed mapping |
 | Application facade | No | No | No | Yes | target path absent | Implement projection/revalidation |
-| Native platform adapter | No | No | Placeholder only | Yes | `z00z-app/crates/z00z_backend` | Implement allowlisted commands and desktop/mobile transport composition |
+| Native platform adapter | No | No | Placeholder only | Yes | `z00z-app/crates/z00z_app_main` | Implement allowlisted commands and desktop/mobile transport composition |
 | UI presentation | No | No | Placeholder only | Yes | `z00z-app/crates/z00z_app_ui` | Build exhaustive registry |
 | Help coverage | No | No | Demo content only | Yes | `z00z-app/demo/help` | Compile reviewed effect topics |
 
@@ -425,7 +425,7 @@ tests:
 | Bounded pool decoding | Non-empty validation | No explicit action-count limit | Untrusted data may force excess work | Decide and enforce a protocol bound |
 | Safe renderer projection | Design only | No App API crate | UI cannot safely consume backend authority | Build `z00z_app_api::actions` |
 | Closed cross-platform wire | Design only | No App RPC crate | Desktop/mobile can drift | Build one dispatcher and vectors |
-| Enforced renderer/native hop | Design only | No production action command/adapter | Renderer could bypass the approved trust boundary | Implement allowlisted `z00z_backend` commands and adapter tests |
+| Enforced renderer/native hop | Design only | No production action command/adapter | Renderer could bypass the approved trust boundary | Implement allowlisted `z00z_app_main` commands and adapter tests |
 | Exhaustive presentation | Design only | No Rust registry | Missing labels can become unsafe generic UI | Generate/verify all 24 mappings |
 | Runtime capability truth | Partial wallet mapping | Basis and implementation are not linked | UI may show unsupported actions | Backend availability query and revalidation |
 | Composite effects | One effect per descriptor | No versioned multi-effect model | Complex operations can be underspecified | Keep typed workflows; research V2 separately |
@@ -437,7 +437,7 @@ flowchart LR
   Core["z00z_core::actions<br/>semantic authority"]
   Gen["Backend generator / conformance tool"]
   Api["z00z_app_api::actions<br/>safe projection"]
-  Platform["z00z_backend<br/>allowlisted commands and adapters"]
+  Platform["z00z_app_main<br/>allowlisted commands and adapters"]
   Rpc["z00z_app_rpc<br/>closed wire"]
   Service["z00z_app_service<br/>projection and revalidation"]
   Ui["z00z_app_ui<br/>presentation"]
@@ -480,7 +480,7 @@ Leptos component
   -> feature controller/store
   -> typed Z00Z App API client
   -> allowlisted Tauri command
-  -> z00z_backend platform adapter
+  -> z00z_app_main platform adapter
        Desktop: App RPC client -> authenticated UDS/named pipe -> z00z-walletd
        Mobile: InProcessRpcTransport -> same App RPC dispatcher
   -> application service facade
@@ -495,7 +495,7 @@ sequenceDiagram
   end
   box rgb(255,243,224) Native platform boundary
     participant CMD as allowlisted Tauri command
-    participant PAD as z00z_backend adapter
+    participant PAD as z00z_app_main adapter
   end
   box rgb(236,239,241) Shared typed transport
     participant RPC as App RPC dispatcher
@@ -577,7 +577,7 @@ Mutations remain closed product/domain workflows with prepare, immutable
 review, confirmation, submit, and reconciliation.
 
 In the packaged app these reads and workflows cross only named, allowlisted
-Tauri commands implemented by `z00z_backend`. Desktop commands use the
+Tauri commands implemented by `z00z_app_main`. Desktop commands use the
 authenticated App RPC client over UDS/named pipe; mobile commands use
 `InProcessRpcTransport`. Both enter the same typed App RPC dispatcher and
 `z00z_app_service` implementation. No Tauri command may accept a method name,

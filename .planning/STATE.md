@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v0.15
 milestone_name: Storage Serialization Bootstrap
-current_phase: 069
-current_phase_name: Recursive Proof
-current_plan: 069-08
 status: Phase 069 Plan 069-08 active
-stopped_at: Plan 069-07 summary-backed complete; begin 069-08 exact epoch aggregation
-last_updated: "2026-07-28T15:05:00Z"
-last_activity: 2026-07-28
+last_updated: "2026-08-01T08:03:36.186Z"
 progress:
   total_phases: 47
   completed_phases: 0
   total_plans: 14
   completed_plans: 8
-  percent: 57
+  percent: 0
+stopped_at: Plan 069-07 summary-backed complete; begin 069-08 exact epoch aggregation
+current_phase: 069
+current_phase_name: Recursive Proof
+current_plan: 069-08
+last_activity: 2026-07-28
 ---
 
 # Project State
@@ -26,7 +26,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Confidential asset and wallet flows must remain correct, explicit, and storage-safe.
-**Current focus:** Phase 069 — Recursive Proof.
+**Current focus:** Phase 069 — Recursive-Proof
 
 ## Status
 

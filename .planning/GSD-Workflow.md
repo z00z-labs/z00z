@@ -15,7 +15,7 @@
 ## ⬛️ 0. z00z-chat-init
 
 ```
-/z00z-chat-init
+/z00z-chat-init pishi mne v ternimale po russki kirilicej
 ```
 
 ## 🟥 1. gsd-add-phase
@@ -242,7 +242,7 @@ Run the second `doublecheck` against 069-TODO.md to confirm that all issues are 
 ## 🟩 9. gsd-executor PLAN
 
 ```markdown
-/gsd-execute-phase 069 continue 069-051-T2-GAPS.md; delat poka ne realizuesh ves T2 polnostju; povotoraju delat vse do polnoj relaizcii vseh GAPS vsego dokumenta; posle etogo prejti na drugie taski plana 069-051-PLAN.md
+/gsd-execute-phase 069 continue 
 
 Update STATE #sym:Status and ROADMAP
 
@@ -345,6 +345,7 @@ Fix all in YOLO mode
 ```markdown
 /GSD-Audit-4 
 phase_dir = 069-Recursive-Proof
+fix all issues in yolo mode
 ```
 
 ---

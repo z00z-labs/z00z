@@ -22,13 +22,13 @@
 //! let mut rng = provider.rng();
 //!
 //! // Validate untrusted point
-//! let seed = Z00ZScalar::random(&mut rng);
+//! let seed = Z00ZScalar::random(&mut rng).unwrap();
 //! let point = Z00ZRistrettoPoint::from_secret_key(&seed);
 //! let point_bytes = point.as_bytes();
 //! let point = safe_decompress_point(&point_bytes)?;
 //!
 //! // Validate scalar before use
-//! let scalar = Z00ZScalar::random(&mut rng);
+//! let scalar = Z00ZScalar::random(&mut rng).unwrap();
 //! validate_scalar_nonzero(&scalar)?;
 //! # Ok::<_, z00z_crypto::CryptoError>(())
 //! ```
@@ -93,7 +93,7 @@ pub enum ValidationError {
 /// // Valid point
 /// let provider = MockRngProvider::with_u64_seed(77);
 /// let mut rng = provider.rng();
-/// let sk = Z00ZScalar::random(&mut rng);
+/// let sk = Z00ZScalar::random(&mut rng).unwrap();
 /// let pk = Z00ZRistrettoPoint::from_secret_key(&sk);
 /// let bytes = pk.as_bytes();
 /// let point = safe_decompress_point(bytes).unwrap();
@@ -192,7 +192,7 @@ fn to_crypto_error(err: ValidationError) -> CryptoError {
 /// // Valid scalar
 /// let provider = MockRngProvider::with_u64_seed(78);
 /// let mut rng = provider.rng();
-/// let scalar = Z00ZScalar::random(&mut rng);
+/// let scalar = Z00ZScalar::random(&mut rng).unwrap();
 /// validate_scalar_nonzero(&scalar).unwrap();
 /// ```
 pub fn validate_scalar_nonzero(scalar: &Z00ZScalar) -> Result<(), CryptoError> {
@@ -267,7 +267,7 @@ mod tests {
     fn test_accept_valid_point() {
         // Generate valid point from scalar
         let mut rng = rng_from_seed(201);
-        let scalar = Z00ZScalar::random(&mut rng);
+        let scalar = Z00ZScalar::random(&mut rng).unwrap();
         let point = Z00ZRistrettoPoint::from_secret_key(&scalar);
         let bytes = point.as_bytes();
 
@@ -288,7 +288,7 @@ mod tests {
     fn test_valid_random_point() {
         // Generate random point
         let mut rng = rng_from_seed(202);
-        let scalar = Z00ZScalar::random(&mut rng);
+        let scalar = Z00ZScalar::random(&mut rng).unwrap();
         let point = Z00ZRistrettoPoint::from_secret_key(&scalar);
         let bytes = point.as_bytes();
 
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn test_accept_nonzero_scalar() {
         let mut rng = rng_from_seed(203);
-        let scalar = Z00ZScalar::random(&mut rng);
+        let scalar = Z00ZScalar::random(&mut rng).unwrap();
         let result = validate_scalar_nonzero(&scalar);
         assert!(result.is_ok());
         assert!(validate_scalar_nonzero_core(&scalar).is_ok());
@@ -325,7 +325,7 @@ mod tests {
         // Test multiple random scalars (all should be non-zero)
         let mut rng = rng_from_seed(204);
         for _ in 0..100 {
-            let scalar = Z00ZScalar::random(&mut rng);
+            let scalar = Z00ZScalar::random(&mut rng).unwrap();
             validate_scalar_nonzero(&scalar).expect("random scalar must be non-zero");
         }
     }
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn test_accept_canon_scalar() {
         let mut rng = rng_from_seed(205);
-        let scalar = Z00ZScalar::random(&mut rng);
+        let scalar = Z00ZScalar::random(&mut rng).unwrap();
         let bytes = scalar.to_bytes();
         assert!(validate_canonical_scalar(&bytes).is_ok());
     }

@@ -27,8 +27,8 @@ fn test_batch_verification_performance() {
 
 // Baseline target: ECDH shared secret < 50μs.
 fn bench_ecdh_shared(c: &mut Criterion) {
-    let sk = Z00ZScalar::from_hash(&[11u8; 64]);
-    let view_sk = Z00ZScalar::from_hash(&[22u8; 64]);
+    let sk = Z00ZScalar::from_hash(&[11u8; 64]).unwrap();
+    let view_sk = Z00ZScalar::from_hash(&[22u8; 64]).unwrap();
     let pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
 
     c.bench_function("ecdh_shared_secret", |b| {
@@ -41,7 +41,7 @@ fn bench_ecdh_shared(c: &mut Criterion) {
 // Baseline target: commitment generation < 10μs.
 fn bench_commit_gen(c: &mut Criterion) {
     let value = 100u64;
-    let blind = Z00ZScalar::from_hash(&[33u8; 64]);
+    let blind = Z00ZScalar::from_hash(&[33u8; 64]).unwrap();
 
     c.bench_function("commitment_generation", |b| {
         b.iter(|| {
@@ -53,7 +53,7 @@ fn bench_commit_gen(c: &mut Criterion) {
 // Baseline target: range proof generation < 50ms.
 fn bench_range_gen(c: &mut Criterion) {
     let value = 100u64;
-    let blind = Z00ZScalar::from_hash(&[44u8; 64]);
+    let blind = Z00ZScalar::from_hash(&[44u8; 64]).unwrap();
 
     c.bench_function("range_proof_generation", |b| {
         b.iter(|| {
@@ -65,7 +65,7 @@ fn bench_range_gen(c: &mut Criterion) {
 // Baseline target: range proof verification < 20ms.
 fn bench_range_verify(c: &mut Criterion) {
     let value = 100u64;
-    let blind = Z00ZScalar::from_hash(&[55u8; 64]);
+    let blind = Z00ZScalar::from_hash(&[55u8; 64]).unwrap();
     let proof = AssetRangeProof::new(value, &blind).expect("proof");
     let commitment = Commitment::new_with_blinding(value, &blind).expect("commitment");
 

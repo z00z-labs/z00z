@@ -61,7 +61,7 @@ mod batch_tests {
         let mut rng = provider.rng();
 
         let amount = 123u64;
-        let blinding = Z00ZScalar::random(&mut rng);
+        let blinding = Z00ZScalar::random(&mut rng).unwrap();
         let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
         let proof = create_range_proof(amount, &blinding, 64, 0).expect("valid proof");
 
@@ -81,7 +81,7 @@ mod batch_tests {
 
         for _ in 0..count {
             let amount = 1u64;
-            let blinding = Z00ZScalar::random(&mut rng);
+            let blinding = Z00ZScalar::random(&mut rng).unwrap();
             commitments
                 .push(create_commitment(amount, &blinding).expect("commitment creation failed"));
 

@@ -12,7 +12,7 @@ fn test_pedersen_roundtrip() {
     let values = [0u64, 1, 100, 12345, u64::MAX];
 
     for value in values {
-        let blinding = Z00ZScalar::random(&mut rng);
+        let blinding = Z00ZScalar::random(&mut rng).unwrap();
         let c = commit_value(value, &blinding);
 
         assert!(
@@ -25,9 +25,9 @@ fn test_pedersen_roundtrip() {
             "wrong value accepted"
         );
 
-        let mut wrong_r = Z00ZScalar::random(&mut rng);
+        let mut wrong_r = Z00ZScalar::random(&mut rng).unwrap();
         while wrong_r.to_bytes() == blinding.to_bytes() {
-            wrong_r = Z00ZScalar::random(&mut rng);
+            wrong_r = Z00ZScalar::random(&mut rng).unwrap();
         }
         assert!(
             !verify_opening(&c, value, &wrong_r),
@@ -41,8 +41,8 @@ fn test_pedersen_homomorphism() {
     let mut rng = z00z_utils::rng::SystemRngProvider.rng();
     let first_value = 100u64;
     let second_value = 200u64;
-    let r1 = Z00ZScalar::random(&mut rng);
-    let r2 = Z00ZScalar::random(&mut rng);
+    let r1 = Z00ZScalar::random(&mut rng).unwrap();
+    let r2 = Z00ZScalar::random(&mut rng).unwrap();
 
     let c1 = commit_value(first_value, &r1);
     let c2 = commit_value(second_value, &r2);
@@ -58,9 +58,9 @@ fn test_pedersen_homomorphism() {
 #[test]
 fn test_pedersen_balance_simulation() {
     let mut rng = z00z_utils::rng::SystemRngProvider.rng();
-    let r_in = Z00ZScalar::random(&mut rng);
-    let r_out1 = Z00ZScalar::random(&mut rng);
-    let r_out2 = Z00ZScalar::random(&mut rng);
+    let r_in = Z00ZScalar::random(&mut rng).unwrap();
+    let r_out1 = Z00ZScalar::random(&mut rng).unwrap();
+    let r_out2 = Z00ZScalar::random(&mut rng).unwrap();
 
     let c_in = commit_value(300, &r_in);
     let c_out1 = commit_value(100, &r_out1);
@@ -81,10 +81,10 @@ fn test_pedersen_diff_blindings() {
 
     for _ in 0..10_000 {
         let v = rng.next_u64();
-        let r1 = Z00ZScalar::random(&mut rng);
-        let mut r2 = Z00ZScalar::random(&mut rng);
+        let r1 = Z00ZScalar::random(&mut rng).unwrap();
+        let mut r2 = Z00ZScalar::random(&mut rng).unwrap();
         while r2.to_bytes() == r1.to_bytes() {
-            r2 = Z00ZScalar::random(&mut rng);
+            r2 = Z00ZScalar::random(&mut rng).unwrap();
         }
         let c1 = commit_value(v, &r1);
         let c2 = commit_value(v, &r2);

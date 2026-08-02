@@ -251,8 +251,7 @@ pub fn build_stealth_leaf(
     serial_id: u32,
     s_out: [u8; 32],
 ) -> Result<TerminalLeaf, WalletError> {
-    let mut rng = SystemRngProvider.rng();
-    let blinding = z00z_crypto::Hidden::hide(Z00ZScalar::random(&mut rng));
+    let blinding = z00z_crypto::Hidden::hide(Z00ZScalar::random_secure(&SystemRngProvider)?);
     build_stealth_leaf_with_blind(
         k_dh,
         r_pub,

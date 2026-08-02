@@ -10,13 +10,13 @@ use z00z_crypto::{sha256_256, ZkPackEncrypted};
 use z00z_storage::{
     checkpoint::recursive_v2::{
         composed_history_error_exponent_v2, CanonicalCheckpointTransitionV2,
-        CheckpointVersionRegistryV2, EpochCadenceClassV2, EpochFrontierAuthorityInputsV2,
-        EpochFrontierAuthorityV2, EpochProofFrontierV2, EpochTransitionStreamV2,
-        HistoryAccumulatorInputsV2, HistoryAccumulatorStatementV2, HistoryBranchV2,
-        Plonky3BaseAdapterV2, Plonky3BaseProofV2, Plonky3BaseRangeBindingV2, Plonky3EpochAdapterV2,
-        Plonky3EpochChunkWorkerV2, Plonky3EpochProofV2, Plonky3HistoryAdapterV2,
-        Plonky3HistoryAuthorityResolverV2, Plonky3HistoryProofV2, RecursiveBoundedObjectV2,
-        RecursiveCheckpointRejectReasonV2, RecursiveCircuitProfileV2,
+        CheckpointVersionRegistryV2, EpochCadenceClassV2, EpochFrontierAuthorityV2,
+        EpochProofFrontierV2, EpochProofWorkManifestV2, EpochTraceChunkWorkV2,
+        EpochTransitionStreamV2, HistoryAccumulatorInputsV2, HistoryAccumulatorStatementV2,
+        HistoryBranchV2, Plonky3BaseAdapterV2, Plonky3BaseProofV2, Plonky3EpochAdapterV2,
+        Plonky3EpochChunkProofV2, Plonky3EpochChunkWorkerV2, Plonky3EpochProofV2,
+        Plonky3HistoryAdapterV2, Plonky3HistoryAuthorityResolverV2, Plonky3HistoryProofV2,
+        RecursiveBoundedObjectV2, RecursiveCheckpointRejectReasonV2, RecursiveCircuitProfileV2,
         RecursiveSecurityBudgetManifestV2, RegistryLifecycleV2,
         EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2, PLONKY3_PUBLISH_BYTES_V2, PLONKY3_TARGET_BYTES_V2,
         RECURSIVE_INGRESS_BYTES_V2, RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
@@ -69,6 +69,223 @@ fn init_resource_tracing() {
             .try_init()
             .expect("install bounded Plonky3 resource tracing subscriber");
     });
+}
+
+#[derive(Clone, Copy)]
+struct ChunkGroupOffset {
+    tag: u8,
+    start: usize,
+    proof_len_start: usize,
+    proof_start: usize,
+    end: usize,
+}
+
+fn chunk_group_offsets(proof: &Plonky3EpochChunkProofV2) -> Vec<ChunkGroupOffset> {
+    let bytes = proof.canonical_bytes();
+    let statement = proof.transition_statement().canonical_bytes();
+    let statement_starts = bytes
+        .windows(statement.len())
+        .enumerate()
+        .filter_map(|(offset, candidate)| (candidate == statement).then_some(offset))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        statement_starts.len(),
+        1,
+        "transition statement must have one canonical bundle position",
+    );
+    let statement_bundle_len = [
+        proof.transition_statement(),
+        proof.trace_framing_statement(),
+        proof.packed_statement(),
+        proof.typed_statement(),
+        proof.jmt_statement(),
+        proof.uniqueness_statement(),
+    ]
+    .iter()
+    .map(|statement| statement.canonical_bytes().len())
+    .sum::<usize>();
+    let group_count_offset = RECURSIVE_OBJECT_PREHEADER_BYTES_V2 + 16;
+    let group_count = usize::from(u16::from_le_bytes(
+        bytes[group_count_offset..group_count_offset + 2]
+            .try_into()
+            .expect("canonical group count"),
+    ));
+    assert!((4..=5).contains(&group_count));
+    let mut cursor = statement_starts[0] + statement_bundle_len;
+    let mut offsets = Vec::with_capacity(group_count);
+    for expected_group in 1_u8..=u8::try_from(group_count).expect("bounded group count") {
+        let start = cursor;
+        let tag = bytes[cursor];
+        assert_eq!(tag, expected_group);
+        let descriptor_len = match tag {
+            1 | 2 | 3 => 0,
+            4 | 5 => 2,
+            _ => panic!("canonical group tag"),
+        };
+        let proof_len_start = cursor + 1 + descriptor_len;
+        let proof_len = u32::from_le_bytes(
+            bytes[proof_len_start..proof_len_start + 4]
+                .try_into()
+                .expect("canonical group length"),
+        ) as usize;
+        assert_ne!(proof_len, 0);
+        let proof_start = proof_len_start + 4;
+        cursor = proof_start
+            .checked_add(proof_len + 32)
+            .expect("bounded canonical group");
+        assert!(cursor <= bytes.len());
+        offsets.push(ChunkGroupOffset {
+            tag,
+            start,
+            proof_len_start,
+            proof_start,
+            end: cursor,
+        });
+    }
+    assert_eq!(cursor, bytes.len());
+    offsets
+}
+
+fn assert_chunk_codec_rejects_mutations(
+    authority: EpochFrontierAuthorityV2,
+    proof: &Plonky3EpochChunkProofV2,
+) {
+    let canonical = proof.canonical_bytes();
+    let groups = chunk_group_offsets(proof);
+    let assert_rejects = |bytes: &[u8], mutation: &str| {
+        assert!(
+            Plonky3EpochChunkProofV2::decode_canonical(&authority, bytes).is_err(),
+            "{mutation} must reject",
+        );
+    };
+
+    let mut duplicate = canonical.to_vec();
+    duplicate[groups[0].start] = 2;
+    assert_rejects(&duplicate, "duplicate group");
+
+    let mut reordered = canonical.to_vec();
+    reordered.swap(groups[0].start, groups[1].start);
+    assert_rejects(&reordered, "reordered groups");
+
+    assert_rejects(&canonical[..groups[2].start], "missing group");
+
+    let mut zero_length = canonical.to_vec();
+    zero_length[groups[0].proof_len_start..groups[0].proof_len_start + 4].fill(0);
+    assert_rejects(&zero_length, "zero group length");
+
+    let mut proof_mutation = canonical.to_vec();
+    proof_mutation[groups[0].proof_start] ^= 1;
+    assert_rejects(&proof_mutation, "group proof mutation");
+
+    let mut digest_mutation = canonical.to_vec();
+    digest_mutation[groups.last().expect("group digest").end - 1] ^= 1;
+    assert_rejects(&digest_mutation, "group digest mutation");
+
+    let group_count = RECURSIVE_OBJECT_PREHEADER_BYTES_V2 + 16;
+    let mut missing_count = canonical.to_vec();
+    missing_count[group_count..group_count + 2].copy_from_slice(&2_u16.to_le_bytes());
+    assert_rejects(&missing_count, "missing group count");
+
+    let mut suffix = canonical.to_vec();
+    suffix.push(0);
+    assert_rejects(&suffix, "non-canonical suffix");
+
+    for (target, donor) in [(0_usize, 1_usize), (1, 2), (2, 0)] {
+        let target = groups[target];
+        let donor = groups[donor];
+        let donor_proof_len = donor.end - donor.proof_start - 32;
+        let mut substituted = Vec::with_capacity(
+            canonical.len() - (target.end - target.start)
+                + (target.proof_start - target.start)
+                + donor_proof_len
+                + 32,
+        );
+        substituted.extend_from_slice(&canonical[..target.proof_len_start]);
+        substituted.extend_from_slice(
+            &u32::try_from(donor_proof_len)
+                .expect("bounded donor group length")
+                .to_le_bytes(),
+        );
+        substituted.extend_from_slice(&canonical[donor.proof_start..donor.end]);
+        substituted.extend_from_slice(&canonical[target.end..]);
+        let registry = CheckpointVersionRegistryV2::authority_pinned()
+            .expect("active recursive version registry");
+        let Ok(header) = registry.encode_preheader(
+            RecursiveBoundedObjectV2::Plonky3EpochChunkProof,
+            substituted.len() - RECURSIVE_OBJECT_PREHEADER_BYTES_V2,
+        ) else {
+            // A cross-group substitution that exceeds the canonical ingress
+            // cap is already rejected by the version registry.
+            continue;
+        };
+        substituted[..RECURSIVE_OBJECT_PREHEADER_BYTES_V2].copy_from_slice(&header);
+        assert_rejects(&substituted, "cross-group proof substitution");
+    }
+
+    let payload_start = RECURSIVE_OBJECT_PREHEADER_BYTES_V2;
+    let mut v3_magic = canonical.to_vec();
+    v3_magic[payload_start..payload_start + 8].copy_from_slice(b"Z00ZECP3");
+    assert_rejects(&v3_magic, "V3 chunk magic");
+
+    let mut v3_wire = canonical.to_vec();
+    v3_wire[payload_start + 8..payload_start + 10].copy_from_slice(&3_u16.to_le_bytes());
+    assert_rejects(&v3_wire, "V3 chunk wire version");
+
+    if let Some(upper) = groups.iter().find(|group| group.tag == 5) {
+        let mut forged_upper_start = canonical.to_vec();
+        forged_upper_start[upper.start + 1] = 0;
+        assert_rejects(&forged_upper_start, "forged upper-slice start");
+
+        let mut forged_upper_len = canonical.to_vec();
+        forged_upper_len[upper.start + 2] = 3;
+        assert_rejects(&forged_upper_len, "forged upper-slice length");
+    }
+}
+
+fn assert_epoch_codec_and_verifier_reject_mutations(proof: &Plonky3EpochProofV2) {
+    let canonical = proof.canonical_bytes();
+    assert_eq!(
+        Plonky3EpochProofV2::decode_local(canonical).expect("canonical epoch roundtrip"),
+        *proof,
+    );
+    let assert_rejects = |bytes: &[u8], mutation: &str| {
+        let rejected = match Plonky3EpochProofV2::decode_local(bytes) {
+            Err(_) => true,
+            Ok(decoded) => {
+                Plonky3EpochAdapterV2::diagnostic_verify_without_common_authority(&decoded).is_err()
+            }
+        };
+        assert!(rejected, "{mutation} must reject");
+    };
+
+    let payload_start = RECURSIVE_OBJECT_PREHEADER_BYTES_V2;
+    let mut wrong_magic = canonical.to_vec();
+    wrong_magic[payload_start..payload_start + 8].copy_from_slice(b"Z00ZPEP3");
+    assert_rejects(&wrong_magic, "epoch magic mutation");
+
+    let mut wrong_version = canonical.to_vec();
+    wrong_version[payload_start + 8..payload_start + 10].copy_from_slice(&3_u16.to_le_bytes());
+    assert_rejects(&wrong_version, "epoch wire-version mutation");
+
+    let mut bound_field = canonical.to_vec();
+    bound_field[payload_start + 16] ^= 1;
+    assert_rejects(&bound_field, "epoch bound-field mutation");
+
+    let mut proof_body = canonical.to_vec();
+    let proof_body_offset = proof_body.len() - 33;
+    proof_body[proof_body_offset] ^= 1;
+    assert_rejects(&proof_body, "epoch proof-body mutation");
+
+    assert_rejects(
+        &canonical[..canonical.len() - 1],
+        "truncated epoch envelope",
+    );
+    let mut trailing = canonical.to_vec();
+    trailing.push(0);
+    assert_rejects(&trailing, "epoch trailing byte");
+
+    checkpoint_fixtures::verify_epoch_opening_mutation(proof)
+        .expect("typed epoch opening mutation reaches and fails the actual verifier");
 }
 
 fn resource_telemetry(proof: &Plonky3BaseProofV2) {
@@ -321,98 +538,13 @@ fn transition<'a>(
     .expect("canonical V2 transition")
 }
 
-const EXACT_EPOCH_LEAVES: u64 = 2_000;
-const EXACT_EPOCH_CACHE_DIR: &str = "production-epoch-2000-frontier-g6-c12-v4";
-const EXACT_EPOCH_AUTHORITY_MAGIC: [u8; 8] = *b"Z00Z2K02";
-const EXACT_EPOCH_AUTHORITY_VERSION: u16 = 2;
-const EXACT_EPOCH_AUTHORITY_BYTES: usize = 8 + 2 + 32 * 5 + 32;
-
-#[derive(Clone, Copy)]
-struct ExactEpochAuthoritySeed {
-    start_root: [u8; 32],
-    chain_context_digest: [u8; 32],
-    predicate_digest: [u8; 32],
-    parameter_digest: [u8; 32],
-    verifier_bundle_digest: [u8; 32],
-}
-
-impl ExactEpochAuthoritySeed {
-    fn from_range(range: Plonky3BaseRangeBindingV2) -> Self {
-        Self {
-            start_root: range.pre_settlement_root,
-            chain_context_digest: range.chain_context_digest,
-            predicate_digest: range.predicate_digest,
-            parameter_digest: range.parameter_digest,
-            verifier_bundle_digest: range.verifier_bundle_digest,
-        }
-    }
-
-    fn encode(self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(EXACT_EPOCH_AUTHORITY_BYTES);
-        bytes.extend_from_slice(&EXACT_EPOCH_AUTHORITY_MAGIC);
-        bytes.extend_from_slice(&EXACT_EPOCH_AUTHORITY_VERSION.to_le_bytes());
-        for digest in [
-            self.start_root,
-            self.chain_context_digest,
-            self.predicate_digest,
-            self.parameter_digest,
-            self.verifier_bundle_digest,
-        ] {
-            bytes.extend_from_slice(&digest);
-        }
-        let checksum = sha256_256(
-            "z00z.storage.checkpoint.plonky3.epoch-2000.fixture.v2",
-            "authority-seed",
-            &[&bytes],
-        );
-        bytes.extend_from_slice(&checksum);
-        assert_eq!(bytes.len(), EXACT_EPOCH_AUTHORITY_BYTES);
-        bytes
-    }
-
-    fn decode(bytes: &[u8]) -> Result<Self, CheckpointError> {
-        if bytes.len() != EXACT_EPOCH_AUTHORITY_BYTES
-            || bytes[..8] != EXACT_EPOCH_AUTHORITY_MAGIC
-            || u16::from_le_bytes(
-                bytes[8..10]
-                    .try_into()
-                    .map_err(|_| CheckpointError::Canonical)?,
-            ) != EXACT_EPOCH_AUTHORITY_VERSION
-        {
-            return Err(CheckpointError::Canonical);
-        }
-        let checksum_offset = EXACT_EPOCH_AUTHORITY_BYTES - 32;
-        let expected = sha256_256(
-            "z00z.storage.checkpoint.plonky3.epoch-2000.fixture.v2",
-            "authority-seed",
-            &[&bytes[..checksum_offset]],
-        );
-        if bytes[checksum_offset..] != expected {
-            return Err(CheckpointError::Canonical);
-        }
-        let digest = |index: usize| -> Result<[u8; 32], CheckpointError> {
-            let start = 10 + index * 32;
-            bytes[start..start + 32]
-                .try_into()
-                .map_err(|_| CheckpointError::Canonical)
-        };
-        Ok(Self {
-            start_root: digest(0)?,
-            chain_context_digest: digest(1)?,
-            predicate_digest: digest(2)?,
-            parameter_digest: digest(3)?,
-            verifier_bundle_digest: digest(4)?,
-        })
-    }
-
-    fn validate_range(self, range: Plonky3BaseRangeBindingV2) {
-        assert_eq!(range.chain_context_digest, self.chain_context_digest);
-        assert_eq!(range.predicate_digest, self.predicate_digest);
-        assert_eq!(range.parameter_digest, self.parameter_digest);
-        assert_eq!(range.verifier_bundle_digest, self.verifier_bundle_digest);
-        assert_eq!(range.pre_settlement_root, self.start_root);
-    }
-}
+const EXACT_EPOCH_TRANSITIONS: u64 = 2_000;
+const EXACT_EPOCH_CHUNKS: u32 = 250;
+// One outer chunk at a time keeps the measured ten-GiB direct proof lifetime
+// below the sixteen-GiB process target. Each chunk still uses the canonical
+// twelve-thread prover pool internally, so this does not serialize AIR work.
+const EXACT_EPOCH_PROVER_WORKERS: usize = 1;
+const EXACT_EPOCH_CACHE_DIR: &str = "production-epoch-2000-frontier-g7-direct-c8-v2";
 
 fn exact_epoch_cache_root() -> PathBuf {
     let base = std::env::var_os("Z00Z_PLONKY3_CHUNK_CACHE_DIR")
@@ -429,28 +561,32 @@ fn exact_epoch_cache_root() -> PathBuf {
     root
 }
 
-fn exact_epoch_authority_seed_path(root: &Path) -> PathBuf {
-    root.join("authority-seed-v1.bin")
+fn exact_epoch_work_manifest_path(root: &Path) -> PathBuf {
+    root.join("epoch-work-manifest-v3.bin")
 }
 
-fn load_exact_epoch_authority_seed(root: &Path) -> Option<ExactEpochAuthoritySeed> {
-    let path = exact_epoch_authority_seed_path(root);
+fn load_exact_epoch_work_manifest(root: &Path) -> Option<EpochProofWorkManifestV2> {
+    let path = exact_epoch_work_manifest_path(root);
     match fs::read(path) {
         Ok(bytes) => Some(
-            ExactEpochAuthoritySeed::decode(&bytes).expect("canonical exact-epoch authority seed"),
+            EpochProofWorkManifestV2::decode_canonical(&bytes)
+                .expect("canonical exact-epoch work manifest"),
         ),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => panic!("read exact-epoch authority seed: {error}"),
+        Err(error) => panic!("read exact-epoch work manifest: {error}"),
     }
 }
 
-fn persist_exact_epoch_authority_seed(root: &Path, seed: ExactEpochAuthoritySeed) {
-    let path = exact_epoch_authority_seed_path(root);
-    if let Some(existing) = load_exact_epoch_authority_seed(root) {
-        assert_eq!(existing.encode(), seed.encode());
+fn persist_exact_epoch_work_manifest(root: &Path, manifest: &EpochProofWorkManifestV2) {
+    let path = exact_epoch_work_manifest_path(root);
+    if let Some(existing) = load_exact_epoch_work_manifest(root) {
+        assert_eq!(existing.canonical_bytes(), manifest.canonical_bytes());
         return;
     }
-    let temporary = root.join(format!(".authority-seed-v1.{}.tmp", std::process::id()));
+    let temporary = root.join(format!(
+        ".epoch-work-manifest-v3.{}.tmp",
+        std::process::id()
+    ));
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -460,28 +596,35 @@ fn persist_exact_epoch_authority_seed(root: &Path, seed: ExactEpochAuthoritySeed
     }
     let mut file = options
         .open(&temporary)
-        .expect("create exact-epoch authority seed");
-    file.write_all(&seed.encode())
-        .expect("write exact-epoch authority seed");
-    file.sync_all().expect("sync exact-epoch authority seed");
-    fs::rename(&temporary, &path).expect("publish exact-epoch authority seed");
+        .expect("create exact-epoch work manifest");
+    file.write_all(manifest.canonical_bytes())
+        .expect("write exact-epoch work manifest");
+    file.sync_all().expect("sync exact-epoch work manifest");
+    fs::rename(&temporary, &path).expect("publish exact-epoch work manifest");
     fs::File::open(root)
         .and_then(|directory| directory.sync_all())
         .expect("sync exact-epoch cache directory");
 }
 
-fn exact_epoch_authority(seed: ExactEpochAuthoritySeed) -> EpochFrontierAuthorityV2 {
-    EpochFrontierAuthorityV2::new(EpochFrontierAuthorityInputsV2 {
-        cadence_class: EpochCadenceClassV2::Production,
-        epoch_index: 0,
-        cadence_blocks: EXACT_EPOCH_LEAVES,
-        start_root: seed.start_root,
-        chain_context_digest: seed.chain_context_digest,
-        predicate_digest: seed.predicate_digest,
-        parameter_digest: seed.parameter_digest,
-        verifier_bundle_digest: seed.verifier_bundle_digest,
-    })
-    .expect("production exact-epoch authority")
+fn persist_exact_epoch_artifact(root: &Path, name: &str, bytes: &[u8]) {
+    let path = root.join(name);
+    let temporary = root.join(format!(".{name}.{}.tmp", std::process::id()));
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(&temporary)
+        .expect("create exact-epoch artifact");
+    file.write_all(bytes).expect("write exact-epoch artifact");
+    file.sync_all().expect("sync exact-epoch artifact");
+    fs::rename(&temporary, &path).expect("publish exact-epoch artifact");
+    fs::File::open(root)
+        .and_then(|directory| directory.sync_all())
+        .expect("sync exact-epoch cache directory");
 }
 
 fn exact_epoch_path(index: u64) -> SettlementPath {
@@ -501,7 +644,7 @@ fn exact_epoch_path(index: u64) -> SettlementPath {
     )
 }
 
-fn exact_epoch_leaf(path: SettlementPath, height: u64) -> TerminalLeaf {
+fn exact_epoch_terminal_leaf(path: SettlementPath, height: u64) -> TerminalLeaf {
     // The base helper creates a canonical terminal leaf. The height-derived
     // amount makes every deterministic transition distinct.
     leaf(path, height + 10)
@@ -509,7 +652,7 @@ fn exact_epoch_leaf(path: SettlementPath, height: u64) -> TerminalLeaf {
 
 fn exact_epoch_item(index: u64) -> StoreItem {
     let path = exact_epoch_path(index);
-    StoreItem::new(path, exact_epoch_leaf(path, index)).expect("exact-epoch terminal item")
+    StoreItem::new(path, exact_epoch_terminal_leaf(path, index)).expect("exact-epoch terminal item")
 }
 
 fn exact_epoch_handoff(
@@ -550,77 +693,13 @@ fn exact_epoch_handoff(
     )
 }
 
-fn exact_epoch_transition_fixture(
-    target_height: u64,
-) -> (
-    tempfile::TempDir,
-    SettlementStore,
-    CheckpointFsStore,
-    PrepFsStore,
-    CheckpointId,
-    SettlementExecHandoff,
-) {
-    assert!((1..=EXACT_EPOCH_LEAVES).contains(&target_height));
-    let temp = tempfile::TempDir::new().expect("exact-epoch temporary witness root");
-    let mut store = SettlementStore::new();
-    let mut preview = SettlementStore::new();
-    let genesis = exact_epoch_item(0);
-    store
-        .put_settlement_item(genesis.clone())
-        .expect("seed exact-epoch pre-state");
-    preview
-        .put_settlement_item(genesis)
-        .expect("seed exact-epoch preview state");
-    let mut checkpoint_store = CheckpointFsStore::new(temp.path());
-    let mut prep_store = PrepFsStore::new(temp.path());
-
-    for height in 1..=target_height {
-        let input = exact_epoch_path(height - 1);
-        let output = exact_epoch_item(height);
-        let handoff = exact_epoch_handoff(height, input, output);
-        let pre_root = store
-            .settlement_root_v2(7)
-            .expect("exact-epoch pre-state root");
-        preview
-            .apply_exec_handoff(handoff.clone())
-            .expect("preview exact-epoch transition");
-        let post_root = preview
-            .settlement_root_v2(7)
-            .expect("exact-epoch post-state root");
-        let checkpoint_id = canonical_checkpoint_at_height(
-            &mut checkpoint_store,
-            &mut prep_store,
-            height,
-            pre_root,
-            post_root,
-            &handoff,
-        );
-        if height == target_height {
-            return (
-                temp,
-                store,
-                checkpoint_store,
-                prep_store,
-                checkpoint_id,
-                handoff,
-            );
-        }
-        store
-            .apply_exec_handoff(handoff)
-            .expect("advance exact-epoch canonical state");
-        assert_eq!(
-            store
-                .settlement_root_v2(7)
-                .expect("advanced exact-epoch root"),
-            post_root,
-        );
-    }
-    unreachable!("bounded target height always returns");
-}
-
-fn exact_epoch_first_trace_chunk() -> z00z_storage::checkpoint::recursive_v2::EpochTraceChunkWorkV2
-{
-    let transition_count = u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2);
+fn drive_exact_epoch_trace_stream<State>(
+    cadence_class: EpochCadenceClassV2,
+    transition_count: u64,
+    initialize: impl FnOnce(EpochFrontierAuthorityV2) -> State,
+    mut consume_chunk: impl FnMut(&mut State, EpochTraceChunkWorkV2),
+) -> (EpochFrontierAuthorityV2, State, EpochProofWorkManifestV2) {
+    assert!(transition_count > 0 && transition_count <= EXACT_EPOCH_TRANSITIONS);
     let temp = tempfile::TempDir::new().expect("trace-chunk temporary witness root");
     let mut store = SettlementStore::new();
     let mut preview = SettlementStore::new();
@@ -633,14 +712,11 @@ fn exact_epoch_first_trace_chunk() -> z00z_storage::checkpoint::recursive_v2::Ep
         .expect("seed trace-chunk preview state");
     let mut checkpoint_store = CheckpointFsStore::new(temp.path());
     let mut prep_store = PrepFsStore::new(temp.path());
-    let mut stream = EpochTransitionStreamV2::resolve_active(
-        &store,
-        EpochCadenceClassV2::BoundedSimulation,
-        0,
-        transition_count,
-    )
-    .expect("resolve exact bounded trace-chunk stream");
-    let mut completed = None;
+    let mut stream =
+        EpochTransitionStreamV2::resolve_active(&store, cadence_class, 0, transition_count)
+            .expect("resolve exact bounded trace-chunk stream");
+    let authority = stream.authority();
+    let mut state = initialize(authority);
 
     for height in 1..=transition_count {
         let input = exact_epoch_path(height - 1);
@@ -681,19 +757,57 @@ fn exact_epoch_first_trace_chunk() -> z00z_storage::checkpoint::recursive_v2::Ep
                 .expect("advanced trace-chunk root"),
             post_root,
         );
-        if height == transition_count {
-            completed = emitted;
-        } else {
-            assert!(emitted.is_none());
+        if let Some(work) = emitted {
+            consume_chunk(&mut state, work);
         }
     }
 
     assert_eq!(
         stream.transition_count(),
-        EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2 as usize
+        usize::try_from(transition_count).expect("bounded transition count")
     );
-    assert_eq!(stream.emitted_chunk_count(), 1);
-    completed.expect("fixed transition span emits exactly one trace chunk")
+    assert_eq!(
+        stream.emitted_chunk_count(),
+        stream.total_chunk_count(),
+        "the exact ordered fixture must emit every configured trace chunk",
+    );
+    let close_count = transition_count.to_le_bytes();
+    let manifest = stream
+        .close(
+            sha256_256(
+                "z00z.storage.checkpoint.plonky3.epoch-2000.fixture.v2",
+                "close-anchor",
+                &[&close_count],
+            ),
+            Some(sha256_256(
+                "z00z.storage.checkpoint.plonky3.epoch-2000.fixture.v2",
+                "nova-chain-root",
+                &[&close_count],
+            )),
+        )
+        .expect("close exact transition-work manifest");
+    assert_eq!(manifest.frontier_authority_digest(), authority.digest());
+    (authority, state, manifest)
+}
+
+fn exact_epoch_trace_stream(
+    cadence_class: EpochCadenceClassV2,
+    transition_count: u64,
+) -> (
+    EpochFrontierAuthorityV2,
+    Vec<EpochTraceChunkWorkV2>,
+    EpochProofWorkManifestV2,
+) {
+    drive_exact_epoch_trace_stream(
+        cadence_class,
+        transition_count,
+        |authority| {
+            Vec::with_capacity(
+                usize::try_from(authority.chunk_count()).expect("bounded chunk count"),
+            )
+        },
+        |chunks, work| chunks.push(work),
+    )
 }
 
 fn exact_history_base_statement(epoch: &Plonky3EpochProofV2) -> HistoryAccumulatorStatementV2 {
@@ -709,15 +823,17 @@ fn exact_history_base_statement(epoch: &Plonky3EpochProofV2) -> HistoryAccumulat
         .inherited_error_exponent()
         .expect("inherited history error");
     let epoch_anchor_mmr_root =
-        Plonky3HistoryAdapterV2::derive_epoch_anchor_mmr_root(None, epoch, None)
-            .expect("base epoch-anchor MMR root");
+        Plonky3HistoryAdapterV2::diagnostic_derive_epoch_anchor_mmr_root_without_common_authority(
+            epoch,
+        )
+        .expect("actual-verified base epoch-anchor MMR root");
     HistoryAccumulatorStatementV2::new(HistoryAccumulatorInputsV2 {
         branch: HistoryBranchV2::Base,
-        first_epoch: 0,
-        last_epoch: 0,
-        first_height: 1,
-        last_height: EXACT_EPOCH_LEAVES,
-        cadence_blocks: EXACT_EPOCH_LEAVES,
+        first_epoch: epoch_inputs.epoch_index,
+        last_epoch: epoch_inputs.epoch_index,
+        first_height: epoch_inputs.start_height,
+        last_height: epoch_inputs.end_height,
+        cadence_blocks: epoch_inputs.cadence_blocks,
         history_length: 1,
         accepted_epoch_count: 1,
         config_generation: config_identity.config_generation,
@@ -767,7 +883,7 @@ fn exact_history_base_statement(epoch: &Plonky3EpochProofV2) -> HistoryAccumulat
 }
 
 fn emit_exact_epoch_progress(
-    admitted_leaves: u32,
+    verified_chunks: u32,
     active_ranges: u32,
     merged_parents: usize,
     completed: bool,
@@ -775,12 +891,14 @@ fn emit_exact_epoch_progress(
 ) {
     println!(
         concat!(
-            "Z00Z_PLONKY3_EPOCH_PROGRESS_V1 ",
-            "{{\"admitted_leaves\":{},\"total_leaves\":2000,",
+            "Z00Z_PLONKY3_EPOCH_PROGRESS_V2 ",
+            "{{\"verified_chunks\":{},\"total_chunks\":250,",
+            "\"prover_workers\":{},",
             "\"active_ranges\":{},\"merged_parents\":{},",
             "\"completed\":{},\"final_envelope_bytes\":{}}}"
         ),
-        admitted_leaves,
+        verified_chunks,
+        EXACT_EPOCH_PROVER_WORKERS,
         active_ranges,
         merged_parents,
         completed,
@@ -788,23 +906,237 @@ fn emit_exact_epoch_progress(
     );
 }
 
+fn prove_epoch_trace_chunk_batch(
+    batch: Vec<EpochTraceChunkWorkV2>,
+) -> Vec<Plonky3EpochChunkProofV2> {
+    assert!(!batch.is_empty() && batch.len() <= EXACT_EPOCH_PROVER_WORKERS);
+    batch
+        .into_iter()
+        .map(|work| {
+            Plonky3EpochChunkWorkerV2::prove_chunk(work).expect("real direct trace-chunk proof")
+        })
+        .collect()
+}
+
+fn prove_bounded_epoch_actual(
+    trace_chunk_count: u32,
+    persistent_frontier_name: Option<&str>,
+) -> (
+    EpochFrontierAuthorityV2,
+    EpochProofWorkManifestV2,
+    Plonky3EpochProofV2,
+) {
+    assert!(matches!(trace_chunk_count, 2 | 4));
+    let transition_count = u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2)
+        .checked_mul(u64::from(trace_chunk_count))
+        .expect("bounded transition count");
+    let (authority, work, manifest) =
+        exact_epoch_trace_stream(EpochCadenceClassV2::BoundedSimulation, transition_count);
+    assert_eq!(authority.chunk_count(), trace_chunk_count);
+    assert_eq!(work.len(), trace_chunk_count as usize);
+    let temporary_frontier = persistent_frontier_name
+        .is_none()
+        .then(|| tempfile::tempdir().expect("bounded frontier root"));
+    let frontier_path = match persistent_frontier_name {
+        Some(name) => {
+            let base = std::env::var_os("Z00Z_PLONKY3_CHUNK_CACHE_DIR")
+                .map(PathBuf::from)
+                .expect("resource worker supplies the diagnostic restart-cache root");
+            let root = base.join(format!("{name}-{}", digest_hex(authority.digest())));
+            fs::create_dir_all(&root).expect("create diagnostic restart-cache root");
+            root.join("frontier")
+        }
+        None => temporary_frontier
+            .as_ref()
+            .expect("temporary bounded frontier")
+            .path()
+            .join("frontier"),
+    };
+    let frontier =
+        EpochProofFrontierV2::open(frontier_path, authority).expect("open bounded direct frontier");
+    let missing = frontier
+        .missing_chunk_ordinals()
+        .expect("read bounded missing chunks")
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+
+    let mut pending = work.into_iter();
+    loop {
+        let batch = pending
+            .by_ref()
+            .filter(|work| missing.contains(&work.chunk_ordinal()))
+            .take(EXACT_EPOCH_PROVER_WORKERS)
+            .collect::<Vec<_>>();
+        if batch.is_empty() {
+            break;
+        }
+        resource_phase("proving");
+        let proofs = prove_epoch_trace_chunk_batch(batch);
+        resource_phase("proof_ready");
+        for proof in &proofs {
+            proof
+                .verify()
+                .expect("actual pinned verifier accepts bounded trace chunk");
+            frontier
+                .admit_verified_chunk(proof)
+                .expect("admit actual-verified bounded trace chunk");
+        }
+        drop(proofs);
+        resource_phase("aggregation");
+        Plonky3EpochAdapterV2::merge_ready(&frontier).expect("merge ready bounded trace chunks");
+    }
+    resource_phase("aggregation");
+    Plonky3EpochAdapterV2::merge_ready(&frontier).expect("finish bounded trace-chunk merges");
+    let progress = frontier.progress().expect("bounded frontier progress");
+    assert!(progress.all_chunks_verified());
+    assert_eq!(progress.verified_chunk_count(), trace_chunk_count);
+    assert_eq!(progress.active_range_count(), 1);
+    frontier
+        .validate_closed_manifest(&manifest)
+        .expect("bounded chunks match exact closed manifest");
+
+    resource_phase("sealing");
+    let epoch =
+        Plonky3EpochAdapterV2::seal(&frontier, &manifest).expect("seal bounded direct epoch proof");
+    (authority, manifest, epoch)
+}
+
+struct ExactEpochStreamRun {
+    frontier: EpochProofFrontierV2,
+    missing_chunks: Vec<bool>,
+    pending: Vec<EpochTraceChunkWorkV2>,
+    merged_total: usize,
+}
+
+impl ExactEpochStreamRun {
+    fn open(frontier_root: &Path, authority: EpochFrontierAuthorityV2) -> Self {
+        let frontier =
+            EpochProofFrontierV2::open(frontier_root, authority).expect("open exact frontier");
+        let mut missing_chunks =
+            vec![false; usize::try_from(authority.chunk_count()).expect("bounded chunk count")];
+        for ordinal in frontier
+            .missing_chunk_ordinals()
+            .expect("validated exact missing chunks")
+        {
+            let slot = missing_chunks
+                .get_mut(usize::try_from(ordinal).expect("bounded chunk ordinal"))
+                .expect("missing chunk belongs to exact frontier");
+            assert!(!*slot, "frontier returned a duplicate missing chunk");
+            *slot = true;
+        }
+        Self {
+            frontier,
+            missing_chunks,
+            pending: Vec::with_capacity(EXACT_EPOCH_PROVER_WORKERS),
+            merged_total: 0,
+        }
+    }
+
+    fn consume(&mut self, work: EpochTraceChunkWorkV2) {
+        let ordinal = usize::try_from(work.chunk_ordinal()).expect("bounded emitted chunk ordinal");
+        let missing = self
+            .missing_chunks
+            .get_mut(ordinal)
+            .expect("emitted chunk belongs to exact frontier");
+        if !*missing {
+            return;
+        }
+        *missing = false;
+        self.pending.push(work);
+        if self.pending.len() == EXACT_EPOCH_PROVER_WORKERS {
+            self.flush();
+        }
+    }
+
+    fn finish_stream(&mut self) {
+        self.flush();
+        assert!(
+            self.missing_chunks.iter().all(|missing| !missing),
+            "exact fixture stream omitted a required frontier chunk",
+        );
+    }
+
+    fn flush(&mut self) {
+        if self.pending.is_empty() {
+            return;
+        }
+        let batch = std::mem::replace(
+            &mut self.pending,
+            Vec::with_capacity(EXACT_EPOCH_PROVER_WORKERS),
+        );
+        resource_phase("proving");
+        let proofs = prove_epoch_trace_chunk_batch(batch);
+        resource_phase("proof_ready");
+        for proof in &proofs {
+            proof
+                .verify()
+                .expect("actual pinned verifier accepts exact trace chunk");
+            self.frontier
+                .admit_verified_chunk(proof)
+                .expect("admit actual-verified exact trace chunk");
+        }
+        drop(proofs);
+        resource_phase("aggregation");
+        self.merged_total = self
+            .merged_total
+            .checked_add(
+                Plonky3EpochAdapterV2::merge_ready(&self.frontier)
+                    .expect("merge every ready exact range"),
+            )
+            .expect("bounded merge count");
+        let progress = self.frontier.progress().expect("post-merge exact progress");
+        emit_exact_epoch_progress(
+            progress.verified_chunk_count(),
+            progress.active_range_count(),
+            self.merged_total,
+            false,
+            None,
+        );
+    }
+}
+
 fn verify_or_build_exact_epoch_final(
     root: &Path,
     frontier: &EpochProofFrontierV2,
-    seed: ExactEpochAuthoritySeed,
+    manifest: &EpochProofWorkManifestV2,
+    authority: EpochFrontierAuthorityV2,
+    merged_parents: usize,
 ) {
-    let final_path = root.join("history-base-final-v2.bin");
-    if let Ok(bytes) = fs::read(&final_path) {
-        let history =
-            Plonky3HistoryProofV2::decode_local(&bytes).expect("cached final history proof");
+    frontier
+        .validate_closed_manifest(manifest)
+        .expect("exact frontier matches its closed work manifest");
+    let epoch_path = root.join("epoch-final-v4.bin");
+    let history_path = root.join("history-base-final-v4.bin");
+    if let (Ok(epoch_bytes), Ok(history_bytes)) = (fs::read(&epoch_path), fs::read(&history_path)) {
+        let epoch =
+            Plonky3EpochProofV2::decode_local(&epoch_bytes).expect("cached final epoch proof");
+        Plonky3EpochAdapterV2::verify(&epoch).expect("actual-verify cached epoch proof");
+        assert_eq!(
+            epoch.statement().frontier_authority_digest(),
+            authority.digest()
+        );
+        assert_eq!(
+            epoch.statement().epoch_work_manifest_digest(),
+            manifest.digest()
+        );
+        assert_eq!(
+            epoch.statement().transition_count(),
+            EXACT_EPOCH_TRANSITIONS as u32
+        );
+        let history = Plonky3HistoryProofV2::decode_local(&history_bytes)
+            .expect("cached final history proof");
         Plonky3HistoryAdapterV2::verify(&history).expect("actual-verify cached history proof");
-        assert_eq!(history.statement().last_height(), EXACT_EPOCH_LEAVES);
+        assert_eq!(history.statement().last_height(), EXACT_EPOCH_TRANSITIONS);
+        assert_eq!(
+            history.statement().inputs().exact_epoch_statement_digest,
+            epoch.statement().digest()
+        );
         assert!(history.canonical_bytes().len() <= PLONKY3_TARGET_BYTES_V2);
         emit_exact_epoch_progress(
-            u32::try_from(EXACT_EPOCH_LEAVES).expect("exact cadence fits"),
+            authority.chunk_count(),
             u32::try_from(frontier.active_range_count().expect("active range count"))
                 .expect("active range count fits"),
-            0,
+            merged_parents,
             true,
             Some(history.canonical_bytes().len()),
         );
@@ -813,60 +1145,41 @@ fn verify_or_build_exact_epoch_final(
                 "Z00Z_PLONKY3_TELEMETRY_V1 ",
                 "{{\"parameter_digest\":\"{}\",\"canonical_proof_bytes\":{},",
                 "\"size_status\":\"{}\",\"trace_dimensions\":",
-                "{{\"epoch_leaf_count\":2000,\"actual_verifier\":true}}}}"
+                "{{\"epoch_transition_count\":2000,\"trace_chunk_count\":250,",
+                "\"prover_workers\":{},\"actual_verifier\":true}}}}"
             ),
-            digest_hex(seed.parameter_digest),
+            digest_hex(authority.parameter_digest()),
             history.canonical_bytes().len(),
             history.size_status().name(),
+            EXACT_EPOCH_PROVER_WORKERS,
         );
         return;
     }
 
-    let epoch = Plonky3EpochAdapterV2::seal(
-        frontier,
-        sha256_256(
-            "z00z.storage.checkpoint.plonky3.epoch-2000.fixture.v2",
-            "close-anchor",
-            &[],
-        ),
-        Some(sha256_256(
-            "z00z.storage.checkpoint.plonky3.epoch-2000.fixture.v2",
-            "nova-chain-root",
-            &[],
-        )),
-    )
-    .expect("seal exact 2000-leaf epoch proof");
+    let epoch =
+        Plonky3EpochAdapterV2::seal(frontier, manifest).expect("seal exact 2000-transition proof");
     Plonky3EpochAdapterV2::verify(&epoch).expect("actual-verify exact epoch proof");
+    assert_eq!(
+        epoch.statement().epoch_work_manifest_digest(),
+        manifest.digest()
+    );
     let history = Plonky3HistoryAdapterV2::prove_base(exact_history_base_statement(&epoch), &epoch)
         .expect("prove exact epoch history base");
     Plonky3HistoryAdapterV2::verify(&history).expect("actual-verify exact history base");
-    assert_eq!(history.statement().last_height(), EXACT_EPOCH_LEAVES);
+    assert_eq!(history.statement().last_height(), EXACT_EPOCH_TRANSITIONS);
+    assert_eq!(
+        history.statement().inputs().exact_epoch_statement_digest,
+        epoch.statement().digest()
+    );
     assert!(history.canonical_bytes().len() <= PLONKY3_TARGET_BYTES_V2);
-
-    let temporary = root.join(format!(".history-base-final-v2.{}.tmp", std::process::id()));
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt as _;
-        options.mode(0o600);
-    }
-    let mut file = options
-        .open(&temporary)
-        .expect("create exact history proof");
-    file.write_all(history.canonical_bytes())
-        .expect("write exact history proof");
-    file.sync_all().expect("sync exact history proof");
-    fs::rename(&temporary, &final_path).expect("publish exact history proof");
-    fs::File::open(root)
-        .and_then(|directory| directory.sync_all())
-        .expect("sync final exact-epoch cache");
+    persist_exact_epoch_artifact(root, "epoch-final-v4.bin", epoch.canonical_bytes());
+    persist_exact_epoch_artifact(root, "history-base-final-v4.bin", history.canonical_bytes());
 
     emit_exact_epoch_progress(
-        u32::try_from(EXACT_EPOCH_LEAVES).expect("exact cadence fits"),
+        authority.chunk_count(),
         u32::try_from(frontier.active_range_count().expect("active range count"))
             .expect("active range count fits"),
-        0,
+        merged_parents,
         true,
         Some(history.canonical_bytes().len()),
     );
@@ -875,11 +1188,13 @@ fn verify_or_build_exact_epoch_final(
             "Z00Z_PLONKY3_TELEMETRY_V1 ",
             "{{\"parameter_digest\":\"{}\",\"canonical_proof_bytes\":{},",
             "\"size_status\":\"{}\",\"trace_dimensions\":",
-            "{{\"epoch_leaf_count\":2000,\"actual_verifier\":true}}}}"
+            "{{\"epoch_transition_count\":2000,\"trace_chunk_count\":250,",
+            "\"prover_workers\":{},\"actual_verifier\":true}}}}"
         ),
-        digest_hex(seed.parameter_digest),
+        digest_hex(authority.parameter_digest()),
         history.canonical_bytes().len(),
         history.size_status().name(),
+        EXACT_EPOCH_PROVER_WORKERS,
     );
 }
 
@@ -944,6 +1259,7 @@ fn test_direct_transition_batch_actual_roundtrip() {
         1,
     )
     .expect("one-transition linked-table stream");
+    let authority = stream.authority();
     let mut transition = transition(
         &temp,
         &mut store,
@@ -959,13 +1275,24 @@ fn test_direct_transition_batch_actual_roundtrip() {
 
     resource_phase("fixture_ready");
     resource_phase("proving");
-    let artifact = Plonky3EpochChunkWorkerV2::prove_transition_batch(work)
+    let artifact = Plonky3EpochChunkWorkerV2::prove_chunk(work)
         .expect("real proof-bound transition Batch-STARK");
     resource_phase("proof_ready");
     resource_phase("verifying");
     artifact
         .verify()
         .expect("actual pinned verifier accepts all linked tables");
+    assert_chunk_codec_rejects_mutations(authority, &artifact);
+    let frontier_root = tempfile::tempdir().expect("fail-closed frontier root");
+    let frontier = EpochProofFrontierV2::open(frontier_root.path().join("frontier"), authority)
+        .expect("open fail-closed frontier");
+    frontier
+        .admit_verified_chunk(&artifact)
+        .expect("closed semantic theorem admits the actual-verified chunk");
+    let progress = frontier.progress().expect("single-chunk frontier progress");
+    assert!(progress.all_chunks_verified());
+    assert_eq!(progress.verified_chunk_count(), 1);
+    assert_eq!(progress.active_range_count(), 1);
     resource_phase("verify_complete");
     println!(
         concat!(
@@ -976,7 +1303,7 @@ fn test_direct_transition_batch_actual_roundtrip() {
             "\"input_items\":{},\"table_count\":{},\"actual_verifier\":true}}}}"
         ),
         digest_hex(artifact.transition_statement().inputs().parameter_digest),
-        artifact.local_proof_bytes().len(),
+        artifact.internal_proof_bundle_len(),
         artifact
             .trace_row_count()
             .expect("canonical linked-table trace rows"),
@@ -990,18 +1317,24 @@ fn test_direct_transition_batch_actual_roundtrip() {
 fn test_direct_transition_batch_actual_eight_transition_roundtrip() {
     ensure_test_process_chain_identity().expect("canonical test process chain identity");
     resource_phase("fixture_ready");
-    let work = exact_epoch_first_trace_chunk();
+    let (authority, mut chunks, _) = exact_epoch_trace_stream(
+        EpochCadenceClassV2::BoundedSimulation,
+        u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2),
+    );
+    assert_eq!(chunks.len(), 1);
+    let work = chunks.pop().expect("fixed span emits one trace chunk");
     let input_items = work.bindings().len();
     let event_bytes = work.event_bytes();
 
     resource_phase("proving");
-    let artifact = Plonky3EpochChunkWorkerV2::prove_transition_batch(work)
+    let artifact = Plonky3EpochChunkWorkerV2::prove_chunk(work)
         .expect("real proof-bound eight-transition Batch-STARK");
     resource_phase("proof_ready");
     resource_phase("verifying");
     artifact
         .verify()
         .expect("actual pinned verifier accepts the eight-transition linked tables");
+    assert_chunk_codec_rejects_mutations(authority, &artifact);
     resource_phase("verify_complete");
     println!(
         concat!(
@@ -1013,7 +1346,7 @@ fn test_direct_transition_batch_actual_eight_transition_roundtrip() {
             "\"actual_verifier\":true}}}}"
         ),
         digest_hex(artifact.transition_statement().inputs().parameter_digest),
-        artifact.local_proof_bytes().len(),
+        artifact.internal_proof_bundle_len(),
         artifact
             .trace_row_count()
             .expect("canonical linked-table trace rows"),
@@ -1024,115 +1357,147 @@ fn test_direct_transition_batch_actual_eight_transition_roundtrip() {
 }
 
 #[test]
+#[ignore = "real bounded epoch recursion runs only through plonky3_resource_worker.sh"]
+fn test_bounded_epoch_two_trace_chunk_actual_recursion() {
+    ensure_test_process_chain_identity().expect("canonical test process chain identity");
+    resource_phase("fixture_ready");
+    let (authority, manifest, epoch) = prove_bounded_epoch_actual(2, None);
+    let transition_count = u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2) * 2;
+    resource_phase("verifying");
+    Plonky3EpochAdapterV2::verify(&epoch).expect("actual-verify bounded direct epoch proof");
+    assert_epoch_codec_and_verifier_reject_mutations(&epoch);
+    resource_phase("history_base");
+    let history = Plonky3HistoryAdapterV2::prove_base(exact_history_base_statement(&epoch), &epoch)
+        .expect("prove bounded epoch history base");
+    Plonky3HistoryAdapterV2::verify(&history).expect("actual-verify bounded history base");
+    assert_eq!(
+        history.statement().inputs().exact_epoch_statement_digest,
+        epoch.statement().digest(),
+    );
+    resource_phase("verify_complete");
+    assert_eq!(
+        epoch.statement().transition_count(),
+        transition_count as u32
+    );
+    assert_eq!(
+        epoch.statement().epoch_work_manifest_digest(),
+        manifest.digest()
+    );
+    println!(
+        concat!(
+            "Z00Z_PLONKY3_TELEMETRY_V1 ",
+            "{{\"parameter_digest\":\"{}\",\"canonical_proof_bytes\":{},",
+            "\"size_status\":\"{}\",\"trace_dimensions\":",
+            "{{\"epoch_transition_count\":{},\"trace_chunk_count\":2,",
+            "\"prover_workers\":{},\"actual_verifier\":true}}}}"
+        ),
+        digest_hex(authority.parameter_digest()),
+        history.canonical_bytes().len(),
+        history.size_status().name(),
+        transition_count,
+        EXACT_EPOCH_PROVER_WORKERS,
+    );
+}
+
+#[test]
+#[ignore = "one-run epoch/history common-data authority diagnostic"]
+fn test_epoch_history_common_authority_candidate() {
+    ensure_test_process_chain_identity().expect("canonical test process chain identity");
+    resource_phase("fixture_ready");
+    let (_, _, epoch) =
+        prove_bounded_epoch_actual(2, Some("epoch-history-common-authority-candidate-v1"));
+    resource_phase("verifying");
+    Plonky3EpochAdapterV2::diagnostic_verify_without_common_authority(&epoch)
+        .expect("diagnostic actual-verifies epoch seal without issuing a receipt");
+    resource_phase("history_base");
+    let history = Plonky3HistoryAdapterV2::diagnostic_prove_base_without_common_authority(
+        exact_history_base_statement(&epoch),
+        &epoch,
+    )
+    .expect("diagnostic proves actual history base");
+    Plonky3HistoryAdapterV2::diagnostic_verify_without_common_authority(&history)
+        .expect("diagnostic actual-verifies history base without issuing a receipt");
+    let [epoch_common, base_common, successor_common, rotation_common] =
+        Plonky3HistoryAdapterV2::diagnostic_common_authority_candidates(&epoch, &history)
+            .expect("derive complete epoch/history common-data authority candidate");
+    resource_phase("verify_complete");
+    println!(
+        concat!(
+            "Z00Z_PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_CANDIDATE_V2 ",
+            "{{\"epoch_seal_common\":\"{}\",\"history_base_common\":\"{}\",",
+            "\"history_successor_common\":\"{}\",\"history_rotation_common\":\"{}\"}}"
+        ),
+        digest_hex(epoch_common),
+        digest_hex(base_common),
+        digest_hex(successor_common),
+        digest_hex(rotation_common),
+    );
+}
+
+#[test]
 #[ignore = "restartable exact-cadence prover runs only through plonky3_resource_worker.sh"]
-fn test_production_epoch_2000_actual_recursion_step() {
+fn test_production_epoch_2000_actual_recursion() {
     ensure_test_process_chain_identity().expect("canonical test process chain identity");
     let cache_root = exact_epoch_cache_root();
     let frontier_root = cache_root.join("frontier");
-    let mut seed = load_exact_epoch_authority_seed(&cache_root);
+    let cached_manifest = load_exact_epoch_work_manifest(&cache_root);
 
-    if let Some(authority_seed) = seed {
-        let authority = exact_epoch_authority(authority_seed);
+    if let Some(manifest) = cached_manifest.as_ref() {
+        let authority = manifest
+            .frontier_authority()
+            .expect("recover exact frontier authority");
+        assert_eq!(authority.chunk_count(), EXACT_EPOCH_CHUNKS);
         let frontier =
             EpochProofFrontierV2::open(&frontier_root, authority).expect("recover exact frontier");
         let progress = frontier.progress().expect("recover exact progress");
-        if progress.all_leaves_admitted() {
+        if progress.all_chunks_verified() {
             resource_phase("aggregation");
-            let _merged =
+            let merged =
                 Plonky3EpochAdapterV2::merge_ready(&frontier).expect("finish ready exact merges");
             let final_progress = frontier.progress().expect("final exact progress");
-            assert!(final_progress.all_leaves_admitted());
-            verify_or_build_exact_epoch_final(&cache_root, &frontier, authority_seed);
+            assert!(final_progress.all_chunks_verified());
+            verify_or_build_exact_epoch_final(&cache_root, &frontier, manifest, authority, merged);
             return;
         }
     }
 
-    let target_height = match seed {
-        Some(authority_seed) => {
-            let authority = exact_epoch_authority(authority_seed);
-            let frontier = EpochProofFrontierV2::open(&frontier_root, authority)
-                .expect("recover exact frontier for next leaf");
-            frontier
-                .progress()
-                .expect("exact frontier progress")
-                .next_missing_height()
-                .expect("incomplete frontier has a missing canonical height")
-        }
-        None => 1,
-    };
     resource_phase("fixture_ready");
-    let (temp, mut store, checkpoint_store, prep_store, checkpoint_id, handoff) =
-        exact_epoch_transition_fixture(target_height);
-    let mut transition = transition(
-        &temp,
-        &mut store,
-        &checkpoint_store,
-        &prep_store,
-        checkpoint_id,
-        handoff,
+    let (authority, mut run, manifest) = drive_exact_epoch_trace_stream(
+        EpochCadenceClassV2::Production,
+        EXACT_EPOCH_TRANSITIONS,
+        |authority| ExactEpochStreamRun::open(&frontier_root, authority),
+        ExactEpochStreamRun::consume,
     );
-    resource_phase("proving");
-    let (proof, receipt) = Plonky3BaseAdapterV2::prove_and_verify(&mut transition, &store)
-        .expect("real exact-epoch base proof and actual verifier");
-    resource_phase("proof_ready");
-    let range = proof
-        .range_binding()
-        .expect("actual-verified exact-epoch range binding");
-    assert_eq!(range.height, target_height);
-    resource_telemetry(&proof);
-
-    let authority_seed = match seed {
-        Some(existing) => {
-            existing.validate_range(range);
-            existing
-        }
-        None => {
-            let created = ExactEpochAuthoritySeed::from_range(range);
-            persist_exact_epoch_authority_seed(&cache_root, created);
-            seed = Some(created);
-            created
-        }
-    };
-    let authority = exact_epoch_authority(authority_seed);
-    let frontier =
-        EpochProofFrontierV2::open(&frontier_root, authority).expect("open exact frontier");
-    let before = frontier.progress().expect("pre-admission exact progress");
-    assert_eq!(before.next_missing_height(), Some(target_height));
-    frontier
-        .admit_verified_base(&proof, &receipt)
-        .expect("admit actual-verified exact base proof");
-    drop(receipt);
-    drop(proof);
-    drop(transition);
-    drop(store);
-    drop(prep_store);
-    drop(checkpoint_store);
-    drop(temp);
+    run.finish_stream();
+    assert_eq!(authority.transition_count(), EXACT_EPOCH_TRANSITIONS as u32);
+    assert_eq!(authority.chunk_count(), EXACT_EPOCH_CHUNKS);
+    if let Some(existing) = cached_manifest.as_ref() {
+        assert_eq!(existing.canonical_bytes(), manifest.canonical_bytes());
+    }
+    persist_exact_epoch_work_manifest(&cache_root, &manifest);
 
     resource_phase("aggregation");
-    let merged =
-        Plonky3EpochAdapterV2::merge_ready(&frontier).expect("merge every ready exact range");
-    let progress = frontier.progress().expect("post-merge exact progress");
-    assert_eq!(
-        progress.admitted_leaf_count(),
-        u32::try_from(target_height).expect("exact target fits"),
+    run.merged_total = run
+        .merged_total
+        .checked_add(
+            Plonky3EpochAdapterV2::merge_ready(&run.frontier)
+                .expect("finish every ready exact range"),
+        )
+        .expect("bounded merge count");
+    let progress = run.frontier.progress().expect("complete exact progress");
+    assert_eq!(progress.total_chunk_count(), EXACT_EPOCH_CHUNKS);
+    assert!(progress.all_chunks_verified());
+    assert_eq!(progress.verified_chunk_count(), EXACT_EPOCH_CHUNKS);
+    run.frontier
+        .validate_closed_manifest(&manifest)
+        .expect("all actual-verified chunks match the exact closed manifest");
+    verify_or_build_exact_epoch_final(
+        &cache_root,
+        &run.frontier,
+        &manifest,
+        authority,
+        run.merged_total,
     );
-    assert_eq!(progress.total_leaf_count(), EXACT_EPOCH_LEAVES as u32);
-    if progress.all_leaves_admitted() {
-        verify_or_build_exact_epoch_final(
-            &cache_root,
-            &frontier,
-            seed.expect("persisted exact authority seed"),
-        );
-    } else {
-        emit_exact_epoch_progress(
-            progress.admitted_leaf_count(),
-            progress.active_range_count(),
-            merged,
-            false,
-            None,
-        );
-    }
 }
 
 #[test]

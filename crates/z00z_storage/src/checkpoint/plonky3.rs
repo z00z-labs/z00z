@@ -17,7 +17,7 @@ use p3_circuit::ops::poseidon2_perm::Poseidon2PermCall;
 use p3_circuit::ops::{
     generate_poseidon2_trace, generate_recompose_trace, NpoTypeId, Poseidon2Config,
 };
-use p3_circuit::tables::Traces;
+use p3_circuit::tables::{Traces, WitnessTrace};
 use p3_circuit::{Circuit, CircuitBuilder, CircuitRunner, ExprId, NonPrimitiveOpId};
 use p3_commit::{ExtensionMmcs, Pcs};
 use p3_dft::Radix2DitParallel;
@@ -42,14 +42,15 @@ use z00z_crypto::{
     sha256_256, sha256_256_role, CheckpointSha256BlockStreamV2, CheckpointShaRole, SHA256_IV_V2,
 };
 use z00z_plonky3_circuit_prover::air::{AluAir, AluExtMulKind, ConstAir, PublicAir};
-use z00z_plonky3_circuit_prover::backend::fri::FriVerifierResult;
 use z00z_plonky3_circuit_prover::batch_stark_prover::{
-    canonical_prover_data_from_airs_and_degrees, lookups_for_circuit_table_air,
-    poseidon2_air_builders_for_configs, recompose_air_builders, recompose_preprocessor, AirVariant,
-    Poseidon2Preprocessor, PrimitiveTable, NUM_PRIMITIVE_TABLES,
+    canonical_common_data_from_owned_airs_and_degrees, canonical_prover_data_from_airs_and_degrees,
+    lookups_for_circuit_table_air, poseidon2_air_builders_for_configs, recompose_air_builders,
+    recompose_preprocessor, AirVariant, Poseidon2Preprocessor, PrimitiveTable,
+    NUM_PRIMITIVE_TABLES,
 };
 use z00z_plonky3_circuit_prover::common::{
-    get_airs_and_degrees_with_prep, CircuitTableAir, NpoAirBuilder, NpoPreprocessor,
+    get_airs_and_degrees_for_common_data, get_airs_and_degrees_with_prep, CircuitTableAir,
+    NpoAirBuilder, NpoPreprocessor,
 };
 use z00z_plonky3_circuit_prover::field_params::ExtractBinomialW;
 use z00z_plonky3_circuit_prover::pcs::{
@@ -57,10 +58,11 @@ use z00z_plonky3_circuit_prover::pcs::{
 };
 use z00z_plonky3_circuit_prover::verifier::{verify_batch_circuit, CircuitTablesAir};
 use z00z_plonky3_circuit_prover::{
-    prove_aggregation_layer, prove_next_layer, AggregationCircuitFingerprint, AggregationPrepCache,
-    BatchOnly, BatchStarkVerifierInputsBuilder, FriRecursionConfig, FriVerifierParams,
-    NextLayerPrepCache, PcsRecursionBackend, ProveNextLayerParams, RecursionInput, RecursiveAir,
-    RecursivePcs, VerificationError, VerifierCircuitResult,
+    construct_batch_stark_verifier_inputs, prove_aggregation_layer, prove_next_layer,
+    AggregationCircuitFingerprint, AggregationPrepCache, BatchOnly, BatchProofTargets,
+    BatchStarkVerifierInputsBuilder, CommonDataTargets, FriRecursionConfig, FriVerifierParams,
+    NextLayerPrepCache, PcsRecursionBackend, ProveNextLayerParams, RecursionInput, Recursive,
+    RecursiveAir, RecursivePcs, VerificationError, VerifierCircuitResult,
 };
 use z00z_plonky3_circuit_prover::{
     recompose_table_provers, BatchStarkProof, BatchStarkProver, CircuitProverData,
@@ -72,13 +74,12 @@ use z00z_utils::{
 };
 use zeroize::{Zeroize, Zeroizing};
 
-#[cfg(test)]
-use super::version_registry::RECURSIVE_RUNTIME_PROFILE_GENERATION_V2;
 use super::{
     authority_artifacts::{
         active_verifier_catalog_bytes_v2, resolve_verifier_catalog_v2, Plonky3VerifierCatalogRowV2,
         ACTIVE_PLONKY3_CIRCUIT_VERSION_V2, ACTIVE_PLONKY3_SOURCE_REVISION_V2,
-        ACTIVE_VERIFIER_BUNDLE_DIGEST_V2, PLONKY3_ROOT_AUTHORITY_V2,
+        ACTIVE_VERIFIER_BUNDLE_DIGEST_V2, PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2,
+        PLONKY3_ROOT_AUTHORITY_V2,
     },
     canonical_transition::CanonicalCheckpointTransitionV2,
     contract_config_v3::{
@@ -86,22 +87,27 @@ use super::{
         CheckpointConfigResolverV3, CheckpointContractConfigV3, ConfigV3ActivationStore,
     },
     epoch_frontier::{
-        EpochBaseLeafProofInputsV2, EpochBasePairProofInputsV2, EpochFinalizationNodeV2,
-        EpochMergeJobV2, EpochProofFrontierV2, VerifiedEpochParentV2,
+        EpochChunkPairInputsV2, EpochFinalizationNodeV2, EpochMergeJobV2, EpochProofFrontierV2,
+        EpochTraceChunkProofInputsV2, VerifiedEpochParentV2,
     },
     epoch_prover::{
-        EpochAirTableV2, EpochPreparedTransitionV2, EpochTraceChunkInputsV2, EpochTraceChunkV2,
-        EpochTraceChunkWorkV2, EpochTransitionBindingV2, EPOCH_CHUNK_BYTES_V2,
-        EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2,
+        EpochAirTableV2, EpochPreparedTransitionV2, EpochProofWorkManifestV2,
+        EpochTraceChunkInputsV2, EpochTraceChunkV2, EpochTraceChunkWorkV2,
+        EpochTransitionBindingV2, EpochTransitionInputsV2, EPOCH_CHUNK_BYTES_V2,
+        EPOCH_CHUNK_INPUT_STATE_ROOT_LIMB_OFFSET_V2, EPOCH_CHUNK_OUTPUT_STATE_ROOT_LIMB_OFFSET_V2,
+        EPOCH_STREAM_ACCUMULATOR_DOMAIN_V2, EPOCH_STREAM_INITIAL_LABEL_V2,
+        EPOCH_STREAM_STEP_LABEL_V2, EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2,
     },
     epoch_range::{
         epoch_ordered_digest_leaf_v2, epoch_ordered_digest_parent_v2,
-        epoch_ordered_digest_root_node_v2, epoch_verified_base_statement_digest_v2,
+        epoch_ordered_digest_root_node_v2, epoch_ordered_digest_subtree_v2,
+        epoch_verified_trace_chunk_span_digest_v2, epoch_verified_trace_chunk_statement_digest_v2,
         EpochRangeStatementV2, EPOCH_ARTIFACT_ROOT_DOMAIN_V2, EPOCH_CHALLENGE_ROOT_DOMAIN_V2,
         EPOCH_DA_ROOT_DOMAIN_V2, EPOCH_DELTA_ROOT_DOMAIN_V2, EPOCH_LINK_ROOT_DOMAIN_V2,
         EPOCH_STATEMENT_ROOT_DOMAIN_V2, EPOCH_TREE_SHAPE_GENERATION_V2,
-        EPOCH_VERIFIED_BASE_ROOT_DOMAIN_V2, EPOCH_VERIFIED_BASE_STATEMENT_DOMAIN_V2,
-        EPOCH_VERIFIED_BASE_STATEMENT_LABEL_V2, EPOCH_WITNESS_ROOT_DOMAIN_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_ROOT_DOMAIN_V2, EPOCH_VERIFIED_TRACE_CHUNK_SPAN_LABEL_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_DOMAIN_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_LABEL_V2, EPOCH_WITNESS_ROOT_DOMAIN_V2,
         ORDERED_LEAF_LABEL_V2, ORDERED_PARENT_LABEL_V2, ORDERED_ROOT_LABEL_V2,
     },
     history_accumulator::{
@@ -120,8 +126,8 @@ use super::{
         UniquenessSemanticRowV2, UniquenessSetKindV2, NET_MERGE_BYTES_V2,
         TYPED_CHECKPOINT_COMMITMENT_BYTES_V2, TYPED_CHECKPOINT_COMMITMENT_VERSION_V2,
         UNIQUENESS_CHALLENGE_BYTES_V2, UNIQUENESS_PRECOMMIT_BYTES_V2,
-        UNIQUENESS_PRECOMMIT_LABEL_V2, UNIQUENESS_SEMANTIC_ROW_BYTES_V2,
-        UNIQUENESS_SORTED_ROW_BYTES_V2,
+        UNIQUENESS_PRECOMMIT_LABEL_V2, UNIQUENESS_PRECOMMIT_VERSION_V2,
+        UNIQUENESS_SEMANTIC_ROW_BYTES_V2, UNIQUENESS_SORTED_ROW_BYTES_V2,
     },
     recursive_statement::RecursiveTransitionStatementV2,
     recursive_trace::{
@@ -139,11 +145,6 @@ use super::{
         PLONKY3_TARGET_BYTES_V2, RECURSIVE_INGRESS_BYTES_V2, RECURSIVE_RUNTIME_PROFILE_V2,
     },
 };
-#[cfg(test)]
-use super::{
-    epoch_range::{EpochCadenceClassV2, EpochRangeInputsV2},
-    history_accumulator::{composed_history_error_exponent_v2, HistoryAccumulatorInputsV2},
-};
 use crate::{
     settlement::{
         SettlementStore, SettlementUpdateTraceCircuitDecoderV2, JMT_CIRCUIT_HEADER_BYTES_V2,
@@ -151,10 +152,22 @@ use crate::{
     CheckpointError,
 };
 
+#[path = "plonky3_binary_fri_fold.rs"]
+mod plonky3_binary_fri_fold;
 #[path = "plonky3_binary_hash.rs"]
 mod plonky3_binary_hash;
 #[path = "plonky3_binary_mmcs.rs"]
 mod plonky3_binary_mmcs;
+#[path = "plonky3_binary_pcs.rs"]
+mod plonky3_binary_pcs;
+#[path = "plonky3_epoch_event_source_air.rs"]
+mod plonky3_epoch_event_source_air;
+#[path = "plonky3_epoch_event_source_columns.rs"]
+mod plonky3_epoch_event_source_columns;
+#[path = "plonky3_epoch_event_source_table.rs"]
+mod plonky3_epoch_event_source_table;
+#[path = "plonky3_epoch_event_source_witness.rs"]
+mod plonky3_epoch_event_source_witness;
 #[path = "plonky3_epoch_event_stream.rs"]
 mod plonky3_epoch_event_stream;
 #[path = "plonky3_epoch_jmt.rs"]
@@ -173,10 +186,16 @@ mod plonky3_epoch_jmt_table;
 mod plonky3_epoch_jmt_witness;
 #[path = "plonky3_epoch_packed_range.rs"]
 mod plonky3_epoch_packed_range;
+#[path = "plonky3_epoch_semantic_source_air.rs"]
+mod plonky3_epoch_semantic_source_air;
+#[path = "plonky3_epoch_semantic_source_witness.rs"]
+mod plonky3_epoch_semantic_source_witness;
 #[path = "plonky3_epoch_sha256.rs"]
 mod plonky3_epoch_sha256;
 #[path = "plonky3_epoch_sha256_air.rs"]
 mod plonky3_epoch_sha256_air;
+#[path = "plonky3_epoch_sha256_columns.rs"]
+mod plonky3_epoch_sha256_columns;
 #[path = "plonky3_epoch_sha256_witness.rs"]
 mod plonky3_epoch_sha256_witness;
 #[path = "plonky3_epoch_trace_framing.rs"]
@@ -197,33 +216,42 @@ mod plonky3_epoch_typed_commitment_air;
 mod plonky3_epoch_uniqueness_air;
 #[path = "plonky3_epoch_uniqueness_range.rs"]
 mod plonky3_epoch_uniqueness_range;
+#[path = "plonky3_epoch_uniqueness_slice.rs"]
+mod plonky3_epoch_uniqueness_slice;
 #[path = "plonky3_epoch_uniqueness_witness.rs"]
 mod plonky3_epoch_uniqueness_witness;
-#[path = "plonky3_recursion.rs"]
-mod plonky3_recursion;
+#[path = "plonky3_recursive_sha256.rs"]
+mod plonky3_recursive_sha256;
+#[path = "plonky3_root_statement.rs"]
+mod plonky3_root_statement;
+#[path = "plonky3_root_statement_air.rs"]
+mod plonky3_root_statement_air;
 #[path = "plonky3_u16_range.rs"]
 mod plonky3_u16_range;
 
+use plonky3_epoch_event_source_columns::EventSourceAirRoleV2;
 use plonky3_epoch_jmt::prove_epoch_jmt_update;
 pub use plonky3_epoch_jmt::Plonky3EpochJmtUpdateV2;
 use plonky3_epoch_jmt_table::JmtProverV2;
 use plonky3_epoch_packed_range::prove_epoch_packed_range;
 use plonky3_epoch_packed_range::PackedRangeProverV2;
 pub use plonky3_epoch_packed_range::Plonky3EpochPackedRangeV2;
+use plonky3_epoch_semantic_source_air::SemanticSourceAirRoleV2;
 use plonky3_epoch_sha256::prove_epoch_sha256;
 pub use plonky3_epoch_sha256::Plonky3EpochSha256V2;
 use plonky3_epoch_sha256::ShaProverV2;
+use plonky3_epoch_sha256_columns::ShaAirRoleV2;
 use plonky3_epoch_trace_framing::prove_epoch_trace_framing;
 pub use plonky3_epoch_trace_framing::Plonky3EpochTraceFramingV2;
 use plonky3_epoch_trace_framing_air::{TraceFramingAirRoleV2, TraceFramingProverV2};
-use plonky3_epoch_transition_air::TransitionProverV2;
-use plonky3_epoch_transition_batch::prove_transition_batch;
-pub use plonky3_epoch_transition_batch::Plonky3EpochTransitionBatchV2;
+pub use plonky3_epoch_transition_batch::Plonky3EpochChunkProofV2;
+pub(super) use plonky3_epoch_transition_batch::VerifiedEpochTraceChunkAdmissionV2;
+use plonky3_epoch_transition_batch::{
+    epoch_chunk_table_provers, prove_epoch_chunk, EpochChunkProofGroupV2,
+};
 use plonky3_epoch_typed_commitment::prove_epoch_typed_commitments;
 pub use plonky3_epoch_typed_commitment::Plonky3EpochTypedCommitmentV2;
 use plonky3_epoch_typed_commitment_air::{TypedCommitmentAirRoleV2, TypedCommitmentProverV2};
-use plonky3_epoch_uniqueness_air::{UniquenessAirRoleV2, UniquenessProverV2};
-use plonky3_epoch_uniqueness_range::UniquenessRangeProverV2;
 use plonky3_epoch_uniqueness_witness::parse as parse_epoch_uniqueness;
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -264,10 +292,13 @@ pub(super) fn prove_epoch_sha256_smoke(
 ) -> Result<EpochSmokeMetricsV2, CheckpointError> {
     plonky3_epoch_sha256::prove_epoch_sha256_smoke(statement, input_state, block)
 }
-use plonky3_recursion::{
-    bind_root_statement_targets, register_root_statement_npo, root_statement_npo_type,
-    BinaryRecMmcsV2, Plonky3PcsV2, RootStatementAirBuilderV2, RootStatementPreprocessorV2,
-    RootStatementProverV2, RootStatementV2, ROOT_COMMON_CAP_FIELDS_V2, ROOT_COMMON_CAP_INDEX_V2,
+use plonky3_binary_pcs::{BinaryRecMmcsV2, Plonky3PcsV2};
+use plonky3_recursive_sha256::{
+    recursive_sha_compress, recursive_sha_npo_type, register_recursive_sha_npo,
+    RecursiveShaAirBuilderV2, RecursiveShaPreprocessorV2, RecursiveShaProverV2,
+};
+use plonky3_root_statement::{
+    RootStatementV2, ROOT_COMMON_CAP_FIELDS_V2, ROOT_COMMON_CAP_INDEX_V2,
     ROOT_STATEMENT_CADENCE_INDEX_V2, ROOT_STATEMENT_CADENCE_LIMBS_V2,
     ROOT_STATEMENT_COMMITMENT_FIELDS_V2, ROOT_STATEMENT_COMMITMENT_INDEX_V2,
     ROOT_STATEMENT_COUNT_INDEX_V2, ROOT_STATEMENT_DIGEST_COUNT_V2, ROOT_STATEMENT_DIGEST_LIMBS_V2,
@@ -282,6 +313,10 @@ use plonky3_recursion::{
     ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2, ROOT_STATEMENT_REPLICA_INDEX_V2,
     ROOT_STATEMENT_RUNTIME_PROFILE_GENERATION_INDEX_V2, ROOT_STATEMENT_SEMANTIC_FIELDS_V2,
     ROOT_STATEMENT_SEMANTIC_INDEX_V2, ROOT_STATEMENT_START_INDEX_V2, ROOT_STATEMENT_TOTAL_INDEX_V2,
+};
+use plonky3_root_statement_air::{
+    bind_root_statement_targets, register_root_statement_npo, root_statement_npo_type,
+    RootStatementAirBuilderV2, RootStatementPreprocessorV2, RootStatementProverV2,
 };
 use plonky3_u16_range::{
     constrain_u16_bits, register_u16_range_npo, u16_range_npo_type, U16RangeAirBuilderV2,
@@ -318,15 +353,21 @@ const ROOT_DIGEST_DELTA_TREE_V2: usize = 12;
 const ROOT_DIGEST_WITNESS_TREE_V2: usize = 13;
 const ROOT_DIGEST_CHALLENGE_TREE_V2: usize = 14;
 const ROOT_DIGEST_DA_TREE_V2: usize = 15;
-const ROOT_DIGEST_VERIFIED_BASE_TREE_V2: usize = 16;
+const ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2: usize = 16;
 const ROOT_DIGEST_EPOCH_ANCHOR_V2: usize = 17;
 const ROOT_DIGEST_CONFIG_V2: usize = 18;
+// Before the epoch seal overwrites these two slots with the close-anchor and
+// config digests, the exact-range tree uses them for the proof-bound streamed
+// accumulator boundary. This keeps the fixed root statement width unchanged.
+const ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2: usize = ROOT_DIGEST_EPOCH_ANCHOR_V2;
+const ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2: usize = ROOT_DIGEST_CONFIG_V2;
 const ROOT_DIGEST_REGISTRY_V2: usize = 19;
 const ROOT_DIGEST_RUNTIME_PROFILE_V2: usize = 20;
 const ROOT_DIGEST_NOVA_CHAIN_V2: usize = 21;
 const ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2: usize = 22;
 const ROOT_DIGEST_FIRST_PREDECESSOR_V2: usize = 23;
 const ROOT_DIGEST_LAST_CHECKPOINT_ID_V2: usize = 24;
+const ROOT_DIGEST_EPOCH_WORK_MANIFEST_V2: usize = 25;
 const HISTORY_DIGEST_STATEMENT_V2: usize = 0;
 const HISTORY_DIGEST_EXACT_EPOCH_V2: usize = 1;
 const HISTORY_DIGEST_PARAMETER_V2: usize = 2;
@@ -471,11 +512,28 @@ const PLONKY3_LEAF_BATCH_COORDINATES_V2: usize = 5;
 const PLONKY3_AGGREGATION_WORKERS_V2: usize = 2;
 const PLONKY3_AGGREGATION_THREADS_V2: usize = 12;
 // Epoch-range recursion has a materially wider ALU than ordinary recursive
-// aggregation. Ten workers retain parallel quotient/FFT execution while
-// reducing worker-local scratch below the 16 GiB real-proof acceptance target.
-// Thread count is prover scheduling only: proof grammar, transcript, and
-// verifier parameters remain unchanged.
-const PLONKY3_EPOCH_RANGE_THREADS_V2: usize = 10;
+// aggregation. The measured six-worker fold crossed the 16 GiB process target
+// at 16,893,580 KiB. Four workers reduce simultaneously live quotient/FFT
+// scratch with explicit headroom while retaining parallel proving. Thread
+// count is prover scheduling only: proof grammar, transcript, and verifier
+// parameters remain unchanged.
+const PLONKY3_EPOCH_RANGE_THREADS_V2: usize = 4;
+// A direct epoch-chunk child carries the complete direct-table verifier set.
+// Its common-cap shape pass is memory-bound and does not emit proof material.
+// One worker prevents idle Rayon workers and their allocator arenas from
+// overlapping the measured shape-lowering high-water mark.
+const PLONKY3_EPOCH_UNARY_CAP_THREADS_V2: usize = 1;
+// Group-certificate witness generation materializes several independent NPO
+// traces. Running those generators concurrently made their trace buffers
+// overlap the wide verifier witness and crossed the 16 GiB process target.
+// Keep this stage serial; range merges and the remaining unary layers retain
+// their measured parallel schedules.
+const PLONKY3_EPOCH_GROUP_CERTIFICATE_THREADS_V2: usize = 1;
+// The witness and proof pass retains the measured four-worker schedule after
+// the one-worker cap pool has been dropped. This keeps unary PCS scratch
+// disjoint from both shape lowering and the later range merge without changing
+// the circuit, proof grammar, transcript, or verifier parameters.
+const PLONKY3_EPOCH_UNARY_THREADS_V2: usize = 4;
 // Epoch unary normalization and sealing retain the measured sixteen-lane
 // layout: each one-child verifier stays below the 16 GiB process target.
 const PLONKY3_EPOCH_UNARY_ALU_LANES_V2: usize = 16;
@@ -496,12 +554,13 @@ const SOURCE_ITEMS_PER_CHUNK_V2: u16 = 4;
 const PLONKY3_MINIMUM_RESIDUAL_BITS_V2: u16 = 100;
 const PER_PROOF_BOUND_BITS_V2: u16 = 133;
 const PLONKY3_LIFETIME_BOUND_BITS_V2: u16 = 107;
-// Generation 19 invalidates base proofs created before the root statement
-// bound the checkpoint artifact root to the verified checkpoint identifier.
-const PLONKY3_CHUNK_CACHE_GENERATION_V2: u16 = 19;
-// Generation 12 invalidates recursive nodes created before canonical sparse
-// word packing removed zero fixed-width limbs from multiproof bodies.
-const PLONKY3_NODE_CACHE_GENERATION_V2: u16 = 12;
+// Generation 21 invalidates chunks created before the transition theorem was
+// split into independently closed core and semantic proof groups.
+const PLONKY3_CHUNK_CACHE_GENERATION_V2: u16 = 21;
+// Generation 15 invalidates recursive nodes created before each wide direct
+// coverage group was first normalized into a bounded recursive certificate and
+// only then merged with the accumulated chunk statement.
+const PLONKY3_NODE_CACHE_GENERATION_V2: u16 = 15;
 const PLONKY3_PREVIOUS_TREE_GENERATION_V2: u8 = 14;
 const PLONKY3_AGGREGATION_TREE_GENERATION_V2: u8 =
     PLONKY3_ROOT_AUTHORITY_V2.aggregation_generation();
@@ -510,7 +569,12 @@ const FINAL_REPLICA_FOLD_ORDINAL_V2: u8 = PLONKY3_FRI_REPLICA_COUNT_V2 + 1;
 const EPOCH_RANGE_FOLD_ORDINAL_V2: u8 = PLONKY3_FRI_REPLICA_COUNT_V2 + 2;
 const EPOCH_SEAL_ORDINAL_V2: u8 = PLONKY3_FRI_REPLICA_COUNT_V2 + 3;
 const HISTORY_SEAL_ORDINAL_V2: u8 = PLONKY3_FRI_REPLICA_COUNT_V2 + 4;
-
+const EPOCH_CHUNK_TRANSITION_COVERAGE_V2: u8 = 1;
+const EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2: u8 = 3;
+const EPOCH_CHUNK_HASH_COVERAGE_V2: u8 = 7;
+const EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2: u8 = 15;
+const EPOCH_CHUNK_COMPLETE_COVERAGE_V2: u8 = 31;
+const EPOCH_CHUNK_COVERAGE_CERTIFICATE_FLAG_V2: u8 = 0x80;
 type Plonky3TraceFieldV2 = BinomialExtensionField<KoalaBear, 4>;
 type Plonky3PermutationV2 = Poseidon2KoalaBear<PLONKY3_MMCS_WIDTH_V2>;
 type Plonky3HashV2 = PaddingFreeSponge<
@@ -773,7 +837,7 @@ enum AggregationRelationV2 {
     LeafRange,
     FirstReplicaFold,
     FinalReplicaFold,
-    EpochBasePair,
+    EpochChunkPair,
     EpochRange,
 }
 
@@ -783,7 +847,7 @@ impl AggregationRelationV2 {
             0 => Some(Self::LeafRange),
             1 => Some(Self::FirstReplicaFold),
             2 => Some(Self::FinalReplicaFold),
-            3 => Some(Self::EpochBasePair),
+            3 => Some(Self::EpochChunkPair),
             4 => Some(Self::EpochRange),
             _ => None,
         }
@@ -794,7 +858,7 @@ impl AggregationRelationV2 {
             Self::LeafRange => 0,
             Self::FirstReplicaFold => 1,
             Self::FinalReplicaFold => 2,
-            Self::EpochBasePair => 3,
+            Self::EpochChunkPair => 3,
             Self::EpochRange => 4,
         }
     }
@@ -804,7 +868,7 @@ impl AggregationRelationV2 {
             Self::LeafRange => RootCommitmentDomainV2::LeafRange,
             Self::FirstReplicaFold => RootCommitmentDomainV2::FirstReplicaFold,
             Self::FinalReplicaFold => RootCommitmentDomainV2::FinalReplicaFold,
-            Self::EpochBasePair | Self::EpochRange => RootCommitmentDomainV2::EpochRange,
+            Self::EpochChunkPair | Self::EpochRange => RootCommitmentDomainV2::EpochRange,
         }
     }
 
@@ -817,7 +881,7 @@ impl AggregationRelationV2 {
                 2,
                 FINAL_REPLICA_FOLD_ORDINAL_V2,
             )),
-            Self::EpochBasePair | Self::EpochRange => None,
+            Self::EpochChunkPair | Self::EpochRange => None,
         }
     }
 }
@@ -827,7 +891,7 @@ enum RootCommitmentDomainV2 {
     LeafRange,
     FirstReplicaFold,
     FinalReplicaFold,
-    EpochLeaf,
+    EpochChunk,
     EpochRange,
     HistoryAnchor,
     HistorySuccessor,
@@ -840,7 +904,7 @@ impl RootCommitmentDomainV2 {
             Self::LeafRange => 2,
             Self::FirstReplicaFold => 3,
             Self::FinalReplicaFold => 4,
-            Self::EpochLeaf => 5,
+            Self::EpochChunk => 5,
             Self::EpochRange => 6,
             Self::HistoryAnchor => 7,
             Self::HistorySuccessor => 8,
@@ -874,7 +938,7 @@ struct EpochNodeProofEnvelopeV2 {
     authority_digest: [u8; 32],
     start_height: u64,
     end_height: u64,
-    leaf_count: u32,
+    transition_count: u32,
     tree_level: u8,
     proof: BatchStarkProof<Plonky3StarkConfigV2>,
 }
@@ -882,7 +946,7 @@ struct EpochNodeProofEnvelopeV2 {
 struct EpochFoldNodeV2 {
     start_height: u64,
     end_height: u64,
-    leaf_count: u32,
+    transition_count: u32,
     depth: u8,
     proof: BatchStarkProof<Plonky3StarkConfigV2>,
 }
@@ -1099,6 +1163,49 @@ where
     T: Send,
 {
     let pool = build_prover_pool_with_threads(operation, PLONKY3_EPOCH_RANGE_THREADS_V2)?;
+    let result = pool.install(task);
+    drop(pool);
+    trim_prover_heap();
+    result
+}
+
+fn run_in_fresh_epoch_unary_cap_pool<T>(
+    operation: &'static str,
+    task: impl FnOnce() -> Result<T, CheckpointError> + Send,
+) -> Result<T, CheckpointError>
+where
+    T: Send,
+{
+    let pool = build_prover_pool_with_threads(operation, PLONKY3_EPOCH_UNARY_CAP_THREADS_V2)?;
+    let result = pool.install(task);
+    drop(pool);
+    trim_prover_heap();
+    result
+}
+
+fn run_in_fresh_epoch_group_certificate_pool<T>(
+    operation: &'static str,
+    task: impl FnOnce() -> Result<T, CheckpointError> + Send,
+) -> Result<T, CheckpointError>
+where
+    T: Send,
+{
+    let pool =
+        build_prover_pool_with_threads(operation, PLONKY3_EPOCH_GROUP_CERTIFICATE_THREADS_V2)?;
+    let result = pool.install(task);
+    drop(pool);
+    trim_prover_heap();
+    result
+}
+
+fn run_in_fresh_epoch_unary_pool<T>(
+    operation: &'static str,
+    task: impl FnOnce() -> Result<T, CheckpointError> + Send,
+) -> Result<T, CheckpointError>
+where
+    T: Send,
+{
+    let pool = build_prover_pool_with_threads(operation, PLONKY3_EPOCH_UNARY_THREADS_V2)?;
     let result = pool.install(task);
     drop(pool);
     trim_prover_heap();
@@ -2593,7 +2700,7 @@ pub struct Plonky3EpochProofV2 {
     frontier_authority_digest: [u8; 32],
     parameter_digest: [u8; 32],
     security_budget_digest: [u8; 32],
-    recursive_base_proof_commitment: [u8; 32],
+    recursive_epoch_commitment: [u8; 32],
     air_binding_digest: [u8; 32],
     proof_digest: [u8; 32],
     proof_bytes: Vec<u8>,
@@ -2662,12 +2769,12 @@ pub(super) struct VerifiedPlonky3EpochV2 {
     pub(super) epoch_index: u64,
     pub(super) start_height: u64,
     pub(super) end_height: u64,
-    pub(super) leaf_count: u32,
+    pub(super) transition_count: u32,
     pub(super) statement_digest: [u8; 32],
     pub(super) frontier_authority_digest: [u8; 32],
     pub(super) parameter_digest: [u8; 32],
     pub(super) security_budget_digest: [u8; 32],
-    pub(super) recursive_base_proof_commitment: [u8; 32],
+    pub(super) recursive_epoch_commitment: [u8; 32],
     pub(super) air_binding_digest: [u8; 32],
     pub(super) proof_digest: [u8; 32],
     pub(super) canonical_envelope_bytes: u32,
@@ -2697,8 +2804,8 @@ impl fmt::Debug for Plonky3EpochProofV2 {
             .field("parameter_digest", &self.parameter_digest)
             .field("security_budget_digest", &self.security_budget_digest)
             .field(
-                "recursive_base_proof_commitment",
-                &self.recursive_base_proof_commitment,
+                "recursive_epoch_commitment",
+                &self.recursive_epoch_commitment,
             )
             .field("air_binding_digest", &self.air_binding_digest)
             .field("proof_digest", &self.proof_digest)
@@ -3079,7 +3186,7 @@ impl Plonky3EpochProofV2 {
         let frontier_authority_digest = take_array::<32>(payload, &mut cursor)?;
         let parameter_digest = take_array::<32>(payload, &mut cursor)?;
         let security_budget_digest = take_array::<32>(payload, &mut cursor)?;
-        let recursive_base_proof_commitment = take_array::<32>(payload, &mut cursor)?;
+        let recursive_epoch_commitment = take_array::<32>(payload, &mut cursor)?;
         let air_binding_digest = take_array::<32>(payload, &mut cursor)?;
         let proof_digest = take_array::<32>(payload, &mut cursor)?;
         let proof_len =
@@ -3093,7 +3200,7 @@ impl Plonky3EpochProofV2 {
             || frontier_authority_digest != statement.frontier_authority_digest()
             || parameter_digest != statement.inputs().parameter_digest
             || security_budget_digest != statement.inputs().security_budget_digest
-            || recursive_base_proof_commitment != statement.recursive_base_proof_commitment()
+            || recursive_epoch_commitment != statement.recursive_epoch_commitment()
             || proof_digest != epoch_outer_proof_digest(&proof_bytes)
         {
             return Err(CheckpointError::RecursiveRejected(
@@ -3114,7 +3221,7 @@ impl Plonky3EpochProofV2 {
             frontier_authority_digest,
             parameter_digest,
             security_budget_digest,
-            recursive_base_proof_commitment,
+            recursive_epoch_commitment,
             air_binding_digest,
             proof_digest,
             proof_bytes,
@@ -3563,10 +3670,10 @@ impl Plonky3BaseAdapterV2 {
 
 /// Sole owner of recursive epoch-frontier proof generation.
 ///
-/// Base proofs remain the only level-zero frontier bodies. Each base root first
-/// passes through its own actual-verifier unary normalization layer. The first
-/// and every later binary merge then consume only that normalized
-/// `EpochRange` proof grammar.
+/// Actual-verified direct trace-chunk proofs are the level-zero frontier
+/// bodies. Each adjacent chunk pair first normalizes both child verifiers into
+/// the `EpochRange` proof grammar; every later binary merge consumes only that
+/// normalized grammar.
 pub struct Plonky3EpochAdapterV2;
 
 impl Plonky3EpochAdapterV2 {
@@ -3574,11 +3681,15 @@ impl Plonky3EpochAdapterV2 {
     /// at a time. Each generated parent is actual-verified before the private
     /// installation capability can be constructed.
     pub fn merge_ready(frontier: &EpochProofFrontierV2) -> Result<usize, CheckpointError> {
+        // Direct chunk proving and recursive merging have disjoint consumers.
+        // Return completed chunk-prover arenas before materializing either
+        // child verifier so their high-water marks cannot overlap.
+        trim_prover_heap();
         let mut merged = 0_usize;
         while let Some(job) = frontier.next_merge_job()? {
-            let verified =
-                run_in_fresh_epoch_range_pool("epoch-merge", move || prove_epoch_merge_job(job))?;
+            let verified = prove_epoch_merge_job(job)?;
             frontier.install_verified_parent(verified)?;
+            trim_prover_heap();
             merged = merged.checked_add(1).ok_or(CheckpointError::Overflow)?;
         }
         Ok(merged)
@@ -3586,18 +3697,19 @@ impl Plonky3EpochAdapterV2 {
 
     /// Finish the bounded non-power-of-two frontier, bind its final recursive
     /// commitment into the exact canonical epoch statement, and add one
-    /// statement-seal recursion layer. No base proof is regenerated here.
+    /// statement-seal recursion layer. Every tentative chunk must first match
+    /// its exact closed-manifest slice. No base proof is regenerated here.
     pub fn seal(
         frontier: &EpochProofFrontierV2,
-        epoch_close_anchor_digest: [u8; 32],
-        nova_chain_root: Option<[u8; 32]>,
+        manifest: &EpochProofWorkManifestV2,
     ) -> Result<Plonky3EpochProofV2, CheckpointError> {
         let authority = frontier.authority();
+        frontier.validate_closed_manifest(manifest)?;
         let nodes = frontier.finalization_nodes()?;
         let folded = fold_epoch_finalization_nodes(nodes, authority)?;
         if folded.start_height != authority.start_height()
             || folded.end_height != authority.end_height()
-            || folded.leaf_count != authority.leaf_count()
+            || folded.transition_count != authority.transition_count()
         {
             return Err(CheckpointError::RecursiveRejected(
                 RecursiveCheckpointRejectReasonV2::Plonky3CanonicalRangeMissing,
@@ -3608,20 +3720,19 @@ impl Plonky3EpochAdapterV2 {
             authority,
             folded.start_height,
             folded.end_height,
-            folded.leaf_count,
+            folded.transition_count,
         )?;
-        let recursive_base_proof_commitment =
+        let recursive_epoch_commitment =
             root_commitment_bytes(proof_root_statement_values(&folded.proof)?)?;
         let inputs = frontier.range_roots()?.statement_inputs(
             &authority,
-            epoch_close_anchor_digest,
-            recursive_base_proof_commitment,
-            nova_chain_root,
+            manifest,
+            recursive_epoch_commitment,
         )?;
         let statement = EpochRangeStatementV2::new(inputs)?;
-        frontier.verify_sealed_statement(&statement)?;
+        frontier.verify_sealed_statement(&statement, manifest)?;
         let seal_statement = statement.clone();
-        let outer_proof = run_in_fresh_prover_pool("epoch-seal", move || {
+        let outer_proof = run_in_fresh_epoch_unary_pool("epoch-seal", move || {
             prove_epoch_statement_seal(folded.proof, &seal_statement)
         })?;
         validate_sealed_epoch_statement(&outer_proof, &statement)?;
@@ -3632,7 +3743,7 @@ impl Plonky3EpochAdapterV2 {
             frontier_authority_digest: authority.digest(),
             parameter_digest: authority.parameter_digest(),
             security_budget_digest: authority.security_budget_digest(),
-            recursive_base_proof_commitment,
+            recursive_epoch_commitment,
             air_binding_digest: epoch_outer_air_binding_digest(&outer_proof)?,
             proof_digest: epoch_outer_proof_digest(&proof_bytes),
             proof_bytes,
@@ -3651,26 +3762,24 @@ impl Plonky3EpochAdapterV2 {
     pub fn verify(
         proof: &Plonky3EpochProofV2,
     ) -> Result<super::receipt::Plonky3EpochVerificationReceiptV2, CheckpointError> {
-        let canonical = Plonky3EpochProofV2::decode_local(proof.canonical_bytes())?;
-        if canonical != *proof {
-            return Err(CheckpointError::Canonical);
-        }
-        let outer = decode_epoch_outer_proof(&canonical.proof_bytes)?;
-        run_in_fresh_prover_pool("epoch-verify", move || {
-            verify_aggregation_proof_in_pool(&outer)?;
-            validate_sealed_epoch_statement(&outer, &canonical.statement)
-        })?;
+        require_epoch_history_common_authority()?;
+        verify_epoch_without_common_authority(proof)?;
+        let outer = decode_epoch_outer_proof(&proof.proof_bytes)?;
+        require_authorized_common(
+            common_binding_digest(&outer.stark_common)?,
+            PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2.epoch_seal_common(),
+        )?;
         let inputs = proof.statement.inputs();
         super::receipt::Plonky3EpochVerificationReceiptV2::issue(VerifiedPlonky3EpochV2 {
             epoch_index: inputs.epoch_index,
             start_height: inputs.start_height,
             end_height: inputs.end_height,
-            leaf_count: inputs.leaf_count,
+            transition_count: inputs.transition_count,
             statement_digest: proof.statement.digest(),
             frontier_authority_digest: proof.frontier_authority_digest,
             parameter_digest: proof.parameter_digest,
             security_budget_digest: proof.security_budget_digest,
-            recursive_base_proof_commitment: proof.recursive_base_proof_commitment,
+            recursive_epoch_commitment: proof.recursive_epoch_commitment,
             air_binding_digest: proof.air_binding_digest,
             proof_digest: proof.proof_digest,
             canonical_envelope_bytes: u32::try_from(proof.canonical_bytes.len())
@@ -3678,12 +3787,133 @@ impl Plonky3EpochAdapterV2 {
             size_status: proof.size_status(),
         })
     }
+
+    /// One-run authority-candidate verifier. It executes the complete actual
+    /// verifier but cannot issue a receipt while common-data pins are absent.
+    #[doc(hidden)]
+    pub fn diagnostic_verify_without_common_authority(
+        proof: &Plonky3EpochProofV2,
+    ) -> Result<(), CheckpointError> {
+        verify_epoch_without_common_authority(proof)
+    }
+
+    /// Fixture-only typed mutation that must reach and fail the pinned outer
+    /// Batch-STARK verifier. Production callers never receive forged proof
+    /// constructors or mutable recursive internals.
+    #[doc(hidden)]
+    pub(crate) fn verify_outer_opening_mutation(
+        source: &Plonky3EpochProofV2,
+    ) -> Result<(), CheckpointError> {
+        let mut outer = decode_epoch_outer_proof(&source.proof_bytes)?;
+        let opening = outer
+            .proof
+            .opened_values
+            .instances
+            .first_mut()
+            .and_then(|instance| instance.base_opened_values.trace_local.first_mut())
+            .ok_or_else(|| {
+                CheckpointError::Backend(
+                    "Plonky3 epoch adversarial fixture found no outer trace opening".into(),
+                )
+            })?;
+        *opening += Plonky3ChallengeV2::ONE;
+
+        let mutation_bytes =
+            postcard::to_allocvec(&outer).map_err(|_| CheckpointError::Canonical)?;
+        let (mutated, remaining): (BatchStarkProof<Plonky3StarkConfigV2>, &[u8]) =
+            postcard::take_from_bytes(&mutation_bytes).map_err(|_| CheckpointError::Canonical)?;
+        if !remaining.is_empty()
+            || postcard::to_allocvec(&mutated).map_err(|_| CheckpointError::Canonical)?
+                != mutation_bytes
+        {
+            return Err(CheckpointError::Canonical);
+        }
+
+        match run_in_fresh_prover_pool("epoch-actual-mutation-verify", move || {
+            verify_aggregation_proof_in_pool(&mutated)
+        }) {
+            Err(CheckpointError::BackendVerificationFailed) => Ok(()),
+            Err(error) => Err(CheckpointError::Backend(format!(
+                "typed epoch mutation did not reach the actual verifier: {error}"
+            ))),
+            Ok(()) => Err(CheckpointError::Backend(
+                "actual Plonky3 epoch verifier accepted a typed outer-opening mutation".into(),
+            )),
+        }
+    }
+}
+
+fn verify_epoch_without_common_authority(
+    proof: &Plonky3EpochProofV2,
+) -> Result<(), CheckpointError> {
+    let canonical = Plonky3EpochProofV2::decode_local(proof.canonical_bytes())?;
+    if canonical != *proof {
+        return Err(CheckpointError::Canonical);
+    }
+    let outer = decode_epoch_outer_proof(&canonical.proof_bytes)?;
+    run_in_fresh_prover_pool("epoch-verify", move || {
+        verify_aggregation_proof_in_pool(&outer)?;
+        validate_sealed_epoch_statement(&outer, &canonical.statement)
+    })
 }
 
 /// Sole owner of the separate rolling Plonky3 history theorem.
 pub struct Plonky3HistoryAdapterV2;
 
 impl Plonky3HistoryAdapterV2 {
+    /// One-run base-history authority diagnostic. It derives the identical
+    /// epoch-anchor leaf as the production path after actual verification, but
+    /// cannot issue a receipt while the epoch/history common-data pins are not
+    /// yet installed.
+    #[doc(hidden)]
+    pub fn diagnostic_derive_epoch_anchor_mmr_root_without_common_authority(
+        epoch: &Plonky3EpochProofV2,
+    ) -> Result<[u8; 32], CheckpointError> {
+        Plonky3EpochAdapterV2::diagnostic_verify_without_common_authority(epoch)?;
+        let epoch_outer = decode_epoch_outer_proof(&epoch.proof_bytes)?;
+        let epoch_statement = proof_root_statement_values(&epoch_outer)?;
+        let leaf = history_leaf_commitment(
+            root_statement_digest(epoch_statement, 0)?,
+            epoch.statement.inputs().epoch_close_anchor_digest,
+            epoch_statement[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+                ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2]
+                .try_into()
+                .map_err(|_| CheckpointError::Canonical)?,
+            None,
+            None,
+        )?;
+        commitment_fields_bytes(leaf)
+    }
+
+    /// Temporary one-run authority diagnostic. The returned values are circuit
+    /// common-data digests, never acceptance receipts or proof-carried
+    /// authority. This method is removed when the resulting literals are
+    /// installed in `authority_artifacts.rs`.
+    #[doc(hidden)]
+    pub fn diagnostic_common_authority_candidates(
+        epoch: &Plonky3EpochProofV2,
+        base: &Plonky3HistoryProofV2,
+    ) -> Result<[[u8; 32]; 4], CheckpointError> {
+        if base.relation != Plonky3HistoryRelationV2::Base {
+            return Err(CheckpointError::Canonical);
+        }
+        let epoch_outer = decode_epoch_outer_proof(&epoch.proof_bytes)?;
+        let base_outer = decode_epoch_outer_proof(&base.proof_bytes)?;
+        let epoch_common = common_binding_digest(&epoch_outer.stark_common)?;
+        let base_common = common_binding_digest(&base_outer.stark_common)?;
+        let successor_common = prepare_history_successor_common_candidate(
+            &base_outer,
+            &epoch_outer,
+            Plonky3HistoryRelationV2::Successor,
+        )?;
+        let rotation_common = prepare_history_successor_common_candidate(
+            &base_outer,
+            &epoch_outer,
+            Plonky3HistoryRelationV2::Rotation,
+        )?;
+        Ok([epoch_common, base_common, successor_common, rotation_common])
+    }
+
     pub(super) fn verify_statement_link_with_authority(
         history: &Plonky3HistoryProofV2,
         epoch: &EpochRangeStatementV2,
@@ -3777,6 +4007,29 @@ impl Plonky3HistoryAdapterV2 {
         }
         validate_history_epoch_binding(&statement, epoch)?;
         Plonky3EpochAdapterV2::verify(epoch)?;
+        let child = decode_epoch_outer_proof(&epoch.proof_bytes)?;
+        let proof_statement = statement.clone();
+        let proof = run_in_fresh_prover_pool("history-base", move || {
+            prove_history_base(child, &proof_statement)
+        })?;
+        build_history_proof(Plonky3HistoryRelationV2::Base, statement, None, proof)
+    }
+
+    /// One-run authority-candidate constructor. The epoch child passes the
+    /// complete actual verifier, but no production verification receipt can be
+    /// issued before the resulting common-data literals are installed.
+    #[doc(hidden)]
+    pub fn diagnostic_prove_base_without_common_authority(
+        statement: HistoryAccumulatorStatementV2,
+        epoch: &Plonky3EpochProofV2,
+    ) -> Result<Plonky3HistoryProofV2, CheckpointError> {
+        if statement.branch() != HistoryBranchV2::Base {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::Plonky3TranscriptMismatch,
+            ));
+        }
+        validate_history_epoch_binding(&statement, epoch)?;
+        Plonky3EpochAdapterV2::diagnostic_verify_without_common_authority(epoch)?;
         let child = decode_epoch_outer_proof(&epoch.proof_bytes)?;
         let proof_statement = statement.clone();
         let proof = run_in_fresh_prover_pool("history-base", move || {
@@ -3896,23 +4149,21 @@ impl Plonky3HistoryAdapterV2 {
         proof: &Plonky3HistoryProofV2,
         authority: &ResolvedPlonky3HistoryAuthorityV2,
     ) -> Result<super::receipt::Plonky3HistoryVerificationReceiptV2, CheckpointError> {
-        let canonical =
-            Plonky3HistoryProofV2::decode_local_with_authority(proof.canonical_bytes(), authority)?;
-        if canonical != *proof {
-            return Err(CheckpointError::Canonical);
-        }
-        let outer = decode_epoch_outer_proof(&canonical.proof_bytes)?;
-        let statement = canonical.statement.clone();
-        let bridge = canonical.rotation_bridge.clone();
-        run_in_fresh_prover_pool("history-verify", move || {
-            verify_aggregation_proof_in_pool(&outer)?;
-            validate_history_root(
-                &outer,
-                &statement,
-                bridge.as_ref(),
-                canonical.verifier_bundle_digest,
-            )
-        })?;
+        require_epoch_history_common_authority()?;
+        verify_history_without_common_authority(proof, authority)?;
+        let outer = decode_epoch_outer_proof(&proof.proof_bytes)?;
+        let expected_common = match proof.relation {
+            Plonky3HistoryRelationV2::Base => {
+                PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2.history_base_common()
+            }
+            Plonky3HistoryRelationV2::Successor => {
+                PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2.history_successor_common()
+            }
+            Plonky3HistoryRelationV2::Rotation => {
+                PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2.history_rotation_common()
+            }
+        };
+        require_authorized_common(common_binding_digest(&outer.stark_common)?, expected_common)?;
         super::receipt::Plonky3HistoryVerificationReceiptV2::issue(VerifiedPlonky3HistoryV2 {
             relation: proof.relation,
             statement_digest: proof.statement.digest(),
@@ -3928,6 +4179,39 @@ impl Plonky3HistoryAdapterV2 {
             size_status: proof.size_status(),
         })
     }
+
+    /// One-run authority-candidate verifier. It verifies the complete history
+    /// proof but deliberately has no receipt-returning surface.
+    #[doc(hidden)]
+    pub fn diagnostic_verify_without_common_authority(
+        proof: &Plonky3HistoryProofV2,
+    ) -> Result<(), CheckpointError> {
+        let authority = Plonky3HistoryAuthorityResolverV2::resolve_active()?;
+        verify_history_without_common_authority(proof, &authority)
+    }
+}
+
+fn verify_history_without_common_authority(
+    proof: &Plonky3HistoryProofV2,
+    authority: &ResolvedPlonky3HistoryAuthorityV2,
+) -> Result<(), CheckpointError> {
+    let canonical =
+        Plonky3HistoryProofV2::decode_local_with_authority(proof.canonical_bytes(), authority)?;
+    if canonical != *proof {
+        return Err(CheckpointError::Canonical);
+    }
+    let outer = decode_epoch_outer_proof(&canonical.proof_bytes)?;
+    let statement = canonical.statement.clone();
+    let bridge = canonical.rotation_bridge.clone();
+    run_in_fresh_prover_pool("history-verify", move || {
+        verify_aggregation_proof_in_pool(&outer)?;
+        validate_history_root(
+            &outer,
+            &statement,
+            bridge.as_ref(),
+            canonical.verifier_bundle_digest,
+        )
+    })
 }
 
 fn fold_epoch_finalization_nodes(
@@ -3949,12 +4233,12 @@ fn fold_epoch_finalization_nodes(
             || (
                 envelope.start_height,
                 envelope.end_height,
-                envelope.leaf_count,
+                envelope.transition_count,
                 envelope.tree_level,
             ) != (
                 node.start_height,
                 node.end_height,
-                node.leaf_count,
+                node.transition_count,
                 node.tree_level,
             )
         {
@@ -3967,12 +4251,12 @@ fn fold_epoch_finalization_nodes(
             authority,
             envelope.start_height,
             envelope.end_height,
-            envelope.leaf_count,
+            envelope.transition_count,
         )?;
         Ok(EpochFoldNodeV2 {
             start_height: envelope.start_height,
             end_height: envelope.end_height,
-            leaf_count: envelope.leaf_count,
+            transition_count: envelope.transition_count,
             depth: envelope.tree_level,
             proof: envelope.proof,
         })
@@ -3987,9 +4271,9 @@ fn fold_epoch_finalization_nodes(
         }
         let start_height = root.start_height;
         let end_height = right.end_height;
-        let leaf_count = root
-            .leaf_count
-            .checked_add(right.leaf_count)
+        let transition_count = root
+            .transition_count
+            .checked_add(right.transition_count)
             .ok_or(CheckpointError::Overflow)?;
         let depth = root
             .depth
@@ -4006,11 +4290,17 @@ fn fold_epoch_finalization_nodes(
                 &mut prep_pool,
             )
         })?;
-        validate_epoch_node_statement(&proof, authority, start_height, end_height, leaf_count)?;
+        validate_epoch_node_statement(
+            &proof,
+            authority,
+            start_height,
+            end_height,
+            transition_count,
+        )?;
         root = EpochFoldNodeV2 {
             start_height,
             end_height,
-            leaf_count,
+            transition_count,
             depth,
             proof,
         };
@@ -4020,59 +4310,75 @@ fn fold_epoch_finalization_nodes(
 
 fn prove_epoch_merge_job(job: EpochMergeJobV2) -> Result<VerifiedEpochParentV2, CheckpointError> {
     let authority = job.authority();
-    let is_base_pair = job.is_base_pair();
-    let mut left = epoch_merge_child_proof(
-        job.left_proof_bytes(),
-        job.left_proof_digest(),
-        job.left_range(),
-        authority,
-        is_base_pair,
-    )?;
-    let mut right = epoch_merge_child_proof(
-        job.right_proof_bytes(),
-        job.right_proof_digest(),
-        job.right_range(),
-        authority,
-        is_base_pair,
-    )?;
-    let pair_inputs = job.base_pair_inputs();
-    if is_base_pair {
+    let is_chunk_pair = job.is_chunk_pair();
+    let pair_inputs = job.chunk_pair_inputs();
+    let (left, right) = if is_chunk_pair {
         let pair = pair_inputs.ok_or(CheckpointError::Canonical)?;
-        let left_inputs = EpochLeafNormalizationInputsV2::from_pair(pair, pair.left);
-        left = run_in_fresh_prover_pool("epoch-leaf-normalize-left", move || {
-            prove_epoch_leaf_normalization(left, &left_inputs)
-        })?;
+        // A decoded direct chunk proof is substantially wider than its
+        // canonical frontier envelope. Complete the left normalization before
+        // decoding the right child so two direct verifier inputs never overlap
+        // the unary circuit/preprocessing high-water mark.
+        let left = decode_epoch_chunk_child(
+            job.left_proof_bytes(),
+            job.left_proof_digest(),
+            job.left_range(),
+            authority,
+        )?;
+        let left_inputs = EpochChunkNormalizationInputsV2::from_pair(&pair, &pair.left);
+        let left = prove_epoch_chunk_normalization(left, &left_inputs)?;
         trim_prover_heap();
-        let right_inputs = EpochLeafNormalizationInputsV2::from_pair(pair, pair.right);
-        right = run_in_fresh_prover_pool("epoch-leaf-normalize-right", move || {
-            prove_epoch_leaf_normalization(right, &right_inputs)
-        })?;
+
+        let right = decode_epoch_chunk_child(
+            job.right_proof_bytes(),
+            job.right_proof_digest(),
+            job.right_range(),
+            authority,
+        )?;
+        let right_inputs = EpochChunkNormalizationInputsV2::from_pair(&pair, &pair.right);
+        let right = prove_epoch_chunk_normalization(right, &right_inputs)?;
         trim_prover_heap();
-    } else if pair_inputs.is_some() {
-        return Err(CheckpointError::Canonical);
-    }
-    let mut prep_pool = AggregationPrepPoolV2::new();
-    let proof = aggregate_proof_pair(
-        left,
-        right,
-        AggregationRelationV2::EpochRange,
-        None,
-        &mut prep_pool,
-    )?;
-    drop(prep_pool);
-    let leaf_count = job.leaf_count()?;
+        (left, right)
+    } else {
+        if pair_inputs.is_some() {
+            return Err(CheckpointError::Canonical);
+        }
+        let left = decode_epoch_recursive_child(
+            job.left_proof_bytes(),
+            job.left_proof_digest(),
+            job.left_range(),
+            authority,
+        )?;
+        let right = decode_epoch_recursive_child(
+            job.right_proof_bytes(),
+            job.right_proof_digest(),
+            job.right_range(),
+            authority,
+        )?;
+        (left, right)
+    };
+    let proof = run_in_fresh_epoch_range_pool("epoch-merge", move || {
+        let mut prep_pool = AggregationPrepPoolV2::new();
+        aggregate_proof_pair(
+            left,
+            right,
+            AggregationRelationV2::EpochRange,
+            None,
+            &mut prep_pool,
+        )
+    })?;
+    let transition_count = job.transition_count()?;
     validate_epoch_node_statement(
         &proof,
         authority,
         job.start_height(),
         job.end_height(),
-        leaf_count,
+        transition_count,
     )?;
     let envelope = EpochNodeProofEnvelopeV2 {
         authority_digest: authority.digest(),
         start_height: job.start_height(),
         end_height: job.end_height(),
-        leaf_count,
+        transition_count,
         tree_level: job.tree_level()?,
         proof,
     };
@@ -4086,7 +4392,7 @@ fn prove_epoch_merge_job(job: EpochMergeJobV2) -> Result<VerifiedEpochParentV2, 
             &envelope.authority_digest,
             &envelope.start_height.to_le_bytes(),
             &envelope.end_height.to_le_bytes(),
-            &envelope.leaf_count.to_le_bytes(),
+            &envelope.transition_count.to_le_bytes(),
             &[envelope.tree_level],
             &proof_digest,
             &common_binding_digest(&envelope.proof.stark_common)?,
@@ -4097,7 +4403,7 @@ fn prove_epoch_merge_job(job: EpochMergeJobV2) -> Result<VerifiedEpochParentV2, 
         right_node_digest: job.right_node_digest(),
         start_height: envelope.start_height,
         end_height: envelope.end_height,
-        leaf_count: envelope.leaf_count,
+        transition_count: envelope.transition_count,
         tree_level: envelope.tree_level,
         range_binding_digest,
         proof_digest,
@@ -4106,32 +4412,45 @@ fn prove_epoch_merge_job(job: EpochMergeJobV2) -> Result<VerifiedEpochParentV2, 
     })
 }
 
-fn epoch_merge_child_proof(
+fn decode_epoch_chunk_child(
     bytes: &[u8],
     expected_proof_digest: [u8; 32],
     expected_range: (u64, u64, u32, u8),
     authority: super::epoch_frontier::EpochFrontierAuthorityV2,
-    is_base: bool,
-) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+) -> Result<Plonky3EpochChunkProofV2, CheckpointError> {
     if plonky3_proof_digest(bytes) != expected_proof_digest {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3TranscriptMismatch,
         ));
     }
-    if is_base {
-        let decoded = Plonky3BaseProofV2::decode_local(bytes)?;
-        let range = decoded.range_binding()?;
-        if expected_range != (range.height, range.height, 1, 0)
-            || range.parameter_digest != authority.parameter_digest()
-            || range.security_budget_digest != authority.security_budget_digest()
-            || range.verifier_bundle_digest != authority.verifier_bundle_digest()
-        {
-            return Err(CheckpointError::RecursiveRejected(
-                RecursiveCheckpointRejectReasonV2::Plonky3CanonicalRangeMissing,
-            ));
-        }
-        let root = decode_recursive_roots(&decoded.proof_bytes)?;
-        return Ok(root.root.proof);
+    if expected_range.2 == 0
+        || expected_range.2 > EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2
+        || expected_range.3 != 0
+        || expected_range
+            .0
+            .checked_add(u64::from(expected_range.2))
+            .and_then(|height| height.checked_sub(1))
+            != Some(expected_range.1)
+    {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3CanonicalRangeMissing,
+        ));
+    }
+    let proof = Plonky3EpochChunkProofV2::decode_canonical(&authority, bytes)?;
+    proof.verify()?;
+    Ok(proof)
+}
+
+fn decode_epoch_recursive_child(
+    bytes: &[u8],
+    expected_proof_digest: [u8; 32],
+    expected_range: (u64, u64, u32, u8),
+    authority: super::epoch_frontier::EpochFrontierAuthorityV2,
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    if plonky3_proof_digest(bytes) != expected_proof_digest {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3TranscriptMismatch,
+        ));
     }
     let envelope = decode_epoch_node_proof(bytes)?;
     if envelope.authority_digest != authority.digest()
@@ -4139,7 +4458,7 @@ fn epoch_merge_child_proof(
             != (
                 envelope.start_height,
                 envelope.end_height,
-                envelope.leaf_count,
+                envelope.transition_count,
                 envelope.tree_level,
             )
     {
@@ -4152,7 +4471,7 @@ fn epoch_merge_child_proof(
         authority,
         envelope.start_height,
         envelope.end_height,
-        envelope.leaf_count,
+        envelope.transition_count,
     )?;
     Ok(envelope.proof)
 }
@@ -4639,6 +4958,16 @@ pub(super) fn transition_material(
     })
 }
 
+pub(super) fn epoch_jmt_update_count(
+    material: &TransitionMaterialV2,
+) -> Result<u32, CheckpointError> {
+    Ok(
+        plonky3_epoch_event_stream::transition_event_stream(material)?
+            .jmt()
+            .update_count(),
+    )
+}
+
 fn build_base_statement(
     transition: &CanonicalCheckpointTransitionV2,
     statement: RecursiveTransitionStatementV2,
@@ -4658,11 +4987,7 @@ fn build_base_statement(
             "Plonky3 base-statement registry resolution failed: {error}"
         ))
     })?;
-    let event_vector_digest = sha256_256(
-        "z00z.storage.checkpoint.plonky3.event-vector.v2",
-        "canonical_events",
-        &[event_vector],
-    );
+    let event_vector_digest = sha256_256_role(CheckpointShaRole::EventVector, &[event_vector]);
     let native_predicate_digest = base_native_predicate_digest_v2(authority, profile)?;
     let chain_context_digest = authority.digest();
     let mut bytes = Vec::with_capacity(PLONKY3_BASE_STATEMENT_BYTES_V2);
@@ -4986,11 +5311,7 @@ fn validate_event_vector(
     if cursor != event_vector.len() || consumed != declared_count {
         return Err(CheckpointError::Canonical);
     }
-    let event_vector_digest = sha256_256(
-        "z00z.storage.checkpoint.plonky3.event-vector.v2",
-        "canonical_events",
-        &[event_vector],
-    );
+    let event_vector_digest = sha256_256_role(CheckpointShaRole::EventVector, &[event_vector]);
     if event_vector_digest != statement.event_vector_digest() {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3TranscriptMismatch,
@@ -6154,7 +6475,7 @@ fn circuit_sha256_256_parts(
     parts: &[Vec<CircuitByteBitsV2>],
     zero: ExprId,
     one: ExprId,
-    two: ExprId,
+    _two: ExprId,
 ) -> Result<Vec<CircuitByteBitsV2>, CheckpointError> {
     if domain.is_empty()
         || domain.contains('\0')
@@ -6230,7 +6551,83 @@ fn circuit_sha256_256_parts(
             .into_iter()
             .map(|byte| constant_byte_bits(byte, zero, one)),
     );
-    circuit_sha256_padded_message_digest(builder, &message, zero, one, two)
+    if message.is_empty() || !message.len().is_multiple_of(64) {
+        return Err(CheckpointError::Invariant);
+    }
+
+    let mut state: [ExprId; 16] = core::array::from_fn(|limb| {
+        let word = SHA256_IV_V2[limb / 2];
+        let value = if limb % 2 == 0 {
+            word & 0xffff
+        } else {
+            word >> 16
+        };
+        builder.define_const(lift_koala(KoalaBear::from_u32(value)))
+    });
+    let mut final_bits: Option<Vec<[ExprId; 16]>> = None;
+    for block in message.chunks_exact(64) {
+        let mut block_limbs = [zero; 32];
+        for word in 0..16 {
+            let bytes = block
+                .get(word * 4..word * 4 + 4)
+                .ok_or(CheckpointError::Invariant)?;
+            block_limbs[word * 2] =
+                circuit_u16_from_byte_bits(builder, [&bytes[3], &bytes[2]], zero)?;
+            block_limbs[word * 2 + 1] =
+                circuit_u16_from_byte_bits(builder, [&bytes[1], &bytes[0]], zero)?;
+        }
+        state = recursive_sha_compress(builder, state, block_limbs).map_err(|_| {
+            CheckpointError::Backend("Plonky3 recursive SHA-256 lowering failed".into())
+        })?;
+        final_bits = Some(
+            state
+                .iter()
+                .copied()
+                .map(|limb| {
+                    constrain_u16_bits(builder, limb).map_err(|_| {
+                        CheckpointError::Backend(
+                            "Plonky3 recursive SHA-256 output range lowering failed".into(),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+    }
+    let final_bits = final_bits.ok_or(CheckpointError::Invariant)?;
+    let mut digest = Vec::with_capacity(32);
+    for word in 0..8 {
+        let low = final_bits.get(word * 2).ok_or(CheckpointError::Invariant)?;
+        let high = final_bits
+            .get(word * 2 + 1)
+            .ok_or(CheckpointError::Invariant)?;
+        digest.push(core::array::from_fn(|bit| high[8 + bit]));
+        digest.push(core::array::from_fn(|bit| high[bit]));
+        digest.push(core::array::from_fn(|bit| low[8 + bit]));
+        digest.push(core::array::from_fn(|bit| low[bit]));
+    }
+    Ok(digest)
+}
+
+fn circuit_u16_from_byte_bits(
+    builder: &mut CircuitBuilder<Plonky3TraceFieldV2>,
+    bytes_le: [&CircuitByteBitsV2; 2],
+    zero: ExprId,
+) -> Result<ExprId, CheckpointError> {
+    let mut value = zero;
+    for (bit, target) in bytes_le
+        .iter()
+        .flat_map(|byte| byte.iter())
+        .copied()
+        .enumerate()
+    {
+        let weight = 1_u64
+            .checked_shl(u32::try_from(bit).map_err(|_| CheckpointError::Limit)?)
+            .ok_or(CheckpointError::Overflow)?;
+        let coefficient = builder.define_const(lift_koala(KoalaBear::from_u64(weight)));
+        let term = builder.mul(target, coefficient);
+        value = builder.add(value, term);
+    }
+    Ok(value)
 }
 
 fn circuit_constant_bytes(bytes: &[u8], zero: ExprId, one: ExprId) -> Vec<CircuitByteBitsV2> {
@@ -6401,7 +6798,7 @@ fn circuit_epoch_ordered_root_digest(
     )
 }
 
-fn circuit_verified_base_statement_digest(
+fn circuit_verified_trace_chunk_statement_digest(
     builder: &mut CircuitBuilder<Plonky3TraceFieldV2>,
     statement: &[ExprId],
     zero: ExprId,
@@ -6420,8 +6817,8 @@ fn circuit_verified_base_statement_digest(
     let statement_digest = circuit_root_digest_bytes(builder, statement, ROOT_DIGEST_PRIMARY_V2)?;
     circuit_sha256_256_parts(
         builder,
-        EPOCH_VERIFIED_BASE_STATEMENT_DOMAIN_V2,
-        EPOCH_VERIFIED_BASE_STATEMENT_LABEL_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_DOMAIN_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_LABEL_V2,
         &[height_bytes, statement_digest],
         zero,
         one,
@@ -10756,12 +11153,13 @@ fn prepare_shape(words: &[u16], event_vector: Option<&[u8]>) -> Result<(), Check
     Ok(())
 }
 
-fn canonical_recursive_npo_types() -> [NpoTypeId; 5] {
+fn canonical_recursive_npo_types() -> [NpoTypeId; 6] {
     [
         NpoTypeId::poseidon2_perm(Poseidon2Config::KOALA_BEAR_D4_W32),
         NpoTypeId::poseidon2_perm(Poseidon2Config::KOALA_BEAR_D4_W16),
         NpoTypeId::recompose(),
         u16_range_npo_type(),
+        recursive_sha_npo_type(),
         root_statement_npo_type(),
     ]
 }
@@ -10771,6 +11169,7 @@ fn canonical_recursive_preprocessors() -> Vec<Box<dyn NpoPreprocessor<KoalaBear>
         Box::new(Poseidon2Preprocessor),
         recompose_preprocessor::<KoalaBear>(true),
         Box::new(U16RangePreprocessorV2),
+        Box::new(RecursiveShaPreprocessorV2),
         Box::new(RootStatementPreprocessorV2),
     ]
 }
@@ -10782,6 +11181,7 @@ fn canonical_recursive_air_builders() -> Vec<Box<dyn NpoAirBuilder<Plonky3StarkC
     ]);
     builders.extend(recompose_air_builders::<Plonky3StarkConfigV2, 4>(1, true));
     builders.push(Box::new(U16RangeAirBuilderV2));
+    builders.push(Box::new(RecursiveShaAirBuilderV2));
     builders.push(Box::new(RootStatementAirBuilderV2));
     builders
 }
@@ -10791,6 +11191,7 @@ fn register_canonical_recursive_tables(prover: &mut BatchStarkProver<Plonky3Star
     prover.register_poseidon2_table::<4>(Poseidon2Config::KOALA_BEAR_D4_W16);
     prover.register_recompose_table::<4>(true);
     prover.register_table_prover(Box::new(U16RangeProverV2));
+    prover.register_table_prover(Box::new(RecursiveShaProverV2));
     prover.register_table_prover(Box::new(RootStatementProverV2));
 }
 
@@ -11492,7 +11893,7 @@ fn epoch_range_table_packing() -> TablePacking {
 
 fn aggregation_table_packing_for(relation: AggregationRelationV2) -> TablePacking {
     match relation {
-        AggregationRelationV2::EpochBasePair | AggregationRelationV2::EpochRange => {
+        AggregationRelationV2::EpochChunkPair | AggregationRelationV2::EpochRange => {
             epoch_range_table_packing()
         }
         AggregationRelationV2::LeafRange
@@ -11502,7 +11903,7 @@ fn aggregation_table_packing_for(relation: AggregationRelationV2) -> TablePackin
 }
 
 fn validate_aggregation_geometry(
-    circuit: &Circuit<Plonky3ChallengeV2>,
+    circuit_operations: usize,
     packing: &TablePacking,
     ext_degrees: &[usize],
 ) -> Result<(), CheckpointError> {
@@ -11517,7 +11918,7 @@ fn validate_aggregation_geometry(
                  \"koala_bear_two_adicity\":{},\"circuit_operations\":{},\
                  \"alu_lanes\":{}}}",
                 KoalaBear::TWO_ADICITY,
-                circuit.ops.len(),
+                circuit_operations,
                 packing.alu_lanes(),
             );
         }
@@ -11529,7 +11930,7 @@ fn validate_aggregation_geometry(
          \"koala_bear_two_adicity\":{},\"circuit_operations\":{},\
          \"alu_lanes\":{}}}",
         KoalaBear::TWO_ADICITY,
-        circuit.ops.len(),
+        circuit_operations,
         packing.alu_lanes(),
     );
     Err(CheckpointError::Limit)
@@ -11635,7 +12036,8 @@ impl AggregationPrepPoolV2 {
 struct BoundRecursionBackendV2;
 
 struct BoundVerifierResultV2 {
-    inner: FriVerifierResult<Plonky3StarkConfigV2>,
+    air_public_targets: Vec<Vec<ExprId>>,
+    op_ids: Vec<NonPrimitiveOpId>,
     common_targets: Vec<ExprId>,
     trailing_public_inputs: Vec<Plonky3ChallengeV2>,
 }
@@ -11657,7 +12059,30 @@ impl VerifierCircuitResult<Plonky3StarkConfigV2, BatchOnly> for BoundVerifierRes
         &self,
         previous: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
     ) -> Result<Vec<Plonky3ChallengeV2>, VerificationError> {
-        let mut values = self.inner.pack_public_inputs(previous)?;
+        let RecursionInput::BatchStark {
+            proof,
+            common_data,
+            table_public_inputs,
+        } = previous
+        else {
+            return Err(VerificationError::InvalidProofShape(
+                "bound verifier requires a batch-STARK input".to_owned(),
+            ));
+        };
+        let proof_values = <BatchProofTargets<
+            Plonky3StarkConfigV2,
+            MerkleCapTargets<KoalaBear, PLONKY3_MMCS_DIGEST_ELEMS_V2>,
+            Plonky3RecOpeningProofV2,
+        > as Recursive<Plonky3ChallengeV2>>::get_values(&proof.proof);
+        let common_values = <CommonDataTargets<
+            Plonky3StarkConfigV2,
+            MerkleCapTargets<KoalaBear, PLONKY3_MMCS_DIGEST_ELEMS_V2>,
+        > as Recursive<Plonky3ChallengeV2>>::get_values(common_data);
+        let mut values = construct_batch_stark_verifier_inputs(
+            table_public_inputs,
+            &proof_values,
+            &common_values,
+        );
         values.extend_from_slice(&self.trailing_public_inputs);
         Ok(values)
     }
@@ -11666,14 +12091,22 @@ impl VerifierCircuitResult<Plonky3StarkConfigV2, BatchOnly> for BoundVerifierRes
         &self,
         previous: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
     ) -> Result<Vec<Plonky3ChallengeV2>, VerificationError> {
-        self.inner.pack_private_inputs(previous)
+        let RecursionInput::BatchStark { proof, .. } = previous else {
+            return Err(VerificationError::InvalidProofShape(
+                "bound verifier requires a batch-STARK input".to_owned(),
+            ));
+        };
+        Ok(<BatchProofTargets<
+            Plonky3StarkConfigV2,
+            MerkleCapTargets<KoalaBear, PLONKY3_MMCS_DIGEST_ELEMS_V2>,
+            Plonky3RecOpeningProofV2,
+        > as Recursive<Plonky3ChallengeV2>>::get_private_values(
+            &proof.proof,
+        ))
     }
 
     fn op_ids(&self) -> &[NonPrimitiveOpId] {
-        <FriVerifierResult<Plonky3StarkConfigV2> as VerifierCircuitResult<
-            Plonky3StarkConfigV2,
-            BatchOnly,
-        >>::op_ids(&self.inner)
+        &self.op_ids
     }
 }
 
@@ -11708,14 +12141,6 @@ fn build_bound_batch_verifier_for_degree<const TRACE_D: usize>(
 
     let rows = proof.rows;
     let packing = proof.table_packing.clone();
-    let alu_preprocessed = if rows[PrimitiveTable::Alu] == 0 {
-        Vec::new()
-    } else {
-        vec![
-            KoalaBear::ZERO;
-            rows[PrimitiveTable::Alu] * AluAir::<KoalaBear, TRACE_D>::preprocessed_lane_width()
-        ]
-    };
     let reduction = AluExtMulKind::resolve(
         TRACE_D,
         <Plonky3ChallengeV2 as ExtractBinomialW<KoalaBear>>::extract_w(),
@@ -11726,13 +12151,15 @@ fn build_bound_batch_verifier_for_degree<const TRACE_D: usize>(
             "KoalaBear D{TRACE_D} ALU reduction is unavailable"
         ))
     })?;
-    let alu_air = AluAir::<KoalaBear, TRACE_D>::from_reduction_with_preprocessed(
+    // Recursive verification needs the committed preprocessed width and the
+    // proof-pinned Horner geometry, not a second materialized zero trace.  This
+    // is the same shape-only reconstruction used by the native batch verifier.
+    let alu_air = AluAir::<KoalaBear, TRACE_D>::from_reduction(
         rows[PrimitiveTable::Alu],
         packing.alu_lanes(),
         reduction,
-        alu_preprocessed,
-        packing.horner_packed_steps(),
-    );
+    )
+    .with_horner_pack_k(packing.horner_packed_steps());
     if !matches!(
         proof.alu_variant,
         AirVariant::Baseline | AirVariant::Optimized
@@ -11852,8 +12279,16 @@ fn build_bound_batch_verifier_for_degree<const TRACE_D: usize>(
         &lookup,
         Poseidon2Config::KOALA_BEAR_D4_W32,
     )?;
+    let BatchStarkVerifierInputsBuilder {
+        air_public_targets,
+        proof_targets,
+        common_data,
+    } = inputs;
+    drop(proof_targets);
+    drop(common_data);
     Ok(BoundVerifierResultV2 {
-        inner: FriVerifierResult::BatchStark(inputs, op_ids),
+        air_public_targets,
+        op_ids,
         common_targets,
         trailing_public_inputs: vec![Plonky3ChallengeV2::ZERO],
     })
@@ -11903,6 +12338,7 @@ impl PcsRecursionBackend<Plonky3StarkConfigV2, BatchOnly, 4> for BoundRecursionB
         // authorize every NPO that the relation itself can emit, not only the
         // NPOs found in either child proof.
         register_u16_range_npo(circuit);
+        register_recursive_sha_npo(circuit);
         Ok(())
     }
 
@@ -11960,28 +12396,14 @@ impl PcsRecursionBackend<Plonky3StarkConfigV2, BatchOnly, 4> for BoundRecursionB
         if ext_degree == 1 {
             let mut provers: Vec<Box<dyn TableProver<Plonky3StarkConfigV2>>> = vec![
                 Box::new(TraceFramingProverV2::new(TraceFramingAirRoleV2::Standalone)),
-                Box::new(TraceFramingProverV2::new(
-                    TraceFramingAirRoleV2::LinkedConsumer,
-                )),
                 Box::new(PackedRangeProverV2),
-                Box::new(ShaProverV2),
+                Box::new(ShaProverV2::new(ShaAirRoleV2::Standalone)),
                 Box::new(JmtProverV2),
-                Box::new(TransitionProverV2),
                 Box::new(TypedCommitmentProverV2::new(
                     TypedCommitmentAirRoleV2::Standalone,
                 )),
-                Box::new(TypedCommitmentProverV2::new(
-                    TypedCommitmentAirRoleV2::LinkedConsumer,
-                )),
-                Box::new(TypedCommitmentProverV2::new(
-                    TypedCommitmentAirRoleV2::EventSource,
-                )),
             ];
-            provers.extend(UniquenessAirRoleV2::ALL.into_iter().map(|role| {
-                Box::new(UniquenessProverV2::new(role))
-                    as Box<dyn TableProver<Plonky3StarkConfigV2>>
-            }));
-            provers.push(Box::new(UniquenessRangeProverV2));
+            provers.extend(epoch_chunk_table_provers());
             return provers;
         }
         if ext_degree != 4 {
@@ -11999,6 +12421,7 @@ impl PcsRecursionBackend<Plonky3StarkConfigV2, BatchOnly, 4> for BoundRecursionB
         ];
         provers.extend(recompose_table_provers::<Plonky3StarkConfigV2, 4>(1, true));
         provers.push(Box::new(U16RangeProverV2));
+        provers.push(Box::new(RecursiveShaProverV2));
         provers.push(Box::new(RootStatementProverV2));
         provers
     }
@@ -12009,14 +12432,56 @@ impl PcsRecursionBackend<Plonky3StarkConfigV2, BatchOnly, 4> for BoundRecursionB
 }
 
 fn root_statement_targets(result: &BoundVerifierResultV2) -> Result<&[ExprId], CheckpointError> {
-    let FriVerifierResult::BatchStark(inputs, _) = &result.inner else {
-        return Err(CheckpointError::Canonical);
-    };
-    let targets = inputs
+    let targets = result
         .air_public_targets
         .last()
         .ok_or(CheckpointError::Canonical)?;
     if targets.len() != ROOT_STATEMENT_FIELDS_V2 {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    Ok(targets)
+}
+
+fn direct_group_public_targets<'a>(
+    result: &'a BoundVerifierResultV2,
+    child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    op_type: &NpoTypeId,
+    expected_fields: usize,
+) -> Result<&'a [ExprId], CheckpointError> {
+    let RecursionInput::BatchStark { proof, .. } = child else {
+        return Err(CheckpointError::Canonical);
+    };
+    let primitive_count = proof
+        .proof
+        .opened_values
+        .instances
+        .len()
+        .checked_sub(proof.non_primitives.len())
+        .ok_or(CheckpointError::Canonical)?;
+    let mut matches = proof
+        .non_primitives
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| &entry.op_type == op_type);
+    let (non_primitive_index, entry) = matches.next().ok_or(CheckpointError::RecursiveRejected(
+        RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+    ))?;
+    if matches.next().is_some() || entry.public_values.len() != expected_fields {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    let targets = result
+        .air_public_targets
+        .get(
+            primitive_count
+                .checked_add(non_primitive_index)
+                .ok_or(CheckpointError::Overflow)?,
+        )
+        .ok_or(CheckpointError::Canonical)?;
+    if targets.len() != expected_fields {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
         ));
@@ -12154,7 +12619,7 @@ fn circuit_pair_hash(
 fn epoch_normalized_digest(slot: u8) -> Result<[u8; 32], CheckpointError> {
     let label = match slot {
         0 => "normalized_epoch_range_statement",
-        1 => "ordered_verified_base_root_statements",
+        1 => "ordered_verified_trace_chunk_statements",
         _ => return Err(CheckpointError::Invariant),
     };
     Ok(sha256_256(
@@ -12179,7 +12644,7 @@ fn circuit_epoch_normalized_digest(
         .map_err(|_| CheckpointError::Invariant)
 }
 
-fn circuit_epoch_leaf_commitment(
+fn circuit_epoch_chunk_commitment(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
     statement: &[ExprId],
 ) -> Result<[ExprId; ROOT_STATEMENT_COMMITMENT_FIELDS_V2], CheckpointError> {
@@ -12187,11 +12652,9 @@ fn circuit_epoch_leaf_commitment(
         return Err(CheckpointError::Canonical);
     }
     let mut fields = Vec::with_capacity(40);
-    // The first two child digests are respectively the exact canonical base
-    // statement and its leaf-manifest digest. Both vary per finalized block,
-    // so they must enter the commitment before the epoch statement can be
-    // normalized. The child recursive root commitment binds the actual
-    // verifier-checked AIR tree for that statement.
+    // The first two child digests are the generation-pinned normalized range
+    // and ordered verified trace-chunk domains. The child recursive root
+    // commitment binds the actual-verifier-checked direct AIR statement.
     fields.extend_from_slice(&statement[1..33]);
     fields.extend_from_slice(
         &statement[ROOT_STATEMENT_COMMITMENT_INDEX_V2
@@ -12200,7 +12663,7 @@ fn circuit_epoch_leaf_commitment(
     let mut domain = [KoalaBear::ZERO; ROOT_STATEMENT_COMMITMENT_FIELDS_V2];
     domain[0] = KoalaBear::from_u64(0x5a30);
     domain[1] = KoalaBear::from_u64(0x5254);
-    domain[2] = KoalaBear::from_u8(RootCommitmentDomainV2::EpochLeaf.tag());
+    domain[2] = KoalaBear::from_u8(RootCommitmentDomainV2::EpochChunk.tag());
     circuit_vector_hash(circuit, &fields, domain)
 }
 
@@ -12219,13 +12682,11 @@ fn constrain_statement_equal(
     // Never connect recursive public inputs, or an ALU derived from them, to
     // the shared zero witness. The pinned circuit optimizer may discover a
     // later duplicate ALU and rewrite the positional public-row mapping while
-    // leaving the earlier Public op on its original witness. Enforce x = 0
-    // algebraically instead: x² and x² + 1 are both boolean iff x² = 0.
-    let residual = circuit.mul(difference, difference);
-    circuit.assert_bool(residual);
-    let one = circuit.define_const(Plonky3ChallengeV2::ONE);
-    let residual_plus_one = circuit.add(residual, one);
-    circuit.assert_bool(residual_plus_one);
+    // leaving the earlier Public op on its original witness. Connect only the
+    // derived square to zero: over a field, (left - right)² = 0 iff the two
+    // inputs are equal, while the positional public witness remains distinct.
+    let square = circuit.mul(difference, difference);
+    circuit.assert_zero(square);
 }
 
 fn constrain_statement_range_equal(
@@ -12302,7 +12763,7 @@ fn set_root_digest_targets(
 }
 
 #[derive(Clone)]
-struct EpochBasePairCircuitTargetsV2 {
+struct EpochChunkPairCircuitTargetsV2 {
     left_ordinal: ExprId,
     right_ordinal: ExprId,
     total: ExprId,
@@ -12311,21 +12772,23 @@ struct EpochBasePairCircuitTargetsV2 {
     parameter_generation: [ExprId; ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct EpochLeafNormalizationInputsV2 {
-    leaf: EpochBaseLeafProofInputsV2,
-    total: u32,
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct EpochChunkNormalizationInputsV2 {
+    chunk: EpochTraceChunkProofInputsV2,
+    total_transition_count: u32,
+    total_chunk_count: u32,
     epoch_index: u64,
     cadence_blocks: u64,
     parameter_generation: u32,
     runtime_profile_generation: u16,
 }
 
-impl EpochLeafNormalizationInputsV2 {
-    const fn from_pair(pair: EpochBasePairProofInputsV2, leaf: EpochBaseLeafProofInputsV2) -> Self {
+impl EpochChunkNormalizationInputsV2 {
+    fn from_pair(pair: &EpochChunkPairInputsV2, chunk: &EpochTraceChunkProofInputsV2) -> Self {
         Self {
-            leaf,
-            total: pair.total,
+            chunk: chunk.clone(),
+            total_transition_count: pair.total_transition_count,
+            total_chunk_count: pair.total_chunk_count,
             epoch_index: pair.epoch_index,
             cadence_blocks: pair.cadence_blocks,
             parameter_generation: pair.parameter_generation,
@@ -12335,7 +12798,7 @@ impl EpochLeafNormalizationInputsV2 {
 }
 
 #[derive(Clone)]
-struct EpochLeafNormalizationCircuitTargetsV2 {
+struct EpochChunkNormalizationCircuitTargetsV2 {
     ordinal: ExprId,
     total: ExprId,
     epoch_index: [ExprId; ROOT_STATEMENT_HEIGHT_LIMBS_V2],
@@ -12344,16 +12807,16 @@ struct EpochLeafNormalizationCircuitTargetsV2 {
     runtime_profile_generation: ExprId,
 }
 
-fn allocate_epoch_leaf_normalization_targets(
+fn allocate_epoch_chunk_normalization_targets(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
-) -> Result<EpochLeafNormalizationCircuitTargetsV2, CheckpointError> {
+) -> Result<EpochChunkNormalizationCircuitTargetsV2, CheckpointError> {
     const ORDINAL_FIELDS: usize = 2;
     const FIELD_COUNT: usize = ORDINAL_FIELDS
         + ROOT_STATEMENT_HEIGHT_LIMBS_V2
         + ROOT_STATEMENT_CADENCE_LIMBS_V2
         + ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2
         + 1;
-    let fields = circuit.alloc_public_inputs(FIELD_COUNT, "epoch leaf normalization inputs");
+    let fields = circuit.alloc_public_inputs(FIELD_COUNT, "epoch chunk normalization inputs");
     let mut cursor = 0_usize;
     let ordinal = *fields.get(cursor).ok_or(CheckpointError::Invariant)?;
     cursor += 1;
@@ -12382,7 +12845,7 @@ fn allocate_epoch_leaf_normalization_targets(
     if cursor != fields.len() {
         return Err(CheckpointError::Invariant);
     }
-    Ok(EpochLeafNormalizationCircuitTargetsV2 {
+    Ok(EpochChunkNormalizationCircuitTargetsV2 {
         ordinal,
         total,
         epoch_index,
@@ -12392,15 +12855,15 @@ fn allocate_epoch_leaf_normalization_targets(
     })
 }
 
-fn allocate_epoch_base_pair_targets(
+fn allocate_epoch_chunk_pair_targets(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
-) -> Result<EpochBasePairCircuitTargetsV2, CheckpointError> {
+) -> Result<EpochChunkPairCircuitTargetsV2, CheckpointError> {
     const ORDINAL_FIELDS: usize = 3;
     const FIELD_COUNT: usize = ORDINAL_FIELDS
         + ROOT_STATEMENT_HEIGHT_LIMBS_V2
         + ROOT_STATEMENT_CADENCE_LIMBS_V2
         + ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2;
-    let fields = circuit.alloc_public_inputs(FIELD_COUNT, "epoch base-pair canonical inputs");
+    let fields = circuit.alloc_public_inputs(FIELD_COUNT, "epoch chunk-pair canonical inputs");
     let mut cursor = 0_usize;
     let left_ordinal = *fields.get(cursor).ok_or(CheckpointError::Invariant)?;
     cursor += 1;
@@ -12429,7 +12892,7 @@ fn allocate_epoch_base_pair_targets(
     if cursor != fields.len() {
         return Err(CheckpointError::Invariant);
     }
-    Ok(EpochBasePairCircuitTargetsV2 {
+    Ok(EpochChunkPairCircuitTargetsV2 {
         left_ordinal,
         right_ordinal,
         total,
@@ -12448,12 +12911,429 @@ fn epoch_root_domain(digest_index: usize) -> Result<&'static str, CheckpointErro
         ROOT_DIGEST_WITNESS_TREE_V2 => Ok(EPOCH_WITNESS_ROOT_DOMAIN_V2),
         ROOT_DIGEST_CHALLENGE_TREE_V2 => Ok(EPOCH_CHALLENGE_ROOT_DOMAIN_V2),
         ROOT_DIGEST_DA_TREE_V2 => Ok(EPOCH_DA_ROOT_DOMAIN_V2),
-        ROOT_DIGEST_VERIFIED_BASE_TREE_V2 => Ok(EPOCH_VERIFIED_BASE_ROOT_DOMAIN_V2),
+        ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2 => Ok(EPOCH_VERIFIED_TRACE_CHUNK_ROOT_DOMAIN_V2),
         _ => Err(CheckpointError::Canonical),
     }
 }
 
-fn circuit_epoch_base_raw_digest(
+const EPOCH_DIRECT_STATEMENT_LIMBS_V2: usize = EPOCH_CHUNK_BYTES_V2 / core::mem::size_of::<u16>();
+const EPOCH_DIRECT_CHUNK_ORDINAL_OFFSET_V2: usize = 7;
+const EPOCH_DIRECT_CHUNK_COUNT_OFFSET_V2: usize = 9;
+const EPOCH_DIRECT_FIRST_TRANSITION_OFFSET_V2: usize = 11;
+const EPOCH_DIRECT_LAST_TRANSITION_OFFSET_V2: usize = 13;
+const EPOCH_DIRECT_TRANSITION_COUNT_OFFSET_V2: usize = 15;
+const EPOCH_DIRECT_DIGESTS_OFFSET_V2: usize = 33;
+const EPOCH_DIRECT_CHAIN_CONTEXT_DIGEST_V2: usize = 1;
+const EPOCH_DIRECT_PREDICATE_DIGEST_V2: usize = 2;
+const EPOCH_DIRECT_INPUT_STATE_DIGEST_V2: usize = 3;
+const EPOCH_DIRECT_OUTPUT_STATE_DIGEST_V2: usize = 4;
+const EPOCH_DIRECT_INPUT_ACCUMULATOR_DIGEST_V2: usize = 5;
+const EPOCH_DIRECT_OUTPUT_ACCUMULATOR_DIGEST_V2: usize = 6;
+const EPOCH_DIRECT_PARAMETER_DIGEST_V2: usize = 8;
+const EPOCH_DIRECT_VERIFIER_DIGEST_V2: usize = 9;
+const EPOCH_DIRECT_SECURITY_DIGEST_V2: usize = 10;
+const EPOCH_DIRECT_STATEMENT_DIGEST_OFFSET_V2: usize =
+    EPOCH_DIRECT_STATEMENT_LIMBS_V2 - ROOT_STATEMENT_DIGEST_LIMBS_V2;
+
+fn direct_chunk_digest_range(digest_index: usize) -> Result<Range<usize>, CheckpointError> {
+    if digest_index > EPOCH_DIRECT_SECURITY_DIGEST_V2 {
+        return Err(CheckpointError::Canonical);
+    }
+    let start = EPOCH_DIRECT_DIGESTS_OFFSET_V2
+        .checked_add(
+            digest_index
+                .checked_mul(ROOT_STATEMENT_DIGEST_LIMBS_V2)
+                .ok_or(CheckpointError::Overflow)?,
+        )
+        .ok_or(CheckpointError::Overflow)?;
+    Ok(start..start + ROOT_STATEMENT_DIGEST_LIMBS_V2)
+}
+
+fn direct_binding_range(slot: usize) -> Result<Range<usize>, CheckpointError> {
+    if slot >= plonky3_epoch_transition_air::BINDING_SLOTS_V2 {
+        return Err(CheckpointError::Canonical);
+    }
+    let start = plonky3_epoch_transition_air::PUBLIC_BINDINGS_OFFSET_V2
+        .checked_add(
+            slot.checked_mul(plonky3_epoch_transition_air::BINDING_FIELDS_V2)
+                .ok_or(CheckpointError::Overflow)?,
+        )
+        .ok_or(CheckpointError::Overflow)?;
+    Ok(start..start + plonky3_epoch_transition_air::BINDING_FIELDS_V2)
+}
+
+fn direct_binding_digest_range(
+    slot: usize,
+    binding_offset: usize,
+) -> Result<Range<usize>, CheckpointError> {
+    let binding = direct_binding_range(slot)?;
+    let start = binding
+        .start
+        .checked_add(binding_offset)
+        .ok_or(CheckpointError::Overflow)?;
+    let end = start
+        .checked_add(ROOT_STATEMENT_DIGEST_LIMBS_V2)
+        .ok_or(CheckpointError::Overflow)?;
+    if end > binding.end {
+        return Err(CheckpointError::Invariant);
+    }
+    Ok(start..end)
+}
+
+fn constrain_direct_stream_accumulator(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    direct_public: &[ExprId],
+    active_count: usize,
+    zero: ExprId,
+    one: ExprId,
+    two: ExprId,
+) -> Result<(), CheckpointError> {
+    if direct_public.len() != plonky3_epoch_transition_air::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > plonky3_epoch_transition_air::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let statement = direct_public
+        .get(..EPOCH_DIRECT_STATEMENT_LIMBS_V2)
+        .ok_or(CheckpointError::Invariant)?;
+    let authority = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(direct_chunk_digest_range(0)?)
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    let mut accumulator = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(direct_chunk_digest_range(
+                EPOCH_DIRECT_INPUT_ACCUMULATOR_DIGEST_V2,
+            )?)
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    for slot in 0..active_count {
+        let binding = direct_binding_range(slot)?;
+        let ordinal = root_u16_targets_to_byte_bits(
+            circuit,
+            direct_public
+                .get(
+                    binding.start + plonky3_epoch_transition_air::BINDING_ORDINAL_OFFSET_V2
+                        ..binding.start
+                            + plonky3_epoch_transition_air::BINDING_ORDINAL_OFFSET_V2
+                            + 2,
+                )
+                .ok_or(CheckpointError::Invariant)?,
+        )?;
+        let binding_digest = root_u16_targets_to_byte_bits(
+            circuit,
+            direct_public
+                .get(direct_binding_digest_range(
+                    slot,
+                    plonky3_epoch_transition_air::BINDING_DIGEST_OFFSET_V2,
+                )?)
+                .ok_or(CheckpointError::Invariant)?,
+        )?;
+        accumulator = circuit_sha256_256_parts(
+            circuit,
+            EPOCH_STREAM_ACCUMULATOR_DOMAIN_V2,
+            EPOCH_STREAM_STEP_LABEL_V2,
+            &[authority.clone(), accumulator, ordinal, binding_digest],
+            zero,
+            one,
+            two,
+        )?;
+    }
+    let claimed_output = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(direct_chunk_digest_range(
+                EPOCH_DIRECT_OUTPUT_ACCUMULATOR_DIGEST_V2,
+            )?)
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    for (actual, claimed) in accumulator.iter().zip(&claimed_output) {
+        connect_byte_bits(circuit, actual, claimed);
+    }
+    Ok(())
+}
+
+fn direct_transition_digest_offset(digest_index: usize) -> Result<usize, CheckpointError> {
+    match digest_index {
+        ROOT_DIGEST_STATEMENT_TREE_V2 => {
+            Ok(plonky3_epoch_transition_air::BINDING_STATEMENT_OFFSET_V2)
+        }
+        ROOT_DIGEST_ARTIFACT_TREE_V2 => {
+            Ok(plonky3_epoch_transition_air::BINDING_ARTIFACT_OFFSET_V2)
+        }
+        ROOT_DIGEST_LINK_TREE_V2 => Ok(plonky3_epoch_transition_air::BINDING_TYPED_OFFSET_V2
+            + 3 * ROOT_STATEMENT_DIGEST_LIMBS_V2),
+        ROOT_DIGEST_DELTA_TREE_V2 => Ok(plonky3_epoch_transition_air::BINDING_TYPED_OFFSET_V2),
+        ROOT_DIGEST_WITNESS_TREE_V2 => {
+            Ok(plonky3_epoch_transition_air::BINDING_TYPED_OFFSET_V2
+                + ROOT_STATEMENT_DIGEST_LIMBS_V2)
+        }
+        ROOT_DIGEST_CHALLENGE_TREE_V2 => {
+            Ok(plonky3_epoch_transition_air::BINDING_CHALLENGE_OFFSET_V2)
+        }
+        ROOT_DIGEST_DA_TREE_V2 => Ok(plonky3_epoch_transition_air::BINDING_DA_OFFSET_V2),
+        _ => Err(CheckpointError::Canonical),
+    }
+}
+
+#[derive(Clone)]
+struct CircuitOrderedDigestNodeV2 {
+    start: ExprId,
+    count: u16,
+    digest: Vec<CircuitByteBitsV2>,
+}
+
+fn circuit_direct_transition_subtree_digest(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    direct_public: &[ExprId],
+    digest_index: usize,
+    active_count: usize,
+    total: ExprId,
+    zero: ExprId,
+    one: ExprId,
+    two: ExprId,
+) -> Result<Vec<CircuitByteBitsV2>, CheckpointError> {
+    if direct_public.len() != plonky3_epoch_transition_air::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > plonky3_epoch_transition_air::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let digest_offset = direct_transition_digest_offset(digest_index)?;
+    let mut slots: Vec<Option<CircuitOrderedDigestNodeV2>> = Vec::new();
+    for slot in 0..active_count {
+        let binding = direct_binding_range(slot)?;
+        let ordinal = *direct_public
+            .get(binding.start + plonky3_epoch_transition_air::BINDING_ORDINAL_OFFSET_V2)
+            .ok_or(CheckpointError::Invariant)?;
+        let raw_range = direct_binding_digest_range(slot, digest_offset)?;
+        let raw = root_u16_targets_to_byte_bits(
+            circuit,
+            direct_public
+                .get(raw_range)
+                .ok_or(CheckpointError::Invariant)?,
+        )?;
+        let mut node = CircuitOrderedDigestNodeV2 {
+            start: ordinal,
+            count: 1,
+            digest: circuit_epoch_ordered_leaf_digest(
+                circuit,
+                epoch_root_domain(digest_index)?,
+                ordinal,
+                total,
+                &raw,
+                zero,
+                one,
+                two,
+            )?,
+        };
+        let mut level = 0_usize;
+        loop {
+            if slots.len() <= level {
+                slots.resize(level + 1, None);
+            }
+            let Some(left) = slots[level].take() else {
+                slots[level] = Some(node);
+                break;
+            };
+            let left_count = circuit.define_const(lift_koala(KoalaBear::from_u16(left.count)));
+            let right_count = circuit.define_const(lift_koala(KoalaBear::from_u16(node.count)));
+            let digest = circuit_epoch_ordered_parent_digest(
+                circuit,
+                epoch_root_domain(digest_index)?,
+                total,
+                left.start,
+                left_count,
+                node.start,
+                right_count,
+                &left.digest,
+                &node.digest,
+                zero,
+                one,
+                two,
+            )?;
+            node = CircuitOrderedDigestNodeV2 {
+                start: left.start,
+                count: left
+                    .count
+                    .checked_add(node.count)
+                    .ok_or(CheckpointError::Overflow)?,
+                digest,
+            };
+            level = level.checked_add(1).ok_or(CheckpointError::Overflow)?;
+        }
+    }
+    let mut root: Option<CircuitOrderedDigestNodeV2> = None;
+    for node in slots.into_iter().rev().flatten() {
+        root = Some(match root {
+            None => node,
+            Some(left) => {
+                let left_count = circuit.define_const(lift_koala(KoalaBear::from_u16(left.count)));
+                let right_count = circuit.define_const(lift_koala(KoalaBear::from_u16(node.count)));
+                let digest = circuit_epoch_ordered_parent_digest(
+                    circuit,
+                    epoch_root_domain(digest_index)?,
+                    total,
+                    left.start,
+                    left_count,
+                    node.start,
+                    right_count,
+                    &left.digest,
+                    &node.digest,
+                    zero,
+                    one,
+                    two,
+                )?;
+                CircuitOrderedDigestNodeV2 {
+                    start: left.start,
+                    count: left
+                        .count
+                        .checked_add(node.count)
+                        .ok_or(CheckpointError::Overflow)?,
+                    digest,
+                }
+            }
+        });
+    }
+    let root = root.ok_or(CheckpointError::Invariant)?;
+    if usize::from(root.count) != active_count {
+        return Err(CheckpointError::Invariant);
+    }
+    Ok(root.digest)
+}
+
+fn circuit_u16_as_u32_bytes(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    value: ExprId,
+    zero: ExprId,
+) -> Result<Vec<CircuitByteBitsV2>, CheckpointError> {
+    let bits = constrain_u16_bits(circuit, value)
+        .map_err(|_| CheckpointError::Backend("Plonky3 epoch u32 lowering failed".into()))?;
+    Ok(vec![
+        core::array::from_fn(|bit| bits[bit]),
+        core::array::from_fn(|bit| bits[8 + bit]),
+        [zero; 8],
+        [zero; 8],
+    ])
+}
+
+fn circuit_direct_trace_chunk_span_digest(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    direct_public: &[ExprId],
+    zero: ExprId,
+    one: ExprId,
+    two: ExprId,
+) -> Result<Vec<CircuitByteBitsV2>, CheckpointError> {
+    let statement = direct_public
+        .get(..EPOCH_DIRECT_STATEMENT_LIMBS_V2)
+        .ok_or(CheckpointError::Invariant)?;
+    let statement_digest = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(
+                EPOCH_DIRECT_STATEMENT_DIGEST_OFFSET_V2
+                    ..EPOCH_DIRECT_STATEMENT_DIGEST_OFFSET_V2 + ROOT_STATEMENT_DIGEST_LIMBS_V2,
+            )
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    let generation = circuit_constant_bytes(&[EPOCH_TREE_SHAPE_GENERATION_V2], zero, one);
+    let total_transition_count = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(
+                EPOCH_DIRECT_TRANSITION_COUNT_OFFSET_V2
+                    ..EPOCH_DIRECT_TRANSITION_COUNT_OFFSET_V2 + 2,
+            )
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    let chunk_ordinal = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(EPOCH_DIRECT_CHUNK_ORDINAL_OFFSET_V2..EPOCH_DIRECT_CHUNK_ORDINAL_OFFSET_V2 + 2)
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    let chunk_count = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(EPOCH_DIRECT_CHUNK_COUNT_OFFSET_V2..EPOCH_DIRECT_CHUNK_COUNT_OFFSET_V2 + 2)
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    let first_transition = root_u16_targets_to_byte_bits(
+        circuit,
+        statement
+            .get(
+                EPOCH_DIRECT_FIRST_TRANSITION_OFFSET_V2
+                    ..EPOCH_DIRECT_FIRST_TRANSITION_OFFSET_V2 + 2,
+            )
+            .ok_or(CheckpointError::Invariant)?,
+    )?;
+    let transition_count = circuit_u16_as_u32_bytes(
+        circuit,
+        *direct_public
+            .get(plonky3_epoch_transition_air::PUBLIC_BINDING_COUNT_OFFSET_V2)
+            .ok_or(CheckpointError::Invariant)?,
+        zero,
+    )?;
+    circuit_sha256_256_parts(
+        circuit,
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_DOMAIN_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_SPAN_LABEL_V2,
+        &[
+            generation,
+            total_transition_count,
+            chunk_ordinal,
+            chunk_count,
+            first_transition,
+            transition_count,
+            statement_digest,
+        ],
+        zero,
+        one,
+        two,
+    )
+}
+
+fn circuit_direct_trace_chunk_commitment(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    direct_public: &[ExprId],
+    child_common: &[ExprId],
+    zero: ExprId,
+) -> Result<[ExprId; ROOT_STATEMENT_COMMITMENT_FIELDS_V2], CheckpointError> {
+    if direct_public.len() != plonky3_epoch_transition_air::PUBLIC_FIELDS_V2
+        || child_common.len() != ROOT_COMMON_CAP_FIELDS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let source_len = direct_public
+        .len()
+        .checked_add(child_common.len())
+        .ok_or(CheckpointError::Overflow)?;
+    let mut fields = Vec::with_capacity(
+        source_len
+            .checked_add(ROOT_STATEMENT_COMMITMENT_FIELDS_V2)
+            .ok_or(CheckpointError::Overflow)?,
+    );
+    fields.push(circuit.define_const(lift_koala(KoalaBear::from_usize(source_len))));
+    fields.extend_from_slice(direct_public);
+    fields.extend_from_slice(child_common);
+    while !fields
+        .len()
+        .is_multiple_of(ROOT_STATEMENT_COMMITMENT_FIELDS_V2)
+    {
+        fields.push(zero);
+    }
+    let mut domain = [KoalaBear::ZERO; ROOT_STATEMENT_COMMITMENT_FIELDS_V2];
+    domain[0] = KoalaBear::from_u64(0x5a30);
+    domain[1] = KoalaBear::from_u64(0x5254);
+    domain[2] = KoalaBear::from_u8(RootCommitmentDomainV2::EpochChunk.tag());
+    circuit_vector_hash(circuit, &fields, domain)
+}
+
+fn circuit_epoch_chunk_raw_digest(
     circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
     statement: &[ExprId],
     digest_index: usize,
@@ -12469,97 +13349,173 @@ fn circuit_epoch_base_raw_digest(
         | ROOT_DIGEST_WITNESS_TREE_V2
         | ROOT_DIGEST_CHALLENGE_TREE_V2
         | ROOT_DIGEST_DA_TREE_V2 => circuit_root_digest_bytes(circuit, statement, digest_index),
-        ROOT_DIGEST_VERIFIED_BASE_TREE_V2 => {
-            circuit_verified_base_statement_digest(circuit, statement, zero, one, two)
+        ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2 => {
+            circuit_verified_trace_chunk_statement_digest(circuit, statement, zero, one, two)
         }
         _ => Err(CheckpointError::Canonical),
     }
 }
 
-fn build_epoch_leaf_normalization_circuit(
+fn build_epoch_chunk_normalization_circuit_builder(
     child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
     config: &Plonky3StarkConfigV2,
     backend: &BoundRecursionBackendV2,
-) -> Result<(Circuit<Plonky3ChallengeV2>, BoundVerifierResultV2), CheckpointError> {
+    active_count: usize,
+) -> Result<(CircuitBuilder<Plonky3ChallengeV2>, BoundVerifierResultV2), CheckpointError> {
+    if active_count == 0 || active_count > plonky3_epoch_transition_air::BINDING_SLOTS_V2 {
+        return Err(CheckpointError::Canonical);
+    }
     let mut circuit = CircuitBuilder::new();
     backend
         .prepare_circuit(config, &mut circuit)
         .map_err(|error| {
             CheckpointError::Backend(format!(
-                "Plonky3 epoch-leaf recursion preparation failed: {error:?}"
+                "Plonky3 epoch-chunk recursion preparation failed: {error:?}"
             ))
         })?;
     let child_result = backend
         .build_verifier_circuit(child, config, &mut circuit)
         .map_err(|error| {
             CheckpointError::Backend(format!(
-                "Plonky3 epoch-leaf child verifier failed: {error:?}"
+                "Plonky3 epoch-chunk child verifier failed: {error:?}"
             ))
         })?;
-    let child_statement = root_statement_targets(&child_result)?.to_vec();
+    let direct_public = direct_group_public_targets(
+        &child_result,
+        child,
+        &plonky3_epoch_transition_air::npo_type(),
+        plonky3_epoch_transition_air::PUBLIC_FIELDS_V2,
+    )?
+    .to_vec();
     if child_result.common_targets.len() != ROOT_COMMON_CAP_FIELDS_V2 {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3ProofMalformed,
         ));
     }
-    for (actual, claimed) in child_result.common_targets.iter().zip(
-        &child_statement
-            [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2],
-    ) {
-        constrain_statement_equal(&mut circuit, *actual, *claimed);
-    }
 
     let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
     let one = circuit.define_const(Plonky3ChallengeV2::ONE);
     let two = circuit.define_const(lift_koala(KoalaBear::from_u8(2)));
-    let base_replica = circuit.define_const(lift_koala(KoalaBear::from_u8(
-        FINAL_REPLICA_FOLD_ORDINAL_V2,
-    )));
-    let epoch_replica =
-        circuit.define_const(lift_koala(KoalaBear::from_u8(EPOCH_RANGE_FOLD_ORDINAL_V2)));
-    let inputs = allocate_epoch_leaf_normalization_targets(&mut circuit)?;
-
-    constrain_statement_equal(
+    constrain_transition_core_group_public(
         &mut circuit,
-        child_statement[ROOT_STATEMENT_REPLICA_INDEX_V2],
-        base_replica,
-    );
-    constrain_statement_equal(
-        &mut circuit,
-        child_statement[ROOT_STATEMENT_START_INDEX_V2],
-        zero,
-    );
-    constrain_statement_equal(
-        &mut circuit,
-        child_statement[ROOT_STATEMENT_COUNT_INDEX_V2],
-        child_statement[ROOT_STATEMENT_TOTAL_INDEX_V2],
-    );
-    constrain_statement_range_equal(
-        &mut circuit,
-        &child_statement[ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2
-            ..ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2],
-        &child_statement[ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2
-            ..ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2],
+        &direct_public,
+        &child_result,
+        child,
+        active_count,
     )?;
+    constrain_direct_stream_accumulator(
+        &mut circuit,
+        &direct_public,
+        active_count,
+        zero,
+        one,
+        two,
+    )?;
+    let version = circuit.define_const(lift_koala(KoalaBear::from_u8(2)));
+    let epoch_replica = circuit.define_const(lift_koala(KoalaBear::from_u8(
+        EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
+    )));
+    let active_count_target = circuit.define_const(lift_koala(KoalaBear::from_u16(
+        u16::try_from(active_count).map_err(|_| CheckpointError::Limit)?,
+    )));
+    let inputs = allocate_epoch_chunk_normalization_targets(&mut circuit)?;
+    let statement = direct_public
+        .get(..EPOCH_DIRECT_STATEMENT_LIMBS_V2)
+        .ok_or(CheckpointError::Invariant)?;
+    let binding_count = *direct_public
+        .get(plonky3_epoch_transition_air::PUBLIC_BINDING_COUNT_OFFSET_V2)
+        .ok_or(CheckpointError::Invariant)?;
+    constrain_statement_equal(&mut circuit, binding_count, active_count_target);
+    for high_limb in [
+        EPOCH_DIRECT_CHUNK_ORDINAL_OFFSET_V2 + 1,
+        EPOCH_DIRECT_CHUNK_COUNT_OFFSET_V2 + 1,
+        EPOCH_DIRECT_FIRST_TRANSITION_OFFSET_V2 + 1,
+        EPOCH_DIRECT_LAST_TRANSITION_OFFSET_V2 + 1,
+        EPOCH_DIRECT_TRANSITION_COUNT_OFFSET_V2 + 1,
+    ] {
+        constrain_statement_equal(
+            &mut circuit,
+            *statement.get(high_limb).ok_or(CheckpointError::Invariant)?,
+            zero,
+        );
+    }
+    constrain_statement_equal(
+        &mut circuit,
+        statement[EPOCH_DIRECT_CHUNK_ORDINAL_OFFSET_V2],
+        inputs.ordinal,
+    );
+    constrain_statement_equal(
+        &mut circuit,
+        statement[EPOCH_DIRECT_CHUNK_COUNT_OFFSET_V2],
+        inputs.total,
+    );
+    constrain_statement_equal(
+        &mut circuit,
+        statement[EPOCH_DIRECT_TRANSITION_COUNT_OFFSET_V2],
+        inputs.cadence_blocks[0],
+    );
+    for limb in &inputs.cadence_blocks[1..] {
+        constrain_statement_equal(&mut circuit, *limb, zero);
+    }
+    for slot in 0..active_count {
+        let binding = direct_binding_range(slot)?;
+        constrain_statement_equal(
+            &mut circuit,
+            direct_public
+                [binding.start + plonky3_epoch_transition_air::BINDING_ORDINAL_OFFSET_V2 + 1],
+            zero,
+        );
+    }
 
-    let mut output_statement = child_statement.clone();
+    let mut output_statement = [zero; ROOT_STATEMENT_FIELDS_V2];
+    output_statement[0] = version;
     output_statement[1..17].copy_from_slice(&circuit_epoch_normalized_digest(&mut circuit, 0)?);
     output_statement[17..33].copy_from_slice(&circuit_epoch_normalized_digest(&mut circuit, 1)?);
-    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
-        let raw = circuit_epoch_base_raw_digest(
-            &mut circuit,
-            &child_statement,
-            digest_index,
-            zero,
-            one,
-            two,
+    for (root_digest_index, direct_digest_index) in [
+        (ROOT_DIGEST_PARAMETER_V2, EPOCH_DIRECT_PARAMETER_DIGEST_V2),
+        (ROOT_DIGEST_SECURITY_V2, EPOCH_DIRECT_SECURITY_DIGEST_V2),
+        (ROOT_DIGEST_VERIFIER_V2, EPOCH_DIRECT_VERIFIER_DIGEST_V2),
+        (
+            ROOT_DIGEST_CHAIN_CONTEXT_V2,
+            EPOCH_DIRECT_CHAIN_CONTEXT_DIGEST_V2,
+        ),
+        (ROOT_DIGEST_PREDICATE_V2, EPOCH_DIRECT_PREDICATE_DIGEST_V2),
+        (
+            ROOT_DIGEST_RANGE_START_STATE_V2,
+            EPOCH_DIRECT_INPUT_STATE_DIGEST_V2,
+        ),
+        (
+            ROOT_DIGEST_RANGE_END_STATE_V2,
+            EPOCH_DIRECT_OUTPUT_STATE_DIGEST_V2,
+        ),
+        (
+            ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2,
+            EPOCH_DIRECT_INPUT_ACCUMULATOR_DIGEST_V2,
+        ),
+        (
+            ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2,
+            EPOCH_DIRECT_OUTPUT_ACCUMULATOR_DIGEST_V2,
+        ),
+    ] {
+        let source = direct_chunk_digest_range(direct_digest_index)?;
+        set_root_digest_targets(
+            &mut output_statement,
+            root_digest_index,
+            direct_public
+                .get(source)
+                .ok_or(CheckpointError::Invariant)?
+                .try_into()
+                .map_err(|_| CheckpointError::Invariant)?,
         )?;
-        let leaf = circuit_epoch_ordered_leaf_digest(
+    }
+    let total_transition_count = statement[EPOCH_DIRECT_TRANSITION_COUNT_OFFSET_V2];
+    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_DA_TREE_V2 {
+        let subtree = circuit_direct_transition_subtree_digest(
             &mut circuit,
-            epoch_root_domain(digest_index)?,
-            inputs.ordinal,
-            inputs.total,
-            &raw,
+            &direct_public,
+            digest_index,
+            active_count,
+            total_transition_count,
             zero,
             one,
             two,
@@ -12567,28 +13523,85 @@ fn build_epoch_leaf_normalization_circuit(
         set_root_digest_targets(
             &mut output_statement,
             digest_index,
-            circuit_digest_bytes_to_u16_targets(&mut circuit, &leaf)?,
+            circuit_digest_bytes_to_u16_targets(&mut circuit, &subtree)?,
         )?;
     }
-    let leaf_commitment = circuit_epoch_leaf_commitment(&mut circuit, &child_statement)?;
+    let verified_span =
+        circuit_direct_trace_chunk_span_digest(&mut circuit, &direct_public, zero, one, two)?;
+    set_root_digest_targets(
+        &mut output_statement,
+        ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2,
+        circuit_digest_bytes_to_u16_targets(&mut circuit, &verified_span)?,
+    )?;
+    let first_binding = direct_binding_range(0)?;
+    let last_binding = direct_binding_range(active_count - 1)?;
+    for (digest_index, binding_start, binding_offset) in [
+        (
+            ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2,
+            first_binding.start,
+            plonky3_epoch_transition_air::BINDING_CHECKPOINT_ID_OFFSET_V2,
+        ),
+        (
+            ROOT_DIGEST_FIRST_PREDECESSOR_V2,
+            first_binding.start,
+            plonky3_epoch_transition_air::BINDING_PREDECESSOR_OFFSET_V2,
+        ),
+        (
+            ROOT_DIGEST_LAST_CHECKPOINT_ID_V2,
+            last_binding.start,
+            plonky3_epoch_transition_air::BINDING_CHECKPOINT_ID_OFFSET_V2,
+        ),
+    ] {
+        let start = binding_start
+            .checked_add(binding_offset)
+            .ok_or(CheckpointError::Overflow)?;
+        set_root_digest_targets(
+            &mut output_statement,
+            digest_index,
+            direct_public
+                .get(start..start + ROOT_STATEMENT_DIGEST_LIMBS_V2)
+                .ok_or(CheckpointError::Invariant)?
+                .try_into()
+                .map_err(|_| CheckpointError::Invariant)?,
+        )?;
+    }
+    let chunk_commitment = circuit_direct_trace_chunk_commitment(
+        &mut circuit,
+        &direct_public,
+        &child_result.common_targets,
+        zero,
+    )?;
     output_statement[ROOT_STATEMENT_COMMITMENT_INDEX_V2
         ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2]
-        .copy_from_slice(&leaf_commitment);
+        .copy_from_slice(&chunk_commitment);
     output_statement[ROOT_STATEMENT_REPLICA_INDEX_V2] = epoch_replica;
-    output_statement[ROOT_STATEMENT_START_INDEX_V2] = inputs.ordinal;
-    output_statement[ROOT_STATEMENT_COUNT_INDEX_V2] = one;
-    output_statement[ROOT_STATEMENT_TOTAL_INDEX_V2] = inputs.total;
+    output_statement[ROOT_STATEMENT_START_INDEX_V2] =
+        statement[EPOCH_DIRECT_FIRST_TRANSITION_OFFSET_V2];
+    output_statement[ROOT_STATEMENT_COUNT_INDEX_V2] = binding_count;
+    output_statement[ROOT_STATEMENT_TOTAL_INDEX_V2] = total_transition_count;
     output_statement[ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2
         ..ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
         .copy_from_slice(
-            &child_statement[ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2
-                ..ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2],
+            direct_public
+                .get(
+                    first_binding.start + plonky3_epoch_transition_air::BINDING_HEIGHT_OFFSET_V2
+                        ..first_binding.start
+                            + plonky3_epoch_transition_air::BINDING_HEIGHT_OFFSET_V2
+                            + ROOT_STATEMENT_HEIGHT_LIMBS_V2,
+                )
+                .ok_or(CheckpointError::Invariant)?,
         );
     output_statement[ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2
         ..ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
         .copy_from_slice(
-            &child_statement[ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2
-                ..ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2],
+            direct_public
+                .get(
+                    last_binding.start + plonky3_epoch_transition_air::BINDING_HEIGHT_OFFSET_V2
+                        ..last_binding.start
+                            + plonky3_epoch_transition_air::BINDING_HEIGHT_OFFSET_V2
+                            + ROOT_STATEMENT_HEIGHT_LIMBS_V2,
+                )
+                .ok_or(CheckpointError::Invariant)?,
         );
     output_statement[ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2
         ..ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
@@ -12608,15 +13621,1520 @@ fn build_epoch_leaf_normalization_circuit(
     output_statement[ROOT_STATEMENT_RUNTIME_PROFILE_GENERATION_INDEX_V2 + 1..].fill(zero);
 
     let parent_common_cap_inputs =
-        circuit.alloc_public_inputs(ROOT_COMMON_CAP_FIELDS_V2, "epoch leaf complete common cap");
+        circuit.alloc_public_inputs(ROOT_COMMON_CAP_FIELDS_V2, "epoch chunk complete common cap");
     output_statement
         [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
         .copy_from_slice(&parent_common_cap_inputs);
     bind_root_statement_targets(&mut circuit, &output_statement)
         .map_err(|_| CheckpointError::Canonical)?;
+    Ok((circuit, child_result))
+}
+
+fn finish_epoch_chunk_normalization_circuit(
+    circuit: CircuitBuilder<Plonky3ChallengeV2>,
+) -> Result<Circuit<Plonky3ChallengeV2>, CheckpointError> {
+    circuit.build().map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 epoch-chunk normalization circuit build failed: {error:?}"
+        ))
+    })
+}
+
+fn build_epoch_chunk_normalization_circuit(
+    child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    config: &Plonky3StarkConfigV2,
+    backend: &BoundRecursionBackendV2,
+    active_count: usize,
+) -> Result<(Circuit<Plonky3ChallengeV2>, BoundVerifierResultV2), CheckpointError> {
+    let (circuit, child_result) =
+        build_epoch_chunk_normalization_circuit_builder(child, config, backend, active_count)?;
+    let circuit = finish_epoch_chunk_normalization_circuit(circuit)?;
+    Ok((circuit, child_result))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EpochChunkCoverageStageV2 {
+    TransitionSemantic,
+    Hash,
+    UniquenessLower,
+    UniquenessUpper,
+}
+
+impl EpochChunkCoverageStageV2 {
+    const fn input_coverage(self) -> u8 {
+        match self {
+            Self::TransitionSemantic => EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
+            Self::Hash => EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            Self::UniquenessLower => EPOCH_CHUNK_HASH_COVERAGE_V2,
+            Self::UniquenessUpper => EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+        }
+    }
+
+    const fn output_coverage(self, active_count: usize) -> u8 {
+        match self {
+            Self::TransitionSemantic => EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            Self::Hash => EPOCH_CHUNK_HASH_COVERAGE_V2,
+            Self::UniquenessLower if active_count <= 4 => EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+            Self::UniquenessLower => EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+            Self::UniquenessUpper => EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+        }
+    }
+
+    const fn slice(self, active_count: usize) -> Option<(usize, usize)> {
+        match self {
+            Self::TransitionSemantic | Self::Hash => None,
+            Self::UniquenessLower => Some((0, if active_count < 4 { active_count } else { 4 })),
+            Self::UniquenessUpper if active_count > 4 => Some((4, active_count - 4)),
+            Self::UniquenessUpper => None,
+        }
+    }
+
+    const fn certificate_ordinal(self, active_count: usize) -> u8 {
+        EPOCH_CHUNK_COVERAGE_CERTIFICATE_FLAG_V2 | self.output_coverage(active_count)
+    }
+
+    const fn cap_operation(self) -> &'static str {
+        match self {
+            Self::TransitionSemantic => "epoch-semantic-certificate-cap",
+            Self::Hash => "epoch-hash-certificate-cap",
+            Self::UniquenessLower => "epoch-uniqueness-lower-certificate-cap",
+            Self::UniquenessUpper => "epoch-uniqueness-upper-certificate-cap",
+        }
+    }
+
+    const fn proof_operation(self) -> &'static str {
+        match self {
+            Self::TransitionSemantic => "epoch-semantic-certificate-proof",
+            Self::Hash => "epoch-hash-certificate-proof",
+            Self::UniquenessLower => "epoch-uniqueness-lower-certificate-proof",
+            Self::UniquenessUpper => "epoch-uniqueness-upper-certificate-proof",
+        }
+    }
+
+    const fn merge_operation(self) -> &'static str {
+        match self {
+            Self::TransitionSemantic => "epoch-semantic-coverage-merge",
+            Self::Hash => "epoch-hash-coverage-merge",
+            Self::UniquenessLower => "epoch-uniqueness-lower-coverage-merge",
+            Self::UniquenessUpper => "epoch-uniqueness-upper-coverage-merge",
+        }
+    }
+}
+
+fn circuit_swap_u16_bytes(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    value: ExprId,
+) -> Result<ExprId, CheckpointError> {
+    let bits = constrain_u16_bits(circuit, value)
+        .map_err(|_| CheckpointError::Backend("Plonky3 u16 byte swap lowering failed".into()))?;
+    let mut swapped = circuit.define_const(Plonky3ChallengeV2::ZERO);
+    for (bit, target) in bits.into_iter().enumerate() {
+        let swapped_bit = if bit < 8 { bit + 8 } else { bit - 8 };
+        let coefficient = circuit.define_const(lift_koala(KoalaBear::from_u64(
+            1_u64
+                .checked_shl(u32::try_from(swapped_bit).map_err(|_| CheckpointError::Limit)?)
+                .ok_or(CheckpointError::Overflow)?,
+        )));
+        let term = circuit.mul(target, coefficient);
+        swapped = circuit.add(swapped, term);
+    }
+    Ok(swapped)
+}
+
+fn constrain_group_statement_prefix(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    group_statement: &[ExprId],
+    transition_public: &[ExprId],
+    table: EpochAirTableV2,
+    row_start: &[ExprId; 4],
+    row_count: Option<&[ExprId; 4]>,
+) -> Result<(), CheckpointError> {
+    let transition_statement = transition_public
+        .get(..EPOCH_DIRECT_STATEMENT_LIMBS_V2)
+        .ok_or(CheckpointError::Invariant)?;
+    if group_statement.len() < EPOCH_DIRECT_STATEMENT_LIMBS_V2 {
+        return Err(CheckpointError::Invariant);
+    }
+    const TABLE_REPLICA_LIMB_V2: usize = 6;
+    const ROW_START_LIMB_V2: usize = 17;
+    const ROW_COUNT_LIMB_V2: usize = 21;
+    let statement_digest = EPOCH_DIRECT_STATEMENT_DIGEST_OFFSET_V2
+        ..EPOCH_DIRECT_STATEMENT_DIGEST_OFFSET_V2 + ROOT_STATEMENT_DIGEST_LIMBS_V2;
+    for index in 0..EPOCH_DIRECT_STATEMENT_LIMBS_V2 {
+        if index == TABLE_REPLICA_LIMB_V2
+            || (ROW_START_LIMB_V2..ROW_START_LIMB_V2 + 4).contains(&index)
+            || (ROW_COUNT_LIMB_V2..ROW_COUNT_LIMB_V2 + 4).contains(&index)
+            || statement_digest.contains(&index)
+        {
+            continue;
+        }
+        constrain_statement_equal(circuit, group_statement[index], transition_statement[index]);
+    }
+    let table = circuit.define_const(lift_koala(KoalaBear::from_u8(table as u8)));
+    constrain_statement_equal(circuit, group_statement[TABLE_REPLICA_LIMB_V2], table);
+    constrain_statement_range_equal(
+        circuit,
+        &group_statement[ROW_START_LIMB_V2..ROW_START_LIMB_V2 + 4],
+        row_start,
+    )?;
+    if let Some(row_count) = row_count {
+        constrain_statement_range_equal(
+            circuit,
+            &group_statement[ROW_COUNT_LIMB_V2..ROW_COUNT_LIMB_V2 + 4],
+            row_count,
+        )?;
+    }
+    Ok(())
+}
+
+fn constrain_u8_target(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    target: ExprId,
+    zero: ExprId,
+) -> Result<(), CheckpointError> {
+    let bits = constrain_u16_bits(circuit, target)
+        .map_err(|_| CheckpointError::Backend("Plonky3 u8 lowering failed".into()))?;
+    for high_bit in &bits[8..] {
+        constrain_statement_equal(circuit, *high_bit, zero);
+    }
+    Ok(())
+}
+
+fn constrain_byte_pair_to_u16(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    low: ExprId,
+    high: ExprId,
+    expected: ExprId,
+    zero: ExprId,
+) -> Result<(), CheckpointError> {
+    constrain_u8_target(circuit, low, zero)?;
+    constrain_u8_target(circuit, high, zero)?;
+    let radix = circuit.define_const(lift_koala(KoalaBear::from_u16(256)));
+    let high = circuit.mul(high, radix);
+    let actual = circuit.add(low, high);
+    constrain_statement_equal(circuit, actual, expected);
+    Ok(())
+}
+
+fn constrain_sha_word_digest_to_le_limbs(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    sha_limbs: &[ExprId],
+    le_limbs: &[ExprId],
+) -> Result<(), CheckpointError> {
+    if sha_limbs.len() != ROOT_STATEMENT_DIGEST_LIMBS_V2
+        || le_limbs.len() != ROOT_STATEMENT_DIGEST_LIMBS_V2
+    {
+        return Err(CheckpointError::Invariant);
+    }
+    for word in 0..8 {
+        for (sha_limb, le_limb) in [
+            (sha_limbs[word * 2], le_limbs[word * 2 + 1]),
+            (sha_limbs[word * 2 + 1], le_limbs[word * 2]),
+        ] {
+            let sha_bits = constrain_u16_bits(circuit, sha_limb)
+                .map_err(|_| CheckpointError::Backend("Plonky3 SHA limb lowering failed".into()))?;
+            let le_bits = constrain_u16_bits(circuit, le_limb).map_err(|_| {
+                CheckpointError::Backend("Plonky3 digest limb lowering failed".into())
+            })?;
+            for bit in 0..8 {
+                constrain_statement_equal(circuit, sha_bits[bit + 8], le_bits[bit]);
+                constrain_statement_equal(circuit, sha_bits[bit], le_bits[bit + 8]);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn constrain_transition_core_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_trace_framing_air as framing;
+    use plonky3_epoch_transition_air as transition;
+
+    if transition_public.len() != transition::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let framing_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &TraceFramingAirRoleV2::LinkedConsumer.npo_type(),
+        framing::PUBLIC_FIELDS_V2,
+    )?;
+    let statement = transition_public
+        .get(..EPOCH_DIRECT_STATEMENT_LIMBS_V2)
+        .ok_or(CheckpointError::Invariant)?;
+    let row_start: [ExprId; 4] = statement[17..21]
+        .try_into()
+        .map_err(|_| CheckpointError::Invariant)?;
+    let row_count: [ExprId; 4] = statement[21..25]
+        .try_into()
+        .map_err(|_| CheckpointError::Invariant)?;
+    constrain_group_statement_prefix(
+        circuit,
+        framing_public,
+        transition_public,
+        EpochAirTableV2::TraceFraming,
+        &row_start,
+        Some(&row_count),
+    )?;
+
+    let first_binding = direct_binding_range(0)?;
+    let last_binding = direct_binding_range(active_count - 1)?;
+    constrain_statement_range_equal(
+        circuit,
+        &framing_public
+            [framing::PUBLIC_FIRST_HEIGHT_OFFSET_V2..framing::PUBLIC_FIRST_HEIGHT_OFFSET_V2 + 4],
+        &transition_public[first_binding.start + transition::BINDING_HEIGHT_OFFSET_V2
+            ..first_binding.start + transition::BINDING_HEIGHT_OFFSET_V2 + 4],
+    )?;
+    constrain_statement_range_equal(
+        circuit,
+        &framing_public
+            [framing::PUBLIC_LAST_HEIGHT_OFFSET_V2..framing::PUBLIC_LAST_HEIGHT_OFFSET_V2 + 4],
+        &transition_public[last_binding.start + transition::BINDING_HEIGHT_OFFSET_V2
+            ..last_binding.start + transition::BINDING_HEIGHT_OFFSET_V2 + 4],
+    )?;
+    constrain_statement_range_equal(
+        circuit,
+        &framing_public
+            [framing::PUBLIC_EVENT_BYTES_OFFSET_V2..framing::PUBLIC_EVENT_BYTES_OFFSET_V2 + 4],
+        &transition_public[transition::PUBLIC_EVENT_BYTES_OFFSET_V2
+            ..transition::PUBLIC_EVENT_BYTES_OFFSET_V2 + 4],
+    )?;
+
+    Ok(())
+}
+
+fn constrain_typed_commitment_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    typed_public: &[ExprId],
+    transition_public: &[ExprId],
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_transition_air as transition;
+    use plonky3_epoch_typed_commitment_air as typed;
+
+    if typed_public.len() != typed::PUBLIC_FIELDS_V2
+        || transition_public.len() != transition::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let statement = transition_public
+        .get(..EPOCH_DIRECT_STATEMENT_LIMBS_V2)
+        .ok_or(CheckpointError::Invariant)?;
+    let row_start: [ExprId; 4] = statement[17..21]
+        .try_into()
+        .map_err(|_| CheckpointError::Invariant)?;
+    let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
+    let four = circuit.define_const(lift_koala(KoalaBear::from_u8(4)));
+    let typed_start_low = circuit.mul(row_start[0], four);
+    let typed_row_start = [typed_start_low, zero, zero, zero];
+    let typed_row_count = [
+        circuit.define_const(lift_koala(KoalaBear::from_usize(
+            active_count
+                .checked_mul(typed::COMMITMENTS_PER_TRANSITION_V2)
+                .ok_or(CheckpointError::Overflow)?,
+        ))),
+        zero,
+        zero,
+        zero,
+    ];
+    constrain_group_statement_prefix(
+        circuit,
+        typed_public,
+        transition_public,
+        EpochAirTableV2::TypedCommitment,
+        &typed_row_start,
+        Some(&typed_row_count),
+    )?;
+    constrain_statement_equal(
+        circuit,
+        typed_public[typed::PUBLIC_BINDING_COUNT_OFFSET_V2],
+        transition_public[transition::PUBLIC_BINDING_COUNT_OFFSET_V2],
+    );
+    for slot in 0..transition::BINDING_SLOTS_V2 {
+        for kind in 0..typed::COMMITMENTS_PER_TRANSITION_V2 {
+            for limb in 0..ROOT_STATEMENT_DIGEST_LIMBS_V2 {
+                let typed_offset = typed::STATEMENT_LIMBS_V2
+                    + (slot * typed::COMMITMENTS_PER_TRANSITION_V2 + kind)
+                        * ROOT_STATEMENT_DIGEST_LIMBS_V2
+                    + limb;
+                let expected = if slot < active_count {
+                    let binding = direct_binding_range(slot)?;
+                    transition_public[binding.start
+                        + transition::BINDING_TYPED_OFFSET_V2
+                        + kind * ROOT_STATEMENT_DIGEST_LIMBS_V2
+                        + limb]
+                } else {
+                    zero
+                };
+                constrain_statement_equal(circuit, typed_public[typed_offset], expected);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn constrain_transition_semantic_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_event_source_columns as event_source;
+    use plonky3_epoch_jmt_air as jmt;
+    use plonky3_epoch_semantic_source_air as semantic_source;
+    use plonky3_epoch_sha256_columns as sha;
+    use plonky3_epoch_transition_air as transition;
+    use plonky3_epoch_typed_commitment_air as typed;
+
+    if transition_public.len() != transition::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let semantic_transition_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &transition::TransitionAirRoleV2::Semantic.npo_type(),
+        transition::PUBLIC_FIELDS_V2,
+    )?;
+    constrain_statement_range_equal(circuit, semantic_transition_public, transition_public)?;
+    let typed_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &TypedCommitmentAirRoleV2::LinkedConsumer.npo_type(),
+        typed::PUBLIC_FIELDS_V2,
+    )?;
+    constrain_typed_commitment_group_public(
+        circuit,
+        typed_public,
+        transition_public,
+        active_count,
+    )?;
+    let jmt_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &jmt::jmt_chunk_npo_type(),
+        jmt::CHUNK_PUBLIC_FIELDS_V2,
+    )?;
+    let jmt_sha_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &ShaAirRoleV2::JmtLinked.npo_type(),
+        sha::JMT_LINKED_PUBLIC_FIELDS_V2,
+    )?;
+    let event_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &EventSourceAirRoleV2::SemanticTransition.npo_type(),
+        event_source::PUBLIC_FIELDS_V2,
+    )?;
+    let semantic_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &SemanticSourceAirRoleV2::Transition.npo_type(),
+        semantic_source::PUBLIC_FIELDS_V2,
+    )?;
+    let semantic_sha_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &ShaAirRoleV2::SemanticTransitionChain.npo_type(),
+        sha::CHAIN_PUBLIC_FIELDS_V2,
+    )?;
+    constrain_semantic_source_group_public(
+        circuit,
+        transition_public,
+        event_public,
+        semantic_public,
+        semantic_sha_public,
+        active_count,
+        0,
+        active_count,
+    )?;
+    constrain_statement_range_equal(
+        circuit,
+        jmt_sha_public,
+        &jmt_public[..jmt::STATEMENT_LIMBS_V2],
+    )?;
+
+    let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
+    let jmt_row_start = [zero; 4];
+    constrain_group_statement_prefix(
+        circuit,
+        jmt_public,
+        transition_public,
+        EpochAirTableV2::JmtUpdate,
+        &jmt_row_start,
+        None,
+    )?;
+    for slot in 0..jmt::CHUNK_LANES_V2 {
+        let expected_active =
+            circuit.define_const(lift_koala(KoalaBear::from_bool(slot < active_count)));
+        constrain_statement_equal(
+            circuit,
+            jmt_public[jmt::CHUNK_ACTIVE_OFFSET_V2 + slot],
+            expected_active,
+        );
+        if slot >= active_count {
+            continue;
+        }
+        let binding = direct_binding_range(slot)?;
+        let lane = jmt::CHUNK_LANE_OFFSET_V2 + slot * jmt::CHUNK_LANE_FIELDS_V2;
+        constrain_sha_word_digest_to_le_limbs(
+            circuit,
+            &jmt_public[lane + jmt::CHUNK_LANE_PRE_ROOT_OFFSET_V2
+                ..lane + jmt::CHUNK_LANE_PRE_ROOT_OFFSET_V2 + ROOT_STATEMENT_DIGEST_LIMBS_V2],
+            &transition_public[binding.start + transition::BINDING_PRE_DEFINITION_OFFSET_V2
+                ..binding.start
+                    + transition::BINDING_PRE_DEFINITION_OFFSET_V2
+                    + ROOT_STATEMENT_DIGEST_LIMBS_V2],
+        )?;
+        constrain_sha_word_digest_to_le_limbs(
+            circuit,
+            &jmt_public[lane + jmt::CHUNK_LANE_POST_ROOT_OFFSET_V2
+                ..lane + jmt::CHUNK_LANE_POST_ROOT_OFFSET_V2 + ROOT_STATEMENT_DIGEST_LIMBS_V2],
+            &transition_public[binding.start + transition::BINDING_POST_DEFINITION_OFFSET_V2
+                ..binding.start
+                    + transition::BINDING_POST_DEFINITION_OFFSET_V2
+                    + ROOT_STATEMENT_DIGEST_LIMBS_V2],
+        )?;
+        constrain_statement_range_equal(
+            circuit,
+            &jmt_public[lane + jmt::CHUNK_LANE_RECORD_COUNT_OFFSET_V2
+                ..lane + jmt::CHUNK_LANE_RECORD_COUNT_OFFSET_V2 + 4],
+            &transition_public[binding.start + transition::BINDING_JMT_RECORD_COUNT_OFFSET_V2
+                ..binding.start + transition::BINDING_JMT_RECORD_COUNT_OFFSET_V2 + 4],
+        )?;
+        for limb in 0..ROOT_STATEMENT_DIGEST_LIMBS_V2 {
+            let bytes = lane + jmt::CHUNK_LANE_TRACE_DIGEST_OFFSET_V2 + limb * 2;
+            constrain_byte_pair_to_u16(
+                circuit,
+                jmt_public[bytes],
+                jmt_public[bytes + 1],
+                transition_public
+                    [binding.start + transition::BINDING_UPDATE_TRACE_DIGEST_OFFSET_V2 + limb],
+                zero,
+            )?;
+        }
+        let update_bytes = lane + jmt::CHUNK_LANE_UPDATE_COUNT_OFFSET_V2;
+        for limb in 0..2 {
+            constrain_byte_pair_to_u16(
+                circuit,
+                jmt_public[update_bytes + limb * 2],
+                jmt_public[update_bytes + limb * 2 + 1],
+                transition_public
+                    [binding.start + transition::BINDING_JMT_UPDATE_COUNT_OFFSET_V2 + limb],
+                zero,
+            )?;
+        }
+        for high_limb in 2..4 {
+            constrain_statement_equal(
+                circuit,
+                transition_public
+                    [binding.start + transition::BINDING_JMT_UPDATE_COUNT_OFFSET_V2 + high_limb],
+                zero,
+            );
+        }
+    }
+    Ok(())
+}
+
+fn constrain_canonical_event_source_framing(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    event_public: &[ExprId],
+    active_count: usize,
+    slice_start: usize,
+    slice_len: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_event_source_columns as event_source;
+    use plonky3_epoch_transition_air as transition;
+
+    if transition_public.len() != transition::PUBLIC_FIELDS_V2
+        || event_public.len() != event_source::PUBLIC_FIELDS_V2
+        || active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+        || slice_len == 0
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let slice_end = slice_start
+        .checked_add(slice_len)
+        .ok_or(CheckpointError::Overflow)?;
+    if slice_end > active_count {
+        return Err(CheckpointError::Canonical);
+    }
+    let prefix = CheckpointSha256BlockStreamV2::framed_role_prefix(CheckpointShaRole::EventVector);
+    if prefix.len() != event_source::STATIC_PREFIX_PAIRS_V2 * 2 {
+        return Err(CheckpointError::Invariant);
+    }
+    for (pair, bytes) in prefix.chunks_exact(2).enumerate() {
+        let expected = circuit.define_const(lift_koala(KoalaBear::from_u16(u16::from_be_bytes([
+            bytes[0], bytes[1],
+        ]))));
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_STATIC_PREFIX_OFFSET_V2 + pair],
+            expected,
+        );
+    }
+
+    let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
+    let eight = circuit.define_const(lift_koala(KoalaBear::from_u8(8)));
+    let block_bytes = circuit.define_const(lift_koala(KoalaBear::from_u8(64)));
+    let radix = circuit.define_const(lift_koala(KoalaBear::from_u64(65_536)));
+    let framed_prefix_bytes = u64::try_from(prefix.len())
+        .map_err(|_| CheckpointError::Limit)?
+        .checked_add(8)
+        .ok_or(CheckpointError::Overflow)?;
+    let framed_prefix_bits = framed_prefix_bytes
+        .checked_mul(8)
+        .ok_or(CheckpointError::Overflow)?;
+    let block_rounding_bytes = framed_prefix_bytes
+        .checked_add(1 + 8 + 63)
+        .ok_or(CheckpointError::Overflow)?;
+    let framed_prefix_bits =
+        circuit.define_const(lift_koala(KoalaBear::from_u64(framed_prefix_bits)));
+    let block_rounding_bytes =
+        circuit.define_const(lift_koala(KoalaBear::from_u64(block_rounding_bytes)));
+    let expected_slice_start = circuit.define_const(lift_koala(KoalaBear::from_usize(slice_start)));
+    let expected_slice_len = circuit.define_const(lift_koala(KoalaBear::from_usize(slice_len)));
+    constrain_statement_equal(
+        circuit,
+        event_public[event_source::PUBLIC_SLICE_START_OFFSET_V2],
+        expected_slice_start,
+    );
+    constrain_statement_equal(
+        circuit,
+        event_public[event_source::PUBLIC_SLICE_LEN_OFFSET_V2],
+        expected_slice_len,
+    );
+
+    for slot in 0..transition::BINDING_SLOTS_V2 {
+        let local_active = slot < slice_len;
+        let expected_active = circuit.define_const(lift_koala(KoalaBear::from_bool(local_active)));
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_ACTIVE_OFFSET_V2 + slot],
+            expected_active,
+        );
+
+        let event_bytes_start = if local_active {
+            let global_slot = slice_start
+                .checked_add(slot)
+                .ok_or(CheckpointError::Overflow)?;
+            let binding = direct_binding_range(global_slot)?;
+            Some(
+                binding
+                    .start
+                    .checked_add(transition::BINDING_EVENT_BYTES_OFFSET_V2)
+                    .ok_or(CheckpointError::Overflow)?,
+            )
+        } else {
+            None
+        };
+        let event_bytes = event_bytes_start
+            .map(|start| transition_public[start])
+            .unwrap_or(zero);
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_EVENT_BYTES_OFFSET_V2 + slot],
+            event_bytes,
+        );
+        if local_active {
+            constrain_u16_bits(circuit, event_bytes).map_err(|_| {
+                CheckpointError::Backend("Plonky3 event-byte length lowering failed".into())
+            })?;
+        } else if slice_start == 0 {
+            let binding = direct_binding_range(slot)?;
+            let global_event_bytes_start = binding
+                .start
+                .checked_add(transition::BINDING_EVENT_BYTES_OFFSET_V2)
+                .ok_or(CheckpointError::Overflow)?;
+            constrain_statement_equal(circuit, transition_public[global_event_bytes_start], zero);
+        }
+
+        let part_length_offset =
+            event_source::PUBLIC_PART_LENGTH_OFFSET_V2 + slot * event_source::LENGTH_PAIRS_V2;
+        for limb in 0..event_source::LENGTH_PAIRS_V2 {
+            let expected = if let Some(event_bytes_start) = event_bytes_start {
+                circuit_swap_u16_bytes(circuit, transition_public[event_bytes_start + limb])?
+            } else {
+                zero
+            };
+            constrain_statement_equal(circuit, event_public[part_length_offset + limb], expected);
+        }
+
+        let bit_length_offset =
+            event_source::PUBLIC_BIT_LENGTH_OFFSET_V2 + slot * event_source::LENGTH_PAIRS_V2;
+        constrain_statement_equal(circuit, event_public[bit_length_offset], zero);
+        constrain_statement_equal(circuit, event_public[bit_length_offset + 1], zero);
+        if local_active {
+            let raw_bits = circuit.mul(event_bytes, eight);
+            let expected_bits = circuit.add(raw_bits, framed_prefix_bits);
+            let high_bits = circuit.mul(event_public[bit_length_offset + 2], radix);
+            let encoded_bits = circuit.add(high_bits, event_public[bit_length_offset + 3]);
+            constrain_statement_equal(circuit, encoded_bits, expected_bits);
+        } else {
+            constrain_statement_equal(circuit, event_public[bit_length_offset + 2], zero);
+            constrain_statement_equal(circuit, event_public[bit_length_offset + 3], zero);
+        }
+
+        let block_count = event_public[event_source::PUBLIC_BLOCK_COUNT_OFFSET_V2 + slot];
+        constrain_u16_bits(circuit, block_count).map_err(|_| {
+            CheckpointError::Backend("Plonky3 event block-count lowering failed".into())
+        })?;
+        if local_active {
+            let rounded_bytes = circuit.add(event_bytes, block_rounding_bytes);
+            let covered_bytes = circuit.mul(block_count, block_bytes);
+            let remainder = circuit.sub(rounded_bytes, covered_bytes);
+            let remainder_bits = constrain_u16_bits(circuit, remainder).map_err(|_| {
+                CheckpointError::Backend("Plonky3 event padding remainder lowering failed".into())
+            })?;
+            for high_bit in &remainder_bits[6..] {
+                constrain_statement_equal(circuit, *high_bit, zero);
+            }
+        } else {
+            constrain_statement_equal(circuit, block_count, zero);
+        }
+    }
+    Ok(())
+}
+
+fn constrain_semantic_source_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    event_public: &[ExprId],
+    semantic_public: &[ExprId],
+    sha_public: &[ExprId],
+    active_count: usize,
+    slice_start: usize,
+    slice_len: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_event_source_columns as event_source;
+    use plonky3_epoch_semantic_source_air as semantic_source;
+    use plonky3_epoch_sha256_columns as sha;
+    use plonky3_epoch_transition_air as transition;
+
+    if active_count == 0
+        || active_count > transition::BINDING_SLOTS_V2
+        || slice_len == 0
+        || slice_start
+            .checked_add(slice_len)
+            .map_or(true, |end| end > active_count)
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    constrain_statement_range_equal(
+        circuit,
+        &sha_public[..EPOCH_DIRECT_STATEMENT_LIMBS_V2],
+        &transition_public[..EPOCH_DIRECT_STATEMENT_LIMBS_V2],
+    )?;
+    let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
+    let packed_row_start = [zero; 4];
+    let packed_row_count: [ExprId; 4] = transition_public
+        [transition::PUBLIC_EVENT_BYTES_OFFSET_V2..transition::PUBLIC_EVENT_BYTES_OFFSET_V2 + 4]
+        .try_into()
+        .map_err(|_| CheckpointError::Invariant)?;
+    constrain_group_statement_prefix(
+        circuit,
+        event_public,
+        transition_public,
+        EpochAirTableV2::PackedRange,
+        &packed_row_start,
+        Some(&packed_row_count),
+    )?;
+    constrain_group_statement_prefix(
+        circuit,
+        semantic_public,
+        transition_public,
+        EpochAirTableV2::PackedRange,
+        &packed_row_start,
+        Some(&packed_row_count),
+    )?;
+    let expected_slice_start = circuit.define_const(lift_koala(KoalaBear::from_usize(slice_start)));
+    let expected_slice_len = circuit.define_const(lift_koala(KoalaBear::from_usize(slice_len)));
+    constrain_statement_equal(
+        circuit,
+        event_public[event_source::PUBLIC_SLICE_START_OFFSET_V2],
+        expected_slice_start,
+    );
+    constrain_statement_equal(
+        circuit,
+        event_public[event_source::PUBLIC_SLICE_LEN_OFFSET_V2],
+        expected_slice_len,
+    );
+    constrain_statement_equal(
+        circuit,
+        semantic_public[semantic_source::PUBLIC_SLICE_START_OFFSET_V2],
+        expected_slice_start,
+    );
+    constrain_statement_equal(
+        circuit,
+        semantic_public[semantic_source::PUBLIC_SLICE_LEN_OFFSET_V2],
+        expected_slice_len,
+    );
+    constrain_statement_equal(
+        circuit,
+        sha_public[sha::CHAIN_SLICE_START_OFFSET_V2],
+        expected_slice_start,
+    );
+    constrain_statement_equal(
+        circuit,
+        sha_public[sha::CHAIN_SLICE_LEN_OFFSET_V2],
+        expected_slice_len,
+    );
+    constrain_canonical_event_source_framing(
+        circuit,
+        transition_public,
+        event_public,
+        active_count,
+        slice_start,
+        slice_len,
+    )?;
+
+    for slot in 0..transition::BINDING_SLOTS_V2 {
+        let active = circuit.define_const(lift_koala(KoalaBear::from_bool(slot < slice_len)));
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_ACTIVE_OFFSET_V2 + slot],
+            active,
+        );
+        constrain_statement_equal(
+            circuit,
+            semantic_public[semantic_source::PUBLIC_ACTIVE_OFFSET_V2 + slot],
+            active,
+        );
+        constrain_statement_equal(
+            circuit,
+            sha_public[sha::CHAIN_ACTIVE_OFFSET_V2 + slot],
+            active,
+        );
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_BLOCK_COUNT_OFFSET_V2 + slot],
+            sha_public[sha::CHAIN_BLOCK_COUNT_OFFSET_V2 + slot],
+        );
+
+        if slot >= slice_len {
+            constrain_statement_equal(
+                circuit,
+                event_public[event_source::PUBLIC_EVENT_BYTES_OFFSET_V2 + slot],
+                zero,
+            );
+            constrain_statement_equal(
+                circuit,
+                semantic_public[semantic_source::PUBLIC_SOURCE_LEN_OFFSET_V2 + slot],
+                zero,
+            );
+            constrain_statement_equal(
+                circuit,
+                semantic_public[semantic_source::PUBLIC_EVENT_COUNT_OFFSET_V2 + slot],
+                zero,
+            );
+            for offset in 0..8 {
+                constrain_statement_equal(
+                    circuit,
+                    semantic_public
+                        [semantic_source::PUBLIC_EVENT_COUNT_BYTE_OFFSET_V2 + slot * 8 + offset],
+                    zero,
+                );
+            }
+            for digest_offset in [
+                semantic_source::PUBLIC_PRE_UNIQUENESS_BYTE_OFFSET_V2,
+                semantic_source::PUBLIC_SPENT_PRECOMMIT_BYTE_OFFSET_V2,
+                semantic_source::PUBLIC_OUTPUT_PRECOMMIT_BYTE_OFFSET_V2,
+                semantic_source::PUBLIC_EVENT_VECTOR_DIGEST_BYTE_OFFSET_V2,
+            ] {
+                for byte in 0..32 {
+                    constrain_statement_equal(
+                        circuit,
+                        semantic_public[digest_offset + slot * 32 + byte],
+                        zero,
+                    );
+                }
+            }
+            for limb in 0..sha::DIGEST_LIMBS_V2 {
+                constrain_statement_equal(
+                    circuit,
+                    sha_public[sha::CHAIN_DIGEST_OFFSET_V2 + slot * sha::DIGEST_LIMBS_V2 + limb],
+                    zero,
+                );
+            }
+            continue;
+        }
+        let global_slot = slice_start
+            .checked_add(slot)
+            .ok_or(CheckpointError::Overflow)?;
+        let binding = direct_binding_range(global_slot)?;
+        let event_bytes_start = binding
+            .start
+            .checked_add(transition::BINDING_EVENT_BYTES_OFFSET_V2)
+            .ok_or(CheckpointError::Overflow)?;
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_EVENT_BYTES_OFFSET_V2 + slot],
+            transition_public[event_bytes_start],
+        );
+        constrain_statement_equal(
+            circuit,
+            semantic_public[semantic_source::PUBLIC_SOURCE_LEN_OFFSET_V2 + slot],
+            transition_public[event_bytes_start],
+        );
+        for high_limb in 1..4 {
+            constrain_statement_equal(
+                circuit,
+                transition_public[event_bytes_start + high_limb],
+                zero,
+            );
+        }
+
+        let event_count_start = binding
+            .start
+            .checked_add(transition::BINDING_EVENT_COUNT_OFFSET_V2)
+            .ok_or(CheckpointError::Overflow)?;
+        let expected_event_count = transition_public[event_count_start];
+        constrain_statement_equal(
+            circuit,
+            semantic_public[semantic_source::PUBLIC_EVENT_COUNT_OFFSET_V2 + slot],
+            expected_event_count,
+        );
+        for limb in 0..4 {
+            let byte_offset =
+                semantic_source::PUBLIC_EVENT_COUNT_BYTE_OFFSET_V2 + slot * 8 + limb * 2;
+            let expected = transition_public[event_count_start + limb];
+            constrain_byte_pair_to_u16(
+                circuit,
+                semantic_public[byte_offset],
+                semantic_public[byte_offset + 1],
+                expected,
+                zero,
+            )?;
+        }
+        let zero_from = 1;
+        for zero_limb in zero_from..4 {
+            constrain_statement_equal(
+                circuit,
+                transition_public[event_count_start + zero_limb],
+                zero,
+            );
+        }
+
+        let event_digest_start = binding
+            .start
+            .checked_add(transition::BINDING_EVENT_VECTOR_OFFSET_V2)
+            .ok_or(CheckpointError::Overflow)?;
+        let sha_digest_start = sha::CHAIN_DIGEST_OFFSET_V2
+            .checked_add(
+                slot.checked_mul(sha::DIGEST_LIMBS_V2)
+                    .ok_or(CheckpointError::Overflow)?,
+            )
+            .ok_or(CheckpointError::Overflow)?;
+        for word in 0..8 {
+            let transition_low = transition_public[event_digest_start + word * 2];
+            let transition_high = transition_public[event_digest_start + word * 2 + 1];
+            let (expected_sha_low, expected_sha_high) = (
+                circuit_swap_u16_bytes(circuit, transition_high)?,
+                circuit_swap_u16_bytes(circuit, transition_low)?,
+            );
+            constrain_statement_equal(
+                circuit,
+                sha_public[sha_digest_start + word * 2],
+                expected_sha_low,
+            );
+            constrain_statement_equal(
+                circuit,
+                sha_public[sha_digest_start + word * 2 + 1],
+                expected_sha_high,
+            );
+        }
+        for (semantic_offset, binding_offset) in [
+            (
+                semantic_source::PUBLIC_PRE_UNIQUENESS_BYTE_OFFSET_V2,
+                transition::BINDING_PRE_UNIQUENESS_OFFSET_V2,
+            ),
+            (
+                semantic_source::PUBLIC_SPENT_PRECOMMIT_BYTE_OFFSET_V2,
+                transition::BINDING_SPENT_PRECOMMIT_OFFSET_V2,
+            ),
+            (
+                semantic_source::PUBLIC_OUTPUT_PRECOMMIT_BYTE_OFFSET_V2,
+                transition::BINDING_OUTPUT_PRECOMMIT_OFFSET_V2,
+            ),
+            (
+                semantic_source::PUBLIC_EVENT_VECTOR_DIGEST_BYTE_OFFSET_V2,
+                transition::BINDING_EVENT_VECTOR_OFFSET_V2,
+            ),
+        ] {
+            for limb in 0..16 {
+                let byte_offset = semantic_offset + slot * 32 + limb * 2;
+                let expected = transition_public[binding.start + binding_offset + limb];
+                constrain_byte_pair_to_u16(
+                    circuit,
+                    semantic_public[byte_offset],
+                    semantic_public[byte_offset + 1],
+                    expected,
+                    zero,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn constrain_hash_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    use plonky3_epoch_event_source_columns as event_source;
+    use plonky3_epoch_sha256_columns as sha;
+
+    let event_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &plonky3_epoch_event_source_columns::npo_type(),
+        event_source::PUBLIC_FIELDS_V2,
+    )?;
+    let sha_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &ShaAirRoleV2::Chain.npo_type(),
+        sha::CHAIN_PUBLIC_FIELDS_V2,
+    )?;
+    let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
+    let full_len = circuit.define_const(lift_koala(KoalaBear::from_usize(active_count)));
+    constrain_statement_equal(
+        circuit,
+        event_public[event_source::PUBLIC_SLICE_START_OFFSET_V2],
+        zero,
+    );
+    constrain_statement_equal(
+        circuit,
+        event_public[event_source::PUBLIC_SLICE_LEN_OFFSET_V2],
+        full_len,
+    );
+    constrain_statement_equal(circuit, sha_public[sha::CHAIN_SLICE_START_OFFSET_V2], zero);
+    constrain_statement_equal(
+        circuit,
+        sha_public[sha::CHAIN_SLICE_LEN_OFFSET_V2],
+        full_len,
+    );
+    constrain_statement_range_equal(
+        circuit,
+        &sha_public[..EPOCH_DIRECT_STATEMENT_LIMBS_V2],
+        &transition_public[..EPOCH_DIRECT_STATEMENT_LIMBS_V2],
+    )?;
+    let packed_row_start = [zero; 4];
+    let packed_row_count: [ExprId; 4] = transition_public
+        [plonky3_epoch_transition_air::PUBLIC_EVENT_BYTES_OFFSET_V2
+            ..plonky3_epoch_transition_air::PUBLIC_EVENT_BYTES_OFFSET_V2 + 4]
+        .try_into()
+        .map_err(|_| CheckpointError::Invariant)?;
+    constrain_group_statement_prefix(
+        circuit,
+        event_public,
+        transition_public,
+        EpochAirTableV2::PackedRange,
+        &packed_row_start,
+        Some(&packed_row_count),
+    )?;
+    constrain_canonical_event_source_framing(
+        circuit,
+        transition_public,
+        event_public,
+        active_count,
+        0,
+        active_count,
+    )?;
+
+    for slot in 0..plonky3_epoch_transition_air::BINDING_SLOTS_V2 {
+        let active = circuit.define_const(lift_koala(KoalaBear::from_bool(slot < active_count)));
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_ACTIVE_OFFSET_V2 + slot],
+            active,
+        );
+        constrain_statement_equal(
+            circuit,
+            sha_public[sha::CHAIN_ACTIVE_OFFSET_V2 + slot],
+            active,
+        );
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_BLOCK_COUNT_OFFSET_V2 + slot],
+            sha_public[sha::CHAIN_BLOCK_COUNT_OFFSET_V2 + slot],
+        );
+
+        let binding = direct_binding_range(slot)?;
+        let event_bytes_start = binding
+            .start
+            .checked_add(plonky3_epoch_transition_air::BINDING_EVENT_BYTES_OFFSET_V2)
+            .ok_or(CheckpointError::Overflow)?;
+        constrain_statement_equal(
+            circuit,
+            event_public[event_source::PUBLIC_EVENT_BYTES_OFFSET_V2 + slot],
+            transition_public[event_bytes_start],
+        );
+        for high_limb in 1..4 {
+            constrain_statement_equal(
+                circuit,
+                transition_public[event_bytes_start + high_limb],
+                zero,
+            );
+        }
+
+        let event_digest_start = binding
+            .start
+            .checked_add(plonky3_epoch_transition_air::BINDING_EVENT_VECTOR_OFFSET_V2)
+            .ok_or(CheckpointError::Overflow)?;
+        let sha_digest_start = sha::CHAIN_DIGEST_OFFSET_V2
+            .checked_add(
+                slot.checked_mul(sha::DIGEST_LIMBS_V2)
+                    .ok_or(CheckpointError::Overflow)?,
+            )
+            .ok_or(CheckpointError::Overflow)?;
+        for word in 0..8 {
+            let transition_low = transition_public[event_digest_start + word * 2];
+            let transition_high = transition_public[event_digest_start + word * 2 + 1];
+            let (expected_sha_low, expected_sha_high) = if slot < active_count {
+                (
+                    circuit_swap_u16_bytes(circuit, transition_high)?,
+                    circuit_swap_u16_bytes(circuit, transition_low)?,
+                )
+            } else {
+                constrain_statement_equal(circuit, transition_low, zero);
+                constrain_statement_equal(circuit, transition_high, zero);
+                (zero, zero)
+            };
+            constrain_statement_equal(
+                circuit,
+                sha_public[sha_digest_start + word * 2],
+                expected_sha_low,
+            );
+            constrain_statement_equal(
+                circuit,
+                sha_public[sha_digest_start + word * 2 + 1],
+                expected_sha_high,
+            );
+        }
+    }
+    Ok(())
+}
+
+fn constrain_uniqueness_group_public(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    active_count: usize,
+    slice_start: usize,
+    slice_len: usize,
+) -> Result<(), CheckpointError> {
+    let mut role_public = Vec::with_capacity(plonky3_epoch_uniqueness_air::ROLE_COUNT_V2);
+    for role in plonky3_epoch_uniqueness_air::UniquenessAirRoleV2::ALL {
+        role_public.push(direct_group_public_targets(
+            group_result,
+            group_child,
+            &role.npo_type(),
+            plonky3_epoch_uniqueness_air::PUBLIC_FIELDS_V2,
+        )?);
+    }
+    let uniqueness_public = *role_public.first().ok_or(CheckpointError::Invariant)?;
+    for public in &role_public[1..] {
+        constrain_statement_range_equal(circuit, uniqueness_public, public)?;
+    }
+    let range_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &plonky3_epoch_uniqueness_range::npo_type(),
+        plonky3_epoch_uniqueness_range::PUBLIC_FIELDS_V2,
+    )?;
+    let event_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &EventSourceAirRoleV2::SemanticUniqueness.npo_type(),
+        plonky3_epoch_event_source_columns::PUBLIC_FIELDS_V2,
+    )?;
+    let semantic_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &SemanticSourceAirRoleV2::Uniqueness.npo_type(),
+        plonky3_epoch_semantic_source_air::PUBLIC_FIELDS_V2,
+    )?;
+    let semantic_sha_public = direct_group_public_targets(
+        group_result,
+        group_child,
+        &ShaAirRoleV2::SemanticUniquenessChain.npo_type(),
+        plonky3_epoch_sha256_columns::CHAIN_PUBLIC_FIELDS_V2,
+    )?;
+    constrain_semantic_source_group_public(
+        circuit,
+        transition_public,
+        event_public,
+        semantic_public,
+        semantic_sha_public,
+        active_count,
+        slice_start,
+        slice_len,
+    )?;
+    constrain_statement_range_equal(
+        circuit,
+        uniqueness_public,
+        &range_public[..EPOCH_DIRECT_STATEMENT_LIMBS_V2],
+    )?;
+    let expected_slice_start = circuit.define_const(lift_koala(KoalaBear::from_usize(slice_start)));
+    let expected_slice_len = circuit.define_const(lift_koala(KoalaBear::from_usize(slice_len)));
+    use plonky3_epoch_uniqueness_air as uniqueness_air;
+    constrain_statement_equal(
+        circuit,
+        uniqueness_public[uniqueness_air::PUBLIC_SLICE_START_OFFSET_V2],
+        expected_slice_start,
+    );
+    constrain_statement_equal(
+        circuit,
+        uniqueness_public[uniqueness_air::PUBLIC_SLICE_LEN_OFFSET_V2],
+        expected_slice_len,
+    );
+    constrain_statement_equal(
+        circuit,
+        range_public[uniqueness_air::STATEMENT_LIMBS_V2 + 4],
+        expected_slice_start,
+    );
+    constrain_statement_equal(
+        circuit,
+        range_public[uniqueness_air::STATEMENT_LIMBS_V2 + 5],
+        expected_slice_len,
+    );
+    let event_start: [ExprId; 4] = transition_public[25..29]
+        .try_into()
+        .map_err(|_| CheckpointError::Invariant)?;
+    constrain_group_statement_prefix(
+        circuit,
+        uniqueness_public,
+        transition_public,
+        EpochAirTableV2::Uniqueness,
+        &event_start,
+        None,
+    )
+}
+
+fn constrain_epoch_chunk_coverage_group(
+    circuit: &mut CircuitBuilder<Plonky3ChallengeV2>,
+    transition_public: &[ExprId],
+    group_result: &BoundVerifierResultV2,
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    stage: EpochChunkCoverageStageV2,
+    active_count: usize,
+) -> Result<(), CheckpointError> {
+    match stage {
+        EpochChunkCoverageStageV2::TransitionSemantic => {
+            constrain_transition_semantic_group_public(
+                circuit,
+                transition_public,
+                group_result,
+                group_child,
+                active_count,
+            )
+        }
+        EpochChunkCoverageStageV2::Hash => constrain_hash_group_public(
+            circuit,
+            transition_public,
+            group_result,
+            group_child,
+            active_count,
+        ),
+        EpochChunkCoverageStageV2::UniquenessLower | EpochChunkCoverageStageV2::UniquenessUpper => {
+            let (slice_start, slice_len) = stage
+                .slice(active_count)
+                .ok_or(CheckpointError::Canonical)?;
+            constrain_uniqueness_group_public(
+                circuit,
+                transition_public,
+                group_result,
+                group_child,
+                active_count,
+                slice_start,
+                slice_len,
+            )
+        }
+    }
+}
+
+fn build_epoch_chunk_group_certificate_circuit_builder(
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    config: &Plonky3StarkConfigV2,
+    backend: &BoundRecursionBackendV2,
+    stage: EpochChunkCoverageStageV2,
+    active_count: usize,
+) -> Result<(CircuitBuilder<Plonky3ChallengeV2>, BoundVerifierResultV2), CheckpointError> {
+    if active_count == 0 || active_count > plonky3_epoch_transition_air::BINDING_SLOTS_V2 {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut circuit = CircuitBuilder::new();
+    backend
+        .prepare_circuit(config, &mut circuit)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 epoch chunk group-certificate preparation failed: {error:?}"
+            ))
+        })?;
+    let group_result = backend
+        .build_verifier_circuit(group_child, config, &mut circuit)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 {:?} chunk group verifier failed: {error:?}",
+                stage
+            ))
+        })?;
+
+    let binding_fields = circuit.alloc_public_inputs(
+        plonky3_epoch_transition_air::PUBLIC_FIELDS_V2 + ROOT_COMMON_CAP_FIELDS_V2,
+        "epoch chunk group-certificate transition binding",
+    );
+    let (transition_public, transition_common) =
+        binding_fields.split_at(plonky3_epoch_transition_air::PUBLIC_FIELDS_V2);
+    let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
+    let expected_commitment = circuit_direct_trace_chunk_commitment(
+        &mut circuit,
+        transition_public,
+        transition_common,
+        zero,
+    )?;
+    constrain_epoch_chunk_coverage_group(
+        &mut circuit,
+        transition_public,
+        &group_result,
+        group_child,
+        stage,
+        active_count,
+    )?;
+
+    // The certificate deliberately carries only the transition-core
+    // commitment and its stage tag. The direct group theorem is fully checked
+    // above; the later compact merge compares this commitment to the one
+    // already bound by the accumulated normalized transition proof. This keeps
+    // the wide direct verifier and the accumulated recursive verifier out of
+    // the same proving circuit without introducing a native-verifier bridge.
+    let mut output_statement = [zero; ROOT_STATEMENT_FIELDS_V2];
+    output_statement[0] = circuit.define_const(lift_koala(KoalaBear::from_u8(2)));
+    output_statement[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+        ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2]
+        .copy_from_slice(&expected_commitment);
+    output_statement[ROOT_STATEMENT_REPLICA_INDEX_V2] = circuit.define_const(lift_koala(
+        KoalaBear::from_u8(stage.certificate_ordinal(active_count)),
+    ));
+    let parent_common_cap = circuit.alloc_public_inputs(
+        ROOT_COMMON_CAP_FIELDS_V2,
+        "epoch chunk group-certificate common cap",
+    );
+    output_statement
+        [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
+        .copy_from_slice(&parent_common_cap);
+    bind_root_statement_targets(&mut circuit, &output_statement)
+        .map_err(|_| CheckpointError::Canonical)?;
+    Ok((circuit, group_result))
+}
+
+fn finish_epoch_chunk_group_certificate_circuit(
+    circuit: CircuitBuilder<Plonky3ChallengeV2>,
+) -> Result<Circuit<Plonky3ChallengeV2>, CheckpointError> {
+    circuit.build().map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 epoch chunk group-certificate circuit build failed: {error:?}"
+        ))
+    })
+}
+
+fn build_epoch_chunk_group_certificate_circuit(
+    group_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    config: &Plonky3StarkConfigV2,
+    backend: &BoundRecursionBackendV2,
+    stage: EpochChunkCoverageStageV2,
+    active_count: usize,
+) -> Result<(Circuit<Plonky3ChallengeV2>, BoundVerifierResultV2), CheckpointError> {
+    let (circuit, group_result) = build_epoch_chunk_group_certificate_circuit_builder(
+        group_child,
+        config,
+        backend,
+        stage,
+        active_count,
+    )?;
+    Ok((
+        finish_epoch_chunk_group_certificate_circuit(circuit)?,
+        group_result,
+    ))
+}
+
+fn build_epoch_chunk_coverage_merge_circuit(
+    accumulated_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    certificate_child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    config: &Plonky3StarkConfigV2,
+    backend: &BoundRecursionBackendV2,
+    stage: EpochChunkCoverageStageV2,
+    active_count: usize,
+) -> Result<
+    (
+        Circuit<Plonky3ChallengeV2>,
+        (BoundVerifierResultV2, BoundVerifierResultV2),
+    ),
+    CheckpointError,
+> {
+    if active_count == 0 || active_count > plonky3_epoch_transition_air::BINDING_SLOTS_V2 {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut circuit = CircuitBuilder::new();
+    backend
+        .prepare_circuit(config, &mut circuit)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 epoch chunk coverage-merge preparation failed: {error:?}"
+            ))
+        })?;
+    let accumulated_result = backend
+        .build_verifier_circuit(accumulated_child, config, &mut circuit)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 accumulated chunk verifier failed: {error:?}"
+            ))
+        })?;
+    let certificate_result = backend
+        .build_verifier_circuit(certificate_child, config, &mut circuit)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 {:?} chunk certificate verifier failed: {error:?}",
+                stage
+            ))
+        })?;
+    let accumulated_statement = root_statement_targets(&accumulated_result)?.to_vec();
+    let certificate_statement = root_statement_targets(&certificate_result)?.to_vec();
+    if accumulated_result.common_targets.len() != ROOT_COMMON_CAP_FIELDS_V2
+        || certificate_result.common_targets.len() != ROOT_COMMON_CAP_FIELDS_V2
+    {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3ProofMalformed,
+        ));
+    }
+    for (result, statement) in [
+        (&accumulated_result, accumulated_statement.as_slice()),
+        (&certificate_result, certificate_statement.as_slice()),
+    ] {
+        for (actual, claimed) in result.common_targets.iter().zip(
+            &statement
+                [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2],
+        ) {
+            constrain_statement_equal(&mut circuit, *actual, *claimed);
+        }
+    }
+    let expected_input =
+        circuit.define_const(lift_koala(KoalaBear::from_u8(stage.input_coverage())));
+    constrain_statement_equal(
+        &mut circuit,
+        accumulated_statement[ROOT_STATEMENT_REPLICA_INDEX_V2],
+        expected_input,
+    );
+    let expected_certificate = circuit.define_const(lift_koala(KoalaBear::from_u8(
+        stage.certificate_ordinal(active_count),
+    )));
+    constrain_statement_equal(
+        &mut circuit,
+        certificate_statement[ROOT_STATEMENT_REPLICA_INDEX_V2],
+        expected_certificate,
+    );
+    constrain_statement_range_equal(
+        &mut circuit,
+        &accumulated_statement[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+            ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
+        &certificate_statement[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+            ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
+    )?;
+
+    let mut output_statement = accumulated_statement;
+    output_statement[ROOT_STATEMENT_REPLICA_INDEX_V2] = circuit.define_const(lift_koala(
+        KoalaBear::from_u8(stage.output_coverage(active_count)),
+    ));
+    let parent_common_cap =
+        circuit.alloc_public_inputs(ROOT_COMMON_CAP_FIELDS_V2, "epoch coverage-merge common cap");
+    output_statement
+        [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
+        .copy_from_slice(&parent_common_cap);
+    bind_root_statement_targets(&mut circuit, &output_statement)
+        .map_err(|_| CheckpointError::Canonical)?;
     let circuit = circuit.build().map_err(|error| {
         CheckpointError::Backend(format!(
-            "Plonky3 epoch-leaf normalization circuit build failed: {error:?}"
+            "Plonky3 epoch chunk coverage-merge circuit build failed: {error:?}"
+        ))
+    })?;
+    Ok((circuit, (accumulated_result, certificate_result)))
+}
+
+fn build_epoch_chunk_coverage_finalize_circuit(
+    child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    config: &Plonky3StarkConfigV2,
+    backend: &BoundRecursionBackendV2,
+) -> Result<(Circuit<Plonky3ChallengeV2>, BoundVerifierResultV2), CheckpointError> {
+    let mut circuit = CircuitBuilder::new();
+    backend
+        .prepare_circuit(config, &mut circuit)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 epoch chunk completion preparation failed: {error:?}"
+            ))
+        })?;
+    let child_result = backend
+        .build_verifier_circuit(child, config, &mut circuit)
+        .map_err(|error| {
+            CheckpointError::Backend(format!("Plonky3 complete chunk verifier failed: {error:?}"))
+        })?;
+    let mut output_statement = root_statement_targets(&child_result)?.to_vec();
+    if child_result.common_targets.len() != ROOT_COMMON_CAP_FIELDS_V2 {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3ProofMalformed,
+        ));
+    }
+    for (actual, claimed) in child_result.common_targets.iter().zip(
+        &output_statement
+            [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2],
+    ) {
+        constrain_statement_equal(&mut circuit, *actual, *claimed);
+    }
+    let complete = circuit.define_const(lift_koala(KoalaBear::from_u8(
+        EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+    )));
+    constrain_statement_equal(
+        &mut circuit,
+        output_statement[ROOT_STATEMENT_REPLICA_INDEX_V2],
+        complete,
+    );
+    output_statement[ROOT_STATEMENT_REPLICA_INDEX_V2] =
+        circuit.define_const(lift_koala(KoalaBear::from_u8(EPOCH_RANGE_FOLD_ORDINAL_V2)));
+    let parent_common_cap = circuit.alloc_public_inputs(
+        ROOT_COMMON_CAP_FIELDS_V2,
+        "epoch chunk finalized common cap",
+    );
+    output_statement
+        [ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
+        .copy_from_slice(&parent_common_cap);
+    bind_root_statement_targets(&mut circuit, &output_statement)
+        .map_err(|_| CheckpointError::Canonical)?;
+    let circuit = circuit.build().map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 epoch chunk completion circuit build failed: {error:?}"
         ))
     })?;
     Ok((circuit, child_result))
@@ -12700,7 +15218,7 @@ fn build_bound_aggregation_circuit(
                     || index == ROOT_STATEMENT_START_INDEX_V2
                     || index == ROOT_STATEMENT_COUNT_INDEX_V2
             }
-            AggregationRelationV2::EpochBasePair => {
+            AggregationRelationV2::EpochChunkPair => {
                 digest_index.is_some_and(|digest| {
                     !matches!(
                         digest,
@@ -12709,8 +15227,6 @@ fn build_bound_aggregation_circuit(
                             | ROOT_DIGEST_VERIFIER_V2
                             | ROOT_DIGEST_CHAIN_CONTEXT_V2
                             | ROOT_DIGEST_PREDICATE_V2
-                            | ROOT_DIGEST_EPOCH_ANCHOR_V2
-                            | ROOT_DIGEST_CONFIG_V2
                             | ROOT_DIGEST_REGISTRY_V2
                             | ROOT_DIGEST_RUNTIME_PROFILE_V2
                             | ROOT_DIGEST_NOVA_CHAIN_V2
@@ -12726,7 +15242,9 @@ fn build_bound_aggregation_circuit(
                     matches!(
                         digest,
                         ROOT_DIGEST_RANGE_START_STATE_V2
-                            ..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2
+                            ..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2
+                                | ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2
+                                | ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2
                                 | ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2
                                 | ROOT_DIGEST_FIRST_PREDECESSOR_V2
                                 | ROOT_DIGEST_LAST_CHECKPOINT_ID_V2
@@ -12803,7 +15321,7 @@ fn build_bound_aggregation_circuit(
             output_statement[ROOT_STATEMENT_COUNT_INDEX_V2] =
                 left_statement[ROOT_STATEMENT_TOTAL_INDEX_V2];
         }
-        AggregationRelationV2::EpochBasePair => {
+        AggregationRelationV2::EpochChunkPair => {
             let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
             let one = circuit.define_const(Plonky3ChallengeV2::ONE);
             let base_replica = circuit.define_const(lift_koala(KoalaBear::from_u8(
@@ -12812,7 +15330,7 @@ fn build_bound_aggregation_circuit(
             let epoch_replica =
                 circuit.define_const(lift_koala(KoalaBear::from_u8(EPOCH_RANGE_FOLD_ORDINAL_V2)));
             let two = circuit.define_const(lift_koala(KoalaBear::from_u8(2)));
-            let inputs = allocate_epoch_base_pair_targets(&mut circuit)?;
+            let inputs = allocate_epoch_chunk_pair_targets(&mut circuit)?;
             for statement in [&left_statement, &right_statement] {
                 constrain_statement_equal(
                     &mut circuit,
@@ -12853,6 +15371,11 @@ fn build_bound_aggregation_circuit(
             )?;
             constrain_statement_range_equal(
                 &mut circuit,
+                &left_statement[root_digest_target_range(ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2)?],
+                &right_statement[root_digest_target_range(ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2)?],
+            )?;
+            constrain_statement_range_equal(
+                &mut circuit,
                 &left_statement[root_digest_target_range(ROOT_DIGEST_LAST_CHECKPOINT_ID_V2)?],
                 &right_statement[root_digest_target_range(ROOT_DIGEST_FIRST_PREDECESSOR_V2)?],
             )?;
@@ -12871,8 +15394,22 @@ fn build_bound_aggregation_circuit(
                 let range = root_digest_target_range(digest_index)?;
                 output_statement[range.clone()].copy_from_slice(&source[range]);
             }
-            for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
-                let left_raw = circuit_epoch_base_raw_digest(
+            for digest_index in [
+                ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2,
+                ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2,
+            ] {
+                let source = if digest_index == ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2 {
+                    &left_statement
+                } else {
+                    &right_statement
+                };
+                let range = root_digest_target_range(digest_index)?;
+                output_statement[range.clone()].copy_from_slice(&source[range]);
+            }
+            for digest_index in
+                ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2
+            {
+                let left_raw = circuit_epoch_chunk_raw_digest(
                     &mut circuit,
                     &left_statement,
                     digest_index,
@@ -12880,7 +15417,7 @@ fn build_bound_aggregation_circuit(
                     one,
                     two,
                 )?;
-                let right_raw = circuit_epoch_base_raw_digest(
+                let right_raw = circuit_epoch_chunk_raw_digest(
                     &mut circuit,
                     &right_statement,
                     digest_index,
@@ -13010,10 +15547,17 @@ fn build_bound_aggregation_circuit(
             )?;
             constrain_statement_range_equal(
                 &mut circuit,
+                &left_statement[root_digest_target_range(ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2)?],
+                &right_statement[root_digest_target_range(ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2)?],
+            )?;
+            constrain_statement_range_equal(
+                &mut circuit,
                 &left_statement[root_digest_target_range(ROOT_DIGEST_LAST_CHECKPOINT_ID_V2)?],
                 &right_statement[root_digest_target_range(ROOT_DIGEST_FIRST_PREDECESSOR_V2)?],
             )?;
-            for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
+            for digest_index in
+                ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2
+            {
                 let left_digest =
                     circuit_root_digest_bytes(&mut circuit, &left_statement, digest_index)?;
                 let right_digest =
@@ -13040,6 +15584,9 @@ fn build_bound_aggregation_circuit(
             }
             let end_state = root_digest_target_range(ROOT_DIGEST_RANGE_END_STATE_V2)?;
             output_statement[end_state.clone()].copy_from_slice(&right_statement[end_state]);
+            let end_accumulator = root_digest_target_range(ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2)?;
+            output_statement[end_accumulator.clone()]
+                .copy_from_slice(&right_statement[end_accumulator]);
             let last_id = root_digest_target_range(ROOT_DIGEST_LAST_CHECKPOINT_ID_V2)?;
             output_statement[last_id.clone()].copy_from_slice(&right_statement[last_id]);
             output_statement[ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2
@@ -13061,13 +15608,13 @@ fn build_bound_aggregation_circuit(
                 left_statement[ROOT_STATEMENT_TOTAL_INDEX_V2];
         }
     }
-    let parent_commitment = if relation == AggregationRelationV2::EpochBasePair {
-        let left_leaf = circuit_epoch_leaf_commitment(&mut circuit, &left_statement)?;
-        let right_leaf = circuit_epoch_leaf_commitment(&mut circuit, &right_statement)?;
+    let parent_commitment = if relation == AggregationRelationV2::EpochChunkPair {
+        let left_chunk = circuit_epoch_chunk_commitment(&mut circuit, &left_statement)?;
+        let right_chunk = circuit_epoch_chunk_commitment(&mut circuit, &right_statement)?;
         circuit_pair_hash(
             &mut circuit,
-            &left_leaf,
-            &right_leaf,
+            &left_chunk,
+            &right_chunk,
             RootCommitmentDomainV2::EpochRange,
         )?
     } else {
@@ -13148,6 +15695,9 @@ fn build_epoch_statement_seal_circuit(
     let zero = circuit.define_const(Plonky3ChallengeV2::ZERO);
     let one = circuit.define_const(Plonky3ChallengeV2::ONE);
     let two = circuit.define_const(lift_koala(KoalaBear::from_u8(2)));
+    for value in &child_statement[root_digest_target_range(ROOT_DIGEST_EPOCH_WORK_MANIFEST_V2)?] {
+        constrain_statement_equal(&mut circuit, *value, zero);
+    }
     let epoch_replica =
         circuit.define_const(lift_koala(KoalaBear::from_u8(EPOCH_RANGE_FOLD_ORDINAL_V2)));
     let sealed_replica =
@@ -13169,12 +15719,42 @@ fn build_epoch_statement_seal_circuit(
     );
 
     let seal_digests = circuit.alloc_public_inputs(
-        7 * ROOT_STATEMENT_DIGEST_LIMBS_V2,
-        "epoch statement, authority, and close digests",
+        8 * ROOT_STATEMENT_DIGEST_LIMBS_V2,
+        "epoch statement, authority, work-manifest, and close digests",
     );
+    let authority_digest = root_u16_targets_to_byte_bits(
+        &mut circuit,
+        &seal_digests[ROOT_STATEMENT_DIGEST_LIMBS_V2..2 * ROOT_STATEMENT_DIGEST_LIMBS_V2],
+    )?;
+    let start_root = circuit_root_digest_bytes(
+        &mut circuit,
+        &child_statement,
+        ROOT_DIGEST_RANGE_START_STATE_V2,
+    )?;
+    let claimed_initial_accumulator = circuit_root_digest_bytes(
+        &mut circuit,
+        &child_statement,
+        ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2,
+    )?;
+    let expected_initial_accumulator = circuit_sha256_256_parts(
+        &mut circuit,
+        EPOCH_STREAM_ACCUMULATOR_DOMAIN_V2,
+        EPOCH_STREAM_INITIAL_LABEL_V2,
+        &[authority_digest, start_root],
+        zero,
+        one,
+        two,
+    )?;
+    for (actual, claimed) in expected_initial_accumulator
+        .iter()
+        .zip(&claimed_initial_accumulator)
+    {
+        connect_byte_bits(&mut circuit, actual, claimed);
+    }
     let mut output_statement = child_statement;
     output_statement[1..33].copy_from_slice(&seal_digests[..32]);
     for (offset, digest_index) in [
+        ROOT_DIGEST_EPOCH_WORK_MANIFEST_V2,
         ROOT_DIGEST_EPOCH_ANCHOR_V2,
         ROOT_DIGEST_CONFIG_V2,
         ROOT_DIGEST_REGISTRY_V2,
@@ -13193,7 +15773,7 @@ fn build_epoch_statement_seal_circuit(
                 .map_err(|_| CheckpointError::Invariant)?,
         )?;
     }
-    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
+    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2 {
         let node_digest = circuit_root_digest_bytes(&mut circuit, &output_statement, digest_index)?;
         let root = circuit_epoch_ordered_root_digest(
             &mut circuit,
@@ -13309,7 +15889,7 @@ fn epoch_statement_root(
         ROOT_DIGEST_WITNESS_TREE_V2 => Ok(inputs.witness_root),
         ROOT_DIGEST_CHALLENGE_TREE_V2 => Ok(inputs.challenge_content_root),
         ROOT_DIGEST_DA_TREE_V2 => Ok(inputs.da_payload_commitment),
-        ROOT_DIGEST_VERIFIED_BASE_TREE_V2 => Ok(inputs.verified_base_proof_root),
+        ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2 => Ok(inputs.verified_trace_chunk_root),
         _ => Err(CheckpointError::Canonical),
     }
 }
@@ -13319,6 +15899,7 @@ fn epoch_seal_dynamic_fields(statement: &EpochRangeStatementV2) -> Vec<KoalaBear
     [
         statement.digest(),
         statement.frontier_authority_digest(),
+        statement.epoch_work_manifest_digest(),
         inputs.epoch_close_anchor_digest,
         inputs.config_digest,
         inputs.registry_digest,
@@ -13336,6 +15917,11 @@ fn sealed_epoch_statement_values(
     common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
     let inputs = statement.inputs();
+    let expected_initial_accumulator = sha256_256(
+        EPOCH_STREAM_ACCUMULATOR_DOMAIN_V2,
+        EPOCH_STREAM_INITIAL_LABEL_V2,
+        &[&statement.frontier_authority_digest(), &inputs.start_root],
+    );
     if child.len() != ROOT_STATEMENT_FIELDS_V2
         || root_statement_digest(child, 0)? != epoch_normalized_digest(0)?
         || root_statement_digest(child, 1)? != epoch_normalized_digest(1)?
@@ -13347,14 +15933,17 @@ fn sealed_epoch_statement_values(
         || root_statement_digest(child, ROOT_DIGEST_PREDICATE_V2)? != inputs.predicate_digest
         || root_statement_digest(child, ROOT_DIGEST_RANGE_START_STATE_V2)? != inputs.start_root
         || root_statement_digest(child, ROOT_DIGEST_RANGE_END_STATE_V2)? != inputs.end_root
+        || root_statement_digest(child, ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2)?
+            != expected_initial_accumulator
+        || root_statement_digest(child, ROOT_DIGEST_EPOCH_WORK_MANIFEST_V2)? != [0; 32]
         || child[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64()
             != u64::from(EPOCH_RANGE_FOLD_ORDINAL_V2)
         || child[ROOT_STATEMENT_START_INDEX_V2] != KoalaBear::ZERO
         || child[ROOT_STATEMENT_COUNT_INDEX_V2] != child[ROOT_STATEMENT_TOTAL_INDEX_V2]
         || child[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64()
-            != u64::from(statement.leaf_count())
+            != u64::from(statement.transition_count())
         || child[ROOT_STATEMENT_TOTAL_INDEX_V2].as_canonical_u64()
-            != u64::from(statement.leaf_count())
+            != u64::from(statement.transition_count())
         || root_statement_u64(child, ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2)?
             != inputs.start_height
         || root_statement_u64(child, ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2)? != inputs.end_height
@@ -13363,7 +15952,7 @@ fn sealed_epoch_statement_values(
         || root_statement_u64(child, ROOT_STATEMENT_CADENCE_INDEX_V2)? != inputs.cadence_blocks
         || root_statement_u32(child, ROOT_STATEMENT_PARAMETER_GENERATION_INDEX_V2)?
             != inputs.parameter_generation
-        || root_commitment_bytes(child)? != statement.recursive_base_proof_commitment()
+        || root_commitment_bytes(child)? != statement.recursive_epoch_commitment()
     {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
@@ -13372,10 +15961,10 @@ fn sealed_epoch_statement_values(
     let mut output = child.to_vec();
     output[1..17].copy_from_slice(&digest_base_fields(statement.digest()));
     output[17..33].copy_from_slice(&digest_base_fields(statement.frontier_authority_digest()));
-    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
+    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2 {
         let root = epoch_ordered_digest_root_node_v2(
             epoch_root_domain(digest_index)?,
-            u64::from(statement.leaf_count()),
+            u64::from(statement.transition_count()),
             root_statement_digest(child, digest_index)?,
         )?;
         if root != epoch_statement_root(statement, digest_index)? {
@@ -13387,6 +15976,10 @@ fn sealed_epoch_statement_values(
         output[range].copy_from_slice(&digest_base_fields(root));
     }
     for (digest_index, digest) in [
+        (
+            ROOT_DIGEST_EPOCH_WORK_MANIFEST_V2,
+            inputs.epoch_work_manifest_digest,
+        ),
         (
             ROOT_DIGEST_EPOCH_ANCHOR_V2,
             inputs.epoch_close_anchor_digest,
@@ -13412,9 +16005,518 @@ fn sealed_epoch_statement_values(
     Ok(output)
 }
 
-fn prove_epoch_leaf_normalization(
+fn prove_epoch_transition_group_normalization(
     child: BatchStarkProof<Plonky3StarkConfigV2>,
-    inputs: &EpochLeafNormalizationInputsV2,
+    inputs: &EpochChunkNormalizationInputsV2,
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    let active_count = inputs.chunk.bindings.len();
+    let config = hardened_koala_bear_config();
+    let backend = BoundRecursionBackendV2;
+    let params = ProveNextLayerParams {
+        table_packing: epoch_unary_table_packing(),
+        constraint_profile: ConstraintProfile::Standard,
+    };
+
+    let parent_common_cap = run_in_fresh_epoch_unary_cap_pool("epoch-chunk-cap", || {
+        let cap_child_input = batch_recursion_input(&child)?;
+        let (cap_circuit, cap_child_result) = build_epoch_chunk_normalization_circuit_builder(
+            &cap_child_input,
+            &config,
+            &backend,
+            active_count,
+        )?;
+        drop(cap_child_result);
+        drop(cap_child_input);
+        trim_prover_heap();
+        let cap_circuit = finish_epoch_chunk_normalization_circuit(cap_circuit)?;
+        derive_next_layer_common_cap_owned(cap_circuit, &config, &params, &backend)
+    })?;
+
+    run_in_fresh_epoch_unary_pool("epoch-chunk-proof", move || {
+        let child_input = batch_recursion_input(&child)?;
+        let (circuit, mut child_result) =
+            build_epoch_chunk_normalization_circuit(&child_input, &config, &backend, active_count)?;
+        child_result.bind_trailing_base_fields(epoch_chunk_normalization_dynamic_fields(inputs)?);
+        child_result.bind_parent_common_cap(parent_common_cap);
+        let direct_public = proof_transition_public_values(&child)?;
+        let child_common_cap = common_cap_fields(&child.stark_common)?;
+        let expected = normalized_epoch_chunk_statement_values(
+            direct_public,
+            child_common_cap,
+            inputs,
+            parent_common_cap,
+        )?;
+
+        // Lower the static AIRs while the rebuilt circuit exists, then
+        // construct the dynamic verifier trace. Every child/circuit allocation
+        // is released before PCS preparation and the one-shot prover owns the
+        // remaining single-use columns and traces.
+        let preprocessors = <BoundRecursionBackendV2 as PcsRecursionBackend<
+            Plonky3StarkConfigV2,
+            BatchOnly,
+            4,
+        >>::non_primitive_preprocessors(&backend);
+        let air_builders = <BoundRecursionBackendV2 as PcsRecursionBackend<
+            Plonky3StarkConfigV2,
+            BatchOnly,
+            4,
+        >>::non_primitive_air_builders(&backend);
+        let (airs_degrees, primitive_columns, non_primitive_columns) =
+            get_airs_and_degrees_with_prep::<Plonky3StarkConfigV2, _, 4>(
+                &circuit,
+                &params.table_packing,
+                &preprocessors,
+                &air_builders,
+                params.constraint_profile,
+            )
+            .map_err(|error| {
+                CheckpointError::Backend(format!(
+                    "Plonky3 owned epoch-chunk normalization lowering failed: {error}"
+                ))
+            })?;
+        let (airs, degrees): (Vec<_>, Vec<_>) = airs_degrees.into_iter().unzip();
+        let ext_degrees = degrees
+            .iter()
+            .map(|&degree| degree + config.is_zk())
+            .collect::<Vec<_>>();
+        validate_aggregation_geometry(circuit.ops.len(), &params.table_packing, &ext_degrees)?;
+        let mut traces =
+            run_bound_unary_trace(&child_input, &child_result, &circuit, &config, &backend)?;
+        release_one_shot_trace_inspection_state(&mut traces);
+
+        drop(preprocessors);
+        drop(air_builders);
+        drop(child_result);
+        drop(circuit);
+        drop(child_input);
+        drop(child);
+        trim_prover_heap();
+
+        let prover_data = canonical_prover_data_from_airs_and_degrees(&config, &airs, &ext_degrees);
+        drop(airs);
+        drop(degrees);
+        drop(ext_degrees);
+        let circuit_prover_data =
+            CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
+        let prepared_common_digest = common_binding_digest(circuit_prover_data.common_data())?;
+        let mut prover = BatchStarkProver::new(config)
+            .with_table_packing(params.table_packing)
+            .with_one_shot_lde_capacity_bits(usize::from(PLONKY3_FRI_LOG_BLOWUP_V2))
+            .with_one_shot_pre_commit_reclaimer(trim_prover_heap)
+            .with_alu_variant(AirVariant::Baseline);
+        register_canonical_recursive_tables(&mut prover);
+        let proof = prover
+            .prove_all_tables_one_shot(traces, circuit_prover_data)
+            .map_err(|error| {
+                CheckpointError::Backend(format!(
+                    "Plonky3 owned epoch-chunk normalization proving failed: {error:?}"
+                ))
+            })?;
+        drop(prover);
+
+        if common_binding_digest(&proof.stark_common)? != prepared_common_digest
+            || common_cap_fields(&proof.stark_common)? != parent_common_cap
+        {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+            ));
+        }
+        trim_prover_heap();
+        verify_aggregation_proof_in_pool(&proof)?;
+        if proof_root_statement_values(&proof)? != expected {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+            ));
+        }
+        Ok(proof)
+    })
+}
+
+fn epoch_chunk_coverage_statement_values(
+    child: &[KoalaBear],
+    expected_input_coverage: u8,
+    output_coverage: u8,
+    parent_common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+) -> Result<Vec<KoalaBear>, CheckpointError> {
+    if child.len() != ROOT_STATEMENT_FIELDS_V2
+        || child[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64()
+            != u64::from(expected_input_coverage)
+    {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    let mut output = child.to_vec();
+    output[ROOT_STATEMENT_REPLICA_INDEX_V2] = KoalaBear::from_u8(output_coverage);
+    output[ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
+        .copy_from_slice(&parent_common_cap);
+    Ok(output)
+}
+
+fn direct_trace_chunk_commitment_values(
+    transition_public: &[KoalaBear],
+    transition_common: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+) -> Result<[KoalaBear; ROOT_STATEMENT_COMMITMENT_FIELDS_V2], CheckpointError> {
+    if transition_public.len() != plonky3_epoch_transition_air::PUBLIC_FIELDS_V2 {
+        return Err(CheckpointError::Canonical);
+    }
+    let source_len = transition_public
+        .len()
+        .checked_add(transition_common.len())
+        .ok_or(CheckpointError::Overflow)?;
+    let mut commitment_fields = Vec::with_capacity(
+        source_len
+            .checked_add(ROOT_STATEMENT_COMMITMENT_FIELDS_V2)
+            .ok_or(CheckpointError::Overflow)?,
+    );
+    commitment_fields.push(KoalaBear::from_usize(source_len));
+    commitment_fields.extend_from_slice(transition_public);
+    commitment_fields.extend_from_slice(&transition_common);
+    while !commitment_fields
+        .len()
+        .is_multiple_of(ROOT_STATEMENT_COMMITMENT_FIELDS_V2)
+    {
+        commitment_fields.push(KoalaBear::ZERO);
+    }
+    let mut commitment_domain = [KoalaBear::ZERO; ROOT_STATEMENT_COMMITMENT_FIELDS_V2];
+    commitment_domain[0] = KoalaBear::from_u64(0x5a30);
+    commitment_domain[1] = KoalaBear::from_u64(0x5254);
+    commitment_domain[2] = KoalaBear::from_u8(RootCommitmentDomainV2::EpochChunk.tag());
+    poseidon_fields_hash(&commitment_fields, Some(commitment_domain))
+}
+
+fn epoch_chunk_group_certificate_statement_values(
+    transition_public: &[KoalaBear],
+    transition_common: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+    stage: EpochChunkCoverageStageV2,
+    active_count: usize,
+    parent_common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+) -> Result<Vec<KoalaBear>, CheckpointError> {
+    if active_count == 0 || active_count > plonky3_epoch_transition_air::BINDING_SLOTS_V2 {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut output = vec![KoalaBear::ZERO; ROOT_STATEMENT_FIELDS_V2];
+    output[0] = KoalaBear::from_u8(2);
+    output[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+        ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2]
+        .copy_from_slice(&direct_trace_chunk_commitment_values(
+            transition_public,
+            transition_common,
+        )?);
+    output[ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
+        .copy_from_slice(&parent_common_cap);
+    output[ROOT_STATEMENT_REPLICA_INDEX_V2] =
+        KoalaBear::from_u8(stage.certificate_ordinal(active_count));
+    Ok(output)
+}
+
+fn epoch_chunk_transition_binding_fields(
+    transition_public: &[KoalaBear],
+    transition_common: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+) -> Result<Vec<KoalaBear>, CheckpointError> {
+    if transition_public.len() != plonky3_epoch_transition_air::PUBLIC_FIELDS_V2 {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut fields = Vec::with_capacity(
+        transition_public
+            .len()
+            .saturating_add(transition_common.len()),
+    );
+    fields.extend_from_slice(transition_public);
+    fields.extend_from_slice(&transition_common);
+    Ok(fields)
+}
+
+fn prove_epoch_chunk_group_certificate(
+    group: BatchStarkProof<Plonky3StarkConfigV2>,
+    stage: EpochChunkCoverageStageV2,
+    transition_public: &[KoalaBear],
+    transition_common: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+    active_count: usize,
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    let config = hardened_koala_bear_config();
+    let backend = BoundRecursionBackendV2;
+    let params = ProveNextLayerParams {
+        table_packing: epoch_unary_table_packing(),
+        constraint_profile: ConstraintProfile::Standard,
+    };
+
+    let parent_common_cap = run_in_fresh_epoch_unary_cap_pool(stage.cap_operation(), || {
+        let cap_group_input = batch_recursion_input(&group)?;
+        let (cap_circuit, cap_group_result) = build_epoch_chunk_group_certificate_circuit_builder(
+            &cap_group_input,
+            &config,
+            &backend,
+            stage,
+            active_count,
+        )?;
+        drop(cap_group_result);
+        drop(cap_group_input);
+        trim_prover_heap();
+        let cap_circuit = finish_epoch_chunk_group_certificate_circuit(cap_circuit)?;
+        derive_next_layer_common_cap_owned(cap_circuit, &config, &params, &backend)
+    })?;
+
+    run_in_fresh_epoch_group_certificate_pool(stage.proof_operation(), move || {
+        let group_input = batch_recursion_input(&group)?;
+        let (circuit, mut group_result) = build_epoch_chunk_group_certificate_circuit(
+            &group_input,
+            &config,
+            &backend,
+            stage,
+            active_count,
+        )?;
+        group_result.bind_trailing_base_fields(epoch_chunk_transition_binding_fields(
+            transition_public,
+            transition_common,
+        )?);
+        group_result.bind_parent_common_cap(parent_common_cap);
+        let expected = epoch_chunk_group_certificate_statement_values(
+            transition_public,
+            transition_common,
+            stage,
+            active_count,
+            parent_common_cap,
+        )?;
+
+        // The runner copies every verifier input and NPO private opening it
+        // needs. Consume the direct proof and verifier result before executing
+        // the multi-million-operation circuit so they cannot overlap the
+        // generated witness/NPO traces. Lower the static circuit only after
+        // that trace exists; this also keeps preprocessed columns out of the
+        // runner high-water mark.
+        drop(group_input);
+        let mut traces =
+            run_bound_unary_trace_owned(group, group_result, &circuit, &config, &backend)?;
+        release_one_shot_trace_inspection_state(&mut traces);
+
+        let preprocessors = <BoundRecursionBackendV2 as PcsRecursionBackend<
+            Plonky3StarkConfigV2,
+            BatchOnly,
+            4,
+        >>::non_primitive_preprocessors(&backend);
+        let air_builders = <BoundRecursionBackendV2 as PcsRecursionBackend<
+            Plonky3StarkConfigV2,
+            BatchOnly,
+            4,
+        >>::non_primitive_air_builders(&backend);
+        let (airs_degrees, primitive_columns, non_primitive_columns) =
+            get_airs_and_degrees_with_prep::<Plonky3StarkConfigV2, _, 4>(
+                &circuit,
+                &params.table_packing,
+                &preprocessors,
+                &air_builders,
+                params.constraint_profile,
+            )
+            .map_err(|error| {
+                CheckpointError::Backend(format!(
+                    "Plonky3 {:?} chunk certificate lowering failed: {error}",
+                    stage
+                ))
+            })?;
+        let (airs, degrees): (Vec<_>, Vec<_>) = airs_degrees.into_iter().unzip();
+        let ext_degrees = degrees
+            .iter()
+            .map(|&degree| degree + config.is_zk())
+            .collect::<Vec<_>>();
+        validate_aggregation_geometry(circuit.ops.len(), &params.table_packing, &ext_degrees)?;
+
+        drop(preprocessors);
+        drop(air_builders);
+        drop(circuit);
+        trim_prover_heap();
+
+        let prover_data = canonical_prover_data_from_airs_and_degrees(&config, &airs, &ext_degrees);
+        drop(airs);
+        drop(degrees);
+        drop(ext_degrees);
+        let circuit_prover_data =
+            CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
+        let prepared_common_digest = common_binding_digest(circuit_prover_data.common_data())?;
+        let mut prover = BatchStarkProver::new(config)
+            .with_table_packing(params.table_packing)
+            .with_one_shot_lde_capacity_bits(usize::from(PLONKY3_FRI_LOG_BLOWUP_V2))
+            .with_one_shot_pre_commit_reclaimer(trim_prover_heap)
+            .with_alu_variant(AirVariant::Baseline);
+        register_canonical_recursive_tables(&mut prover);
+        let proof = prover
+            .prove_all_tables_one_shot(traces, circuit_prover_data)
+            .map_err(|error| {
+                CheckpointError::Backend(format!(
+                    "Plonky3 {:?} chunk certificate proving failed: {error:?}",
+                    stage
+                ))
+            })?;
+        drop(prover);
+        if common_binding_digest(&proof.stark_common)? != prepared_common_digest
+            || common_cap_fields(&proof.stark_common)? != parent_common_cap
+        {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+            ));
+        }
+        trim_prover_heap();
+        verify_aggregation_proof_in_pool(&proof)?;
+        if proof_root_statement_values(&proof)? != expected {
+            return Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+            ));
+        }
+        Ok(proof)
+    })
+}
+
+fn prove_epoch_chunk_coverage_merge(
+    accumulated: BatchStarkProof<Plonky3StarkConfigV2>,
+    certificate: BatchStarkProof<Plonky3StarkConfigV2>,
+    stage: EpochChunkCoverageStageV2,
+    active_count: usize,
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    let config = hardened_koala_bear_config();
+    let backend = BoundRecursionBackendV2;
+    let params = ProveNextLayerParams {
+        table_packing: aggregation_table_packing_for(AggregationRelationV2::EpochRange),
+        constraint_profile: ConstraintProfile::Standard,
+    };
+    let accumulated_input = batch_recursion_input(&accumulated)?;
+    let certificate_input = batch_recursion_input(&certificate)?;
+    let (circuit, (accumulated_result, mut certificate_result)) =
+        build_epoch_chunk_coverage_merge_circuit(
+            &accumulated_input,
+            &certificate_input,
+            &config,
+            &backend,
+            stage,
+            active_count,
+        )?;
+
+    let cap_prep = prepare_aggregation_cache(&circuit, &config, &params, &backend)?;
+    let parent_common_cap = common_cap_fields(cap_prep.circuit_prover_data.common_data())?;
+    drop(cap_prep);
+    trim_prover_heap();
+
+    certificate_result.bind_parent_common_cap(parent_common_cap);
+    let expected_statement = epoch_chunk_coverage_statement_values(
+        proof_root_statement_values(&accumulated)?,
+        stage.input_coverage(),
+        stage.output_coverage(active_count),
+        parent_common_cap,
+    )?;
+
+    let preprocessors = <BoundRecursionBackendV2 as PcsRecursionBackend<
+        Plonky3StarkConfigV2,
+        BatchOnly,
+        4,
+    >>::non_primitive_preprocessors(&backend);
+    let air_builders = <BoundRecursionBackendV2 as PcsRecursionBackend<
+        Plonky3StarkConfigV2,
+        BatchOnly,
+        4,
+    >>::non_primitive_air_builders(&backend);
+    let (airs_degrees, primitive_columns, non_primitive_columns) =
+        get_airs_and_degrees_with_prep::<Plonky3StarkConfigV2, _, 4>(
+            &circuit,
+            &params.table_packing,
+            &preprocessors,
+            &air_builders,
+            params.constraint_profile,
+        )
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 {:?} chunk coverage lowering failed: {error}",
+                stage
+            ))
+        })?;
+    let (airs, degrees): (Vec<_>, Vec<_>) = airs_degrees.into_iter().unzip();
+    let ext_degrees = degrees
+        .iter()
+        .map(|&degree| degree + config.is_zk())
+        .collect::<Vec<_>>();
+    validate_aggregation_geometry(circuit.ops.len(), &params.table_packing, &ext_degrees)?;
+    let mut traces = run_bound_aggregation_trace(
+        &accumulated_input,
+        &certificate_input,
+        &accumulated_result,
+        &certificate_result,
+        &circuit,
+        &config,
+        &backend,
+    )?;
+    release_one_shot_trace_inspection_state(&mut traces);
+
+    drop(preprocessors);
+    drop(air_builders);
+    drop(accumulated_result);
+    drop(certificate_result);
+    drop(circuit);
+    drop(accumulated_input);
+    drop(certificate_input);
+    drop(accumulated);
+    drop(certificate);
+    trim_prover_heap();
+
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&config, &airs, &ext_degrees);
+    drop(airs);
+    drop(degrees);
+    drop(ext_degrees);
+    let circuit_prover_data =
+        CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
+    let prepared_common_digest = common_binding_digest(circuit_prover_data.common_data())?;
+    let mut prover = BatchStarkProver::new(config)
+        .with_table_packing(params.table_packing)
+        .with_one_shot_lde_capacity_bits(usize::from(PLONKY3_FRI_LOG_BLOWUP_V2))
+        .with_one_shot_pre_commit_reclaimer(trim_prover_heap)
+        .with_alu_variant(AirVariant::Baseline);
+    register_canonical_recursive_tables(&mut prover);
+    let proof = prover
+        .prove_all_tables_one_shot(traces, circuit_prover_data)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 {:?} chunk coverage-merge proving failed: {error:?}",
+                stage
+            ))
+        })?;
+    drop(prover);
+    if common_binding_digest(&proof.stark_common)? != prepared_common_digest
+        || common_cap_fields(&proof.stark_common)? != parent_common_cap
+    {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    trim_prover_heap();
+    verify_aggregation_proof_in_pool(&proof)?;
+    if proof_root_statement_values(&proof)? != expected_statement {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    Ok(proof)
+}
+
+fn prove_epoch_chunk_coverage_stage(
+    accumulated: BatchStarkProof<Plonky3StarkConfigV2>,
+    group: BatchStarkProof<Plonky3StarkConfigV2>,
+    stage: EpochChunkCoverageStageV2,
+    transition_public: &[KoalaBear],
+    transition_common: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+    active_count: usize,
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    let certificate = prove_epoch_chunk_group_certificate(
+        group,
+        stage,
+        transition_public,
+        transition_common,
+        active_count,
+    )?;
+    trim_prover_heap();
+    run_in_fresh_epoch_range_pool(stage.merge_operation(), move || {
+        prove_epoch_chunk_coverage_merge(accumulated, certificate, stage, active_count)
+    })
+}
+
+fn prove_epoch_chunk_coverage_finalize(
+    child: BatchStarkProof<Plonky3StarkConfigV2>,
 ) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
     let config = hardened_koala_bear_config();
     let backend = BoundRecursionBackendV2;
@@ -13424,22 +16526,16 @@ fn prove_epoch_leaf_normalization(
     };
     let child_input = batch_recursion_input(&child)?;
     let (circuit, mut child_result) =
-        build_epoch_leaf_normalization_circuit(&child_input, &config, &backend)?;
+        build_epoch_chunk_coverage_finalize_circuit(&child_input, &config, &backend)?;
     let prep = prepare_next_layer_cache(&circuit, &config, &params, &backend)?;
     let parent_common_cap = common_cap_fields(prep.circuit_prover_data.common_data())?;
-    child_result.bind_trailing_base_fields(epoch_leaf_normalization_dynamic_fields(inputs)?);
     child_result.bind_parent_common_cap(parent_common_cap);
-    let expected = normalized_epoch_leaf_statement_values(
+    let expected = epoch_chunk_coverage_statement_values(
         proof_root_statement_values(&child)?,
-        inputs,
+        EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+        EPOCH_RANGE_FOLD_ORDINAL_V2,
         parent_common_cap,
     )?;
-
-    // The first pass establishes the exact parent common cap. The complete PCS
-    // preparation is then released so the unary trace and prover material do
-    // not overlap in the same worker.
-    drop(prep);
-    trim_prover_heap();
     let output = prove_next_layer::<Plonky3StarkConfigV2, BatchOnly, _, 4>(
         &child_input,
         &circuit,
@@ -13447,11 +16543,11 @@ fn prove_epoch_leaf_normalization(
         &config,
         &backend,
         &params,
-        None,
+        Some(&prep),
     )
     .map_err(|error| {
         CheckpointError::Backend(format!(
-            "Plonky3 epoch-leaf normalization proving failed: {error:?}"
+            "Plonky3 epoch chunk completion proving failed: {error:?}"
         ))
     })?;
     let z00z_plonky3_circuit_prover::RecursionOutput(proof, prover_data) = output;
@@ -13475,6 +16571,79 @@ fn prove_epoch_leaf_normalization(
         ));
     }
     Ok(proof)
+}
+
+fn prove_epoch_chunk_normalization(
+    artifact: Plonky3EpochChunkProofV2,
+    inputs: &EpochChunkNormalizationInputsV2,
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    artifact.verify()?;
+    if artifact.transition_statement() != &inputs.chunk.statement
+        || artifact.bindings() != inputs.chunk.bindings
+    {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    let active_count = inputs.chunk.bindings.len();
+    let transition_group = artifact.decode_group_proof(EpochChunkProofGroupV2::Transition)?;
+    let transition_public = proof_transition_public_values(&transition_group)?.to_vec();
+    let transition_common = common_cap_fields(&transition_group.stark_common)?;
+    let accumulated = prove_epoch_transition_group_normalization(transition_group, inputs)?;
+    trim_prover_heap();
+
+    let transition_semantic_group =
+        artifact.decode_group_proof(EpochChunkProofGroupV2::TransitionSemantic)?;
+    let accumulated = prove_epoch_chunk_coverage_stage(
+        accumulated,
+        transition_semantic_group,
+        EpochChunkCoverageStageV2::TransitionSemantic,
+        &transition_public,
+        transition_common,
+        active_count,
+    )?;
+    trim_prover_heap();
+
+    let hash_group = artifact.decode_group_proof(EpochChunkProofGroupV2::Hash)?;
+    let accumulated = prove_epoch_chunk_coverage_stage(
+        accumulated,
+        hash_group,
+        EpochChunkCoverageStageV2::Hash,
+        &transition_public,
+        transition_common,
+        active_count,
+    )?;
+    trim_prover_heap();
+
+    let uniqueness_lower = artifact.decode_group_proof(EpochChunkProofGroupV2::UniquenessLower)?;
+    let accumulated = prove_epoch_chunk_coverage_stage(
+        accumulated,
+        uniqueness_lower,
+        EpochChunkCoverageStageV2::UniquenessLower,
+        &transition_public,
+        transition_common,
+        active_count,
+    )?;
+    let accumulated = if active_count > 4 {
+        let uniqueness_upper =
+            artifact.decode_group_proof(EpochChunkProofGroupV2::UniquenessUpper)?;
+        prove_epoch_chunk_coverage_stage(
+            accumulated,
+            uniqueness_upper,
+            EpochChunkCoverageStageV2::UniquenessUpper,
+            &transition_public,
+            transition_common,
+            active_count,
+        )?
+    } else {
+        accumulated
+    };
+    drop(artifact);
+    trim_prover_heap();
+
+    run_in_fresh_epoch_unary_pool("epoch-chunk-coverage-finalize", move || {
+        prove_epoch_chunk_coverage_finalize(accumulated)
+    })
 }
 
 fn prove_epoch_statement_seal(
@@ -14934,6 +18103,30 @@ fn prove_history_successor(
     Ok(proof)
 }
 
+fn prepare_history_successor_common_candidate(
+    predecessor: &BatchStarkProof<Plonky3StarkConfigV2>,
+    epoch: &BatchStarkProof<Plonky3StarkConfigV2>,
+    relation: Plonky3HistoryRelationV2,
+) -> Result<[u8; 32], CheckpointError> {
+    let config = hardened_koala_bear_config();
+    let backend = BoundRecursionBackendV2;
+    let params = ProveNextLayerParams {
+        table_packing: aggregation_table_packing(),
+        constraint_profile: ConstraintProfile::Standard,
+    };
+    let predecessor_input = batch_recursion_input(predecessor)?;
+    let epoch_input = batch_recursion_input(epoch)?;
+    let (circuit, _) = build_history_successor_circuit(
+        &predecessor_input,
+        &epoch_input,
+        &config,
+        &backend,
+        relation,
+    )?;
+    let prep = prepare_aggregation_cache(&circuit, &config, &params, &backend)?;
+    common_binding_digest(prep.circuit_prover_data.common_data())
+}
+
 fn proof_root_statement_values(
     proof: &BatchStarkProof<Plonky3StarkConfigV2>,
 ) -> Result<&[KoalaBear], CheckpointError> {
@@ -14948,6 +18141,27 @@ fn proof_root_statement_values(
             RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
         ))?;
     if matches.next().is_some() || values.len() != ROOT_STATEMENT_FIELDS_V2 {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    Ok(values)
+}
+
+fn proof_transition_public_values(
+    proof: &BatchStarkProof<Plonky3StarkConfigV2>,
+) -> Result<&[KoalaBear], CheckpointError> {
+    let mut matches = proof
+        .non_primitives
+        .iter()
+        .filter(|entry| entry.op_type == plonky3_epoch_transition_air::npo_type());
+    let values = matches
+        .next()
+        .map(|entry| entry.public_values.as_slice())
+        .ok_or(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ))?;
+    if matches.next().is_some() || values.len() != plonky3_epoch_transition_air::PUBLIC_FIELDS_V2 {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
         ));
@@ -15011,18 +18225,33 @@ fn combined_root_statement_values(
     combine_root_values_for_relation(left, right, AggregationRelationV2::LeafRange)
 }
 
-fn epoch_base_pair_dynamic_fields(
-    inputs: &EpochBasePairProofInputsV2,
+fn epoch_chunk_pair_dynamic_fields(
+    inputs: &EpochChunkPairInputsV2,
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
-    let left_ordinal = u16::try_from(inputs.left.ordinal).map_err(|_| CheckpointError::Limit)?;
-    let right_ordinal = u16::try_from(inputs.right.ordinal).map_err(|_| CheckpointError::Limit)?;
-    let total = u16::try_from(inputs.total).map_err(|_| CheckpointError::Limit)?;
+    let left_ordinal =
+        u16::try_from(inputs.left.chunk_ordinal).map_err(|_| CheckpointError::Limit)?;
+    let right_ordinal =
+        u16::try_from(inputs.right.chunk_ordinal).map_err(|_| CheckpointError::Limit)?;
+    let total = u16::try_from(inputs.total_chunk_count).map_err(|_| CheckpointError::Limit)?;
+    let left_last = inputs
+        .left
+        .bindings
+        .last()
+        .ok_or(CheckpointError::Canonical)?
+        .inputs();
+    let right_first = inputs
+        .right
+        .bindings
+        .first()
+        .ok_or(CheckpointError::Canonical)?
+        .inputs();
     if total == 0
         || left_ordinal.checked_add(1) != Some(right_ordinal)
         || right_ordinal >= total
-        || inputs.left.canonical.height.checked_add(1) != Some(inputs.right.canonical.height)
-        || inputs.left.canonical.post_settlement_root != inputs.right.canonical.pre_settlement_root
-        || inputs.right.canonical.predecessor != Some(inputs.left.canonical.checkpoint_id)
+        || left_last.height.checked_add(1) != Some(right_first.height)
+        || left_last.post_settlement_root != right_first.pre_settlement_root
+        || right_first.predecessor != Some(left_last.checkpoint_id)
+        || inputs.cadence_blocks != u64::from(inputs.total_transition_count)
     {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3CanonicalRangeMissing,
@@ -15044,15 +18273,19 @@ fn epoch_base_pair_dynamic_fields(
     Ok(fields)
 }
 
-fn epoch_leaf_normalization_dynamic_fields(
-    inputs: &EpochLeafNormalizationInputsV2,
+fn epoch_chunk_normalization_dynamic_fields(
+    inputs: &EpochChunkNormalizationInputsV2,
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
-    let ordinal = u16::try_from(inputs.leaf.ordinal).map_err(|_| CheckpointError::Limit)?;
-    let total = u16::try_from(inputs.total).map_err(|_| CheckpointError::Limit)?;
+    let ordinal = u16::try_from(inputs.chunk.chunk_ordinal).map_err(|_| CheckpointError::Limit)?;
+    let total = u16::try_from(inputs.total_chunk_count).map_err(|_| CheckpointError::Limit)?;
     if total == 0
         || ordinal >= total
-        || inputs.cadence_blocks != u64::from(total)
-        || inputs.leaf.canonical.height == 0
+        || inputs.cadence_blocks != u64::from(inputs.total_transition_count)
+        || inputs
+            .chunk
+            .bindings
+            .first()
+            .is_none_or(|binding| binding.height() == 0)
         || inputs.runtime_profile_generation == 0
     {
         return Err(CheckpointError::RecursiveRejected(
@@ -15073,124 +18306,201 @@ fn epoch_leaf_normalization_dynamic_fields(
     Ok(fields)
 }
 
-fn epoch_base_raw_digest(
+fn epoch_chunk_raw_digest(
     statement: &[KoalaBear],
-    canonical: &super::epoch_frontier::EpochCanonicalLeafV2,
+    chunk: &EpochTraceChunkProofInputsV2,
+    transition: EpochTransitionInputsV2,
     digest_index: usize,
 ) -> Result<[u8; 32], CheckpointError> {
     match digest_index {
         ROOT_DIGEST_STATEMENT_TREE_V2 => {
             let digest = root_statement_digest(statement, digest_index)?;
-            (digest == canonical.checkpoint_statement_digest)
+            (digest == transition.checkpoint_statement_digest)
                 .then_some(digest)
                 .ok_or(CheckpointError::Canonical)
         }
         ROOT_DIGEST_ARTIFACT_TREE_V2 => {
             let digest = root_statement_digest(statement, digest_index)?;
-            (digest == canonical.checkpoint_artifact_digest)
+            (digest == transition.checkpoint_artifact_digest)
                 .then_some(digest)
                 .ok_or(CheckpointError::Canonical)
         }
         ROOT_DIGEST_LINK_TREE_V2 => {
             let digest = root_statement_digest(statement, digest_index)?;
-            (digest == canonical.checkpoint_link_digest)
+            (digest == transition.checkpoint_link_digest)
                 .then_some(digest)
                 .ok_or(CheckpointError::Canonical)
         }
         ROOT_DIGEST_DELTA_TREE_V2 => {
             let digest = root_statement_digest(statement, digest_index)?;
-            (digest == canonical.delta_root)
+            (digest == transition.delta_root)
                 .then_some(digest)
                 .ok_or(CheckpointError::Canonical)
         }
         ROOT_DIGEST_WITNESS_TREE_V2 => {
             let digest = root_statement_digest(statement, digest_index)?;
-            (digest == canonical.witness_root)
+            (digest == transition.witness_root)
                 .then_some(digest)
                 .ok_or(CheckpointError::Canonical)
         }
         ROOT_DIGEST_CHALLENGE_TREE_V2 => {
             let digest = root_statement_digest(statement, digest_index)?;
-            (digest == canonical.challenge_content_digest)
+            (digest == transition.challenge_content_digest)
                 .then_some(digest)
                 .ok_or(CheckpointError::Canonical)
         }
         ROOT_DIGEST_DA_TREE_V2 => {
             let digest = root_statement_digest(statement, digest_index)?;
-            (digest == canonical.da_payload_commitment)
+            (digest == transition.da_payload_commitment)
                 .then_some(digest)
                 .ok_or(CheckpointError::Canonical)
         }
-        ROOT_DIGEST_VERIFIED_BASE_TREE_V2 => epoch_verified_base_statement_digest_v2(
-            canonical.height,
-            root_statement_digest(statement, ROOT_DIGEST_PRIMARY_V2)?,
+        ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2 => epoch_verified_trace_chunk_statement_digest_v2(
+            chunk.chunk_ordinal,
+            chunk.statement.digest(),
         ),
         _ => Err(CheckpointError::Canonical),
     }
 }
 
-fn normalized_epoch_leaf_statement_values(
-    child: &[KoalaBear],
-    inputs: &EpochLeafNormalizationInputsV2,
-    common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+fn normalized_epoch_chunk_statement_values(
+    direct_public: &[KoalaBear],
+    child_common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
+    inputs: &EpochChunkNormalizationInputsV2,
+    parent_common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
-    let dynamic = epoch_leaf_normalization_dynamic_fields(inputs)?;
-    let ordinal = u16::try_from(inputs.leaf.ordinal).map_err(|_| CheckpointError::Limit)?;
-    let total = u16::try_from(inputs.total).map_err(|_| CheckpointError::Limit)?;
-    let canonical = &inputs.leaf.canonical;
-    let predecessor = canonical.predecessor.unwrap_or([0; 32]);
-    if child.len() != ROOT_STATEMENT_FIELDS_V2
-        || child[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64()
-            != u64::from(FINAL_REPLICA_FOLD_ORDINAL_V2)
-        || child[ROOT_STATEMENT_START_INDEX_V2] != KoalaBear::ZERO
-        || child[ROOT_STATEMENT_COUNT_INDEX_V2] != child[ROOT_STATEMENT_TOTAL_INDEX_V2]
-        || root_statement_u64(child, ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2)?
-            != canonical.height
-        || root_statement_u64(child, ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2)? != canonical.height
-        || root_statement_digest(child, ROOT_DIGEST_RANGE_START_STATE_V2)?
-            != canonical.pre_settlement_root
-        || root_statement_digest(child, ROOT_DIGEST_RANGE_END_STATE_V2)?
-            != canonical.post_settlement_root
-        || root_statement_digest(child, ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2)?
-            != canonical.checkpoint_id
-        || root_statement_digest(child, ROOT_DIGEST_LAST_CHECKPOINT_ID_V2)?
-            != canonical.checkpoint_id
-        || root_statement_digest(child, ROOT_DIGEST_FIRST_PREDECESSOR_V2)? != predecessor
+    let dynamic = epoch_chunk_normalization_dynamic_fields(inputs)?;
+    let expected_public = plonky3_epoch_transition_witness::public_values(
+        &inputs.chunk.statement,
+        &inputs.chunk.bindings,
+    )?;
+    if direct_public != expected_public {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    let first = inputs
+        .chunk
+        .bindings
+        .first()
+        .ok_or(CheckpointError::Canonical)?
+        .inputs();
+    let last = inputs
+        .chunk
+        .bindings
+        .last()
+        .ok_or(CheckpointError::Canonical)?
+        .inputs();
+    let chunk = inputs.chunk.statement.inputs();
+    let transition_count =
+        u16::try_from(inputs.chunk.bindings.len()).map_err(|_| CheckpointError::Limit)?;
+    let first_transition = u16::try_from(first.ordinal).map_err(|_| CheckpointError::Limit)?;
+    let total_transition_count =
+        u16::try_from(inputs.total_transition_count).map_err(|_| CheckpointError::Limit)?;
+    if direct_public.len() != plonky3_epoch_transition_air::PUBLIC_FIELDS_V2
+        || chunk.chunk_ordinal != inputs.chunk.chunk_ordinal
+        || chunk.chunk_count != inputs.total_chunk_count
+        || chunk.first_transition != first.ordinal
+        || chunk.last_transition != last.ordinal
+        || chunk.transition_count != inputs.total_transition_count
+        || chunk.chain_context_digest == [0; 32]
+        || chunk.predicate_digest == [0; 32]
+        || first
+            .ordinal
+            .checked_add(u32::from(transition_count))
+            .and_then(|value| value.checked_sub(1))
+            != Some(last.ordinal)
     {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
         ));
     }
 
-    let mut output = child.to_vec();
+    let mut output = vec![KoalaBear::ZERO; ROOT_STATEMENT_FIELDS_V2];
+    output[0] = KoalaBear::from_u8(2);
     output[1..17].copy_from_slice(&digest_base_fields(epoch_normalized_digest(0)?));
     output[17..33].copy_from_slice(&digest_base_fields(epoch_normalized_digest(1)?));
-    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
-        let raw = epoch_base_raw_digest(child, canonical, digest_index)?;
-        let leaf = epoch_ordered_digest_leaf_v2(
+    for (digest_index, digest) in [
+        (ROOT_DIGEST_PARAMETER_V2, chunk.parameter_digest),
+        (ROOT_DIGEST_SECURITY_V2, chunk.security_budget_digest),
+        (ROOT_DIGEST_VERIFIER_V2, chunk.verifier_bundle_digest),
+        (ROOT_DIGEST_CHAIN_CONTEXT_V2, chunk.chain_context_digest),
+        (ROOT_DIGEST_PREDICATE_V2, chunk.predicate_digest),
+        (ROOT_DIGEST_RANGE_START_STATE_V2, first.pre_settlement_root),
+        (ROOT_DIGEST_RANGE_END_STATE_V2, last.post_settlement_root),
+        (
+            ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2,
+            chunk.input_accumulator,
+        ),
+        (
+            ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2,
+            chunk.output_accumulator,
+        ),
+        (ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2, first.checkpoint_id),
+        (
+            ROOT_DIGEST_FIRST_PREDECESSOR_V2,
+            first.predecessor.unwrap_or([0; 32]),
+        ),
+        (ROOT_DIGEST_LAST_CHECKPOINT_ID_V2, last.checkpoint_id),
+    ] {
+        let range = root_digest_target_range(digest_index)?;
+        output[range].copy_from_slice(&digest_base_fields(digest));
+    }
+    for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_DA_TREE_V2 {
+        let raw = inputs
+            .chunk
+            .bindings
+            .iter()
+            .map(|binding| {
+                let transition = binding.inputs();
+                match digest_index {
+                    ROOT_DIGEST_STATEMENT_TREE_V2 => transition.checkpoint_statement_digest,
+                    ROOT_DIGEST_ARTIFACT_TREE_V2 => transition.checkpoint_artifact_digest,
+                    ROOT_DIGEST_LINK_TREE_V2 => transition.checkpoint_link_digest,
+                    ROOT_DIGEST_DELTA_TREE_V2 => transition.delta_root,
+                    ROOT_DIGEST_WITNESS_TREE_V2 => transition.witness_root,
+                    ROOT_DIGEST_CHALLENGE_TREE_V2 => transition.challenge_content_digest,
+                    ROOT_DIGEST_DA_TREE_V2 => transition.da_payload_commitment,
+                    _ => unreachable!("bounded direct transition root"),
+                }
+            })
+            .collect::<Vec<_>>();
+        let subtree = epoch_ordered_digest_subtree_v2(
             epoch_root_domain(digest_index)?,
-            u64::from(ordinal),
-            u64::from(total),
-            raw,
+            u64::from(total_transition_count),
+            u64::from(first_transition),
+            &raw,
         )?;
         let range = root_digest_target_range(digest_index)?;
-        output[range].copy_from_slice(&digest_base_fields(leaf));
+        output[range].copy_from_slice(&digest_base_fields(subtree));
     }
+    let verified_span = epoch_verified_trace_chunk_span_digest_v2(
+        inputs.total_transition_count,
+        inputs.chunk.chunk_ordinal,
+        inputs.total_chunk_count,
+        first.ordinal,
+        u32::from(transition_count),
+        inputs.chunk.statement.digest(),
+    )?;
+    let verified_range = root_digest_target_range(ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2)?;
+    output[verified_range].copy_from_slice(&digest_base_fields(verified_span));
+    let chunk_commitment = direct_trace_chunk_commitment_values(direct_public, child_common_cap)?;
     output[ROOT_STATEMENT_COMMITMENT_INDEX_V2
         ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2]
-        .copy_from_slice(&epoch_leaf_commitment(child)?);
+        .copy_from_slice(&chunk_commitment);
     output[ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
-        .copy_from_slice(&common_cap);
-    output[ROOT_STATEMENT_REPLICA_INDEX_V2] = KoalaBear::from_u8(EPOCH_RANGE_FOLD_ORDINAL_V2);
-    output[ROOT_STATEMENT_START_INDEX_V2] = KoalaBear::from_u16(ordinal);
-    output[ROOT_STATEMENT_COUNT_INDEX_V2] = KoalaBear::ONE;
-    output[ROOT_STATEMENT_TOTAL_INDEX_V2] = KoalaBear::from_u16(total);
+        .copy_from_slice(&parent_common_cap);
+    output[ROOT_STATEMENT_REPLICA_INDEX_V2] =
+        KoalaBear::from_u8(EPOCH_CHUNK_TRANSITION_COVERAGE_V2);
+    output[ROOT_STATEMENT_START_INDEX_V2] = KoalaBear::from_u16(first_transition);
+    output[ROOT_STATEMENT_COUNT_INDEX_V2] = KoalaBear::from_u16(transition_count);
+    output[ROOT_STATEMENT_TOTAL_INDEX_V2] = KoalaBear::from_u16(total_transition_count);
     output[ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2
         ..ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
-        .copy_from_slice(&u64_base_fields(canonical.height));
+        .copy_from_slice(&u64_base_fields(first.height));
     output[ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2
         ..ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
-        .copy_from_slice(&u64_base_fields(canonical.height));
+        .copy_from_slice(&u64_base_fields(last.height));
     output[ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2
         ..ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
         .copy_from_slice(&u64_base_fields(inputs.epoch_index));
@@ -15208,9 +18518,10 @@ fn normalized_epoch_leaf_statement_values(
         KoalaBear::from_u16(inputs.runtime_profile_generation);
     output[ROOT_STATEMENT_RUNTIME_PROFILE_GENERATION_INDEX_V2 + 1..].fill(KoalaBear::ZERO);
     if dynamic.len()
-        != 3 + ROOT_STATEMENT_HEIGHT_LIMBS_V2
+        != 2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2
             + ROOT_STATEMENT_CADENCE_LIMBS_V2
             + ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2
+            + 1
     {
         return Err(CheckpointError::Invariant);
     }
@@ -15229,7 +18540,7 @@ fn combine_root_values_for_relation_with_epoch(
     left: &[KoalaBear],
     right: &[KoalaBear],
     relation: AggregationRelationV2,
-    epoch_base_pair: Option<&EpochBasePairProofInputsV2>,
+    epoch_chunk_pair: Option<&EpochChunkPairInputsV2>,
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
     if left.len() != ROOT_STATEMENT_FIELDS_V2 || right.len() != ROOT_STATEMENT_FIELDS_V2 {
         return Err(CheckpointError::Canonical);
@@ -15253,7 +18564,7 @@ fn combine_root_values_for_relation_with_epoch(
                     || index == ROOT_STATEMENT_START_INDEX_V2
                     || index == ROOT_STATEMENT_COUNT_INDEX_V2
             }
-            AggregationRelationV2::EpochBasePair => {
+            AggregationRelationV2::EpochChunkPair => {
                 digest_index.is_some_and(|digest| {
                     !matches!(
                         digest,
@@ -15262,8 +18573,6 @@ fn combine_root_values_for_relation_with_epoch(
                             | ROOT_DIGEST_VERIFIER_V2
                             | ROOT_DIGEST_CHAIN_CONTEXT_V2
                             | ROOT_DIGEST_PREDICATE_V2
-                            | ROOT_DIGEST_EPOCH_ANCHOR_V2
-                            | ROOT_DIGEST_CONFIG_V2
                             | ROOT_DIGEST_REGISTRY_V2
                             | ROOT_DIGEST_RUNTIME_PROFILE_V2
                             | ROOT_DIGEST_NOVA_CHAIN_V2
@@ -15279,7 +18588,9 @@ fn combine_root_values_for_relation_with_epoch(
                     matches!(
                         digest,
                         ROOT_DIGEST_RANGE_START_STATE_V2
-                            ..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2
+                            ..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2
+                                | ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2
+                                | ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2
                                 | ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2
                                 | ROOT_DIGEST_FIRST_PREDECESSOR_V2
                                 | ROOT_DIGEST_LAST_CHECKPOINT_ID_V2
@@ -15330,9 +18641,33 @@ fn combine_root_values_for_relation_with_epoch(
             output[ROOT_STATEMENT_START_INDEX_V2] = KoalaBear::ZERO;
             output[ROOT_STATEMENT_COUNT_INDEX_V2] = output[ROOT_STATEMENT_TOTAL_INDEX_V2];
         }
-        AggregationRelationV2::EpochBasePair => {
-            let inputs = epoch_base_pair.ok_or(CheckpointError::Canonical)?;
-            let dynamic_fields = epoch_base_pair_dynamic_fields(inputs)?;
+        AggregationRelationV2::EpochChunkPair => {
+            let inputs = epoch_chunk_pair.ok_or(CheckpointError::Canonical)?;
+            let dynamic_fields = epoch_chunk_pair_dynamic_fields(inputs)?;
+            let left_first = inputs
+                .left
+                .bindings
+                .first()
+                .ok_or(CheckpointError::Canonical)?
+                .inputs();
+            let left_last = inputs
+                .left
+                .bindings
+                .last()
+                .ok_or(CheckpointError::Canonical)?
+                .inputs();
+            let right_first = inputs
+                .right
+                .bindings
+                .first()
+                .ok_or(CheckpointError::Canonical)?
+                .inputs();
+            let right_last = inputs
+                .right
+                .bindings
+                .last()
+                .ok_or(CheckpointError::Canonical)?
+                .inputs();
             if left[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64()
                 != u64::from(FINAL_REPLICA_FOLD_ORDINAL_V2)
                 || right[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64()
@@ -15342,15 +18677,17 @@ fn combine_root_values_for_relation_with_epoch(
                 || left[ROOT_STATEMENT_COUNT_INDEX_V2] != left[ROOT_STATEMENT_TOTAL_INDEX_V2]
                 || right[ROOT_STATEMENT_COUNT_INDEX_V2] != right[ROOT_STATEMENT_TOTAL_INDEX_V2]
                 || root_statement_u64(left, ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2)?
-                    != inputs.left.canonical.height
+                    != left_first.height
                 || root_statement_u64(left, ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2)?
-                    != inputs.left.canonical.height
+                    != left_last.height
                 || root_statement_u64(right, ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2)?
-                    != inputs.right.canonical.height
+                    != right_first.height
                 || root_statement_u64(right, ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2)?
-                    != inputs.right.canonical.height
+                    != right_last.height
                 || root_statement_digest(left, ROOT_DIGEST_RANGE_END_STATE_V2)?
                     != root_statement_digest(right, ROOT_DIGEST_RANGE_START_STATE_V2)?
+                || root_statement_digest(left, ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2)?
+                    != root_statement_digest(right, ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2)?
                 || root_statement_digest(left, ROOT_DIGEST_LAST_CHECKPOINT_ID_V2)?
                     != root_statement_digest(right, ROOT_DIGEST_FIRST_PREDECESSOR_V2)?
             {
@@ -15379,28 +18716,43 @@ fn combine_root_values_for_relation_with_epoch(
                 let range = root_digest_target_range(digest_index)?;
                 output[range].copy_from_slice(&digest_base_fields(digest));
             }
-            for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
-                let left_raw = epoch_base_raw_digest(left, &inputs.left.canonical, digest_index)?;
+            for digest_index in [
+                ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2,
+                ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2,
+            ] {
+                let digest = if digest_index == ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2 {
+                    root_statement_digest(left, digest_index)?
+                } else {
+                    root_statement_digest(right, digest_index)?
+                };
+                let range = root_digest_target_range(digest_index)?;
+                output[range].copy_from_slice(&digest_base_fields(digest));
+            }
+            for digest_index in
+                ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2
+            {
+                let left_raw =
+                    epoch_chunk_raw_digest(left, &inputs.left, left_first, digest_index)?;
                 let right_raw =
-                    epoch_base_raw_digest(right, &inputs.right.canonical, digest_index)?;
+                    epoch_chunk_raw_digest(right, &inputs.right, right_first, digest_index)?;
                 let left_leaf = epoch_ordered_digest_leaf_v2(
                     epoch_root_domain(digest_index)?,
-                    u64::from(inputs.left.ordinal),
-                    u64::from(inputs.total),
+                    u64::from(inputs.left.chunk_ordinal),
+                    u64::from(inputs.total_chunk_count),
                     left_raw,
                 )?;
                 let right_leaf = epoch_ordered_digest_leaf_v2(
                     epoch_root_domain(digest_index)?,
-                    u64::from(inputs.right.ordinal),
-                    u64::from(inputs.total),
+                    u64::from(inputs.right.chunk_ordinal),
+                    u64::from(inputs.total_chunk_count),
                     right_raw,
                 )?;
                 let parent = epoch_ordered_digest_parent_v2(
                     epoch_root_domain(digest_index)?,
-                    u64::from(inputs.total),
-                    u64::from(inputs.left.ordinal),
+                    u64::from(inputs.total_chunk_count),
+                    u64::from(inputs.left.chunk_ordinal),
                     1,
-                    u64::from(inputs.right.ordinal),
+                    u64::from(inputs.right.chunk_ordinal),
                     1,
                     left_leaf,
                     right_leaf,
@@ -15425,15 +18777,18 @@ fn combine_root_values_for_relation_with_epoch(
             )?));
             output[ROOT_STATEMENT_REPLICA_INDEX_V2] =
                 KoalaBear::from_u8(EPOCH_RANGE_FOLD_ORDINAL_V2);
-            output[ROOT_STATEMENT_START_INDEX_V2] = KoalaBear::from_u32(inputs.left.ordinal);
-            output[ROOT_STATEMENT_COUNT_INDEX_V2] = KoalaBear::from_u8(2);
-            output[ROOT_STATEMENT_TOTAL_INDEX_V2] = KoalaBear::from_u32(inputs.total);
+            output[ROOT_STATEMENT_START_INDEX_V2] =
+                KoalaBear::from_u32(inputs.left.statement.inputs().first_transition);
+            output[ROOT_STATEMENT_COUNT_INDEX_V2] =
+                KoalaBear::from_usize(inputs.left.bindings.len() + inputs.right.bindings.len());
+            output[ROOT_STATEMENT_TOTAL_INDEX_V2] =
+                KoalaBear::from_u32(inputs.total_transition_count);
             output[ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2
                 ..ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
-                .copy_from_slice(&u64_base_fields(inputs.left.canonical.height));
+                .copy_from_slice(&u64_base_fields(left_first.height));
             output[ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2
                 ..ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
-                .copy_from_slice(&u64_base_fields(inputs.right.canonical.height));
+                .copy_from_slice(&u64_base_fields(right_last.height));
             output[ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2
                 ..ROOT_STATEMENT_FIRST_EPOCH_INDEX_V2 + ROOT_STATEMENT_HEIGHT_LIMBS_V2]
                 .copy_from_slice(&u64_base_fields(inputs.epoch_index));
@@ -15471,6 +18826,8 @@ fn combine_root_values_for_relation_with_epoch(
                     )?)
                 || root_statement_digest(left, ROOT_DIGEST_RANGE_END_STATE_V2)?
                     != root_statement_digest(right, ROOT_DIGEST_RANGE_START_STATE_V2)?
+                || root_statement_digest(left, ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2)?
+                    != root_statement_digest(right, ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2)?
                 || root_statement_digest(left, ROOT_DIGEST_LAST_CHECKPOINT_ID_V2)?
                     != root_statement_digest(right, ROOT_DIGEST_FIRST_PREDECESSOR_V2)?
             {
@@ -15490,7 +18847,9 @@ fn combine_root_values_for_relation_with_epoch(
                     .map_err(|_| CheckpointError::Limit)?;
             let total = u64::try_from(left[ROOT_STATEMENT_TOTAL_INDEX_V2].as_canonical_u64())
                 .map_err(|_| CheckpointError::Limit)?;
-            for digest_index in ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2 {
+            for digest_index in
+                ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2
+            {
                 let parent = epoch_ordered_digest_parent_v2(
                     epoch_root_domain(digest_index)?,
                     total,
@@ -15506,6 +18865,7 @@ fn combine_root_values_for_relation_with_epoch(
             }
             for digest_index in [
                 ROOT_DIGEST_RANGE_END_STATE_V2,
+                ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2,
                 ROOT_DIGEST_LAST_CHECKPOINT_ID_V2,
             ] {
                 let range = root_digest_target_range(digest_index)?;
@@ -15529,8 +18889,11 @@ fn combine_root_values_for_relation_with_epoch(
             output[ROOT_STATEMENT_TOTAL_INDEX_V2] = left[ROOT_STATEMENT_TOTAL_INDEX_V2];
         }
     }
-    let (left_commitment, right_commitment) = if relation == AggregationRelationV2::EpochBasePair {
-        (epoch_leaf_commitment(left)?, epoch_leaf_commitment(right)?)
+    let (left_commitment, right_commitment) = if relation == AggregationRelationV2::EpochChunkPair {
+        (
+            epoch_chunk_commitment(left)?,
+            epoch_chunk_commitment(right)?,
+        )
     } else {
         (
             left[ROOT_STATEMENT_COMMITMENT_INDEX_V2
@@ -15559,11 +18922,11 @@ fn combine_root_with_cap(
     left: &[KoalaBear],
     right: &[KoalaBear],
     relation: AggregationRelationV2,
-    epoch_base_pair: Option<&EpochBasePairProofInputsV2>,
+    epoch_chunk_pair: Option<&EpochChunkPairInputsV2>,
     common_cap: [KoalaBear; ROOT_COMMON_CAP_FIELDS_V2],
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
     let mut output =
-        combine_root_values_for_relation_with_epoch(left, right, relation, epoch_base_pair)?;
+        combine_root_values_for_relation_with_epoch(left, right, relation, epoch_chunk_pair)?;
     output[ROOT_COMMON_CAP_INDEX_V2..ROOT_COMMON_CAP_INDEX_V2 + ROOT_COMMON_CAP_FIELDS_V2]
         .copy_from_slice(&common_cap);
     Ok(output)
@@ -15571,6 +18934,17 @@ fn combine_root_with_cap(
 
 fn require_authorized_common(actual: [u8; 32], expected: [u8; 32]) -> Result<(), CheckpointError> {
     if expected == [0; 32] || actual != expected {
+        return Err(CheckpointError::RecursiveRejected(
+            RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
+        ));
+    }
+    Ok(())
+}
+
+fn require_epoch_history_common_authority() -> Result<(), CheckpointError> {
+    if PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2.generation() != 1
+        || !PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2.is_complete()
+    {
         return Err(CheckpointError::RecursiveRejected(
             RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
         ));
@@ -15805,7 +19179,7 @@ fn fold_replica_roots(
                 PLONKY3_ROOT_AUTHORITY_V2.final_root_common()
             }
             AggregationRelationV2::LeafRange
-            | AggregationRelationV2::EpochBasePair
+            | AggregationRelationV2::EpochChunkPair
             | AggregationRelationV2::EpochRange => return Err(CheckpointError::Canonical),
         };
         require_authorized_common(common_binding_digest(&proof.stark_common)?, expected_common)?;
@@ -15850,7 +19224,7 @@ fn prepare_aggregation_cache(
         .iter()
         .map(|&degree| degree + config.is_zk())
         .collect::<Vec<_>>();
-    validate_aggregation_geometry(circuit, &params.table_packing, &ext_degrees)?;
+    validate_aggregation_geometry(circuit.ops.len(), &params.table_packing, &ext_degrees)?;
     let prover_data = canonical_prover_data_from_airs_and_degrees(config, &airs, &ext_degrees);
     let circuit_prover_data = Rc::new(CircuitProverData::new(
         prover_data,
@@ -15907,7 +19281,7 @@ fn prepare_next_layer_cache(
         .iter()
         .map(|&degree| degree + config.is_zk())
         .collect::<Vec<_>>();
-    validate_aggregation_geometry(circuit, &params.table_packing, &ext_degrees)?;
+    validate_aggregation_geometry(circuit.ops.len(), &params.table_packing, &ext_degrees)?;
     let prover_data = canonical_prover_data_from_airs_and_degrees(config, &airs, &ext_degrees);
     let circuit_prover_data = Rc::new(CircuitProverData::new(
         prover_data,
@@ -15921,6 +19295,168 @@ fn prepare_next_layer_cache(
     Ok(NextLayerPrepCache {
         circuit_prover_data,
         prover,
+    })
+}
+
+fn derive_next_layer_common_cap_owned(
+    circuit: Circuit<Plonky3ChallengeV2>,
+    config: &Plonky3StarkConfigV2,
+    params: &ProveNextLayerParams,
+    backend: &BoundRecursionBackendV2,
+) -> Result<[KoalaBear; ROOT_COMMON_CAP_FIELDS_V2], CheckpointError> {
+    let circuit_operations = circuit.ops.len();
+    let preprocessors = <BoundRecursionBackendV2 as PcsRecursionBackend<
+        Plonky3StarkConfigV2,
+        BatchOnly,
+        4,
+    >>::non_primitive_preprocessors(backend);
+    let air_builders = <BoundRecursionBackendV2 as PcsRecursionBackend<
+        Plonky3StarkConfigV2,
+        BatchOnly,
+        4,
+    >>::non_primitive_air_builders(backend);
+    let airs_degrees = get_airs_and_degrees_for_common_data::<Plonky3StarkConfigV2, _, 4>(
+        circuit,
+        &params.table_packing,
+        &preprocessors,
+        &air_builders,
+        params.constraint_profile,
+    )
+    .map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 owned recursive-layer cap lowering failed: {error}"
+        ))
+    })?;
+    let (airs, degrees): (Vec<_>, Vec<_>) = airs_degrees.into_iter().unzip();
+    let ext_degrees = degrees
+        .iter()
+        .map(|&degree| degree + config.is_zk())
+        .collect::<Vec<_>>();
+    validate_aggregation_geometry(circuit_operations, &params.table_packing, &ext_degrees)?;
+
+    drop(preprocessors);
+    drop(air_builders);
+    drop(degrees);
+    trim_prover_heap();
+
+    let common = canonical_common_data_from_owned_airs_and_degrees(config, airs, &ext_degrees);
+    drop(ext_degrees);
+    let common_cap = common_cap_fields(&common)?;
+    drop(common);
+    trim_prover_heap();
+    Ok(common_cap)
+}
+
+fn run_bound_unary_trace(
+    child: &RecursionInput<'_, Plonky3StarkConfigV2, BatchOnly>,
+    child_result: &BoundVerifierResultV2,
+    circuit: &Circuit<Plonky3ChallengeV2>,
+    config: &Plonky3StarkConfigV2,
+    backend: &BoundRecursionBackendV2,
+) -> Result<Traces<Plonky3ChallengeV2>, CheckpointError> {
+    let public_inputs = child_result.pack_public_inputs(child).map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 unary public-input packing failed: {error:?}"
+        ))
+    })?;
+    let private_inputs = child_result.pack_private_inputs(child).map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 unary private-input packing failed: {error:?}"
+        ))
+    })?;
+    let mut runner = circuit.runner();
+    runner.set_public_inputs(&public_inputs).map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 unary public-input installation failed: {error:?}"
+        ))
+    })?;
+    runner
+        .set_private_inputs(&private_inputs)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 unary private-input installation failed: {error:?}"
+            ))
+        })?;
+    drop(public_inputs);
+    drop(private_inputs);
+    <BoundRecursionBackendV2 as PcsRecursionBackend<
+        Plonky3StarkConfigV2,
+        BatchOnly,
+        4,
+    >>::set_private_data(
+        backend,
+        config,
+        &mut runner,
+        child_result.op_ids(),
+        child,
+    )
+    .map_err(|error| {
+        CheckpointError::Backend(format!("Plonky3 unary private data failed: {error}"))
+    })?;
+    runner.run().map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 unary trace construction failed: {error:?}"
+        ))
+    })
+}
+
+fn run_bound_unary_trace_owned(
+    child_proof: BatchStarkProof<Plonky3StarkConfigV2>,
+    child_result: BoundVerifierResultV2,
+    circuit: &Circuit<Plonky3ChallengeV2>,
+    config: &Plonky3StarkConfigV2,
+    backend: &BoundRecursionBackendV2,
+) -> Result<Traces<Plonky3ChallengeV2>, CheckpointError> {
+    let child = batch_recursion_input(&child_proof)?;
+    let public_inputs = child_result.pack_public_inputs(&child).map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 owned unary public-input packing failed: {error:?}"
+        ))
+    })?;
+    let private_inputs = child_result.pack_private_inputs(&child).map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 owned unary private-input packing failed: {error:?}"
+        ))
+    })?;
+    let mut runner = circuit.runner();
+    runner.set_public_inputs(&public_inputs).map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 owned unary public-input installation failed: {error:?}"
+        ))
+    })?;
+    runner
+        .set_private_inputs(&private_inputs)
+        .map_err(|error| {
+            CheckpointError::Backend(format!(
+                "Plonky3 owned unary private-input installation failed: {error:?}"
+            ))
+        })?;
+    drop(public_inputs);
+    drop(private_inputs);
+    <BoundRecursionBackendV2 as PcsRecursionBackend<
+        Plonky3StarkConfigV2,
+        BatchOnly,
+        4,
+    >>::set_private_data(
+        backend,
+        config,
+        &mut runner,
+        child_result.op_ids(),
+        &child,
+    )
+    .map_err(|error| {
+        CheckpointError::Backend(format!("Plonky3 owned unary private data failed: {error}"))
+    })?;
+
+    drop(child);
+    drop(child_result);
+    drop(child_proof);
+    trim_prover_heap();
+
+    runner.run().map_err(|error| {
+        CheckpointError::Backend(format!(
+            "Plonky3 owned unary trace construction failed: {error:?}"
+        ))
     })
 }
 
@@ -16013,11 +19549,11 @@ fn aggregate_epoch_proof_pair_owned(
     left: BatchStarkProof<Plonky3StarkConfigV2>,
     right: BatchStarkProof<Plonky3StarkConfigV2>,
     relation: AggregationRelationV2,
-    epoch_base_pair: Option<EpochBasePairProofInputsV2>,
+    epoch_chunk_pair: Option<EpochChunkPairInputsV2>,
 ) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
     if !matches!(
         relation,
-        AggregationRelationV2::EpochBasePair | AggregationRelationV2::EpochRange
+        AggregationRelationV2::EpochChunkPair | AggregationRelationV2::EpochRange
     ) {
         return Err(CheckpointError::Canonical);
     }
@@ -16041,11 +19577,13 @@ fn aggregate_epoch_proof_pair_owned(
     drop(cap_prep);
     trim_prover_heap();
 
-    if relation == AggregationRelationV2::EpochBasePair {
-        right_result.bind_trailing_base_fields(epoch_base_pair_dynamic_fields(
-            epoch_base_pair.as_ref().ok_or(CheckpointError::Canonical)?,
+    if relation == AggregationRelationV2::EpochChunkPair {
+        right_result.bind_trailing_base_fields(epoch_chunk_pair_dynamic_fields(
+            epoch_chunk_pair
+                .as_ref()
+                .ok_or(CheckpointError::Canonical)?,
         )?);
-    } else if epoch_base_pair.is_some() {
+    } else if epoch_chunk_pair.is_some() {
         return Err(CheckpointError::Canonical);
     }
     right_result.bind_parent_common_cap(parent_common_cap);
@@ -16053,7 +19591,7 @@ fn aggregate_epoch_proof_pair_owned(
         proof_root_statement_values(&left)?,
         proof_root_statement_values(&right)?,
         relation,
-        epoch_base_pair.as_ref(),
+        epoch_chunk_pair.as_ref(),
         parent_common_cap,
     )?;
 
@@ -16088,8 +19626,8 @@ fn aggregate_epoch_proof_pair_owned(
         .iter()
         .map(|&degree| degree + config.is_zk())
         .collect::<Vec<_>>();
-    validate_aggregation_geometry(&circuit, &params.table_packing, &ext_degrees)?;
-    let traces = run_bound_aggregation_trace(
+    validate_aggregation_geometry(circuit.ops.len(), &params.table_packing, &ext_degrees)?;
+    let mut traces = run_bound_aggregation_trace(
         &left_input,
         &right_input,
         &left_result,
@@ -16098,6 +19636,7 @@ fn aggregate_epoch_proof_pair_owned(
         &config,
         &backend,
     )?;
+    release_one_shot_trace_inspection_state(&mut traces);
 
     drop(preprocessors);
     drop(air_builders);
@@ -16119,16 +19658,17 @@ fn aggregate_epoch_proof_pair_owned(
     let prepared_common_digest = common_binding_digest(circuit_prover_data.common_data())?;
     let mut prover = BatchStarkProver::new(config)
         .with_table_packing(params.table_packing)
+        .with_one_shot_lde_capacity_bits(usize::from(PLONKY3_FRI_LOG_BLOWUP_V2))
+        .with_one_shot_pre_commit_reclaimer(trim_prover_heap)
         .with_alu_variant(AirVariant::Baseline);
     register_canonical_recursive_tables(&mut prover);
     let proof = prover
-        .prove_all_tables_one_shot(&traces, circuit_prover_data)
+        .prove_all_tables_one_shot(traces, circuit_prover_data)
         .map_err(|error| {
             CheckpointError::Backend(format!(
                 "Plonky3 owned epoch aggregation proving failed: {error:?}"
             ))
         })?;
-    drop(traces);
     drop(prover);
 
     if common_binding_digest(&proof.stark_common)? != prepared_common_digest
@@ -16152,16 +19692,16 @@ fn aggregate_proof_pair(
     left: BatchStarkProof<Plonky3StarkConfigV2>,
     right: BatchStarkProof<Plonky3StarkConfigV2>,
     relation: AggregationRelationV2,
-    epoch_base_pair: Option<EpochBasePairProofInputsV2>,
+    epoch_chunk_pair: Option<EpochChunkPairInputsV2>,
     prep_pool: &mut AggregationPrepPoolV2,
 ) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
     if matches!(
         relation,
-        AggregationRelationV2::EpochBasePair | AggregationRelationV2::EpochRange
+        AggregationRelationV2::EpochChunkPair | AggregationRelationV2::EpochRange
     ) {
-        return aggregate_epoch_proof_pair_owned(left, right, relation, epoch_base_pair);
+        return aggregate_epoch_proof_pair_owned(left, right, relation, epoch_chunk_pair);
     }
-    if epoch_base_pair.is_some() {
+    if epoch_chunk_pair.is_some() {
         return Err(CheckpointError::Canonical);
     }
     let left_common_digest = common_binding_digest(&left.stark_common)?;
@@ -16444,6 +19984,19 @@ fn ensure_chunk_cache_across_replicas(
 
 fn trim_prover_heap() {
     let _ = z00z_utils::os_hardening::trim_process_heap_best_effort();
+}
+
+/// Release runner-only inspection state before one-shot circuit proving.
+///
+/// Primitive and non-primitive table traces already own every concrete value
+/// consumed by their AIRs. The central witness store and tag index are not
+/// verifier inputs; dropping and trimming them here prevents that duplicate
+/// runner state from overlapping common-data and PCS allocations.
+fn release_one_shot_trace_inspection_state<F>(traces: &mut Traces<F>) {
+    traces.witness_trace = WitnessTrace::new(Vec::new());
+    traces.tag_to_witness.clear();
+    traces.tag_to_witness.shrink_to_fit();
+    trim_prover_heap();
 }
 
 fn prove_replica_tree(
@@ -17130,7 +20683,7 @@ fn poseidon_fields_hash(
         .expect("fixed Poseidon2 rate"))
 }
 
-fn epoch_leaf_commitment(
+fn epoch_chunk_commitment(
     statement: &[KoalaBear],
 ) -> Result<[KoalaBear; ROOT_STATEMENT_COMMITMENT_FIELDS_V2], CheckpointError> {
     if statement.len() != ROOT_STATEMENT_FIELDS_V2 {
@@ -17145,7 +20698,7 @@ fn epoch_leaf_commitment(
     let mut domain = [KoalaBear::ZERO; ROOT_STATEMENT_COMMITMENT_FIELDS_V2];
     domain[0] = KoalaBear::from_u64(0x5a30);
     domain[1] = KoalaBear::from_u64(0x5254);
-    domain[2] = KoalaBear::from_u8(RootCommitmentDomainV2::EpochLeaf.tag());
+    domain[2] = KoalaBear::from_u8(RootCommitmentDomainV2::EpochChunk.tag());
     poseidon_fields_hash(&fields, Some(domain))
 }
 
@@ -17350,7 +20903,7 @@ fn validate_sealed_epoch_statement(
 ) -> Result<(), CheckpointError> {
     let values = proof_root_statement_values(proof)?;
     let inputs = statement.inputs();
-    let roots_match = (ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2)
+    let roots_match = (ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2)
         .map(|index| {
             Ok(root_statement_digest(values, index)? == epoch_statement_root(statement, index)?)
         })
@@ -17369,6 +20922,8 @@ fn validate_sealed_epoch_statement(
         || root_statement_digest(values, ROOT_DIGEST_RANGE_START_STATE_V2)? != inputs.start_root
         || root_statement_digest(values, ROOT_DIGEST_RANGE_END_STATE_V2)? != inputs.end_root
         || !roots_match
+        || root_statement_digest(values, ROOT_DIGEST_EPOCH_WORK_MANIFEST_V2)?
+            != inputs.epoch_work_manifest_digest
         || root_statement_digest(values, ROOT_DIGEST_EPOCH_ANCHOR_V2)?
             != inputs.epoch_close_anchor_digest
         || root_statement_digest(values, ROOT_DIGEST_CONFIG_V2)? != inputs.config_digest
@@ -17377,14 +20932,14 @@ fn validate_sealed_epoch_statement(
             != inputs.runtime_profile_manifest_digest
         || root_statement_digest(values, ROOT_DIGEST_NOVA_CHAIN_V2)?
             != inputs.nova_chain_root.unwrap_or([0; 32])
-        || root_commitment_bytes(values)? != statement.recursive_base_proof_commitment()
+        || root_commitment_bytes(values)? != statement.recursive_epoch_commitment()
         || values[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64()
             != u64::from(EPOCH_SEAL_ORDINAL_V2)
         || values[ROOT_STATEMENT_START_INDEX_V2] != KoalaBear::ZERO
         || values[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64()
-            != u64::from(statement.leaf_count())
+            != u64::from(statement.transition_count())
         || values[ROOT_STATEMENT_TOTAL_INDEX_V2].as_canonical_u64()
-            != u64::from(statement.leaf_count())
+            != u64::from(statement.transition_count())
         || root_statement_u64(values, ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2)?
             != inputs.start_height
         || root_statement_u64(values, ROOT_STATEMENT_RANGE_END_HEIGHT_INDEX_V2)?
@@ -17507,7 +21062,30 @@ fn decode_sparse_fixed_words_v2(packed: &[u8]) -> Result<Vec<u8>, CheckpointErro
     Ok(raw)
 }
 
-/// Canonical external encoding for every Phase-069 Batch-STARK proof body.
+/// Storage scope for one canonical Phase-069 Batch-STARK proof body.
+#[derive(Clone, Copy)]
+enum CanonicalBatchProofScopeV2 {
+    Published,
+    RecursiveIngress,
+}
+
+impl CanonicalBatchProofScopeV2 {
+    const fn max_bytes(self) -> usize {
+        match self {
+            Self::Published => PLONKY3_PUBLISH_BYTES_V2,
+            Self::RecursiveIngress => RECURSIVE_INGRESS_BYTES_V2,
+        }
+    }
+
+    const fn oversized_error(self) -> RecursiveCheckpointRejectReasonV2 {
+        match self {
+            Self::Published => RecursiveCheckpointRejectReasonV2::ProofSizeBudgetExceeded,
+            Self::RecursiveIngress => RecursiveCheckpointRejectReasonV2::ProofBytesTooLarge,
+        }
+    }
+}
+
+/// Canonical encoding for every Phase-069 Batch-STARK proof body.
 ///
 /// Fixed-width little-endian integers avoid postcard varint expansion.
 /// Repeated FRI Merkle authentication nodes are interned once and restored
@@ -17515,8 +21093,9 @@ fn decode_sparse_fixed_words_v2(packed: &[u8]) -> Result<Vec<u8>, CheckpointErro
 /// all-zero four-byte words and reconstructs the exact fixed-width payload.
 /// This is proof serialization, not optional transport compression: it changes
 /// no theorem, opening, query, PCS, hash, transcript, or security parameter.
-fn encode_canonical_batch_proof_v2(
+fn encode_canonical_batch_proof_for_scope_v2(
     proof: &BatchStarkProof<Plonky3StarkConfigV2>,
+    scope: CanonicalBatchProofScopeV2,
 ) -> Result<Vec<u8>, CheckpointError> {
     if proof.validate().is_err() {
         return Err(CheckpointError::Canonical);
@@ -17537,12 +21116,22 @@ fn encode_canonical_batch_proof_v2(
             .to_le_bytes(),
     );
     bytes.extend_from_slice(&payload);
-    if bytes.len() > PLONKY3_PUBLISH_BYTES_V2 {
-        return Err(CheckpointError::RecursiveRejected(
-            RecursiveCheckpointRejectReasonV2::ProofSizeBudgetExceeded,
-        ));
+    if bytes.len() > scope.max_bytes() {
+        return Err(CheckpointError::RecursiveRejected(scope.oversized_error()));
     }
     Ok(bytes)
+}
+
+fn encode_canonical_batch_proof_v2(
+    proof: &BatchStarkProof<Plonky3StarkConfigV2>,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_canonical_batch_proof_for_scope_v2(proof, CanonicalBatchProofScopeV2::Published)
+}
+
+fn encode_internal_canonical_batch_proof_v2(
+    proof: &BatchStarkProof<Plonky3StarkConfigV2>,
+) -> Result<Vec<u8>, CheckpointError> {
+    encode_canonical_batch_proof_for_scope_v2(proof, CanonicalBatchProofScopeV2::RecursiveIngress)
 }
 
 fn clone_batch_proof_for_codec_v2(
@@ -17678,11 +21267,12 @@ fn restore_batch_proof_payload_v2(
     Ok(proof)
 }
 
-fn decode_canonical_batch_proof_v2(
+fn decode_canonical_batch_proof_for_scope_v2(
     bytes: &[u8],
+    scope: CanonicalBatchProofScopeV2,
 ) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
     if bytes.len() < PLONKY3_BATCH_PROOF_HEADER_BYTES_V2
-        || bytes.len() > PLONKY3_PUBLISH_BYTES_V2
+        || bytes.len() > scope.max_bytes()
         || bytes[..8] != PLONKY3_BATCH_PROOF_MAGIC_V2
     {
         return Err(CheckpointError::Canonical);
@@ -17695,7 +21285,7 @@ fn decode_canonical_batch_proof_v2(
     }
     let payload_len =
         usize::try_from(take_u32(bytes, &mut cursor)?).map_err(|_| CheckpointError::Limit)?;
-    if payload_len == 0 || payload_len > PLONKY3_PUBLISH_BYTES_V2 {
+    if payload_len == 0 || payload_len > scope.max_bytes() {
         return Err(CheckpointError::Canonical);
     }
     let payload = take_slice(bytes, &mut cursor, payload_len)?;
@@ -17712,11 +21302,23 @@ fn decode_canonical_batch_proof_v2(
     let proof = restore_batch_proof_payload_v2(compact)?;
     if consumed != raw_payload.len()
         || proof.validate().is_err()
-        || encode_canonical_batch_proof_v2(&proof)? != bytes
+        || encode_canonical_batch_proof_for_scope_v2(&proof, scope)? != bytes
     {
         return Err(CheckpointError::Canonical);
     }
     Ok(proof)
+}
+
+fn decode_canonical_batch_proof_v2(
+    bytes: &[u8],
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    decode_canonical_batch_proof_for_scope_v2(bytes, CanonicalBatchProofScopeV2::Published)
+}
+
+fn decode_internal_canonical_batch_proof_v2(
+    bytes: &[u8],
+) -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
+    decode_canonical_batch_proof_for_scope_v2(bytes, CanonicalBatchProofScopeV2::RecursiveIngress)
 }
 
 fn validate_history_epoch_binding(
@@ -18172,7 +21774,7 @@ fn encode_epoch_proof(proof: &Plonky3EpochProofV2) -> Result<Vec<u8>, Checkpoint
             proof.frontier_authority_digest,
             proof.parameter_digest,
             proof.security_budget_digest,
-            proof.recursive_base_proof_commitment,
+            proof.recursive_epoch_commitment,
             proof.air_binding_digest,
             proof.proof_digest,
         ]
@@ -18180,8 +21782,7 @@ fn encode_epoch_proof(proof: &Plonky3EpochProofV2) -> Result<Vec<u8>, Checkpoint
         || proof.frontier_authority_digest != proof.statement.frontier_authority_digest()
         || proof.parameter_digest != proof.statement.inputs().parameter_digest
         || proof.security_budget_digest != proof.statement.inputs().security_budget_digest
-        || proof.recursive_base_proof_commitment
-            != proof.statement.recursive_base_proof_commitment()
+        || proof.recursive_epoch_commitment != proof.statement.recursive_epoch_commitment()
         || proof.proof_digest != epoch_outer_proof_digest(&proof.proof_bytes)
     {
         return Err(CheckpointError::Canonical);
@@ -18203,7 +21804,7 @@ fn encode_epoch_proof(proof: &Plonky3EpochProofV2) -> Result<Vec<u8>, Checkpoint
         proof.frontier_authority_digest,
         proof.parameter_digest,
         proof.security_budget_digest,
-        proof.recursive_base_proof_commitment,
+        proof.recursive_epoch_commitment,
         proof.air_binding_digest,
         proof.proof_digest,
     ] {
@@ -18234,14 +21835,14 @@ fn validate_epoch_node_statement(
     authority: super::epoch_frontier::EpochFrontierAuthorityV2,
     start_height: u64,
     end_height: u64,
-    leaf_count: u32,
+    transition_count: u32,
 ) -> Result<(), CheckpointError> {
     let statement = proof_root_statement_values(proof)?;
     let ordinal = start_height
         .checked_sub(authority.start_height())
         .ok_or(CheckpointError::Overflow)?;
     let expected_end = start_height
-        .checked_add(u64::from(leaf_count))
+        .checked_add(u64::from(transition_count))
         .and_then(|height| height.checked_sub(1));
     if root_statement_digest(statement, 0)? != epoch_normalized_digest(0)?
         || root_statement_digest(statement, 1)? != epoch_normalized_digest(1)?
@@ -18252,16 +21853,17 @@ fn validate_epoch_node_statement(
             != authority.chain_context_digest()
         || root_statement_digest(statement, ROOT_DIGEST_PREDICATE_V2)?
             != authority.predicate_digest()
-        || (ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_BASE_TREE_V2)
+        || (ROOT_DIGEST_STATEMENT_TREE_V2..=ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2)
             .map(|index| root_statement_digest(statement, index))
             .collect::<Result<Vec<_>, _>>()?
             .contains(&[0; 32])
         || statement[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64()
             != u64::from(EPOCH_RANGE_FOLD_ORDINAL_V2)
         || statement[ROOT_STATEMENT_START_INDEX_V2].as_canonical_u64() != ordinal
-        || statement[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64() != u64::from(leaf_count)
+        || statement[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64()
+            != u64::from(transition_count)
         || statement[ROOT_STATEMENT_TOTAL_INDEX_V2].as_canonical_u64()
-            != u64::from(authority.leaf_count())
+            != u64::from(authority.transition_count())
         || expected_end != Some(end_height)
         || root_statement_u64(statement, ROOT_STATEMENT_RANGE_START_HEIGHT_INDEX_V2)?
             != start_height
@@ -18301,7 +21903,7 @@ fn epoch_node_range_binding_digest(
             &envelope.authority_digest,
             &envelope.start_height.to_le_bytes(),
             &envelope.end_height.to_le_bytes(),
-            &envelope.leaf_count.to_le_bytes(),
+            &envelope.transition_count.to_le_bytes(),
             &[envelope.tree_level],
             &common_binding_digest(&envelope.proof.stark_common)?,
             &public_values,
@@ -18315,13 +21917,13 @@ fn encode_epoch_node_proof(
     if envelope.authority_digest == [0; 32]
         || envelope.start_height == 0
         || envelope.end_height < envelope.start_height
-        || envelope.leaf_count < 2
+        || envelope.transition_count < 2
         || envelope.tree_level == 0
         || envelope
             .end_height
             .checked_sub(envelope.start_height)
             .and_then(|span| span.checked_add(1))
-            != Some(u64::from(envelope.leaf_count))
+            != Some(u64::from(envelope.transition_count))
         || envelope.proof.validate().is_err()
     {
         return Err(CheckpointError::Canonical);
@@ -18333,7 +21935,7 @@ fn encode_epoch_node_proof(
     bytes.extend_from_slice(&envelope.authority_digest);
     bytes.extend_from_slice(&envelope.start_height.to_le_bytes());
     bytes.extend_from_slice(&envelope.end_height.to_le_bytes());
-    bytes.extend_from_slice(&envelope.leaf_count.to_le_bytes());
+    bytes.extend_from_slice(&envelope.transition_count.to_le_bytes());
     bytes.push(envelope.tree_level);
     bytes.extend_from_slice(
         &u32::try_from(proof.len())
@@ -18365,7 +21967,7 @@ fn decode_epoch_node_proof(bytes: &[u8]) -> Result<EpochNodeProofEnvelopeV2, Che
     let authority_digest = take_array::<32>(bytes, &mut cursor)?;
     let start_height = u64::from_le_bytes(take_array::<8>(bytes, &mut cursor)?);
     let end_height = u64::from_le_bytes(take_array::<8>(bytes, &mut cursor)?);
-    let leaf_count = take_u32(bytes, &mut cursor)?;
+    let transition_count = take_u32(bytes, &mut cursor)?;
     let tree_level = take_array::<1>(bytes, &mut cursor)?[0];
     let proof_len =
         usize::try_from(take_u32(bytes, &mut cursor)?).map_err(|_| CheckpointError::Limit)?;
@@ -18381,7 +21983,7 @@ fn decode_epoch_node_proof(bytes: &[u8]) -> Result<EpochNodeProofEnvelopeV2, Che
         authority_digest,
         start_height,
         end_height,
-        leaf_count,
+        transition_count,
         tree_level,
         proof,
     };
@@ -18882,9 +22484,17 @@ impl Plonky3EpochTraceAndRangeV2 {
 pub struct Plonky3EpochChunkWorkerV2;
 
 impl Plonky3EpochChunkWorkerV2 {
-    pub fn prove_transition_batch(
+    pub fn prove_chunk(
         work: EpochTraceChunkWorkV2,
-    ) -> Result<Plonky3EpochTransitionBatchV2, CheckpointError> {
+    ) -> Result<Plonky3EpochChunkProofV2, CheckpointError> {
+        run_in_fresh_prover_pool("epoch-direct-chunk", move || {
+            Self::prove_chunk_in_pool(work)
+        })
+    }
+
+    fn prove_chunk_in_pool(
+        work: EpochTraceChunkWorkV2,
+    ) -> Result<Plonky3EpochChunkProofV2, CheckpointError> {
         let (first_transition, last_transition) = work.transition_range();
         let binding_count = last_transition
             .checked_sub(first_transition)
@@ -18905,6 +22515,8 @@ impl Plonky3EpochChunkWorkerV2 {
             u64::from(first_transition),
             u64::from(binding_count),
         )?;
+        let packed_statement =
+            work.statement(EpochAirTableV2::PackedRange, 0, 0, work.event_bytes())?;
         let typed_statement = work.statement(
             EpochAirTableV2::TypedCommitment,
             0,
@@ -18915,6 +22527,12 @@ impl Plonky3EpochChunkWorkerV2 {
                 .checked_mul(4)
                 .ok_or(CheckpointError::Overflow)?,
         )?;
+        let jmt_record_count = work.bindings().try_fold(0_u64, |total, binding| {
+            total
+                .checked_add(binding.inputs().jmt_record_count)
+                .ok_or(CheckpointError::Overflow)
+        })?;
+        let jmt_statement = work.statement(EpochAirTableV2::JmtUpdate, 0, 0, jmt_record_count)?;
         let parsed_uniqueness = parse_epoch_uniqueness(work.prepared())?;
         let uniqueness_statement = work.statement(
             EpochAirTableV2::Uniqueness,
@@ -18925,10 +22543,12 @@ impl Plonky3EpochChunkWorkerV2 {
         )?;
         let bindings = work.bindings().collect::<Vec<_>>();
         let prepared = work.into_prepared();
-        let artifact = prove_transition_batch(
+        let artifact = prove_epoch_chunk(
             transition_statement,
             trace_framing_statement,
+            packed_statement,
             typed_statement,
+            jmt_statement,
             uniqueness_statement,
             bindings,
             &prepared,
@@ -19184,7 +22804,6 @@ pub(super) fn prove_epoch_jmt_update_smoke(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checkpoint::epoch_frontier::EpochCanonicalLeafV2;
     use crate::checkpoint::recursive_semantics::{
         encode_uniqueness_challenge, encode_uniqueness_precommit_value,
         uniqueness_precommit_from_rows,
@@ -19201,6 +22820,40 @@ mod tests {
         sync::Once,
     };
     use tracing_subscriber::fmt::format::FmtSpan;
+
+    #[test]
+    fn recursive_sha_npo_matches_canonical_sha256_256() {
+        const DOMAIN: &str = "z00z.storage.test.recursive-sha.v2";
+        const LABEL: &str = "canonical-digest";
+        let part = b"recursive SHA compression regression";
+        let expected = sha256_256(DOMAIN, LABEL, &[part]);
+
+        let mut builder = CircuitBuilder::new();
+        register_recursive_sha_npo(&mut builder);
+        register_u16_range_npo(&mut builder);
+        let zero = builder.define_const(Plonky3ChallengeV2::ZERO);
+        let one = builder.define_const(Plonky3ChallengeV2::ONE);
+        let two = builder.define_const(lift_koala(KoalaBear::from_u8(2)));
+        let parts = vec![part
+            .iter()
+            .copied()
+            .map(|byte| constant_byte_bits(byte, zero, one))
+            .collect::<Vec<_>>()];
+        let actual =
+            circuit_sha256_256_parts(&mut builder, DOMAIN, LABEL, &parts, zero, one, two).unwrap();
+        for (actual_byte, expected_byte) in actual.iter().zip(expected) {
+            for (bit, actual_bit) in actual_byte.iter().copied().enumerate() {
+                let expected_bit = builder.define_const(if (expected_byte >> bit) & 1 == 0 {
+                    Plonky3ChallengeV2::ZERO
+                } else {
+                    Plonky3ChallengeV2::ONE
+                });
+                builder.connect(actual_bit, expected_bit);
+            }
+        }
+        let circuit = builder.build().unwrap();
+        circuit.runner().run().unwrap();
+    }
 
     fn init_resource_tracing() {
         static INIT: Once = Once::new();
@@ -19228,6 +22881,30 @@ mod tests {
         let (copy, remaining) = postcard::take_from_bytes(&bytes).expect("decode test batch proof");
         assert!(remaining.is_empty());
         copy
+    }
+
+    #[test]
+    fn test_bound_recursion_registers_every_epoch_chunk_table_once() {
+        let recursive_types = BoundRecursionBackendV2
+            .non_primitive_provers(1)
+            .into_iter()
+            .map(|prover| prover.op_type())
+            .collect::<Vec<_>>();
+        for direct_prover in epoch_chunk_table_provers() {
+            let op_type = direct_prover.op_type();
+            assert_eq!(
+                recursive_types
+                    .iter()
+                    .filter(|candidate| **candidate == op_type)
+                    .count(),
+                1,
+                "recursive verifier must register direct epoch-chunk table {op_type:?} exactly once",
+            );
+        }
+        assert!(
+            recursive_types.contains(&plonky3_epoch_event_source_columns::npo_type()),
+            "recursive verifier must register the packed event-source table",
+        );
     }
 
     fn run_real_aggregation_schedule_diagnostic(worker_count: usize, threads_per_worker: usize) {
@@ -19316,7 +22993,10 @@ mod tests {
 
     #[test]
     fn test_epoch_aggregation_uses_layer_specific_bounded_koala_bear_packing() {
-        assert_eq!(PLONKY3_EPOCH_RANGE_THREADS_V2, 10);
+        assert_eq!(PLONKY3_EPOCH_RANGE_THREADS_V2, 4);
+        assert_eq!(PLONKY3_EPOCH_UNARY_CAP_THREADS_V2, 1);
+        assert_eq!(PLONKY3_EPOCH_GROUP_CERTIFICATE_THREADS_V2, 1);
+        assert_eq!(PLONKY3_EPOCH_UNARY_THREADS_V2, 4);
         assert_eq!(aggregation_table_packing().alu_lanes(), 2);
         assert_eq!(
             epoch_unary_table_packing().alu_lanes(),
@@ -19329,7 +23009,7 @@ mod tests {
         assert_eq!(epoch_unary_table_packing().horner_packed_steps(), 2);
         assert_eq!(epoch_range_table_packing().horner_packed_steps(), 2);
         assert_eq!(
-            aggregation_table_packing_for(AggregationRelationV2::EpochBasePair).alu_lanes(),
+            aggregation_table_packing_for(AggregationRelationV2::EpochChunkPair).alu_lanes(),
             PLONKY3_EPOCH_RANGE_ALU_LANES_V2,
         );
         assert_eq!(
@@ -19385,12 +23065,12 @@ mod tests {
         let chunk = AirChunkV2::singleton(AirDomainV2::Trace);
         let keys = chunk_cache_keys(&[1, 2, 3], &[4, 5, 6], chunk).unwrap();
         assert_eq!(
-            PLONKY3_CHUNK_CACHE_GENERATION_V2, 19,
-            "artifact-root binding changes must not reuse generation-18 base proofs",
+            PLONKY3_CHUNK_CACHE_GENERATION_V2, 21,
+            "split transition proof groups must not reuse generation-20 direct chunks",
         );
         assert_eq!(
-            PLONKY3_NODE_CACHE_GENERATION_V2, 12,
-            "sparse Merkle-multiproof bodies must not reuse generation-11 recursive nodes",
+            PLONKY3_NODE_CACHE_GENERATION_V2, 15,
+            "coverage certificates must not reuse generation-14 recursive nodes",
         );
         assert_eq!(
             keys.current,
@@ -20182,6 +23862,220 @@ mod tests {
     }
 
     #[test]
+    fn test_recursive_event_source_framing_rejects_public_aliases() {
+        use plonky3_epoch_event_source_columns as event_source;
+        use plonky3_epoch_transition_air as transition;
+
+        const EVENT_BYTES: u16 = 1_000;
+
+        let mut builder = CircuitBuilder::new();
+        register_u16_range_npo(&mut builder);
+        let transition_targets =
+            builder.alloc_public_inputs(transition::PUBLIC_FIELDS_V2, "transition public");
+        let event_targets =
+            builder.alloc_public_inputs(event_source::PUBLIC_FIELDS_V2, "event-source public");
+        constrain_canonical_event_source_framing(
+            &mut builder,
+            &transition_targets,
+            &event_targets,
+            1,
+            0,
+            1,
+        )
+        .unwrap();
+        let circuit = builder.build().unwrap();
+
+        let mut transition_public = vec![Plonky3ChallengeV2::ZERO; transition::PUBLIC_FIELDS_V2];
+        let binding = direct_binding_range(0).unwrap();
+        transition_public[binding.start + transition::BINDING_EVENT_BYTES_OFFSET_V2] =
+            lift_koala(KoalaBear::from_u16(EVENT_BYTES));
+
+        let mut event_public = vec![Plonky3ChallengeV2::ZERO; event_source::PUBLIC_FIELDS_V2];
+        event_public[event_source::PUBLIC_ACTIVE_OFFSET_V2] =
+            lift_koala(KoalaBear::from_bool(true));
+        event_public[event_source::PUBLIC_EVENT_BYTES_OFFSET_V2] =
+            lift_koala(KoalaBear::from_u16(EVENT_BYTES));
+        event_public[event_source::PUBLIC_SLICE_LEN_OFFSET_V2] = lift_koala(KoalaBear::from_u8(1));
+        let prefix =
+            CheckpointSha256BlockStreamV2::framed_role_prefix(CheckpointShaRole::EventVector);
+        for (pair, bytes) in prefix.chunks_exact(2).enumerate() {
+            event_public[event_source::PUBLIC_STATIC_PREFIX_OFFSET_V2 + pair] =
+                lift_koala(KoalaBear::from_u16(u16::from_be_bytes([
+                    bytes[0], bytes[1],
+                ])));
+        }
+        for (pair, bytes) in EVENT_BYTES.to_le_bytes().chunks_exact(2).enumerate() {
+            event_public[event_source::PUBLIC_PART_LENGTH_OFFSET_V2 + pair] =
+                lift_koala(KoalaBear::from_u16(u16::from_be_bytes([
+                    bytes[0], bytes[1],
+                ])));
+        }
+        let framed_bytes = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
+            CheckpointShaRole::EventVector,
+            u64::from(EVENT_BYTES),
+            1,
+        )
+        .unwrap();
+        for (pair, bytes) in framed_bytes
+            .checked_mul(8)
+            .unwrap()
+            .to_be_bytes()
+            .chunks_exact(2)
+            .enumerate()
+        {
+            event_public[event_source::PUBLIC_BIT_LENGTH_OFFSET_V2 + pair] =
+                lift_koala(KoalaBear::from_u16(u16::from_be_bytes([
+                    bytes[0], bytes[1],
+                ])));
+        }
+        let block_count =
+            CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(framed_bytes).unwrap();
+        event_public[event_source::PUBLIC_BLOCK_COUNT_OFFSET_V2] =
+            lift_koala(KoalaBear::from_u64(block_count));
+
+        let run = |event_public: &[Plonky3ChallengeV2]| {
+            let public_inputs = transition_public
+                .iter()
+                .chain(event_public)
+                .copied()
+                .collect::<Vec<_>>();
+            let mut runner = circuit.runner();
+            runner.set_public_inputs(&public_inputs).unwrap();
+            runner.run()
+        };
+        run(&event_public).unwrap();
+
+        for field in [
+            event_source::PUBLIC_STATIC_PREFIX_OFFSET_V2,
+            event_source::PUBLIC_PART_LENGTH_OFFSET_V2,
+            event_source::PUBLIC_BIT_LENGTH_OFFSET_V2 + event_source::LENGTH_PAIRS_V2 - 1,
+            event_source::PUBLIC_BLOCK_COUNT_OFFSET_V2,
+        ] {
+            let mut aliased = event_public.clone();
+            aliased[field] = Plonky3ChallengeV2::ZERO;
+            assert!(
+                run(&aliased).is_err(),
+                "recursive framing must reject aliased event-source field {field}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_recursive_upper_slice_framing_rejects_global_slot_mutation() {
+        use plonky3_epoch_event_source_columns as event_source;
+        use plonky3_epoch_transition_air as transition;
+
+        const ACTIVE_COUNT: usize = 8;
+        const UPPER_SLICE_START: usize = 4;
+        const UPPER_SLICE_LEN: usize = 4;
+
+        let mut builder = CircuitBuilder::new();
+        register_u16_range_npo(&mut builder);
+        let transition_targets =
+            builder.alloc_public_inputs(transition::PUBLIC_FIELDS_V2, "transition public");
+        let event_targets =
+            builder.alloc_public_inputs(event_source::PUBLIC_FIELDS_V2, "event-source public");
+        constrain_canonical_event_source_framing(
+            &mut builder,
+            &transition_targets,
+            &event_targets,
+            ACTIVE_COUNT,
+            UPPER_SLICE_START,
+            UPPER_SLICE_LEN,
+        )
+        .unwrap();
+        let circuit = builder.build().unwrap();
+
+        let mut transition_public = vec![Plonky3ChallengeV2::ZERO; transition::PUBLIC_FIELDS_V2];
+        let mut event_public = vec![Plonky3ChallengeV2::ZERO; event_source::PUBLIC_FIELDS_V2];
+        let prefix =
+            CheckpointSha256BlockStreamV2::framed_role_prefix(CheckpointShaRole::EventVector);
+        for (pair, bytes) in prefix.chunks_exact(2).enumerate() {
+            event_public[event_source::PUBLIC_STATIC_PREFIX_OFFSET_V2 + pair] =
+                lift_koala(KoalaBear::from_u16(u16::from_be_bytes([
+                    bytes[0], bytes[1],
+                ])));
+        }
+        event_public[event_source::PUBLIC_SLICE_START_OFFSET_V2] =
+            lift_koala(KoalaBear::from_usize(UPPER_SLICE_START));
+        event_public[event_source::PUBLIC_SLICE_LEN_OFFSET_V2] =
+            lift_koala(KoalaBear::from_usize(UPPER_SLICE_LEN));
+
+        let set_framed_lane =
+            |public: &mut [Plonky3ChallengeV2], local_slot: usize, event_bytes: u16| {
+                public[event_source::PUBLIC_ACTIVE_OFFSET_V2 + local_slot] =
+                    lift_koala(KoalaBear::from_bool(true));
+                public[event_source::PUBLIC_EVENT_BYTES_OFFSET_V2 + local_slot] =
+                    lift_koala(KoalaBear::from_u16(event_bytes));
+                for (pair, bytes) in event_bytes.to_le_bytes().chunks_exact(2).enumerate() {
+                    public[event_source::PUBLIC_PART_LENGTH_OFFSET_V2
+                        + local_slot * event_source::LENGTH_PAIRS_V2
+                        + pair] = lift_koala(KoalaBear::from_u16(u16::from_be_bytes([
+                        bytes[0], bytes[1],
+                    ])));
+                }
+                let framed_bytes = CheckpointSha256BlockStreamV2::framed_bytes_for_parts(
+                    CheckpointShaRole::EventVector,
+                    u64::from(event_bytes),
+                    1,
+                )
+                .unwrap();
+                for (pair, bytes) in framed_bytes
+                    .checked_mul(8)
+                    .unwrap()
+                    .to_be_bytes()
+                    .chunks_exact(2)
+                    .enumerate()
+                {
+                    public[event_source::PUBLIC_BIT_LENGTH_OFFSET_V2
+                        + local_slot * event_source::LENGTH_PAIRS_V2
+                        + pair] = lift_koala(KoalaBear::from_u16(u16::from_be_bytes([
+                        bytes[0], bytes[1],
+                    ])));
+                }
+                public[event_source::PUBLIC_BLOCK_COUNT_OFFSET_V2 + local_slot] =
+                    lift_koala(KoalaBear::from_u64(
+                        CheckpointSha256BlockStreamV2::block_count_for_framed_bytes(framed_bytes)
+                            .unwrap(),
+                    ));
+            };
+
+        for local_slot in 0..UPPER_SLICE_LEN {
+            let event_bytes = 1_000_u16 + u16::try_from(local_slot).unwrap();
+            let binding = direct_binding_range(UPPER_SLICE_START + local_slot).unwrap();
+            transition_public[binding.start + transition::BINDING_EVENT_BYTES_OFFSET_V2] =
+                lift_koala(KoalaBear::from_u16(event_bytes));
+            set_framed_lane(&mut event_public, local_slot, event_bytes);
+        }
+
+        let run = |event_public: &[Plonky3ChallengeV2]| {
+            let public_inputs = transition_public
+                .iter()
+                .chain(event_public)
+                .copied()
+                .collect::<Vec<_>>();
+            let mut runner = circuit.runner();
+            runner.set_public_inputs(&public_inputs).unwrap();
+            runner.run()
+        };
+        run(&event_public).unwrap();
+
+        let mut forged_global_slot = event_public.clone();
+        set_framed_lane(&mut forged_global_slot, 0, 777);
+        assert!(
+            run(&forged_global_slot).is_err(),
+            "upper-slice framing must bind local lane zero to global slot four, not slot zero",
+        );
+
+        let mut forged_descriptor = event_public.clone();
+        forged_descriptor[event_source::PUBLIC_SLICE_START_OFFSET_V2] = Plonky3ChallengeV2::ZERO;
+        assert!(
+            run(&forged_descriptor).is_err(),
+            "upper-slice framing must reject a forged global slice descriptor",
+        );
+    }
+
+    #[test]
     fn test_pair_hash_binds_order() {
         let left = [KoalaBear::from_u8(1); ROOT_STATEMENT_COMMITMENT_FIELDS_V2];
         let right = [KoalaBear::from_u8(2); ROOT_STATEMENT_COMMITMENT_FIELDS_V2];
@@ -20207,272 +24101,482 @@ mod tests {
     }
 
     #[test]
-    fn test_epoch_leaf_normalization_and_range_binding() {
-        let parameter = [0x31; 32];
-        let security = [0x32; 32];
-        let verifier = [0x33; 32];
-        let make_base = |ordinal: u32,
-                         checkpoint_id: [u8; 32],
-                         predecessor: Option<[u8; 32]>,
-                         pre_settlement_root: [u8; 32],
-                         post_settlement_root: [u8; 32],
-                         statement_digest: [u8; 32],
-                         manifest_digest: [u8; 32],
-                         parameter_digest: [u8; 32],
-                         mark: u16| {
-            let height = u64::from(ordinal) + 1;
-            let canonical = EpochCanonicalLeafV2 {
-                height,
-                checkpoint_id,
-                predecessor,
-                checkpoint_statement_digest: statement_digest,
-                checkpoint_statement_core_digest: [0x40 + ordinal as u8; 32],
-                checkpoint_link_digest: [0x50 + ordinal as u8; 32],
-                delta_root: [0x60 + ordinal as u8; 32],
-                witness_root: [0x70 + ordinal as u8; 32],
-                challenge_content_digest: [0x80 + ordinal as u8; 32],
-                da_payload_commitment: [0x90 + ordinal as u8; 32],
-                checkpoint_artifact_digest: [0xa0 + ordinal as u8; 32],
-                pre_settlement_root,
-                post_settlement_root,
-            };
-            let mut digests = [[0_u8; 32]; ROOT_STATEMENT_DIGEST_COUNT_V2];
-            digests[ROOT_DIGEST_PRIMARY_V2] = [0xb0 + ordinal as u8; 32];
-            digests[ROOT_DIGEST_AUTHORITY_V2] = manifest_digest;
-            digests[ROOT_DIGEST_PARAMETER_V2] = parameter_digest;
-            digests[ROOT_DIGEST_SECURITY_V2] = security;
-            digests[ROOT_DIGEST_VERIFIER_V2] = verifier;
-            digests[ROOT_DIGEST_CHAIN_CONTEXT_V2] = [0xc1; 32];
-            digests[ROOT_DIGEST_PREDICATE_V2] = [0xc2; 32];
-            digests[ROOT_DIGEST_RANGE_START_STATE_V2] = pre_settlement_root;
-            digests[ROOT_DIGEST_RANGE_END_STATE_V2] = post_settlement_root;
-            digests[ROOT_DIGEST_STATEMENT_TREE_V2] = canonical.checkpoint_statement_digest;
-            digests[ROOT_DIGEST_ARTIFACT_TREE_V2] = canonical.checkpoint_artifact_digest;
-            digests[ROOT_DIGEST_LINK_TREE_V2] = canonical.checkpoint_link_digest;
-            digests[ROOT_DIGEST_DELTA_TREE_V2] = canonical.delta_root;
-            digests[ROOT_DIGEST_WITNESS_TREE_V2] = canonical.witness_root;
-            digests[ROOT_DIGEST_CHALLENGE_TREE_V2] = canonical.challenge_content_digest;
-            digests[ROOT_DIGEST_DA_TREE_V2] = canonical.da_payload_commitment;
-            digests[ROOT_DIGEST_VERIFIED_BASE_TREE_V2] = [0xc3; 32];
-            digests[ROOT_DIGEST_EPOCH_ANCHOR_V2] = [0xc4; 32];
-            digests[ROOT_DIGEST_CONFIG_V2] = [0xc5; 32];
-            digests[ROOT_DIGEST_REGISTRY_V2] = [0xc6; 32];
-            digests[ROOT_DIGEST_RUNTIME_PROFILE_V2] = [0xc7; 32];
-            digests[ROOT_DIGEST_NOVA_CHAIN_V2] = [0xc8; 32];
-            digests[ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2] = checkpoint_id;
-            digests[ROOT_DIGEST_FIRST_PREDECESSOR_V2] = predecessor.unwrap_or([0; 32]);
-            digests[ROOT_DIGEST_LAST_CHECKPOINT_ID_V2] = checkpoint_id;
-            let mut semantics = [KoalaBear::ZERO; ROOT_STATEMENT_SEMANTIC_FIELDS_V2];
-            let height_fields = u64_base_fields(height);
-            semantics[..ROOT_STATEMENT_HEIGHT_LIMBS_V2].copy_from_slice(&height_fields);
-            semantics[ROOT_STATEMENT_HEIGHT_LIMBS_V2..ROOT_STATEMENT_HEIGHT_LIMBS_V2 * 2]
-                .copy_from_slice(&height_fields);
-            let commitment = [KoalaBear::from_u16(mark); ROOT_STATEMENT_COMMITMENT_FIELDS_V2];
-            let root = RootStatementV2::leaf_with_semantics(
-                digests,
-                commitment,
-                FINAL_REPLICA_FOLD_ORDINAL_V2,
+    fn test_direct_trace_chunk_normalization_and_range_binding() {
+        use crate::checkpoint::epoch_frontier::{
+            EpochFrontierAuthorityInputsV2, EpochFrontierAuthorityV2,
+        };
+        use crate::checkpoint::EpochCadenceClassV2;
+
+        const TOTAL_TRANSITIONS: u32 = 16;
+        let chain_context_digest = [0xc1; 32];
+        let predicate_digest = [0xc2; 32];
+        let start_root = [0xe0; 32];
+        let history = Plonky3HistoryAuthorityResolverV2::resolve_active().unwrap();
+        let identity = history.identity();
+        let authority = EpochFrontierAuthorityV2::new(EpochFrontierAuthorityInputsV2 {
+            cadence_class: EpochCadenceClassV2::BoundedSimulation,
+            epoch_index: 0,
+            cadence_blocks: u64::from(TOTAL_TRANSITIONS),
+            start_root,
+            chain_context_digest,
+            predicate_digest,
+            parameter_digest: identity.verifier_parameter_digest,
+            verifier_bundle_digest: identity.verifier_bundle_digest,
+        })
+        .unwrap();
+        let digest = |label: &str, ordinal: u32| {
+            sha256_256(
+                "z00z.storage.checkpoint.plonky3.direct-chunk-normalization.tests.v2",
+                label,
+                &[&ordinal.to_le_bytes()],
+            )
+        };
+        let checkpoint_ids = (0..TOTAL_TRANSITIONS)
+            .map(|ordinal| digest("checkpoint_id", ordinal))
+            .collect::<Vec<_>>();
+        let state_roots = (0..=TOTAL_TRANSITIONS)
+            .map(|ordinal| {
+                if ordinal == 0 {
+                    start_root
+                } else {
+                    digest("state_root", ordinal)
+                }
+            })
+            .collect::<Vec<_>>();
+        let bindings = (0..TOTAL_TRANSITIONS)
+            .map(|ordinal| {
+                let index = usize::try_from(ordinal).unwrap();
+                EpochTransitionBindingV2::new(EpochTransitionInputsV2 {
+                    ordinal,
+                    height: u64::from(ordinal) + 1,
+                    checkpoint_id: checkpoint_ids[index],
+                    predecessor: ordinal
+                        .checked_sub(1)
+                        .map(|previous| checkpoint_ids[usize::try_from(previous).unwrap()]),
+                    recursive_transition_statement_digest: digest("recursive_statement", ordinal),
+                    checkpoint_exec_tx_root: digest("exec_tx_root", ordinal),
+                    checkpoint_exec_tx_count: 1,
+                    checkpoint_statement_digest: digest("statement", ordinal),
+                    checkpoint_statement_core_digest: digest("statement_core", ordinal),
+                    checkpoint_link_digest: digest("link", ordinal),
+                    checkpoint_artifact_digest: digest("artifact", ordinal),
+                    delta_root: digest("delta", ordinal),
+                    witness_root: digest("witness", ordinal),
+                    journal_digest: digest("journal", ordinal),
+                    challenge_content_digest: digest("challenge", ordinal),
+                    da_payload_commitment: digest("da", ordinal),
+                    prior_recursive_output_root: ordinal
+                        .checked_sub(1)
+                        .map(|_| digest("prior_ivc", ordinal)),
+                    pre_settlement_root: state_roots[index],
+                    post_settlement_root: state_roots[index + 1],
+                    pre_definition_root: digest("definition_pre", ordinal),
+                    post_definition_root: digest("definition_post", ordinal),
+                    trace_digest: digest("trace", ordinal),
+                    update_trace_digest: digest("update_trace", ordinal),
+                    declared_work_digest: digest("declared_work", ordinal),
+                    pre_uniqueness_context_digest: digest("pre_uniqueness", ordinal),
+                    spent_uniqueness_precommit: digest("spent_precommit", ordinal),
+                    output_uniqueness_precommit: digest("output_precommit", ordinal),
+                    event_vector_digest: digest("events", ordinal),
+                    event_count: 3,
+                    event_bytes: 1,
+                    uniqueness_row_count: 1,
+                    jmt_record_count: 1,
+                    jmt_envelope_count: 1,
+                    jmt_update_count: 1,
+                })
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let make_chunk = |chunk_ordinal: u32| {
+            let first = chunk_ordinal * EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2;
+            let last = first + EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2 - 1;
+            let chunk_bindings =
+                bindings[usize::try_from(first).unwrap()..=usize::try_from(last).unwrap()].to_vec();
+            let transition_digests = chunk_bindings
+                .iter()
+                .map(EpochTransitionBindingV2::digest)
+                .collect::<Vec<_>>();
+            let input_slice_commitment =
+                crate::checkpoint::epoch_range::epoch_ordered_digest_root_v2(
+                    crate::checkpoint::epoch_prover::EPOCH_TRANSITION_SLICE_DOMAIN_V2,
+                    &transition_digests,
+                )
+                .unwrap();
+            let input_accumulator = bindings[..usize::try_from(first).unwrap()]
+                .iter()
+                .copied()
+                .fold(
+                    crate::checkpoint::epoch_prover::epoch_stream_initial_accumulator(authority),
+                    |accumulator, transition| {
+                        crate::checkpoint::epoch_prover::epoch_stream_step_accumulator(
+                            authority,
+                            accumulator,
+                            transition,
+                        )
+                    },
+                );
+            let output_accumulator = chunk_bindings.iter().copied().fold(
+                input_accumulator,
+                |accumulator, transition| {
+                    crate::checkpoint::epoch_prover::epoch_stream_step_accumulator(
+                        authority,
+                        accumulator,
+                        transition,
+                    )
+                },
+            );
+            let statement = EpochTraceChunkV2::new(
+                &authority,
+                &chunk_bindings,
+                EpochTraceChunkInputsV2 {
+                    table: EpochAirTableV2::Transition,
+                    replica: 0,
+                    chunk_ordinal,
+                    chunk_count: authority.chunk_count(),
+                    first_transition: first,
+                    last_transition: last,
+                    transition_count: TOTAL_TRANSITIONS,
+                    row_start: 0,
+                    row_count: u64::try_from(plonky3_epoch_transition_air::ROWS_V2).unwrap(),
+                    event_start: u64::from(first) * 3,
+                    event_count: u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2) * 3,
+                    frontier_authority_digest: authority.digest(),
+                    chain_context_digest,
+                    predicate_digest,
+                    input_state_root: state_roots[usize::try_from(first).unwrap()],
+                    output_state_root: state_roots[usize::try_from(last + 1).unwrap()],
+                    input_accumulator,
+                    output_accumulator,
+                    input_slice_commitment,
+                    parameter_digest: authority.parameter_digest(),
+                    verifier_bundle_digest: authority.verifier_bundle_digest(),
+                    security_budget_digest: authority.security_budget_digest(),
+                },
+            )
+            .unwrap();
+            EpochTraceChunkProofInputsV2 {
+                chunk_ordinal,
+                statement,
+                bindings: chunk_bindings,
+            }
+        };
+        let left_chunk = make_chunk(0);
+        let right_chunk = make_chunk(1);
+        let pair = EpochChunkPairInputsV2 {
+            left: left_chunk.clone(),
+            right: right_chunk.clone(),
+            total_transition_count: TOTAL_TRANSITIONS,
+            total_chunk_count: authority.chunk_count(),
+            epoch_index: authority.epoch_index(),
+            cadence_blocks: authority.cadence_blocks(),
+            parameter_generation: authority.parameter_generation(),
+            runtime_profile_generation: authority.runtime_profile_generation(),
+        };
+        let child_common = [KoalaBear::from_u8(7); ROOT_COMMON_CAP_FIELDS_V2];
+        let parent_common = [KoalaBear::from_u8(8); ROOT_COMMON_CAP_FIELDS_V2];
+        let semantic_common = [KoalaBear::from_u8(9); ROOT_COMMON_CAP_FIELDS_V2];
+        let hash_common = [KoalaBear::from_u8(10); ROOT_COMMON_CAP_FIELDS_V2];
+        let uniqueness_lower_common = [KoalaBear::from_u8(11); ROOT_COMMON_CAP_FIELDS_V2];
+        let uniqueness_upper_common = [KoalaBear::from_u8(12); ROOT_COMMON_CAP_FIELDS_V2];
+        let complete_common = [KoalaBear::from_u8(13); ROOT_COMMON_CAP_FIELDS_V2];
+        let normalize = |chunk: &EpochTraceChunkProofInputsV2| {
+            let direct_public =
+                plonky3_epoch_transition_witness::public_values(&chunk.statement, &chunk.bindings)
+                    .unwrap();
+            let transition = normalized_epoch_chunk_statement_values(
+                &direct_public,
+                child_common,
+                &EpochChunkNormalizationInputsV2::from_pair(&pair, chunk),
+                parent_common,
+            )
+            .unwrap();
+            let semantic = epoch_chunk_coverage_statement_values(
+                &transition,
+                EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
+                EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+                semantic_common,
+            )
+            .unwrap();
+            let hash = epoch_chunk_coverage_statement_values(
+                &semantic,
+                EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+                EPOCH_CHUNK_HASH_COVERAGE_V2,
+                hash_common,
+            )
+            .unwrap();
+            let uniqueness_lower = epoch_chunk_coverage_statement_values(
+                &hash,
+                EPOCH_CHUNK_HASH_COVERAGE_V2,
+                EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+                uniqueness_lower_common,
+            )
+            .unwrap();
+            epoch_chunk_coverage_statement_values(
+                &uniqueness_lower,
+                EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+                EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+                uniqueness_upper_common,
+            )
+            .and_then(|complete| {
+                epoch_chunk_coverage_statement_values(
+                    &complete,
+                    EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+                    EPOCH_RANGE_FOLD_ORDINAL_V2,
+                    complete_common,
+                )
+            })
+            .unwrap()
+        };
+        let normalized_left = normalize(&pair.left);
+        let normalized_right = normalize(&pair.right);
+        assert_eq!(
+            normalized_left[ROOT_STATEMENT_START_INDEX_V2].as_canonical_u64(),
+            0
+        );
+        assert_eq!(
+            normalized_left[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64(),
+            u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2)
+        );
+        assert_eq!(
+            normalized_right[ROOT_STATEMENT_START_INDEX_V2].as_canonical_u64(),
+            u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2)
+        );
+        assert_eq!(
+            root_statement_digest(&normalized_left, ROOT_DIGEST_RANGE_START_ACCUMULATOR_V2,)
+                .unwrap(),
+            pair.left.statement.inputs().input_accumulator,
+        );
+        assert_eq!(
+            root_statement_digest(&normalized_left, ROOT_DIGEST_RANGE_END_ACCUMULATOR_V2,).unwrap(),
+            pair.left.statement.inputs().output_accumulator,
+        );
+        let combined = combine_root_values_for_relation(
+            &normalized_left,
+            &normalized_right,
+            AggregationRelationV2::EpochRange,
+        )
+        .unwrap();
+        assert_eq!(
+            combined[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64(),
+            u64::from(TOTAL_TRANSITIONS)
+        );
+        let all_statements = bindings
+            .iter()
+            .map(|binding| binding.inputs().checkpoint_statement_digest)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            root_statement_digest(&combined, ROOT_DIGEST_STATEMENT_TREE_V2).unwrap(),
+            epoch_ordered_digest_subtree_v2(
+                EPOCH_STATEMENT_ROOT_DOMAIN_V2,
+                u64::from(TOTAL_TRANSITIONS),
                 0,
-                7,
-                semantics,
+                &all_statements,
             )
             .unwrap()
-            .root(commitment);
-            (root, EpochBaseLeafProofInputsV2 { ordinal, canonical })
-        };
-        let first_id = [0xd1; 32];
-        let second_id = [0xd2; 32];
-        let third_id = [0xd3; 32];
-        let fourth_id = [0xd4; 32];
-        let root_0 = [0xe0; 32];
-        let root_1 = [0xe1; 32];
-        let root_2 = [0xe2; 32];
-        let root_3 = [0xe3; 32];
-        let root_4 = [0xe4; 32];
-        let (left, left_inputs) = make_base(
-            0, first_id, None, root_0, root_1, [0x11; 32], [0x21; 32], parameter, 41,
         );
-        let (right, right_inputs) = make_base(
-            1,
-            second_id,
-            Some(first_id),
-            root_1,
-            root_2,
-            [0x12; 32],
-            [0x22; 32],
-            parameter,
-            42,
-        );
-        let pair_inputs = EpochBasePairProofInputsV2 {
-            left: left_inputs,
-            right: right_inputs,
-            total: 4,
-            epoch_index: 0,
-            cadence_blocks: 4,
-            parameter_generation: 2,
-            runtime_profile_generation: RECURSIVE_RUNTIME_PROFILE_GENERATION_V2,
-        };
-        let left_normalization =
-            EpochLeafNormalizationInputsV2::from_pair(pair_inputs, pair_inputs.left);
-        let right_normalization =
-            EpochLeafNormalizationInputsV2::from_pair(pair_inputs, pair_inputs.right);
-        assert_eq!(
-            epoch_leaf_normalization_dynamic_fields(&left_normalization)
-                .unwrap()
-                .len(),
-            3 + ROOT_STATEMENT_HEIGHT_LIMBS_V2
-                + ROOT_STATEMENT_CADENCE_LIMBS_V2
-                + ROOT_STATEMENT_PARAMETER_GENERATION_LIMBS_V2,
-            "the unary normalizer exposes only bounded epoch coordinates",
-        );
-        let normalized_left = normalized_epoch_leaf_statement_values(
-            left.values(),
-            &left_normalization,
-            [KoalaBear::ZERO; ROOT_COMMON_CAP_FIELDS_V2],
-        )
-        .unwrap();
-        let normalized_right = normalized_epoch_leaf_statement_values(
-            right.values(),
-            &right_normalization,
-            [KoalaBear::ZERO; ROOT_COMMON_CAP_FIELDS_V2],
-        )
-        .unwrap();
-        let pair = combine_root_values_for_relation(
-            &normalized_left,
-            &normalized_right,
-            AggregationRelationV2::EpochRange,
-        )
-        .unwrap();
-        assert_eq!(
-            root_statement_digest(&pair, 0).unwrap(),
-            epoch_normalized_digest(0).unwrap()
-        );
-        assert_eq!(
-            root_statement_digest(&pair, 1).unwrap(),
-            epoch_normalized_digest(1).unwrap()
-        );
-        assert_eq!(root_statement_digest(&pair, 2).unwrap(), parameter);
-        assert_eq!(
-            pair[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
-            u64::from(EPOCH_RANGE_FOLD_ORDINAL_V2)
-        );
-        assert_eq!(pair[ROOT_STATEMENT_START_INDEX_V2], KoalaBear::ZERO);
-        assert_eq!(pair[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64(), 2);
-        assert_eq!(pair[ROOT_STATEMENT_TOTAL_INDEX_V2].as_canonical_u64(), 4);
-        let expected_commitment = poseidon_pair_hash_for_domain(
-            epoch_leaf_commitment(left.values()).unwrap(),
-            epoch_leaf_commitment(right.values()).unwrap(),
-            RootCommitmentDomainV2::EpochRange,
-        );
-        assert_eq!(
-            &pair[ROOT_STATEMENT_COMMITMENT_INDEX_V2
-                ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
-            expected_commitment.as_slice()
-        );
-        let reversed = combine_root_values_for_relation(
-            &normalized_right,
-            &normalized_left,
-            AggregationRelationV2::EpochRange,
-        );
-        assert!(
-            reversed.is_err(),
-            "base-proof order must survive normalization"
-        );
-        for digest_index in [
-            ROOT_DIGEST_ARTIFACT_TREE_V2,
-            ROOT_DIGEST_CHALLENGE_TREE_V2,
-            ROOT_DIGEST_DA_TREE_V2,
-        ] {
-            let mut substituted = right.values().to_vec();
-            let range = root_digest_target_range(digest_index).unwrap();
-            substituted[range].copy_from_slice(&digest_base_fields([0xf1; 32]));
-            assert!(
-                normalized_epoch_leaf_statement_values(
-                    &substituted,
-                    &right_normalization,
-                    [KoalaBear::ZERO; ROOT_COMMON_CAP_FIELDS_V2],
-                )
-                .is_err(),
-                "epoch leaf normalization must reject digest substitution at root index {digest_index}",
-            );
-        }
-
-        let (next_left, next_left_inputs) = make_base(
-            2,
-            third_id,
-            Some(second_id),
-            root_2,
-            root_3,
-            [0x13; 32],
-            [0x23; 32],
-            parameter,
-            43,
-        );
-        let (next_right, next_right_inputs) = make_base(
-            3,
-            fourth_id,
-            Some(third_id),
-            root_3,
-            root_4,
-            [0x14; 32],
-            [0x24; 32],
-            parameter,
-            44,
-        );
-        let next_pair_inputs = EpochBasePairProofInputsV2 {
-            left: next_left_inputs,
-            right: next_right_inputs,
-            ..pair_inputs
-        };
-        let normalized_next_left = normalized_epoch_leaf_statement_values(
-            next_left.values(),
-            &EpochLeafNormalizationInputsV2::from_pair(next_pair_inputs, next_pair_inputs.left),
-            [KoalaBear::ZERO; ROOT_COMMON_CAP_FIELDS_V2],
-        )
-        .unwrap();
-        let normalized_next_right = normalized_epoch_leaf_statement_values(
-            next_right.values(),
-            &EpochLeafNormalizationInputsV2::from_pair(next_pair_inputs, next_pair_inputs.right),
-            [KoalaBear::ZERO; ROOT_COMMON_CAP_FIELDS_V2],
-        )
-        .unwrap();
-        let next_pair = combine_root_values_for_relation(
-            &normalized_next_left,
-            &normalized_next_right,
-            AggregationRelationV2::EpochRange,
-        )
-        .unwrap();
-        let four =
-            combine_root_values_for_relation(&pair, &next_pair, AggregationRelationV2::EpochRange)
+        let left_span =
+            root_statement_digest(&normalized_left, ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2)
                 .unwrap();
-        assert_eq!(four[ROOT_STATEMENT_COUNT_INDEX_V2].as_canonical_u64(), 4);
-        assert_eq!(four[ROOT_STATEMENT_TOTAL_INDEX_V2].as_canonical_u64(), 4);
-
-        let (wrong_parameter, wrong_parameter_inputs) = make_base(
-            1,
-            second_id,
-            Some(first_id),
-            root_1,
-            root_2,
-            [0x15; 32],
-            [0x25; 32],
-            [0xff; 32],
-            45,
+        let right_span =
+            root_statement_digest(&normalized_right, ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2)
+                .unwrap();
+        assert_eq!(
+            root_statement_digest(&combined, ROOT_DIGEST_VERIFIED_TRACE_CHUNK_TREE_V2).unwrap(),
+            epoch_ordered_digest_parent_v2(
+                EPOCH_VERIFIED_TRACE_CHUNK_ROOT_DOMAIN_V2,
+                u64::from(TOTAL_TRANSITIONS),
+                0,
+                u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2),
+                u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2),
+                u64::from(EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2),
+                left_span,
+                right_span,
+            )
+            .unwrap()
         );
-        let wrong_inputs = EpochBasePairProofInputsV2 {
-            right: wrong_parameter_inputs,
-            ..pair_inputs
-        };
-        let normalized_wrong = normalized_epoch_leaf_statement_values(
-            wrong_parameter.values(),
-            &EpochLeafNormalizationInputsV2::from_pair(wrong_inputs, wrong_inputs.right),
-            [KoalaBear::ZERO; ROOT_COMMON_CAP_FIELDS_V2],
+        let mut substituted = plonky3_epoch_transition_witness::public_values(
+            &pair.right.statement,
+            &pair.right.bindings,
         )
         .unwrap();
-        assert!(combine_root_values_for_relation(
-            &normalized_left,
-            &normalized_wrong,
-            AggregationRelationV2::EpochRange,
+        substituted[direct_binding_digest_range(
+            0,
+            plonky3_epoch_transition_air::BINDING_DIGEST_OFFSET_V2,
+        )
+        .unwrap()
+        .start] += KoalaBear::ONE;
+        assert!(normalized_epoch_chunk_statement_values(
+            &substituted,
+            child_common,
+            &EpochChunkNormalizationInputsV2::from_pair(&pair, &pair.right),
+            parent_common,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_epoch_chunk_coverage_is_sequential_and_fail_closed() {
+        let mut transition = vec![KoalaBear::ZERO; ROOT_STATEMENT_FIELDS_V2];
+        transition[ROOT_STATEMENT_REPLICA_INDEX_V2] =
+            KoalaBear::from_u8(EPOCH_CHUNK_TRANSITION_COVERAGE_V2);
+        let semantic_common = [KoalaBear::from_u8(1); ROOT_COMMON_CAP_FIELDS_V2];
+        let hash_common = [KoalaBear::from_u8(2); ROOT_COMMON_CAP_FIELDS_V2];
+        let uniqueness_lower_common = [KoalaBear::from_u8(3); ROOT_COMMON_CAP_FIELDS_V2];
+        let complete_common = [KoalaBear::from_u8(4); ROOT_COMMON_CAP_FIELDS_V2];
+
+        let semantic = epoch_chunk_coverage_statement_values(
+            &transition,
+            EPOCH_CHUNK_TRANSITION_COVERAGE_V2,
+            EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            semantic_common,
+        )
+        .unwrap();
+        assert_eq!(
+            semantic[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
+            u64::from(EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2),
+        );
+        let hash = epoch_chunk_coverage_statement_values(
+            &semantic,
+            EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            EPOCH_CHUNK_HASH_COVERAGE_V2,
+            hash_common,
+        )
+        .unwrap();
+        assert_eq!(
+            hash[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
+            u64::from(EPOCH_CHUNK_HASH_COVERAGE_V2),
+        );
+        assert!(epoch_chunk_coverage_statement_values(
+            &transition,
+            EPOCH_CHUNK_TRANSITION_SEMANTIC_COVERAGE_V2,
+            EPOCH_CHUNK_HASH_COVERAGE_V2,
+            uniqueness_lower_common,
+        )
+        .is_err());
+
+        let uniqueness_lower = epoch_chunk_coverage_statement_values(
+            &hash,
+            EPOCH_CHUNK_HASH_COVERAGE_V2,
+            EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+            uniqueness_lower_common,
+        )
+        .unwrap();
+        assert!(epoch_chunk_coverage_statement_values(
+            &hash,
+            EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+            EPOCH_RANGE_FOLD_ORDINAL_V2,
+            complete_common,
+        )
+        .is_err());
+
+        let complete = epoch_chunk_coverage_statement_values(
+            &uniqueness_lower,
+            EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+            EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+            complete_common,
+        )
+        .unwrap();
+        assert!(epoch_chunk_coverage_statement_values(
+            &uniqueness_lower,
+            EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+            EPOCH_RANGE_FOLD_ORDINAL_V2,
+            complete_common,
+        )
+        .is_err());
+        let finalized = epoch_chunk_coverage_statement_values(
+            &complete,
+            EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+            EPOCH_RANGE_FOLD_ORDINAL_V2,
+            complete_common,
+        )
+        .unwrap();
+        assert_eq!(
+            finalized[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
+            u64::from(EPOCH_RANGE_FOLD_ORDINAL_V2),
+        );
+        assert_eq!(
+            EpochChunkCoverageStageV2::UniquenessLower.output_coverage(4),
+            EPOCH_CHUNK_COMPLETE_COVERAGE_V2,
+        );
+        assert_eq!(
+            EpochChunkCoverageStageV2::UniquenessLower.output_coverage(5),
+            EPOCH_CHUNK_UNIQUENESS_LOWER_COVERAGE_V2,
+        );
+        assert!(EpochChunkCoverageStageV2::UniquenessUpper
+            .slice(4)
+            .is_none());
+        assert_eq!(
+            EpochChunkCoverageStageV2::UniquenessUpper.slice(8),
+            Some((4, 4)),
+        );
+    }
+
+    #[test]
+    fn test_epoch_chunk_group_certificate_binds_transition_identity_and_stage() {
+        let mut transition_public =
+            vec![KoalaBear::ZERO; plonky3_epoch_transition_air::PUBLIC_FIELDS_V2];
+        let transition_common = [KoalaBear::from_u8(7); ROOT_COMMON_CAP_FIELDS_V2];
+        let parent_common = [KoalaBear::from_u8(8); ROOT_COMMON_CAP_FIELDS_V2];
+        let semantic = epoch_chunk_group_certificate_statement_values(
+            &transition_public,
+            transition_common,
+            EpochChunkCoverageStageV2::TransitionSemantic,
+            plonky3_epoch_transition_air::BINDING_SLOTS_V2,
+            parent_common,
+        )
+        .unwrap();
+        assert_eq!(
+            semantic[ROOT_STATEMENT_REPLICA_INDEX_V2].as_canonical_u64(),
+            u64::from(
+                EpochChunkCoverageStageV2::TransitionSemantic
+                    .certificate_ordinal(plonky3_epoch_transition_air::BINDING_SLOTS_V2),
+            ),
+        );
+
+        transition_public[0] = KoalaBear::ONE;
+        let substituted = epoch_chunk_group_certificate_statement_values(
+            &transition_public,
+            transition_common,
+            EpochChunkCoverageStageV2::TransitionSemantic,
+            plonky3_epoch_transition_air::BINDING_SLOTS_V2,
+            parent_common,
+        )
+        .unwrap();
+        assert_ne!(
+            &semantic[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+                ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
+            &substituted[ROOT_STATEMENT_COMMITMENT_INDEX_V2
+                ..ROOT_STATEMENT_COMMITMENT_INDEX_V2 + ROOT_STATEMENT_COMMITMENT_FIELDS_V2],
+        );
+
+        let hash = epoch_chunk_group_certificate_statement_values(
+            &transition_public,
+            transition_common,
+            EpochChunkCoverageStageV2::Hash,
+            plonky3_epoch_transition_air::BINDING_SLOTS_V2,
+            parent_common,
+        )
+        .unwrap();
+        assert_ne!(
+            hash[ROOT_STATEMENT_REPLICA_INDEX_V2],
+            substituted[ROOT_STATEMENT_REPLICA_INDEX_V2],
+        );
+        assert!(epoch_chunk_group_certificate_statement_values(
+            &transition_public[..transition_public.len() - 1],
+            transition_common,
+            EpochChunkCoverageStageV2::Hash,
+            plonky3_epoch_transition_air::BINDING_SLOTS_V2,
+            parent_common,
+        )
+        .is_err());
+        assert!(epoch_chunk_group_certificate_statement_values(
+            &transition_public,
+            transition_common,
+            EpochChunkCoverageStageV2::Hash,
+            0,
+            parent_common,
         )
         .is_err());
     }
@@ -20724,6 +24828,12 @@ mod tests {
             PLONKY3_ROOT_AUTHORITY_V2.first_fold_common(),
             PLONKY3_ROOT_AUTHORITY_V2.final_root_common(),
         );
+        assert!(matches!(
+            require_epoch_history_common_authority(),
+            Err(CheckpointError::RecursiveRejected(
+                RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch
+            ))
+        ));
     }
 
     #[test]
@@ -21439,393 +25549,6 @@ mod tests {
             proof_root_statement_values(&folded.proof).unwrap(),
             expected_fold
         );
-    }
-
-    fn bounded_epoch_smoke_leaf(
-        ordinal: u32,
-        checkpoint_id: [u8; 32],
-        predecessor: Option<[u8; 32]>,
-        pre_settlement_root: [u8; 32],
-        post_settlement_root: [u8; 32],
-    ) -> Result<
-        (
-            BatchStarkProof<Plonky3StarkConfigV2>,
-            EpochBaseLeafProofInputsV2,
-        ),
-        CheckpointError,
-    > {
-        let height = u64::from(ordinal)
-            .checked_add(1)
-            .ok_or(CheckpointError::Overflow)?;
-        let mark = u8::try_from(ordinal)
-            .map_err(|_| CheckpointError::Limit)?
-            .checked_add(1)
-            .ok_or(CheckpointError::Overflow)?;
-        let canonical = EpochCanonicalLeafV2 {
-            height,
-            checkpoint_id,
-            predecessor,
-            checkpoint_statement_digest: [0x10 + mark; 32],
-            checkpoint_statement_core_digest: [0x20 + mark; 32],
-            checkpoint_link_digest: [0x30 + mark; 32],
-            delta_root: [0x40 + mark; 32],
-            witness_root: [0x50 + mark; 32],
-            challenge_content_digest: [0x60 + mark; 32],
-            da_payload_commitment: [0x70 + mark; 32],
-            checkpoint_artifact_digest: checkpoint_id,
-            pre_settlement_root,
-            post_settlement_root,
-        };
-        let primary = [0x80 + mark; 32];
-        let parameter_digest = current_plonky3_parameter_digest()?;
-        let security_digest = RecursiveSecurityBudgetManifestV2::authority_pinned()?.digest();
-        let mut digests = [[0_u8; 32]; ROOT_STATEMENT_DIGEST_COUNT_V2];
-        digests[ROOT_DIGEST_PRIMARY_V2] = primary;
-        digests[ROOT_DIGEST_AUTHORITY_V2] = [0x91; 32];
-        digests[ROOT_DIGEST_PARAMETER_V2] = parameter_digest;
-        digests[ROOT_DIGEST_SECURITY_V2] = security_digest;
-        digests[ROOT_DIGEST_VERIFIER_V2] = ACTIVE_VERIFIER_BUNDLE_DIGEST_V2;
-        digests[ROOT_DIGEST_CHAIN_CONTEXT_V2] = [0x92; 32];
-        digests[ROOT_DIGEST_PREDICATE_V2] = [0x93; 32];
-        digests[ROOT_DIGEST_RANGE_START_STATE_V2] = pre_settlement_root;
-        digests[ROOT_DIGEST_RANGE_END_STATE_V2] = post_settlement_root;
-        digests[ROOT_DIGEST_STATEMENT_TREE_V2] = canonical.checkpoint_statement_digest;
-        digests[ROOT_DIGEST_ARTIFACT_TREE_V2] = canonical.checkpoint_artifact_digest;
-        digests[ROOT_DIGEST_LINK_TREE_V2] = canonical.checkpoint_link_digest;
-        digests[ROOT_DIGEST_DELTA_TREE_V2] = canonical.delta_root;
-        digests[ROOT_DIGEST_WITNESS_TREE_V2] = canonical.witness_root;
-        digests[ROOT_DIGEST_CHALLENGE_TREE_V2] = canonical.challenge_content_digest;
-        digests[ROOT_DIGEST_DA_TREE_V2] = canonical.da_payload_commitment;
-        digests[ROOT_DIGEST_VERIFIED_BASE_TREE_V2] =
-            epoch_verified_base_statement_digest_v2(height, primary)?;
-        digests[ROOT_DIGEST_EPOCH_ANCHOR_V2] = [0x94; 32];
-        digests[ROOT_DIGEST_CONFIG_V2] = [0x95; 32];
-        digests[ROOT_DIGEST_REGISTRY_V2] = [0x96; 32];
-        digests[ROOT_DIGEST_RUNTIME_PROFILE_V2] = [0x97; 32];
-        digests[ROOT_DIGEST_NOVA_CHAIN_V2] = [0x98; 32];
-        digests[ROOT_DIGEST_FIRST_CHECKPOINT_ID_V2] = checkpoint_id;
-        digests[ROOT_DIGEST_FIRST_PREDECESSOR_V2] = predecessor.unwrap_or([0; 32]);
-        digests[ROOT_DIGEST_LAST_CHECKPOINT_ID_V2] = checkpoint_id;
-        let mut semantics = [KoalaBear::ZERO; ROOT_STATEMENT_SEMANTIC_FIELDS_V2];
-        let height_fields = u64_base_fields(height);
-        semantics[..ROOT_STATEMENT_HEIGHT_LIMBS_V2].copy_from_slice(&height_fields);
-        semantics[ROOT_STATEMENT_HEIGHT_LIMBS_V2..ROOT_STATEMENT_HEIGHT_LIMBS_V2 * 2]
-            .copy_from_slice(&height_fields);
-        let words = [
-            u16::from(mark),
-            u16::from(mark) + 1,
-            u16::from(mark) + 2,
-            u16::from(mark) + 3,
-            u16::from(mark) + 4,
-            u16::from(mark) + 5,
-            u16::from(mark) + 6,
-            u16::from(mark) + 7,
-        ];
-        let prove_replica =
-            |replica: u8| -> Result<BatchStarkProof<Plonky3StarkConfigV2>, CheckpointError> {
-                let chunk = AirChunkV2::replicated(AirDomainV2::Full, 0, 1, replica);
-                let statement = RootStatementV2::leaf_with_semantics(
-                    digests,
-                    chunk_commitment(&words, None, chunk)?,
-                    replica,
-                    0,
-                    1,
-                    semantics,
-                )
-                .map_err(|_| CheckpointError::Canonical)?;
-                let proof = run_in_fresh_prover_pool("bounded-epoch-base", move || {
-                    prove_small_batch_for_chunk(&words, chunk, &statement)
-                })?;
-                trim_prover_heap();
-                Ok(proof)
-            };
-        let replica_zero = prove_replica(0)?;
-        let replica_one = prove_replica(1)?;
-        let first_fold = run_in_fresh_prover_pool("bounded-epoch-replica-fold-1", move || {
-            let mut prep_pool = AggregationPrepPoolV2::new();
-            aggregate_proof_pair(
-                replica_zero,
-                replica_one,
-                AggregationRelationV2::FirstReplicaFold,
-                None,
-                &mut prep_pool,
-            )
-        })?;
-        trim_prover_heap();
-        // Do not retain all physical-replica proofs together. The final
-        // replica is materialized only after the first fold has consumed and
-        // released replicas zero and one.
-        let replica_two = prove_replica(2)?;
-        let final_root = run_in_fresh_prover_pool("bounded-epoch-replica-fold-2", move || {
-            let mut prep_pool = AggregationPrepPoolV2::new();
-            aggregate_proof_pair(
-                first_fold,
-                replica_two,
-                AggregationRelationV2::FinalReplicaFold,
-                None,
-                &mut prep_pool,
-            )
-        })?;
-        trim_prover_heap();
-        Ok((
-            final_root,
-            EpochBaseLeafProofInputsV2 { ordinal, canonical },
-        ))
-    }
-
-    fn bounded_epoch_statement(
-        proof: &BatchStarkProof<Plonky3StarkConfigV2>,
-    ) -> Result<EpochRangeStatementV2, CheckpointError> {
-        let authority = Plonky3HistoryAuthorityResolverV2::resolve_active()?;
-        let identity = authority.identity();
-        let values = proof_root_statement_values(proof)?;
-        let ordered_root = |digest_index| {
-            epoch_ordered_digest_root_node_v2(
-                epoch_root_domain(digest_index)?,
-                2,
-                root_statement_digest(values, digest_index)?,
-            )
-        };
-        EpochRangeStatementV2::new(EpochRangeInputsV2 {
-            cadence_class: EpochCadenceClassV2::BoundedSimulation,
-            epoch_index: 0,
-            start_height: 1,
-            end_height: 2,
-            cadence_blocks: 2,
-            leaf_count: 2,
-            parameter_generation: identity.parameter_generation,
-            chain_context_digest: root_statement_digest(values, ROOT_DIGEST_CHAIN_CONTEXT_V2)?,
-            predicate_digest: root_statement_digest(values, ROOT_DIGEST_PREDICATE_V2)?,
-            parameter_digest: identity.verifier_parameter_digest,
-            verifier_bundle_digest: identity.verifier_bundle_digest,
-            security_budget_digest: identity.security_budget_digest,
-            config_digest: identity.config_digest,
-            registry_digest: identity.registry_digest,
-            runtime_profile_manifest_digest: identity.runtime_profile_manifest_digest,
-            frontier_authority_digest: [0xa1; 32],
-            epoch_close_anchor_digest: [0xa2; 32],
-            start_root: root_statement_digest(values, ROOT_DIGEST_RANGE_START_STATE_V2)?,
-            end_root: root_statement_digest(values, ROOT_DIGEST_RANGE_END_STATE_V2)?,
-            statement_digest_root: ordered_root(ROOT_DIGEST_STATEMENT_TREE_V2)?,
-            checkpoint_artifact_root: ordered_root(ROOT_DIGEST_ARTIFACT_TREE_V2)?,
-            checkpoint_link_root: ordered_root(ROOT_DIGEST_LINK_TREE_V2)?,
-            delta_root: ordered_root(ROOT_DIGEST_DELTA_TREE_V2)?,
-            witness_root: ordered_root(ROOT_DIGEST_WITNESS_TREE_V2)?,
-            challenge_content_root: ordered_root(ROOT_DIGEST_CHALLENGE_TREE_V2)?,
-            da_payload_commitment: ordered_root(ROOT_DIGEST_DA_TREE_V2)?,
-            verified_base_proof_root: ordered_root(ROOT_DIGEST_VERIFIED_BASE_TREE_V2)?,
-            recursive_base_proof_commitment: root_commitment_bytes(values)?,
-            nova_chain_root: Some([0xa3; 32]),
-        })
-    }
-
-    fn bounded_history_base_statement(
-        epoch: &Plonky3EpochProofV2,
-    ) -> Result<HistoryAccumulatorStatementV2, CheckpointError> {
-        let authority = Plonky3HistoryAuthorityResolverV2::resolve_active()?;
-        let identity = authority.identity();
-        let security = authority.security();
-        let epoch_inputs = epoch.statement.inputs();
-        let accepted_epoch_count = 1;
-        let cumulative_error_exponent = composed_history_error_exponent_v2(
-            security.per_proof_error_exponent(),
-            accepted_epoch_count,
-            security
-                .inherited_error_exponent()
-                .ok_or(CheckpointError::Canonical)?,
-        )?;
-        let epoch_anchor_mmr_root =
-            Plonky3HistoryAdapterV2::derive_epoch_anchor_mmr_root(None, epoch, None)?;
-        HistoryAccumulatorStatementV2::new(HistoryAccumulatorInputsV2 {
-            branch: HistoryBranchV2::Base,
-            first_epoch: 0,
-            last_epoch: 0,
-            first_height: 1,
-            last_height: 2,
-            cadence_blocks: 2,
-            history_length: 1,
-            accepted_epoch_count,
-            config_generation: identity.config_generation,
-            authority_generation: identity.authority_generation,
-            activation_height: identity.activation_height,
-            rollback_floor: identity.rollback_floor,
-            parameter_generation: identity.parameter_generation,
-            runtime_profile_generation: identity.runtime_profile_generation,
-            composition_rule_generation: security.composition_rule_generation(),
-            per_proof_error_exponent: security.per_proof_error_exponent(),
-            inherited_error_exponent: security
-                .inherited_error_exponent()
-                .ok_or(CheckpointError::Canonical)?,
-            cumulative_error_exponent,
-            minimum_residual_bits: security.minimum_residual_bits(),
-            chain_context_digest: epoch_inputs.chain_context_digest,
-            genesis_trust_anchor_digest: [0xb1; 32],
-            genesis_state_root: epoch_inputs.start_root,
-            previous_terminal_state_root: epoch_inputs.start_root,
-            current_terminal_state_root: epoch_inputs.end_root,
-            previous_epoch_anchor_root: [0xb2; 32],
-            current_epoch_anchor_root: epoch_inputs.epoch_close_anchor_digest,
-            exact_epoch_statement_digest: epoch.statement.digest(),
-            predicate_digest: epoch_inputs.predicate_digest,
-            verifier_parameter_digest: identity.verifier_parameter_digest,
-            security_budget_digest: identity.security_budget_digest,
-            config_digest: identity.config_digest,
-            registry_digest: identity.registry_digest,
-            runtime_profile_manifest_digest: identity.runtime_profile_manifest_digest,
-            authority_bundle_digest: identity.authority_bundle_digest,
-            verifier_bundle_digest: identity.verifier_bundle_digest,
-            epoch_anchor_mmr_root,
-            predecessor_statement_digest: None,
-        })
-    }
-
-    #[test]
-    #[ignore = "real Plonky3 proving must run through plonky3_resource_worker.sh"]
-    fn test_bounded_epoch_two_leaf_actual_recursion() {
-        init_resource_tracing();
-        let first_id = [0xd1; 32];
-        let second_id = [0xd2; 32];
-        let root_0 = [0xe0; 32];
-        let root_1 = [0xe1; 32];
-        let root_2 = [0xe2; 32];
-        let (left, left_inputs) =
-            bounded_epoch_smoke_leaf(0, first_id, None, root_0, root_1).unwrap();
-        let (right, right_inputs) =
-            bounded_epoch_smoke_leaf(1, second_id, Some(first_id), root_1, root_2).unwrap();
-        let pair_inputs = EpochBasePairProofInputsV2 {
-            left: left_inputs,
-            right: right_inputs,
-            total: 2,
-            epoch_index: 0,
-            cadence_blocks: 2,
-            parameter_generation: RecursiveSecurityBudgetManifestV2::authority_pinned()
-                .unwrap()
-                .parameter_generation(),
-            runtime_profile_generation: RECURSIVE_RUNTIME_PROFILE_GENERATION_V2,
-        };
-        let left_normalization =
-            EpochLeafNormalizationInputsV2::from_pair(pair_inputs, pair_inputs.left);
-        let left = run_in_fresh_prover_pool("bounded-epoch-normalize-left", move || {
-            prove_epoch_leaf_normalization(left, &left_normalization)
-        })
-        .unwrap();
-        trim_prover_heap();
-        let right_normalization =
-            EpochLeafNormalizationInputsV2::from_pair(pair_inputs, pair_inputs.right);
-        let right = run_in_fresh_prover_pool("bounded-epoch-normalize-right", move || {
-            prove_epoch_leaf_normalization(right, &right_normalization)
-        })
-        .unwrap();
-        trim_prover_heap();
-        let expected = combine_root_values_for_relation(
-            proof_root_statement_values(&left).unwrap(),
-            proof_root_statement_values(&right).unwrap(),
-            AggregationRelationV2::EpochRange,
-        )
-        .unwrap();
-        let proof = run_in_fresh_epoch_range_pool("bounded-epoch-pair", move || {
-            let mut prep_pool = AggregationPrepPoolV2::new();
-            aggregate_proof_pair(
-                left,
-                right,
-                AggregationRelationV2::EpochRange,
-                None,
-                &mut prep_pool,
-            )
-        })
-        .unwrap();
-        run_in_fresh_prover_pool("bounded-epoch-actual-verify", || {
-            verify_aggregation_proof_in_pool(&proof)
-        })
-        .unwrap();
-        let expected = statement_with_proof_common_cap(&expected, &proof).unwrap();
-        assert_eq!(proof_root_statement_values(&proof).unwrap(), expected);
-
-        let range_proof_bytes = encode_canonical_batch_proof_v2(&proof).unwrap().len();
-        let mut mutated = copy_batch_proof(&proof);
-        let opening = mutated
-            .proof
-            .opened_values
-            .instances
-            .first_mut()
-            .and_then(|instance| instance.base_opened_values.trace_local.first_mut())
-            .expect("bounded epoch proof root opening");
-        *opening += Plonky3ChallengeV2::ONE;
-        assert!(matches!(
-            run_in_fresh_prover_pool("bounded-epoch-mutation-verify", move || {
-                verify_aggregation_proof_in_pool(&mutated)
-            }),
-            Err(CheckpointError::BackendVerificationFailed)
-        ));
-
-        let statement = bounded_epoch_statement(&proof).unwrap();
-        let sealed = run_in_fresh_prover_pool("bounded-epoch-seal", move || {
-            prove_epoch_statement_seal(proof, &statement).map(|proof| (proof, statement))
-        })
-        .unwrap();
-        let (sealed, statement) = sealed;
-        let proof_bytes = encode_epoch_outer_proof(&sealed).unwrap();
-        let mut epoch = Plonky3EpochProofV2 {
-            is_nova_only: false,
-            statement,
-            frontier_authority_digest: [0xa1; 32],
-            parameter_digest: current_plonky3_parameter_digest().unwrap(),
-            security_budget_digest: RecursiveSecurityBudgetManifestV2::authority_pinned()
-                .unwrap()
-                .digest(),
-            recursive_base_proof_commitment: root_commitment_bytes(
-                proof_root_statement_values(&sealed).unwrap(),
-            )
-            .unwrap(),
-            air_binding_digest: epoch_outer_air_binding_digest(&sealed).unwrap(),
-            proof_digest: epoch_outer_proof_digest(&proof_bytes),
-            proof_bytes,
-            canonical_bytes: Vec::new(),
-        };
-        epoch.recursive_base_proof_commitment = epoch.statement.recursive_base_proof_commitment();
-        epoch.canonical_bytes = encode_epoch_proof(&epoch).unwrap();
-        Plonky3EpochAdapterV2::verify(&epoch).unwrap();
-        let epoch_envelope_bytes = epoch.canonical_bytes.len();
-
-        let history_statement = bounded_history_base_statement(&epoch).unwrap();
-        let history = Plonky3HistoryAdapterV2::prove_base(history_statement, &epoch).unwrap();
-        Plonky3HistoryAdapterV2::verify(&history).unwrap();
-        let history_envelope_bytes = history.canonical_bytes.len();
-        eprintln!(
-            concat!(
-                "Z00Z_PLONKY3_BOUNDED_EPOCH_V2 ",
-                "{{\"leaf_count\":2,\"actual_verifier\":true,",
-                "\"range_proof_bytes\":{},",
-                "\"epoch_envelope_bytes\":{},",
-                "\"history_envelope_bytes\":{},",
-                "\"history_size_status\":\"{}\"}}"
-            ),
-            range_proof_bytes,
-            epoch_envelope_bytes,
-            history_envelope_bytes,
-            history.size_status().name(),
-        );
-        eprintln!(
-            "Z00Z_PLONKY3_TELEMETRY_V1 {}",
-            serde_json::json!({
-                "parameter_digest": hex_digest(epoch.parameter_digest),
-                "canonical_proof_bytes": history_envelope_bytes,
-                "size_status": history.size_status().name(),
-                "trace_dimensions": {
-                    "leaf_count": 2,
-                    "range_proof_bytes": range_proof_bytes,
-                    "epoch_envelope_bytes": epoch_envelope_bytes,
-                    "history_envelope_bytes": history_envelope_bytes,
-                    "actual_verifier": true,
-                },
-            })
-        );
-        assert!(
-            history_envelope_bytes <= PLONKY3_TARGET_BYTES_V2,
-            "complete canonical history publication envelope must meet the 2 MiB target: \
-             {history_envelope_bytes} > {PLONKY3_TARGET_BYTES_V2}",
-        );
-        emit_resource_phase("proof_ready");
     }
 
     #[test]

@@ -23,6 +23,7 @@ use z00z_plonky3_circuit_prover::batch_stark_prover::{
 };
 use z00z_plonky3_circuit_prover::{BatchStarkProof, BatchStarkProver};
 
+use super::plonky3_epoch_semantic_source_air::SOURCE_TYPED_PAYLOAD_BYTE_BUS_V2;
 use super::{
     hardened_koala_bear_config, Plonky3StarkConfigV2, RecursiveCheckpointRejectReasonV2,
     EPOCH_CHUNK_BYTES_V2, EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2,
@@ -32,11 +33,8 @@ use crate::CheckpointError;
 
 const NPO_ID_V2: &str = "z00z/plonky3/epoch-typed-commitment/v2";
 const LINKED_NPO_ID_V2: &str = "z00z/plonky3/epoch-typed-commitment-linked/v2";
-const EVENT_SOURCE_NPO_ID_V2: &str = "z00z/plonky3/epoch-typed-commitment-event-source/v2";
 pub(super) const EXPECTED_TYPED_COMMITMENT_BUS_V2: &str =
     "z00z/plonky3/epoch-typed-commitment-expected/v2";
-pub(super) const EVENT_TYPED_COMMITMENT_BUS_V2: &str =
-    "z00z/plonky3/epoch-typed-commitment-event/v2";
 pub(super) const COMMITMENTS_PER_TRANSITION_V2: usize = 4;
 pub(super) const MAX_TRANSITIONS_V2: usize = EPOCH_TRANSITIONS_PER_TRACE_CHUNK_V2 as usize;
 pub(super) const ROWS_V2: usize = MAX_TRANSITIONS_V2 * COMMITMENTS_PER_TRANSITION_V2;
@@ -53,10 +51,14 @@ const ACTIVE_OFFSET_V2: usize = 1;
 const TRANSITION_SELECTOR_OFFSET_V2: usize = 2;
 const KIND_SELECTOR_OFFSET_V2: usize = TRANSITION_SELECTOR_OFFSET_V2 + MAX_TRANSITIONS_V2;
 const EVENT_ORDINAL_OFFSET_V2: usize = KIND_SELECTOR_OFFSET_V2 + COMMITMENTS_PER_TRANSITION_V2;
-const PAYLOAD_VERSION_OFFSET_V2: usize = EVENT_ORDINAL_OFFSET_V2 + 4;
+const EVENT_ORDINAL_BYTE_OFFSET_V2: usize = EVENT_ORDINAL_OFFSET_V2 + 4;
+const EVENT_ORDINAL_BYTES_V2: usize = 8;
+const PAYLOAD_VERSION_OFFSET_V2: usize = EVENT_ORDINAL_BYTE_OFFSET_V2 + EVENT_ORDINAL_BYTES_V2;
 const PAYLOAD_KIND_OFFSET_V2: usize = PAYLOAD_VERSION_OFFSET_V2 + 1;
 const DIGEST_OFFSET_V2: usize = PAYLOAD_KIND_OFFSET_V2 + 1;
-pub(super) const RUNNING_ROW_COUNT_OFFSET_V2: usize = DIGEST_OFFSET_V2 + DIGEST_LIMBS_V2;
+const DIGEST_BYTE_OFFSET_V2: usize = DIGEST_OFFSET_V2 + DIGEST_LIMBS_V2;
+const DIGEST_BYTES_V2: usize = 32;
+pub(super) const RUNNING_ROW_COUNT_OFFSET_V2: usize = DIGEST_BYTE_OFFSET_V2 + DIGEST_BYTES_V2;
 const ORDINAL_CARRY_OFFSET_V2: usize = RUNNING_ROW_COUNT_OFFSET_V2 + 1;
 pub(super) const ROW_FIELDS_V2: usize = ORDINAL_CARRY_OFFSET_V2 + 4;
 pub(super) const CALL_FIELDS_V2: usize = PUBLIC_FIELDS_V2 + ROW_FIELDS_V2;
@@ -96,7 +98,6 @@ impl NonPrimitiveTrace<KoalaBear> for TypedCommitmentTraceV2 {
 pub(super) enum TypedCommitmentAirRoleV2 {
     Standalone,
     LinkedConsumer,
-    EventSource,
 }
 
 impl TypedCommitmentAirRoleV2 {
@@ -104,7 +105,6 @@ impl TypedCommitmentAirRoleV2 {
         NpoTypeId::new(match self {
             Self::Standalone => NPO_ID_V2,
             Self::LinkedConsumer => LINKED_NPO_ID_V2,
-            Self::EventSource => EVENT_SOURCE_NPO_ID_V2,
         })
     }
 }
@@ -241,16 +241,14 @@ where
             }
             fields
         };
-        let event_fields = || {
-            let mut fields = Vec::with_capacity(6 + DIGEST_LIMBS_V2);
+        let source_payload_fields = |payload_index: usize, payload_byte: AB::Expr| {
+            let mut fields = Vec::with_capacity(2 + EVENT_ORDINAL_BYTES_V2 + 2);
             fields.push(transition_index.clone());
-            for limb in 0..4 {
-                fields.push(row(local, EVENT_ORDINAL_OFFSET_V2 + limb));
+            for byte in 0..EVENT_ORDINAL_BYTES_V2 {
+                fields.push(row(local, EVENT_ORDINAL_BYTE_OFFSET_V2 + byte));
             }
-            fields.push(row(local, PAYLOAD_KIND_OFFSET_V2));
-            for limb in 0..DIGEST_LIMBS_V2 {
-                fields.push(row(local, DIGEST_OFFSET_V2 + limb));
-            }
+            fields.push(AB::Expr::from_usize(payload_index));
+            fields.push(payload_byte);
             fields
         };
         match self.role {
@@ -261,19 +259,39 @@ where
                     typed_fields(),
                     -Count::bounded(active.clone(), 1),
                 );
-                builder.push_interaction(
-                    EVENT_TYPED_COMMITMENT_BUS_V2,
-                    event_fields(),
-                    -Count::bounded(active.clone(), 1),
-                );
+                let payload_bytes = [row(local, PAYLOAD_VERSION_OFFSET_V2)]
+                    .into_iter()
+                    .chain([row(local, PAYLOAD_KIND_OFFSET_V2)])
+                    .chain(
+                        (0..DIGEST_BYTES_V2).map(|byte| row(local, DIGEST_BYTE_OFFSET_V2 + byte)),
+                    );
+                for (payload_index, payload_byte) in payload_bytes.enumerate() {
+                    builder.push_interaction(
+                        SOURCE_TYPED_PAYLOAD_BYTE_BUS_V2,
+                        source_payload_fields(payload_index, payload_byte),
+                        -Count::bounded(active.clone(), 1),
+                    );
+                }
             }
-            TypedCommitmentAirRoleV2::EventSource => {
-                builder.push_interaction(
-                    EVENT_TYPED_COMMITMENT_BUS_V2,
-                    event_fields(),
-                    Count::bounded(active.clone(), 1),
-                );
-            }
+        }
+
+        for limb in 0..4 {
+            builder.assert_zero(
+                active.clone()
+                    * (row(local, EVENT_ORDINAL_OFFSET_V2 + limb)
+                        - row(local, EVENT_ORDINAL_BYTE_OFFSET_V2 + limb * 2)
+                        - row(local, EVENT_ORDINAL_BYTE_OFFSET_V2 + limb * 2 + 1)
+                            * AB::Expr::from_u64(256)),
+            );
+        }
+        for limb in 0..DIGEST_LIMBS_V2 {
+            builder.assert_zero(
+                active.clone()
+                    * (row(local, DIGEST_OFFSET_V2 + limb)
+                        - row(local, DIGEST_BYTE_OFFSET_V2 + limb * 2)
+                        - row(local, DIGEST_BYTE_OFFSET_V2 + limb * 2 + 1)
+                            * AB::Expr::from_u64(256)),
+            );
         }
 
         for (transition, transition_selector) in transition_selectors.iter().enumerate() {

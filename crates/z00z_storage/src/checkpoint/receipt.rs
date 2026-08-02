@@ -103,12 +103,12 @@ pub struct Plonky3EpochVerificationReceiptV2 {
     epoch_index: u64,
     start_height: u64,
     end_height: u64,
-    leaf_count: u32,
+    transition_count: u32,
     statement_digest: [u8; 32],
     frontier_authority_digest: [u8; 32],
     parameter_digest: [u8; 32],
     security_budget_digest: [u8; 32],
-    recursive_base_proof_commitment: [u8; 32],
+    recursive_epoch_commitment: [u8; 32],
     air_binding_digest: [u8; 32],
     proof_digest: [u8; 32],
     registry_digest: [u8; 32],
@@ -148,20 +148,6 @@ pub struct Plonky3HistoryVerificationReceiptV2 {
     size_status: super::plonky3::Plonky3ProofSizeStatusV2,
     receipt_digest: [u8; 32],
     canonical_bytes: Vec<u8>,
-}
-
-/// Unforgeable in-process capability passed from the actual base-verifier
-/// receipt into epoch-frontier admission.
-pub(super) struct VerifiedPlonky3BaseAdmissionV2 {
-    pub(super) range: super::plonky3::Plonky3BaseRangeBindingV2,
-    pub(super) receipt_digest: [u8; 32],
-    pub(super) registry_digest: [u8; 32],
-    pub(super) runtime_profile_manifest_digest: [u8; 32],
-    pub(super) config_digest: [u8; 32],
-    pub(super) config_generation: u64,
-    pub(super) authority_generation: u64,
-    pub(super) parameter_generation: u32,
-    pub(super) runtime_profile_generation: u16,
 }
 
 impl Plonky3BaseVerificationReceiptV2 {
@@ -254,37 +240,6 @@ impl Plonky3BaseVerificationReceiptV2 {
         })
     }
 
-    pub(super) fn bind_epoch_admission(
-        &self,
-        proof: &super::plonky3::Plonky3BaseProofV2,
-    ) -> Result<VerifiedPlonky3BaseAdmissionV2, CheckpointError> {
-        let range = proof.range_binding()?;
-        if self.height != range.height
-            || self.statement_digest != range.base_statement_digest
-            || self.event_vector_digest != range.event_vector_digest
-            || self.parameter_digest != range.parameter_digest
-            || self.security_budget_digest != range.security_budget_digest
-            || self.air_binding_digest != range.air_binding_digest
-            || self.proof_digest != range.proof_digest
-            || self.receipt_digest == [0; 32]
-        {
-            return Err(CheckpointError::RecursiveRejected(
-                super::recursive_reject::RecursiveCheckpointRejectReasonV2::Plonky3TranscriptMismatch,
-            ));
-        }
-        Ok(VerifiedPlonky3BaseAdmissionV2 {
-            range,
-            receipt_digest: self.receipt_digest,
-            registry_digest: self.registry_digest,
-            runtime_profile_manifest_digest: self.runtime_profile_manifest_digest,
-            config_digest: self.config_digest,
-            config_generation: self.config_generation,
-            authority_generation: self.authority_generation,
-            parameter_generation: self.parameter_generation,
-            runtime_profile_generation: self.runtime_profile_generation,
-        })
-    }
-
     #[must_use]
     pub const fn height(&self) -> u64 {
         self.height
@@ -317,14 +272,14 @@ impl Plonky3EpochVerificationReceiptV2 {
     ) -> Result<Self, CheckpointError> {
         if verified.start_height == 0
             || verified.end_height < verified.start_height
-            || verified.leaf_count == 0
+            || verified.transition_count == 0
             || verified.canonical_envelope_bytes == 0
             || [
                 verified.statement_digest,
                 verified.frontier_authority_digest,
                 verified.parameter_digest,
                 verified.security_budget_digest,
-                verified.recursive_base_proof_commitment,
+                verified.recursive_epoch_commitment,
                 verified.air_binding_digest,
                 verified.proof_digest,
             ]
@@ -360,13 +315,13 @@ impl Plonky3EpochVerificationReceiptV2 {
         prefix.extend_from_slice(&verified.epoch_index.to_le_bytes());
         prefix.extend_from_slice(&verified.start_height.to_le_bytes());
         prefix.extend_from_slice(&verified.end_height.to_le_bytes());
-        prefix.extend_from_slice(&verified.leaf_count.to_le_bytes());
+        prefix.extend_from_slice(&verified.transition_count.to_le_bytes());
         for digest in [
             verified.statement_digest,
             verified.frontier_authority_digest,
             verified.parameter_digest,
             verified.security_budget_digest,
-            verified.recursive_base_proof_commitment,
+            verified.recursive_epoch_commitment,
             verified.air_binding_digest,
             verified.proof_digest,
             registry_digest,
@@ -401,12 +356,12 @@ impl Plonky3EpochVerificationReceiptV2 {
             epoch_index: verified.epoch_index,
             start_height: verified.start_height,
             end_height: verified.end_height,
-            leaf_count: verified.leaf_count,
+            transition_count: verified.transition_count,
             statement_digest: verified.statement_digest,
             frontier_authority_digest: verified.frontier_authority_digest,
             parameter_digest: verified.parameter_digest,
             security_budget_digest: verified.security_budget_digest,
-            recursive_base_proof_commitment: verified.recursive_base_proof_commitment,
+            recursive_epoch_commitment: verified.recursive_epoch_commitment,
             air_binding_digest: verified.air_binding_digest,
             proof_digest: verified.proof_digest,
             registry_digest,
@@ -430,7 +385,7 @@ impl Plonky3EpochVerificationReceiptV2 {
 
     #[must_use]
     pub const fn range(&self) -> (u64, u64, u32) {
-        (self.start_height, self.end_height, self.leaf_count)
+        (self.start_height, self.end_height, self.transition_count)
     }
 
     #[must_use]

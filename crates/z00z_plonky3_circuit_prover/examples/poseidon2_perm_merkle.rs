@@ -1,6 +1,5 @@
 use std::error::Error;
 
-use p3_batch_stark::ProverData;
 use p3_circuit::ops::{
     NpoPrivateData, NpoTypeId, Poseidon2Config, Poseidon2PermPrivateData, generate_poseidon2_trace,
     generate_recompose_trace,
@@ -17,7 +16,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Registry};
 use z00z_plonky3_circuit_prover::batch_stark_prover::{
-    poseidon2_air_builders, recompose_air_builders,
+    canonical_prover_data_from_airs_and_degrees, poseidon2_air_builders, recompose_air_builders,
 };
 use z00z_plonky3_circuit_prover::common::{NpoPreprocessor, get_airs_and_degrees_with_prep};
 use z00z_plonky3_circuit_prover::config::KoalaBearConfig;
@@ -280,7 +279,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("poseidon2 trace missing");
     assert_eq!(poseidon2_trace.total_rows(), 3, "expected three perm rows");
 
-    let prover_data = ProverData::from_airs_and_degrees(&stark_config, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&stark_config, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 

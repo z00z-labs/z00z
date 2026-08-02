@@ -29,14 +29,14 @@ pub fn derive_identity_public_key(
 }
 
 /// Generates a random one-off identity keypair.
-pub fn generate_identity_keypair() -> (Z00ZScalar, Z00ZRistrettoPoint) {
+pub fn generate_identity_keypair() -> Result<(Z00ZScalar, Z00ZRistrettoPoint), StealthKeyError> {
     #[cfg(test)]
     ID_GEN_COUNT.fetch_add(1, Ordering::Relaxed);
 
-    let mut rng = SystemRngProvider.rng();
-    let sk = Z00ZScalar::random(&mut rng);
+    let sk = Z00ZScalar::random_secure(&SystemRngProvider)
+        .map_err(|_| StealthKeyError::InvalidSecretKey)?;
     let pk = Z00ZRistrettoPoint::from_secret_key(&sk);
-    (sk, pk)
+    Ok((sk, pk))
 }
 
 #[cfg(test)]
@@ -60,8 +60,7 @@ where
     R: rand::CryptoRng + rand::RngCore,
 {
     let payload = identity_payload(message, context);
-    sign_kernel_signature(identity_sk, &payload, rng)
-        .map_err(|_| StealthKeyError::SignatureFailed)
+    sign_kernel_signature(identity_sk, &payload, rng).map_err(|_| StealthKeyError::SignatureFailed)
 }
 
 /// Signs identity-bound metadata with the derived identity secret key.

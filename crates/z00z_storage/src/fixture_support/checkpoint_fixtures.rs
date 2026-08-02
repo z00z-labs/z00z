@@ -270,3 +270,10 @@ pub fn prior_stage6_json() -> Vec<u8> {
 pub fn verify_root_opening_mutation(proof: &Plonky3BaseProofV2) -> Result<(), CheckpointError> {
     Plonky3BaseAdapterV2::verify_root_opening_mutation(proof)
 }
+
+/// Exercise one typed epoch outer-opening mutation through the pinned verifier.
+pub fn verify_epoch_opening_mutation(
+    proof: &crate::checkpoint::recursive_v2::Plonky3EpochProofV2,
+) -> Result<(), CheckpointError> {
+    crate::checkpoint::recursive_v2::Plonky3EpochAdapterV2::verify_outer_opening_mutation(proof)
+}

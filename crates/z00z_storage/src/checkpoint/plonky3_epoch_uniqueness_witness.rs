@@ -1,6 +1,6 @@
 //! Canonical uniqueness event projection and AIR row construction.
 
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 use p3_koala_bear::KoalaBear;
 
 use super::plonky3_epoch_event_stream::transition_event_stream;
@@ -9,6 +9,7 @@ use super::plonky3_epoch_uniqueness_air::{
     MIN_ROWS_V2, PUBLIC_FIELDS_V2, ROLE_COUNT_V2, ROW_FIELDS_V2,
 };
 use super::plonky3_epoch_uniqueness_range::UniquenessRangeQueryV2;
+use super::plonky3_epoch_uniqueness_slice::EpochUniquenessSliceV2;
 use super::{
     decode_flow_item, decode_uniqueness_sorted_row, EpochAirTableV2, EpochPreparedTransitionV2,
     EpochTraceChunkV2, RecursiveTraceOpcodeV2, UniquenessListKindV2, UniquenessPassV2,
@@ -50,6 +51,33 @@ impl ParsedUniquenessWitnessV2 {
             UniquenessAirRoleV2::ProductOriginal => &self.product_original,
             UniquenessAirRoleV2::ProductSorted => &self.product_sorted,
         }
+    }
+
+    fn rows_for_slice(
+        &self,
+        role: UniquenessAirRoleV2,
+        slice: EpochUniquenessSliceV2,
+    ) -> Result<Vec<SourceRowV2>, CheckpointError> {
+        self.role_rows(role)
+            .iter()
+            .copied()
+            .filter(|row| slice.local_slot(row.transition).is_ok())
+            .map(|mut row| {
+                row.transition = slice.local_slot(row.transition)?;
+                Ok(row)
+            })
+            .collect()
+    }
+
+    fn semantic_row_count_for_slice(
+        &self,
+        slice: EpochUniquenessSliceV2,
+    ) -> Result<usize, CheckpointError> {
+        Ok(self
+            .replay
+            .iter()
+            .filter(|row| slice.local_slot(row.transition).is_ok())
+            .count())
     }
 }
 
@@ -162,17 +190,27 @@ pub(super) fn parse(
     Ok(parsed)
 }
 
-pub(super) fn public_values(
+pub(super) fn public_values_for_slice(
     statement: &EpochTraceChunkV2,
+    slice: EpochUniquenessSliceV2,
+    semantic_row_count: u64,
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
     if statement.inputs().table != EpochAirTableV2::Uniqueness {
         return Err(CheckpointError::Canonical);
     }
-    let values = statement
+    let mut values = statement
         .canonical_bytes()
         .chunks_exact(2)
         .map(|limb| KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]])))
         .collect::<Vec<_>>();
+    values.push(KoalaBear::from_usize(slice.start()));
+    values.push(KoalaBear::from_usize(slice.len()));
+    values.extend(
+        semantic_row_count
+            .to_le_bytes()
+            .chunks_exact(2)
+            .map(|limb| KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]]))),
+    );
     if values.len() != PUBLIC_FIELDS_V2 {
         return Err(CheckpointError::Invariant);
     }
@@ -204,10 +242,13 @@ fn role_trace(
     role: UniquenessAirRoleV2,
     source: &[SourceRowV2],
     trace_rows: usize,
+    slice: EpochUniquenessSliceV2,
     range_queries: &mut Vec<UniquenessRangeQueryV2>,
 ) -> Result<UniquenessTraceV2, CheckpointError> {
     let mut rows = Vec::with_capacity(trace_rows);
     let mut running = 0_usize;
+    let mut net_effect_position = 0_usize;
+    let mut net_transition = None;
     for index in 0..trace_rows {
         let mut values = if index == 0 {
             statement_public.to_vec()
@@ -245,8 +286,13 @@ fn role_trace(
             }
             let diff_minus_one = difference.map(|(_, value)| value).unwrap_or(0);
             values.push(KoalaBear::from_u8(diff_minus_one));
+            let global_slot = slice
+                .start()
+                .checked_add(row.transition)
+                .ok_or(CheckpointError::Overflow)?;
             if comparison.is_some() && !same_terminal {
                 range_queries.push(UniquenessRangeQueryV2 {
+                    slot: global_slot,
                     byte_0: diff_minus_one,
                     byte_1: 0,
                     single_byte: true,
@@ -255,11 +301,80 @@ fn role_trace(
             if role == UniquenessAirRoleV2::Replay {
                 range_queries.extend(row.semantic.chunks_exact(2).map(|pair| {
                     UniquenessRangeQueryV2 {
+                        slot: global_slot,
                         byte_0: pair[0],
                         byte_1: pair[1],
                         single_byte: false,
                     }
                 }));
+            }
+
+            if role == UniquenessAirRoleV2::ProductSorted {
+                if net_transition != Some(row.transition) {
+                    net_effect_position = 0;
+                    net_transition = Some(row.transition);
+                }
+                let pair_second = index
+                    .checked_sub(1)
+                    .and_then(|prior| source.get(prior))
+                    .is_some_and(|prior| {
+                        same_group(role, *prior, row)
+                            && prior.semantic[TERMINAL_START_V2..TERMINAL_END_V2]
+                                == row.semantic[TERMINAL_START_V2..TERMINAL_END_V2]
+                    });
+                values.push(KoalaBear::from_bool(pair_second));
+
+                let hash_equal = same_terminal
+                    && comparison.is_some_and(|next| {
+                        row.semantic[TERMINAL_END_V2..] == next.semantic[TERMINAL_END_V2..]
+                    });
+                let effect = if pair_second {
+                    None
+                } else if same_terminal {
+                    Some(if hash_equal { 3 } else { 2 })
+                } else if row.set == 0 {
+                    Some(0)
+                } else {
+                    Some(1)
+                };
+                for candidate in 0..4 {
+                    values.push(KoalaBear::from_bool(effect == Some(candidate)));
+                }
+
+                let hash_difference = if effect == Some(2) {
+                    let next = comparison.ok_or(CheckpointError::Invariant)?;
+                    (0..32)
+                        .find_map(|hash_index| {
+                            let local = row.semantic[TERMINAL_END_V2 + hash_index];
+                            let next = next.semantic[TERMINAL_END_V2 + hash_index];
+                            (local != next).then_some((hash_index, local, next))
+                        })
+                        .ok_or(CheckpointError::Invariant)?
+                } else {
+                    (usize::MAX, 0, 0)
+                };
+                for hash_index in 0..32 {
+                    values.push(KoalaBear::from_bool(hash_difference.0 == hash_index));
+                }
+                let hash_difference_value =
+                    KoalaBear::from_u8(hash_difference.2) - KoalaBear::from_u8(hash_difference.1);
+                values.push(hash_difference_value);
+                values.push(if effect == Some(2) {
+                    hash_difference_value.inverse()
+                } else {
+                    KoalaBear::ZERO
+                });
+                values.push(KoalaBear::from_usize(net_effect_position));
+                if !pair_second {
+                    net_effect_position = net_effect_position
+                        .checked_add(1)
+                        .ok_or(CheckpointError::Overflow)?;
+                }
+            } else {
+                values.extend(core::iter::repeat_n(
+                    KoalaBear::ZERO,
+                    1 + 4 + 32 + 1 + 1 + 1,
+                ));
             }
         } else {
             values.extend(core::iter::repeat_n(KoalaBear::ZERO, ROW_FIELDS_V2 - 3));
@@ -273,30 +388,34 @@ fn role_trace(
     Ok(UniquenessTraceV2 { role, rows })
 }
 
-pub(super) fn air_witness(
+pub(super) fn air_witness_for_slice(
     statement: &EpochTraceChunkV2,
     parsed: &ParsedUniquenessWitnessV2,
+    slice: EpochUniquenessSliceV2,
 ) -> Result<UniquenessAirWitnessV2, CheckpointError> {
-    let semantic_count =
-        u64::try_from(parsed.semantic_row_count()).map_err(|_| CheckpointError::Limit)?;
-    if statement.inputs().row_count != semantic_count {
-        return Err(CheckpointError::Canonical);
-    }
-    let public = public_values(statement)?;
+    let semantic_count = u64::try_from(parsed.semantic_row_count_for_slice(slice)?)
+        .map_err(|_| CheckpointError::Limit)?;
+    let public = public_values_for_slice(statement, slice, semantic_count)?;
+    let role_rows = UniquenessAirRoleV2::ALL
+        .iter()
+        .map(|role| Ok((*role, parsed.rows_for_slice(*role, slice)?)))
+        .collect::<Result<Vec<_>, CheckpointError>>()?;
     let max_role_rows = UniquenessAirRoleV2::ALL
         .iter()
-        .map(|role| parsed.role_rows(*role).len())
+        .zip(&role_rows)
+        .map(|(_, (_, rows))| rows.len())
         .max()
         .unwrap_or(0);
     let trace_rows = max_role_rows.max(MIN_ROWS_V2).next_power_of_two();
     let mut range_queries = Vec::new();
     let mut traces = Vec::with_capacity(ROLE_COUNT_V2);
-    for role in UniquenessAirRoleV2::ALL {
+    for (role, rows) in role_rows {
         traces.push(role_trace(
             &public,
             role,
-            parsed.role_rows(role),
+            &rows,
             trace_rows,
+            slice,
             &mut range_queries,
         )?);
     }

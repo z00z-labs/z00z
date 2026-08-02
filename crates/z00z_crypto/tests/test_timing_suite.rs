@@ -22,7 +22,7 @@ fn test_batch_verify_constant_time() {
     let mut valid_commitments = Vec::new();
 
     for _ in 0..10 {
-        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
         let amount = 1000u64;
         let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
         let proof = create_range_proof(amount, &blinding, 64, 0).expect("proof creation failed");
@@ -99,7 +99,7 @@ fn test_oversized_proof_timing() {
     let mut valid_commitments = Vec::new();
 
     for _ in 0..10 {
-        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
         let amount = 1000u64;
         let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
         let proof = create_range_proof(amount, &blinding, 64, 0).expect("proof creation failed");
@@ -181,7 +181,7 @@ fn test_batch_error_reporting() {
     let mut valid_commitments = Vec::new();
 
     for _ in 0..5 {
-        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
         let amount = 1000u64;
         let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
         let proof = create_range_proof(amount, &blinding, 64, 0).expect("proof creation failed");

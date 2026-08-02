@@ -91,7 +91,7 @@ mod tests {
 
     fn random_scalar() -> Z00ZScalar {
         let mut rng = SystemRngProvider.rng();
-        Z00ZScalar::random(&mut rng)
+        Z00ZScalar::random(&mut rng).unwrap()
     }
 
     fn commit(value: u64, blinding_seed: u64) -> Z00ZCommitment {

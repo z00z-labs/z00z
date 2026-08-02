@@ -7,6 +7,28 @@ use tari_crypto::{
 use z00z_utils::rng::MockRngProvider;
 use zeroize::Zeroize;
 
+struct FailingRng;
+
+impl rand::RngCore for FailingRng {
+    fn next_u32(&mut self) -> u32 {
+        0
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        0
+    }
+
+    fn fill_bytes(&mut self, _dest: &mut [u8]) {
+        panic!("fallible callers must use try_fill_bytes")
+    }
+
+    fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), rand::Error> {
+        Err(rand::Error::from(core::num::NonZeroU32::new(1).unwrap()))
+    }
+}
+
+impl rand::CryptoRng for FailingRng {}
+
 fn test_rng(seed: u64) -> rand::rngs::StdRng {
     MockRngProvider::with_u64_seed(seed).rng()
 }
@@ -106,6 +128,18 @@ fn test_z00z_scalar_from_bytes() {
 fn test_z00z_scalar_allows_zero() {
     let scalar = Z00ZScalar::try_from_bytes([0u8; 32]).unwrap();
     assert!(scalar.is_zero());
+}
+
+#[test]
+fn fallible_scalar_constructors_do_not_unwind() {
+    assert!(matches!(
+        Z00ZScalar::from_hash(&[0u8; 64]),
+        Err(CryptoError::InvalidScalar)
+    ));
+    assert!(matches!(
+        Z00ZScalar::random(&mut FailingRng),
+        Err(CryptoError::RngFailure)
+    ));
 }
 
 #[test]

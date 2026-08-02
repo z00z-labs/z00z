@@ -186,7 +186,7 @@ fn test_identity_signature_invalid() {
 
 #[test]
 fn test_generate_identity_keypair() {
-    let (sk, pk) = generate_identity_keypair();
+    let (sk, pk) = generate_identity_keypair().unwrap();
     let expected = Z00ZRistrettoPoint::from_secret_key(&sk);
     assert_eq!(pk.as_bytes(), expected.as_bytes());
     assert_ne!(pk.as_bytes(), [0u8; 32]);

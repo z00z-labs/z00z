@@ -108,6 +108,15 @@ where
         }
     }
 
+    fn preprocessed_next_row_columns(&self) -> Vec<usize> {
+        match self {
+            Self::Const(a) => P3BaseAir::preprocessed_next_row_columns(a),
+            Self::Public(a) => P3BaseAir::preprocessed_next_row_columns(a),
+            Self::Alu(a) => P3BaseAir::preprocessed_next_row_columns(a),
+            Self::Dynamic(a) => P3BaseAir::preprocessed_next_row_columns(a),
+        }
+    }
+
     fn num_periodic_columns(&self) -> usize {
         match self {
             Self::Const(a) => P3BaseAir::num_periodic_columns(a),
@@ -502,9 +511,15 @@ where
 
         let local_prep_len = preprocessed_local_targets.as_ref().map_or(0, |v| v.len());
         let next_prep_len = preprocessed_next_targets.as_ref().map_or(0, |v| v.len());
-        if local_prep_len != pre_w || next_prep_len != pre_w {
+        let expected_next_prep_len = if air.opens_preprocessed_next() {
+            pre_w
+        } else {
+            0
+        };
+        if local_prep_len != pre_w || next_prep_len != expected_next_prep_len {
             return Err(VerificationError::InvalidProofShape(format!(
-                "Instance has incorrect preprocessed width: expected {pre_w}, got {local_prep_len} / {next_prep_len}"
+                "Instance has incorrect preprocessed width: expected {pre_w} / \
+                 {expected_next_prep_len}, got {local_prep_len} / {next_prep_len}"
             )));
         }
         let air_width = A::width(air);
@@ -819,15 +834,6 @@ where
                         "Missing preprocessed local columns".to_string(),
                     )
                 })?;
-            let next = inst
-                .opened_values_no_lookups
-                .preprocessed_next_targets
-                .as_ref()
-                .ok_or_else(|| {
-                    VerificationError::InvalidProofShape(
-                        "Missing preprocessed next columns".to_string(),
-                    )
-                })?;
             // Validate that the preprocessed data's degree metadata matches this instance.
             let ext_db = degree_bits[inst_idx];
 
@@ -847,15 +853,27 @@ where
             // Compute base preprocessed domain (matching prover in generation.rs)
             let pre_domain = pcs.natural_domain_for_degree(1 << meta.degree_bits);
 
-            // Use the base trace domain for zeta_next computation.
-            let trace_dom = &trace_domains[inst_idx];
-            let generator_const = circuit.define_const(trace_domain_generator(trace_dom)?);
-            let zeta_next = circuit.mul(zeta, generator_const);
-
-            pre_round.push((
-                pre_domain,
-                vec![(zeta, local.clone()), (zeta_next, next.clone())],
-            ));
+            if airs[inst_idx].opens_preprocessed_next() {
+                let next = inst
+                    .opened_values_no_lookups
+                    .preprocessed_next_targets
+                    .as_ref()
+                    .ok_or_else(|| {
+                        VerificationError::InvalidProofShape(
+                            "Missing preprocessed next columns".to_string(),
+                        )
+                    })?;
+                // Use the base trace domain for zeta_next computation.
+                let trace_dom = &trace_domains[inst_idx];
+                let generator_const = circuit.define_const(trace_domain_generator(trace_dom)?);
+                let zeta_next = circuit.mul(zeta, generator_const);
+                pre_round.push((
+                    pre_domain,
+                    vec![(zeta, local.clone()), (zeta_next, next.clone())],
+                ));
+            } else {
+                pre_round.push((pre_domain, vec![(zeta, local.clone())]));
+            }
         }
 
         coms_to_verify.push((global.commitment.clone(), pre_round));

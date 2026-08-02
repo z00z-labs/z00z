@@ -34,7 +34,7 @@ async fn test_defaults_without_pin() {
 async fn test_evicts_stale_pin() {
     let entry = fixture_entry().await;
     let env = ThinRpcEnv::new("thin-cache-stale", 100).await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 12, 99_000, 101_000),
         vec![entry.clone()],
@@ -91,7 +91,7 @@ async fn test_evicts_stale_pin() {
 async fn test_refresh_restores_thin() {
     let entry = fixture_entry().await;
     let env = ThinRpcEnv::new("thin-cache-refresh", 100).await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let initial = ThinSnapshot::new_signed(
         context_for_entry(&entry, 13, 99_000, 200_000),
         vec![entry.clone()],

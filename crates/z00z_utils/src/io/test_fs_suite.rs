@@ -215,6 +215,34 @@ fn test_reset_root_selected_prefixes() {
     assert!(!root.join("drop").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn test_reset_root_does_not_follow_preserved_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let dir = TempDir::new().unwrap();
+    let root = dir.path().join("managed");
+    let outside = dir.path().join("outside");
+
+    create_dir_all(&root).unwrap();
+    create_dir_all(outside.join("keep")).unwrap();
+    write_file(outside.join("keep/marker.txt"), b"keep").unwrap();
+    write_file(outside.join("victim.txt"), b"outside").unwrap();
+    symlink(&outside, root.join("linked")).unwrap();
+
+    reset_managed_root(&root, "fresh", &["linked/keep"], None).unwrap();
+
+    assert!(!path_exists_no_follow(root.join("linked")).unwrap());
+    assert_eq!(
+        read_to_string(outside.join("keep/marker.txt")).unwrap(),
+        "keep"
+    );
+    assert_eq!(
+        read_to_string(outside.join("victim.txt")).unwrap(),
+        "outside"
+    );
+}
+
 #[test]
 fn test_keep_env_relative_prefix() {
     let _guard = env_lock();

@@ -11,6 +11,15 @@ use crate::CheckpointError;
 
 const U64_LIMBS_V2: usize = 4;
 
+fn extend_u32(values: &mut Vec<KoalaBear>, value: u32) {
+    values.extend(
+        value
+            .to_le_bytes()
+            .chunks_exact(2)
+            .map(|limb| KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]]))),
+    );
+}
+
 fn extend_u64(values: &mut Vec<KoalaBear>, value: u64) {
     values.extend(
         value
@@ -42,6 +51,46 @@ fn binding_fields(binding: EpochTransitionBindingV2) -> Vec<KoalaBear> {
     for digest in binding.typed_commitment_digests() {
         extend_digest(&mut fields, digest);
     }
+    extend_digest(&mut fields, inputs.checkpoint_id);
+    fields.push(KoalaBear::from_bool(inputs.predecessor.is_some()));
+    extend_digest(&mut fields, inputs.predecessor.unwrap_or([0; 32]));
+    for digest in [
+        inputs.checkpoint_statement_digest,
+        inputs.checkpoint_statement_core_digest,
+        inputs.checkpoint_artifact_digest,
+        inputs.challenge_content_digest,
+        inputs.da_payload_commitment,
+        inputs.event_vector_digest,
+    ] {
+        extend_digest(&mut fields, digest);
+    }
+    extend_digest(&mut fields, inputs.recursive_transition_statement_digest);
+    extend_digest(&mut fields, inputs.checkpoint_exec_tx_root);
+    extend_u32(&mut fields, inputs.checkpoint_exec_tx_count);
+    fields.push(KoalaBear::from_bool(
+        inputs.prior_recursive_output_root.is_some(),
+    ));
+    extend_digest(
+        &mut fields,
+        inputs.prior_recursive_output_root.unwrap_or([0; 32]),
+    );
+    for digest in [
+        inputs.pre_definition_root,
+        inputs.post_definition_root,
+        inputs.trace_digest,
+        inputs.update_trace_digest,
+        inputs.declared_work_digest,
+        inputs.pre_uniqueness_context_digest,
+        inputs.spent_uniqueness_precommit,
+        inputs.output_uniqueness_precommit,
+    ] {
+        extend_digest(&mut fields, digest);
+    }
+    extend_u64(&mut fields, inputs.uniqueness_row_count);
+    extend_u64(&mut fields, inputs.jmt_record_count);
+    extend_u64(&mut fields, inputs.jmt_envelope_count);
+    extend_u64(&mut fields, inputs.jmt_update_count);
+    debug_assert_eq!(fields.len(), BINDING_FIELDS_V2);
     fields
 }
 

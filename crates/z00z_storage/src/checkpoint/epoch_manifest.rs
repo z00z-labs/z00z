@@ -228,8 +228,8 @@ impl EpochManifestV2 {
             statement_inputs.parameter_digest,
             statement_inputs.security_budget_digest,
             statement_inputs.frontier_authority_digest,
-            statement_inputs.verified_base_proof_root,
-            statement_inputs.recursive_base_proof_commitment,
+            statement_inputs.verified_trace_chunk_root,
+            statement_inputs.recursive_epoch_commitment,
         ]
         .contains(&[0; 32])
             || inputs.checkpoint_artifact_root != statement_inputs.checkpoint_artifact_root

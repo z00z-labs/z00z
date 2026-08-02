@@ -18,14 +18,14 @@ use p3_koala_bear::KoalaBear;
 use p3_uni_stark::{SymbolicExpression, SymbolicExpressionExt};
 use p3_util::log2_ceil_usize;
 
-use super::dynamic_air::{
-    BatchAir, BatchTableInstance, DynamicAirEntry, TableProver, transmute_traces,
-};
+use super::dynamic_air::{BatchAir, BatchTableInstance, DynamicAirEntry, TableProver};
 use super::{NonPrimitiveTableEntry, TablePacking};
+use crate::ConstraintProfile;
 use crate::air::RecomposeAir;
-use crate::common::{CircuitTableAir, NpoAirBuilder, NpoPreprocessor};
+use crate::common::{
+    CircuitTableAir, NpoAirBuilder, NpoPreprocessor, take_non_primitive_base_columns,
+};
 use crate::config::StarkField;
-use crate::{ConstraintProfile, impl_table_prover_batch_instances_from_base};
 
 impl<SC, const D: usize> BatchAir<SC> for RecomposeAir<Val<SC>, D>
 where
@@ -57,11 +57,11 @@ impl<const D: usize> RecomposeProver<D> {
         }
     }
 
-    fn batch_instance_base<SC>(
+    fn batch_instance_for_trace_field<SC, TraceField>(
         &self,
         _config: &SC,
         packing: &TablePacking,
-        traces: &Traces<Val<SC>>,
+        traces: &Traces<TraceField>,
     ) -> Option<BatchTableInstance<SC>>
     where
         SC: StarkGenericConfig + 'static + Send + Sync,
@@ -147,7 +147,59 @@ where
         self.lanes
     }
 
-    impl_table_prover_batch_instances_from_base!(batch_instance_base);
+    fn batch_instance_d1(
+        &self,
+        config: &SC,
+        packing: &TablePacking,
+        traces: &Traces<Val<SC>>,
+    ) -> Option<BatchTableInstance<SC>> {
+        self.batch_instance_for_trace_field(config, packing, traces)
+    }
+
+    fn batch_instance_d2(
+        &self,
+        config: &SC,
+        packing: &TablePacking,
+        traces: &Traces<BinomialExtensionField<Val<SC>, 2>>,
+    ) -> Option<BatchTableInstance<SC>> {
+        self.batch_instance_for_trace_field(config, packing, traces)
+    }
+
+    fn batch_instance_d4(
+        &self,
+        config: &SC,
+        packing: &TablePacking,
+        traces: &Traces<BinomialExtensionField<Val<SC>, 4>>,
+    ) -> Option<BatchTableInstance<SC>> {
+        self.batch_instance_for_trace_field(config, packing, traces)
+    }
+
+    fn batch_instance_d6(
+        &self,
+        config: &SC,
+        packing: &TablePacking,
+        traces: &Traces<BinomialExtensionField<Val<SC>, 6>>,
+    ) -> Option<BatchTableInstance<SC>> {
+        self.batch_instance_for_trace_field(config, packing, traces)
+    }
+
+    fn batch_instance_d8(
+        &self,
+        config: &SC,
+        packing: &TablePacking,
+        traces: &Traces<BinomialExtensionField<Val<SC>, 8>>,
+    ) -> Option<BatchTableInstance<SC>> {
+        self.batch_instance_for_trace_field(config, packing, traces)
+    }
+
+    fn batch_instance_d5(
+        &self,
+        config: &SC,
+        packing: &TablePacking,
+        traces: &Traces<QuinticTrinomialExtensionField<Val<SC>>>,
+    ) -> Option<BatchTableInstance<SC>> {
+        self.batch_instance_for_trace_field(config, packing, traces)
+    }
 
     fn batch_air_from_table_entry(
         &self,
@@ -202,6 +254,10 @@ impl RecomposePreprocessor {
 }
 
 impl NpoPreprocessor<KoalaBear> for RecomposePreprocessor {
+    fn requires_runtime_circuit_metadata(&self) -> bool {
+        false
+    }
+
     fn preprocess(
         &self,
         _circuit: &dyn core::any::Any,
@@ -227,6 +283,10 @@ impl NpoPreprocessor<KoalaBear> for RecomposePreprocessor {
 }
 
 impl NpoPreprocessor<BabyBear> for RecomposePreprocessor {
+    fn requires_runtime_circuit_metadata(&self) -> bool {
+        false
+    }
+
     fn preprocess(
         &self,
         _circuit: &dyn core::any::Any,
@@ -247,6 +307,10 @@ impl NpoPreprocessor<BabyBear> for RecomposePreprocessor {
 }
 
 impl NpoPreprocessor<Goldilocks> for RecomposePreprocessor {
+    fn requires_runtime_circuit_metadata(&self) -> bool {
+        false
+    }
+
     fn preprocess(
         &self,
         _circuit: &dyn core::any::Any,
@@ -267,7 +331,7 @@ impl NpoPreprocessor<Goldilocks> for RecomposePreprocessor {
 }
 
 fn recompose_preprocess_impl<F, EF, const D: usize>(
-    prep: &PreprocessedColumns<EF, D>,
+    prep: &mut PreprocessedColumns<EF, D>,
     split_coeff_tables: bool,
 ) -> Result<NonPrimitivePreprocessedMap<F>, CircuitError>
 where
@@ -292,7 +356,7 @@ where
 
 /// Extract preprocessed rows for one recompose `NpoTypeId` and set output / coeff multiplicities.
 fn recompose_preprocess_for_op<F, EF, const D: usize>(
-    prep: &PreprocessedColumns<EF, D>,
+    prep: &mut PreprocessedColumns<EF, D>,
     op_type: &NpoTypeId,
     coeff_lookups: bool,
 ) -> Result<NonPrimitivePreprocessedMap<F>, CircuitError>
@@ -300,17 +364,13 @@ where
     F: StarkField + PrimeField64,
     EF: Field + ExtensionField<F> + 'static,
 {
-    let ef_data = match prep.non_primitive.get(op_type) {
-        Some(d) if !d.is_empty() => d,
-        _ => return Ok(HashMap::new()),
-    };
-
     let prep_width = if coeff_lookups { 2 + 2 * D } else { 2 };
-
-    let mut prep_base: Vec<F> = ef_data
-        .iter()
-        .map(|v| v.as_base().ok_or(CircuitError::InvalidPreprocessedValues))
-        .collect::<Result<Vec<_>, CircuitError>>()?;
+    let Some(mut prep_base) = take_non_primitive_base_columns(prep, op_type)? else {
+        return Ok(HashMap::new());
+    };
+    if prep_base.is_empty() {
+        return Ok(HashMap::new());
+    }
 
     if !prep_base.len().is_multiple_of(prep_width) {
         return Err(CircuitError::InvalidPreprocessedValues);
@@ -394,10 +454,11 @@ where
     fn try_build(
         &self,
         op_type: &NpoTypeId,
-        prep_base: &[Val<SC>],
+        prep_base: &mut Vec<Val<SC>>,
         min_height: usize,
         lanes: usize,
         _constraint_profile: ConstraintProfile,
+        retain_preprocessed_columns: bool,
     ) -> Option<(CircuitTableAir<SC, D>, usize)> {
         let matches = if !self.coeff_lookups {
             op_type.as_str() == "recompose"
@@ -412,10 +473,15 @@ where
             RecomposeAir::<Val<SC>, D>::preprocessed_lane_width_for(self.coeff_lookups);
         let num_ops = prep_base.len() / prep_lane_width;
         let num_rows = num_ops.div_ceil(lanes).max(1);
+        let committed_prep = if retain_preprocessed_columns {
+            prep_base.clone()
+        } else {
+            core::mem::take(prep_base)
+        };
 
         let air = RecomposeAir::<Val<SC>, D>::new_with_preprocessed(
             lanes,
-            prep_base.to_vec(),
+            committed_prep,
             min_height,
             self.coeff_lookups,
         );

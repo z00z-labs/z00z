@@ -22,7 +22,7 @@ fn test_shared_dh_eq() {
         let view_sk = hash_to_scalar_domain(b"z00z.consensus.view_key.v1", &[&receiver_secret]);
         let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
 
-        let r = Z00ZScalar::random(&mut rng);
+        let r = Z00ZScalar::random(&mut rng).unwrap();
         let sender = sender_derive_dh_with_r(&view_pk, &r).expect("sender derive failed");
         let dh_recv = receiver_derive_dh(&view_sk, &sender.r_pub).expect("receiver derive failed");
 
@@ -42,7 +42,7 @@ fn test_unique_ephemeral_dh() {
     let mut seen_dh: HashSet<[u8; 32]> = HashSet::new();
 
     for _ in 0..1000 {
-        let r = Z00ZScalar::random(&mut rng);
+        let r = Z00ZScalar::random(&mut rng).unwrap();
         let result = sender_derive_dh_with_r(&view_pk, &r).expect("sender derive failed");
         assert!(seen_r.insert(result.r.to_bytes()), "r repeated");
         assert!(seen_r_pub.insert(result.r_pub.to_bytes()), "R_pub repeated");
@@ -59,7 +59,7 @@ fn test_receiver_isolation() {
     let bob_handle = poseidon2_hash(b"z00z.consensus.receiver_id.v1", &[&bob_secret]);
     let bob_view_pk = Z00ZRistrettoPoint::from_secret_key(&bob_view_sk);
 
-    let r = Z00ZScalar::random(&mut SystemRngProvider.rng());
+    let r = Z00ZScalar::random(&mut SystemRngProvider.rng()).unwrap();
     let sender_res = sender_derive_dh_with_r(&bob_view_pk, &r).expect("sender derive failed");
     let bob_k_dh = derive_k_dh(&sender_res.dh.to_bytes());
     let bob_tag = poseidon2_hash(b"z00z.consensus.owner_tag.v1", &[&bob_handle, &bob_k_dh]);
@@ -90,7 +90,7 @@ fn test_reject_identity_r_pub() {
 #[test]
 fn test_reject_identity_view_pk() {
     let id_view_pk = Z00ZRistrettoPoint::identity();
-    let r = Z00ZScalar::random(&mut SystemRngProvider.rng());
+    let r = Z00ZScalar::random(&mut SystemRngProvider.rng()).unwrap();
     let result = sender_derive_dh_with_r(&id_view_pk, &r);
     assert!(result.is_err(), "identity view_pk must be rejected");
     assert!(matches!(result, Err(WalletError::IdentityPointNotAllowed)));
@@ -99,7 +99,7 @@ fn test_reject_identity_view_pk() {
 #[test]
 fn test_reject_zero_view_sk() {
     let zero_view_sk = z00z_crypto::Z00ZScalar::zero();
-    let r = Z00ZScalar::random(&mut SystemRngProvider.rng());
+    let r = Z00ZScalar::random(&mut SystemRngProvider.rng()).unwrap();
     let valid_r = sender_derive_dh_with_r(&Z00ZRistrettoPoint::generator(), &r)
         .expect("sender derive failed");
     let result = receiver_derive_dh(&zero_view_sk, &valid_r.r_pub);

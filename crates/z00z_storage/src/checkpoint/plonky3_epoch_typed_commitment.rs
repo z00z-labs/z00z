@@ -206,11 +206,13 @@ pub(super) fn rows(
                 values.push(KoalaBear::from_bool(index == kind_index));
             }
             extend_u64_limbs(&mut values, record.event_ordinal);
+            values.extend(record.event_ordinal.to_le_bytes().map(KoalaBear::from_u8));
             values.push(KoalaBear::from_u16(u16::from(
                 TYPED_CHECKPOINT_COMMITMENT_VERSION_V2,
             )));
             values.push(KoalaBear::from_u16(u16::from(record.kind as u8)));
             extend_digest_limbs(&mut values, record.digest);
+            values.extend(record.digest.map(KoalaBear::from_u8));
             values.push(KoalaBear::from_usize(running_count));
             for carry in if kind_index + 1 < air::COMMITMENTS_PER_TRANSITION_V2 {
                 increment_carries(record.event_ordinal)

@@ -4,6 +4,9 @@ use p3_air::AirBuilder;
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use super::plonky3_epoch_jmt_air::*;
+use crate::settlement::{
+    noop_update_trace_digest, RootGeneration, JMT_TRACE_NOOP_KIND_V2, JMT_UPDATE_TRACE_VERSION_V2,
+};
 
 pub(super) fn eval_row_shape<AB, const D: usize>(
     builder: &mut AB,
@@ -23,11 +26,26 @@ pub(super) fn eval_row_shape<AB, const D: usize>(
         }
     }
 
+    builder.assert_eq(
+        public[PUBLIC_HEADER_OFFSET_V2].clone(),
+        AB::Expr::from_u64(u64::from(JMT_UPDATE_TRACE_VERSION_V2)),
+    );
+    builder.assert_eq(
+        public[PUBLIC_HEADER_OFFSET_V2 + 1].clone(),
+        AB::Expr::from_u64(u64::from(RootGeneration::SettlementV2.version())),
+    );
     let active = field::<AB, D>(local, ACTIVE_OFFSET_V2);
     let next_active = field::<AB, D>(next, ACTIVE_OFFSET_V2);
+    let no_op = public[PUBLIC_HEADER_OFFSET_V2 + 2].clone() - one.clone();
+    let mutating = one.clone() - no_op.clone();
+    builder.assert_bool(no_op.clone());
     builder.assert_bool(active.clone());
-    builder.when_first_row().assert_one(active.clone());
-    builder.when_first_row().assert_one(op(local, 1));
+    builder
+        .when_first_row()
+        .assert_eq(active.clone(), mutating.clone());
+    builder
+        .when_first_row()
+        .assert_eq(op(local, 1), mutating.clone());
     builder
         .when_transition()
         .assert_zero(next_active.clone() * (one.clone() - active.clone()));
@@ -96,6 +114,20 @@ pub(super) fn eval_row_shape<AB, const D: usize>(
         })
         .fold(AB::Expr::ZERO, |sum, value| sum + value);
     builder.assert_zero(op(local, 1) * (record_byte::<AB, D>(local, 6) - encoded_role));
+    for byte in 0..TREE_DEFINITION_BYTES_V2 {
+        builder.assert_zero(
+            op(local, 1)
+                * (field::<AB, D>(local, TREE_DEFINITION_OFFSET_V2 + byte)
+                    - record_byte::<AB, D>(local, 7 + byte)),
+        );
+    }
+    for byte in 0..TREE_SERIAL_BYTES_V2 {
+        builder.assert_zero(
+            op(local, 1)
+                * (field::<AB, D>(local, TREE_SERIAL_OFFSET_V2 + byte)
+                    - record_byte::<AB, D>(local, 39 + byte)),
+        );
+    }
     let encoded_case = (0..CASE_COUNT_V2)
         .map(|index| {
             field::<AB, D>(local, CASE_OFFSET_V2 + index) * AB::Expr::from_u64((index + 1) as u64)
@@ -124,7 +156,9 @@ pub(super) fn eval_row_shape<AB, const D: usize>(
 
     let running = field::<AB, D>(local, RUNNING_OFFSET_V2);
     let next_running = field::<AB, D>(next, RUNNING_OFFSET_V2);
-    builder.when_first_row().assert_one(running.clone());
+    builder
+        .when_first_row()
+        .assert_eq(running.clone(), mutating.clone());
     builder
         .when_transition()
         .assert_eq(next_running, running.clone() + next_active.clone());
@@ -137,7 +171,34 @@ pub(super) fn eval_row_shape<AB, const D: usize>(
         .assert_eq(running.clone(), public_rows.clone());
     builder
         .when_transition()
-        .assert_zero((active.clone() - next_active.clone()) * (running - public_rows));
+        .assert_zero((active.clone() - next_active.clone()) * (running - public_rows.clone()));
+
+    let header_update_low = public[PUBLIC_HEADER_OFFSET_V2 + 35].clone()
+        + public[PUBLIC_HEADER_OFFSET_V2 + 36].clone() * AB::Expr::from_u64(256);
+    let header_update_high = public[PUBLIC_HEADER_OFFSET_V2 + 37].clone()
+        + public[PUBLIC_HEADER_OFFSET_V2 + 38].clone() * AB::Expr::from_u64(256);
+    builder.assert_zero(no_op.clone() * public_rows);
+    builder.assert_zero(no_op.clone() * header_update_low);
+    builder.assert_zero(no_op.clone() * header_update_high);
+    for limb in 0..16 {
+        builder.assert_zero(
+            no_op.clone()
+                * (public[PUBLIC_INPUT_ROOT_OFFSET_V2 + limb].clone()
+                    - public[PUBLIC_OUTPUT_ROOT_OFFSET_V2 + limb].clone()),
+        );
+    }
+    for (index, byte) in noop_update_trace_digest().into_iter().enumerate() {
+        builder.assert_zero(
+            no_op.clone()
+                * (public[PUBLIC_HEADER_OFFSET_V2 + 3 + index].clone()
+                    - AB::Expr::from_u64(u64::from(byte))),
+        );
+    }
+    builder.assert_zero(
+        no_op
+            * (public[PUBLIC_HEADER_OFFSET_V2 + 2].clone()
+                - AB::Expr::from_u64(u64::from(JMT_TRACE_NOOP_KIND_V2))),
+    );
 
     let allowed = [
         (1, vec![6]),

@@ -41,6 +41,8 @@ pub mod rng_mode;
 pub mod scenario_1;
 /// Scenario 11 shard-local quorum harness.
 pub mod scenario_11;
+/// Recursive checkpoint load and capacity scenario.
+pub mod scenario_2;
 
 /// Simulator actor type.
 pub use actors::SimActor;

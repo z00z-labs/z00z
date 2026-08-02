@@ -64,7 +64,7 @@ fn test_asset_creation() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let nonce = derive_test_nonce(&mut rng, &test_time());
 
     let asset = Asset::new(def, 100, 1_000_000, &blinding, nonce, &mut rng).expect("valid asset");
@@ -80,7 +80,7 @@ fn test_asset_is_transparent() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let nonce = derive_test_nonce(&mut rng, &test_time());
 
     let asset = Asset::new(def, 100, 10, &blinding, nonce, &mut rng).expect("valid asset");
@@ -95,7 +95,7 @@ fn test_asset_is_stealth() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let nonce = derive_test_nonce(&mut rng, &test_time());
 
     let mut asset = Asset::new(def, 100, 10, &blinding, nonce, &mut rng).expect("valid asset");
@@ -117,7 +117,7 @@ fn test_asset_partial_stealth_fails() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let nonce = derive_test_nonce(&mut rng, &test_time());
 
     let mut asset = Asset::new(def, 100, 10, &blinding, nonce, &mut rng).expect("valid asset");
@@ -137,7 +137,7 @@ fn test_asset_tag16_payload_fails() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let nonce = derive_test_nonce(&mut rng, &test_time());
 
     let mut asset = Asset::new(def, 100, 10, &blinding, nonce, &mut rng).expect("valid asset");
@@ -151,7 +151,7 @@ fn test_asset_serial_id_validation() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
 
     // Valid: serial_id < serials (1000)
     let result = Asset::new(
@@ -193,7 +193,7 @@ fn test_asset_id_uniqueness() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset1 = Asset::new(
         Arc::clone(&def),
@@ -223,7 +223,7 @@ fn test_asset_id_deterministic() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let nonce = derive_test_nonce(&mut rng, &test_time());
 
     let asset1 = Asset::new(Arc::clone(&def), 100, 1_000_000, &blinding, nonce, &mut rng).unwrap();
@@ -238,7 +238,7 @@ fn test_with_lock_height() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset = Asset::new(
         def,
@@ -262,7 +262,7 @@ fn test_with_burn() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset = Asset::new(
         def,
@@ -301,7 +301,7 @@ fn test_with_burn_not_allowed() {
     let def_id = def.id;
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset = Asset::new(
         def,
@@ -332,7 +332,7 @@ fn test_arc_definition_sharing() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset1 = Asset::new(
         Arc::clone(&def),
@@ -381,7 +381,7 @@ fn test_validate_burn_flag_mismatch() {
 
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let mut asset = Asset::new(
         def,
         100,
@@ -413,7 +413,7 @@ fn test_asset_auto_signature() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
     let nonce = derive_test_nonce(&mut rng, &test_time());
 
     let asset = Asset::new(def, 100, 1_000_000, &secret, nonce, &mut rng).expect("valid asset");
@@ -451,8 +451,8 @@ fn test_new_prevents_wrong_secret() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let correct_secret = Z00ZScalar::random(&mut rng);
-    let wrong_secret = Z00ZScalar::random(&mut rng);
+    let correct_secret = Z00ZScalar::random(&mut rng).unwrap();
+    let wrong_secret = Z00ZScalar::random(&mut rng).unwrap();
 
     // Try to create Asset with correct blinding but it will be signed internally
     // The signature will use correct_secret, so it should match owner_pub
@@ -490,7 +490,7 @@ fn test_validate_requires_range_proof() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let mut asset = Asset::new(
         def,
@@ -531,7 +531,7 @@ fn test_owner_message_debug_assert() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset = Asset::new(
         def,
@@ -558,7 +558,7 @@ fn test_asset_signature_covers_fields() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let mut asset = Asset::new(
         def,
@@ -599,7 +599,7 @@ fn test_commitment_factories_compatible() {
     let amount = 1_000_000u64;
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
 
     // Create commitment using z00z_crypto public API
     let c1 = z00z_crypto::create_commitment(amount, &blinding)
@@ -623,7 +623,7 @@ fn test_verify_complete_validates_crypto() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset = Asset::new(
         def,
@@ -657,7 +657,7 @@ fn test_frozen_flag_in_signature() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let mut asset = Asset::new(
         def,
@@ -701,7 +701,7 @@ fn test_slashed_flag_in_signature() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let mut asset = Asset::new(
         def,
@@ -745,7 +745,7 @@ fn test_coin_zero_amount_rejected() {
     let def = create_test_definition(); // Coin class
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let result = Asset::new(
         def,
@@ -789,7 +789,7 @@ fn test_token_zero_amount_rejected() {
 
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let result = Asset::new(
         def,
@@ -829,7 +829,7 @@ fn test_nft_zero_amount_allowed() {
 
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let result = Asset::new(
         def,
@@ -852,7 +852,7 @@ fn test_debug_redacts_sensitive_data() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let asset = Asset::new(
         def,
@@ -929,7 +929,7 @@ fn test_prior_owner_signature_rejects() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let secret = Z00ZScalar::random(&mut rng);
+    let secret = Z00ZScalar::random(&mut rng).unwrap();
 
     let mut asset = Asset::new(
         def,
@@ -1016,7 +1016,7 @@ fn test_zero_amount_accepted() {
 
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let asset = Asset::new(
         def,
         1,
@@ -1035,7 +1035,7 @@ fn test_max_u64_accepted() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let asset = Asset::new(
         def,
         1,
@@ -1054,7 +1054,7 @@ fn test_missing_range_proof_rejected() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let mut asset = Asset::new(
         def,
         1,
@@ -1076,7 +1076,7 @@ fn test_validate_amount_tampered_proof() {
     let def = create_test_definition();
     let provider = test_rng();
     let mut rng = provider.rng();
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let mut asset = Asset::new(
         def,
         1,
@@ -1145,7 +1145,7 @@ fn test_opening_bad_blind() {
     let (asset, _) = Asset::new_confidential(def, 1, 500, nonce).expect("new_confidential");
     let provider = test_rng();
     let mut rng = provider.rng();
-    let wrong = Z00ZScalar::random(&mut rng);
+    let wrong = Z00ZScalar::random(&mut rng).unwrap();
 
     let result = asset.verify_commitment_opening(&wrong);
     assert!(matches!(result, Err(AssetError::CommitmentMismatch { .. })));

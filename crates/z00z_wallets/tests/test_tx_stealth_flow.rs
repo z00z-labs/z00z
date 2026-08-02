@@ -62,11 +62,11 @@ fn build_case() -> TestCase {
     let serial_id = 1u32;
     let amount = 1000u64;
 
-    let sender = sender_derive_dh_with_r(&bob_view_pk, &Z00ZScalar::random(&mut rng))
+    let sender = sender_derive_dh_with_r(&bob_view_pk, &Z00ZScalar::random(&mut rng).unwrap())
         .expect("sender derive failed");
     let k_dh = derive_k_dh(&sender.dh.to_bytes());
 
-    let blinding = Z00ZScalar::random(&mut rng);
+    let blinding = Z00ZScalar::random(&mut rng).unwrap();
     let commitment = commit_value(amount, &blinding);
     let range_proof =
         create_range_proof(amount, &blinding, 64, 0).expect("range proof generation failed");

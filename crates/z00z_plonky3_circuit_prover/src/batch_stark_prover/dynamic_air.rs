@@ -1,6 +1,7 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::any::TypeId;
 
 #[cfg(debug_assertions)]
 use p3_air::DebugConstraintBuilder;
@@ -85,6 +86,18 @@ where
 
     fn main_next_row_columns(&self) -> Vec<usize> {
         <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::main_next_row_columns(self.air())
+    }
+
+    fn preprocessed_next_row_columns(&self) -> Vec<usize> {
+        <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::preprocessed_next_row_columns(self.air())
+    }
+
+    fn num_constraints(&self) -> Option<usize> {
+        <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::num_constraints(self.air())
+    }
+
+    fn max_constraint_degree(&self) -> Option<usize> {
+        <dyn CloneableBatchAir<SC> as BaseAir<Val<SC>>>::max_constraint_degree(self.air())
     }
 
     fn num_periodic_columns(&self) -> usize {
@@ -293,25 +306,20 @@ where
     pub lanes: usize,
 }
 
+/// Recover the canonical concrete trace-field type after runtime extension
+/// dispatch.
+///
+/// The public prover accepts a generic field, so equal extension dimensions
+/// alone are insufficient to justify a reference cast. Requiring exact
+/// `TypeId` equality first makes the cast an identity at the Rust type level
+/// and rejects custom same-dimension fields before any trace is read.
 #[inline(always)]
-/// Reinterpret a `&Traces<FromEF>` as a `&Traces<ToEF>` to recover a const extension
-/// degree from a runtime one for the const-generic `batch_instance_d{1,2,4,5,6,8}` dispatch.
-///
-/// # Safety
-///
-/// Both of the following must hold:
-///
-/// 1. **Layout match.** `Traces<FromEF>` and `Traces<ToEF>` must have identical size and
-///    alignment. The field type only appears behind the value vectors and the boxed trait
-///    objects, so this holds whenever `FromEF` and `ToEF` have the same layout — in
-///    particular when the caller picks `ToEF` to match `FromEF`'s actual extension degree.
-/// 2. **Access discipline.** The returned reference must only be used to read
-///    `non_primitive_traces`, downcasting each boxed `dyn NonPrimitiveTrace` to the concrete
-///    trace type it was constructed as (which carries its own trace field, independent of
-///    `ToEF`). The `FromEF`-typed value vectors (`witness_trace`, `const_trace`,
-///    `public_trace`, `alu_trace`) must NOT be read through the `ToEF` view, since that would
-///    reinterpret `FromEF` field elements as `ToEF` ones.
-pub(crate) unsafe fn transmute_traces<FromEF, ToEF>(t: &Traces<FromEF>) -> &Traces<ToEF> {
+pub(crate) fn cast_traces_exact<FromEF: 'static, ToEF: 'static>(
+    traces: &Traces<FromEF>,
+) -> Option<&Traces<ToEF>> {
+    if TypeId::of::<FromEF>() != TypeId::of::<ToEF>() {
+        return None;
+    }
     debug_assert_eq!(
         core::mem::size_of::<Traces<FromEF>>(),
         core::mem::size_of::<Traces<ToEF>>()
@@ -321,14 +329,15 @@ pub(crate) unsafe fn transmute_traces<FromEF, ToEF>(t: &Traces<FromEF>) -> &Trac
         core::mem::align_of::<Traces<ToEF>>()
     );
 
-    unsafe { &*(t as *const _ as *const Traces<ToEF>) }
+    // SAFETY: `TypeId` equality proves `FromEF` and `ToEF` are the same
+    // concrete `'static` type. The outer generic constructors are therefore
+    // identical too.
+    Some(unsafe { &*(traces as *const _ as *const Traces<ToEF>) })
 }
 
 /// Trait implemented by all non-primitive table plugins used by the batch prover.
 ///
-/// Implementors would typically delegate to an existing AIR type, define a base case
-/// for base-field traces, and then use the [`impl_table_prover_batch_instances_from_base!`]
-/// macro to generate the degree-specific implementations.
+/// Implementors dispatch explicitly over the supported trace-field types.
 pub trait TableProver<SC>: Send + Sync
 where
     SC: StarkGenericConfig + 'static,

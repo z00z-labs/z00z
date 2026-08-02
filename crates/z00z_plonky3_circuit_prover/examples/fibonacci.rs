@@ -1,7 +1,6 @@
 use std::env;
 use std::error::Error;
 
-use p3_batch_stark::ProverData;
 use p3_circuit::CircuitBuilder;
 use p3_field::PrimeCharacteristicRing;
 /// Fibonacci circuit: Compute F(n) and prove correctness
@@ -12,6 +11,7 @@ use tracing_forest::util::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Registry};
+use z00z_plonky3_circuit_prover::batch_stark_prover::canonical_prover_data_from_airs_and_degrees;
 use z00z_plonky3_circuit_prover::common::get_airs_and_degrees_with_prep;
 use z00z_plonky3_circuit_prover::config::KoalaBearConfig;
 use z00z_plonky3_circuit_prover::{
@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     runner.set_public_inputs(&[expected_fib])?;
 
     let traces = runner.run()?;
-    let prover_data = ProverData::from_airs_and_degrees(&config, &airs, &degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&config, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
     let prover = BatchStarkProver::new(config).with_table_packing(table_packing);

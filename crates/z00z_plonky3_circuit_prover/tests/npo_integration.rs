@@ -18,8 +18,10 @@ use p3_koala_bear::KoalaBear;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_test_utils::baby_bear_params::*;
 use z00z_plonky3_circuit_prover::batch_stark_prover::{
-    BatchAir, BatchStarkProver, BatchTableInstance, CircuitProverData, DynamicAirEntry,
-    NonPrimitiveTableEntry, TablePacking, TableProver,
+    BatchAir, BatchStarkProof, BatchStarkProver, BatchTableInstance, CircuitProverData,
+    DynamicAirEntry, NonPrimitiveTableEntry, OneShotResourceSnapshotV2, OneShotResourceStageV2,
+    OneShotResourceTelemetrySinkV2, TablePacking, TableProver,
+    canonical_prover_data_from_airs_and_degrees,
 };
 use z00z_plonky3_circuit_prover::common::get_airs_and_degrees_with_prep;
 use z00z_plonky3_circuit_prover::{ConstraintProfile, config};
@@ -300,7 +302,7 @@ fn cube_npo_stark_proof() {
     let traces = runner.run().expect("run cube circuit");
 
     // Prove all primitive tables.
-    let prover_data = p3_batch_stark::ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
     let prover = BatchStarkProver::new(cfg);
@@ -450,8 +452,7 @@ impl TableProver<config::KoalaBearConfig> for DirectCubeTableProver {
     }
 }
 
-#[test]
-fn direct_table_batch_stark_roundtrip_uses_no_circuit_prover_data() {
+fn direct_cube_traces() -> Traces<KoalaBear> {
     let rows = (1..=32)
         .map(|value| {
             let x = KoalaBear::from_u64(value);
@@ -460,13 +461,12 @@ fn direct_table_batch_stark_roundtrip_uses_no_circuit_prover_data() {
         })
         .collect::<Vec<_>>();
     let direct_trace = DirectCubeTrace { rows };
-    let op_type = direct_trace.op_type();
     let mut non_primitive_traces = hashbrown::HashMap::new();
     non_primitive_traces.insert(
-        op_type.clone(),
+        direct_trace.op_type(),
         Box::new(direct_trace) as Box<dyn NonPrimitiveTrace<KoalaBear>>,
     );
-    let traces = Traces {
+    Traces {
         witness_trace: WitnessTrace::new(Vec::new()),
         const_trace: ConstTrace {
             index: Vec::new(),
@@ -479,19 +479,219 @@ fn direct_table_batch_stark_roundtrip_uses_no_circuit_prover_data() {
         alu_trace: AluTrace::from_records(Vec::new()),
         non_primitive_traces,
         tag_to_witness: hashbrown::HashMap::new(),
-    };
+    }
+}
+
+#[derive(Default)]
+struct CapturingOneShotResourceSinkV2 {
+    snapshots: Vec<OneShotResourceSnapshotV2>,
+}
+
+impl OneShotResourceTelemetrySinkV2 for CapturingOneShotResourceSinkV2 {
+    fn record(&mut self, snapshot: OneShotResourceSnapshotV2) {
+        self.snapshots.push(snapshot);
+    }
+}
+
+fn assert_serialized_eq<T>(left: &T, right: &T, label: &str)
+where
+    T: serde::Serialize + ?Sized,
+{
+    let left = postcard::to_allocvec(left).expect("serialize left verifier surface");
+    let right = postcard::to_allocvec(right).expect("serialize right verifier surface");
+    assert!(left == right, "{label} must be byte-identical");
+}
+
+fn assert_direct_verifier_surface_eq(
+    left: &BatchStarkProof<config::KoalaBearConfig>,
+    right: &BatchStarkProof<config::KoalaBearConfig>,
+) {
+    assert_eq!(left.table_packing, right.table_packing);
+    assert_eq!(left.rows, right.rows);
+    assert_eq!(left.alu_variant, right.alu_variant);
+    assert_eq!(left.ext_degree, right.ext_degree);
+    assert_eq!(left.w_binomial, right.w_binomial);
+    assert_eq!(left.alu_quintic_trinomial, right.alu_quintic_trinomial);
+    assert_serialized_eq(
+        &left.non_primitives,
+        &right.non_primitives,
+        "ordered non-primitive public manifest",
+    );
+    assert_serialized_eq(
+        &left.proof.commitments,
+        &right.proof.commitments,
+        "trace and quotient commitments",
+    );
+    assert_serialized_eq(
+        &left.proof.lookup_terminals,
+        &right.proof.lookup_terminals,
+        "lookup terminals",
+    );
+    assert_eq!(
+        left.proof.degree_bits, right.proof.degree_bits,
+        "AIR order and extended-domain sizes must match",
+    );
+
+    assert_eq!(
+        left.stark_common.lookups.len(),
+        right.stark_common.lookups.len(),
+        "lookup layout must have one entry per AIR in the same order",
+    );
+    for (air_index, (left_lookups, right_lookups)) in left
+        .stark_common
+        .lookups
+        .iter()
+        .zip(&right.stark_common.lookups)
+        .enumerate()
+    {
+        assert!(
+            format!("{left_lookups:?}") == format!("{right_lookups:?}"),
+            "symbolic lookup layout differs at AIR {air_index}",
+        );
+    }
+
+    match (
+        &left.stark_common.preprocessed,
+        &right.stark_common.preprocessed,
+    ) {
+        (None, None) => {}
+        (Some(left), Some(right)) => {
+            assert_serialized_eq(
+                &left.commitment,
+                &right.commitment,
+                "preprocessed commitment",
+            );
+            assert_eq!(left.matrix_to_instance, right.matrix_to_instance);
+            assert_eq!(left.instances.len(), right.instances.len());
+            for (air_index, (left, right)) in
+                left.instances.iter().zip(&right.instances).enumerate()
+            {
+                match (left, right) {
+                    (None, None) => {}
+                    (Some(left), Some(right)) => {
+                        assert_eq!(left.matrix_index, right.matrix_index);
+                        assert_eq!(left.width, right.width);
+                        assert_eq!(
+                            left.degree_bits, right.degree_bits,
+                            "preprocessed domain differs at AIR {air_index}",
+                        );
+                    }
+                    _ => panic!("preprocessed table presence differs at AIR {air_index}"),
+                }
+            }
+        }
+        _ => panic!("preprocessed commitment presence differs"),
+    }
+}
+
+#[test]
+fn direct_one_shot_matches_borrowed() {
+    let borrowed_traces = direct_cube_traces();
+    let owned_traces = direct_cube_traces();
+    let telemetry_traces = direct_cube_traces();
+    let op_type = NpoTypeId::new(DIRECT_CUBE_TYPE_ID);
     let mut prover = BatchStarkProver::new(config::koala_bear())
         .with_table_packing(TablePacking::new(1, 1).with_min_trace_height(32));
     prover.register_table_prover(Box::new(DirectCubeTableProver));
 
+    let borrowed_proof = prover
+        .prove_direct_tables(&borrowed_traces)
+        .expect("borrowed direct KoalaBear table proof should succeed");
     let proof = prover
-        .prove_direct_tables(&traces)
-        .expect("direct KoalaBear table proof should succeed");
+        .prove_direct_tables_one_shot(owned_traces)
+        .expect("owned direct KoalaBear table proof should succeed");
+    let mut telemetry = CapturingOneShotResourceSinkV2::default();
+    let telemetry_proof = prover
+        .prove_direct_tables_one_shot_with_resource_telemetry(telemetry_traces, &mut telemetry)
+        .expect("telemetry direct KoalaBear table proof should succeed");
+
+    // Full proof bytes are intentionally not compared across separate invocations. The pinned
+    // p3-challenger 0.6.1 FRI query PoW uses a parallel `find_map_any`, so two valid proofs may
+    // select different PoW witnesses and therefore different query openings. The deterministic
+    // verifier-visible transcript prefix, public metadata, table order, and domains must match.
+    assert_direct_verifier_surface_eq(&proof, &telemetry_proof);
+    assert_eq!(
+        telemetry
+            .snapshots
+            .iter()
+            .map(|snapshot| snapshot.stage)
+            .collect::<Vec<_>>(),
+        [
+            OneShotResourceStageV2::Entry,
+            OneShotResourceStageV2::PostMainCommit,
+            OneShotResourceStageV2::PostLogUpPreTraceDrop,
+            OneShotResourceStageV2::PostTraceDrop,
+            OneShotResourceStageV2::PostPermutationCommit,
+            OneShotResourceStageV2::PostQuotientAir,
+            OneShotResourceStageV2::PostQuotientAir,
+            OneShotResourceStageV2::PostQuotientAir,
+            OneShotResourceStageV2::PostQuotientAir,
+            OneShotResourceStageV2::PostQuotientCommit,
+            OneShotResourceStageV2::PreOpen,
+            OneShotResourceStageV2::PostOpen,
+        ],
+        "telemetry schema must cover every one-shot lifetime boundary",
+    );
+    assert_eq!(
+        telemetry
+            .snapshots
+            .iter()
+            .filter_map(|snapshot| snapshot.air_index)
+            .collect::<Vec<_>>(),
+        [0, 1, 2, 3],
+        "one quotient snapshot must be emitted for every AIR in canonical order",
+    );
+    assert!(telemetry.snapshots[0].visible_buffers.main_trace.len_bytes > 0);
+    assert_eq!(
+        telemetry.snapshots[1].visible_buffers.main_trace,
+        Default::default(),
+        "main PCS must consume the complete original trace set",
+    );
+    assert!(
+        telemetry.snapshots[2]
+            .visible_buffers
+            .permutation_trace
+            .len_bytes
+            > 0,
+        "LogUp must materialize permutation traces before the main-trace drop",
+    );
+    assert_eq!(
+        telemetry.snapshots[2].visible_buffers.main_trace,
+        Default::default(),
+        "one-table LogUp reconstruction must not retain a main-trace set",
+    );
+    assert_eq!(
+        telemetry.snapshots[3].visible_buffers.main_trace,
+        Default::default(),
+        "main-trace length and capacity must both be zero before permutation commit",
+    );
+    assert_eq!(
+        telemetry.snapshots[3].visible_buffers.permutation_trace,
+        telemetry.snapshots[2].visible_buffers.permutation_trace,
+        "the ordered permutation traces must survive the main-trace drop",
+    );
+    assert_eq!(
+        telemetry.snapshots[4].visible_buffers.main_trace,
+        Default::default(),
+        "permutation commit must not resurrect a visible main-trace allocation",
+    );
+    assert_eq!(
+        telemetry.snapshots[4].visible_buffers.permutation_trace,
+        Default::default(),
+        "owned permutation matrices must be consumed by permutation commit",
+    );
 
     assert_eq!(proof.ext_degree, 1);
     assert_eq!(proof.non_primitives.len(), 1);
     assert_eq!(proof.non_primitives[0].op_type, op_type);
+    assert_direct_verifier_surface_eq(&borrowed_proof, &proof);
+    prover
+        .verify_all_tables::<Val<config::KoalaBearConfig>>(&borrowed_proof)
+        .expect("borrowed direct KoalaBear table proof should verify");
     prover
         .verify_all_tables::<Val<config::KoalaBearConfig>>(&proof)
-        .expect("direct KoalaBear table proof should verify");
+        .expect("owned direct KoalaBear table proof should verify");
+    prover
+        .verify_all_tables::<Val<config::KoalaBearConfig>>(&telemetry_proof)
+        .expect("telemetry direct KoalaBear table proof should verify");
 }

@@ -60,14 +60,14 @@
 //! ## K-step packed HornerAcc
 //!
 //! When HornerAcc operations are present, [`compute_schedule`] places Horner chains
-//! on lane 0 and greedily packs each prefix of a chain into [`ScheduleEntry::PackedHorner`]
-//! with arity `k ∈ {2..K_max}` (same `b` witness index, contiguous indices). Remainder ops
-//! use single-step rows.
+//! on lane 0 and greedily packs each prefix of a chain into one compact
+//! [`ScheduleEntry`] with arity `k ∈ {2..K_max}` (same `b` witness index,
+//! contiguous indices). Remainder ops use single-step rows.
 //!
 //! Inter-row and intra-row constraints fold consecutive Horner steps in pairs (degree-3
 //! where needed); see `eval` implementation for the exact selector layout per `k`.
 //!
-//! A leading [`ScheduleEntry::Separator`] prevents bogus inter-row Horner on row 0.
+//! A leading zero-arity [`ScheduleEntry`] prevents bogus inter-row Horner on row 0.
 //!
 //! ## WitnessChecks bus
 //!
@@ -84,7 +84,6 @@ use p3_air::{Air, AirBuilder, BaseAir, WindowAccess};
 use p3_circuit::tables::AluTrace;
 use p3_field::{BasedVectorSpace, Dup, Field, PrimeCharacteristicRing};
 use p3_lookup::{Count, InteractionBuilder};
-use p3_matrix::Matrix;
 use p3_matrix::dense::RowMajorMatrix;
 use tracing::instrument;
 
@@ -94,16 +93,69 @@ use super::alu_columns::{
     horner_extra_prep_width, num_horner_intermediates,
 };
 
-/// Entry in the HornerAcc lane schedule.
+/// Compact entry in the HornerAcc lane schedule.
+///
+/// The upper byte stores the arity (`0` separator, `1` ordinary operation,
+/// `>= 2` packed Horner prefix) and the remaining bits store the first
+/// operation index. Keeping one machine word per entry is important for large
+/// one-shot recursive circuits: the schedule remains live while PCS quotient
+/// work runs, but its representation has no effect on AIR rows or transcripts.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ScheduleEntry {
-    /// A real ALU op at the given original index.
+pub(crate) struct ScheduleEntry(usize);
+
+#[derive(Debug, Clone, Copy)]
+enum DecodedScheduleEntry {
     Op(usize),
-    /// `k` consecutive HornerAcc ops with indices `first..first+k` in the original trace (`k >= 2`).
     PackedHorner(usize, usize),
-    /// A virtual zero-separator (multiplicity 0, all values 0).
     Separator,
 }
+
+impl ScheduleEntry {
+    const ARITY_BITS: u32 = 8;
+    const ARITY_SHIFT: u32 = usize::BITS - Self::ARITY_BITS;
+    pub(crate) const MAX_ARITY: usize = u8::MAX as usize;
+    pub(crate) const MAX_INDEX: usize = (1usize << Self::ARITY_SHIFT) - 1;
+
+    fn pack(first_index: usize, arity: usize) -> Self {
+        assert!(
+            first_index <= Self::MAX_INDEX,
+            "ALU schedule index exceeds compact canonical bound"
+        );
+        assert!(
+            arity <= Self::MAX_ARITY,
+            "ALU packed-Horner arity exceeds compact canonical bound"
+        );
+        Self(first_index | (arity << Self::ARITY_SHIFT))
+    }
+
+    fn op(index: usize) -> Self {
+        Self::pack(index, 1)
+    }
+
+    fn packed_horner(first_index: usize, arity: usize) -> Self {
+        debug_assert!(arity >= 2);
+        Self::pack(first_index, arity)
+    }
+
+    const fn separator() -> Self {
+        Self(0)
+    }
+
+    const fn decode(self) -> DecodedScheduleEntry {
+        let arity = self.0 >> Self::ARITY_SHIFT;
+        let first_index = self.0 & Self::MAX_INDEX;
+        match arity {
+            0 => DecodedScheduleEntry::Separator,
+            1 => DecodedScheduleEntry::Op(first_index),
+            _ => DecodedScheduleEntry::PackedHorner(first_index, arity),
+        }
+    }
+}
+
+const _: () = assert!(
+    core::mem::size_of::<ScheduleEntry>() == core::mem::size_of::<usize>(),
+    "ALU schedule entry must remain one machine word"
+);
 
 /// How extension multiplication is reduced in the MUL / MUL_ADD / Horner paths.
 #[derive(Clone, Copy, Debug)]
@@ -152,10 +204,14 @@ pub struct AluAir<F: Copy, const D: usize = 1> {
     pub(crate) preprocessed: Vec<F>,
     /// Minimum trace height (for FRI compatibility with higher log_final_poly_len).
     pub(crate) min_height: usize,
-    /// HornerAcc lane schedule. When present, ops are reordered so that HornerAcc
+    /// Compact HornerAcc lane schedule. When present, ops are reordered so that HornerAcc
     /// chains occupy lane 0 in consecutive rows, with zero-separators between chains.
     schedule: Option<Vec<ScheduleEntry>>,
-    /// Pack size K for [`ScheduleEntry::PackedHorner`] (>= 2).
+    /// Number of entries in the allocation-free one-shot schedule. When set,
+    /// the canonical schedule is replayed directly from `preprocessed` instead
+    /// of retaining one machine word per entry.
+    streaming_schedule_entry_count: Option<usize>,
+    /// Pack size K for compact packed-Horner schedule entries (>= 2).
     pub(crate) horner_packed_steps: usize,
     /// Precomputed preprocessed trace matrix, when the caller already built it for this
     /// `(preprocessed, lanes, horner_packed_steps)` (e.g. once per circuit shape). When set,
@@ -178,6 +234,7 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
             preprocessed: Vec::new(),
             min_height: 1,
             schedule: None,
+            streaming_schedule_entry_count: None,
             horner_packed_steps: 2,
             precomputed_prep_trace: None,
         }
@@ -199,6 +256,7 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
             preprocessed,
             min_height: 1,
             schedule,
+            streaming_schedule_entry_count: None,
             horner_packed_steps,
             precomputed_prep_trace: None,
         }
@@ -224,6 +282,29 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
             preprocessed,
             min_height: 1,
             schedule,
+            streaming_schedule_entry_count: None,
+            horner_packed_steps,
+            precomputed_prep_trace: None,
+        }
+    }
+
+    /// Core builder for allocation-free one-shot Horner scheduling.
+    pub(crate) const fn from_reduction_with_streaming_schedule(
+        num_ops: usize,
+        lanes: usize,
+        ext_mul_kind: AluExtMulKind<F>,
+        preprocessed: Vec<F>,
+        horner_packed_steps: usize,
+        streaming_schedule_entry_count: Option<usize>,
+    ) -> Self {
+        Self {
+            num_ops,
+            lanes,
+            ext_mul_kind,
+            preprocessed,
+            min_height: 1,
+            schedule: None,
+            streaming_schedule_entry_count,
             horner_packed_steps,
             precomputed_prep_trace: None,
         }
@@ -251,6 +332,47 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
         pack_k: usize,
     ) -> Option<Vec<ScheduleEntry>> {
         Self::compute_schedule(preprocessed, lanes, pack_k)
+    }
+
+    /// Count the canonical Horner schedule without allocating it.
+    pub(crate) fn streaming_schedule_entry_count_for(
+        preprocessed: &[F],
+        lanes: usize,
+        pack_k: usize,
+    ) -> Option<usize> {
+        Self::visit_schedule(preprocessed, lanes, pack_k, |_| {})
+    }
+
+    /// Release the deterministic packed-Horner schedule across the one-shot
+    /// main PCS commitment high-water mark.
+    ///
+    /// Materialized callers may rebuild it from the retained public columns.
+    /// Streaming one-shot callers have no schedule allocation to release.
+    pub(crate) fn release_one_shot_schedule(&mut self) {
+        if self.streaming_schedule_entry_count.is_none() {
+            self.schedule = None;
+        }
+    }
+
+    /// Release raw preprocessing columns after their canonical PCS commitment
+    /// and all trace matrices have been materialized for a one-shot proof.
+    ///
+    /// The one-shot Batch-STARK path reconstructs the committed preprocessing
+    /// matrix from PCS prover data for LogUp. AIR constraints consume builder
+    /// preprocessed values, not this rebuild-only source vector, so retaining it
+    /// across the main LDE commitment is unnecessary allocation overlap.
+    pub(crate) fn release_one_shot_preprocessed_source(&mut self) {
+        self.preprocessed = Vec::new();
+        self.precomputed_prep_trace = None;
+    }
+
+    /// Rebuild a materialized schedule released by [`Self::release_one_shot_schedule`].
+    #[cfg(test)]
+    pub(crate) fn rebuild_one_shot_schedule(&mut self) {
+        if self.streaming_schedule_entry_count.is_none() {
+            self.schedule =
+                Self::compute_schedule(&self.preprocessed, self.lanes, self.horner_packed_steps);
+        }
     }
 
     /// Construct a new `AluAir` for base-field operations (D=1).
@@ -392,7 +514,10 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
 
     /// Total entries in the scheduled trace (including separators).
     pub fn scheduled_entry_count(&self) -> usize {
-        self.schedule.as_ref().map_or(self.num_ops, |s| s.len())
+        self.schedule.as_ref().map_or_else(
+            || self.streaming_schedule_entry_count.unwrap_or(self.num_ops),
+            Vec::len,
+        )
     }
 
     /// Compute a lane schedule that places HornerAcc chains in lane 0.
@@ -407,128 +532,145 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
         lanes: usize,
         pack_k: usize,
     ) -> Option<Vec<ScheduleEntry>> {
-        let plw = PREP_LANE_WIDTH;
-        let num_ops = preprocessed.len() / plw;
-        if num_ops == 0 {
-            return None;
-        }
-
-        let is_horner: Vec<bool> = (0..num_ops)
-            .map(|i| {
-                let prep: &AluPrepLaneCols<F> = preprocessed[i * plw..(i + 1) * plw].borrow();
-                prep.sel_horner == F::ONE
-            })
-            .collect();
-
-        if !is_horner.iter().any(|&h| h) {
-            return None;
-        }
-
-        // Find maximal runs of consecutive HornerAcc ops (chains)
-        let mut chains: Vec<Vec<usize>> = Vec::new();
-        let mut current_chain: Vec<usize> = Vec::new();
-        let mut non_chain: Vec<usize> = Vec::new();
-
-        for (i, &h) in is_horner.iter().enumerate() {
-            if h {
-                current_chain.push(i);
-            } else {
-                if !current_chain.is_empty() {
-                    chains.push(core::mem::take(&mut current_chain));
-                }
-                non_chain.push(i);
-            }
-        }
-        if !current_chain.is_empty() {
-            chains.push(current_chain);
-        }
-
         let mut schedule: Vec<ScheduleEntry> = Vec::new();
-        let mut nc = 0; // cursor into non_chain
+        let entry_count = Self::visit_schedule(preprocessed, lanes, pack_k, |entry| {
+            schedule.push(entry);
+        })?;
+        debug_assert_eq!(schedule.len(), entry_count);
+        Some(schedule)
+    }
 
-        // Helper: fill remaining slots in current row with non-chain ops or separators
-        let fill_row = |schedule: &mut Vec<ScheduleEntry>, nc: &mut usize, non_chain: &[usize]| {
-            while !schedule.len().is_multiple_of(lanes) {
-                if *nc < non_chain.len() {
-                    schedule.push(ScheduleEntry::Op(non_chain[*nc]));
-                    *nc += 1;
-                } else {
-                    schedule.push(ScheduleEntry::Separator);
-                }
+    /// Replay the canonical Horner lane schedule without retaining it.
+    ///
+    /// Both the reusable materialized schedule and the one-shot streaming path
+    /// use this authority, so their row order is identical by construction.
+    fn visit_schedule<V>(
+        preprocessed: &[F],
+        lanes: usize,
+        pack_k: usize,
+        mut visit: V,
+    ) -> Option<usize>
+    where
+        V: FnMut(ScheduleEntry),
+    {
+        assert!(lanes > 0, "lane count must be non-zero");
+        let num_ops = preprocessed.len() / PREP_LANE_WIDTH;
+        if num_ops == 0 || !(0..num_ops).any(|index| Self::is_horner(preprocessed, index)) {
+            return None;
+        }
+
+        let mut emitted = 0usize;
+        let mut non_chain_cursor = 0usize;
+        let fill_row = |visit: &mut V, emitted: &mut usize, non_chain_cursor: &mut usize| {
+            while !emitted.is_multiple_of(lanes) {
+                let entry = Self::next_non_horner_index(preprocessed, num_ops, non_chain_cursor)
+                    .map_or_else(ScheduleEntry::separator, ScheduleEntry::op);
+                visit(entry);
+                *emitted += 1;
             }
         };
 
-        // Leading separator before the first chain. The cyclic constraint
-        // wraps from the last row back to row 0, and without this separator
-        // the first chain would be a Horner row with a packed-arity selector set,
-        schedule.push(ScheduleEntry::Separator);
-        fill_row(&mut schedule, &mut nc, &non_chain);
+        // The leading separator makes the cyclic predecessor of the first
+        // Horner chain canonical zero.
+        visit(ScheduleEntry::separator());
+        emitted += 1;
+        fill_row(&mut visit, &mut emitted, &mut non_chain_cursor);
 
-        for (chain_idx, chain) in chains.iter().enumerate() {
-            if chain_idx > 0 {
-                // Complete previous row
-                fill_row(&mut schedule, &mut nc, &non_chain);
-                // Separator row: lane 0 = zero, other lanes = non-chain or zero
-                schedule.push(ScheduleEntry::Separator);
-                fill_row(&mut schedule, &mut nc, &non_chain);
+        let mut chain_cursor = 0usize;
+        let mut chain_index = 0usize;
+        while chain_cursor < num_ops {
+            while chain_cursor < num_ops && !Self::is_horner(preprocessed, chain_cursor) {
+                chain_cursor += 1;
             }
+            if chain_cursor == num_ops {
+                break;
+            }
+            let chain_start = chain_cursor;
+            while chain_cursor < num_ops && Self::is_horner(preprocessed, chain_cursor) {
+                chain_cursor += 1;
+            }
+            let chain_end = chain_cursor;
 
-            let mut i = 0;
-            while i < chain.len() {
-                debug_assert_eq!(schedule.len() % lanes, 0, "chain op not at lane 0");
-                let k_try = chain.len().saturating_sub(i).min(pack_k);
+            if chain_index > 0 {
+                fill_row(&mut visit, &mut emitted, &mut non_chain_cursor);
+                visit(ScheduleEntry::separator());
+                emitted += 1;
+                fill_row(&mut visit, &mut emitted, &mut non_chain_cursor);
+            }
+            chain_index += 1;
+
+            let mut first_index = chain_start;
+            while first_index < chain_end {
+                debug_assert_eq!(emitted % lanes, 0, "chain op not at lane 0");
+                let k_try = chain_end.saturating_sub(first_index).min(pack_k);
                 let mut best_k = 1usize;
                 for k in (2..=k_try).rev() {
-                    let mut contiguous = true;
-                    for j in 1..k {
-                        if chain[i + j] != chain[i] + j {
-                            contiguous = false;
-                            break;
-                        }
-                    }
-                    if contiguous
-                        && Self::horner_ops_share_b_idx(preprocessed, plw, &chain[i..i + k])
-                    {
+                    if Self::horner_range_shares_b_idx(preprocessed, first_index, k) {
                         best_k = k;
                         break;
                     }
                 }
-                if best_k >= 2 {
-                    schedule.push(ScheduleEntry::PackedHorner(chain[i], best_k));
-                    i += best_k;
+                let entry = if best_k >= 2 {
+                    ScheduleEntry::packed_horner(first_index, best_k)
                 } else {
-                    schedule.push(ScheduleEntry::Op(chain[i]));
-                    i += 1;
-                }
-                fill_row(&mut schedule, &mut nc, &non_chain);
+                    ScheduleEntry::op(first_index)
+                };
+                visit(entry);
+                emitted += 1;
+                first_index += best_k;
+                fill_row(&mut visit, &mut emitted, &mut non_chain_cursor);
             }
         }
 
-        // Complete last chain row
-        fill_row(&mut schedule, &mut nc, &non_chain);
-
-        // Remaining non-chain ops fill all lanes
-        while nc < non_chain.len() {
-            schedule.push(ScheduleEntry::Op(non_chain[nc]));
-            nc += 1;
+        fill_row(&mut visit, &mut emitted, &mut non_chain_cursor);
+        while let Some(index) =
+            Self::next_non_horner_index(preprocessed, num_ops, &mut non_chain_cursor)
+        {
+            visit(ScheduleEntry::op(index));
+            emitted += 1;
         }
-        // Pad final row
-        fill_row(&mut schedule, &mut nc, &non_chain);
+        while !emitted.is_multiple_of(lanes) {
+            visit(ScheduleEntry::separator());
+            emitted += 1;
+        }
 
-        Some(schedule)
+        Some(emitted)
     }
 
-    /// All ops in `op_indices` use the same `b` witness index in preprocessed data.
-    fn horner_ops_share_b_idx(preprocessed: &[F], plw: usize, op_indices: &[usize]) -> bool {
-        if op_indices.is_empty() {
+    #[inline]
+    fn is_horner(preprocessed: &[F], index: usize) -> bool {
+        let plw = PREP_LANE_WIDTH;
+        let prep: &AluPrepLaneCols<F> = preprocessed[index * plw..(index + 1) * plw].borrow();
+        prep.sel_horner == F::ONE
+    }
+
+    fn next_non_horner_index(
+        preprocessed: &[F],
+        num_ops: usize,
+        cursor: &mut usize,
+    ) -> Option<usize> {
+        while *cursor < num_ops {
+            let index = *cursor;
+            *cursor += 1;
+            if !Self::is_horner(preprocessed, index) {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    /// Consecutive Horner ops use the same `b` witness index.
+    fn horner_range_shares_b_idx(preprocessed: &[F], first_index: usize, len: usize) -> bool {
+        if len == 0 {
             return true;
         }
+        let plw = PREP_LANE_WIDTH;
         let prep0: &AluPrepLaneCols<F> =
-            preprocessed[op_indices[0] * plw..(op_indices[0] + 1) * plw].borrow();
+            preprocessed[first_index * plw..(first_index + 1) * plw].borrow();
         let b0 = prep0.b_idx;
-        op_indices.iter().all(|&idx| {
-            let p: &AluPrepLaneCols<F> = preprocessed[idx * plw..(idx + 1) * plw].borrow();
-            p.b_idx == b0
+        (first_index..first_index + len).all(|index| {
+            let prep: &AluPrepLaneCols<F> = preprocessed[index * plw..(index + 1) * plw].borrow();
+            prep.b_idx == b0
         })
     }
 
@@ -549,11 +691,28 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
     }
 
     /// Convert an `AluTrace` into a `RowMajorMatrix` suitable for the STARK prover.
-    #[instrument(skip_all, name = "AluAir::trace_to_matrix")]
     pub fn trace_to_matrix<ExtF: BasedVectorSpace<F> + Field>(
         &self,
         trace: &AluTrace<ExtF>,
         min_height: usize,
+    ) -> RowMajorMatrix<F> {
+        self.trace_to_matrix_with_lde_capacity(trace, min_height, 0)
+    }
+
+    /// Build the same canonical matrix while reserving its final PCS LDE
+    /// capacity without extending its visible length.
+    ///
+    /// The radix-2 PCS grows the owned evaluation buffer by
+    /// `1 << lde_added_bits`. Reserving that capacity at initial allocation
+    /// prevents a multi-gigabyte realloc overlap in single-use workers; only
+    /// the logical trace rows are initialized here, so matrix contents,
+    /// dimensions, commitments, and transcripts are unchanged.
+    #[instrument(skip_all, name = "AluAir::trace_to_matrix")]
+    pub(crate) fn trace_to_matrix_with_lde_capacity<ExtF: BasedVectorSpace<F> + Field>(
+        &self,
+        trace: &AluTrace<ExtF>,
+        min_height: usize,
+        lde_added_bits: usize,
     ) -> RowMajorMatrix<F> {
         let lanes = self.lanes;
         assert!(lanes > 0, "lane count must be non-zero");
@@ -562,33 +721,48 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
         let width = self.total_width();
         let entry_count = self.scheduled_entry_count();
         let row_count = entry_count.div_ceil(lanes);
+        // Allocate the canonical power-of-two matrix once. Building the exact
+        // logical height and then padding with `Vec::resize` can transiently
+        // retain both multi-gigabyte buffers during realloc, even though every
+        // appended field is deterministically zero. Writing into the final
+        // zero-filled allocation preserves every row while removing that peak.
+        let padded_height = row_count
+            .max(1)
+            .next_power_of_two()
+            .max(min_height.next_power_of_two());
+        let value_len = width
+            .checked_mul(padded_height)
+            .expect("ALU matrix length fits usize");
+        let capacity = value_len
+            .checked_shl(u32::try_from(lde_added_bits).expect("LDE capacity bits fit u32"))
+            .expect("ALU LDE capacity fits usize");
+        let mut values = Vec::with_capacity(capacity);
+        values.resize(value_len, F::ZERO);
 
-        let mut values = F::zero_vec(width * row_count.max(1));
-
-        if let Some(ref schedule) = self.schedule {
+        if self.schedule.is_some() || self.streaming_schedule_entry_count.is_some() {
             let mut prev_lane0_out = [F::ZERO; D];
-            for (pos, entry) in schedule.iter().enumerate() {
+            let mut write_entry = |pos: usize, entry: ScheduleEntry| {
                 let row = pos / lanes;
                 let lane = pos % lanes;
 
-                match entry {
-                    ScheduleEntry::Op(i) => {
+                match entry.decode() {
+                    DecodedScheduleEntry::Op(i) => {
                         let mut cursor = row * width + lane * lane_width;
-                        Self::write_operands(&mut values, &mut cursor, trace, *i);
+                        Self::write_operands(&mut values, &mut cursor, trace, i);
                         if lane == 0 {
                             let out_start = row * width + 3 * D;
                             prev_lane0_out[..D].copy_from_slice(&values[out_start..out_start + D]);
                         }
                     }
-                    ScheduleEntry::PackedHorner(first_idx, actual_k) => {
-                        let k = *actual_k;
+                    DecodedScheduleEntry::PackedHorner(first_idx, actual_k) => {
+                        let k = actual_k;
                         let k_max = self.horner_packed_steps;
                         let base = row * width + lane * lane_width;
                         let mut cursor = base;
 
                         for operand in 0..3 {
                             let coeffs =
-                                trace.values[*first_idx][operand].as_basis_coefficients_slice();
+                                trace.values[first_idx][operand].as_basis_coefficients_slice();
                             values[cursor..cursor + D].copy_from_slice(coeffs);
                             cursor += D;
                         }
@@ -601,14 +775,14 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
                             let num_int = num_horner_intermediates(k_max);
                             let prev_ext =
                                 ExtF::from_basis_coefficients_slice(&prev_lane0_out[..D]).unwrap();
-                            let b = trace.values[*first_idx][1];
+                            let b = trace.values[first_idx][1];
                             let mut step = 0usize;
                             let mut acc = prev_ext;
                             for s in 0..num_int {
-                                let i0 = *first_idx + step;
-                                let i1 = *first_idx + step + 1;
+                                let i0 = first_idx + step;
+                                let i1 = first_idx + step + 1;
                                 let v0 = &trace.values[i0];
-                                if i1 < *first_idx + k {
+                                if i1 < first_idx + k {
                                     let v1 = &trace.values[i1];
                                     let o0 = acc * b + v0[2] - v0[0];
                                     acc = o0 * b + v1[2] - v1[0];
@@ -623,7 +797,7 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
                             }
                             let ac_base = extra + num_int * D;
                             for t in 1..k {
-                                let op_t = *first_idx + t;
+                                let op_t = first_idx + t;
                                 let a_t = trace.values[op_t][0].as_basis_coefficients_slice();
                                 let c_t = trace.values[op_t][2].as_basis_coefficients_slice();
                                 let off = ac_base + 2 * (t - 1) * D;
@@ -638,12 +812,31 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
                             prev_lane0_out[..D].copy_from_slice(&values[out_start..out_start + D]);
                         }
                     }
-                    ScheduleEntry::Separator => {
+                    DecodedScheduleEntry::Separator => {
                         if lane == 0 {
                             prev_lane0_out = [F::ZERO; D];
                         }
                     }
                 }
+            };
+            if let Some(ref schedule) = self.schedule {
+                for (pos, entry) in schedule.iter().copied().enumerate() {
+                    write_entry(pos, entry);
+                }
+            } else {
+                let mut pos = 0usize;
+                let visited = Self::visit_schedule(
+                    &self.preprocessed,
+                    self.lanes,
+                    self.horner_packed_steps,
+                    |entry| {
+                        write_entry(pos, entry);
+                        pos += 1;
+                    },
+                )
+                .expect("streaming schedule count requires Horner entries");
+                debug_assert_eq!(visited, entry_count);
+                debug_assert_eq!(pos, entry_count);
             }
         } else {
             for op_idx in 0..trace.values.len() {
@@ -654,41 +847,36 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
             }
         }
 
-        let mut mat = RowMajorMatrix::new(values, width);
-        mat.pad_to_min_power_of_two_height(
-            core::cmp::max(min_height, mat.height().next_power_of_two()),
-            F::ZERO,
-        );
-
-        mat
+        RowMajorMatrix::new(values, width)
     }
 
     /// Build the preprocessed trace matrix with HornerAcc scheduling applied.
     ///
     /// Separator entries get multiplicity=0 (no lookups), all selectors/indices=0.
-    fn build_scheduled_preprocessed_trace(&self, schedule: &[ScheduleEntry]) -> RowMajorMatrix<F> {
+    fn build_scheduled_preprocessed_trace(&self) -> RowMajorMatrix<F> {
         let plw = PREP_LANE_WIDTH;
-        let row_count = schedule.len().div_ceil(self.lanes);
+        let entry_count = self.scheduled_entry_count();
+        let row_count = entry_count.div_ceil(self.lanes);
         let row_width = self.preprocessed_width();
 
         let mut values = F::zero_vec(row_count.max(1) * row_width);
 
-        for (pos, entry) in schedule.iter().enumerate() {
+        let mut write_entry = |pos: usize, entry: ScheduleEntry| {
             let row = pos / self.lanes;
             let lane = pos % self.lanes;
             let base = row * row_width + lane * plw;
 
-            match entry {
-                ScheduleEntry::Op(i) => {
+            match entry.decode() {
+                DecodedScheduleEntry::Op(i) => {
                     let src = &self.preprocessed[i * plw..(i + 1) * plw];
                     values[base..base + plw].copy_from_slice(src);
                 }
-                ScheduleEntry::PackedHorner(first_idx, actual_k) => {
+                DecodedScheduleEntry::PackedHorner(first_idx, actual_k) => {
                     if lane == 0 {
-                        let k = *actual_k;
+                        let k = actual_k;
                         let k_max = self.horner_packed_steps;
-                        let src0 = &self.preprocessed[*first_idx * plw..(*first_idx + 1) * plw];
-                        let last = *first_idx + k - 1;
+                        let src0 = &self.preprocessed[first_idx * plw..(first_idx + 1) * plw];
+                        let last = first_idx + k - 1;
                         let src_last = &self.preprocessed[last * plw..(last + 1) * plw];
 
                         values[base..base + plw].copy_from_slice(src0);
@@ -708,7 +896,7 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
                         values[extra_base + extra_prep_sel_k_idx(k)] = F::ONE;
                         for t in 1..k {
                             let src_t: &AluPrepLaneCols<F> = self.preprocessed
-                                [(*first_idx + t) * plw..(*first_idx + t + 1) * plw]
+                                [(first_idx + t) * plw..(first_idx + t + 1) * plw]
                                 .borrow();
                             let p = extra_base + extra_prep_a_idx_for_step(t, k_max);
                             let step: &mut AluPackedHornerStepPrepCols<F> =
@@ -723,8 +911,27 @@ impl<F: Field + PrimeCharacteristicRing + Copy, const D: usize> AluAir<F, D> {
                         }
                     }
                 }
-                ScheduleEntry::Separator => {}
+                DecodedScheduleEntry::Separator => {}
             }
+        };
+        if let Some(ref schedule) = self.schedule {
+            for (pos, entry) in schedule.iter().copied().enumerate() {
+                write_entry(pos, entry);
+            }
+        } else {
+            let mut pos = 0usize;
+            let visited = Self::visit_schedule(
+                &self.preprocessed,
+                self.lanes,
+                self.horner_packed_steps,
+                |entry| {
+                    write_entry(pos, entry);
+                    pos += 1;
+                },
+            )
+            .expect("streaming schedule count requires Horner entries");
+            debug_assert_eq!(visited, entry_count);
+            debug_assert_eq!(pos, entry_count);
         }
 
         let mut mat = RowMajorMatrix::new(values, row_width);
@@ -746,22 +953,18 @@ impl<F: Field + Copy, const D: usize> BaseAir<F> for AluAir<F, D> {
         if let Some(ref trace) = self.precomputed_prep_trace {
             return Some(trace.clone());
         }
-        self.schedule.as_ref().map_or_else(
-            || {
-                // No Horner scheduling: build the preprocessed trace at the
-                // base width, then widen with zero columns for scheduling slots.
-                let base_width = self.lanes * PREP_LANE_WIDTH;
-                let mut mat = RowMajorMatrix::from_flat_padded(
-                    self.preprocessed.to_vec(),
-                    base_width,
-                    F::ZERO,
-                );
-                mat.widen_right(horner_extra_prep_width(self.horner_packed_steps), F::ZERO);
-                mat.pad_to_min_power_of_two_height(self.min_height, F::ZERO);
-                Some(mat)
-            },
-            |schedule| Some(self.build_scheduled_preprocessed_trace(schedule)),
-        )
+        if self.schedule.is_some() || self.streaming_schedule_entry_count.is_some() {
+            Some(self.build_scheduled_preprocessed_trace())
+        } else {
+            // No Horner scheduling: build the preprocessed trace at the base
+            // width, then widen with zero columns for scheduling slots.
+            let base_width = self.lanes * PREP_LANE_WIDTH;
+            let mut mat =
+                RowMajorMatrix::from_flat_padded(self.preprocessed.to_vec(), base_width, F::ZERO);
+            mat.widen_right(horner_extra_prep_width(self.horner_packed_steps), F::ZERO);
+            mat.pad_to_min_power_of_two_height(self.min_height, F::ZERO);
+            Some(mat)
+        }
     }
 }
 
@@ -1170,7 +1373,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::air::test_utils::{assert_air_rejects, assert_air_satisfies};
+    use p3_test_utils::air_satisfaction::{assert_air_rejects, assert_air_satisfies};
 
     /// Convert an `AluTrace` to preprocessed values (13 columns per op) for standalone tests.
     fn trace_to_preprocessed<F: Field, ExtF: BasedVectorSpace<F>, const D: usize>(
@@ -1459,6 +1662,91 @@ mod tests {
         assert_eq!(air.horner_packed_steps, K);
         let matrix: RowMajorMatrix<Val> = air.trace_to_matrix(&trace, 1);
         assert_air_satisfies::<Val, EF, _>(&air, &matrix);
+    }
+
+    #[test]
+    fn one_shot_schedule_release_rebuild_preserves_traces() {
+        let n = 8;
+        let trace = AluTrace {
+            op_kind: vec![AluOpKind::HornerAcc; n],
+            values: vec![[Val::ONE, Val::from_u64(2), Val::from_u64(3), Val::ONE]; n],
+            indices: vec![[WitnessId(1), WitnessId(2), WitnessId(3), WitnessId(4)]; n],
+        };
+        let preprocessed = trace_to_preprocessed::<Val, _, 1>(&trace);
+        let mut air = AluAir::<Val, 1>::new_with_preprocessed(n, 2, preprocessed, 2);
+        let main_before = air.trace_to_matrix(&trace, 1);
+        let prep_before = air.preprocessed_trace().unwrap();
+        assert!(air.schedule.is_some());
+
+        air.release_one_shot_schedule();
+        assert!(air.schedule.is_none());
+        air.rebuild_one_shot_schedule();
+
+        assert_eq!(air.trace_to_matrix(&trace, 1), main_before);
+        assert_eq!(air.preprocessed_trace().unwrap(), prep_before);
+    }
+
+    #[test]
+    fn one_shot_streaming_schedule_matches_materialized_schedule() {
+        let op_kind = vec![
+            AluOpKind::Mul,
+            AluOpKind::HornerAcc,
+            AluOpKind::HornerAcc,
+            AluOpKind::Add,
+            AluOpKind::HornerAcc,
+            AluOpKind::HornerAcc,
+            AluOpKind::HornerAcc,
+            AluOpKind::BoolCheck,
+        ];
+        let n = op_kind.len();
+        let trace = AluTrace {
+            op_kind,
+            values: vec![[Val::ONE, Val::from_u64(2), Val::from_u64(3), Val::ONE]; n],
+            indices: vec![[WitnessId(1), WitnessId(2), WitnessId(3), WitnessId(4)]; n],
+        };
+        let preprocessed = trace_to_preprocessed::<Val, _, 1>(&trace);
+        let materialized = AluAir::<Val, 1>::new_with_preprocessed(n, 2, preprocessed.clone(), 2);
+        let entry_count =
+            AluAir::<Val, 1>::streaming_schedule_entry_count_for(&preprocessed, 2, 2).unwrap();
+        let streaming = AluAir::<Val, 1>::from_reduction_with_streaming_schedule(
+            n,
+            2,
+            AluExtMulKind::Base,
+            preprocessed,
+            2,
+            Some(entry_count),
+        );
+
+        assert_eq!(materialized.scheduled_entry_count(), entry_count);
+        assert_eq!(streaming.scheduled_entry_count(), entry_count);
+        assert_eq!(
+            streaming.trace_to_matrix(&trace, 1),
+            materialized.trace_to_matrix(&trace, 1)
+        );
+        assert_eq!(
+            streaming.preprocessed_trace().unwrap(),
+            materialized.preprocessed_trace().unwrap()
+        );
+    }
+
+    #[test]
+    fn one_shot_lde_capacity_reserve_preserves_canonical_matrix() {
+        let n = 8;
+        let trace = AluTrace {
+            op_kind: vec![AluOpKind::Mul; n],
+            values: vec![[Val::ONE, Val::from_u64(2), Val::ZERO, Val::from_u64(2)]; n],
+            indices: vec![[WitnessId(1), WitnessId(2), WitnessId(0), WitnessId(3)]; n],
+        };
+        let preprocessed = trace_to_preprocessed::<Val, _, 1>(&trace);
+        let air = AluAir::<Val, 1>::new_with_preprocessed(n, 2, preprocessed, 2);
+        let canonical = air.trace_to_matrix(&trace, 1);
+        let reserved = air.trace_to_matrix_with_lde_capacity(&trace, 1, 2);
+
+        assert_eq!(reserved, canonical);
+        assert!(
+            reserved.values.capacity() >= reserved.values.len() << 2,
+            "one-shot matrix must reserve the final four-coset LDE capacity"
+        );
     }
 
     #[test]

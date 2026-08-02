@@ -20,7 +20,10 @@ use super::{
     decode_canonical_batch_proof_v2, encode_canonical_batch_proof_v2, EpochAirTableV2,
     EpochTraceChunkV2, RecursiveCheckpointRejectReasonV2,
 };
-use crate::settlement::JMT_CIRCUIT_HEADER_BYTES_V2;
+use crate::settlement::{
+    SettlementUpdateTraceCircuitDecoderV2, JMT_CIRCUIT_HEADER_BYTES_V2, JMT_TRACE_MUTATING_KIND_V2,
+    JMT_TRACE_NOOP_KIND_V2,
+};
 use crate::CheckpointError;
 
 #[cfg(test)]
@@ -70,19 +73,28 @@ impl Plonky3EpochJmtUpdateV2 {
 
     pub fn verify(&self) -> Result<(), CheckpointError> {
         let inputs = self.statement.inputs();
+        let header_decoder = SettlementUpdateTraceCircuitDecoderV2::new(&self.header)
+            .map_err(|_| CheckpointError::Canonical)?;
         let update_count = u32::from_le_bytes(
             self.header[35..39]
                 .try_into()
                 .map_err(|_| CheckpointError::Canonical)?,
         );
-        if inputs.table != EpochAirTableV2::JmtUpdate
-            || inputs.replica != 0
-            || inputs.row_count == 0
-            || update_count == 0
+        let mutating = self.header[2] == JMT_TRACE_MUTATING_KIND_V2
+            && inputs.row_count != 0
+            && update_count != 0;
+        let no_op =
+            self.header[2] == JMT_TRACE_NOOP_KIND_V2 && inputs.row_count == 0 && update_count == 0;
+        if inputs.table != EpochAirTableV2::JmtUpdate || inputs.replica != 0 || !(mutating || no_op)
         {
             return Err(CheckpointError::RecursiveRejected(
                 RecursiveCheckpointRejectReasonV2::Plonky3AirBindingMismatch,
             ));
+        }
+        if no_op {
+            header_decoder
+                .finish()
+                .map_err(|_| CheckpointError::Canonical)?;
         }
         let expected_digest = sha256_256(
             "z00z.storage.checkpoint.plonky3.epoch-jmt-update.v2",

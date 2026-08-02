@@ -12,7 +12,7 @@
 //! - connection lifecycle
 //!
 //! Wallet adapters, node overlays, and future network crates may compose those
-//! concerns around [`RpcTransport`], but they must not smuggle them into the
+//! concerns around `RpcTransport`, but they must not smuggle them into the
 //! dispatcher or transport abstractions here.
 //!
 //! This crate is reusable across different Z00Z components (wallets, rollup nodes, DA layers)
@@ -61,39 +61,44 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-/// RPC error types.
+#[cfg(feature = "dynamic-rpc")]
+/// Dynamic method/value RPC error types.
 pub mod error;
 /// Transport abstraction for RPC communication.
 pub mod transport;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(feature = "dynamic-rpc", target_arch = "wasm32"))]
 /// WASM RPC client implementation.
 pub mod wasm_client;
 
 // Dispatcher is native-only (uses tracing)
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "dynamic-rpc", not(target_arch = "wasm32")))]
 /// Native RPC dispatcher.
 pub mod dispatcher;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "dynamic-rpc", not(target_arch = "wasm32")))]
 /// Native in-process transport.
 pub mod local_transport;
 
 // Re-exports
+#[cfg(feature = "dynamic-rpc")]
 /// RPC error type facade.
 pub use error::RpcError;
+#[cfg(feature = "dynamic-rpc")]
 /// Transport trait facade.
 pub use transport::RpcTransport;
+/// Closed typed transport trait facade.
+pub use transport::TypedRpcTransport;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(feature = "dynamic-rpc", target_arch = "wasm32"))]
 /// WASM client facade.
 pub use wasm_client::WasmRpcClient;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "dynamic-rpc", not(target_arch = "wasm32")))]
 /// Native dispatcher facade.
 pub use dispatcher::RpcDispatcher;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "dynamic-rpc", not(target_arch = "wasm32")))]
 /// Native transport facade.
 pub use local_transport::LocalRpcTransport;
 

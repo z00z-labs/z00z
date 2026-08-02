@@ -32,7 +32,7 @@ fn test_create_commitment_deterministic() {
     let amount = 1000u64;
 
     let mut rng = MockRngProvider::with_u64_seed(1).rng();
-    let blinding1 = TestScalar::random(&mut rng);
+    let blinding1 = TestScalar::random(&mut rng).unwrap();
     let blinding1_copy = blinding1.dangerous_clone();
 
     let c1 = backend.create_commitment(amount, &blinding1);
@@ -46,8 +46,8 @@ fn test_create_commitment_different_blinding() {
     let amount = 1000u64;
 
     let mut rng = MockRngProvider::with_u64_seed(2).rng();
-    let blinding1 = TestScalar::random(&mut rng);
-    let blinding2 = TestScalar::random(&mut rng);
+    let blinding1 = TestScalar::random(&mut rng).unwrap();
+    let blinding2 = TestScalar::random(&mut rng).unwrap();
 
     let c1 = backend.create_commitment(amount, &blinding1);
     let c2 = backend.create_commitment(amount, &blinding2);
@@ -59,7 +59,7 @@ fn test_create_range_proof_valid() {
     let backend = TariCryptoBackend;
     let amount = 1000u64;
     let mut rng = MockRngProvider::with_u64_seed(3).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
 
     let result = backend.create_range_proof(amount, &blinding, 64, 0);
     assert!(result.is_ok());
@@ -72,7 +72,7 @@ fn test_create_range_proof_bits() {
     let backend = TariCryptoBackend;
     let amount = 1000u64;
     let mut rng = MockRngProvider::with_u64_seed(4).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
 
     let result = backend.create_range_proof(amount, &blinding, 0, 0);
     assert!(result.is_err());
@@ -89,7 +89,7 @@ fn test_create_range_proof_exceeds() {
     let backend = TariCryptoBackend;
     let amount = u64::MAX;
     let mut rng = MockRngProvider::with_u64_seed(5).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
 
     let result = backend.create_range_proof(amount, &blinding, 64, 0);
     assert!(result.is_ok());
@@ -100,7 +100,7 @@ fn test_verify_range_proof_valid() {
     let backend = TariCryptoBackend;
     let amount = 1000u64;
     let mut rng = MockRngProvider::with_u64_seed(6).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
 
     let commitment = backend.create_commitment(amount, &blinding);
     let proof = backend
@@ -116,7 +116,7 @@ fn test_verify_range_proof_tampered() {
     let backend = TariCryptoBackend;
     let amount = 1000u64;
     let mut rng = MockRngProvider::with_u64_seed(7).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
 
     let commitment = backend.create_commitment(amount, &blinding);
     let mut proof = backend
@@ -137,8 +137,8 @@ fn test_verify_range_proof_wrong() {
     let amount1 = 1000u64;
     let amount2 = 2000u64;
     let mut rng = MockRngProvider::with_u64_seed(8).rng();
-    let blinding1 = TestScalar::random(&mut rng);
-    let blinding2 = TestScalar::random(&mut rng);
+    let blinding1 = TestScalar::random(&mut rng).unwrap();
+    let blinding2 = TestScalar::random(&mut rng).unwrap();
 
     let _commitment1 = backend.create_commitment(amount1, &blinding1);
     let commitment2 = backend.create_commitment(amount2, &blinding2);
@@ -199,7 +199,7 @@ fn test_batch_verify_valid_proofs() {
     let mut commitments = Vec::new();
 
     for &amount in &amounts {
-        let blinding = TestScalar::random(&mut rng);
+        let blinding = TestScalar::random(&mut rng).unwrap();
         let commitment = backend.create_commitment(amount, &blinding);
         let proof = backend
             .create_range_proof(amount, &blinding, 64, 0)
@@ -235,7 +235,7 @@ fn test_batch_verify_single_invalid() {
     let mut commitments = Vec::new();
 
     for &amount in &amounts {
-        let blinding = TestScalar::random(&mut rng);
+        let blinding = TestScalar::random(&mut rng).unwrap();
         let commitment = backend.create_commitment(amount, &blinding);
         let proof = backend
             .create_range_proof(amount, &blinding, 64, 0)
@@ -305,7 +305,7 @@ fn test_batch_verify_mismatched_count() {
     let mut commitments = Vec::new();
 
     for (idx, &amount) in amounts.iter().enumerate() {
-        let blinding = TestScalar::random(&mut rng);
+        let blinding = TestScalar::random(&mut rng).unwrap();
         let commitment = backend.create_commitment(amount, &blinding);
         let proof = backend
             .create_range_proof(amount, &blinding, 64, 0)
@@ -344,7 +344,7 @@ fn test_batch_verify_single_proof() {
     let mut rng = MockRngProvider::with_u64_seed(12).rng();
 
     let amount = 1000u64;
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
     let commitment = backend.create_commitment(amount, &blinding);
     let proof = backend
         .create_range_proof(amount, &blinding, 64, 0)
@@ -406,7 +406,7 @@ fn test_verify_rejects_oversized_proofs() {
 
     let backend = TariCryptoBackend;
     let mut rng = MockRngProvider::with_u64_seed(13).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
     let commitment = backend.create_commitment(1000u64, &blinding);
 
     let oversized_proof = vec![0u8; MAX_PROOF_SIZE + 1];
@@ -444,7 +444,7 @@ fn test_verify_rejects_many_proofs() {
 
     let backend = TariCryptoBackend;
     let mut rng = MockRngProvider::with_u64_seed(14).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
     let commitment = backend.create_commitment(1000u64, &blinding);
     let valid_proof = vec![0u8; 100];
 
@@ -482,7 +482,7 @@ fn test_batch_verify_mixed_sizes() {
 
     let backend = TariCryptoBackend;
     let mut rng = MockRngProvider::with_u64_seed(15).rng();
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
     let commitment = backend.create_commitment(1000u64, &blinding);
 
     let valid_proof_1 = vec![0u8; 100];
@@ -511,7 +511,7 @@ fn test_verify_rejects_excessive_memory() {
     let mut rng = MockRngProvider::with_u64_seed(16).rng();
 
     let proof_count = (MAX_BATCH_MEMORY / MAX_PROOF_SIZE) + 100;
-    let blinding = TestScalar::random(&mut rng);
+    let blinding = TestScalar::random(&mut rng).unwrap();
     let commitment = backend.create_commitment(1000u64, &blinding);
     let valid_proof = vec![0u8; MAX_PROOF_SIZE - 1];
 

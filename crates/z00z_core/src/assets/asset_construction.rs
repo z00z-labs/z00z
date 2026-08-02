@@ -108,7 +108,7 @@ impl Asset {
     ///     8, 1000, 100_000_000, "test.io".into(), 1, 1, 0, None
     /// )?;
     ///
-    /// let secret = Z00ZScalar::random(&mut OsRng);
+    /// let secret = Z00ZScalar::random(&mut OsRng).unwrap();
     /// let asset = Asset::new(
     ///     Arc::new(def),
     ///     100,

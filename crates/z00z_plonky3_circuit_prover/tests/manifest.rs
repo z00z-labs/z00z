@@ -1,5 +1,4 @@
 use p3_baby_bear::BabyBear;
-use p3_batch_stark::ProverData;
 use p3_circuit::builder::CircuitBuilder;
 use p3_circuit::ops::NpoTypeId;
 use p3_field::PrimeCharacteristicRing;
@@ -8,6 +7,7 @@ use z00z_plonky3_circuit_prover::air::AluExtMulKind;
 use z00z_plonky3_circuit_prover::air::AluExtMulKind::Base;
 use z00z_plonky3_circuit_prover::batch_stark_prover::{
     AirVariant, BatchStarkProver, CircuitProverData, ProofMetadataError, TablePacking,
+    canonical_prover_data_from_airs_and_degrees,
 };
 use z00z_plonky3_circuit_prover::common::get_airs_and_degrees_with_prep;
 use z00z_plonky3_circuit_prover::config::{self, BabyBearConfig};
@@ -35,7 +35,7 @@ fn baby_bear_base_proof()
         )
         .unwrap();
     let (airs, log_degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
-    let prover_data = ProverData::from_airs_and_degrees(&cfg, &airs, &log_degrees);
+    let prover_data = canonical_prover_data_from_airs_and_degrees(&cfg, &airs, &log_degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data, primitive_columns, non_primitive_columns);
 

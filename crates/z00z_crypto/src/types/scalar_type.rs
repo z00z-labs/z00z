@@ -74,8 +74,8 @@ impl Z00ZScalar {
         Ok(Self(key))
     }
 
-    pub fn from_hash(hash: &[u8; 64]) -> Self {
-        Self::try_from_hash(hash).expect("from_hash fallback is forbidden on the stable surface")
+    pub fn from_hash(hash: &[u8; 64]) -> Result<Self, CryptoError> {
+        Self::try_from_hash(hash)
     }
 
     pub fn try_from_hash(hash: &[u8; 64]) -> Result<Self, CryptoError> {
@@ -125,18 +125,21 @@ impl Z00ZScalar {
     ) -> Result<Self, CryptoError> {
         const MAX_TRIES: usize = 16;
         for _ in 0..MAX_TRIES {
-            let key = RistrettoSecretKey::random(rng);
-            if key.as_bytes() != [0u8; 32] {
-                return Ok(Self(key));
+            let mut uniform = [0u8; 64];
+            rng.try_fill_bytes(&mut uniform)
+                .map_err(|_| CryptoError::RngFailure)?;
+            let scalar = Self::from_uniform_bytes(&uniform)?;
+            uniform.zeroize();
+            if !scalar.is_zero() {
+                return Ok(scalar);
             }
         }
 
         Err(CryptoError::RngFailure)
     }
 
-    pub fn random<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    pub fn random<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Result<Self, CryptoError> {
         Self::random_from_rng(rng)
-            .expect("random scalar generation failed instead of falling back to recovery loop")
     }
 
     pub fn random_secure(

@@ -16,6 +16,15 @@ readonly CHECKPOINT_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoin
 readonly CACHE_AUTHORITY_ROOT="$ROOT_DIR/.cache"
 readonly FOCUSED_TMP_ROOT="$CHECKPOINT_OUTPUT_ROOT/069-08/task-1/diagnostics/bootstrap-focused-tests"
 readonly FOCUSED_CACHE_ROOT="$CACHE_AUTHORITY_ROOT/phase-069/plan-08/focused-tests"
+HOST_TARGET="$(
+    rustc -vV |
+        awk -F ': ' '$1 == "host" { print $2 }'
+)"
+readonly HOST_TARGET
+[[ "$HOST_TARGET" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]] || {
+    printf 'invalid rustc host target: %s\n' "$HOST_TARGET" >&2
+    exit 1
+}
 command -v gio >/dev/null 2>&1 || {
     printf 'required command not found: gio\n' >&2
     exit 1
@@ -65,12 +74,42 @@ do
 done
 
 "$AUTHORITY" packages >"$TMP_DIR/actual-packages.tsv"
-cargo metadata --format-version 1 --locked --offline |
-    jq -r --arg root_name z00z_storage --arg root "$ROOT_DIR/" '
+cargo metadata \
+    --format-version 1 \
+    --locked \
+    --offline \
+    --filter-platform "$HOST_TARGET" |
+    jq -r \
+      --arg root_name z00z_storage \
+      --arg root "$ROOT_DIR/" \
+      --arg app_root "$(dirname "$ROOT_DIR")/z00z-app/" '
         (.packages | map({key: .id, value: .}) | from_entries) as $packages
-        | (.resolve.nodes | map({key: .id, value: .dependencies}) | from_entries) as $edges
+        | (
+            .resolve.nodes
+            | map({
+                key: .id,
+                value: {
+                    all: [.deps[]?.pkg],
+                    non_dev: [
+                        .deps[]?
+                        | select(any(
+                            .dep_kinds[]?;
+                            (.kind // "normal") != "dev"
+                        ))
+                        | .pkg
+                    ]
+                }
+            })
+            | from_entries
+          ) as $edges
         | def closure($ids):
-            (($ids + [$ids[] as $id | $edges[$id][]?]) | unique) as $next
+            (
+                (
+                    $ids
+                    + [$ids[] as $id | $edges[$id].non_dev[]?]
+                )
+                | unique
+            ) as $next
             | if $next == $ids then $ids else closure($next) end;
           [
             $packages
@@ -78,16 +117,35 @@ cargo metadata --format-version 1 --locked --offline |
             | select(.value.name == $root_name and .value.source == null)
             | .key
           ] as $roots
-        | closure($roots)[]
+        | (
+            (
+                $roots
+                + [$roots[] as $id | $edges[$id].all[]?]
+            )
+            | unique
+            | closure(.)
+          )[]
         | $packages[.]
         | select(.source == null)
-        | [.name, (.manifest_path | ltrimstr($root))]
+        | [
+            .name,
+            (
+                if (.manifest_path | startswith($root)) then
+                    .manifest_path | ltrimstr($root)
+                elif (.manifest_path | startswith($app_root)) then
+                    "../z00z-app/" + (.manifest_path | ltrimstr($app_root))
+                else
+                    error("unexpected local dependency root: " + .manifest_path)
+                end
+            )
+          ]
         | @tsv
     ' |
     LC_ALL=C sort -t $'\t' -k2,2 >"$TMP_DIR/expected-packages.tsv"
 diff -u "$TMP_DIR/expected-packages.tsv" "$TMP_DIR/actual-packages.tsv"
-[[ "$(wc -l <"$TMP_DIR/actual-packages.tsv")" == 10 ]]
+[[ "$(wc -l <"$TMP_DIR/actual-packages.tsv")" == 12 ]]
 assert_absent $'z00z_ui_ux\t' "$TMP_DIR/actual-packages.tsv"
+assert_absent $'z00z-app-rpc\t' "$TMP_DIR/actual-packages.tsv"
 
 "$AUTHORITY" manifest >"$TMP_DIR/manifest.tsv"
 LC_ALL=C sort -c -u "$TMP_DIR/manifest.tsv"
@@ -99,6 +157,12 @@ for required_path in \
     "crates/z00z_wallets/src/rpc/object_rpc_impl.rs" \
     "crates/z00z_storage/tests/test_recursive_v2_nova_step.rs" \
     "crates/z00z_storage/tests/test_recursive_v2_nova_adversarial.rs" \
+    "../z00z-app/Cargo.toml" \
+    "../z00z-app/crates/z00z_app_api/Cargo.toml" \
+    "../z00z-app/crates/z00z_app_api/src/action_basis_manifest.rs" \
+    "../z00z-app/crates/z00z_app_api/outputs/action-basis-manifest-v1.bin" \
+    "../z00z-app/crates/z00z_app_api/outputs/action-basis-manifest-v1.sha256" \
+    "../z00z-app/crates/z00z_app_ext/src/lib.rs" \
     ".github/skills/smart-tests-bootstrap/scripts/bootstrap_cache_identity.sh" \
     ".github/skills/smart-tests-bootstrap/scripts/bootstrap_tests.sh" \
     ".planning/phases/069-Recursive-Proof/069-COVERAGE-AUDIT.py"
@@ -107,9 +171,24 @@ do
 done
 assert_absent 'crates/z00z_ui_ux/' "$TMP_DIR/paths.txt"
 assert_absent 'crates/z00z_storage/outputs/' "$TMP_DIR/paths.txt"
+assert_absent '../z00z-app/crates/z00z_app_rpc/' "$TMP_DIR/paths.txt"
 while IFS=$'\t' read -r path digest; do
     [[ "$(sha256sum -- "$path" | awk '{print $1}')" == "$digest" ]]
 done <"$TMP_DIR/manifest.tsv"
+"$AUTHORITY" rehash "$TMP_DIR/manifest.tsv" >"$TMP_DIR/rehash.tsv"
+cmp "$TMP_DIR/manifest.tsv" "$TMP_DIR/rehash.tsv"
+printf '%s\n' \
+    $'../z00z-app/.git/config\taaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+    >"$TMP_DIR/forbidden-external-baseline.tsv"
+set +e
+"$AUTHORITY" rehash "$TMP_DIR/forbidden-external-baseline.tsv" \
+    >"$TMP_DIR/forbidden-external-rehash.tsv" \
+    2>"$TMP_DIR/forbidden-external-rehash.log"
+forbidden_external_status=$?
+set -e
+(( forbidden_external_status != 0 ))
+grep -Fq 'escaped canonical source roots' \
+    "$TMP_DIR/forbidden-external-rehash.log"
 
 "$AUTHORITY" compare \
     "$TMP_DIR/manifest.tsv" "$TMP_DIR/manifest.tsv" >"$TMP_DIR/stable.json"
@@ -325,8 +404,28 @@ jq -e \
     ' \
     "$TMP_DIR/cache-identity-expected.json" >/dev/null
 
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'if [[ "${1:-}" == "--version" ]]; then' \
+    '  printf "cargo 1.0.0 (focused-drift-test)\n"' \
+    '  exit 0' \
+    'fi' \
+    'printf "compile\n" >>"$Z00Z_FAKE_CARGO_MARKER"' \
+    'exit 99' >"$TMP_DIR/no-toolchain-bin/cargo"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'if [[ "${1:-}" == "--version" ]]; then' \
+    '  printf "rustc 1.0.0 (focused-drift-test)\n"' \
+    '  exit 0' \
+    'fi' \
+    'exit 99' >"$TMP_DIR/no-toolchain-bin/rustc"
+chmod +x \
+    "$TMP_DIR/no-toolchain-bin/cargo" \
+    "$TMP_DIR/no-toolchain-bin/rustc"
 chmod +x "$DRIFT_FIXTURE"
 set +e
+PATH="$TMP_DIR/no-toolchain-bin:$PATH" \
+Z00Z_FAKE_CARGO_MARKER="$TMP_DIR/drift-fake-cargo" \
 Z00Z_BOOTSTRAP_SOURCE_AUTHORITY="$DRIFT_FIXTURE" \
 Z00Z_BOOTSTRAP_AUTHORITY_FIXTURE_STATE="$TMP_DIR/fixture-state" \
 Z00Z_BOOTSTRAP_CACHE_ROOT="$CACHE_TMP_DIR/bootstrap-drift-cache" \
@@ -358,7 +457,7 @@ jq -e '
     and .source_stability.status == "source_drift"
     and .source_stability.before_digest == .identity.source_digest_before
     and .source_stability.after_digest == .identity.source_digest_after
-    and .source_stability.drift_stage == "storage_compile:before"
+    and .source_stability.drift_stage == "storage_compile:after"
     and (.source_stability.checks | length) == 2
     and .acceptance_authority == true
     and .budgets.total_wall_seconds == 60
@@ -374,8 +473,11 @@ jq -e '
     )
 ' "$result_path" >/dev/null
 assert_absent 'Compiling ' "$TMP_DIR/bootstrap-drift.log"
+[[ -s "$TMP_DIR/drift-fake-cargo" ]]
 
 set +e
+PATH="$TMP_DIR/no-toolchain-bin:$PATH" \
+Z00Z_FAKE_CARGO_MARKER="$TMP_DIR/prewarm-drift-fake-cargo" \
 Z00Z_BOOTSTRAP_SOURCE_AUTHORITY="$DRIFT_FIXTURE" \
 Z00Z_BOOTSTRAP_AUTHORITY_FIXTURE_STATE="$TMP_DIR/prewarm-fixture-state" \
 Z00Z_BOOTSTRAP_CACHE_ROOT="$CACHE_TMP_DIR/prewarm-drift-cache" \
@@ -411,6 +513,7 @@ jq -e '
     and (.selected_gates | length) == 2
 ' "$prewarm_result_path" >/dev/null
 assert_absent 'Compiling ' "$TMP_DIR/prewarm-drift.log"
+[[ -s "$TMP_DIR/prewarm-drift-fake-cargo" ]]
 
 printf '%s\n' \
     '#!/usr/bin/env bash' \
@@ -560,7 +663,7 @@ for contract in \
     ".host_boot_id == \$host_boot_id" \
     'reused current-boot isolation preflight' \
     'typed-table)' \
-    'run_isolated test_direct_typed_commitment_actual_roundtrip'
+    'test_direct_typed_commitment_actual_roundtrip'
 do
     grep -Fq -- "$contract" "$MILESTONE"
 done

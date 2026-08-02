@@ -4,7 +4,10 @@ use zeroize::Zeroize;
 #[cfg(test)]
 use std::cell::Cell;
 
-#[cfg(not(miri))]
+#[cfg(all(
+    not(miri),
+    any(all(unix, not(target_os = "ios")), target_os = "windows")
+))]
 use super::HardeningError;
 
 #[cfg(all(unix, not(target_os = "ios"), not(miri)))]

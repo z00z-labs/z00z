@@ -29,6 +29,7 @@ use z00z_plonky3_circuit_prover::batch_stark_prover::{
     BatchAir, BatchTableInstance, DynamicAirEntry, NonPrimitiveTableEntry, TablePacking,
     TableProver,
 };
+use z00z_plonky3_circuit_prover::common::take_non_primitive_base_columns;
 
 use super::{Plonky3ChallengeV2, Plonky3StarkConfigV2};
 
@@ -567,6 +568,10 @@ impl TableProver<Plonky3StarkConfigV2> for U16RangeProverV2 {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct U16RangePreprocessorV2;
 
+struct U16RangeRuntimeMetadataV2 {
+    creator_flags: Vec<[bool; U16_BITS_V2]>,
+}
+
 fn witness_id_from_index(index: Plonky3ChallengeV2) -> Result<u32, CircuitError> {
     let index = <Plonky3ChallengeV2 as ExtensionField<KoalaBear>>::as_base(&index)
         .ok_or(CircuitError::InvalidPreprocessedValues)?
@@ -669,12 +674,44 @@ fn u16_output_creator_flags(
 }
 
 impl z00z_plonky3_circuit_prover::common::NpoPreprocessor<KoalaBear> for U16RangePreprocessorV2 {
+    fn capture_runtime_metadata(
+        &self,
+        circuit: &dyn Any,
+        preprocessed: &mut dyn Any,
+    ) -> Result<Option<Box<dyn Any + Send + Sync>>, CircuitError> {
+        let Some(circuit) = circuit.downcast_ref::<Circuit<Plonky3ChallengeV2>>() else {
+            return Ok(None);
+        };
+        let Some(preprocessed) =
+            preprocessed.downcast_mut::<PreprocessedColumns<Plonky3ChallengeV2, 4>>()
+        else {
+            return Ok(None);
+        };
+        Ok(Some(Box::new(U16RangeRuntimeMetadataV2 {
+            creator_flags: u16_output_creator_flags(circuit, preprocessed)?,
+        })))
+    }
+
+    fn preprocess_with_runtime_metadata(
+        &self,
+        runtime_metadata: &(dyn Any + Send + Sync),
+        preprocessed: &mut dyn Any,
+    ) -> Result<p3_circuit::ops::NonPrimitivePreprocessedMap<KoalaBear>, CircuitError> {
+        let metadata = runtime_metadata
+            .downcast_ref::<U16RangeRuntimeMetadataV2>()
+            .ok_or(CircuitError::InvalidPreprocessedValues)?;
+        let preprocessed = preprocessed
+            .downcast_mut::<PreprocessedColumns<Plonky3ChallengeV2, 4>>()
+            .ok_or(CircuitError::InvalidPreprocessedValues)?;
+        u16_preprocess_with_creator_flags(preprocessed, &metadata.creator_flags)
+    }
+
     fn preprocess(
         &self,
         circuit: &dyn Any,
         preprocessed: &mut dyn Any,
     ) -> Result<p3_circuit::ops::NonPrimitivePreprocessedMap<KoalaBear>, CircuitError> {
-        let mut result = p3_circuit::ops::NonPrimitivePreprocessedMap::new();
+        let result = p3_circuit::ops::NonPrimitivePreprocessedMap::new();
         let Some(circuit) = circuit.downcast_ref::<Circuit<Plonky3ChallengeV2>>() else {
             return Ok(result);
         };
@@ -683,60 +720,62 @@ impl z00z_plonky3_circuit_prover::common::NpoPreprocessor<KoalaBear> for U16Rang
         else {
             return Ok(result);
         };
-        let Some(raw) = preprocessed.non_primitive.get(&u16_range_npo_type()) else {
-            return Ok(result);
-        };
-        let raw: Vec<KoalaBear> = raw
-            .iter()
-            .map(|value| {
-                value
-                    .as_base()
-                    .ok_or(CircuitError::InvalidPreprocessedValues)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if raw.is_empty() || !raw.len().is_multiple_of(U16_RAW_PREPROCESSED_WORDS_V2) {
-            return Err(CircuitError::InvalidPreprocessedValues);
-        }
         let creator_flags = u16_output_creator_flags(circuit, preprocessed)?;
-        if creator_flags.len() != raw.len() / U16_RAW_PREPROCESSED_WORDS_V2 {
-            return Err(CircuitError::InvalidPreprocessedValues);
-        }
-        let mut committed = Vec::with_capacity(
-            raw.len() / U16_RAW_PREPROCESSED_WORDS_V2 * U16_BITS_V2 * U16_PREPROCESSED_WIDTH_V2,
-        );
-        let negative_one = KoalaBear::ZERO - KoalaBear::ONE;
-        for (operation, operation_creator_flags) in raw
-            .chunks_exact(U16_RAW_PREPROCESSED_WORDS_V2)
-            .zip(creator_flags)
-        {
-            let input_index = operation[0];
-            for bit_index in 0..U16_BITS_V2 {
-                let output_index = operation[1 + bit_index * 2];
-                let output_wid = usize::try_from(output_index.as_canonical_u64() / 4)
-                    .map_err(|_| CircuitError::InvalidPreprocessedValues)?;
-                let multiplicity = if operation_creator_flags[bit_index] {
-                    KoalaBear::from_u32(
-                        preprocessed.ext_reads.get(output_wid).copied().unwrap_or(0),
-                    )
-                } else {
-                    negative_one
-                };
-                committed.push(if bit_index == 0 {
-                    input_index
-                } else {
-                    KoalaBear::ZERO
-                });
-                committed.push(output_index);
-                committed.push(multiplicity);
-                committed.push(KoalaBear::ONE);
-                committed.push(KoalaBear::from_bool(bit_index == 0));
-                committed.push(KoalaBear::from_bool(bit_index + 1 == U16_BITS_V2));
-                committed.push(KoalaBear::from_u64(1_u64 << bit_index));
-            }
-        }
-        result.insert(u16_range_npo_type(), committed);
-        Ok(result)
+        return u16_preprocess_with_creator_flags(preprocessed, &creator_flags);
     }
+}
+
+fn u16_preprocess_with_creator_flags(
+    preprocessed: &mut PreprocessedColumns<Plonky3ChallengeV2, 4>,
+    creator_flags: &[[bool; U16_BITS_V2]],
+) -> Result<p3_circuit::ops::NonPrimitivePreprocessedMap<KoalaBear>, CircuitError> {
+    let mut result = p3_circuit::ops::NonPrimitivePreprocessedMap::new();
+    let Some(raw) = take_non_primitive_base_columns::<Plonky3ChallengeV2, KoalaBear, 4>(
+        preprocessed,
+        &u16_range_npo_type(),
+    )?
+    else {
+        return Ok(result);
+    };
+    if raw.is_empty() || !raw.len().is_multiple_of(U16_RAW_PREPROCESSED_WORDS_V2) {
+        return Err(CircuitError::InvalidPreprocessedValues);
+    }
+    if creator_flags.len() != raw.len() / U16_RAW_PREPROCESSED_WORDS_V2 {
+        return Err(CircuitError::InvalidPreprocessedValues);
+    }
+    let mut committed = Vec::with_capacity(
+        raw.len() / U16_RAW_PREPROCESSED_WORDS_V2 * U16_BITS_V2 * U16_PREPROCESSED_WIDTH_V2,
+    );
+    let negative_one = KoalaBear::ZERO - KoalaBear::ONE;
+    for (operation, operation_creator_flags) in raw
+        .chunks_exact(U16_RAW_PREPROCESSED_WORDS_V2)
+        .zip(creator_flags)
+    {
+        let input_index = operation[0];
+        for bit_index in 0..U16_BITS_V2 {
+            let output_index = operation[1 + bit_index * 2];
+            let output_wid = usize::try_from(output_index.as_canonical_u64() / 4)
+                .map_err(|_| CircuitError::InvalidPreprocessedValues)?;
+            let multiplicity = if operation_creator_flags[bit_index] {
+                KoalaBear::from_u32(preprocessed.ext_reads.get(output_wid).copied().unwrap_or(0))
+            } else {
+                negative_one
+            };
+            committed.push(if bit_index == 0 {
+                input_index
+            } else {
+                KoalaBear::ZERO
+            });
+            committed.push(output_index);
+            committed.push(multiplicity);
+            committed.push(KoalaBear::ONE);
+            committed.push(KoalaBear::from_bool(bit_index == 0));
+            committed.push(KoalaBear::from_bool(bit_index + 1 == U16_BITS_V2));
+            committed.push(KoalaBear::from_u64(1_u64 << bit_index));
+        }
+    }
+    result.insert(u16_range_npo_type(), committed);
+    Ok(result)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -748,10 +787,11 @@ impl z00z_plonky3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4>
     fn try_build(
         &self,
         op_type: &NpoTypeId,
-        preprocessed: &[KoalaBear],
+        preprocessed: &mut Vec<KoalaBear>,
         min_height: usize,
         lanes: usize,
         _constraint_profile: z00z_plonky3_circuit_prover::ConstraintProfile,
+        retain_preprocessed_columns: bool,
     ) -> Option<(
         z00z_plonky3_circuit_prover::common::CircuitTableAir<Plonky3StarkConfigV2, 4>,
         usize,
@@ -767,13 +807,15 @@ impl z00z_plonky3_circuit_prover::common::NpoAirBuilder<Plonky3StarkConfigV2, 4>
         if !rows.is_multiple_of(U16_BITS_V2) {
             return None;
         }
+        let committed = if retain_preprocessed_columns {
+            preprocessed.clone()
+        } else {
+            core::mem::take(preprocessed)
+        };
         let padded_rows = min_height.max(rows).next_power_of_two();
         Some((
             z00z_plonky3_circuit_prover::common::CircuitTableAir::Dynamic(DynamicAirEntry::new(
-                Box::new(U16RangeAirV2::<KoalaBear, 4>::new(
-                    preprocessed.to_vec(),
-                    min_height,
-                )),
+                Box::new(U16RangeAirV2::<KoalaBear, 4>::new(committed, min_height)),
             )),
             log2_ceil_usize(padded_rows),
         ))

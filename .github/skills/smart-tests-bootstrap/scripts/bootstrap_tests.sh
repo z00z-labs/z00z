@@ -40,7 +40,7 @@ case "$MODE" in
   prewarm)
     # The isolated single-job dual-root cold compile exceeded 885s. This
     # diagnostic-only ceiling leaves measured linking headroom without
-    # weakening the 180s mandatory warm bootstrap gate.
+    # weakening the 60s mandatory warm bootstrap gate.
     WALL_BUDGET_SECONDS="${BOOTSTRAP_PREWARM_WALL_BUDGET_SECONDS:-1200}"
     EXECUTION_BUDGET_SECONDS=0
     WARM_TARGET_SECONDS=0
@@ -900,6 +900,7 @@ run_non_recursive_storage() {
   weighted_test="backend::redb::helpers::recursive_v2_cutover_crash_tests::recursive_v2_cutover_owned_boundary_crash_corpus"
   mkdir -p "$log_dir"
   printf '%s\n' \
+    checkpoint::nova::tests::test_recursive_source_manifest_covers_explicit_path_modules \
     checkpoint::nova::tests::test_verifier_identity_binds_path \
     checkpoint::nova::tests::test_nova_backend_owner_locked \
     checkpoint::nova::tests::test_nova_dependency_transcript_pinned \
@@ -910,6 +911,8 @@ run_non_recursive_storage() {
     checkpoint::plonky3::tests::test_source_sha_binding \
     checkpoint::plonky3::tests::test_complete_air_enables_evidence \
     checkpoint::plonky3::tests::test_poseidon_hash_binds_shape \
+    checkpoint::plonky3::tests::test_recursive_event_source_framing_rejects_public_aliases \
+    checkpoint::plonky3::tests::test_root_authority_fails_closed \
     checkpoint::plonky3::tests::test_security_derivation_rejects_drift \
     checkpoint::plonky3::tests::test_security_budget_rounding |
     LC_ALL=C sort -u >"$recursive_smoke_tests"
@@ -1151,6 +1154,8 @@ run_plonky3_smoke() {
     test_source_sha_binding
     test_complete_air_enables_evidence
     test_poseidon_hash_binds_shape
+    test_recursive_event_source_framing_rejects_public_aliases
+    test_root_authority_fails_closed
     test_security_derivation_rejects_drift
     test_security_budget_rounding
   )

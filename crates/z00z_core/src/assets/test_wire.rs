@@ -46,7 +46,7 @@ fn create_test_asset(id: u8) -> Asset {
     let def = create_test_definition(id);
     let arc_def = GLOBAL_ASSET_REGISTRY.insert(def).unwrap();
 
-    let blinding = Z00ZScalar::random(&mut SystemRngProvider.rng());
+    let blinding = Z00ZScalar::random(&mut SystemRngProvider.rng()).unwrap();
 
     Asset::new(
         arc_def,
@@ -266,7 +266,7 @@ fn test_asset_wire_proof_roundtrip() {
     let def = create_test_definition(13);
     let arc_def = GLOBAL_ASSET_REGISTRY.insert(def).unwrap();
 
-    let blinding = Z00ZScalar::random(rng);
+    let blinding = Z00ZScalar::random(rng).unwrap();
     let asset = Asset::new(
         arc_def,
         1,

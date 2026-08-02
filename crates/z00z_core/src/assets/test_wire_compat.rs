@@ -38,7 +38,7 @@ fn create_test_asset(id: u8) -> Asset {
     let def = create_test_definition(id);
     let arc_def = GLOBAL_ASSET_REGISTRY.insert(def).unwrap();
 
-    let blinding = Z00ZScalar::random(&mut SystemRngProvider.rng());
+    let blinding = Z00ZScalar::random(&mut SystemRngProvider.rng()).unwrap();
 
     Asset::new(
         arc_def,

@@ -142,7 +142,7 @@ mod tests {
     fn key_pair() -> (Z00ZScalar, Z00ZRistrettoPoint) {
         let provider = SystemRngProvider;
         let mut rng = provider.rng();
-        let sk = Z00ZScalar::random(&mut rng);
+        let sk = Z00ZScalar::random(&mut rng).unwrap();
         let pk = Z00ZRistrettoPoint::from_secret_key(&sk);
         (sk, pk)
     }

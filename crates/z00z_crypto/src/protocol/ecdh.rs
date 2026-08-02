@@ -33,11 +33,11 @@
 //! let mut rng = provider.rng();
 //!
 //! // Receiver generates view keypair
-//! let view_sk = Z00ZScalar::random(&mut rng);
+//! let view_sk = Z00ZScalar::random(&mut rng).unwrap();
 //! let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
 //!
 //! // Sender side
-//! let r = Z00ZScalar::random(&mut rng);
+//! let r = Z00ZScalar::random(&mut rng).unwrap();
 //! let r_pub = generate_ephemeral_keypair(&r)?;
 //! let dh_sender = compute_stealth_dh_sender(&r, &view_pk)?;
 //! let k_dh_sender = derive_dh_key(&dh_sender);
@@ -85,7 +85,7 @@ use crate::{
 ///
 /// let provider = MockRngProvider::with_u64_seed(10);
 /// let mut rng = provider.rng();
-/// let r = Z00ZScalar::random(&mut rng);
+/// let r = Z00ZScalar::random(&mut rng).unwrap();
 /// let R_pub = generate_ephemeral_keypair(&r)?;
 /// # Ok::<_, z00z_crypto::CryptoError>(())
 /// ```
@@ -127,9 +127,9 @@ pub fn generate_ephemeral_keypair(r: &Z00ZScalar) -> Result<Z00ZRistrettoPoint, 
 ///
 /// let provider = MockRngProvider::with_u64_seed(11);
 /// let mut rng = provider.rng();
-/// let view_sk = Z00ZScalar::random(&mut rng);
+/// let view_sk = Z00ZScalar::random(&mut rng).unwrap();
 /// let view_pk = Z00ZRistrettoPoint::from_secret_key(&view_sk);
-/// let r = Z00ZScalar::random(&mut rng);
+/// let r = Z00ZScalar::random(&mut rng).unwrap();
 /// let dh = compute_stealth_dh_sender(&r, &view_pk)?;
 /// # Ok::<_, z00z_crypto::CryptoError>(())
 /// ```
@@ -182,9 +182,9 @@ pub fn compute_stealth_dh_sender(
 ///
 /// let provider = MockRngProvider::with_u64_seed(12);
 /// let mut rng = provider.rng();
-/// let r = Z00ZScalar::random(&mut rng);
+/// let r = Z00ZScalar::random(&mut rng).unwrap();
 /// let r_pub = Z00ZRistrettoPoint::from_secret_key(&r);
-/// let view_sk = Z00ZScalar::random(&mut rng);
+/// let view_sk = Z00ZScalar::random(&mut rng).unwrap();
 /// let dh = recover_stealth_dh_receiver(&view_sk, &r_pub)?;
 /// # Ok::<_, z00z_crypto::CryptoError>(())
 /// ```
@@ -231,7 +231,7 @@ pub fn recover_stealth_dh_receiver(
 ///
 /// let provider = MockRngProvider::with_u64_seed(13);
 /// let mut rng = provider.rng();
-/// let sk = Z00ZScalar::random(&mut rng);
+/// let sk = Z00ZScalar::random(&mut rng).unwrap();
 /// let dh = Z00ZRistrettoPoint::from_secret_key(&sk);
 /// let k_dh = derive_dh_key(&dh);
 /// assert_eq!(k_dh.len(), 32);
@@ -276,7 +276,7 @@ pub fn derive_dh_key(dh: &Z00ZRistrettoPoint) -> [u8; 32] {
 ///
 /// let provider = MockRngProvider::with_u64_seed(14);
 /// let mut rng = provider.rng();
-/// let sk = Z00ZScalar::random(&mut rng);
+/// let sk = Z00ZScalar::random(&mut rng).unwrap();
 /// let valid_point = Z00ZRistrettoPoint::from_secret_key(&sk);
 /// assert!(validate_stealth_point(&valid_point).is_ok());
 /// ```

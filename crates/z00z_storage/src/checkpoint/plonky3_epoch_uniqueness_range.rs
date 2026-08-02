@@ -6,7 +6,7 @@ use p3_air::{Air, AirBuilder, BaseAir, WindowAccess};
 use p3_circuit::ops::NpoTypeId;
 use p3_circuit::tables::{NonPrimitiveTrace, Traces};
 use p3_field::extension::BinomialExtensionField;
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::{Field, PrimeCharacteristicRing, PrimeField32};
 use p3_koala_bear::KoalaBear;
 use p3_lookup::{Count, InteractionBuilder};
 use p3_matrix::dense::RowMajorMatrix;
@@ -16,25 +16,28 @@ use z00z_plonky3_circuit_prover::batch_stark_prover::{
 };
 
 use super::plonky3_epoch_uniqueness_air::{MIN_ROWS_V2, RANGE_BUS_V2, STATEMENT_LIMBS_V2};
+use super::plonky3_epoch_uniqueness_slice::EpochUniquenessSliceV2;
 use super::{EpochTraceChunkV2, Plonky3StarkConfigV2};
 use crate::CheckpointError;
 
 const NPO_ID_V2: &str = "z00z/plonky3/epoch-uniqueness-packed-range/v2";
 const QUERY_COUNT_LIMBS_V2: usize = 4;
-pub(super) const PUBLIC_FIELDS_V2: usize = STATEMENT_LIMBS_V2 + QUERY_COUNT_LIMBS_V2;
+pub(super) const PUBLIC_FIELDS_V2: usize = STATEMENT_LIMBS_V2 + QUERY_COUNT_LIMBS_V2 + 2;
 
 const HEADER_ACTIVE_OFFSET_V2: usize = 0;
 const ACTIVE_OFFSET_V2: usize = 1;
-const SINGLE_BYTE_OFFSET_V2: usize = 2;
-const BYTE_0_OFFSET_V2: usize = 3;
-const BYTE_1_OFFSET_V2: usize = 4;
-const BITS_OFFSET_V2: usize = 5;
+const SLOT_OFFSET_V2: usize = 2;
+const SINGLE_BYTE_OFFSET_V2: usize = SLOT_OFFSET_V2 + 1;
+const BYTE_0_OFFSET_V2: usize = SINGLE_BYTE_OFFSET_V2 + 1;
+const BYTE_1_OFFSET_V2: usize = BYTE_0_OFFSET_V2 + 1;
+const BITS_OFFSET_V2: usize = BYTE_1_OFFSET_V2 + 1;
 const RUNNING_QUERY_COUNT_OFFSET_V2: usize = BITS_OFFSET_V2 + 16;
 const ROW_FIELDS_V2: usize = RUNNING_QUERY_COUNT_OFFSET_V2 + 1;
 const CALL_FIELDS_V2: usize = PUBLIC_FIELDS_V2 + ROW_FIELDS_V2;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct UniquenessRangeQueryV2 {
+    pub(super) slot: usize,
     pub(super) byte_0: u8,
     pub(super) byte_1: u8,
     pub(super) single_byte: bool,
@@ -162,7 +165,12 @@ where
 
         builder.push_interaction(
             RANGE_BUS_V2,
-            vec![byte_0, byte_1, single.clone()],
+            vec![
+                field::<AB>(local, SLOT_OFFSET_V2),
+                byte_0,
+                byte_1,
+                single.clone(),
+            ],
             Count::bounded(active.clone(), 1),
         );
 
@@ -294,33 +302,68 @@ pub(super) fn npo_type() -> NpoTypeId {
     NpoTypeId::new(NPO_ID_V2)
 }
 
-pub(super) fn public_values(
+pub(super) fn public_prefix_for_slice(
     statement: &EpochTraceChunkV2,
-    query_count: usize,
+    slice: EpochUniquenessSliceV2,
 ) -> Result<Vec<KoalaBear>, CheckpointError> {
     let mut values = statement
         .canonical_bytes()
         .chunks_exact(2)
         .map(|limb| KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]])))
         .collect::<Vec<_>>();
-    let query_count = u64::try_from(query_count).map_err(|_| CheckpointError::Limit)?;
-    values.extend(
-        query_count
-            .to_le_bytes()
-            .chunks_exact(2)
-            .map(|limb| KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]]))),
-    );
+    values.extend(core::iter::repeat_n(KoalaBear::ZERO, QUERY_COUNT_LIMBS_V2));
+    values.push(KoalaBear::from_usize(slice.start()));
+    values.push(KoalaBear::from_usize(slice.len()));
     if values.len() != PUBLIC_FIELDS_V2 {
         return Err(CheckpointError::Invariant);
     }
     Ok(values)
 }
 
+pub(super) fn public_values_for_slice(
+    statement: &EpochTraceChunkV2,
+    query_count: usize,
+    slice: EpochUniquenessSliceV2,
+) -> Result<Vec<KoalaBear>, CheckpointError> {
+    let mut values = public_prefix_for_slice(statement, slice)?;
+    let query_count = u64::try_from(query_count).map_err(|_| CheckpointError::Limit)?;
+    for (index, limb) in query_count.to_le_bytes().chunks_exact(2).enumerate() {
+        values[STATEMENT_LIMBS_V2 + index] =
+            KoalaBear::from_u16(u16::from_le_bytes([limb[0], limb[1]]));
+    }
+    Ok(values)
+}
+
+pub(super) fn query_count_from_verified_public(
+    public: &[KoalaBear],
+    expected_prefix: &[KoalaBear],
+) -> Result<u64, CheckpointError> {
+    if public.len() != PUBLIC_FIELDS_V2
+        || expected_prefix.len() != PUBLIC_FIELDS_V2
+        || public[..STATEMENT_LIMBS_V2] != expected_prefix[..STATEMENT_LIMBS_V2]
+        || public[STATEMENT_LIMBS_V2 + QUERY_COUNT_LIMBS_V2..]
+            != expected_prefix[STATEMENT_LIMBS_V2 + QUERY_COUNT_LIMBS_V2..]
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut bytes = [0_u8; 8];
+    for (index, limb) in public[STATEMENT_LIMBS_V2..STATEMENT_LIMBS_V2 + QUERY_COUNT_LIMBS_V2]
+        .iter()
+        .enumerate()
+    {
+        let limb =
+            u16::try_from(limb.as_canonical_u32()).map_err(|_| CheckpointError::Canonical)?;
+        bytes[index * 2..index * 2 + 2].copy_from_slice(&limb.to_le_bytes());
+    }
+    Ok(u64::from_le_bytes(bytes))
+}
+
 pub(super) fn rows(
     statement: &EpochTraceChunkV2,
     queries: &[UniquenessRangeQueryV2],
+    slice: EpochUniquenessSliceV2,
 ) -> Result<Vec<UniquenessRangeRowV2>, CheckpointError> {
-    let public = public_values(statement, queries.len())?;
+    let public = public_values_for_slice(statement, queries.len(), slice)?;
     let trace_rows = queries.len().max(MIN_ROWS_V2).next_power_of_two();
     let mut rows = Vec::with_capacity(trace_rows);
     let mut running = 0_usize;
@@ -335,13 +378,14 @@ pub(super) fn rows(
         values.push(KoalaBear::from_bool(query.is_some()));
         if let Some(query) = query {
             running = running.checked_add(1).ok_or(CheckpointError::Overflow)?;
+            values.push(KoalaBear::from_usize(query.slot));
             values.push(KoalaBear::from_bool(query.single_byte));
             values.push(KoalaBear::from_u8(query.byte_0));
             values.push(KoalaBear::from_u8(query.byte_1));
             values.extend((0..8).map(|bit| KoalaBear::from_bool((query.byte_0 >> bit) & 1 == 1)));
             values.extend((0..8).map(|bit| KoalaBear::from_bool((query.byte_1 >> bit) & 1 == 1)));
         } else {
-            values.extend(core::iter::repeat_n(KoalaBear::ZERO, 19));
+            values.extend(core::iter::repeat_n(KoalaBear::ZERO, 20));
         }
         values.push(KoalaBear::from_usize(running));
         if values.len() != CALL_FIELDS_V2 {
@@ -350,12 +394,4 @@ pub(super) fn rows(
         rows.push(UniquenessRangeRowV2 { values });
     }
     Ok(rows)
-}
-
-pub(super) fn check_constraints(rows: &[UniquenessRangeRowV2], expected_public: &[KoalaBear]) {
-    p3_air::check_constraints(
-        &UniquenessRangeAirV2,
-        &UniquenessRangeAirV2::trace_to_matrix(rows),
-        expected_public,
-    );
 }

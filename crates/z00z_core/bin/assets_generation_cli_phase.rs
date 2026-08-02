@@ -157,7 +157,8 @@ pub(super) fn generate_assets(
                     let nonce = generate_nonce(&def.id, serial_id);
 
                     // Generate random blinding factor (secret key)
-                    let blinding = Z00ZScalar::random(&mut rng);
+                    let blinding =
+                        Z00ZScalar::random(&mut rng).map_err(|error| error.to_string())?;
 
                     // Determine amount based on asset class
                     let amount = match def.class {

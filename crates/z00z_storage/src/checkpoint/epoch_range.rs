@@ -19,9 +19,9 @@ use super::{
     recursive_v2::RecursiveSecurityBudgetManifestV2, version_registry::CheckpointVersionRegistryV2,
 };
 
-const EPOCH_RANGE_MAGIC_V2: [u8; 8] = *b"Z00ZERG2";
-const EPOCH_RANGE_WIRE_VERSION_V2: u16 = 2;
-pub(super) const EPOCH_TREE_SHAPE_GENERATION_V2: u8 = 1;
+const EPOCH_RANGE_MAGIC_V2: [u8; 8] = *b"Z00ZERG3";
+const EPOCH_RANGE_WIRE_VERSION_V2: u16 = 3;
+pub(super) const EPOCH_TREE_SHAPE_GENERATION_V2: u8 = 3;
 const EPOCH_RANGE_DIGEST_LABEL_V2: &str = "canonical_statement";
 pub(super) const ORDERED_ROOT_LABEL_V2: &str = "ordered_digest_root";
 pub(super) const ORDERED_LEAF_LABEL_V2: &str = "ordered_digest_leaf";
@@ -37,12 +37,15 @@ pub(super) const EPOCH_WITNESS_ROOT_DOMAIN_V2: &str =
 pub(super) const EPOCH_CHALLENGE_ROOT_DOMAIN_V2: &str =
     "z00z.storage.checkpoint.epoch.challenge-content.v2";
 pub(super) const EPOCH_DA_ROOT_DOMAIN_V2: &str = "z00z.storage.checkpoint.epoch.da-payloads.v2";
-pub(super) const EPOCH_VERIFIED_BASE_ROOT_DOMAIN_V2: &str =
-    "z00z.storage.checkpoint.epoch.verified-base-proofs.v2";
-pub(super) const EPOCH_VERIFIED_BASE_STATEMENT_DOMAIN_V2: &str =
-    "z00z.storage.checkpoint.epoch.verified-base-statement.v2";
-pub(super) const EPOCH_VERIFIED_BASE_STATEMENT_LABEL_V2: &str = "actual_verified_base_statement";
-const EPOCH_RANGE_DIGEST_COUNT_V2: usize = 21;
+pub(super) const EPOCH_VERIFIED_TRACE_CHUNK_ROOT_DOMAIN_V2: &str =
+    "z00z.storage.checkpoint.epoch.verified-trace-chunks.v2";
+pub(super) const EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_DOMAIN_V2: &str =
+    "z00z.storage.checkpoint.epoch.verified-trace-chunk-statement.v2";
+pub(super) const EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_LABEL_V2: &str =
+    "actual_verified_trace_chunk_statement";
+pub(super) const EPOCH_VERIFIED_TRACE_CHUNK_SPAN_LABEL_V2: &str =
+    "actual_verified_trace_chunk_span";
+const EPOCH_RANGE_DIGEST_COUNT_V2: usize = 22;
 const EPOCH_RANGE_PAYLOAD_BYTES_V2: usize =
     8 + 2 + 1 + 1 + 8 * 4 + 4 * 2 + EPOCH_RANGE_DIGEST_COUNT_V2 * 32 + 1 + 32;
 
@@ -74,7 +77,7 @@ pub struct EpochRangeInputsV2 {
     pub start_height: u64,
     pub end_height: u64,
     pub cadence_blocks: u64,
-    pub leaf_count: u32,
+    pub transition_count: u32,
     pub parameter_generation: u32,
     pub chain_context_digest: [u8; 32],
     pub predicate_digest: [u8; 32],
@@ -88,6 +91,10 @@ pub struct EpochRangeInputsV2 {
     /// frontier. This prevents a valid range proof from being replayed across
     /// another epoch/configuration frontier.
     pub frontier_authority_digest: [u8; 32],
+    /// Digest of the immutable, exact-count transition work manifest accepted
+    /// at epoch close. The seal circuit binds this digest only after every
+    /// actual-verified frontier chunk has matched its canonical manifest slice.
+    pub epoch_work_manifest_digest: [u8; 32],
     pub epoch_close_anchor_digest: [u8; 32],
     pub start_root: [u8; 32],
     pub end_root: [u8; 32],
@@ -98,13 +105,14 @@ pub struct EpochRangeInputsV2 {
     pub witness_root: [u8; 32],
     pub challenge_content_root: [u8; 32],
     pub da_payload_commitment: [u8; 32],
-    /// Ordered root of the actual-verifier-admitted Plonky3 base-proof
-    /// statements and proof digests. This is distinct from the canonical
-    /// checkpoint-statement root.
-    pub verified_base_proof_root: [u8; 32],
+    /// Ordered root of actual-verifier-admitted direct-AIR trace-chunk
+    /// statements. Actual verification is enforced by the recursive parent;
+    /// this root is distinct from the canonical checkpoint-statement root and
+    /// from the transition count.
+    pub verified_trace_chunk_root: [u8; 32],
     /// Canonical eight-u32 encoding of the ordered Poseidon commitment exposed
     /// by the final actual-verifier-accepted epoch recursion proof.
-    pub recursive_base_proof_commitment: [u8; 32],
+    pub recursive_epoch_commitment: [u8; 32],
     pub nova_chain_root: Option<[u8; 32]>,
 }
 
@@ -231,8 +239,8 @@ impl EpochRangeStatementV2 {
     }
 
     #[must_use]
-    pub const fn leaf_count(&self) -> u32 {
-        self.inputs.leaf_count
+    pub const fn transition_count(&self) -> u32 {
+        self.inputs.transition_count
     }
 
     #[must_use]
@@ -256,8 +264,8 @@ impl EpochRangeStatementV2 {
     }
 
     #[must_use]
-    pub const fn verified_base_proof_root(&self) -> [u8; 32] {
-        self.inputs.verified_base_proof_root
+    pub const fn verified_trace_chunk_root(&self) -> [u8; 32] {
+        self.inputs.verified_trace_chunk_root
     }
 
     #[must_use]
@@ -266,8 +274,13 @@ impl EpochRangeStatementV2 {
     }
 
     #[must_use]
-    pub const fn recursive_base_proof_commitment(&self) -> [u8; 32] {
-        self.inputs.recursive_base_proof_commitment
+    pub const fn epoch_work_manifest_digest(&self) -> [u8; 32] {
+        self.inputs.epoch_work_manifest_digest
+    }
+
+    #[must_use]
+    pub const fn recursive_epoch_commitment(&self) -> [u8; 32] {
+        self.inputs.recursive_epoch_commitment
     }
 
     #[must_use]
@@ -297,6 +310,7 @@ fn require_manifest_roots(inputs: &EpochRangeInputsV2) -> Result<(), CheckpointE
         inputs.registry_digest,
         inputs.runtime_profile_manifest_digest,
         inputs.frontier_authority_digest,
+        inputs.epoch_work_manifest_digest,
         inputs.epoch_close_anchor_digest,
         inputs.start_root,
         inputs.end_root,
@@ -307,8 +321,8 @@ fn require_manifest_roots(inputs: &EpochRangeInputsV2) -> Result<(), CheckpointE
         inputs.witness_root,
         inputs.challenge_content_root,
         inputs.da_payload_commitment,
-        inputs.verified_base_proof_root,
-        inputs.recursive_base_proof_commitment,
+        inputs.verified_trace_chunk_root,
+        inputs.recursive_epoch_commitment,
     ]
     .contains(&[0; 32])
         || inputs.nova_chain_root == Some([0; 32])
@@ -332,8 +346,8 @@ fn validate_inputs(
         || !authority.has_transition_range_proof()
         || !authority.has_independent_transition_proof()
         || inputs.cadence_blocks == 0
-        || inputs.leaf_count == 0
-        || u64::from(inputs.leaf_count) != inputs.cadence_blocks
+        || inputs.transition_count == 0
+        || u64::from(inputs.transition_count) != inputs.cadence_blocks
         || inputs.start_height == 0
         || inputs.end_height < inputs.start_height
         || inputs
@@ -388,6 +402,7 @@ fn validate_inputs(
         inputs.registry_digest,
         inputs.runtime_profile_manifest_digest,
         inputs.frontier_authority_digest,
+        inputs.epoch_work_manifest_digest,
         inputs.epoch_close_anchor_digest,
         inputs.start_root,
         inputs.end_root,
@@ -398,8 +413,8 @@ fn validate_inputs(
         inputs.witness_root,
         inputs.challenge_content_root,
         inputs.da_payload_commitment,
-        inputs.verified_base_proof_root,
-        inputs.recursive_base_proof_commitment,
+        inputs.verified_trace_chunk_root,
+        inputs.recursive_epoch_commitment,
     ];
     if required.contains(&[0; 32]) || inputs.nova_chain_root == Some([0; 32]) {
         return Err(CheckpointError::RecursiveRejected(
@@ -419,7 +434,7 @@ fn encode_payload(inputs: &EpochRangeInputsV2) -> Vec<u8> {
     payload.extend_from_slice(&inputs.start_height.to_le_bytes());
     payload.extend_from_slice(&inputs.end_height.to_le_bytes());
     payload.extend_from_slice(&inputs.cadence_blocks.to_le_bytes());
-    payload.extend_from_slice(&inputs.leaf_count.to_le_bytes());
+    payload.extend_from_slice(&inputs.transition_count.to_le_bytes());
     payload.extend_from_slice(&inputs.parameter_generation.to_le_bytes());
     for digest in [
         inputs.chain_context_digest,
@@ -431,6 +446,7 @@ fn encode_payload(inputs: &EpochRangeInputsV2) -> Vec<u8> {
         inputs.registry_digest,
         inputs.runtime_profile_manifest_digest,
         inputs.frontier_authority_digest,
+        inputs.epoch_work_manifest_digest,
         inputs.epoch_close_anchor_digest,
         inputs.start_root,
         inputs.end_root,
@@ -441,8 +457,8 @@ fn encode_payload(inputs: &EpochRangeInputsV2) -> Vec<u8> {
         inputs.witness_root,
         inputs.challenge_content_root,
         inputs.da_payload_commitment,
-        inputs.verified_base_proof_root,
-        inputs.recursive_base_proof_commitment,
+        inputs.verified_trace_chunk_root,
+        inputs.recursive_epoch_commitment,
     ] {
         payload.extend_from_slice(&digest);
     }
@@ -470,7 +486,7 @@ fn decode_payload(payload: &[u8]) -> Result<EpochRangeInputsV2, CheckpointError>
     let start_height = reader.u64()?;
     let end_height = reader.u64()?;
     let cadence_blocks = reader.u64()?;
-    let leaf_count = reader.u32()?;
+    let transition_count = reader.u32()?;
     let parameter_generation = reader.u32()?;
     let inputs = EpochRangeInputsV2 {
         cadence_class,
@@ -478,7 +494,7 @@ fn decode_payload(payload: &[u8]) -> Result<EpochRangeInputsV2, CheckpointError>
         start_height,
         end_height,
         cadence_blocks,
-        leaf_count,
+        transition_count,
         parameter_generation,
         chain_context_digest: reader.array()?,
         predicate_digest: reader.array()?,
@@ -489,6 +505,7 @@ fn decode_payload(payload: &[u8]) -> Result<EpochRangeInputsV2, CheckpointError>
         registry_digest: reader.array()?,
         runtime_profile_manifest_digest: reader.array()?,
         frontier_authority_digest: reader.array()?,
+        epoch_work_manifest_digest: reader.array()?,
         epoch_close_anchor_digest: reader.array()?,
         start_root: reader.array()?,
         end_root: reader.array()?,
@@ -499,8 +516,8 @@ fn decode_payload(payload: &[u8]) -> Result<EpochRangeInputsV2, CheckpointError>
         witness_root: reader.array()?,
         challenge_content_root: reader.array()?,
         da_payload_commitment: reader.array()?,
-        verified_base_proof_root: reader.array()?,
-        recursive_base_proof_commitment: reader.array()?,
+        verified_trace_chunk_root: reader.array()?,
+        recursive_epoch_commitment: reader.array()?,
         nova_chain_root: decode_optional_digest(&mut reader)?,
     };
     if !reader.is_done() {
@@ -564,6 +581,114 @@ pub fn epoch_ordered_digest_root_v2(
         return Err(CheckpointError::Invariant);
     }
     epoch_ordered_digest_root_node_v2(root_domain, total, root.digest)
+}
+
+pub(super) fn epoch_ordered_digest_subtree_v2(
+    domain: &str,
+    total: u64,
+    start: u64,
+    digests: &[[u8; 32]],
+) -> Result<[u8; 32], CheckpointError> {
+    let count = u64::try_from(digests.len()).map_err(|_| CheckpointError::Limit)?;
+    if domain.is_empty()
+        || total == 0
+        || count == 0
+        || digests.contains(&[0; 32])
+        || start.checked_add(count).is_none_or(|end| end > total)
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut slots: Vec<Option<OrderedDigestNodeV2>> = Vec::new();
+    for (offset, digest) in digests.iter().copied().enumerate() {
+        let ordinal = start
+            .checked_add(u64::try_from(offset).map_err(|_| CheckpointError::Limit)?)
+            .ok_or(CheckpointError::Overflow)?;
+        let mut node = OrderedDigestNodeV2 {
+            start: ordinal,
+            count: 1,
+            digest: epoch_ordered_digest_leaf_v2(domain, ordinal, total, digest)?,
+        };
+        let mut level = 0_usize;
+        loop {
+            if slots.len() <= level {
+                slots.resize(level + 1, None);
+            }
+            let Some(left) = slots[level].take() else {
+                slots[level] = Some(node);
+                break;
+            };
+            node = merge_ordered_digest_nodes(domain, total, left, node)?;
+            level = level.checked_add(1).ok_or(CheckpointError::Overflow)?;
+        }
+    }
+    let mut root = None;
+    for node in slots.into_iter().rev().flatten() {
+        root = Some(match root {
+            None => node,
+            Some(left) => merge_ordered_digest_nodes(domain, total, left, node)?,
+        });
+    }
+    let root = root.ok_or(CheckpointError::Canonical)?;
+    if root.start != start || root.count != count {
+        return Err(CheckpointError::Invariant);
+    }
+    Ok(root.digest)
+}
+
+/// Final ordered root for already-bound contiguous span nodes.
+///
+/// Each input digest is the proof-visible identity of its complete span rather
+/// than a single transition leaf. Parent and root framing are otherwise
+/// identical to the transition trees, so recursive chunk merges and durable
+/// frontier reconstruction share one canonical tree shape.
+pub(super) fn epoch_ordered_digest_span_root_v2(
+    domain: &str,
+    total: u64,
+    spans: &[(u64, u64, [u8; 32])],
+) -> Result<[u8; 32], CheckpointError> {
+    if domain.is_empty()
+        || total == 0
+        || spans.is_empty()
+        || spans.iter().any(|(start, count, digest)| {
+            *count == 0
+                || *digest == [0; 32]
+                || start.checked_add(*count).is_none_or(|end| end > total)
+        })
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    let mut slots: Vec<Option<OrderedDigestNodeV2>> = Vec::new();
+    for &(start, count, digest) in spans {
+        let mut node = OrderedDigestNodeV2 {
+            start,
+            count,
+            digest,
+        };
+        let mut level = 0_usize;
+        loop {
+            if slots.len() <= level {
+                slots.resize(level + 1, None);
+            }
+            let Some(left) = slots[level].take() else {
+                slots[level] = Some(node);
+                break;
+            };
+            node = merge_ordered_digest_nodes(domain, total, left, node)?;
+            level = level.checked_add(1).ok_or(CheckpointError::Overflow)?;
+        }
+    }
+    let mut root = None;
+    for node in slots.into_iter().rev().flatten() {
+        root = Some(match root {
+            None => node,
+            Some(left) => merge_ordered_digest_nodes(domain, total, left, node)?,
+        });
+    }
+    let root = root.ok_or(CheckpointError::Invariant)?;
+    if root.start != 0 || root.count != total {
+        return Err(CheckpointError::Canonical);
+    }
+    epoch_ordered_digest_root_node_v2(domain, total, root.digest)
 }
 
 pub(super) fn epoch_ordered_digest_leaf_v2(
@@ -647,17 +772,51 @@ pub(super) fn epoch_ordered_digest_parent_v2(
     Ok(parent.digest)
 }
 
-pub(super) fn epoch_verified_base_statement_digest_v2(
-    height: u64,
+pub(super) fn epoch_verified_trace_chunk_statement_digest_v2(
+    chunk_ordinal: u32,
     statement_digest: [u8; 32],
 ) -> Result<[u8; 32], CheckpointError> {
-    if height == 0 || statement_digest == [0; 32] {
+    if statement_digest == [0; 32] {
         return Err(CheckpointError::Canonical);
     }
     Ok(sha256_256(
-        EPOCH_VERIFIED_BASE_STATEMENT_DOMAIN_V2,
-        EPOCH_VERIFIED_BASE_STATEMENT_LABEL_V2,
-        &[&height.to_le_bytes(), &statement_digest],
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_DOMAIN_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_LABEL_V2,
+        &[&chunk_ordinal.to_le_bytes(), &statement_digest],
+    ))
+}
+
+pub(super) fn epoch_verified_trace_chunk_span_digest_v2(
+    total_transition_count: u32,
+    chunk_ordinal: u32,
+    chunk_count: u32,
+    first_transition: u32,
+    transition_count: u32,
+    statement_digest: [u8; 32],
+) -> Result<[u8; 32], CheckpointError> {
+    if total_transition_count == 0
+        || chunk_count == 0
+        || chunk_ordinal >= chunk_count
+        || transition_count == 0
+        || first_transition
+            .checked_add(transition_count)
+            .is_none_or(|end| end > total_transition_count)
+        || statement_digest == [0; 32]
+    {
+        return Err(CheckpointError::Canonical);
+    }
+    Ok(sha256_256(
+        EPOCH_VERIFIED_TRACE_CHUNK_STATEMENT_DOMAIN_V2,
+        EPOCH_VERIFIED_TRACE_CHUNK_SPAN_LABEL_V2,
+        &[
+            &EPOCH_TREE_SHAPE_GENERATION_V2.to_le_bytes(),
+            &total_transition_count.to_le_bytes(),
+            &chunk_ordinal.to_le_bytes(),
+            &chunk_count.to_le_bytes(),
+            &first_transition.to_le_bytes(),
+            &transition_count.to_le_bytes(),
+            &statement_digest,
+        ],
     ))
 }
 
@@ -776,7 +935,7 @@ mod tests {
             start_height: 1,
             end_height: cadence,
             cadence_blocks: cadence,
-            leaf_count: u32::try_from(cadence).expect("cadence fits"),
+            transition_count: u32::try_from(cadence).expect("cadence fits"),
             parameter_generation: identity.parameter_generation,
             chain_context_digest: digest(1),
             predicate_digest: digest(2),
@@ -789,6 +948,7 @@ mod tests {
                 .digest(),
             runtime_profile_manifest_digest: identity.runtime_profile_manifest_digest,
             frontier_authority_digest: digest(5),
+            epoch_work_manifest_digest: digest(19),
             epoch_close_anchor_digest: digest(6),
             start_root: digest(7),
             end_root: digest(8),
@@ -799,8 +959,8 @@ mod tests {
             witness_root: digest(12),
             challenge_content_root: digest(13),
             da_payload_commitment: digest(14),
-            verified_base_proof_root: digest(15),
-            recursive_base_proof_commitment: digest(16),
+            verified_trace_chunk_root: digest(15),
+            recursive_epoch_commitment: digest(16),
             nova_chain_root: Some(digest(17)),
         }
     }

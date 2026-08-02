@@ -154,6 +154,64 @@ pub(crate) const PLONKY3_ROOT_AUTHORITY_V2: Plonky3RootCommonAuthorityV2 =
         ],
     };
 
+/// Generation-bound common-data authority for the epoch seal and every
+/// rolling-history relation. Zero values are diagnostic-only and keep all
+/// receipt-returning verification fail closed until one complete real
+/// authority-candidate run has been independently recorded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Plonky3EpochHistoryCommonAuthorityV2 {
+    generation: u16,
+    epoch_seal_common: [u8; 32],
+    history_base_common: [u8; 32],
+    history_successor_common: [u8; 32],
+    history_rotation_common: [u8; 32],
+}
+
+impl Plonky3EpochHistoryCommonAuthorityV2 {
+    #[must_use]
+    pub(crate) const fn generation(self) -> u16 {
+        self.generation
+    }
+
+    #[must_use]
+    pub(crate) const fn epoch_seal_common(self) -> [u8; 32] {
+        self.epoch_seal_common
+    }
+
+    #[must_use]
+    pub(crate) const fn history_base_common(self) -> [u8; 32] {
+        self.history_base_common
+    }
+
+    #[must_use]
+    pub(crate) const fn history_successor_common(self) -> [u8; 32] {
+        self.history_successor_common
+    }
+
+    #[must_use]
+    pub(crate) const fn history_rotation_common(self) -> [u8; 32] {
+        self.history_rotation_common
+    }
+
+    #[must_use]
+    pub(crate) fn is_complete(self) -> bool {
+        self.generation != 0
+            && self.epoch_seal_common != [0; 32]
+            && self.history_base_common != [0; 32]
+            && self.history_successor_common != [0; 32]
+            && self.history_rotation_common != [0; 32]
+    }
+}
+
+pub(crate) const PLONKY3_EPOCH_HISTORY_COMMON_AUTHORITY_V2: Plonky3EpochHistoryCommonAuthorityV2 =
+    Plonky3EpochHistoryCommonAuthorityV2 {
+        generation: 0,
+        epoch_seal_common: [0; 32],
+        history_base_common: [0; 32],
+        history_successor_common: [0; 32],
+        history_rotation_common: [0; 32],
+    };
+
 /// Exact upstream revision selected by the live Plonky3 base-proof authority.
 pub(crate) const ACTIVE_PLONKY3_SOURCE_REVISION_V2: &str =
     "b36339709a7a67ee9760fb578b3d4339fd983709";

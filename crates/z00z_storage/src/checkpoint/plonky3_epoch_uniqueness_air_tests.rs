@@ -13,7 +13,7 @@ use z00z_plonky3_circuit_prover::batch_stark_prover::canonical_lookups_for_air;
 
 fn replay_trace_with_one_active_row() -> (UniquenessTraceV2, Vec<KoalaBear>) {
     let mut public = vec![KoalaBear::ZERO; PUBLIC_FIELDS_V2];
-    public[PUBLIC_ROW_COUNT_OFFSET_V2] = KoalaBear::ONE;
+    public[PUBLIC_SLICE_ROW_COUNT_OFFSET_V2] = KoalaBear::ONE;
     let mut rows = Vec::with_capacity(MIN_ROWS_V2);
     for row_index in 0..MIN_ROWS_V2 {
         let mut values = if row_index == 0 {

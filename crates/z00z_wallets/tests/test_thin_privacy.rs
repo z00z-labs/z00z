@@ -86,7 +86,7 @@ async fn test_logging_keeps_metadata() {
         .expect("unlock wallet");
 
     let entry = fixture_entry().await;
-    let (identity_sk, _) = generate_identity_keypair();
+    let (identity_sk, _) = generate_identity_keypair().unwrap();
     let snapshot = ThinSnapshot::new_signed(
         context_for_entry(&entry, 70, 1_700_000_000_000, 4_700_000_000_000),
         vec![entry.clone()],

@@ -20,6 +20,8 @@ pub(super) fn eval_transition_state<AB, const D: usize>(
     let active = field::<AB, D>(local, ACTIVE_OFFSET_V2);
     let next_active = field::<AB, D>(next, ACTIVE_OFFSET_V2);
     let update_begin = op(local, 1);
+    let operation_begin = op(local, 2);
+    let value_row = op(local, 3);
     let operation_end = op(local, 5);
     let update_low = field::<AB, D>(local, UPDATE_INDEX_OFFSET_V2);
     let update_high = field::<AB, D>(local, UPDATE_INDEX_OFFSET_V2 + 1);
@@ -62,6 +64,20 @@ pub(super) fn eval_transition_state<AB, const D: usize>(
             carry_update.clone()
                 * (field::<AB, D>(next, ROLE_OFFSET_V2 + index)
                     - field::<AB, D>(local, ROLE_OFFSET_V2 + index)),
+        );
+    }
+    for byte in 0..TREE_DEFINITION_BYTES_V2 {
+        builder.when_transition().assert_zero(
+            carry_update.clone()
+                * (field::<AB, D>(next, TREE_DEFINITION_OFFSET_V2 + byte)
+                    - field::<AB, D>(local, TREE_DEFINITION_OFFSET_V2 + byte)),
+        );
+    }
+    for byte in 0..TREE_SERIAL_BYTES_V2 {
+        builder.when_transition().assert_zero(
+            carry_update.clone()
+                * (field::<AB, D>(next, TREE_SERIAL_OFFSET_V2 + byte)
+                    - field::<AB, D>(local, TREE_SERIAL_OFFSET_V2 + byte)),
         );
     }
     for offset in [
@@ -125,6 +141,115 @@ pub(super) fn eval_transition_state<AB, const D: usize>(
                     - field::<AB, D>(local, KEY_OFFSET_V2 + byte)),
         );
     }
+    for offset in [
+        OPERATION_JOB_OFFSET_V2,
+        EXPECTED_VALUE_BYTES_OFFSET_V2,
+        EXPECTED_PRIOR_VALUE_BYTES_OFFSET_V2,
+    ] {
+        builder.when_transition().assert_zero(
+            carry_operation.clone()
+                * (field::<AB, D>(next, offset) - field::<AB, D>(local, offset)),
+        );
+    }
+    let next_value_kind = record_byte::<AB, D>(next, 18);
+    let next_prior_count_write = next_value.clone() * next_value_kind.clone();
+    let next_new_count_write = next_value.clone() * (one.clone() - next_value_kind.clone());
+    builder.when_transition().assert_zero(
+        (carry_operation.clone() - next_prior_count_write)
+            * (field::<AB, D>(next, PRIOR_VALUE_BLOCK_COUNT_OFFSET_V2)
+                - field::<AB, D>(local, PRIOR_VALUE_BLOCK_COUNT_OFFSET_V2)),
+    );
+    builder.when_transition().assert_zero(
+        (carry_operation.clone() - next_new_count_write)
+            * (field::<AB, D>(next, NEW_VALUE_BLOCK_COUNT_OFFSET_V2)
+                - field::<AB, D>(local, NEW_VALUE_BLOCK_COUNT_OFFSET_V2)),
+    );
+
+    let prior_present = field::<AB, D>(local, PRIOR_PRESENT_OFFSET_V2);
+    let value_present = field::<AB, D>(local, VALUE_PRESENT_OFFSET_V2);
+    let first_value_required =
+        prior_present.clone() + (one.clone() - prior_present.clone()) * value_present.clone();
+    builder
+        .when_transition()
+        .assert_zero(operation_begin.clone() * (next_value.clone() - first_value_required));
+    builder.when_transition().assert_zero(
+        operation_begin.clone()
+            * (next_proof.clone()
+                - (one.clone() - prior_present.clone()) * (one.clone() - value_present.clone())),
+    );
+    let next_value_index = record_limb::<AB, D>(next, 10);
+    let next_value_count = record_limb::<AB, D>(next, 14);
+    builder
+        .when_transition()
+        .assert_zero(operation_begin.clone() * next_value.clone() * next_value_index.clone());
+    builder.when_transition().assert_zero(
+        operation_begin.clone()
+            * next_value.clone()
+            * (next_value_kind.clone() - prior_present.clone()),
+    );
+    builder.when_transition().assert_zero(
+        operation_begin.clone()
+            * next_value.clone()
+            * (field::<AB, D>(next, VALUE_PADDING_STARTED_OFFSET_V2)
+                - field::<AB, D>(next, VALUE_PADDING_START_OFFSET_V2)),
+    );
+
+    let value_kind = record_byte::<AB, D>(local, 18);
+    let value_index = record_limb::<AB, D>(local, 10);
+    let value_count = record_limb::<AB, D>(local, 14);
+    let padding_started = field::<AB, D>(local, VALUE_PADDING_STARTED_OFFSET_V2);
+    let next_padding_started = field::<AB, D>(next, VALUE_PADDING_STARTED_OFFSET_V2);
+    let next_padding_start = field::<AB, D>(next, VALUE_PADDING_START_OFFSET_V2);
+    builder
+        .when_transition()
+        .assert_zero(value_row.clone() * (next_value.clone() + next_proof.clone() - one.clone()));
+    builder.when_transition().assert_zero(
+        value_row.clone()
+            * next_value.clone()
+            * (one.clone() - value_kind.clone())
+            * next_value_kind.clone(),
+    );
+    let switch_kind = next_value.clone() * (value_kind.clone() - next_value_kind.clone());
+    let same_kind = next_value.clone() - switch_kind.clone();
+    builder.when_transition().assert_zero(
+        value_row.clone()
+            * same_kind.clone()
+            * (next_value_index.clone() - value_index.clone() - one.clone()),
+    );
+    builder.when_transition().assert_zero(
+        value_row.clone() * same_kind.clone() * (next_value_count.clone() - value_count.clone()),
+    );
+    builder.when_transition().assert_zero(
+        value_row.clone()
+            * same_kind
+            * (next_padding_started.clone() - padding_started.clone() - next_padding_start.clone()),
+    );
+    builder.when_transition().assert_zero(
+        value_row.clone()
+            * switch_kind.clone()
+            * (value_index.clone() + one.clone() - value_count.clone()),
+    );
+    builder
+        .when_transition()
+        .assert_zero(value_row.clone() * switch_kind.clone() * next_value_index);
+    builder.when_transition().assert_zero(
+        value_row.clone() * switch_kind.clone() * (one.clone() - value_present.clone()),
+    );
+    builder.when_transition().assert_zero(
+        value_row.clone() * switch_kind.clone() * (one.clone() - padding_started.clone()),
+    );
+    builder
+        .when_transition()
+        .assert_zero(value_row.clone() * switch_kind * (next_padding_started - next_padding_start));
+    builder.when_transition().assert_zero(
+        value_row.clone() * next_proof.clone() * (value_index + one.clone() - value_count),
+    );
+    builder
+        .when_transition()
+        .assert_zero(value_row.clone() * next_proof.clone() * (one.clone() - padding_started));
+    builder
+        .when_transition()
+        .assert_zero(value_row * next_proof * value_kind * value_present);
 
     builder.when_transition().assert_zero(
         next_operation_begin.clone()
@@ -223,8 +348,8 @@ pub(super) fn eval_transition_state<AB, const D: usize>(
     for limb in 0..16 {
         let next_direction = field::<AB, D>(next, DIRECTION_OFFSET_V2);
         let next_sibling_digest = digest_limb::<AB, D>(next, SIBLING_DIGEST_OFFSET_V2, limb);
-        let split_left = record_limb::<AB, D>(next, 147 + 16 + limb * 2);
-        let split_right = record_limb::<AB, D>(next, 147 + 48 + limb * 2);
+        let split_left = record_digest_limb::<AB, D>(next, 147 + 16, limb);
+        let split_right = record_digest_limb::<AB, D>(next, 147 + 48, limb);
         builder.when_transition().assert_zero(
             next_split.clone()
                 * (split_left
@@ -239,8 +364,8 @@ pub(super) fn eval_transition_state<AB, const D: usize>(
                     - next_direction.clone()
                         * digest_limb::<AB, D>(local, NEW_CURRENT_OFFSET_V2, limb)),
         );
-        let old_left = record_limb::<AB, D>(next, 147 + 16 + limb * 2);
-        let old_right = record_limb::<AB, D>(next, 147 + 48 + limb * 2);
+        let old_left = record_digest_limb::<AB, D>(next, 147 + 16, limb);
+        let old_right = record_digest_limb::<AB, D>(next, 147 + 48, limb);
         builder.when_transition().assert_zero(
             next_sibling.clone()
                 * (old_left
@@ -256,8 +381,8 @@ pub(super) fn eval_transition_state<AB, const D: usize>(
                         * digest_limb::<AB, D>(local, OLD_CURRENT_OFFSET_V2, limb)),
         );
         let next_active_parent = field::<AB, D>(next, NEW_PARENT_ACTIVE_OFFSET_V2);
-        let new_left = record_limb::<AB, D>(next, 275 + 16 + limb * 2);
-        let new_right = record_limb::<AB, D>(next, 275 + 48 + limb * 2);
+        let new_left = record_digest_limb::<AB, D>(next, 275 + 16, limb);
+        let new_right = record_digest_limb::<AB, D>(next, 275 + 48, limb);
         builder.when_transition().assert_zero(
             next_sibling.clone()
                 * next_active_parent.clone()

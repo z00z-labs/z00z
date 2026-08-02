@@ -28,7 +28,7 @@ fn range_inputs() -> EpochRangeInputsV2 {
         start_height: 1,
         end_height: cadence,
         cadence_blocks: cadence,
-        leaf_count: u32::try_from(cadence).expect("cadence fits"),
+        transition_count: u32::try_from(cadence).expect("cadence fits"),
         parameter_generation: identity.parameter_generation,
         chain_context_digest: digest(1),
         predicate_digest: digest(2),
@@ -41,6 +41,7 @@ fn range_inputs() -> EpochRangeInputsV2 {
             .digest(),
         runtime_profile_manifest_digest: identity.runtime_profile_manifest_digest,
         frontier_authority_digest: digest(16),
+        epoch_work_manifest_digest: digest(19),
         epoch_close_anchor_digest: digest(5),
         start_root: digest(6),
         end_root: digest(7),
@@ -51,8 +52,8 @@ fn range_inputs() -> EpochRangeInputsV2 {
         witness_root: digest(11),
         challenge_content_root: digest(12),
         da_payload_commitment: digest(13),
-        verified_base_proof_root: digest(14),
-        recursive_base_proof_commitment: digest(17),
+        verified_trace_chunk_root: digest(14),
+        recursive_epoch_commitment: digest(17),
         nova_chain_root: Some(digest(15)),
     }
 }
@@ -66,7 +67,7 @@ fn test_epoch_range_roundtrip() {
     let statement = statement();
     assert_eq!(statement.start_height(), 1);
     assert_eq!(statement.end_height(), 2_000);
-    assert_eq!(statement.leaf_count(), 2_000);
+    assert_eq!(statement.transition_count(), 2_000);
     assert!(statement.is_production_cadence());
     assert_eq!(
         EpochRangeStatementV2::decode_canonical(statement.canonical_bytes()).expect("decode"),
@@ -78,12 +79,13 @@ fn test_epoch_range_roundtrip() {
 fn test_range_mutations_reject() {
     for mutate in [
         |value: &mut EpochRangeInputsV2| value.end_height -= 1,
-        |value: &mut EpochRangeInputsV2| value.leaf_count -= 1,
+        |value: &mut EpochRangeInputsV2| value.transition_count -= 1,
         |value: &mut EpochRangeInputsV2| value.statement_digest_root = [0; 32],
         |value: &mut EpochRangeInputsV2| value.checkpoint_link_root = [0; 32],
-        |value: &mut EpochRangeInputsV2| value.verified_base_proof_root = [0; 32],
+        |value: &mut EpochRangeInputsV2| value.verified_trace_chunk_root = [0; 32],
         |value: &mut EpochRangeInputsV2| value.frontier_authority_digest = [0; 32],
-        |value: &mut EpochRangeInputsV2| value.recursive_base_proof_commitment = [0; 32],
+        |value: &mut EpochRangeInputsV2| value.epoch_work_manifest_digest = [0; 32],
+        |value: &mut EpochRangeInputsV2| value.recursive_epoch_commitment = [0; 32],
     ] {
         let mut inputs = range_inputs();
         mutate(&mut inputs);

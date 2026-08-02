@@ -92,7 +92,7 @@ mod arc_serde;
 /// let arc_def = Arc::new(def);
 ///
 /// // Create Asset
-/// let blinding = Z00ZScalar::random(&mut OsRng);
+/// let blinding = Z00ZScalar::random(&mut OsRng).unwrap();
 /// // For deterministic tests: let mut rng = DeterministicRngProvider::from_seed([42u8; 32]).rng();
 /// // Production: use derive_nonce_simple(&wallet_seed, counter, &time_provider)
 /// // Testing: use [1u8; 32] or higher for non-zero placeholder

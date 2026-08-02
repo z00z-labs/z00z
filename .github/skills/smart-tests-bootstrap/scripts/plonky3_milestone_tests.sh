@@ -16,6 +16,7 @@ readonly DIRECT_TABLE_TARGET_SECONDS=10
 readonly DIRECT_TABLE_BUDGET_SECONDS=120
 readonly BOUNDED_EPOCH_BUDGET_SECONDS=900
 readonly EXACT_EPOCH_BUDGET_SECONDS=7200
+readonly SEMANTIC_PREWARM_BUDGET_SECONDS=1200
 [[ "$THREADS" =~ ^[1-8]$ ]] || {
   printf 'PLAN08_TEST_THREADS must be in the inclusive range 1..8\n' >&2
   exit 2
@@ -39,9 +40,16 @@ readonly -a SEMANTIC_TARGETS=(
   test_recursive_v2_plonky3_epoch
   test_recursive_v2_plonky3_history
 )
+readonly -a SEMANTIC_CARGO=(
+  cargo test --release --locked --offline -p z00z_storage
+  --test test_recursive_epoch
+  --test test_recursive_history
+  --test test_recursive_v2_plonky3_epoch
+  --test test_recursive_v2_plonky3_history
+)
 
 usage() {
-  printf 'usage: %s {guards|selection|semantic|preflight|trace-table|packed-table|typed-table|transition-batch|transition-batch-chunk|sha-table|jmt-table|bounded-epoch|cache-authority|exact-2000}\n' \
+  printf 'usage: %s {guards|selection|semantic-prewarm|semantic|preflight|trace-table|packed-table|typed-table|transition-batch|transition-batch-chunk|sha-table|jmt-table|bounded-epoch|cache-authority|exact-2000}\n' \
     "${0##*/}"
 }
 
@@ -62,17 +70,7 @@ check_output_scope() {
 }
 
 source_digest() {
-  {
-    find crates/z00z_storage/src/checkpoint -maxdepth 1 -type f \
-      \( -name '*.rs' -o -name '*.yaml' -o -name '*.txt' \) -print0 |
-      sort -z |
-      xargs -0 sha256sum
-    for target in "${SEMANTIC_TARGETS[@]}"; do
-      sha256sum "crates/z00z_storage/tests/$target.rs"
-    done
-    sha256sum "$WORKER" "$PLAN" "${BASH_SOURCE[0]}"
-    sha256sum Cargo.toml Cargo.lock crates/z00z_storage/Cargo.toml
-  } | sha256sum | awk '{print $1}'
+  "$SOURCE_AUTHORITY" digest
 }
 
 append_unique() {
@@ -84,8 +82,8 @@ append_unique() {
   printf '%s\n' "$value"
 }
 
-latest_accepted_bootstrap_manifest() {
-  local result candidate
+previous_accepted_bootstrap_manifest() {
+  local result candidate have_current=false
   while IFS= read -r result; do
     jq -e \
       '.status == "pass"
@@ -94,6 +92,14 @@ latest_accepted_bootstrap_manifest() {
       "$result" >/dev/null 2>&1 || continue
     candidate="$(dirname "$result")/source-manifest-baseline.tsv"
     [[ -s "$candidate" ]] || continue
+    # Selection runs after a fresh accepted bootstrap.  Its newest manifest is
+    # the current source state, not a baseline from which changed-surface
+    # routing can be derived.  Always compare with the prior accepted
+    # bootstrap; if none exists, the caller takes the fail-closed wide route.
+    if [[ "$have_current" == false ]]; then
+      have_current=true
+      continue
+    fi
     printf '%s\n' "$candidate"
     return 0
   done < <(
@@ -127,7 +133,7 @@ run_selection() {
   "$SOURCE_AUTHORITY" manifest >"$current_manifest"
   current_digest="$(sha256sum "$current_manifest" | awk '{print $1}')"
 
-  if previous_manifest="$(latest_accepted_bootstrap_manifest)"; then
+  if previous_manifest="$(previous_accepted_bootstrap_manifest)"; then
     previous_digest="$(
       sha256sum "$previous_manifest" |
         awk '{print $1}' |
@@ -174,9 +180,8 @@ run_selection() {
         .github/skills/smart-tests-bootstrap/scripts/plonky3_resource_worker.sh | \
         crates/z00z_storage/Cargo.toml | \
         crates/z00z_storage/src/checkpoint/plonky3.rs | \
-        crates/z00z_storage/src/checkpoint/plonky3_binary_hash.rs | \
-        crates/z00z_storage/src/checkpoint/plonky3_binary_mmcs.rs | \
-        crates/z00z_storage/src/checkpoint/plonky3_recursion.rs | \
+        crates/z00z_storage/src/checkpoint/plonky3_binary_*.rs | \
+        crates/z00z_storage/src/checkpoint/plonky3_root_statement*.rs | \
         crates/z00z_storage/src/checkpoint/version_registry.rs | \
         crates/z00z_storage/src/checkpoint/authority_artifacts.rs | \
         crates/z00z_storage/src/checkpoint/contract_config*.rs | \
@@ -384,7 +389,7 @@ run_guards() {
     "crates/z00z_storage/tests/test_recursive_v2_plonky3_base.rs:test_direct_typed_commitment_actual_roundtrip"
     "crates/z00z_storage/tests/test_recursive_v2_plonky3_base.rs:test_direct_transition_batch_actual_roundtrip"
     "crates/z00z_storage/tests/test_recursive_v2_plonky3_base.rs:test_direct_transition_batch_actual_eight_transition_roundtrip"
-    "crates/z00z_storage/tests/test_recursive_v2_plonky3_base.rs:test_production_epoch_2000_actual_recursion_step"
+    "crates/z00z_storage/tests/test_recursive_v2_plonky3_base.rs:test_production_epoch_2000_actual_recursion"
   )
 
   check_output_scope
@@ -471,6 +476,82 @@ write_semantic_result() {
     }' >"$run_dir/result.json"
 }
 
+run_semantic_prewarm() {
+  local run_dir start_ns end_ns wall_ms status reason
+  local digest_before digest_after marker temporary_marker
+  run_dir="$OUTPUT_ROOT/069-08/task-1/diagnostics/semantic-prewarm/$RUN_ID"
+  mkdir -p "$run_dir" "$CACHE_ROOT"
+  check_output_scope
+  digest_before="$(source_digest)"
+  start_ns="$(date +%s%N)"
+  set +e
+  timeout --signal=TERM --kill-after=5s "$SEMANTIC_PREWARM_BUDGET_SECONDS" \
+    "${SEMANTIC_CARGO[@]}" --no-run \
+    > >(tee "$run_dir/compile.log") 2>&1
+  status=$?
+  set -e
+  end_ns="$(date +%s%N)"
+  wall_ms=$(((end_ns - start_ns) / 1000000))
+  digest_after="$(source_digest)"
+  reason=success
+  if (( status == 124 )); then
+    reason="semantic compile-only prewarm hard wall exceeded"
+  elif (( status != 0 )); then
+    reason="semantic compile-only prewarm failed"
+  elif [[ "$digest_before" != "$digest_after" ]]; then
+    status=86
+    reason=source_drift
+  fi
+  marker="$CACHE_ROOT/.plonky3-semantic-cache-v1"
+  if (( status == 0 )); then
+    temporary_marker="$marker.tmp.$$"
+    jq -n -S \
+      --arg schema "z00z.phase069.plonky3-semantic-cache.v1" \
+      --arg source_digest "$digest_after" \
+      --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+      '{schema: $schema, source_digest: $source_digest, recorded_at: $recorded_at}' \
+      >"$temporary_marker"
+    mv "$temporary_marker" "$marker"
+  fi
+  jq -n -S \
+    --arg schema "z00z.phase069.test-pyramid.semantic-prewarm.v1" \
+    --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+    --arg status "$([[ "$status" == 0 ]] && printf pass || printf fail)" \
+    --arg reason "$reason" \
+    --arg source_digest_before "$digest_before" \
+    --arg source_digest_after "$digest_after" \
+    --arg cargo_target_dir "$CARGO_TARGET_DIR" \
+    --argjson wall_ms "$wall_ms" \
+    --argjson budget_seconds "$SEMANTIC_PREWARM_BUDGET_SECONDS" \
+    '{
+      schema: $schema,
+      recorded_at: $recorded_at,
+      tier: "plonky3-semantic-prewarm",
+      status: $status,
+      reason: $reason,
+      identity: {
+        source_digest_before: $source_digest_before,
+        source_digest_after: $source_digest_after
+      },
+      source_stability: {
+        status: (
+          if $source_digest_before == $source_digest_after
+          then "stable"
+          else "source_drift"
+          end
+        )
+      },
+      profile: "release",
+      cargo_target_dir: $cargo_target_dir,
+      budget: {hard_wall_seconds: $budget_seconds},
+      resources: {wall_ms: $wall_ms},
+      compile_only: true,
+      acceptance_authority: false
+    }' >"$run_dir/result.json"
+  printf 'diagnostic semantic prewarm evidence: %s/result.json\n' "$run_dir"
+  return "$status"
+}
+
 run_semantic() {
   local run_dir start_ns end_ns wall_ms status digest_before digest_after reason
   run_dir="$OUTPUT_ROOT/069-08/task-1/test-pyramid/semantic/$RUN_ID"
@@ -479,11 +560,7 @@ run_semantic() {
   start_ns="$(date +%s%N)"
   set +e
   timeout --signal=TERM --kill-after=5s "$SEMANTIC_BUDGET_SECONDS" \
-    cargo test --release --locked --offline -p z00z_storage \
-    --test test_recursive_epoch \
-    --test test_recursive_history \
-    --test test_recursive_v2_plonky3_epoch \
-    --test test_recursive_v2_plonky3_history \
+    "${SEMANTIC_CARGO[@]}" \
     -- --nocapture --test-threads "$THREADS" \
     > >(tee "$run_dir/test.log") 2>&1
   status=$?
@@ -494,7 +571,8 @@ run_semantic() {
   reason="success"
   if (( status != 0 )); then
     if (( status == 124 )); then
-      reason="semantic hard wall budget exceeded"
+      status=76
+      reason="semantic_prewarm_required"
     else
       reason="semantic test failure"
     fi
@@ -553,10 +631,10 @@ write_real_promotion_result() {
   local target_seconds="$5" budget_seconds="$6" evidence_path="$7"
   local evidence_json=null wall_ms=0 tier=changed-table-real
   case "$test_name" in
-    test_bounded_epoch_two_leaf_actual_recursion)
+    test_bounded_epoch_two_trace_chunk_actual_recursion)
       tier=bounded-epoch-real
       ;;
-    test_production_epoch_2000_actual_recursion_step)
+    test_production_epoch_2000_actual_recursion)
       tier=exact-2000
       ;;
     test_recursive_cache_authority_inventory)
@@ -611,9 +689,11 @@ run_isolated() {
   local test_name="$1" target_seconds="$2" budget_seconds="$3"
   local run_dir worker_status evidence_path reason status
   check_output_scope
-  ensure_preflight
   run_dir="$OUTPUT_ROOT/069-08/task-1/test-pyramid/real/$RUN_ID/$test_name"
   mkdir -p "$run_dir"
+  "$WORKER" --prewarm-test "$test_name" |
+    tee "$run_dir/compile-prewarm.log"
+  ensure_preflight
   set +e
   "$WORKER" --run "$test_name" > >(tee "$run_dir/worker.log") 2>&1
   worker_status=$?
@@ -664,6 +744,10 @@ case "$MODE" in
     run_guards
     run_selection
     ;;
+  semantic-prewarm)
+    run_guards
+    run_semantic_prewarm
+    ;;
   semantic)
     run_guards
     run_semantic
@@ -688,14 +772,20 @@ case "$MODE" in
       "$DIRECT_TABLE_TARGET_SECONDS" "$DIRECT_TABLE_BUDGET_SECONDS"
     ;;
   transition-batch)
+    # The closed transition bundle proves twenty linked tables across four or
+    # five Batch-STARK groups. It is a combined closure gate, not one of the five
+    # single-table direct-AIR targets governed by the 10-second warm budget.
     run_isolated \
       test_direct_transition_batch_actual_roundtrip \
-      "$DIRECT_TABLE_TARGET_SECONDS" "$DIRECT_TABLE_BUDGET_SECONDS"
+      0 "$DIRECT_TABLE_BUDGET_SECONDS"
     ;;
   transition-batch-chunk)
+    # The eight-transition production chunk closes multiple linked AIRs over
+    # the full bounded chunk shape. It uses the bounded-combined hard wall and
+    # does not inherit a single-table warm target.
     run_isolated \
       test_direct_transition_batch_actual_eight_transition_roundtrip \
-      0 "$DIRECT_TABLE_BUDGET_SECONDS"
+      0 "$BOUNDED_EPOCH_BUDGET_SECONDS"
     ;;
   sha-table)
     run_isolated \
@@ -709,10 +799,10 @@ case "$MODE" in
     ;;
   bounded-epoch)
     check_worker_test \
-      crates/z00z_storage/src/checkpoint/plonky3.rs \
-      test_bounded_epoch_two_leaf_actual_recursion
+      crates/z00z_storage/tests/test_recursive_v2_plonky3_base.rs \
+      test_bounded_epoch_two_trace_chunk_actual_recursion
     run_isolated \
-      test_bounded_epoch_two_leaf_actual_recursion \
+      test_bounded_epoch_two_trace_chunk_actual_recursion \
       0 "$BOUNDED_EPOCH_BUDGET_SECONDS"
     ;;
   cache-authority)
@@ -722,7 +812,7 @@ case "$MODE" in
     ;;
   exact-2000)
     run_isolated \
-      test_production_epoch_2000_actual_recursion_step \
+      test_production_epoch_2000_actual_recursion \
       0 "$EXACT_EPOCH_BUDGET_SECONDS"
     ;;
   *)

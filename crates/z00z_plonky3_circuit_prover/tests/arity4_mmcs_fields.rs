@@ -11,7 +11,6 @@
 //! negative test tampers a sibling and asserts the in-circuit root check fails with
 //! a witness conflict.
 
-use p3_batch_stark::ProverData;
 use p3_circuit::CircuitBuilder;
 use p3_circuit::ops::{
     Poseidon2Config, generate_poseidon2_trace, generate_recompose_trace, perm_private_data,
@@ -23,7 +22,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_merkle_tree::MerkleTreeMmcs;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use z00z_plonky3_circuit_prover::batch_stark_prover::{
-    poseidon2_air_builders, recompose_air_builders,
+    canonical_prover_data_from_airs_and_degrees, poseidon2_air_builders, recompose_air_builders,
 };
 use z00z_plonky3_circuit_prover::common::{NpoPreprocessor, get_airs_and_degrees_with_prep};
 use z00z_plonky3_circuit_prover::{
@@ -190,7 +189,7 @@ macro_rules! arity4_field_suite {
                 let (airs, degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
 
                 let prover_data_stark =
-                    ProverData::from_airs_and_degrees(&stark_config, &airs, &degrees);
+                    canonical_prover_data_from_airs_and_degrees(&stark_config, &airs, &degrees);
                 let circuit_prover_data = CircuitProverData::new(
                     prover_data_stark,
                     primitive_columns,

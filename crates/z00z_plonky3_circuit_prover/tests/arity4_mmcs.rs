@@ -15,7 +15,6 @@
 //! `pos` at higher levels — the regression for the index-0-only sibling placement
 //! bug, where only `pos = 0` was wired self-consistently.
 
-use p3_batch_stark::ProverData;
 use p3_circuit::CircuitBuilder;
 use p3_circuit::ops::{
     Poseidon2Config, generate_poseidon2_trace, generate_recompose_trace, perm_private_data,
@@ -29,7 +28,7 @@ use p3_merkle_tree::MerkleTreeMmcs;
 use p3_poseidon2_circuit_air::KoalaBearD4Width32;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use z00z_plonky3_circuit_prover::batch_stark_prover::{
-    poseidon2_air_builders, recompose_air_builders,
+    canonical_prover_data_from_airs_and_degrees, poseidon2_air_builders, recompose_air_builders,
 };
 use z00z_plonky3_circuit_prover::common::{NpoPreprocessor, get_airs_and_degrees_with_prep};
 use z00z_plonky3_circuit_prover::config::KoalaBearConfig;
@@ -198,7 +197,8 @@ fn run_arity4_round_trip(
         .expect("derive airs and preprocessed columns");
     let (airs, degrees): (Vec<_>, Vec<usize>) = airs_degrees.into_iter().unzip();
 
-    let prover_data_stark = ProverData::from_airs_and_degrees(&stark_config, &airs, &degrees);
+    let prover_data_stark =
+        canonical_prover_data_from_airs_and_degrees(&stark_config, &airs, &degrees);
     let circuit_prover_data =
         CircuitProverData::new(prover_data_stark, primitive_columns, non_primitive_columns);
 

@@ -15,6 +15,7 @@ case "$RESOURCE_PHASE" in
 esac
 readonly CHECKPOINT_OUTPUT_ROOT="$ROOT_DIR/crates/z00z_storage/outputs/checkpoint"
 readonly PHASE069_RELEASE_TARGET_DIR="$ROOT_DIR/.cache/phase-069/plan-08/cargo-release/library-test"
+readonly COMPILE_MARKER_ROOT="$ROOT_DIR/.cache/phase-069/plan-08/real-test-prewarm"
 readonly EVIDENCE_ROOT="$CHECKPOINT_OUTPUT_ROOT/$RESOURCE_PHASE/task-1/resource-worker"
 readonly BLOCK_ROOT="$EVIDENCE_ROOT/blocked-command-digests"
 readonly CHUNK_CACHE_ROOT="$ROOT_DIR/.cache/phase-069/plan-08/proof-restart-v2"
@@ -29,7 +30,8 @@ readonly AGGREGATION_SCHEDULE_1X12_TEST="test_real_aggregation_schedule_1x12"
 readonly AGGREGATION_SCHEDULE_2X8_TEST="test_real_aggregation_schedule_2x8"
 readonly AGGREGATION_SCHEDULE_2X10_TEST="test_real_aggregation_schedule_2x10"
 readonly AGGREGATION_SCHEDULE_2X12_TEST="test_real_aggregation_schedule_2x12"
-readonly BOUNDED_EPOCH_SMOKE_TEST="test_bounded_epoch_two_leaf_actual_recursion"
+readonly BOUNDED_EPOCH_SMOKE_TEST="test_bounded_epoch_two_trace_chunk_actual_recursion"
+readonly EPOCH_HISTORY_AUTHORITY_DIAGNOSTIC_TEST="test_epoch_history_common_authority_candidate"
 readonly TRACE_FRAMING_SMOKE_TEST="test_direct_trace_framing_actual_roundtrip"
 readonly PACKED_RANGE_SMOKE_TEST="test_direct_packed_range_actual_roundtrip"
 readonly SHA256_SMOKE_TEST="test_direct_sha256_actual_roundtrip"
@@ -37,7 +39,7 @@ readonly JMT_SMOKE_TEST="test_direct_jmt_actual_roundtrip"
 readonly TYPED_COMMITMENT_SMOKE_TEST="test_direct_typed_commitment_actual_roundtrip"
 readonly TRANSITION_BATCH_SMOKE_TEST="test_direct_transition_batch_actual_roundtrip"
 readonly TRANSITION_BATCH_CHUNK_SMOKE_TEST="test_direct_transition_batch_actual_eight_transition_roundtrip"
-readonly EXACT_EPOCH_TEST="test_production_epoch_2000_actual_recursion_step"
+readonly EXACT_EPOCH_TEST="test_production_epoch_2000_actual_recursion"
 readonly AUTHORITY_INVENTORY_TEST="test_recursive_cache_authority_inventory"
 readonly MEMORY_HIGH_BYTES=17179869184
 readonly MEMORY_MAX_BYTES=25769803776
@@ -50,6 +52,7 @@ readonly PREFLIGHT_RUNTIME_SECONDS=120
 readonly DIRECT_TABLE_RUNTIME_SECONDS=120
 readonly BOUNDED_EPOCH_RUNTIME_SECONDS=900
 readonly EXACT_EPOCH_RUNTIME_SECONDS=7200
+readonly COMPILE_PREWARM_SECONDS=1200
 readonly STAGE_STALL_SECONDS=900
 readonly SMOKE_RUNTIME_SECONDS=3600
 readonly STATUS_POLL_SECONDS=5
@@ -64,12 +67,14 @@ readonly ISOLATION_SCHEMA="z00z.plonky3.resource-isolation.v1"
 readonly RUN_STATE_SCHEMA="z00z.plonky3.detached-run-state.v1"
 readonly TEST_SOURCE="crates/z00z_storage/tests/test_recursive_v2_plonky3_base.rs"
 readonly BACKEND_SOURCE="crates/z00z_storage/src/checkpoint/plonky3.rs"
-readonly RECURSION_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_recursion.rs"
-readonly BINARY_MMCS_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_binary_mmcs.rs"
-readonly BINARY_HASH_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_binary_hash.rs"
-readonly U16_RANGE_SOURCE="crates/z00z_storage/src/checkpoint/plonky3_u16_range.rs"
-readonly -a PROVER_SOURCE_ROOTS=(
-    "crates/z00z_plonky3_circuit_prover"
+readonly -a RECURSIVE_BACKEND_SOURCES=(
+    "crates/z00z_storage/src/checkpoint/plonky3_binary_fri_fold.rs"
+    "crates/z00z_storage/src/checkpoint/plonky3_binary_hash.rs"
+    "crates/z00z_storage/src/checkpoint/plonky3_binary_mmcs.rs"
+    "crates/z00z_storage/src/checkpoint/plonky3_binary_pcs.rs"
+    "crates/z00z_storage/src/checkpoint/plonky3_root_statement.rs"
+    "crates/z00z_storage/src/checkpoint/plonky3_root_statement_air.rs"
+    "crates/z00z_storage/src/checkpoint/plonky3_u16_range.rs"
 )
 readonly AUTHORITY_SOURCE="crates/z00z_storage/src/checkpoint/authority_artifacts.rs"
 readonly NOVA_SOURCE="crates/z00z_storage/src/checkpoint/nova.rs"
@@ -77,14 +82,13 @@ readonly BOOTSTRAP_SCRIPT=".github/skills/smart-tests-bootstrap/scripts/bootstra
 readonly BOOTSTRAP_SOURCE_AUTHORITY=".github/skills/smart-tests-bootstrap/scripts/bootstrap_source_authority.sh"
 readonly NOVA_GATE_SCRIPT=".github/skills/smart-tests-bootstrap/scripts/nova_milestone_tests.sh"
 readonly NOVA_RSS_SCRIPT=".github/skills/smart-tests-bootstrap/scripts/nova_verifier_rss_measurement.sh"
-readonly NOVA_MEASUREMENT_AUTHORITY=".github/skills/smart-tests-bootstrap/scripts/nova_measurement_worker_authority_v2.txt"
 
 STARTED_RUN_DIR=""
 ACTIVE_INTERNAL_RUN_DIR=""
 ACTIVE_INTERNAL_EXIT_REASON=""
 
 usage() {
-    printf 'usage: %s --preflight | --bootstrap-prewarm | --bootstrap | --start <exact-test-name> | --run <exact-test-name> | --status <run-dir> | --status-latest <exact-test-name>\n' "${0##*/}"
+    printf 'usage: %s --preflight | --bootstrap-prewarm | --bootstrap | --prewarm-test <exact-test-name> | --start <exact-test-name> | --run <exact-test-name> | --status <run-dir> | --status-latest <exact-test-name>\n' "${0##*/}"
 }
 
 die() {
@@ -106,55 +110,14 @@ file_digest() {
     sha256sum "$file" | awk '{print $1}'
 }
 
-checkpoint_authority_digests() {
-    local file
-    while IFS= read -r -d '' file; do
-        sha256sum "$file"
-    done < <(
-        find crates/z00z_storage/src/checkpoint -maxdepth 1 -type f \
-            \( -name '*.rs' -o -name '*.yaml' \) -print0 |
-            sort -z
-    )
-}
-
-prover_source_digests() {
-    local root file
-    for root in "${PROVER_SOURCE_ROOTS[@]}"; do
-        [[ -d "$root" ]] ||
-            die "canonical prover source is missing: $root"
-        while IFS= read -r -d '' file; do
-            sha256sum "$file"
-        done < <(
-            find "$root" -type f \
-                \( -name '*.rs' -o -name 'Cargo.toml' \
-                    -o -name 'README.z00z.md' \
-                    -o -name 'LICENSE-APACHE' \
-                    -o -name 'LICENSE-MIT' \) -print0 |
-                sort -z
-        )
-    done
-}
-
 source_digest() {
-    {
-        checkpoint_authority_digests
-        prover_source_digests
-        sha256sum "$TEST_SOURCE"
-        sha256sum "$NOVA_MEASUREMENT_AUTHORITY"
-        sha256sum Cargo.toml
-        sha256sum Cargo.lock
-        sha256sum crates/z00z_storage/Cargo.toml
-    } | sha256_text
+    "$BOOTSTRAP_SOURCE_AUTHORITY" digest
 }
 
 backend_digest() {
     {
-        checkpoint_authority_digests
-        prover_source_digests
-        sha256sum "$NOVA_MEASUREMENT_AUTHORITY"
-        sha256sum Cargo.toml
-        sha256sum Cargo.lock
-        sha256sum crates/z00z_storage/Cargo.toml
+        printf '%s\n' 'z00z/plonky3/backend-authority/v2'
+        source_digest
     } | sha256_text
 }
 
@@ -204,6 +167,7 @@ is_named_test() {
             "$AGGREGATION_SCHEDULE_2X10_TEST" | \
             "$AGGREGATION_SCHEDULE_2X12_TEST" | \
             "$BOUNDED_EPOCH_SMOKE_TEST" | \
+            "$EPOCH_HISTORY_AUTHORITY_DIAGNOSTIC_TEST" | \
             "$TRACE_FRAMING_SMOKE_TEST" | \
             "$PACKED_RANGE_SMOKE_TEST" | \
             "$SHA256_SMOKE_TEST" | \
@@ -228,12 +192,15 @@ runtime_budget_for_test() {
             "$SHA256_SMOKE_TEST" | \
             "$JMT_SMOKE_TEST" | \
             "$TYPED_COMMITMENT_SMOKE_TEST" | \
-            "$TRANSITION_BATCH_SMOKE_TEST" | \
-            "$TRANSITION_BATCH_CHUNK_SMOKE_TEST")
+            "$TRANSITION_BATCH_SMOKE_TEST")
             printf '%s\n' "$DIRECT_TABLE_RUNTIME_SECONDS"
             ;;
-        "$BOUNDED_EPOCH_SMOKE_TEST")
+        "$TRANSITION_BATCH_CHUNK_SMOKE_TEST" | \
+            "$BOUNDED_EPOCH_SMOKE_TEST")
             printf '%s\n' "$BOUNDED_EPOCH_RUNTIME_SECONDS"
+            ;;
+        "$EPOCH_HISTORY_AUTHORITY_DIAGNOSTIC_TEST")
+            printf '%s\n' 1800
             ;;
         "$EXACT_EPOCH_TEST")
             printf '%s\n' "$EXACT_EPOCH_RUNTIME_SECONDS"
@@ -260,7 +227,8 @@ is_aggregation_diagnostic_test() {
             "$AGGREGATION_SCHEDULE_2X8_TEST" | \
             "$AGGREGATION_SCHEDULE_2X10_TEST" | \
             "$AGGREGATION_SCHEDULE_2X12_TEST" | \
-            "$BOUNDED_EPOCH_SMOKE_TEST")
+            "$BOUNDED_EPOCH_SMOKE_TEST" | \
+            "$EPOCH_HISTORY_AUTHORITY_DIAGNOSTIC_TEST")
             return 0
             ;;
         *)
@@ -270,6 +238,10 @@ is_aggregation_diagnostic_test() {
 }
 
 is_lib_diagnostic_test() {
+    if [[ "$1" == "$BOUNDED_EPOCH_SMOKE_TEST" ||
+        "$1" == "$EPOCH_HISTORY_AUTHORITY_DIAGNOSTIC_TEST" ]]; then
+        return 1
+    fi
     is_source_diagnostic_test "$1" ||
         is_hash_diagnostic_test "$1" ||
         is_aggregation_diagnostic_test "$1" ||
@@ -305,6 +277,12 @@ named_test_target() {
     else
         printf '%s\n' "$TEST_TARGET"
     fi
+}
+
+compile_marker_path() {
+    local target
+    target="$(named_test_target "$1")"
+    printf '%s/%s.json\n' "$COMPILE_MARKER_ROOT" "$target"
 }
 
 current_cgroup() {
@@ -656,7 +634,7 @@ write_smoke_failure() {
 }
 
 host_preflight() {
-    local command
+    local command source
     [[ "$(uname -s)" == "Linux" ]] || die "Linux cgroup-v2 is required"
     [[ "$(stat -fc %T /sys/fs/cgroup)" == "cgroup2fs" ]] || die "unified cgroup-v2 is required"
     [[ -r /sys/fs/cgroup/cgroup.controllers ]] || die "cgroup controllers are unreadable"
@@ -667,14 +645,13 @@ host_preflight() {
     done
     [[ -x /usr/bin/time ]] || die "/usr/bin/time is required"
     [[ -f "$BACKEND_SOURCE" \
-        && -f "$RECURSION_SOURCE" \
-        && -f "$BINARY_MMCS_SOURCE" \
-        && -f "$BINARY_HASH_SOURCE" \
-        && -f "$U16_RANGE_SOURCE" \
         && -f "$AUTHORITY_SOURCE" \
         && -f "$TEST_SOURCE" \
         && -f "$NOVA_SOURCE" ]] ||
         die "recursive proof sources are missing"
+    for source in "${RECURSIVE_BACKEND_SOURCES[@]}"; do
+        [[ -f "$source" ]] || die "recursive proof source is missing: $source"
+    done
     [[ -x "$BOOTSTRAP_SCRIPT" && -x "$NOVA_GATE_SCRIPT" && -x "$NOVA_RSS_SCRIPT" ]] ||
         die "bootstrap gate scripts are missing or not executable"
     systemctl --user show-environment >/dev/null 2>&1 || die "systemd user manager is unavailable"
@@ -1188,32 +1165,33 @@ internal_run() {
             authority_inventory_json="$authority_candidate"
         fi
     fi
-    if grep -Fq 'Z00Z_PLONKY3_EPOCH_PROGRESS_V1 ' "$run_dir/test.log"; then
+    if grep -Fq 'Z00Z_PLONKY3_EPOCH_PROGRESS_V2 ' "$run_dir/test.log"; then
         epoch_candidate="$(
             sed -n \
-                's/^Z00Z_PLONKY3_EPOCH_PROGRESS_V1 //p' \
+                's/^Z00Z_PLONKY3_EPOCH_PROGRESS_V2 //p' \
                 "$run_dir/test.log" |
                 tail -n 1
         )"
         if jq -e '
             type == "object"
-            and (.admitted_leaves | type == "number" and floor == .)
-            and (.total_leaves == 2000)
+            and (.verified_chunks | type == "number" and floor == .)
+            and (.total_chunks == 250)
+            and (.prover_workers == 3)
             and (.active_ranges | type == "number" and floor == .)
             and (.merged_parents | type == "number" and floor == .)
             and (.completed | type == "boolean")
-            and (.admitted_leaves >= 0)
-            and (.admitted_leaves <= .total_leaves)
+            and (.verified_chunks >= 0)
+            and (.verified_chunks <= .total_chunks)
             and (.active_ranges >= 0)
             and (.merged_parents >= 0)
             and (
                 if .completed then
-                    .admitted_leaves == .total_leaves
+                    .verified_chunks == .total_chunks
                     and (.final_envelope_bytes | type == "number" and floor == .)
                     and .final_envelope_bytes > 0
                     and .final_envelope_bytes <= 2097152
                 else
-                    .admitted_leaves < .total_leaves
+                    .verified_chunks < .total_chunks
                     and .final_envelope_bytes == null
                 end
             )
@@ -1270,9 +1248,9 @@ internal_run() {
         if [[ "$test_name" == "$BOUNDED_EPOCH_SMOKE_TEST" ]]; then
             if (( proc_rss_peak_kib * 1024 <= SMOKE_PROCESS_BYTES &&
                 time_peak * 1024 <= SMOKE_PROCESS_BYTES )); then
-                detail="isolated two-leaf epoch recursion and actual-verifier mutation smoke passed within the desired 4 GiB optimization objective"
+                detail="isolated two-trace-chunk epoch recursion and actual-verifier mutation smoke passed within the desired 4 GiB optimization objective"
             else
-                detail="isolated two-leaf epoch recursion and actual-verifier mutation smoke passed below the 16 GiB acceptance target but missed the non-blocking 4 GiB optimization objective"
+                detail="isolated two-trace-chunk epoch recursion and actual-verifier mutation smoke passed below the 16 GiB acceptance target but missed the non-blocking 4 GiB optimization objective"
             fi
         else
             detail="isolated bounded concurrent aggregation wave prove/actual-verify diagnostic passed"
@@ -1305,9 +1283,9 @@ internal_run() {
             "$canonical_proof_bytes" != null && "$size_status" != null ]]; then
         exit_reason=success
         if [[ "$(jq -r '.completed' <<<"$epoch_progress_json")" == true ]]; then
-            detail="exact 2000-leaf epoch and history proof completed under the production target"
+            detail="exact 2000-transition epoch and history proof completed under the production target"
         else
-            detail="one actual-verified exact-epoch leaf step advanced the durable frontier"
+            detail="one actual-verified exact-epoch trace-chunk batch advanced the durable frontier"
         fi
     elif (( command_status == 0 )) && [[ "$test_count_ok" == true ]] &&
         [[ "$telemetry_json" != null && "$parameter_digest" != null &&
@@ -2150,10 +2128,157 @@ wait_for_detached_run() {
     evidence_exit_status "$run_dir/resource-evidence.json"
 }
 
+run_test_prewarm() {
+    local test_name="$1" target source_before source_after worker_digest
+    local marker temporary_marker command_text command_digest blocked
+    local run_dir start_ns end_ns wall_ms status=0 exit_reason=success
+    host_preflight
+    is_named_test "$test_name" || die "unapproved or non-exact heavy test: $test_name"
+    mkdir -p "$EVIDENCE_ROOT/compile-prewarm" "$BLOCK_ROOT" "$COMPILE_MARKER_ROOT"
+    target="$(named_test_target "$test_name")"
+    source_before="$(source_digest)"
+    worker_digest="$(file_digest "$SCRIPT_PATH")"
+    marker="$(compile_marker_path "$test_name")"
+    if [[ "$target" == lib ]]; then
+        command_text="CARGO_TARGET_DIR=$PHASE069_RELEASE_TARGET_DIR CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 cargo test --release --locked --offline --lib -p z00z_storage --no-run"
+    else
+        command_text="CARGO_TARGET_DIR=$PHASE069_RELEASE_TARGET_DIR CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 cargo test --release --locked --offline -p z00z_storage --test $TEST_TARGET --no-run"
+    fi
+    command_digest="$({
+        printf '%s\n' "$command_text"
+        printf '%s\n' "$source_before" "$worker_digest" "$COMPILE_PREWARM_SECONDS"
+    } | sha256_text)"
+    blocked="$BLOCK_ROOT/compile-$command_digest.json"
+    if [[ -s "$blocked" ]]; then
+        printf 'unchanged compile-only prewarm is retry-forbidden: %s\n' "$command_digest" >&2
+        printf '%s\n' "$blocked"
+        return 125
+    fi
+    if [[ -s "$marker" ]] &&
+        jq -e \
+            --arg source_digest "$source_before" \
+            --arg worker_digest "$worker_digest" \
+            --arg target "$target" \
+            '.status == "pass"
+            and .source_digest == $source_digest
+            and .worker_digest == $worker_digest
+            and .target == $target' \
+            "$marker" >/dev/null; then
+        printf 'reused current-source compile-only prewarm: %s\n' "$marker"
+        return 0
+    fi
+
+    run_dir="$EVIDENCE_ROOT/compile-prewarm/$(
+        date -u +'%Y%m%dT%H%M%S%NZ'
+    )-$target-${command_digest:0:12}"
+    mkdir -p "$run_dir"
+    start_ns="$(date +%s%N)"
+    set +e
+    if [[ "$target" == lib ]]; then
+        /usr/bin/timeout --signal=TERM --kill-after=30s "$COMPILE_PREWARM_SECONDS" \
+            /usr/bin/time -v -o "$run_dir/time-v.txt" \
+            env CARGO_TARGET_DIR="$PHASE069_RELEASE_TARGET_DIR" \
+            CARGO_BUILD_JOBS=1 \
+            CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 \
+            cargo test --release --locked --offline --lib -p z00z_storage --no-run \
+            >"$run_dir/compile.log" 2>&1
+    else
+        /usr/bin/timeout --signal=TERM --kill-after=30s "$COMPILE_PREWARM_SECONDS" \
+            /usr/bin/time -v -o "$run_dir/time-v.txt" \
+            env CARGO_TARGET_DIR="$PHASE069_RELEASE_TARGET_DIR" \
+            CARGO_BUILD_JOBS=1 \
+            CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 \
+            cargo test --release --locked --offline -p z00z_storage \
+            --test "$TEST_TARGET" --no-run >"$run_dir/compile.log" 2>&1
+    fi
+    status=$?
+    set -e
+    end_ns="$(date +%s%N)"
+    wall_ms=$(((end_ns - start_ns) / 1000000))
+    source_after="$(source_digest)"
+    if (( status == 124 )); then
+        exit_reason=compile_timeout
+    elif (( status == 137 )); then
+        exit_reason=compile_sigkill
+    elif (( status != 0 )); then
+        exit_reason=compile_failure
+    elif [[ "$source_before" != "$source_after" ]]; then
+        status=86
+        exit_reason=source_drift
+    fi
+
+    if (( status == 0 )); then
+        temporary_marker="$marker.tmp.$$"
+        jq -n -S \
+            --arg schema "z00z.phase069.real-test-compile-cache.v1" \
+            --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg status pass \
+            --arg target "$target" \
+            --arg source_digest "$source_after" \
+            --arg worker_digest "$worker_digest" \
+            --arg command_digest "$command_digest" \
+            '{
+                schema: $schema,
+                recorded_at: $recorded_at,
+                status: $status,
+                target: $target,
+                source_digest: $source_digest,
+                worker_digest: $worker_digest,
+                command_digest: $command_digest
+            }' >"$temporary_marker"
+        mv "$temporary_marker" "$marker"
+    fi
+
+    jq -n -S \
+        --arg schema "z00z.phase069.real-test-compile-prewarm.v1" \
+        --arg recorded_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+        --arg status "$([[ "$status" == 0 ]] && printf pass || printf fail)" \
+        --arg exit_reason "$exit_reason" \
+        --arg test "$test_name" \
+        --arg target "$target" \
+        --arg command_digest "$command_digest" \
+        --arg source_digest_before "$source_before" \
+        --arg source_digest_after "$source_after" \
+        --arg worker_digest "$worker_digest" \
+        --argjson wall_ms "$wall_ms" \
+        --argjson exit_status "$status" \
+        '{
+            schema: $schema,
+            recorded_at: $recorded_at,
+            status: $status,
+            exit_reason: $exit_reason,
+            command: {
+                digest: $command_digest,
+                test: $test,
+                target: $target,
+                profile: "release",
+                exit_status: $exit_status
+            },
+            identity: {
+                source_digest_before: $source_digest_before,
+                source_digest_after: $source_digest_after,
+                worker_digest: $worker_digest
+            },
+            resources: {wall_time_ms: $wall_ms},
+            compile_only: true,
+            named_plonky3_prover_started: false,
+            acceptance_authority: false,
+            is_retry_forbidden: (
+                $exit_reason == "compile_timeout"
+                or $exit_reason == "compile_sigkill"
+            )
+        }' >"$run_dir/compile-evidence.json"
+    if [[ "$exit_reason" == compile_timeout || "$exit_reason" == compile_sigkill ]]; then
+        cp "$run_dir/compile-evidence.json" "$blocked"
+    fi
+    printf '%s\n' "$run_dir/compile-evidence.json"
+    return "$status"
+}
+
 start_named_test() {
     local test_name="$1" worker_digest parent_cgroup run_dir unit source_sha fixture_sha backend_sha
     local command_text command_digest previous_digest output latest launch_status active_run
-    local host_boot_id runtime_seconds
+    local host_boot_id runtime_seconds compile_target compile_marker compile_marker_sha
     host_preflight
     is_named_test "$test_name" || die "unapproved or non-exact heavy test: $test_name"
     mkdir -p "$EVIDENCE_ROOT" "$BLOCK_ROOT"
@@ -2174,9 +2299,27 @@ start_named_test() {
         "$latest" >/dev/null || die "isolation preflight is stale or unsuccessful"
 
     source_sha="$(source_digest)"
+    compile_target="$(named_test_target "$test_name")"
+    compile_marker="$(compile_marker_path "$test_name")"
+    [[ -s "$compile_marker" ]] ||
+        die "current-source compile-only prewarm is required before a real prover"
+    jq -e \
+        --arg source_digest "$source_sha" \
+        --arg worker_digest "$worker_digest" \
+        --arg target "$compile_target" \
+        '.status == "pass"
+        and .source_digest == $source_digest
+        and .worker_digest == $worker_digest
+        and .target == $target' \
+        "$compile_marker" >/dev/null ||
+        die "real-prover compile marker is stale or inconsistent"
+    compile_marker_sha="$(file_digest "$compile_marker")"
     if is_source_diagnostic_test "$test_name" ||
         is_hash_diagnostic_test "$test_name" ||
-        is_aggregation_diagnostic_test "$test_name" ||
+        {
+            is_aggregation_diagnostic_test "$test_name" &&
+                [[ "$test_name" != "$BOUNDED_EPOCH_SMOKE_TEST" ]]
+        } ||
         [[ "$test_name" == "$TRACE_FRAMING_SMOKE_TEST" ||
             "$test_name" == "$PACKED_RANGE_SMOKE_TEST" ||
             "$test_name" == "$SHA256_SMOKE_TEST" ||
@@ -2194,7 +2337,7 @@ start_named_test() {
     fi
     command_digest="$({
         printf '%s\n' "$command_text"
-        printf '%s\n' "$source_sha" "$worker_digest"
+        printf '%s\n' "$source_sha" "$worker_digest" "$compile_marker_sha"
         printf '%s\n' \
             "$MEMORY_HIGH_BYTES" "$MEMORY_MAX_BYTES" "$MEMORY_TARGET_BYTES" \
             0 "$runtime_seconds"
@@ -2260,6 +2403,10 @@ main() {
         --bootstrap-prewarm)
             [[ "$#" == 1 ]] || die "--bootstrap-prewarm accepts no arguments"
             run_bootstrap prewarm
+            ;;
+        --prewarm-test)
+            [[ "$#" == 2 ]] || die "--prewarm-test requires one exact test name"
+            run_test_prewarm "$2"
             ;;
         --run)
             [[ "$#" == 2 ]] || die "--run requires one exact test name"

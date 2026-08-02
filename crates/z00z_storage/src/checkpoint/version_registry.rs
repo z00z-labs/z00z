@@ -17,7 +17,7 @@ use super::{
 };
 
 pub const CHECKPOINT_VERSION_REGISTRY_API_V2: u16 = 2;
-pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 11;
+pub const CHECKPOINT_VERSION_REGISTRY_GENERATION_V2: u32 = 12;
 pub const RECURSIVE_OBJECT_PREHEADER_BYTES_V2: usize = 48;
 pub const RECURSIVE_OBJECT_MAGIC_V2: [u8; 4] = *b"ZCP2";
 /// Preferred complete canonical Plonky3 proof envelope size.
@@ -61,14 +61,14 @@ pub const RECURSIVE_PROFILE_MANIFEST_DIGEST_V2: [u8; 32] = [
     0xc3, 0xb3, 0xef, 0x33, 0xf7, 0x1b, 0xff, 0x63, 0xff, 0x1e, 0x08, 0x0e, 0x9d, 0x78, 0xe7, 0x1b,
 ];
 
-/// Literal production pin for the canonical generation-11 registry bytes.
+/// Literal production pin for the canonical generation-12 registry bytes.
 ///
 /// `authority_pinned` recomputes and compares this value before exposing any
 /// row, so changing a row without an explicit generation/pin rotation fails
 /// closed in production rather than only in a unit assertion.
 pub const CHECKPOINT_VERSION_REGISTRY_DIGEST_V2: [u8; 32] = [
-    0x14, 0x29, 0xc0, 0xcb, 0xb4, 0x49, 0xd3, 0xd6, 0x48, 0x07, 0x69, 0xfe, 0xe4, 0xaa, 0x21, 0x17,
-    0x57, 0x28, 0x91, 0xf0, 0xa4, 0xdd, 0x14, 0xdb, 0xdf, 0x04, 0xb7, 0x9c, 0xe5, 0x9e, 0xe3, 0x48,
+    0x0b, 0xbd, 0xa2, 0xe7, 0x93, 0x9f, 0xb3, 0xb4, 0xdc, 0x30, 0x96, 0x47, 0xbf, 0x40, 0xfb, 0x5b,
+    0x77, 0x13, 0x86, 0x15, 0xca, 0xa6, 0x55, 0x5b, 0x24, 0x00, 0x58, 0xe0, 0xf1, 0xfa, 0x8b, 0x24,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -127,6 +127,8 @@ pub enum RecursiveBoundedObjectV2 {
     Plonky3HistoryProof = 0x0690_0110,
     Plonky3HistoryVerificationReceipt = 0x0690_0111,
     HistoryRotationBridge = 0x0690_0112,
+    Plonky3EpochChunkProof = 0x0690_0113,
+    Plonky3EpochChunkVerificationReceipt = 0x0690_0114,
     CheckpointContractConfigV2 = 0x0690_0201,
     CheckpointContractConfigV3 = 0x0690_0202,
     WalletBackup = 0x0690_0301,
@@ -172,6 +174,8 @@ impl RecursiveBoundedObjectV2 {
             0x0690_0110 => Self::Plonky3HistoryProof,
             0x0690_0111 => Self::Plonky3HistoryVerificationReceipt,
             0x0690_0112 => Self::HistoryRotationBridge,
+            0x0690_0113 => Self::Plonky3EpochChunkProof,
+            0x0690_0114 => Self::Plonky3EpochChunkVerificationReceipt,
             0x0690_0201 => Self::CheckpointContractConfigV2,
             0x0690_0202 => Self::CheckpointContractConfigV3,
             0x0690_0301 => Self::WalletBackup,
@@ -517,6 +521,12 @@ const fn cryptographic_domain(object: RecursiveBoundedObjectV2) -> &'static str 
         }
         RecursiveBoundedObjectV2::HistoryRotationBridge => {
             "z00z.storage.checkpoint.history-rotation-bridge.v2"
+        }
+        RecursiveBoundedObjectV2::Plonky3EpochChunkProof => {
+            "z00z.storage.checkpoint.plonky3.epoch-chunk-proof.v2"
+        }
+        RecursiveBoundedObjectV2::Plonky3EpochChunkVerificationReceipt => {
+            "z00z.storage.checkpoint.plonky3.epoch-chunk-verification-receipt.v2"
         }
         RecursiveBoundedObjectV2::CheckpointContractConfigV2 => {
             "z00z.storage.checkpoint.contract-config.v2"
@@ -1024,6 +1034,16 @@ const REGISTRY_ROWS_V2: &[CheckpointVersionRowV2] = &[
         RecursiveBoundedObjectV2::HistoryRotationBridge,
         "HistoryRotationBridgeV2",
         64 * 1024,
+    ),
+    local_plonky3_v2(
+        RecursiveBoundedObjectV2::Plonky3EpochChunkProof,
+        "Plonky3EpochChunkProofV2",
+        (RECURSIVE_INGRESS_BYTES_V2 - RECURSIVE_OBJECT_PREHEADER_BYTES_V2) as u64,
+    ),
+    local_plonky3_v2(
+        RecursiveBoundedObjectV2::Plonky3EpochChunkVerificationReceipt,
+        "Plonky3EpochChunkVerificationReceiptV2",
+        16 * 1024,
     ),
     config_schema(
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
@@ -1822,6 +1842,8 @@ mod tests {
         RecursiveBoundedObjectV2::Plonky3HistoryProof,
         RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt,
         RecursiveBoundedObjectV2::HistoryRotationBridge,
+        RecursiveBoundedObjectV2::Plonky3EpochChunkProof,
+        RecursiveBoundedObjectV2::Plonky3EpochChunkVerificationReceipt,
         RecursiveBoundedObjectV2::CheckpointContractConfigV2,
         RecursiveBoundedObjectV2::CheckpointContractConfigV3,
         RecursiveBoundedObjectV2::WalletBackup,
@@ -1868,6 +1890,8 @@ mod tests {
         RecursiveBoundedObjectV2::Plonky3HistoryProof,
         RecursiveBoundedObjectV2::Plonky3HistoryVerificationReceipt,
         RecursiveBoundedObjectV2::HistoryRotationBridge,
+        RecursiveBoundedObjectV2::Plonky3EpochChunkProof,
+        RecursiveBoundedObjectV2::Plonky3EpochChunkVerificationReceipt,
     ];
 
     const BACKUP_OBJECTS: &[RecursiveBoundedObjectV2] = &[
@@ -1976,7 +2000,7 @@ mod tests {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
         assert_eq!(
             super::super::contract_config_v3::hex_digest(registry.digest()),
-            "1429c0cbb449d3d6480769fee4aa2117572891f0a4dd14dbdf04b79ce59ee348"
+            "0bbda2e7939fb3b4dc309647bf40fb5b77138615caa6555b240058e0f1fa8b24"
         );
         let mut bytes = registry
             .encode_preheader(
@@ -2051,7 +2075,7 @@ mod tests {
     #[test]
     fn test_registry_rows_complete() {
         let registry = CheckpointVersionRegistryV2::authority_pinned().unwrap();
-        assert_eq!(registry.rows().len(), 40);
+        assert_eq!(registry.rows().len(), ALL_OBJECTS.len());
         assert_eq!(
             registry
                 .rows()

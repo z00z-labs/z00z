@@ -14,7 +14,7 @@ fn test_range_proof_standard_min() {
     z00z_crypto::initialize();
 
     let amount = 1000u64;
-    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
     let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
 
     let proof = create_range_proof(amount, &blinding, 64, 0).expect("Proof creation failed");
@@ -38,7 +38,7 @@ fn test_range_proof_zero_min() {
     let test_cases = [0u64, 1, 100, 1000, u64::MAX];
 
     for &amount in &test_cases {
-        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
         let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
 
         let proof = create_range_proof(amount, &blinding, 64, 0).expect("Proof creation failed");
@@ -61,7 +61,7 @@ fn test_min_promise_flow() {
     z00z_crypto::initialize();
 
     let amount = 5000u64;
-    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
     let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
 
     let min_value = 1000u64;
@@ -93,7 +93,7 @@ fn test_batch_verify_min_values() {
     let mut commitments = Vec::new();
 
     for &amount in &amounts {
-        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
         let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
         let proof = create_range_proof(amount, &blinding, 64, 0).expect("Proof creation failed");
         proofs.push(proof);
@@ -125,7 +125,7 @@ fn test_batch_verify_wrong_length() {
     let mut commitments = Vec::new();
 
     for &amount in &amounts {
-        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+        let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
         let commitment = create_commitment(amount, &blinding).expect("commitment creation failed");
         let proof = create_range_proof(amount, &blinding, 64, 0).expect("Proof creation failed");
         proofs.push(proof);
@@ -152,7 +152,7 @@ fn test_create_proof_min_gt() {
 
     let amount = 100u64;
     let min_value = 101u64;
-    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng());
+    let blinding = Z00ZScalar::random(&mut z00z_utils::rng::SystemRngProvider.rng()).unwrap();
 
     let result = create_range_proof(amount, &blinding, 64, min_value);
     assert!(result.is_err(), "Creation should reject minimum > amount");

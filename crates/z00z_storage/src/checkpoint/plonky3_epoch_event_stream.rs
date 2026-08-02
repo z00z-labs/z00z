@@ -6,7 +6,10 @@
 //! borrowed records so trace framing, packed range, typed commitments, JMT,
 //! and SHA cannot silently parse different byte grammars.
 
-use z00z_crypto::sha256_256;
+use z00z_crypto::{
+    sha256_256_role, CheckpointSha256BlockStreamV2, CheckpointSha256BlockV2,
+    CheckpointSha256BlockVisitError, CheckpointShaRole,
+};
 
 use super::{validate_event_vector, TransitionMaterialV2, PLONKY3_EVENT_VECTOR_MAGIC_V2};
 use crate::{
@@ -23,9 +26,6 @@ use crate::{
 
 const EVENT_VECTOR_PREFIX_BYTES_V2: usize = 16;
 const EVENT_LENGTH_PREFIX_BYTES_V2: usize = 4;
-const EVENT_VECTOR_DOMAIN_V2: &str = "z00z.storage.checkpoint.plonky3.event-vector.v2";
-const EVENT_VECTOR_LABEL_V2: &str = "canonical_events";
-
 #[derive(Clone, Copy)]
 struct ExpectedEventStreamV2 {
     event_count: u64,
@@ -163,6 +163,28 @@ impl<'a> EpochTransitionEventStreamV2<'a> {
     pub(super) fn promotion_record(&self) -> EpochEventRecordV2<'a> {
         self.records[self.jmt.promotion_event]
     }
+
+    /// Visit the exact role-framed FIPS compression blocks whose terminal
+    /// chaining state is the proof-bound event-vector digest.
+    ///
+    /// The visitor sees only one block at a time. It may build bounded AIR rows
+    /// without materializing a second event-vector or SHA block tape.
+    pub(super) fn visit_digest_blocks<F>(&self, visit: &mut F) -> Result<[u8; 32], CheckpointError>
+    where
+        F: FnMut(CheckpointSha256BlockV2) -> Result<(), CheckpointError>,
+    {
+        let mut stream = CheckpointSha256BlockStreamV2::new(CheckpointShaRole::EventVector);
+        stream
+            .update_part_with(self.source, visit)
+            .map_err(map_digest_visit_error)?;
+        let digest = stream
+            .finalize_with(visit)
+            .map_err(map_digest_visit_error)?;
+        if digest != sha256_256_role(CheckpointShaRole::EventVector, &[self.source]) {
+            return Err(CheckpointError::Invariant);
+        }
+        Ok(digest)
+    }
 }
 
 pub(super) fn transition_event_stream(
@@ -215,7 +237,7 @@ fn parse_event_stream(
         .ok_or(CheckpointError::Overflow)?;
     if declared_count != expected.event_count
         || u64::try_from(source.len()).map_err(|_| CheckpointError::Limit)? != expected_encoded_len
-        || sha256_256(EVENT_VECTOR_DOMAIN_V2, EVENT_VECTOR_LABEL_V2, &[source]) != expected.digest
+        || sha256_256_role(CheckpointShaRole::EventVector, &[source]) != expected.digest
     {
         return Err(CheckpointError::Canonical);
     }
@@ -350,6 +372,17 @@ fn parse_event_stream(
     })
 }
 
+fn map_digest_visit_error(
+    error: CheckpointSha256BlockVisitError<CheckpointError>,
+) -> CheckpointError {
+    match error {
+        CheckpointSha256BlockVisitError::Hash(error) => {
+            CheckpointError::Backend(format!("event-vector SHA block stream failed: {error}"))
+        }
+        CheckpointSha256BlockVisitError::Visitor(error) => error,
+    }
+}
+
 fn require_structural_id(record: EpochEventRecordV2<'_>) -> Result<(), CheckpointError> {
     if record.object_id()
         != structural_event_id(record.opcode(), record.ordinal(), record.payload())
@@ -451,7 +484,7 @@ mod tests {
             event_count: u64::try_from(events.len()).expect("bounded event count"),
             event_bytes,
             opcode_counts,
-            digest: sha256_256(EVENT_VECTOR_DOMAIN_V2, EVENT_VECTOR_LABEL_V2, &[&source]),
+            digest: sha256_256_role(CheckpointShaRole::EventVector, &[&source]),
         };
         (source, expected, events)
     }
@@ -538,8 +571,33 @@ mod tests {
         let payload_start = first_event_start + TRACE_EVENT_HEADER_BYTES_V2;
         malformed[payload_start + 3] ^= 1;
         let mut malformed_expected = expected;
-        malformed_expected.digest =
-            sha256_256(EVENT_VECTOR_DOMAIN_V2, EVENT_VECTOR_LABEL_V2, &[&malformed]);
+        malformed_expected.digest = sha256_256_role(CheckpointShaRole::EventVector, &[&malformed]);
         assert!(parse_event_stream(&malformed, malformed_expected).is_err());
+    }
+
+    #[test]
+    fn event_stream_exposes_one_canonical_sha_block_chain() {
+        let (source, expected, _) = fixture();
+        let stream = parse_event_stream(&source, expected).expect("canonical event stream");
+        let mut prior = None;
+        let mut block_count = 0_u64;
+        let digest = stream
+            .visit_digest_blocks(&mut |block| {
+                assert_eq!(block.index(), block_count);
+                assert!(block.verifies_transition());
+                if let Some(previous) = prior {
+                    assert_eq!(*block.chaining_before(), previous);
+                }
+                prior = Some(*block.chaining_after());
+                block_count += 1;
+                Ok(())
+            })
+            .expect("canonical SHA block stream");
+        assert!(block_count > 0);
+        assert_eq!(digest, expected.digest);
+        assert_eq!(
+            prior.map(|state| CheckpointSha256BlockV2::digest_from_chaining(&state)),
+            Some(expected.digest),
+        );
     }
 }

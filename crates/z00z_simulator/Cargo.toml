@@ -28,6 +28,10 @@ name = "scenario_1"
 path = "bin/scenario_1.rs"
 
 [[bin]]
+name = "scenario_2"
+path = "bin/scenario_2.rs"
+
+[[bin]]
 name = "z00z_cache_contract"
 path = "bin/z00z_cache_contract.rs"
 
@@ -44,7 +48,9 @@ name = "simulator_interop"
 path = "examples/scenario_1/simulator_interop.rs"
 
 [dependencies]
+celestia-types = { version = "=1.0.0", default-features = false }
 rand = "0.8"
+rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"

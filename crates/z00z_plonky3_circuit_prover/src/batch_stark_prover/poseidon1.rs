@@ -1384,6 +1384,10 @@ where
 pub struct Poseidon1Preprocessor;
 
 impl NpoPreprocessor<BabyBear> for Poseidon1Preprocessor {
+    fn requires_runtime_circuit_metadata(&self) -> bool {
+        false
+    }
+
     fn preprocess(
         &self,
         _circuit: &dyn Any,
@@ -1406,6 +1410,10 @@ impl NpoPreprocessor<BabyBear> for Poseidon1Preprocessor {
 }
 
 impl NpoPreprocessor<KoalaBear> for Poseidon1Preprocessor {
+    fn requires_runtime_circuit_metadata(&self) -> bool {
+        false
+    }
+
     fn preprocess(
         &self,
         _circuit: &dyn Any,
@@ -1437,6 +1445,10 @@ impl NpoPreprocessor<KoalaBear> for Poseidon1Preprocessor {
 }
 
 impl NpoPreprocessor<Goldilocks> for Poseidon1Preprocessor {
+    fn requires_runtime_circuit_metadata(&self) -> bool {
+        false
+    }
+
     fn preprocess(
         &self,
         _circuit: &dyn Any,
@@ -1490,9 +1502,10 @@ pub(crate) fn poseidon1_config_for_air_builder<const D: usize>(
 
 pub(crate) fn poseidon1_air_try_build<SC, const D: usize>(
     op_type: &NpoTypeId,
-    prep_base: &[Val<SC>],
+    prep_base: &mut Vec<Val<SC>>,
     min_height: usize,
     constraint_profile: ConstraintProfile,
+    retain_preprocessed_columns: bool,
 ) -> Option<(CircuitTableAir<SC, D>, usize)>
 where
     SC: StarkGenericConfig + 'static + Send + Sync,
@@ -1504,10 +1517,15 @@ where
     let config = Poseidon1Config::from_variant_name(suffix)?;
     let config = poseidon1_config_for_air_builder::<D>(config)?;
     let prover = Poseidon1Prover::new(config, constraint_profile);
-    let wrapper =
-        prover.wrapper_from_config_with_preprocessed(prep_base.to_vec(), min_height, D as u32)?;
     let width = prover.preprocessed_width_from_config();
     let num_rows = prep_base.len().div_ceil(width);
+    let committed_prep = if retain_preprocessed_columns {
+        prep_base.clone()
+    } else {
+        core::mem::take(prep_base)
+    };
+    let wrapper =
+        prover.wrapper_from_config_with_preprocessed(committed_prep, min_height, D as u32)?;
     let degree = log2_ceil_usize(
         num_rows
             .next_power_of_two()
@@ -1530,12 +1548,19 @@ where
     fn try_build(
         &self,
         op_type: &NpoTypeId,
-        prep_base: &[Val<SC>],
+        prep_base: &mut Vec<Val<SC>>,
         min_height: usize,
         _lanes: usize,
         constraint_profile: ConstraintProfile,
+        retain_preprocessed_columns: bool,
     ) -> Option<(CircuitTableAir<SC, 2>, usize)> {
-        poseidon1_air_try_build::<SC, 2>(op_type, prep_base, min_height, constraint_profile)
+        poseidon1_air_try_build::<SC, 2>(
+            op_type,
+            prep_base,
+            min_height,
+            constraint_profile,
+            retain_preprocessed_columns,
+        )
     }
 }
 
@@ -1549,12 +1574,19 @@ where
     fn try_build(
         &self,
         op_type: &NpoTypeId,
-        prep_base: &[Val<SC>],
+        prep_base: &mut Vec<Val<SC>>,
         min_height: usize,
         _lanes: usize,
         constraint_profile: ConstraintProfile,
+        retain_preprocessed_columns: bool,
     ) -> Option<(CircuitTableAir<SC, 4>, usize)> {
-        poseidon1_air_try_build::<SC, 4>(op_type, prep_base, min_height, constraint_profile)
+        poseidon1_air_try_build::<SC, 4>(
+            op_type,
+            prep_base,
+            min_height,
+            constraint_profile,
+            retain_preprocessed_columns,
+        )
     }
 }
 
@@ -1568,10 +1600,11 @@ where
     fn try_build(
         &self,
         op_type: &NpoTypeId,
-        prep_base: &[Val<SC>],
+        prep_base: &mut Vec<Val<SC>>,
         min_height: usize,
         _lanes: usize,
         constraint_profile: ConstraintProfile,
+        retain_preprocessed_columns: bool,
     ) -> Option<(CircuitTableAir<SC, 5>, usize)> {
         let suffix = op_type.as_str().strip_prefix("poseidon1_perm/")?;
         let config = Poseidon1Config::from_variant_name(suffix)?;
@@ -1582,10 +1615,15 @@ where
             _ => return None,
         };
         let prover = Poseidon1Prover::new(config, constraint_profile);
-        let wrapper =
-            prover.wrapper_from_config_with_preprocessed(prep_base.to_vec(), min_height, 5)?;
         let width = prover.preprocessed_width_from_config();
         let num_rows = prep_base.len().div_ceil(width);
+        let committed_prep = if retain_preprocessed_columns {
+            prep_base.clone()
+        } else {
+            core::mem::take(prep_base)
+        };
+        let wrapper =
+            prover.wrapper_from_config_with_preprocessed(committed_prep, min_height, 5)?;
         let degree = log2_ceil_usize(
             num_rows
                 .next_power_of_two()

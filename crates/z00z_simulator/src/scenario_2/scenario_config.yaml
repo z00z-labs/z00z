@@ -1,0 +1,45 @@
+scenario:
+  id: 2
+  name: "hybrid_nova_plonky3_capacity_20m"
+  seed: 220002
+
+load:
+  cycles: 10
+  blocks_per_cycle: 2000
+  transactions_per_block: 1000
+  initial_value_per_lane: 1000000000000
+  wallet_route: ["A", "B", "C", "B", "A"]
+
+runtime:
+  worker_threads: 0
+  chain_id: 3
+  chain_type: "devnet"
+  chain_name: "z00z-devnet-1"
+
+storage:
+  output_root: "outputs/scenario_2"
+  checkpoint_reload_every_blocks: 1
+  hjmt_reload_every_blocks: 2000
+
+da:
+  namespace: "z00z-sim2"
+  max_blob_payload_bytes: 4194304
+  max_ods_width: 128
+
+nova:
+  artifact_dir: "crates/z00z_storage/outputs/checkpoint/recursive-v2-current"
+  prover_material_file: "prover-material.bin"
+  verifier_bundle_file: "verifier-bundle.bin"
+  max_prover_material_bytes: 1073741824
+  max_verifier_bundle_bytes: 67108864
+
+plonky3:
+  cadence_blocks: 2000
+  max_inflight_chunk_proofs: 1
+  max_work_manifest_bytes: 67108864
+  max_proof_artifact_bytes: 16777216
+
+profiling:
+  save_block_records: true
+  directory_scan_entry_cap: 1000000
+  requirement_headroom_percent: 25

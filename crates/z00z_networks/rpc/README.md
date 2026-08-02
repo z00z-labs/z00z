@@ -12,7 +12,13 @@ This crate is the transport-focused RPC layer for Z00Z components.
 
 ## Canonical surface
 
+- Default feature `dynamic-rpc` preserves the existing method/value JSON-RPC
+  surface for current wallet, simulator, native, and WASM consumers.
+- Closed typed consumers use `default-features = false`; that graph exposes only
+  `TypedRpcTransport` and does not pull the JSON/WebSocket/server stack.
 - `RpcTransport` defines the transport abstraction.
+- `TypedRpcTransport` lets closed typed protocols reuse that abstraction
+  without exposing generic method strings or dynamic values.
 - `RpcDispatcher` owns method routing on native targets.
 - `LocalRpcTransport` provides in-process testing transport.
 - `WasmRpcClient` provides browser-facing RPC transport.

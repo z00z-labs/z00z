@@ -27,7 +27,10 @@ case "${1:-}" in
         fi
         printf '%s\n' "$((count + 1))" >"$STATE_FILE"
         ;;
-    compare | rehash)
+    rehash)
+        exec "$0" manifest
+        ;;
+    compare)
         exec "$REAL_AUTHORITY" "$@"
         ;;
     *)
