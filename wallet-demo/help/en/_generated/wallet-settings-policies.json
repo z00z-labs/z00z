@@ -1,0 +1,34 @@
+{
+  "capture_route": "wallet.settings.policies",
+  "components": [
+    "button|type=button"
+  ],
+  "presentation_sha256": "c17c9bf2a16af2cd8f9b8b2689f342625d384bd0ddf17bdc82f46f3573e34c89",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-settings-policies.png",
+  "screenshot_sha256": "f0c4e476af2455d0e15541dadd0cad765976786debaa0a8093504963967392ef",
+  "sections": [],
+  "terms": [
+    "2500 / 5000 Z00Z",
+    "Advanced",
+    "Backup",
+    "Compliance profile",
+    "Confirmation",
+    "General",
+    "Local",
+    "Local policy rules",
+    "Local spend rules",
+    "Locked",
+    "Personal Safe \u00b7 v1.4",
+    "Policies",
+    "Profile preview",
+    "Protocol rules",
+    "Review",
+    "Security",
+    "Selected wallet settings",
+    "Target",
+    "Unavailable"
+  ],
+  "topic_id": "wallet.settings.policies",
+  "version": 3
+}

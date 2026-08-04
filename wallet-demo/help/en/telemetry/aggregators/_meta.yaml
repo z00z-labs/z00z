@@ -1,0 +1,9 @@
+title: Aggregators
+icon: aggregate
+order:
+  - index
+  - ingress
+  - planning
+  - placement
+  - publication
+  - recovery

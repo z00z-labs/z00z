@@ -1,0 +1,42 @@
+{
+  "capture_route": "settings.quic",
+  "components": [
+    "button|type=button",
+    "button|type=button|aria-label=QUIC path migration|data-demo-action=quic-path-migration",
+    "button|type=button|role=tab"
+  ],
+  "presentation_sha256": "9f82d046204c816a26580d73e72ea16a0eb3c5a85713e3e8af7921692228422d",
+  "scope": "context",
+  "screenshot": "help/assets/en/settings-quic.png",
+  "screenshot_sha256": "f5b59a5f6edd818a214eaf4508d3f0f3c184e37891e0131a5277ce434bc5d063",
+  "sections": [
+    "QUIC"
+  ],
+  "terms": [
+    "0-RTT wallet actions",
+    "30 seconds",
+    "Automatic",
+    "Close an inactive connection",
+    "Configure connection behavior while keeping transport security separate from OnionNet route privacy.",
+    "Disabled",
+    "Disabled to avoid replayable early data",
+    "Endpoint policy",
+    "Every 15 seconds",
+    "How a configured QUIC endpoint is selected",
+    "Idle timeout",
+    "Keep a connection when the local path changes",
+    "Keep-alive",
+    "Local target draft",
+    "Network",
+    "No authoritative QUIC runtime bridge is registered. These values do not assert a live session or path.",
+    "OnionNet",
+    "Path migration",
+    "Prevent idle closure while the app is active",
+    "QUIC",
+    "QUIC path migration",
+    "Reticulum",
+    "Secure transport"
+  ],
+  "topic_id": "settings.quic",
+  "version": 3
+}

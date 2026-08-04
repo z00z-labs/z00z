@@ -1,0 +1,43 @@
+{
+  "capture_route": "telemetry.quic.paths",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.quic.connections",
+    "button|type=button|data-workspace-route=telemetry.quic.overview",
+    "button|type=button|data-workspace-route=telemetry.quic.paths",
+    "button|type=button|data-workspace-route=telemetry.quic.recovery",
+    "button|type=button|data-workspace-route=telemetry.quic.security",
+    "button|type=button|data-workspace-route=telemetry.quic.streams"
+  ],
+  "presentation_sha256": "e798373e7826bc1fec9f3f174c61fd289c456f24118b2beed929a3ae24bbbc47",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-quic-paths.png",
+  "screenshot_sha256": "07e54e227882d36ff9537f53eb8b81ee260f802fdbf1d0e1bb923c46e3b1a19c",
+  "sections": [
+    "Paths",
+    "QUIC telemetry"
+  ],
+  "terms": [
+    "Connections",
+    "Local QUIC capability unavailable",
+    "Migration events",
+    "NAT rebinding",
+    "No aggregate path-validation state",
+    "No sanitized peer-address change counter",
+    "No validated maximum UDP payload size",
+    "No verified network-change events",
+    "Overview",
+    "Path MTU",
+    "Paths",
+    "Paths parameters",
+    "QUIC",
+    "QUIC telemetry",
+    "Read-only",
+    "Recovery",
+    "Security",
+    "Streams",
+    "Unavailable",
+    "Validated paths"
+  ],
+  "topic_id": "telemetry.quic.paths",
+  "version": 3
+}

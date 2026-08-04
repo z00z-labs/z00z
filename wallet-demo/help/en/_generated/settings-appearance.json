@@ -1,0 +1,34 @@
+{
+  "capture_route": "settings.appearance",
+  "components": [
+    "button|type=button",
+    "button|type=button|aria-label=Use reduced motion|data-demo-action=motion"
+  ],
+  "presentation_sha256": "27533d441b8c9d0a814f8295315cb014108a48b1c0e9b2a72d1f5513c681827c",
+  "scope": "context",
+  "screenshot": "help/assets/en/settings-appearance.png",
+  "screenshot_sha256": "598d671132e5497d918ade22b7ea43458180b3f3bb75cef316557fa7cf024042",
+  "sections": [],
+  "terms": [
+    "100%",
+    "Active",
+    "Application palette previews",
+    "Code highlighting",
+    "Dark",
+    "Light",
+    "Night Owl",
+    "One Dark",
+    "One Light",
+    "Palette",
+    "Reduced motion",
+    "Select a palette to apply it immediately.",
+    "Text scale",
+    "Use reduced motion",
+    "Xcode",
+    "YAML code highlighting theme",
+    "Z00Z Corporate",
+    "Z00Z Default"
+  ],
+  "topic_id": "settings.appearance",
+  "version": 3
+}

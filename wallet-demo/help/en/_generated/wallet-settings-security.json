@@ -1,0 +1,34 @@
+{
+  "capture_route": "wallet.settings.security",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-demo-action=lock"
+  ],
+  "presentation_sha256": "6476856dc0774f6c3f2c708682cbfca33d46e54e843a77cccab50a9dc53689a2",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-settings-security.png",
+  "screenshot_sha256": "cfc98e3b5da1c4f283ff3b1a057946ee0ca4daa57ab4f7c025aeccb95afce311",
+  "sections": [],
+  "terms": [
+    "15 minutes",
+    "Advanced",
+    "Backup",
+    "Change password",
+    "General",
+    "Lock app after",
+    "Lock now",
+    "Master key",
+    "Never",
+    "Policies",
+    "Public keys",
+    "Recovery phrase",
+    "Rotate",
+    "Security",
+    "Selected wallet settings",
+    "View keys",
+    "View phrase",
+    "Wallet password"
+  ],
+  "topic_id": "wallet.settings.security",
+  "version": 3
+}

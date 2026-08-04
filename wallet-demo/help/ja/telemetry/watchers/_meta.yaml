@@ -1,0 +1,10 @@
+title: 監視
+icon: eye
+order:
+  - index
+  - alerts
+  - publication
+  - providers
+  - censorship
+  - evidence
+  - alert-detail

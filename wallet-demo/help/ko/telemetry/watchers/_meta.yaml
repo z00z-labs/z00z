@@ -1,0 +1,10 @@
+title: 감시자
+icon: eye
+order:
+  - index
+  - alerts
+  - publication
+  - providers
+  - censorship
+  - evidence
+  - alert-detail

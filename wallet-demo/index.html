@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="z00z-default">
+  <head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#081019">
+    <meta name="description" content="Interactive UI/UX concept for the Z00Z private wallet.">
+    <meta name="application-name" content="Z00Z Wallet">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.webmanifest?v=c9778593beb14fabebcae28a55fc3071e797508a">
+    <link rel="icon" type="image/png" href="assets/logo/z00z-logo-gold-circle.png?v=c9778593beb14fabebcae28a55fc3071e797508a">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/logo/z00z-apple-touch-icon-v2-180.png?v=c9778593beb14fabebcae28a55fc3071e797508a">
+    <title>Z00Z Wallet</title>
+    <link rel="stylesheet" href="styles.css?v=c9778593beb14fabebcae28a55fc3071e797508a">
+  
+    <script data-pages-release="c9778593beb14fabebcae28a55fc3071e797508a">
+      (() => {
+        const buildSha = "c9778593beb14fabebcae28a55fc3071e797508a";
+        let isChecking = false;
+        const checkRelease = async () => {
+          if (isChecking || !navigator.onLine) return;
+          isChecking = true;
+          try {
+            const endpoint = new URL("deployment.json", window.location.href);
+            endpoint.searchParams.set("check", Date.now().toString());
+            const response = await fetch(endpoint, { cache: "no-store", credentials: "same-origin" });
+            if (!response.ok) return;
+            const deployment = await response.json();
+            if (!deployment.sha || deployment.sha === buildSha) return;
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("v", deployment.sha);
+            nextUrl.searchParams.set("refresh", Date.now().toString());
+            window.location.replace(nextUrl);
+          } catch {
+            // The Pages preview remains usable when the device is offline.
+          } finally {
+            isChecking = false;
+          }
+        };
+        window.addEventListener("focus", checkRelease);
+        window.addEventListener("online", checkRelease);
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) checkRelease();
+        });
+        window.setInterval(checkRelease, 60_000);
+        checkRelease();
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to wallet content</a>
+
+    <section class="lock-screen" id="lock-screen" aria-labelledby="lock-title" hidden>
+      <div class="lock-card">
+        <div class="brand brand-centered">
+          <img class="brand-mark" src="assets/logo/z00z-logo-gold-circle.png?v=c9778593beb14fabebcae28a55fc3071e797508a" alt="">
+          <span>Z00Z</span>
+        </div>
+        <div class="lock-icon"><svg class="icon"><use href="#i-lock"/></svg></div>
+        <p class="eyebrow">Private wallet</p>
+        <h1 id="lock-title">Welcome back</h1>
+        <p class="muted" id="lock-wallet-label">Everyday wallet <span aria-hidden="true">·</span> <span class="mono">8F2A…71C0</span></p>
+        <form id="unlock-form" autocomplete="off" data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-protonpass-ignore="true" novalidate>
+          <label class="field-label" for="unlock-password">Wallet password</label>
+          <div class="password-wrap">
+            <input id="unlock-password" name="walletUnlockSecret" type="text" class="secure-entry" data-secure-entry data-port-control="secure-entry" inputmode="text" autocomplete="section-z00z-unlock one-time-code" autocapitalize="none" autocorrect="off" spellcheck="false" data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-protonpass-ignore="true" minlength="4" required>
+            <button class="icon-button field-icon" type="button" data-toggle-password aria-label="Show password">
+              <svg class="icon"><use href="#i-eye"/></svg>
+            </button>
+          </div>
+          <p class="field-error" id="unlock-error" role="alert"></p>
+          <button class="button button-primary button-full" type="submit">
+            <svg class="icon"><use href="#i-lock"/></svg> Unlock wallet
+          </button>
+        </form>
+        <button class="button button-quiet button-full" type="button" data-demo-action="switch-wallet">Switch wallet</button>
+        <p class="lock-note"><svg class="icon"><use href="#i-shield"/></svg> Session data is cleared when the wallet locks.</p>
+      </div>
+    </section>
+
+    <div class="app-shell" id="app-shell">
+      <header class="topbar" id="primary-topbar">
+        <div class="desktop-topbar-brand brand" aria-label="Z00Z">
+          <img class="brand-mark" src="assets/logo/z00z-logo-gold-circle.png?v=c9778593beb14fabebcae28a55fc3071e797508a" alt="">
+          <span>Z00Z</span>
+        </div>
+        <section class="wallet-identity" id="wallet-identity" aria-label="Active wallet" aria-live="polite"></section>
+        <div class="mobile-navigation-leading">
+          <button class="icon-button mobile-menu-button" id="mobile-menu-button" type="button" aria-controls="mobile-popup-menu" aria-expanded="false">
+            <svg class="icon"><use href="#i-menu"/></svg>
+          </button>
+          <span class="mobile-nav-brand" role="img" aria-label="Z00Z">
+            <img src="assets/logo/z00z-logo-gold-circle.png?v=c9778593beb14fabebcae28a55fc3071e797508a" alt="">
+          </span>
+        </div>
+        <section class="mobile-active-wallet" id="mobile-active-wallet" aria-label="Active wallet" hidden></section>
+        <div class="mobile-topbar-context" id="mobile-topbar-context" aria-label="Current section" hidden></div>
+        <div class="topbar-address-group">
+          <div class="page-heading">
+            <p class="route-breadcrumb" id="route-breadcrumb" aria-label="Current path"></p>
+            <h1 id="page-title">Home</h1>
+            <p id="page-context" hidden></p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button topbar-search" id="menu-search-trigger" type="button" aria-haspopup="dialog" aria-controls="menu-search-dialog" aria-expanded="false">
+            <svg class="icon"><use href="#i-search"/></svg>
+          </button>
+          <button class="icon-button" type="button" data-demo-action="toggle-balance" aria-label="Hide sensitive amounts" title="Hide sensitive amounts">
+            <svg class="icon"><use href="#i-eye"/></svg>
+          </button>
+          <button class="icon-button topbar-notification" type="button" data-demo-action="notifications" aria-label="Notifications, one unread" title="Notifications">
+            <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
+          </button>
+        </div>
+      </header>
+
+      <div class="app-body" id="app-body">
+        <aside class="sidebar" aria-label="Primary navigation">
+        <p class="sidebar-label" data-i18n="app.wallets">Wallets</p>
+        <div class="wallet-nav-viewport">
+          <nav class="wallet-nav" id="wallet-nav" aria-label="Wallets"></nav>
+        </div>
+        <div class="sidebar-navigation-scroll-region">
+          <nav class="app-navigation-tree" id="app-navigation-tree" aria-label="Application navigation"></nav>
+          <nav class="app-navigation-terminal" id="app-navigation-terminal" aria-label="Application actions"></nav>
+        </div>
+        </aside>
+
+        <div class="app-column">
+        <main class="main-content" id="main-content" tabindex="-1"></main>
+        <div class="context-help-host" id="context-help-host"></div>
+        <footer class="wallet-statusbar" id="wallet-statusbar" aria-label="Selected wallet status"></footer>
+        </div>
+      </div>
+      <button class="mobile-menu-backdrop" id="mobile-menu-backdrop" type="button" tabindex="-1" aria-label="Close menu" hidden></button>
+      <div class="mobile-popup-menu" id="mobile-popup-menu" role="dialog" hidden></div>
+      <div class="wallet-picker-popup" id="wallet-picker-popup" role="menu" hidden></div>
+    </div>
+
+    <div class="menu-search-overlay" id="menu-search-overlay" hidden>
+      <div class="menu-search-backdrop" id="menu-search-backdrop" aria-hidden="true"></div>
+      <section class="menu-search-dialog" id="menu-search-dialog" role="dialog" aria-modal="true" aria-labelledby="menu-search-title" tabindex="-1">
+        <div class="menu-search-dialog-header">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <h2 class="visually-hidden" id="menu-search-title">Search</h2>
+          <label class="visually-hidden" id="menu-search-label" for="menu-search-input">Search</label>
+          <input id="menu-search-input" type="search" autocomplete="off" maxlength="80">
+          <button class="menu-search-close" id="menu-search-close" type="button">Esc</button>
+        </div>
+        <p class="visually-hidden" id="menu-search-status" role="status" aria-live="polite"></p>
+        <div class="menu-search-results" id="menu-search-results"></div>
+      </section>
+    </div>
+
+    <dialog class="flow-dialog" id="flow-dialog" aria-labelledby="dialog-title">
+      <div id="dialog-content"></div>
+    </dialog>
+
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="scripts/port/locale-registry.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="i18n.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/en.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/ru.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/fr.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/de.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/es.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/pt.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/ko.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/tr.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/ja.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/zh-Hans.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/send-exchange.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/navigation.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/demo-plan-2.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/generated/help-catalog.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/help-registry.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/help-controller.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/contracts.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/icon-sprite.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/ui-primitives.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/icon-registry.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/navigation-model.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/navigation-session.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/exchange-catalog.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/extension-catalog.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/messenger-catalog.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/contacts-catalog.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/fixtures.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/presentation-state.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/mock-wallet-gateway.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/mock-telemetry-gateway.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/mock-extension-gateway.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/mock-messenger-gateway.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/mock-contacts-gateway.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="app.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+  </body>
+</html>

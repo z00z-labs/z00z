@@ -1,0 +1,8 @@
+title: Réglages du portefeuille
+icon: settings
+order:
+  - index
+  - security
+  - backup
+  - policies
+  - advanced

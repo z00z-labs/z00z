@@ -1,0 +1,10 @@
+title: 监测器
+icon: eye
+order:
+  - index
+  - alerts
+  - publication
+  - providers
+  - censorship
+  - evidence
+  - alert-detail

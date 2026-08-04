@@ -1,0 +1,48 @@
+{
+  "capture_route": "telemetry.watchers.publication",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-workspace-route=telemetry.watchers.alerts",
+    "button|type=button|data-workspace-route=telemetry.watchers.censorship",
+    "button|type=button|data-workspace-route=telemetry.watchers.evidence",
+    "button|type=button|data-workspace-route=telemetry.watchers.overview",
+    "button|type=button|data-workspace-route=telemetry.watchers.providers",
+    "button|type=button|data-workspace-route=telemetry.watchers.publication"
+  ],
+  "presentation_sha256": "a69e63a912b69f229417f636f36c8d4e047d6cf8a45b632f5c8ffe0294fabc43",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-watchers-publication.png",
+  "screenshot_sha256": "573bf89e04aedf481dfd9e17b106b6085cb81e2e6e2e8306dea275d82c144f12",
+  "sections": [
+    "Publication checks"
+  ],
+  "terms": [
+    "A matched Watcher check is local evidence only. It cannot finalize a checkpoint or override storage readiness.",
+    "Alerts",
+    "Batch, checkpoint, and pub_in binding agree in the deterministic witness.",
+    "Censorship signals",
+    "Committed PublicationRouteSnapshotV1 covers the fixture runtime route.",
+    "DA providers",
+    "Deterministic Watchers controls",
+    "Deterministic, privacy-safe observation and evidence workflow.",
+    "Evidence export",
+    "Observation source",
+    "Overview",
+    "Publication binding",
+    "Publication checks",
+    "PublicationRecord::validate_readiness_bundle",
+    "PublicationWatch::try_from_runtime",
+    "Readiness bundle",
+    "Route snapshot",
+    "Runtime projection",
+    "Scenario",
+    "The fixture lifecycle is intentionally incomplete and remains non-final.",
+    "Useful fixture",
+    "Watchers",
+    "check_route_binding_v1",
+    "matched",
+    "retry pending"
+  ],
+  "topic_id": "telemetry.watchers.publication",
+  "version": 3
+}

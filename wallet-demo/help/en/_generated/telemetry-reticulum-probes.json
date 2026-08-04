@@ -1,0 +1,47 @@
+{
+  "capture_route": "telemetry.reticulum.probes",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.reticulum.entrypoints",
+    "button|type=button|data-workspace-route=telemetry.reticulum.interfaces",
+    "button|type=button|data-workspace-route=telemetry.reticulum.links",
+    "button|type=button|data-workspace-route=telemetry.reticulum.node",
+    "button|type=button|data-workspace-route=telemetry.reticulum.overview",
+    "button|type=button|data-workspace-route=telemetry.reticulum.paths",
+    "button|type=button|data-workspace-route=telemetry.reticulum.probes",
+    "button|type=button|data-workspace-route=telemetry.reticulum.radio"
+  ],
+  "presentation_sha256": "fb2817c8e470ae6ebb08217ae3aa8430f09cd543e0708fd4ef9075a1530dd848",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-reticulum-probes.png",
+  "screenshot_sha256": "1543a08068451242102e4f6dfc3121c9ff1504d10b2f3cf8417bf6856f9bbeac",
+  "sections": [
+    "Probes",
+    "Reticulum telemetry"
+  ],
+  "terms": [
+    "Consecutive failures",
+    "Entrypoints",
+    "Interfaces",
+    "Links",
+    "Local capability unavailable",
+    "Loss / jitter",
+    "No local failure count",
+    "No local latency sample",
+    "No managed-destination probe results",
+    "No probe series",
+    "Node",
+    "Overview",
+    "Paths",
+    "Probe availability",
+    "Probes",
+    "Probes parameters",
+    "RTT",
+    "Radio",
+    "Read-only",
+    "Reticulum",
+    "Reticulum telemetry",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.reticulum.probes",
+  "version": 3
+}

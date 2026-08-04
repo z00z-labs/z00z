@@ -1,0 +1,60 @@
+name: publish-wallet-demo
+
+on:
+  push:
+    branches: [wallet-demo-pages]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "github-pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout published artifact
+        uses: actions/checkout@v4
+        with:
+          ref: wallet-demo-pages
+
+      - name: Prepare static demo
+        run: |
+          mkdir -p _site
+          git archive HEAD -- .nojekyll index.html wallet-demo | tar -x -C _site
+          test -f _site/index.html
+          test -f _site/wallet-demo/index.html
+          node -e '
+            const deployment = require("./_site/wallet-demo/deployment.json");
+            if (!/^[0-9a-f]{40}$/i.test(deployment.sha)) {
+              throw new Error("Invalid source SHA in deployment.json");
+            }
+            if (!deployment.ref.startsWith("z00z-labs/z00z-app@")) {
+              throw new Error("Wallet demo artifact must originate from z00z-app");
+            }
+            console.log(`Deploying z00z-app ${deployment.sha}`);
+          '
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}wallet-demo/
+    steps:
+      - name: Deploy Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

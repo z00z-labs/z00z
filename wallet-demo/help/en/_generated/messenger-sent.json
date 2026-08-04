@@ -1,0 +1,46 @@
+{
+  "capture_route": "messenger.sent",
+  "components": [
+    "button|type=button|data-messenger-action=relay-recover",
+    "button|type=button|data-messenger-action=relay-unavailable"
+  ],
+  "presentation_sha256": "e571d400ae78cc7fd381f13c08f1cd87f61d3e751aa2733014897c1116ba7144",
+  "scope": "context",
+  "screenshot": "help/assets/en/messenger-sent.png",
+  "screenshot_sha256": "2eb1051086c6e966fc42ccc732d52677d13f9343959d1a1893e114f78e689873",
+  "sections": [
+    "Sent"
+  ],
+  "terms": [
+    "5 local items",
+    "Acknowledged",
+    "Advisory acknowledgement received; settlement is independent.",
+    "Expired",
+    "Expired locally without retry.",
+    "Failed",
+    "Jul 24, 2026, 1:00 PM",
+    "Jul 25, 2026, 4:20 PM",
+    "Jul 26, 2026, 10:30 AM",
+    "Jul 26, 2026, 8:25 AM",
+    "Jul 26, 2026, 9:45 AM",
+    "Local deterministic fixture; no durable mailbox or live relay is connected.",
+    "Local fixture workflow",
+    "Old receiver card",
+    "Payment acknowledgement",
+    "Permission response",
+    "Queued",
+    "Receiver card",
+    "Relay accepted the advisory envelope; delivery is not proven.",
+    "Relay attempt failed; Wallet state is unchanged.",
+    "Relay degraded",
+    "Relayed",
+    "Retry locally",
+    "Sent",
+    "Sent and transport states are advisory. A failed relay cannot roll back or confirm Wallet state.",
+    "Show unavailable",
+    "Stored locally; relay unavailable.",
+    "Voucher response"
+  ],
+  "topic_id": "messenger.sent",
+  "version": 3
+}

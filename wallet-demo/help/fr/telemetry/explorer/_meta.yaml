@@ -1,0 +1,9 @@
+title: Explorateur
+icon: search
+order:
+  - index
+  - search
+  - checkpoints
+  - batches
+  - evidence
+  - detail

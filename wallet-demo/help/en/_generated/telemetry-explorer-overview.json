@@ -1,0 +1,46 @@
+{
+  "capture_route": "telemetry.explorer.overview",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-workspace-route=telemetry.explorer.batches",
+    "button|type=button|data-workspace-route=telemetry.explorer.checkpoints",
+    "button|type=button|data-workspace-route=telemetry.explorer.evidence",
+    "button|type=button|data-workspace-route=telemetry.explorer.overview",
+    "button|type=button|data-workspace-route=telemetry.explorer.search"
+  ],
+  "presentation_sha256": "4baedd7139a13705f7e06e6b1d59f97ce4191571bd6d77504dd1ee0b88789624",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-explorer-overview.png",
+  "screenshot_sha256": "9c5bec99b774aae6fa2e13e3bcd1ef9b2c762b87a762f4cc55ac2049aa9abe58",
+  "sections": [
+    "Explorer"
+  ],
+  "terms": [
+    "Batches",
+    "Checkpoints",
+    "Deterministic Explorer controls",
+    "Deterministic, privacy-restricted public evidence workflow.",
+    "Evidence records",
+    "Explorer",
+    "Explorer public scope",
+    "Lifecycle and publication evidence only",
+    "Narrow public scope",
+    "Never accepted",
+    "No labels, balances, messages, paths, receivers, or memos",
+    "Overview",
+    "Proof, publication, route, and opaque DA references",
+    "Public batch/checkpoint relationships",
+    "Public checkpoints",
+    "Public evidence",
+    "Published batches",
+    "Scenario",
+    "Search",
+    "Useful fixture",
+    "Wallet-local fields",
+    "and",
+    "check_public_checkpoint_v1",
+    "check_publication_route_v1"
+  ],
+  "topic_id": "telemetry.explorer.overview",
+  "version": 3
+}

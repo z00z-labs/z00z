@@ -1,0 +1,8 @@
+title: Настройки кошелька
+icon: settings
+order:
+  - index
+  - security
+  - backup
+  - policies
+  - advanced

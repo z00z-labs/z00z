@@ -1,0 +1,42 @@
+{
+  "capture_route": "settings.onionnet",
+  "components": [
+    "button|type=button",
+    "button|type=button|aria-label=OnionNet fail closed|data-demo-action=onionnet-fail-closed",
+    "button|type=button|role=tab"
+  ],
+  "presentation_sha256": "5b2c4233c26e5fa57b1182b0ce0cc8d5254e49504a3e369ba2f8cfd7b2538698",
+  "scope": "context",
+  "screenshot": "help/assets/en/settings-onionnet.png",
+  "screenshot_sha256": "6f60584f17cb14d77a715c45805ff69b77dfeca0be3cc418159ccc1345b29d1d",
+  "sections": [
+    "OnionNet"
+  ],
+  "terms": [
+    "Adaptive",
+    "Admission & replay checks",
+    "Background packet policy",
+    "Block when the privacy floor cannot be met",
+    "Cover traffic",
+    "Direct-path fallback policy",
+    "Every session",
+    "Fail closed",
+    "Network",
+    "OnionNet",
+    "OnionNet fail closed",
+    "Privacy mode",
+    "Private overlay",
+    "Private \u00b7 no direct fallback",
+    "QUIC",
+    "Reticulum",
+    "Route rotation",
+    "Runtime evidence is not registered",
+    "Set the privacy and fallback floor independently from Reticulum carriers and QUIC transport sessions.",
+    "Target privacy policy",
+    "These controls define intent only. The Demo does not claim that an OnionNet route is live, anonymous, or untraceable.",
+    "Unavailable",
+    "When to request a fresh privacy path"
+  ],
+  "topic_id": "settings.onionnet",
+  "version": 3
+}

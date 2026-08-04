@@ -1,0 +1,9 @@
+title: Gezgin
+icon: search
+order:
+  - index
+  - search
+  - checkpoints
+  - batches
+  - evidence
+  - detail

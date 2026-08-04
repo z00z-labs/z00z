@@ -1,0 +1,6 @@
+title: Contactos
+icon: user
+order:
+  - list
+  - detail
+  - identity-review

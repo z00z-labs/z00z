@@ -1,0 +1,237 @@
+/*
+ * Z00Z Wallet Color LUT — the only source for literal application colours.
+ *
+ * Components consume semantic tokens (--brand, --success, --bg-surface, etc.).
+ * To tune a palette, change the matching theme/palette mapping below; never
+ * introduce a hexadecimal, rgb(), hsl(), or named colour in component CSS/JS.
+ * Derived tints use color-mix() with these semantic tokens at their call site.
+ */
+
+:root {
+  /* Default Z00Z palette — dark mode */
+  --lut-z00z-dark-canvas: #081019;
+  --lut-z00z-dark-sidebar: #0b1520;
+  --lut-z00z-dark-surface: #101d29;
+  --lut-z00z-dark-raised: #162635;
+  --lut-z00z-dark-overlay: rgb(1 8 14 / 78%);
+  --lut-z00z-dark-text-primary: #f5f7f8;
+  --lut-z00z-dark-text-secondary: #a9b6c2;
+  --lut-z00z-dark-text-tertiary: #788997;
+  --lut-z00z-dark-border: #263847;
+  --lut-z00z-dark-border-strong: #395063;
+  --lut-z00z-dark-brand: #fca311;
+  --lut-z00z-dark-brand-strong: #f3b65b;
+  --lut-z00z-dark-brand-ink: #1e1704;
+  --lut-z00z-dark-rail: #32a9e8;
+  --lut-z00z-dark-success: #4cd29b;
+  --lut-z00z-dark-warning: #f3b65b;
+  --lut-z00z-dark-danger: #ff6b72;
+  --lut-z00z-dark-focus: #7ccbff;
+
+  /* Z00Z Corporate — local snapshot from z00z.io Corporate, verified 2026-07-26. */
+  --lut-z00z-corporate-base-100: #ffffff;
+  --lut-z00z-corporate-base-200: #e8e8e8;
+  --lut-z00z-corporate-base-300: #d1d1d1;
+  --lut-z00z-corporate-base-content: #181a2a;
+  --lut-z00z-corporate-content-82: rgb(24 26 42 / 82%);
+  --lut-z00z-corporate-content-78: rgb(24 26 42 / 78%);
+  --lut-z00z-corporate-content-72: rgb(24 26 42 / 72%);
+  --lut-z00z-corporate-content-60: rgb(24 26 42 / 60%);
+  --lut-z00z-corporate-table-head: #eeeeee;
+  --lut-z00z-corporate-table-row-alt: #f3f4f6;
+  --lut-z00z-corporate-table-code-bg: #f5f6f7;
+  --lut-z00z-corporate-table-code-border: #d9dce1;
+  --lut-z00z-corporate-table-code-fg: #1f2937;
+  --lut-z00z-corporate-primary: #0082c4;
+  --lut-z00z-corporate-secondary: #61738d;
+  --lut-z00z-corporate-accent: #009588;
+  --lut-z00z-corporate-success: #00a242;
+  --lut-z00z-corporate-warning: #f7c800;
+  --lut-z00z-corporate-error: #ff6266;
+  --lut-z00z-corporate-overlay: rgb(24 26 42 / 48%);
+  /* Accessible local semantic translations of the Corporate source colours. */
+  --lut-z00z-corporate-primary-contrast: #006da3;
+  --lut-z00z-corporate-accent-contrast: #007563;
+  --lut-z00z-corporate-success-contrast: #007c35;
+  --lut-z00z-corporate-warning-contrast: #8a6400;
+  --lut-z00z-corporate-error-contrast: #b23b45;
+
+  /* YAML code highlighting sources */
+  --lut-code-one-light-bg: #fafafa;
+  --lut-code-one-light-border: #d6d6d6;
+  --lut-code-one-light-fg: #0d161b;
+  --lut-code-one-light-comment: #64560d;
+  --lut-code-one-light-keyword: #f23173;
+  --lut-code-one-light-string: #bd5200;
+  --lut-code-one-light-number: #cf4dff;
+  --lut-code-one-light-title: #007400;
+  --lut-code-xcode-bg: #fafafa;
+  --lut-code-xcode-border: #d6d6d6;
+  --lut-code-xcode-fg: #000000;
+  --lut-code-xcode-comment: #007400;
+  --lut-code-xcode-keyword: #aa0d91;
+  --lut-code-xcode-string: #c41a16;
+  --lut-code-xcode-number: #1c00cf;
+  --lut-code-xcode-title: #1c00cf;
+  --lut-code-one-dark-bg: var(--lut-z00z-dark-canvas);
+  --lut-code-one-dark-border: #181a1f;
+  --lut-code-one-dark-fg: #caced6;
+  --lut-code-one-dark-comment: #75715e;
+  --lut-code-one-dark-keyword: #f92672;
+  --lut-code-one-dark-string: #e5c07b;
+  --lut-code-one-dark-number: #c678dd;
+  --lut-code-one-dark-title: #98c379;
+  --lut-code-night-owl-bg: #011627;
+  --lut-code-night-owl-border: #13344a;
+  --lut-code-night-owl-fg: #d6deeb;
+  --lut-code-night-owl-comment: #637777;
+  --lut-code-night-owl-keyword: #c792ea;
+  --lut-code-night-owl-string: #ecc48d;
+  --lut-code-night-owl-number: #f78c6c;
+  --lut-code-night-owl-title: #dcdcaa;
+
+  /* Neutral and effect sources */
+  --lut-white: #fff;
+  /* Mermaid Help diagrams — fixed accessible light-document palette. */
+  --mermaid-activation-bg: #fff3e0;
+  --mermaid-activation-border: #fb8c00;
+  --mermaid-actor-bg: #e3f2fd;
+  --mermaid-actor-border: #1e88e5;
+  --mermaid-actor-line: #000;
+  --mermaid-actor-text: #0d47a1;
+  --mermaid-alt-section-bg: #eceff1;
+  --mermaid-background: #fff;
+  --mermaid-cluster-bg: #eceff1;
+  --mermaid-cluster-border: #546e7a;
+  --mermaid-critical-bg: #ffe0e0;
+  --mermaid-critical-border: #d32f2f;
+  --mermaid-done-bg: #e8f5e9;
+  --mermaid-done-border: #43a047;
+  --mermaid-grid: #d0d7de;
+  --mermaid-label-text: #263238;
+  --mermaid-main-bg: #f3e5f5;
+  --mermaid-node-border: #8e24aa;
+  --mermaid-note-text: #1b5e20;
+  --mermaid-primary-text: #4a148c;
+  --mermaid-tertiary-text: #e65100;
+  --shadow: 0 20px 60px rgb(0 0 0 / 32%);
+  --shadow-float: 0 8px 26px rgb(0 0 0 / 18%);
+  --elevation-highlight-subtle: rgb(255 255 255 / 8%);
+  --elevation-highlight-medium: rgb(255 255 255 / 22%);
+  --elevation-highlight-strong: rgb(255 255 255 / 25%);
+
+  /* Active semantic tokens — default dark */
+  --bg-canvas: var(--lut-z00z-dark-canvas);
+  --bg-popup-menu: var(--bg-canvas);
+  --bg-sidebar: var(--lut-z00z-dark-sidebar);
+  --bg-surface: var(--lut-z00z-dark-surface);
+  --bg-raised: var(--lut-z00z-dark-raised);
+  --bg-overlay: var(--lut-z00z-dark-overlay);
+  --text-primary: var(--lut-z00z-dark-text-primary);
+  --text-secondary: var(--lut-z00z-dark-text-secondary);
+  --text-tertiary: var(--lut-z00z-dark-text-tertiary);
+  --border: var(--lut-z00z-dark-border);
+  --border-strong: var(--lut-z00z-dark-border-strong);
+  --brand: var(--lut-z00z-dark-brand);
+  --brand-strong: var(--lut-z00z-dark-brand-strong);
+  --brand-ink: var(--lut-z00z-dark-brand-ink);
+  --button-primary-bg: var(--brand);
+  --button-primary-bg-strong: var(--brand-strong);
+  --rail: var(--lut-z00z-dark-rail);
+  --success: var(--lut-z00z-dark-success);
+  --warning: var(--lut-z00z-dark-warning);
+  --danger: var(--lut-z00z-dark-danger);
+  --focus: var(--lut-z00z-dark-focus);
+  /* Wallet network LUT: Mainnet / Testnet / Devnet. */
+  --network-mainnet: var(--success);
+  --network-testnet: var(--warning);
+  --network-devnet: var(--rail);
+  /* Shared row and filter interaction states. */
+  --interaction-hover-bg: var(--bg-raised);
+  --interaction-hover-border: var(--border);
+  --interaction-hover-text: var(--text-primary);
+  --interaction-selected-bg: var(--bg-raised);
+  --interaction-selected-border: var(--border);
+  --interaction-selected-text: var(--text-primary);
+  /* Help tables use an opaque three-level reading hierarchy. */
+  --help-table-header-bg: color-mix(in srgb, var(--bg-raised) 88%, var(--text-secondary) 12%);
+  --help-table-row-bg: var(--bg-canvas);
+  --help-table-row-alt-bg: var(--bg-raised);
+  --help-table-border: var(--border);
+  --ambient-rail: color-mix(in srgb, var(--rail) 6%, transparent);
+  --ambient-rail-mobile: color-mix(in srgb, var(--rail) 10%, transparent);
+  --logo-glow: drop-shadow(0 5px 12px color-mix(in srgb, var(--brand) 18%, transparent));
+  --qr-light: var(--lut-white);
+  --qr-dark: var(--lut-z00z-dark-canvas);
+  --code-bg: var(--lut-code-one-dark-bg);
+  --code-border: var(--lut-code-one-dark-border);
+  --code-fg: var(--lut-code-one-dark-fg);
+  --code-comment: var(--lut-code-one-dark-comment);
+  --code-keyword: var(--lut-code-one-dark-keyword);
+  --code-string: var(--lut-code-one-dark-string);
+  --code-number: var(--lut-code-one-dark-number);
+  --code-title: var(--lut-code-one-dark-title);
+  color-scheme: dark;
+}
+
+html[data-code-theme="atom-one-light"] {
+  --code-bg: var(--lut-code-one-light-bg); --code-border: var(--lut-code-one-light-border); --code-fg: var(--lut-code-one-light-fg); --code-comment: var(--lut-code-one-light-comment); --code-keyword: var(--lut-code-one-light-keyword); --code-string: var(--lut-code-one-light-string); --code-number: var(--lut-code-one-light-number); --code-title: var(--lut-code-one-light-title);
+}
+
+html[data-code-theme="xcode"] {
+  --code-bg: var(--lut-code-xcode-bg); --code-border: var(--lut-code-xcode-border); --code-fg: var(--lut-code-xcode-fg); --code-comment: var(--lut-code-xcode-comment); --code-keyword: var(--lut-code-xcode-keyword); --code-string: var(--lut-code-xcode-string); --code-number: var(--lut-code-xcode-number); --code-title: var(--lut-code-xcode-title);
+}
+
+html[data-code-theme="night-owl"] {
+  --code-bg: var(--lut-code-night-owl-bg); --code-border: var(--lut-code-night-owl-border); --code-fg: var(--lut-code-night-owl-fg); --code-comment: var(--lut-code-night-owl-comment); --code-keyword: var(--lut-code-night-owl-keyword); --code-string: var(--lut-code-night-owl-string); --code-number: var(--lut-code-night-owl-number); --code-title: var(--lut-code-night-owl-title);
+}
+
+html[data-palette="z00z-corporate"] {
+  --bg-canvas: var(--lut-z00z-corporate-base-100);
+  --bg-popup-menu: var(--bg-canvas);
+  --bg-sidebar: var(--lut-z00z-corporate-base-100);
+  --bg-surface: var(--lut-z00z-corporate-base-100);
+  --bg-raised: var(--lut-z00z-corporate-base-200);
+  --bg-overlay: var(--lut-z00z-corporate-overlay);
+  --text-primary: var(--lut-z00z-corporate-base-content);
+  --text-secondary: var(--lut-z00z-corporate-content-78);
+  --text-tertiary: var(--lut-z00z-corporate-content-60);
+  --border: var(--lut-z00z-corporate-base-300);
+  --border-strong: var(--lut-z00z-corporate-base-300);
+  --brand: var(--lut-z00z-corporate-primary-contrast);
+  --brand-strong: var(--lut-z00z-corporate-primary-contrast);
+  --brand-ink: var(--lut-z00z-corporate-base-100);
+  --button-primary-bg: var(--lut-z00z-corporate-primary-contrast);
+  --button-primary-bg-strong: var(--lut-z00z-corporate-primary-contrast);
+  --rail: var(--lut-z00z-corporate-secondary);
+  --success: var(--lut-z00z-corporate-success-contrast);
+  --warning: var(--lut-z00z-corporate-warning-contrast);
+  --danger: var(--lut-z00z-corporate-error-contrast);
+  --focus: var(--lut-z00z-corporate-primary-contrast);
+  --network-mainnet: var(--success);
+  --network-testnet: var(--warning);
+  --network-devnet: var(--focus);
+  --help-table-header-bg: var(--lut-z00z-corporate-table-head);
+  --help-table-row-bg: var(--lut-z00z-corporate-base-100);
+  --help-table-row-alt-bg: var(--lut-z00z-corporate-table-row-alt);
+  --shadow: 0 20px 60px rgb(24 26 42 / 18%);
+  --elevation-highlight-subtle: rgb(24 26 42 / 8%);
+  --elevation-highlight-medium: rgb(24 26 42 / 14%);
+  --elevation-highlight-strong: rgb(24 26 42 / 18%);
+  --qr-dark: var(--lut-z00z-corporate-base-content);
+  color-scheme: light;
+}
+
+/* Preview cards reuse local LUT values rather than inline JavaScript colours. */
+.palette-card[data-palette="z00z-default"] { --swatch-1: var(--lut-z00z-dark-canvas); --swatch-2: var(--lut-z00z-dark-surface); --swatch-3: var(--lut-z00z-dark-brand); --swatch-4: var(--lut-z00z-dark-rail); --swatch-5: var(--lut-z00z-dark-text-primary); }
+.palette-card[data-palette="z00z-corporate"] { --swatch-1: var(--lut-z00z-corporate-base-100); --swatch-2: var(--lut-z00z-corporate-base-200); --swatch-3: var(--lut-z00z-corporate-primary); --swatch-4: var(--lut-z00z-corporate-accent); --swatch-5: var(--lut-z00z-corporate-base-content); }
+.palette-swatches i:nth-child(1) { background: var(--swatch-1); }
+.palette-swatches i:nth-child(2) { background: var(--swatch-2); }
+.palette-swatches i:nth-child(3) { background: var(--swatch-3); }
+.palette-swatches i:nth-child(4) { background: var(--swatch-4); }
+.palette-swatches i:nth-child(5) { background: var(--swatch-5); }
+
+.code-theme-card[data-code-theme="atom-one-light"] { --code-preview-bg: var(--lut-code-one-light-bg); --code-preview-border: var(--lut-code-one-light-border); --code-preview-fg: var(--lut-code-one-light-fg); --code-preview-comment: var(--lut-code-one-light-comment); --code-preview-keyword: var(--lut-code-one-light-keyword); --code-preview-string: var(--lut-code-one-light-string); --code-preview-number: var(--lut-code-one-light-number); --code-preview-title: var(--lut-code-one-light-title); }
+.code-theme-card[data-code-theme="xcode"] { --code-preview-bg: var(--lut-code-xcode-bg); --code-preview-border: var(--lut-code-xcode-border); --code-preview-fg: var(--lut-code-xcode-fg); --code-preview-comment: var(--lut-code-xcode-comment); --code-preview-keyword: var(--lut-code-xcode-keyword); --code-preview-string: var(--lut-code-xcode-string); --code-preview-number: var(--lut-code-xcode-number); --code-preview-title: var(--lut-code-xcode-title); }
+.code-theme-card[data-code-theme="atom-one-dark"] { --code-preview-bg: var(--lut-code-one-dark-bg); --code-preview-border: var(--lut-code-one-dark-border); --code-preview-fg: var(--lut-code-one-dark-fg); --code-preview-comment: var(--lut-code-one-dark-comment); --code-preview-keyword: var(--lut-code-one-dark-keyword); --code-preview-string: var(--lut-code-one-dark-string); --code-preview-number: var(--lut-code-one-dark-number); --code-preview-title: var(--lut-code-one-dark-title); }
+.code-theme-card[data-code-theme="night-owl"] { --code-preview-bg: var(--lut-code-night-owl-bg); --code-preview-border: var(--lut-code-night-owl-border); --code-preview-fg: var(--lut-code-night-owl-fg); --code-preview-comment: var(--lut-code-night-owl-comment); --code-preview-keyword: var(--lut-code-night-owl-keyword); --code-preview-string: var(--lut-code-night-owl-string); --code-preview-number: var(--lut-code-night-owl-number); --code-preview-title: var(--lut-code-night-owl-title); }

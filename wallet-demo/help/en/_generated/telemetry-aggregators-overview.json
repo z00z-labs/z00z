@@ -1,0 +1,52 @@
+{
+  "capture_route": "telemetry.aggregators.overview",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.aggregators.ingress",
+    "button|type=button|data-workspace-route=telemetry.aggregators.overview",
+    "button|type=button|data-workspace-route=telemetry.aggregators.placement",
+    "button|type=button|data-workspace-route=telemetry.aggregators.planning",
+    "button|type=button|data-workspace-route=telemetry.aggregators.publication",
+    "button|type=button|data-workspace-route=telemetry.aggregators.recovery"
+  ],
+  "presentation_sha256": "a30a3c09661794dd66ef42b9a64d09c1ae3414b2296785899d1022b33eeab40f",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-aggregators-overview.png",
+  "screenshot_sha256": "d59323bc5c6d1bbb9439eafef57a4a4d3ffd844a6bccfbdef2477cd454caa8fc",
+  "sections": [
+    "Fail-closed boundaries",
+    "Overview",
+    "Runtime contract fields"
+  ],
+  "terms": [
+    "&[WorkItem] \u2192 OrderedBatch | RejectRecord",
+    "Admission",
+    "Aggregators",
+    "Fail-closed boundaries",
+    "Ingress",
+    "No batch placement observation",
+    "No latest publication record",
+    "No validation or lifecycle evidence",
+    "No wallet-to-node bridge is registered in this demo.",
+    "No wallet-to-node status bridge",
+    "Ordering",
+    "Overview",
+    "Overview observation status",
+    "Overview runtime contract",
+    "Placement",
+    "Planning",
+    "Publication",
+    "PublicationRequest \u2192 PublishedBatch",
+    "Recovery",
+    "Runtime contract fields",
+    "Service bindings",
+    "ShardRecoveryRecord \u2192 ShardExecTicket",
+    "Storage owns settlement roots, proofs, lifecycle evidence, and recovery truth.",
+    "The runtime composes admission, deterministic ordering, publication, and recovery boundaries; this renderer observes none of them directly.",
+    "Unavailable",
+    "Verdict",
+    "Wallet-private identifiers never enter this workspace.",
+    "WorkPayload \u2192 WorkItem | RejectRecord"
+  ],
+  "topic_id": "telemetry.aggregators.overview",
+  "version": 3
+}

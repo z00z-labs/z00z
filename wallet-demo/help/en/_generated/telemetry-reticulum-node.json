@@ -1,0 +1,47 @@
+{
+  "capture_route": "telemetry.reticulum.node",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.reticulum.entrypoints",
+    "button|type=button|data-workspace-route=telemetry.reticulum.interfaces",
+    "button|type=button|data-workspace-route=telemetry.reticulum.links",
+    "button|type=button|data-workspace-route=telemetry.reticulum.node",
+    "button|type=button|data-workspace-route=telemetry.reticulum.overview",
+    "button|type=button|data-workspace-route=telemetry.reticulum.paths",
+    "button|type=button|data-workspace-route=telemetry.reticulum.probes",
+    "button|type=button|data-workspace-route=telemetry.reticulum.radio"
+  ],
+  "presentation_sha256": "5faaef56c5f621adff90822ac48dbcff39cb1cfece1f60ffac639af00a57d5f7",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-reticulum-node.png",
+  "screenshot_sha256": "3b7290673787d8cc22a328d30c9b96710887f9be59efb05ddca39f25ff4ae3e5",
+  "sections": [
+    "Node",
+    "Reticulum telemetry"
+  ],
+  "terms": [
+    "Aggregate RX / TX",
+    "Entrypoints",
+    "Interfaces",
+    "Links",
+    "Local capability unavailable",
+    "No local process observation",
+    "No local rnstatus bridge",
+    "No local traffic counters",
+    "No managed node snapshot",
+    "Node",
+    "Node parameters",
+    "Overview",
+    "Paths",
+    "Probes",
+    "RNS instance",
+    "Radio",
+    "Read-only",
+    "Reticulum",
+    "Reticulum telemetry",
+    "Transport role",
+    "Unavailable",
+    "Uptime"
+  ],
+  "topic_id": "telemetry.reticulum.node",
+  "version": 3
+}

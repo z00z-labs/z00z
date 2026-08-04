@@ -1,0 +1,6 @@
+title: Сеть
+icon: network
+order:
+  - reticulum
+  - onionnet
+  - quic

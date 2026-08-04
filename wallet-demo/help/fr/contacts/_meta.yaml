@@ -1,0 +1,6 @@
+title: Contacts
+icon: user
+order:
+  - list
+  - detail
+  - identity-review

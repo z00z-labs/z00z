@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="z00z-default">
+  <head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#081019">
+    <meta name="description" content="Local Help for the Z00Z wallet.">
+    <link rel="icon" type="image/png" href="assets/logo/z00z-logo-gold-circle.png?v=c9778593beb14fabebcae28a55fc3071e797508a">
+    <title>Z00Z Help</title>
+    <link rel="stylesheet" href="styles.css?v=c9778593beb14fabebcae28a55fc3071e797508a">
+    <link rel="stylesheet" href="styles/help.css?v=c9778593beb14fabebcae28a55fc3071e797508a">
+  
+    <script data-pages-release="c9778593beb14fabebcae28a55fc3071e797508a">
+      (() => {
+        const buildSha = "c9778593beb14fabebcae28a55fc3071e797508a";
+        let isChecking = false;
+        const checkRelease = async () => {
+          if (isChecking || !navigator.onLine) return;
+          isChecking = true;
+          try {
+            const endpoint = new URL("deployment.json", window.location.href);
+            endpoint.searchParams.set("check", Date.now().toString());
+            const response = await fetch(endpoint, { cache: "no-store", credentials: "same-origin" });
+            if (!response.ok) return;
+            const deployment = await response.json();
+            if (!deployment.sha || deployment.sha === buildSha) return;
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("v", deployment.sha);
+            nextUrl.searchParams.set("refresh", Date.now().toString());
+            window.location.replace(nextUrl);
+          } catch {
+            // The Pages preview remains usable when the device is offline.
+          } finally {
+            isChecking = false;
+          }
+        };
+        window.addEventListener("focus", checkRelease);
+        window.addEventListener("online", checkRelease);
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) checkRelease();
+        });
+        window.setInterval(checkRelease, 60_000);
+        checkRelease();
+      })();
+    </script>
+  </head>
+  <body class="help-page">
+    <a class="skip-link" href="#help-main">Skip to Help content</a>
+
+    <header class="help-site-header">
+      <div class="help-navigation-leading">
+        <button class="icon-button mobile-menu-button help-menu-button" id="help-menu-button" type="button" aria-controls="help-sidebar" aria-expanded="false">
+          <svg class="icon"><use href="#i-menu"/></svg>
+        </button>
+        <a class="help-brand brand" id="help-home-link" href="help.html">
+          <img class="brand-mark" src="assets/logo/z00z-logo-gold-circle.png?v=c9778593beb14fabebcae28a55fc3071e797508a" alt="">
+          <span>Z00Z</span>
+        </a>
+      </div>
+      <strong class="help-header-title" id="help-product-label">Help</strong>
+      <div class="help-header-controls">
+        <button class="help-search-trigger" id="help-search-trigger" type="button" aria-haspopup="dialog" aria-controls="help-search-dialog" aria-expanded="false">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <span class="help-search-trigger-label" id="help-search-trigger-label">Search</span>
+          <span class="help-search-shortcut" id="help-search-shortcut" aria-hidden="true">Ctrl K</span>
+        </button>
+        <div class="help-header-language" id="help-language-picker"></div>
+      </div>
+      <div class="mobile-topbar-context help-mobile-topbar-context" id="help-mobile-topbar-context" aria-label="Current section" hidden></div>
+    </header>
+
+    <div class="help-search-overlay" id="help-search-overlay" hidden>
+      <div class="help-search-backdrop" id="help-search-backdrop" aria-hidden="true"></div>
+      <section class="help-search-dialog" id="help-search-dialog" role="dialog" aria-modal="true" aria-labelledby="help-search-dialog-title" tabindex="-1">
+        <div class="help-search-dialog-header">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <h2 class="visually-hidden" id="help-search-dialog-title">Search</h2>
+          <label class="visually-hidden" id="help-search-label" for="help-search">Search</label>
+          <input id="help-search" type="search" autocomplete="off" maxlength="80">
+          <button class="help-search-close" id="help-search-close" type="button">Esc</button>
+        </div>
+        <p class="visually-hidden" id="help-search-status" role="status" aria-live="polite"></p>
+        <div class="help-search-results" id="help-search-results"></div>
+      </section>
+    </div>
+
+    <button class="mobile-menu-backdrop help-sidebar-backdrop" id="help-sidebar-backdrop" type="button" tabindex="-1" hidden></button>
+    <div class="help-page-shell">
+      <aside class="mobile-popup-menu help-sidebar" id="help-sidebar" role="dialog" aria-labelledby="help-mobile-menu-title" data-popup-type="menu" hidden>
+        <header class="mobile-popup-header mobile-drawer-header help-sidebar-header">
+          <strong class="help-mobile-menu-title" id="help-mobile-menu-title">Help Content</strong>
+        </header>
+        <div class="mobile-navigation-scroll-region help-navigation-scroll-region">
+          <nav class="mobile-navigation-tree help-tree app-navigation-tree" id="help-tree" aria-label="Help contents"></nav>
+          <nav class="mobile-navigation-terminal help-navigation-terminal app-navigation-terminal" id="help-navigation-terminal" aria-label="Application settings"></nav>
+        </div>
+      </aside>
+
+      <main class="help-main" id="help-main" tabindex="-1">
+        <div class="help-content-layout">
+          <div class="help-content-column">
+            <div class="help-page-actions">
+              <button class="help-toc-trigger" id="help-toc-trigger" type="button" aria-label="Open On This Page" aria-controls="help-toc-drawer" aria-expanded="false" hidden>
+                <svg class="icon" aria-hidden="true"><use href="#i-page-outline"/></svg>
+                <span class="help-toc-trigger-label">On This Page</span>
+              </button>
+            </div>
+            <article class="help-document" id="help-document" aria-live="polite"></article>
+          </div>
+          <aside class="help-on-this-page" id="help-on-this-page" aria-labelledby="help-on-this-page-title" hidden>
+            <div class="help-on-this-page-sticky">
+              <p class="help-toc-title" id="help-on-this-page-title">On This Page</p>
+              <nav class="help-toc-navigation" id="help-toc-navigation" aria-label="On This Page"></nav>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+
+    <div class="help-toc-overlay" id="help-toc-overlay" hidden>
+      <div class="help-toc-backdrop" id="help-toc-backdrop" aria-hidden="true"></div>
+      <section class="help-toc-drawer" id="help-toc-drawer" role="dialog" aria-modal="true" aria-label="On This Page" tabindex="-1">
+        <header class="help-toc-drawer-header">
+          <p class="help-toc-title">On This Page</p>
+          <button class="help-toc-close" id="help-toc-close" type="button" aria-label="Close drawer">
+            <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+          </button>
+        </header>
+        <nav class="help-toc-navigation help-toc-drawer-navigation" id="help-toc-drawer-navigation" aria-label="On This Page"></nav>
+      </section>
+    </div>
+
+    <script src="scripts/port/locale-registry.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="i18n.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/en.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/ru.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/fr.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/de.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/es.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/pt.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/ko.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/tr.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/ja.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/zh-Hans.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="locales/navigation.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/contracts.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/icon-sprite.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/ui-primitives.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/navigation-model.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/navigation-session.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/generated/help-catalog.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/port/help-registry.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/vendor/markdown/mermaid.min.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/vendor/markdown/panzoom.min.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/help-markdown-enhancer.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+    <script src="scripts/help-app.js?v=c9778593beb14fabebcae28a55fc3071e797508a"></script>
+  </body>
+</html>

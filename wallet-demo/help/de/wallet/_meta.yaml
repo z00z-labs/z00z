@@ -1,0 +1,12 @@
+title: Wallets
+icon: wallet
+order:
+  - assets
+  - send
+  - receive
+  - import
+  - merge-split
+  - history
+  - staking
+  - backup
+  - settings

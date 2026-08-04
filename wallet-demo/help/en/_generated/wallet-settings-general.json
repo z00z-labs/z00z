@@ -1,0 +1,30 @@
+{
+  "capture_route": "wallet.settings.general",
+  "components": [
+    "button|type=button"
+  ],
+  "presentation_sha256": "b3e9c27796c709c306d51e88d5028ee09edadff32b45d4594d9cfa5b0faf9d53",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-settings-general.png",
+  "screenshot_sha256": "42108742fdf51b0898bbe87bc8d0f39cfd71fa396aec6ebfc71aeaea0192ec70",
+  "sections": [],
+  "terms": [
+    "Advanced",
+    "Backup",
+    "Chain",
+    "Chain: Mainnet. Read-only.",
+    "Everyday",
+    "General",
+    "Mainnet",
+    "Policies",
+    "Read-only",
+    "Rename",
+    "Security",
+    "Selected wallet settings",
+    "Wallet ID",
+    "Wallet name",
+    "everyday"
+  ],
+  "topic_id": "wallet.settings.general",
+  "version": 3
+}

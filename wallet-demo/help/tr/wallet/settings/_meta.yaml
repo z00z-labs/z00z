@@ -1,0 +1,8 @@
+title: Cüzdan ayarları
+icon: settings
+order:
+  - index
+  - security
+  - backup
+  - policies
+  - advanced

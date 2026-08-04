@@ -1,0 +1,8 @@
+title: Mensajero
+icon: message
+order:
+  - inbox
+  - sent
+  - conversations
+  - detail
+  - request-review

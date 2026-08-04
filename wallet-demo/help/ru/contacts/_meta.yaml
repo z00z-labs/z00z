@@ -1,0 +1,6 @@
+title: Контакты
+icon: user
+order:
+  - list
+  - detail
+  - identity-review

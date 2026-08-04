@@ -1,0 +1,8 @@
+title: Activos
+icon: assets
+order:
+  - index
+  - vouchers
+  - permissions
+  - quarantine
+  - asset-details

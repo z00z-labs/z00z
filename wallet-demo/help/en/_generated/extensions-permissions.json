@@ -1,0 +1,52 @@
+{
+  "capture_route": "extensions.permissions",
+  "components": [
+    "button|type=button|data-extension-action=open",
+    "button|type=button|data-extension-action=revoke"
+  ],
+  "presentation_sha256": "bcc5e235bd769a1d4a229a598d8983b39a48d2a941783b644ccd62bf4a89db82",
+  "scope": "context",
+  "screenshot": "help/assets/en/extensions-permissions.png",
+  "screenshot_sha256": "f09f978dec617bcce463dbc3f8946925212b034c8f1948873187b483dbb09550",
+  "sections": [
+    "Agents Budget",
+    "Create Voucher",
+    "Permissions",
+    "Service Credits"
+  ],
+  "terms": [
+    "0 of 3 remaining",
+    "2 of 5 remaining",
+    "8 of 12 remaining",
+    "Active",
+    "Agents Budget",
+    "Already expired; no usable authority remains.",
+    "App details",
+    "Attenuation only",
+    "Aug 2, 2026, 12:00 AM",
+    "Community voucher class \u00b7 claim inspection only",
+    "Compute class C2 \u00b7 presentation only",
+    "Create Voucher",
+    "Delegation",
+    "Displayed grants are bounded local fixtures. Revocation blocks future app proposals and never rewrites a prior wallet outcome.",
+    "Expired",
+    "Expires",
+    "Expiring",
+    "Expiry enforced locally",
+    "Jul 25, 2026, 8:20 AM",
+    "Jul 27, 2026, 6:00 PM",
+    "Local fixture workflow",
+    "Not allowed",
+    "On revoke",
+    "Operations \u00b7 native asset \u00b7 maximum 75 Z00Z per request",
+    "Permissions",
+    "Reject future proposals without rewriting prior wallet outcomes.",
+    "Revoke permission",
+    "Service Credits",
+    "Stop future claim inspection; issued objects remain wallet-owned.",
+    "Uses",
+    "extension permissions"
+  ],
+  "topic_id": "extensions.permissions",
+  "version": 3
+}

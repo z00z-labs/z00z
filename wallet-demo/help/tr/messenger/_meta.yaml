@@ -1,0 +1,8 @@
+title: Mesajlaşma
+icon: message
+order:
+  - inbox
+  - sent
+  - conversations
+  - detail
+  - request-review

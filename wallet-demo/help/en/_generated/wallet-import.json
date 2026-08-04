@@ -1,0 +1,30 @@
+{
+  "capture_route": "wallet.import",
+  "components": [
+    "input|type=file|name=assetPackage"
+  ],
+  "presentation_sha256": "7def6a7b1b9903059cda3ad1c8b1c03cfc75bc3b81a461298642c6f2c9829b4a",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-import.png",
+  "screenshot_sha256": "a7ba4d1e08b170aede5e986f208aed439411156b5bc0d48d93ee99aa100ccd44",
+  "sections": [
+    "Import asset"
+  ],
+  "terms": [
+    "AssetPkgWire JSON \u00b7 maximum 64 KiB",
+    "Choose asset package",
+    "Claim a public asset package from disk into Everyday.",
+    "Claim target",
+    "Everyday",
+    "Import asset",
+    "Mainnet",
+    "Public package only; a top-level",
+    "Read-only",
+    "The local file path is never stored or sent to the wallet RPC.",
+    "The wallet verifies cryptography, ownership, replay, and claim conflicts.",
+    "field is rejected.",
+    "secret"
+  ],
+  "topic_id": "wallet.import",
+  "version": 3
+}

@@ -1,0 +1,5 @@
+title: Datos y almacenamiento
+icon: storage
+order:
+  - disk-usage
+  - network-usage

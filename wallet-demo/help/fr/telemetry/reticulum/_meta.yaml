@@ -1,0 +1,11 @@
+title: Reticulum
+icon: network
+order:
+  - index
+  - node
+  - interfaces
+  - radio
+  - entrypoints
+  - paths
+  - probes
+  - links

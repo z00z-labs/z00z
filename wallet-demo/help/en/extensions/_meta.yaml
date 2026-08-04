@@ -1,0 +1,26 @@
+title: Extensions
+icon: spark
+order:
+  - agents-budget
+  - assets-locker
+  - bounties
+  - create-asset
+  - create-permission
+  - create-voucher
+  - digital-goods
+  - donation
+  - escrow
+  - pay
+  - payroll
+  - private-contract
+  - request
+  - service-credits
+  - subscription
+  - swap
+  - tickets-passes
+  - wbold-gateway
+  - xchain-integration
+  - discover
+  - security-model
+  - detail
+  - permission-review

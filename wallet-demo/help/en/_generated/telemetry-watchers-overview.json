@@ -1,0 +1,52 @@
+{
+  "capture_route": "telemetry.watchers.overview",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-workspace-route=telemetry.watchers.alerts",
+    "button|type=button|data-workspace-route=telemetry.watchers.censorship",
+    "button|type=button|data-workspace-route=telemetry.watchers.evidence",
+    "button|type=button|data-workspace-route=telemetry.watchers.overview",
+    "button|type=button|data-workspace-route=telemetry.watchers.providers",
+    "button|type=button|data-workspace-route=telemetry.watchers.publication"
+  ],
+  "presentation_sha256": "88141df5fd11d67f2fad8b5751d9b09081a905514d2f20a70a329790ec2fb4ab",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-watchers-overview.png",
+  "screenshot_sha256": "73f0e977f9f14af87e31155d1932e663c1048ef393510ef14f61323a16b7bf0a",
+  "sections": [
+    "Watchers"
+  ],
+  "terms": [
+    "1 critical \u00b7 1 warning",
+    "1 informational fixture alert",
+    "Alert counts",
+    "Alerts",
+    "Censorship signals",
+    "Current Rust mapping",
+    "DA providers",
+    "Deterministic Watchers controls",
+    "Deterministic, privacy-safe observation and evidence workflow.",
+    "Evidence export",
+    "Observation source",
+    "ObservationSnapshot",
+    "Observational only",
+    "Overview",
+    "Provider outcome",
+    "Publication checks",
+    "Publication state",
+    "PublicationRecord state from the deterministic witness",
+    "Resolve stage \u00b7 ProviderSignal",
+    "RetryPending",
+    "Runtime authority",
+    "Runtime projection",
+    "Scenario",
+    "Useful fixture",
+    "Watcher observation summary",
+    "Watcher runtime notes do not become protocol truth",
+    "WatcherBoundary::project_snapshot",
+    "Watchers",
+    "produces"
+  ],
+  "topic_id": "telemetry.watchers.overview",
+  "version": 3
+}

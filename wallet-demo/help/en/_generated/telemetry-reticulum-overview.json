@@ -1,0 +1,47 @@
+{
+  "capture_route": "telemetry.reticulum.overview",
+  "components": [
+    "button|type=button|data-workspace-route=telemetry.reticulum.entrypoints",
+    "button|type=button|data-workspace-route=telemetry.reticulum.interfaces",
+    "button|type=button|data-workspace-route=telemetry.reticulum.links",
+    "button|type=button|data-workspace-route=telemetry.reticulum.node",
+    "button|type=button|data-workspace-route=telemetry.reticulum.overview",
+    "button|type=button|data-workspace-route=telemetry.reticulum.paths",
+    "button|type=button|data-workspace-route=telemetry.reticulum.probes",
+    "button|type=button|data-workspace-route=telemetry.reticulum.radio"
+  ],
+  "presentation_sha256": "7c8fd08969bf3ed6d37a2928de113e9e15a50c7b39a6b1aa0603f00f1732ee59",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-reticulum-overview.png",
+  "screenshot_sha256": "3f59d7368eba40108f87dcc558572c2a774366809ee3b05deeaf18e2267312ec",
+  "sections": [
+    "Overview",
+    "Reticulum telemetry"
+  ],
+  "terms": [
+    "Entrypoints",
+    "Interface availability",
+    "Interfaces",
+    "Links",
+    "Local capability unavailable",
+    "Managed-node state",
+    "No controlled-destination probe results",
+    "No local Reticulum status bridge",
+    "No local interface summary",
+    "No managed transport summary",
+    "Node",
+    "Overview",
+    "Overview parameters",
+    "Path and link evidence",
+    "Paths",
+    "Probe coverage",
+    "Probes",
+    "Radio",
+    "Read-only",
+    "Reticulum",
+    "Reticulum telemetry",
+    "Unavailable"
+  ],
+  "topic_id": "telemetry.reticulum.overview",
+  "version": 3
+}

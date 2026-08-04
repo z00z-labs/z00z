@@ -1,0 +1,39 @@
+{
+  "capture_route": "wallet.quarantine",
+  "components": [
+    "button|type=button",
+    "button|type=button|role=tab"
+  ],
+  "presentation_sha256": "62ba2ce86105803cf3240243ed0d6ad8a603c6ac0691d3bf22303a1713ce3fdb",
+  "scope": "context",
+  "screenshot": "help/assets/en/wallet-quarantine.png",
+  "screenshot_sha256": "af0eb6c701ff8561b6ee4cbb7da32683b3351c8a2ea754f709b0b5f0a2b34213",
+  "sections": [],
+  "terms": [
+    "1 use",
+    "12 uses",
+    "2 of 5 uses",
+    "2 uses",
+    "20 uses",
+    "3 uses",
+    "Approve vendor invoice",
+    "Assets",
+    "Delegated",
+    "Delivery receipt access",
+    "Deploy to staging",
+    "Emergency route override",
+    "Held",
+    "Needs review",
+    "Pair field terminal",
+    "Permission filters",
+    "Permissions",
+    "Publish release notes",
+    "Read audit trail",
+    "Used",
+    "View service status",
+    "Vouchers",
+    "Wallet sections"
+  ],
+  "topic_id": "wallet.quarantine",
+  "version": 3
+}

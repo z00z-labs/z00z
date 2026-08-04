@@ -1,0 +1,42 @@
+{
+  "capture_route": "telemetry.explorer.checkpoints",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-workspace-route=telemetry.explorer.batches",
+    "button|type=button|data-workspace-route=telemetry.explorer.checkpoints",
+    "button|type=button|data-workspace-route=telemetry.explorer.evidence",
+    "button|type=button|data-workspace-route=telemetry.explorer.overview",
+    "button|type=button|data-workspace-route=telemetry.explorer.search"
+  ],
+  "presentation_sha256": "7c77324071a3ff59b259c026f98cd02f5cb61943e7e4d562752c8c0b37e39029",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-explorer-checkpoints.png",
+  "screenshot_sha256": "de1481390547c31d9f5f1f9538cddc7c8289a8b652dc0c2db15fa3a293fb9116",
+  "sections": [
+    "Checkpoints"
+  ],
+  "terms": [
+    "1 public batch relationship",
+    "Batches",
+    "Checkpoint \u00b7 challenge open",
+    "Checkpoint \u00b7 finalized",
+    "Checkpoint \u00b7 publication ready",
+    "Checkpoints",
+    "Choose a record to inspect only its allowlisted public summary and technical DTO.",
+    "Deterministic Explorer controls",
+    "Deterministic, privacy-restricted public evidence workflow.",
+    "Explorer",
+    "Overview",
+    "Public checkpoints",
+    "Public evidence",
+    "Scenario",
+    "Search",
+    "Select public evidence",
+    "Useful fixture",
+    "checkpoint_000184",
+    "checkpoint_000185",
+    "checkpoint_000186"
+  ],
+  "topic_id": "telemetry.explorer.checkpoints",
+  "version": 3
+}

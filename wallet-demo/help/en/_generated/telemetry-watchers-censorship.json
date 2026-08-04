@@ -1,0 +1,43 @@
+{
+  "capture_route": "telemetry.watchers.censorship",
+  "components": [
+    "button|type=button",
+    "button|type=button|data-workspace-route=telemetry.watchers.alerts",
+    "button|type=button|data-workspace-route=telemetry.watchers.censorship",
+    "button|type=button|data-workspace-route=telemetry.watchers.evidence",
+    "button|type=button|data-workspace-route=telemetry.watchers.overview",
+    "button|type=button|data-workspace-route=telemetry.watchers.providers",
+    "button|type=button|data-workspace-route=telemetry.watchers.publication"
+  ],
+  "presentation_sha256": "dda2046051f1e89250945bc68fe0048db4e8190c1e29a0d3a8e3ebcec79dbe0c",
+  "scope": "context",
+  "screenshot": "help/assets/en/telemetry-watchers-censorship.png",
+  "screenshot_sha256": "037b77cda743adbbb855afcd749a70d4ca3e7694ca818050b3a03d609afe8927",
+  "sections": [
+    "Censorship signals"
+  ],
+  "terms": [
+    "12 deterministic publication slots",
+    "Alerts",
+    "Censorship signals",
+    "CensorshipSuspect",
+    "CensorshipWatch + AlertKind::CensorshipSuspect",
+    "CensorshipWatch is currently a marker type; this demo does not invent a detector or global censorship verdict.",
+    "DA providers",
+    "Deterministic Watchers controls",
+    "Deterministic, privacy-safe observation and evidence workflow.",
+    "Evidence export",
+    "Fixture window",
+    "No global censorship score is inferred from a local or deterministic observation window.",
+    "Observation source",
+    "Overview",
+    "Publication checks",
+    "Runtime projection",
+    "Scenario",
+    "Useful fixture",
+    "Watchers",
+    "concept fixture only"
+  ],
+  "topic_id": "telemetry.watchers.censorship",
+  "version": 3
+}

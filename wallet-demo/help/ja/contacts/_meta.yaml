@@ -1,0 +1,6 @@
+title: 連絡先
+icon: user
+order:
+  - list
+  - detail
+  - identity-review
